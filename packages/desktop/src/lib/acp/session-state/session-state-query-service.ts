@@ -1,5 +1,4 @@
 import type {
-	OperationSnapshot,
 	SessionStateDelta,
 	ToolArguments,
 	ToolCallStatus,
@@ -27,129 +26,6 @@ export function transcriptOperationsFromDelta(
 	delta: SessionStateDelta
 ): TranscriptDeltaOperation[] {
 	return delta.transcriptOperations ?? [];
-}
-
-function normalizeCommand(value: string | null | undefined): string | null {
-	if (value == null) {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	if (trimmed.length === 0) {
-		return null;
-	}
-
-	return trimmed.replace(/\s+/g, " ");
-}
-
-function extractCommandFromArguments(argumentsValue: ToolArguments | null | undefined): string | null {
-	if (argumentsValue?.kind !== "execute") {
-		return null;
-	}
-
-	return normalizeCommand(argumentsValue.command);
-}
-
-export function isPlaceholderTitle(title: string | null | undefined): boolean {
-	const trimmed = title?.trim();
-	return (
-		trimmed === undefined ||
-		trimmed === "" ||
-		trimmed === "Read File" ||
-		trimmed === "Edit File" ||
-		trimmed === "Delete File" ||
-		trimmed === "View Image" ||
-		trimmed === "Terminal" ||
-		trimmed === "Apply Patch" ||
-		trimmed === "Read" ||
-		trimmed === "Edit" ||
-		trimmed === "Delete" ||
-		trimmed === "Bash"
-	);
-}
-
-function synthesizeOperationTitleFromArguments(argumentsValue: ToolArguments): string | null {
-	switch (argumentsValue.kind) {
-		case "read":
-			return argumentsValue.file_path ?? null;
-		case "execute":
-			return normalizeCommand(argumentsValue.command);
-		case "search":
-			return normalizeCommand(argumentsValue.query ?? argumentsValue.file_path ?? null);
-		case "fetch":
-			return argumentsValue.url ?? null;
-		case "webSearch":
-			return argumentsValue.query ?? null;
-		default:
-			return null;
-	}
-}
-
-export function resolveOperationDisplayTitle(
-	operation: Pick<OperationSnapshot, "title" | "arguments" | "name">
-): string | null {
-	if (!isPlaceholderTitle(operation.title)) {
-		return operation.title ?? null;
-	}
-
-	const synthesized = synthesizeOperationTitleFromArguments(operation.arguments);
-	if (synthesized !== null) {
-		if (operation.arguments.kind === "read") {
-			return `Read ${synthesized}`;
-		}
-		return synthesized;
-	}
-
-	const trimmedName = operation.name.trim();
-	return trimmedName.length > 0 ? trimmedName : null;
-}
-
-export function resolveOperationKnownCommand(
-	operation: Pick<OperationSnapshot, "command" | "arguments" | "progressive_arguments" | "title">
-): string | null {
-	const progressiveCommand = extractCommandFromArguments(operation.progressive_arguments);
-	if (progressiveCommand !== null) {
-		return progressiveCommand;
-	}
-
-	const argumentCommand = extractCommandFromArguments(operation.arguments);
-	if (argumentCommand !== null) {
-		return argumentCommand;
-	}
-
-	const explicitCommand = normalizeCommand(operation.command);
-	if (explicitCommand !== null) {
-		return explicitCommand;
-	}
-
-	if (operation.title == null) {
-		return null;
-	}
-
-	const titleMatch = /^`(.+)`$/.exec(operation.title);
-	return normalizeCommand(titleMatch?.[1] ?? null);
-}
-
-export function isOperationBlockedByPermission(
-	operation: Pick<OperationSnapshot, "lifecycle" | "blocked_reason">
-): boolean {
-	return operation.lifecycle === "blocked" && operation.blocked_reason === "permission";
-}
-
-export function operationHasRawEvidence(
-	operation: Pick<
-		OperationSnapshot,
-		"title" | "command" | "result" | "locations" | "skill_meta" | "normalized_todos"
-	>
-): boolean {
-	return (
-		!isPlaceholderTitle(operation.title) ||
-		normalizeCommand(operation.command) !== null ||
-		operation.result !== null ||
-		(operation.locations?.length ?? 0) > 0 ||
-		operation.skill_meta !== null ||
-		(operation.normalized_todos?.length ?? 0) > 0
-	);
 }
 
 export function sessionStateDeltaHasAssistantMutation(delta: SessionStateDelta): boolean {
@@ -448,8 +324,8 @@ export function resolveCanonicalToolCallCreate(
 		(data.normalizedQuestions?.length ?? 0) > 0
 			? data.kind
 			: (currentToolCall.kind === undefined || currentToolCall.kind === "other") &&
-				  data.kind !== undefined &&
-				  data.kind !== "other"
+					data.kind !== undefined &&
+					data.kind !== "other"
 				? data.kind
 				: (currentToolCall.kind ?? data.kind);
 	const nextAwaitingPlanApproval = data.awaitingPlanApproval;
@@ -523,8 +399,7 @@ export function resolveCanonicalToolCallUpdate(
 		nextResult,
 		startedAtMs: currentToolCall.startedAtMs ?? startedAtMsHint,
 		completedAtMs:
-			currentToolCall.completedAtMs ??
-			(isTerminalToolCallStatus(nextStatus) ? nowMs : undefined),
+			currentToolCall.completedAtMs ?? (isTerminalToolCallStatus(nextStatus) ? nowMs : undefined),
 		shouldRefreshNormalizedResult:
 			(!shouldPreserveStructuredResult && extractedResult !== null) ||
 			currentToolCall.normalizedResult === undefined ||

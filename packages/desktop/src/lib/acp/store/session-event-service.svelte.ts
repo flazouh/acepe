@@ -10,7 +10,12 @@
 
 import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
-
+import type {
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
+	SessionModelState,
+	SessionStateEnvelope,
+} from "../../services/acp-types.js";
 import type {
 	AvailableCommand,
 	ConfigOptionData,
@@ -19,30 +24,12 @@ import type {
 	SessionUpdate,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
-import type {
-	SessionDomainEvent,
-	SessionGraphCapabilities,
-	SessionGraphLifecycle,
-	SessionModelState,
-	SessionStateDelta,
-	SessionStateEnvelope,
-	TranscriptDeltaOperation,
-} from "../../services/acp-types.js";
-import { sessionStateDeltaHasAssistantMutation } from "../session-state/session-state-query-service.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
-import { SessionDomainEventSubscriber } from "../logic/session-domain-event-subscriber.js";
-import { createPermissionRequest, type PermissionRequest } from "../types/permission";
-import type { QuestionRequest } from "../types/question";
-import {
-	createLegacyInteractionReplyHandler,
-	normalizeInteractionReplyHandler,
-} from "../types/reply-handler.js";
 import { createLogger } from "../utils/logger.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
-import type { SessionContextBudget, SessionUsageTelemetry } from "./types.js";
 
 const logger = createLogger({ id: "session-event-service", name: "SessionEventService" });
 
@@ -84,51 +71,13 @@ function getSessionId(update: SessionUpdate): string | null | undefined {
 	return (update as { session_id?: string | null }).session_id;
 }
 
-function getAssistantAggregationKey(
-	update: Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>
-): string | undefined {
-	return update.message_id ?? undefined;
-}
-
-function resolveContextBudget(
-	usageTelemetryData: UsageTelemetryData,
-	previous: SessionUsageTelemetry | undefined,
-	_currentModelId: string | null,
-	updatedAt: number
-): SessionContextBudget | null {
-	const explicitMaxTokens = usageTelemetryData.contextWindowSize ?? null;
-	if (explicitMaxTokens != null && explicitMaxTokens > 0) {
-		return {
-			maxTokens: explicitMaxTokens,
-			source: "provider-explicit",
-			scope: usageTelemetryData.scope ?? "step",
-			updatedAt,
-		};
-	}
-
-	if (previous?.contextBudget?.source === "provider-explicit") {
-		return previous.contextBudget;
-	}
-
-	return previous?.contextBudget ?? null;
-}
-
-function toPermissionToolReference(
-	tool: { messageId: string; callId: string } | null | undefined
-): { messageID: string; callID: string } | undefined {
-	if (!tool) {
-		return undefined;
-	}
-	return {
-		messageID: tool.messageId,
-		callID: tool.callId,
-	};
-}
-
 /** Data payload delivered with a connectionComplete lifecycle event. */
 export interface ConnectionCompleteData {
 	models: SessionModelState;
-	modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
+	modes: {
+		currentModeId?: string;
+		availableModes?: Array<{ id: string; name: string; description?: string | null }>;
+	};
 	availableCommands: AvailableCommand[];
 	configOptions: ConfigOptionData[];
 	autonomousEnabled: boolean;
@@ -151,20 +100,11 @@ function materializedConnectionData(
 }
 
 export interface SessionEventServiceCallbacks {
-	onPermissionRequest?: (permission: PermissionRequest) => void;
-	onQuestionRequest?: (question: QuestionRequest) => void;
 	onPlanUpdate?: (sessionId: string, planData: PlanData) => void;
 	onTurnComplete?: (sessionId: string) => void;
 }
 
-/** Internal entry for a pending lifecycle waiter. */
-interface LifecycleWaiter {
-	attemptId: number;
-	resolve: (data: ConnectionCompleteData) => void;
-	reject: (error: Error) => void;
-	timeoutId: ReturnType<typeof setTimeout>;
-}
-
+/** Internal entry for a pending canonical connection waiter. */
 interface ConnectionMaterializationWaiter {
 	minGraphRevision: number;
 	capabilities: SessionGraphCapabilities | null;
@@ -177,10 +117,8 @@ interface ConnectionMaterializationWaiter {
 export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
-	private domainEventSubscriber: SessionDomainEventSubscriber | null = null;
 	private sessionUpdateSubscriptionId: string | null = null;
 	private sessionStateSubscriptionId: string | null = null;
-	private domainEventSubscriptionId: string | null = null;
 	// Pending events buffer for sessions being created (race condition handling)
 	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
 	private pendingEventTimestamps = new SvelteMap<string, number>();
@@ -210,17 +148,9 @@ export class SessionEventService {
 	// Callbacks for permission/question handling
 	private callbacks: SessionEventServiceCallbacks = {};
 
-	// Lifecycle waiters — per-session promises awaiting connectionComplete/connectionFailed
-	private lifecycleWaiters = new Map<string, LifecycleWaiter>();
+	// Canonical connection waiters — per-session promises awaiting ready/error envelopes.
 	private connectionMaterializationWaiters = new Map<string, ConnectionMaterializationWaiter>();
 	private latestSessionStateGraphRevision = new SvelteMap<string, number>();
-	private pendingAssistantFallbacks = new SvelteMap<
-		string,
-		{
-			timeoutId: ReturnType<typeof setTimeout>;
-			updates: Array<Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>>;
-		}
-	>();
 
 	/**
 	 * Set callbacks for handling permission and question requests.
@@ -230,68 +160,15 @@ export class SessionEventService {
 	}
 
 	/**
-	 * Subscribe to the lifecycle outcome for a single connect attempt.
-	 * Returns a promise that resolves on connectionComplete, rejects on
-	 * connectionFailed or timeout. Subscription is automatically cleaned
+	 * Subscribe to the canonical connection outcome for a single connect attempt.
+	 * Returns a promise that resolves on canonical ready state, rejects on
+	 * canonical error state or timeout. Subscription is automatically cleaned
 	 * up on resolution — call `cancel()` to clean up early (e.g. if the
 	 * invoke itself fails before Rust can emit an event).
 	 *
 	 * MUST be called BEFORE firing the Tauri invoke so the listener is
 	 * in place before the SSE event can possibly arrive.
 	 */
-	waitForLifecycleEvent(
-		sessionId: string,
-		attemptId: number,
-		timeoutMs: number
-	): { promise: Promise<ConnectionCompleteData>; cancel: () => void } {
-		// Cancel any stale waiter for the same session (defensive)
-		this.cancelLifecycleWaiter(sessionId);
-
-		let waiterResolve!: (data: ConnectionCompleteData) => void;
-		let waiterReject!: (error: Error) => void;
-		const promise = new Promise<ConnectionCompleteData>((resolve, reject) => {
-			waiterResolve = resolve;
-			waiterReject = reject;
-		});
-
-		const timeoutId = setTimeout(() => {
-			const waiter = this.takeLifecycleWaiter(sessionId, attemptId);
-			if (!waiter) {
-				return;
-			}
-			waiter.reject(
-				new Error(`Watchdog timeout: no response from Rust within ${timeoutMs / 1000}s`)
-			);
-		}, timeoutMs);
-
-		this.lifecycleWaiters.set(sessionId, {
-			attemptId,
-			resolve: waiterResolve,
-			reject: waiterReject,
-			timeoutId,
-		});
-
-		const cancel = () => {
-			this.cancelLifecycleWaiter(sessionId, attemptId);
-		};
-
-		return { promise, cancel };
-	}
-
-	/**
-	 * Cancel a pending lifecycle waiter without resolving or rejecting.
-	 */
-	cancelLifecycleWaiter(sessionId: string, attemptId?: number): void {
-		const waiter = this.lifecycleWaiters.get(sessionId);
-		if (waiter) {
-			if (attemptId !== undefined && waiter.attemptId !== attemptId) {
-				return;
-			}
-			clearTimeout(waiter.timeoutId);
-			this.lifecycleWaiters.delete(sessionId);
-		}
-	}
-
 	waitForConnectionMaterialization(
 		sessionId: string,
 		timeoutMs: number
@@ -332,33 +209,15 @@ export class SessionEventService {
 		return { promise, cancel };
 	}
 
+	/**
+	 * Cancel a pending lifecycle waiter without resolving or rejecting.
+	 */
 	cancelConnectionMaterializationWaiter(sessionId: string): void {
 		const waiter = this.connectionMaterializationWaiters.get(sessionId);
 		if (waiter) {
 			clearTimeout(waiter.timeoutId);
 			this.connectionMaterializationWaiters.delete(sessionId);
 		}
-	}
-
-	private takeLifecycleWaiter(
-		sessionId: string,
-		attemptId: number
-	): LifecycleWaiter | undefined {
-		const waiter = this.lifecycleWaiters.get(sessionId);
-		if (!waiter) {
-			return undefined;
-		}
-		if (waiter.attemptId !== attemptId) {
-			logger.debug("Ignoring stale lifecycle event", {
-				sessionId,
-				attemptId,
-				expectedAttemptId: waiter.attemptId,
-			});
-			return undefined;
-		}
-		clearTimeout(waiter.timeoutId);
-		this.lifecycleWaiters.delete(sessionId);
-		return waiter;
 	}
 
 	private takeConnectionMaterializationWaiter(
@@ -380,25 +239,19 @@ export class SessionEventService {
 		if (
 			this.eventSubscriber &&
 			this.sessionUpdateSubscriptionId &&
-			this.sessionStateSubscriptionId &&
-			this.domainEventSubscriber &&
-			this.domainEventSubscriptionId
+			this.sessionStateSubscriptionId
 		) {
 			return okAsync(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
 		if (
-			this.eventSubscriber ||
-			this.domainEventSubscriber ||
-			this.sessionUpdateSubscriptionId ||
-			this.sessionStateSubscriptionId ||
-			this.domainEventSubscriptionId
+			this.eventSubscriber &&
+			(!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)
 		) {
-			this.cleanupSessionUpdates();
+			this.eventSubscriber = null;
 		}
 
 		const subscriber = new EventSubscriber();
-		const domainSubscriber = new SessionDomainEventSubscriber();
 		return subscriber
 			.subscribe((update: SessionUpdate, envelopeSeq: number) => {
 				this.handleSessionUpdate(update, handler, envelopeSeq);
@@ -409,37 +262,21 @@ export class SessionEventService {
 					this.handleSessionStateEnvelope(envelope, handler);
 				});
 			})
-			.andThen((sessionStateSubscriptionId) =>
-				domainSubscriber
-					.subscribe((event) => {
-						this.handleSessionDomainEvent(event, handler);
-					})
-					.map((domainEventSubscriptionId) => ({
-						sessionStateSubscriptionId,
-						domainEventSubscriptionId,
-					}))
-			)
-			.map(({ sessionStateSubscriptionId, domainEventSubscriptionId }) => {
+			.map((sessionStateSubscriptionId) => {
 				this.eventSubscriber = subscriber;
-				this.domainEventSubscriber = domainSubscriber;
 				this.sessionStateSubscriptionId = sessionStateSubscriptionId;
-				this.domainEventSubscriptionId = domainEventSubscriptionId;
 				this.startTelemetryReporter();
 				logger.debug("Session update subscription initialized", {
 					sessionSubscriptionId: this.sessionUpdateSubscriptionId,
-					sessionStateSubscriptionId,
-					domainEventSubscriptionId,
+					sessionStateSubscriptionId: this.sessionStateSubscriptionId,
 				});
 				return undefined;
 			})
 			.mapErr((error) => {
 				subscriber.unsubscribe();
-				domainSubscriber.unsubscribe();
 				this.eventSubscriber = null;
-				this.domainEventSubscriber = null;
 				this.sessionUpdateSubscriptionId = null;
 				this.sessionStateSubscriptionId = null;
-				this.domainEventSubscriptionId = null;
 				logger.error("Failed to initialize session update subscription", { error });
 				return new AgentError(
 					"initializeSessionUpdates",
@@ -456,29 +293,20 @@ export class SessionEventService {
 			clearTimeout(timeoutId);
 		}
 		this.pendingFlushTimeouts.clear();
-		for (const pendingAssistantFallback of this.pendingAssistantFallbacks.values()) {
-			clearTimeout(pendingAssistantFallback.timeoutId);
-		}
-		this.pendingAssistantFallbacks.clear();
-		this.processedSessionUpdateSeqs.clear();
 		for (const waiter of this.connectionMaterializationWaiters.values()) {
 			clearTimeout(waiter.timeoutId);
 		}
 		this.connectionMaterializationWaiters.clear();
 		this.latestSessionStateGraphRevision.clear();
+		this.processedSessionUpdateSeqs.clear();
 		this.stopTelemetryReporter();
 
 		if (this.eventSubscriber) {
 			this.eventSubscriber.unsubscribe();
 			this.eventSubscriber = null;
 		}
-		if (this.domainEventSubscriber) {
-			this.domainEventSubscriber.unsubscribe();
-			this.domainEventSubscriber = null;
-		}
 		this.sessionUpdateSubscriptionId = null;
 		this.sessionStateSubscriptionId = null;
-		this.domainEventSubscriptionId = null;
 	}
 
 	/**
@@ -508,12 +336,6 @@ export class SessionEventService {
 			return;
 		}
 
-		const session = handler.getSessionCold(sessionId);
-
-		// Check hot state for connection status — cold state never includes
-		// isConnected/status fields, so we always read from the hot state store.
-		const hotState = session ? handler.getHotState(sessionId) : null;
-
 		if (logger.isLevelEnabled("debug")) {
 			logger.debug("Received session update", {
 				type: update.type,
@@ -533,13 +355,6 @@ export class SessionEventService {
 				attemptId: update.attempt_id,
 				autonomousEnabled: update.autonomous_enabled,
 			});
-			this.takeLifecycleWaiter(sessionId, update.attempt_id)?.resolve({
-				models: update.models,
-				modes: update.modes,
-				availableCommands: update.available_commands ?? [],
-				configOptions: update.config_options ?? [],
-				autonomousEnabled: update.autonomous_enabled,
-			});
 			return;
 		}
 
@@ -554,9 +369,6 @@ export class SessionEventService {
 				attemptId: update.attempt_id,
 				error: update.error,
 			});
-			this.takeLifecycleWaiter(sessionId, update.attempt_id)?.reject(
-				new Error(update.error)
-			);
 			return;
 		}
 
@@ -600,44 +412,16 @@ export class SessionEventService {
 				break;
 
 			case "permissionRequest":
-				// Permissions now converge here for session-update based agents, including
-				// cc-sdk flows that still carry a JSON-RPC reply route.
-				{
-					const permission = createPermissionRequest({
-						id: update.permission.id,
-						sessionId: update.permission.sessionId,
-						jsonRpcRequestId: update.permission.jsonRpcRequestId,
-						replyHandler:
-							normalizeInteractionReplyHandler(update.permission.replyHandler) ??
-							createLegacyInteractionReplyHandler(
-								update.permission.id,
-								update.permission.jsonRpcRequestId
-							),
-						permission: update.permission.permission,
-						patterns: update.permission.patterns,
-						metadata: update.permission.metadata,
-						always: update.permission.always,
-						tool: update.permission.tool,
-					});
-					this.callbacks.onPermissionRequest?.(permission);
-				}
+				logger.debug("permissionRequest received on raw lane", {
+					sessionId,
+					interactionId: update.permission.id,
+				});
 				break;
 
 			case "questionRequest":
-				// Questions arrive as session updates across providers. Some still carry
-				// a JSON-RPC request ID for the reply path.
-				this.callbacks.onQuestionRequest?.({
-					id: update.question.id,
-					sessionId: update.question.sessionId,
-					jsonRpcRequestId: update.question.jsonRpcRequestId ?? undefined,
-					replyHandler:
-						normalizeInteractionReplyHandler(update.question.replyHandler) ??
-						createLegacyInteractionReplyHandler(
-							update.question.id,
-							update.question.jsonRpcRequestId
-						),
-					questions: update.question.questions,
-					tool: toPermissionToolReference(update.question.tool),
+				logger.debug("questionRequest received on raw lane", {
+					sessionId,
+					interactionId: update.question.id,
 				});
 				break;
 
@@ -683,8 +467,7 @@ export class SessionEventService {
 				break;
 
 			case "configOptionUpdate": {
-				// Store full config options state for UI rendering
-				logger.debug("configOptionUpdate received", {
+				logger.debug("configOptionUpdate received on raw lane", {
 					sessionId,
 					optionCount: update.update.configOptions.length,
 					options: update.update.configOptions.map((o) => ({
@@ -694,7 +477,6 @@ export class SessionEventService {
 						currentValue: o.currentValue,
 					})),
 				});
-				handler.updateConfigOptions(sessionId, update.update.configOptions);
 				break;
 			}
 
@@ -715,24 +497,17 @@ export class SessionEventService {
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
 		this.latestSessionStateGraphRevision.set(
 			envelope.sessionId,
-			Math.max(this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0, envelope.graphRevision)
+			Math.max(
+				this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0,
+				envelope.graphRevision
+			)
 		);
 		this.advanceConnectionMaterializationWaiter(envelope);
 		if (!this.hasKnownSession(handler, envelope.sessionId)) {
 			this.bufferPendingSessionState(envelope.sessionId, envelope);
 			return;
 		}
-		if (
-			envelope.payload.kind === "delta" &&
-			sessionStateDeltaHasAssistantMutation(envelope.payload.delta)
-		) {
-			this.clearPendingAssistantFallback(envelope.sessionId);
-		}
 		handler.applySessionStateEnvelope(envelope.sessionId, envelope);
-	}
-
-	handleSessionDomainEvent(event: SessionDomainEvent, handler: SessionEventHandler): void {
-		handler.applySessionDomainEvent(event);
 	}
 
 	private shouldDropProcessedSessionUpdate(
@@ -905,82 +680,10 @@ export class SessionEventService {
 		this.takeConnectionMaterializationWaiter(envelope.sessionId)?.resolve(materialized);
 	}
 
-	private scheduleAssistantFallbackUpdate(
-		sessionId: string,
-		update: Extract<SessionUpdate, { type: "agentMessageChunk" | "agentThoughtChunk" }>,
-		handler: SessionEventHandler,
-		turnState: import("./types.js").TurnState | undefined
-	): void {
-		// Fallback-deferral exists to let canonical transcript deltas win during
-		// live streaming. Apply synchronously only when we're explicitly in
-		// idle/replay AND there's no already-queued batch for this session —
-		// bypassing a queued batch would reorder chunks (the queued ones flush
-		// on the next tick, after the sync-applied one).
-		const existing = this.pendingAssistantFallbacks.get(sessionId);
-		if (turnState === "idle" && !existing) {
-			const aggregationKey = getAssistantAggregationKey(update);
-			handler
-				.aggregateAssistantChunk(
-					sessionId,
-					update.chunk,
-					aggregationKey,
-					update.type === "agentThoughtChunk"
-				)
-				.mapErr((error) =>
-					logger.error("Failed to aggregate replay assistant chunk", { error })
-				);
-			return;
-		}
-
-		if (existing) {
-			existing.updates.push(update);
-			return;
-		}
-
-		const updates = [update];
-		const timeoutId = setTimeout(() => {
-			const pending = this.pendingAssistantFallbacks.get(sessionId);
-			this.pendingAssistantFallbacks.delete(sessionId);
-			const fallbackUpdates = pending?.updates ?? updates;
-			for (const pendingUpdate of fallbackUpdates) {
-				const aggregationKey = getAssistantAggregationKey(pendingUpdate);
-				handler
-					.aggregateAssistantChunk(
-						sessionId,
-						pendingUpdate.chunk,
-						aggregationKey,
-						pendingUpdate.type === "agentThoughtChunk"
-					)
-					.mapErr((error) =>
-						logger.error("Failed to aggregate fallback assistant chunk", { error })
-					);
-				handler.ensureStreamingState(sessionId);
-			}
-		}, 0);
-
-		this.pendingAssistantFallbacks.set(sessionId, {
-			timeoutId,
-			updates,
-		});
-	}
-
-	private clearPendingAssistantFallback(sessionId: string): void {
-		const pending = this.pendingAssistantFallbacks.get(sessionId);
-		if (pending === undefined) {
-			return;
-		}
-		clearTimeout(pending.timeoutId);
-		this.pendingAssistantFallbacks.delete(sessionId);
-	}
-
 	/**
 	 * Buffer event for session that may still be creating (race condition).
 	 */
-	private bufferPendingEvent(
-		sessionId: string,
-		update: SessionUpdate,
-		envelopeSeq?: number
-	): void {
+	private bufferPendingEvent(sessionId: string, update: SessionUpdate, envelopeSeq?: number): void {
 		this.bufferPending(sessionId, {
 			kind: "sessionUpdate",
 			update,
@@ -1027,10 +730,7 @@ export class SessionEventService {
 
 		logger.debug("Buffered event for pending session", {
 			sessionId,
-			type:
-				pendingEvent.kind === "sessionUpdate"
-					? pendingEvent.update.type
-					: "sessionState",
+			type: pendingEvent.kind === "sessionUpdate" ? pendingEvent.update.type : "sessionState",
 			bufferSize: pending.length,
 		});
 	}

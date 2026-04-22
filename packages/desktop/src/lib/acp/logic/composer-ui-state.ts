@@ -4,7 +4,8 @@
  */
 
 import type { SnapshotFrom } from "xstate";
-
+import type { composerMachine } from "./composer-machine.js";
+import type { SessionRuntimeState } from "./session-ui-state.js";
 import type { DefaultSubmitAction } from "./submit-intent.js";
 import {
 	isPrimaryButtonDisabled,
@@ -13,8 +14,6 @@ import {
 	resolvePrimaryButtonIntent,
 	type SubmitIntent,
 } from "./submit-intent.js";
-import type { composerMachine } from "./composer-machine.js";
-import type { SessionRuntimeState } from "./session-ui-state.js";
 
 export type ComposerMachineSnapshot = SnapshotFrom<typeof composerMachine>;
 

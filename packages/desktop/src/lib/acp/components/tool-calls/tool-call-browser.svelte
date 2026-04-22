@@ -50,9 +50,8 @@ function formatBrowserToolTitle(name: string): string {
 }
 
 function extractBrowserSubtitle(tc: ToolCall): string | null {
-	const raw = tc.arguments.kind === "browser" || tc.arguments.kind === "other"
-		? tc.arguments.raw
-		: null;
+	const raw =
+		tc.arguments.kind === "browser" || tc.arguments.kind === "other" ? tc.arguments.raw : null;
 	if (!raw || typeof raw !== "object") return null;
 	const obj = raw as Record<string, unknown>;
 
@@ -87,7 +86,6 @@ function extractBrowserSubtitle(tc: ToolCall): string | null {
 	}
 	return null;
 }
-
 </script>
 
 <AgentToolBrowser

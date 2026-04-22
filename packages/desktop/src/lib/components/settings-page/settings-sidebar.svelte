@@ -1,62 +1,54 @@
 <script lang="ts">
-	import {
-		Archive,
-		ChartLine,
-		ChatCircle,
-		FolderSimple,
-		GearFine,
-		GitBranch,
-		Keyboard,
-		Microphone,
-		Palette,
-		Plugs,
-		PuzzlePiece,
-		Robot,
-		Tree,
-	} from "phosphor-svelte";
-	import { cn } from "$lib/utils.js";
+import {
+	Archive,
+	ChartLine,
+	ChatCircle,
+	FolderSimple,
+	GearFine,
+	GitBranch,
+	Keyboard,
+	Microphone,
+	Palette,
+	Plugs,
+	PuzzlePiece,
+	Robot,
+	Tree,
+} from "phosphor-svelte";
+import { cn } from "$lib/utils.js";
 
-	import type { SettingsSectionId } from "./settings-types.js";
+import type { SettingsSectionId } from "./settings-types.js";
 
-	type SidebarIcon = typeof GearFine;
+type SidebarIcon = typeof GearFine;
 
-	interface SidebarSection {
-		id: SettingsSectionId;
-		icon: SidebarIcon;
-		label: () => string;
-	}
+interface SidebarSection {
+	id: SettingsSectionId;
+	icon: SidebarIcon;
+	label: () => string;
+}
 
-	interface Props {
-		activeSection: SettingsSectionId;
-		onSectionChange: (section: SettingsSectionId) => void;
-		showProjectSection?: boolean;
-	}
+interface Props {
+	activeSection: SettingsSectionId;
+	onSectionChange: (section: SettingsSectionId) => void;
+}
 
-	let { activeSection, onSectionChange, showProjectSection = false }: Props = $props();
+let { activeSection, onSectionChange }: Props = $props();
 
-	const sections = $derived.by((): SidebarSection[] => {
-		const nextSections: SidebarSection[] = [
-			{ id: "general", icon: GearFine, label: () => "General" },
-			{ id: "appearance", icon: Palette, label: () => "Appearance" },
-			{ id: "agents", icon: Robot, label: () => "Agents" },
-			{ id: "chat", icon: ChatCircle, label: () => "Chat" },
-			{ id: "voice", icon: Microphone, label: () => "Voice" },
-			{ id: "skills", icon: PuzzlePiece, label: () => "Skills" },
-			{ id: "keybindings", icon: Keyboard, label: () => "Keybindings" },
-			{ id: "mcp", icon: Plugs, label: () => "MCP servers" },
-			{ id: "git", icon: GitBranch, label: () => "Git" },
-			{ id: "environments", icon: FolderSimple, label: () => "Environments" },
-			{ id: "worktrees", icon: Tree, label: () => "Worktrees" },
-			{ id: "archived", icon: Archive, label: () => "Archived sessions" },
-			{ id: "usage", icon: ChartLine, label: () => "Usage" },
-		];
-
-		if (showProjectSection) {
-			nextSections.splice(1, 0, { id: "project", icon: FolderSimple, label: () => "Projects" });
-		}
-
-		return nextSections;
-	});
+const sections: readonly SidebarSection[] = [
+	{ id: "general", icon: GearFine, label: () => "General" },
+	{ id: "appearance", icon: Palette, label: () => "Appearance" },
+	{ id: "agents", icon: Robot, label: () => "Agents" },
+	{ id: "chat", icon: ChatCircle, label: () => "Chat" },
+	{ id: "voice", icon: Microphone, label: () => "Voice" },
+	{ id: "skills", icon: PuzzlePiece, label: () => "Skills" },
+	{ id: "keybindings", icon: Keyboard, label: () => "Keybindings" },
+	{ id: "mcp", icon: Plugs, label: () => "MCP servers" },
+	{ id: "git", icon: GitBranch, label: () => "Git" },
+	{ id: "project", icon: FolderSimple, label: () => "Projects" },
+	{ id: "environments", icon: FolderSimple, label: () => "Environments" },
+	{ id: "worktrees", icon: Tree, label: () => "Worktrees" },
+	{ id: "archived", icon: Archive, label: () => "Archived sessions" },
+	{ id: "usage", icon: ChartLine, label: () => "Usage" },
+];
 </script>
 
 <nav class="flex w-[160px] shrink-0 flex-col gap-px rounded-lg bg-muted/20 p-1 shadow-sm">

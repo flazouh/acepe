@@ -1,14 +1,21 @@
+# CI: pull request only to main (not on push to main). Path-aware by affected package/stack.
+# Keep Frontend/Backend as always-present checks so branch protection never depends on skipped jobs.
+# When changing workspace layout or package dependencies, update the filter fanout in the same PR.
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    # Re-runs full matrix (all jobs); use when validating without opening a PR
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
 
 env:
   CARGO_INCREMENTAL: 0
@@ -17,11 +24,149 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  # ── JS: lint + typecheck + test (all parallel inside one job) ───────
-  frontend:
-    name: Frontend
+  # ── Which stacks to run: js (desktop/website/ui/changelog/contract/scripts), rust (src-tauri), shared (lock + root + workflows) ──
+  # dorny/paths-filter@v3.0.2
+  filter:
+    name: Path filter
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    outputs:
+      run_desktop: ${{ steps.combine.outputs.run_desktop }}
+      run_website: ${{ steps.combine.outputs.run_website }}
+      run_ui: ${{ steps.combine.outputs.run_ui }}
+      run_agent_panel_contract: ${{ steps.combine.outputs.run_agent_panel_contract }}
+      run_frontend: ${{ steps.combine.outputs.run_frontend }}
+      run_tauri_backend: ${{ steps.combine.outputs.run_tauri_backend }}
+      run_gpui_poc: ${{ steps.combine.outputs.run_gpui_poc }}
+      run_backend: ${{ steps.combine.outputs.run_backend }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        if: github.event_name == 'pull_request'
+        id: paths
+        # yamllint disable-line rule:line-length
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            desktop_frontend:
+              - 'packages/desktop/**'
+              - '!packages/desktop/src-tauri/**'
+            desktop_rust:
+              - 'packages/desktop/src-tauri/**'
+            website:
+              - 'packages/website/**'
+            ui:
+              - 'packages/ui/**'
+            agent_panel_contract:
+              - 'packages/agent-panel-contract/**'
+            changelog:
+              - 'packages/changelog/**'
+            root_scripts:
+              - 'scripts/**'
+            shared:
+              - 'bun.lock'
+              - 'package.json'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - '.node-version'
+              - 'coderabbit.yaml'
+              - 'opencode.json'
+              - 'railway.json'
+            gpui_agent_panel_poc:
+              - 'packages/gpui-agent-panel-poc/**'
+
+      - name: Set affected job flags from filter (or full matrix on workflow_dispatch)
+        id: combine
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_desktop=true" >> "$GITHUB_OUTPUT"
+            echo "run_website=true" >> "$GITHUB_OUTPUT"
+            echo "run_ui=true" >> "$GITHUB_OUTPUT"
+            echo "run_agent_panel_contract=true" >> "$GITHUB_OUTPUT"
+            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+            echo "run_tauri_backend=true" >> "$GITHUB_OUTPUT"
+            echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
+            echo "run_backend=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run_desktop=false" >> "$GITHUB_OUTPUT"
+            echo "run_website=false" >> "$GITHUB_OUTPUT"
+            echo "run_ui=false" >> "$GITHUB_OUTPUT"
+            echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
+            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+            echo "run_tauri_backend=false" >> "$GITHUB_OUTPUT"
+            echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
+            echo "run_backend=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          desktop_frontend='${{ steps.paths.outputs.desktop_frontend }}'
+          desktop_rust='${{ steps.paths.outputs.desktop_rust }}'
+          website='${{ steps.paths.outputs.website }}'
+          ui='${{ steps.paths.outputs.ui }}'
+          agent_panel_contract='${{ steps.paths.outputs.agent_panel_contract }}'
+          changelog='${{ steps.paths.outputs.changelog }}'
+          root_scripts='${{ steps.paths.outputs.root_scripts }}'
+          shared='${{ steps.paths.outputs.shared }}'
+          gpui_agent_panel_poc='${{ steps.paths.outputs.gpui_agent_panel_poc }}'
+
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_desktop=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_desktop=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_website=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_website=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$ui" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_ui=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_ui=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$agent_panel_contract" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_agent_panel_contract=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_tauri_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_tauri_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$gpui_agent_panel_poc" = "true" ]; then
+            echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ] || [ "$gpui_agent_panel_poc" = "true" ]; then
+            echo "run_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Inexpensive; runs on every PR / dispatch so we never skip repo-wide structural test policy when frontend is path-skipped
+  structural_forbid:
+    name: Structural test guard
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
 
@@ -31,69 +176,144 @@ jobs:
           cache: true
           cache-dependency-path: bun.lock
 
-      - run: bun install --frozen-lockfile
-
-      # Website svelte-check needs env vars declared in .env for $env/static/public types
-      - run: cp packages/website/.env.example packages/website/.env
-
-      # All three run in parallel via background processes
-      - name: Lint + Typecheck + Test
+      - name: Forbid structural tests
         run: |
-          # Lint (desktop + website in parallel)
-          (cd packages/desktop && bunx @biomejs/biome lint .) &
-          LINT_DESKTOP=$!
-          (cd packages/website && bunx @biomejs/biome lint .) &
-          LINT_WEBSITE=$!
+          bun install --frozen-lockfile
+          bun scripts/forbid-structural-tests.ts packages
 
-          # Typecheck desktop (tsgo)
-          (cd packages/desktop && bun run check) &
-          CHECK_DESKTOP=$!
+  # ── JS/TS: format+lint+typecheck + all package tests (parallel) ────
+  frontend:
+    name: Frontend
+    needs: filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUN_FRONTEND: ${{ needs.filter.outputs.run_frontend }}
+      RUN_DESKTOP: ${{ needs.filter.outputs.run_desktop }}
+      RUN_WEBSITE: ${{ needs.filter.outputs.run_website }}
+      RUN_UI: ${{ needs.filter.outputs.run_ui }}
+      RUN_AGENT_PANEL_CONTRACT: ${{ needs.filter.outputs.run_agent_panel_contract }}
+    steps:
+      - uses: actions/checkout@v5
 
-          # Typecheck website (svelte-check)
-          (cd packages/website && bun run check) &
-          CHECK_WEBSITE=$!
+      - uses: oven-sh/setup-bun@v2
+        if: env.RUN_FRONTEND == 'true'
+        with:
+          bun-version: 1.3.10
+          cache: true
+          cache-dependency-path: bun.lock
 
-          # Tests
-          (cd packages/desktop && AGENT=1 bun test $(find src -type f \( -name '*.test.ts' -o -name '*.vitest.ts' \))) &
-          TEST_DESKTOP=$!
-          (cd packages/website && bun run test) &
-          TEST_WEBSITE=$!
+      - if: env.RUN_FRONTEND == 'true'
+        run: bun install --frozen-lockfile
 
-          # Wait and collect exit codes
+      - name: No affected frontend packages
+        if: env.RUN_FRONTEND != 'true'
+        run: echo "No affected frontend packages; Frontend check is a no-op."
+
+      - name: Prepare website env
+        if: env.RUN_WEBSITE == 'true'
+        run: cp packages/website/.env.example packages/website/.env
+
+      - name: Relevant frontend checks
+        if: env.RUN_FRONTEND == 'true'
+        run: |
+          set -euo pipefail
+          PIDS=""
+
+          run_bg() {
+            (
+              eval "$1"
+            ) &
+            pid=$!
+            PIDS="$PIDS $pid"
+          }
+
+          # Desktop runs for direct desktop edits, workspace dependency edits,
+          # and Rust changes because src-tauri exports committed TS contracts.
+          if [ "$RUN_DESKTOP" = "true" ]; then
+            run_bg "cd packages/desktop && bunx @biomejs/biome check --diagnostic-level=error ."
+            run_bg "cd packages/desktop && bun run check"
+            run_bg "cd packages/desktop && bun run check:svelte"
+            run_bg "cd packages/desktop && bun run test"
+          fi
+
+          if [ "$RUN_WEBSITE" = "true" ]; then
+            run_bg "cd packages/website && bunx @biomejs/biome check --diagnostic-level=error ."
+            run_bg "cd packages/website && bun run check"
+            run_bg "cd packages/website && bun run test"
+          fi
+
+          if [ "$RUN_UI" = "true" ]; then
+            run_bg "cd packages/ui && bun run check"
+            run_bg "cd packages/ui && bun test"
+          fi
+
+          if [ "$RUN_AGENT_PANEL_CONTRACT" = "true" ]; then
+            run_bg "cd packages/agent-panel-contract && bun test"
+          fi
+
           FAIL=0
-          for PID in $LINT_DESKTOP $LINT_WEBSITE $CHECK_DESKTOP $CHECK_WEBSITE $TEST_DESKTOP $TEST_WEBSITE; do
-            wait $PID || FAIL=1
+          for PID in $PIDS; do
+            wait "$PID" || FAIL=1
           done
           exit $FAIL
 
-  # ── Rust: check + clippy + test ─────────────────────────────────────
+  # ── Rust: clippy + test ──────────────────────────────────────────
   backend:
     name: Backend
+    needs: filter
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RUN_BACKEND: ${{ needs.filter.outputs.run_backend }}
+      RUN_TAURI_BACKEND: ${{ needs.filter.outputs.run_tauri_backend }}
+      RUN_GPUI_POC: ${{ needs.filter.outputs.run_gpui_poc }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
+        if: env.RUN_BACKEND == 'true'
         with:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        if: env.RUN_TAURI_BACKEND == 'true'
         with:
           workspaces: packages/desktop/src-tauri -> target
           prefix-key: v2
           cache-on-failure: "true"
 
-      - name: Install system deps
+      - uses: Swatinem/rust-cache@v2
+        if: env.RUN_GPUI_POC == 'true'
+        with:
+          workspaces: packages/gpui-agent-panel-poc -> target
+          prefix-key: v2-gpui
+          cache-on-failure: "true"
+
+      - name: No affected backend packages
+        if: env.RUN_BACKEND != 'true'
+        run: echo "No affected backend packages; Backend check is a no-op."
+
+      - name: Install system deps (Tauri)
+        if: env.RUN_TAURI_BACKEND == 'true'
         run: |
           sudo apt-get update -q
           sudo apt-get install -yq --no-install-recommends \
             libwebkit2gtk-4.1-dev librsvg2-dev \
             libgtk-3-dev libayatana-appindicator3-dev libasound2-dev patchelf
 
-      - name: Clippy + Test
+      - name: Tauri clippy + test
+        if: env.RUN_TAURI_BACKEND == 'true'
         working-directory: packages/desktop/src-tauri
         run: |
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
           cargo test --no-default-features -- --skip claude_history::export_types
+
+      - name: gpui-agent-panel-poc clippy + test
+        if: env.RUN_GPUI_POC == 'true'
+        working-directory: packages/gpui-agent-panel-poc
+        run: |
+          set -o pipefail
+          cargo clippy --all-targets -- -D warnings
+          cargo test

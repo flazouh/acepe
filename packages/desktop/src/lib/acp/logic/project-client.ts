@@ -1,7 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ResultAsync } from "neverthrow";
+import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
-import type { ProjectAcepeConfig } from "../../utils/tauri-client/types.js";
 import { resolveProjectColor } from "../utils/colors.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
@@ -37,16 +37,7 @@ export function normalizeProjectIconUpdatePath(iconPath: string | null): string 
  * All methods use neverthrow ResultAsync for type-safe error handling.
  */
 export class ProjectClient {
-	private mapProject(project: {
-		path: string;
-		name: string;
-		last_opened?: string;
-		created_at: string;
-		color: string;
-		sort_order: number;
-		icon_path?: string | null;
-		show_external_cli_sessions: boolean;
-	}): Project {
+	private mapProject(project: ProjectData): Project {
 		return {
 			path: project.path,
 			name: project.name,
@@ -67,12 +58,13 @@ export class ProjectClient {
 	getProjects(): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
 			.getProjects()
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to get projects: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to get projects: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
@@ -86,12 +78,13 @@ export class ProjectClient {
 	getRecentProjects(limit = 100): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
 			.getRecentProjects(limit)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to get recent projects: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to get recent projects: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
@@ -104,12 +97,13 @@ export class ProjectClient {
 	getProjectCount(): ResultAsync<number, ProjectError> {
 		return tauriClient.projects
 			.getProjectCount()
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to get project count: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to get project count: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -122,12 +116,13 @@ export class ProjectClient {
 	importProject(project: Project): ResultAsync<Project, ProjectError> {
 		return tauriClient.projects
 			.importProject(project.path, project.name)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to import project: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to import project: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((importedProject) => this.mapProject(importedProject));
 	}
@@ -142,12 +137,13 @@ export class ProjectClient {
 	updateProjectColor(path: string, color: string): ResultAsync<Project, ProjectError> {
 		return tauriClient.projects
 			.updateProjectColor(path, color)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to update project color: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to update project color: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((project) => this.mapProject(project));
 	}
@@ -156,12 +152,13 @@ export class ProjectClient {
 		const normalizedIconPath = normalizeProjectIconUpdatePath(iconPath);
 		return tauriClient.projects
 			.updateProjectIcon(path, normalizedIconPath)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to update project icon: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to update project icon: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((project) => this.mapProject(project));
 	}
@@ -169,12 +166,13 @@ export class ProjectClient {
 	getProjectAcepeConfig(path: string): ResultAsync<ProjectAcepeConfig, ProjectError> {
 		return tauriClient.projects
 			.getProjectAcepeConfig(path)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to load project config: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to load project config: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -184,12 +182,13 @@ export class ProjectClient {
 	): ResultAsync<ProjectAcepeConfig, ProjectError> {
 		return tauriClient.projects
 			.saveProjectAcepeConfig(path, config)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to save project config: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to save project config: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -209,24 +208,26 @@ export class ProjectClient {
 	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
 		return tauriClient.projects
 			.listProjectImages(projectPath)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to list project images: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to list project images: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
 	updateProjectOrder(orderedPaths: string[]): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
 			.updateProjectOrder(orderedPaths)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to update project order: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to update project order: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((projects) => projects.map((project) => this.mapProject(project)));
 	}
@@ -240,24 +241,26 @@ export class ProjectClient {
 	addProject(project: Project): ResultAsync<void, ProjectError> {
 		return tauriClient.projects
 			.addProject(project.path, project.name)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to add project: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to add project: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
 	backfillProjectIcons(): ResultAsync<number, ProjectError> {
 		return tauriClient.projects
 			.backfillProjectIcons()
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to backfill project icons: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to backfill project icons: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -270,12 +273,13 @@ export class ProjectClient {
 	removeProject(path: string): ResultAsync<void, ProjectError> {
 		return tauriClient.projects
 			.removeProject(path)
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to remove project: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to remove project: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -287,12 +291,13 @@ export class ProjectClient {
 	browseProjectIcon(): ResultAsync<string | null, ProjectError> {
 		return tauriClient.projects
 			.browseProjectIcon()
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to browse project icon: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to browse project icon: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			);
 	}
 
@@ -304,12 +309,13 @@ export class ProjectClient {
 	browseProject(): ResultAsync<Project | null, ProjectError> {
 		return tauriClient.projects
 			.browseProject()
-			.mapErr((error) =>
-				new ProjectError(
-					`Failed to browse project: ${error.message}`,
-					"STORAGE_ERROR",
-					error instanceof Error ? error : undefined
-				)
+			.mapErr(
+				(error) =>
+					new ProjectError(
+						`Failed to browse project: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
 			)
 			.map((project) => (project ? this.mapProject(project) : null));
 	}

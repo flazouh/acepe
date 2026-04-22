@@ -111,9 +111,7 @@ describe("SessionStore.createSession", () => {
 
 		store.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				errAsync(new Error("Provider crashed during session creation"))
-			),
+			createSession: vi.fn(() => errAsync(new Error("Provider crashed during session creation"))),
 		};
 
 		const result = await store.createSession({
@@ -145,18 +143,12 @@ describe("SessionStore.createSession", () => {
 					name: "Read",
 					kind: "read",
 					status: "completed",
-					lifecycle: "completed",
-					blocked_reason: null,
 					title: "Read file.ts",
 					arguments: { kind: "read", file_path: "file.ts" },
 					progressive_arguments: null,
 					result: null,
 					command: null,
-					locations: null,
-					skill_meta: null,
 					normalized_todos: null,
-					started_at_ms: null,
-					completed_at_ms: null,
 					parent_tool_call_id: null,
 					parent_operation_id: null,
 					child_tool_call_ids: [],
@@ -186,9 +178,7 @@ describe("SessionStore.createSession", () => {
 		expect(hydrateCreated).toHaveBeenCalledWith(
 			expect.objectContaining({
 				outcome: "found",
-				operations: expect.arrayContaining([
-					expect.objectContaining({ id: "op-1", name: "Read" }),
-				]),
+				operations: expect.arrayContaining([expect.objectContaining({ id: "op-1", name: "Read" })]),
 			})
 		);
 	});

@@ -302,7 +302,9 @@ describe("CHARACTERIZATION: sql / unclassified vs other registry routing (remove
 			awaitingPlanApproval: false,
 		};
 
-		expect(sqlUi.title(stub)).not.toEqual(otherUi.title({ ...stub, kind: "other", arguments: { kind: "other", raw: {} } }));
+		expect(sqlUi.title(stub)).not.toEqual(
+			otherUi.title({ ...stub, kind: "other", arguments: { kind: "other", raw: {} } })
+		);
 	});
 
 	it("compact display prefers sql argument subtitles over the generic other title path", () => {

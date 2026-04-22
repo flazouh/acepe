@@ -11,14 +11,26 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
+} from "../../services/acp-provider-metadata.js";
 import {
 	normalizeModelsForDisplay,
 	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
-	ModelsForDisplay,
-	ProviderMetadataProjection,
-} from "../../services/acp-provider-metadata.js";
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
+	SessionGraphRevision,
+	SessionOpenFound,
+	SessionStateEnvelope,
+	SessionStateGraph,
+	SessionTurnState,
+	TranscriptDelta,
+	TurnFailureSnapshot,
+	UsageTelemetryData,
+} from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type {
 	ContentBlock,
@@ -26,39 +38,28 @@ import type {
 	PlanData,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
-import type {
-	SessionDomainEvent,
-	SessionOpenFound,
-	SessionGraphCapabilities,
-	SessionGraphLifecycle,
-	SessionStateGraph,
-	SessionStateEnvelope,
-	SessionTurnState,
-	TurnFailureSnapshot,
-	TranscriptDelta,
-	UsageTelemetryData,
-} from "../../services/acp-types.js";
-import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
+import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
-import {
-	deriveStoreComposerState,
-	type StoreComposerState,
-} from "../logic/composer-ui-state.js";
 import {
 	deriveSessionRuntimeState,
 	deriveSessionUIState,
 	type SessionRuntimeState,
 	type SessionUIState,
 } from "../logic/session-ui-state";
+import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { SessionUpdate } from "../types/session-update";
 import type { ToolCallUpdate } from "../types/tool-call";
-import type { ActiveTurnFailure, TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
-import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
+import type {
+	ActiveTurnFailure,
+	TurnCompleteUpdate,
+	TurnErrorUpdate,
+} from "../types/turn-error.js";
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
+import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import {
 	SessionConnectionService,
 	type SessionMachineActor,
@@ -69,15 +70,15 @@ import {
 	type SessionEventServiceCallbacks,
 } from "./session-event-service.svelte.js";
 import type {
+	Mode,
+	Model,
 	SessionCapabilities,
-	SessionContextBudget,
 	SessionCold,
+	SessionContextBudget,
 	SessionEntry,
 	SessionHotState,
 	SessionIdentity,
 	SessionMetadata,
-	Mode,
-	Model,
 	SessionUsageTelemetry,
 } from "./types.js";
 import "../errors/app-error.js";
@@ -167,21 +168,14 @@ function buildCanonicalUsageTelemetry(
 		latestTokensCacheWrite: tokens?.cacheWrite ?? null,
 		latestTokensReasoning: tokens?.reasoning ?? null,
 		lastTelemetryEventId: eventId,
-		contextBudget: resolveContextBudget(
-			usageTelemetryData,
-			previous,
-			currentModelId,
-			updatedAt
-		),
+		contextBudget: resolveContextBudget(usageTelemetryData, previous, currentModelId, updatedAt),
 		updatedAt,
 	};
 }
 
-function mapTurnStateToHotState(turnState: SessionTurnState):
-	| "idle"
-	| "streaming"
-	| "completed"
-	| "error" {
+function mapTurnStateToHotState(
+	turnState: SessionTurnState
+): "idle" | "streaming" | "completed" | "error" {
 	switch (turnState) {
 		case "Idle":
 			return "idle";
@@ -252,9 +246,7 @@ function toSessionStatusFromGraphLifecycle(
 	}
 }
 
-function mapGraphAvailableModels(
-	capabilities: SessionGraphCapabilities
-): Array<Model> {
+function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> {
 	const availableModels = capabilities.models?.availableModels ?? [];
 	return availableModels.map((model) => ({
 		id: model.modelId,
@@ -263,9 +255,7 @@ function mapGraphAvailableModels(
 	}));
 }
 
-function mapGraphAvailableModes(
-	capabilities: SessionGraphCapabilities
-): Array<Mode> {
+function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<Mode> {
 	const availableModes = capabilities.modes?.availableModes ?? [];
 	return availableModes.map((mode) => ({
 		id: mode.id,
@@ -302,20 +292,19 @@ function projectGraphCapabilities(
 			agentId,
 			providerMetadata
 		) ?? null;
-	const modelsDisplay =
-		normalizedModelsDisplay === null ? undefined : normalizedModelsDisplay;
+	const modelsDisplay = normalizedModelsDisplay === null ? undefined : normalizedModelsDisplay;
 	const normalizedCurrentModeId = capabilities.modes?.currentModeId
 		? normalizeModeIdForUI(capabilities.modes.currentModeId, agentId)
 		: null;
 	const currentMode =
 		normalizedCurrentModeId === null
 			? null
-			: availableModes.find((mode) => mode.id === normalizedCurrentModeId) ?? null;
+			: (availableModes.find((mode) => mode.id === normalizedCurrentModeId) ?? null);
 	const currentModelId = capabilities.models?.currentModelId ?? null;
 	const currentModel =
 		currentModelId === null
 			? null
-			: availableModels.find((model) => model.id === currentModelId) ?? null;
+			: (availableModels.find((model) => model.id === currentModelId) ?? null);
 
 	return {
 		availableModels,
@@ -328,6 +317,31 @@ function projectGraphCapabilities(
 		configOptions: capabilities.configOptions,
 		autonomousEnabled: capabilities.autonomousEnabled ?? false,
 	};
+}
+
+function isNewerGraphRevision(
+	current: SessionGraphRevision | null,
+	incoming: SessionGraphRevision
+): boolean {
+	if (current === null) {
+		return true;
+	}
+
+	if (incoming.graphRevision !== current.graphRevision) {
+		return incoming.graphRevision > current.graphRevision;
+	}
+
+	if (incoming.lastEventSeq !== current.lastEventSeq) {
+		return incoming.lastEventSeq > current.lastEventSeq;
+	}
+
+	return incoming.transcriptRevision > current.transcriptRevision;
+}
+
+function deriveCapabilityPreviewState(
+	capabilities: SessionGraphCapabilities
+): SessionCapabilities["previewState"] {
+	return capabilities.models && capabilities.modes ? "canonical" : "partial";
 }
 
 function connectionErrorFromGraphState(
@@ -730,8 +744,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			const numericCode =
 				projectedFailure.code == null || projectedFailure.code.trim() === ""
 					? undefined
-						: Number.isNaN(Number(projectedFailure.code))
-							? undefined
+					: Number.isNaN(Number(projectedFailure.code))
+						? undefined
 						: Number(projectedFailure.code);
 			this.messagingSvc.handleTurnError(graph.canonicalSessionId, {
 				type: "turnError",
@@ -751,14 +765,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			availableModes: projectedCapabilities.availableModes,
 			availableModels: projectedCapabilities.availableModels,
 			availableCommands: projectedCapabilities.availableCommands,
+			revision: graph.revision,
+			pendingMutationId: null,
+			previewState: deriveCapabilityPreviewState(graph.capabilities),
 			modelsDisplay: projectedCapabilities.modelsDisplay,
 			providerMetadata: projectedCapabilities.providerMetadata,
 		});
 		const updates: Partial<import("./types.js").SessionHotState> = {
 			status: toSessionStatusFromGraphLifecycle(graph.lifecycle),
 			isConnected: graph.lifecycle.status === "ready",
-			acpSessionId:
-				graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
+			acpSessionId: graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
 			turnState: mapTurnStateToHotState(graph.turnState),
 			activeTurnFailure,
 			lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
@@ -963,7 +979,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const nextSessionLifecycleState =
 			snapshot.sourcePath !== null
 				? "persisted"
-				: preservedSession?.sessionLifecycleState ?? "created";
+				: (preservedSession?.sessionLifecycleState ?? "created");
 
 		if (aliasSession && requestedSessionId !== canonicalSessionId) {
 			this.removeSession(requestedSessionId);
@@ -997,11 +1013,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			});
 		}
 
-		this.entryStore.replaceTranscriptSnapshot(
-			canonicalSessionId,
-			snapshot.transcriptSnapshot,
-			now
-		);
+		this.entryStore.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
 		this.hotStateStore.initializeHotState(canonicalSessionId);
 		this.hotStateStore.updateHotState(canonicalSessionId, {
@@ -1184,7 +1196,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 
 	/**
-	 * Create a new session and connect to ACP.
+	 * Create a new session and seed store state before ACP activation materializes.
 	 */
 	createSession(options: {
 		projectPath: string;
@@ -1197,10 +1209,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		launchToken?: string;
 	}): ResultAsync<SessionCold, AppError> {
 		return this.connectionMgr.createSession(options, this).andThen((createdSession) => {
-			if (
-				this.sessionOpenHydrator !== null &&
-				createdSession.sessionOpen?.outcome === "found"
-			) {
+			if (this.sessionOpenHydrator !== null && createdSession.sessionOpen?.outcome === "found") {
 				return this.sessionOpenHydrator
 					.hydrateCreated(createdSession.sessionOpen)
 					.map(() => createdSession.session);
@@ -1530,77 +1539,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.eventService.handleSessionUpdate(update, this);
 	}
 
-	applySessionDomainEvent(event: SessionDomainEvent): void {
-		const payload = event.payload;
-		if (payload == null) {
-			return;
-		}
-
-		if (payload.kind === "operation_upserted") {
-			if (payload.operation != null) {
-				this.operationStore.upsertOperationSnapshot(payload.operation);
-			} else {
-				this.operationStore.upsertFallbackOperation(
-					event.session_id,
-					payload.operation_id,
-					payload.tool_call_id,
-					payload.tool_name,
-					payload.tool_kind,
-					payload.status,
-					payload.parent_operation_id,
-					event.occurred_at_ms
-				);
-			}
-			return;
-		}
-
-		if (payload.kind === "operation_child_linked") {
-			this.operationStore.linkOperationChild(
-				event.session_id,
-				payload.parent_operation_id,
-				payload.child_operation_id
-			);
-			return;
-		}
-
-		if (payload.kind === "operation_completed") {
-			this.operationStore.updateOperationStatus(
-				event.session_id,
-				payload.operation_id,
-				payload.status
-			);
-			return;
-		}
-
-		if (
-			payload.kind === "interaction_upserted" ||
-			payload.kind === "interaction_resolved" ||
-			payload.kind === "interaction_cancelled"
-		) {
-			const operationId = payload.operation_id ?? payload.interaction?.operation_id ?? null;
-			const toolCallId = payload.interaction?.tool_reference?.callId ?? null;
-			const interactionKind =
-				payload.kind === "interaction_upserted"
-					? (payload.interaction?.kind ?? payload.interaction_kind)
-					: (payload.interaction?.kind ?? null);
-
-			if (interactionKind == null) {
-				return;
-			}
-
-			this.operationStore.updateOperationBlockingFromInteraction(
-				event.session_id,
-				payload.interaction_id,
-				operationId,
-				toolCallId,
-				interactionKind,
-				payload.kind === "interaction_upserted"
-					? (payload.interaction?.state ?? "Pending")
-					: (payload.interaction?.state ?? "Approved")
-			);
-		}
-	}
-
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {
 		const commands = routeSessionStateEnvelope(
 			sessionId,
@@ -1623,8 +1561,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.hotStateStore.updateHotState(sessionId, {
 					status: toSessionStatusFromGraphLifecycle(command.lifecycle),
 					isConnected: command.lifecycle.status === "ready",
-					acpSessionId:
-						command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
+					acpSessionId: command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
 					connectionError: connectionErrorFromGraphState(
 						command.lifecycle,
 						hotState.activeTurnFailure ?? null
@@ -1644,6 +1581,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				if (!session) {
 					continue;
 				}
+				const currentCapabilities = this.capabilitiesStore.getCapabilities(sessionId);
+				if (!isNewerGraphRevision(currentCapabilities.revision ?? null, command.revision)) {
+					continue;
+				}
 				const projectedCapabilities = projectGraphCapabilities(
 					session.agentId,
 					command.capabilities
@@ -1652,6 +1593,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					availableModes: projectedCapabilities.availableModes,
 					availableModels: projectedCapabilities.availableModels,
 					availableCommands: projectedCapabilities.availableCommands,
+					revision: command.revision,
+					pendingMutationId: command.pendingMutationId,
+					previewState: command.previewState,
 					modelsDisplay: projectedCapabilities.modelsDisplay,
 					providerMetadata: projectedCapabilities.providerMetadata,
 				});

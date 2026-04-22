@@ -451,12 +451,12 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"] h1')?.textContent).toBe(
-				"Title"
-			);
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent).toBe(
-				"Body"
-			);
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:0"] h1')?.textContent
+			).toBe("Title");
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent
+			).toBe("Body");
 		});
 	});
 
@@ -550,10 +550,12 @@ describe("MarkdownText", () => {
 		await flushAnimationFrames(12);
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).not.toBeNull();
-			expect(view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent).toContain(
-				"Hello"
-			);
+			expect(
+				view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')
+			).not.toBeNull();
+			expect(
+				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
+			).toContain("Hello");
 		});
 
 		const settledSection = view.container.querySelector('[data-streaming-section-key="SETTLED:0"]');
@@ -765,7 +767,9 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector(".streaming-live-link.is-disabled")?.textContent).toBe("Acepe");
+			expect(view.container.querySelector(".streaming-live-link.is-disabled")?.textContent).toBe(
+				"Acepe"
+			);
 		});
 		expect(view.container.querySelector("a")).toBeNull();
 
@@ -987,7 +991,6 @@ describe("MarkdownText", () => {
 				expect(activityStates.at(-1)).toBe(false);
 			});
 		});
-
 	});
 
 	it("defers rich markdown rendering until streaming stops", async () => {

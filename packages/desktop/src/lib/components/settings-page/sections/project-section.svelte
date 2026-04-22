@@ -1,25 +1,25 @@
 <script lang="ts">
-	import { ProjectLetterBadge } from "@acepe/ui";
-	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-	import { cn } from "$lib/utils.js";
-	import SettingsSection from "../settings-section.svelte";
-	import ProjectSettingsForm from "./project/project-settings-form.svelte";
+import { ProjectLetterBadge } from "@acepe/ui";
+import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import { cn } from "$lib/utils.js";
+import SettingsSection from "../settings-section.svelte";
+import ProjectSettingsForm from "./project/project-settings-form.svelte";
 
-	interface Props {
-		projectManager: ProjectManager;
-	}
+interface Props {
+	projectManager: ProjectManager;
+}
 
-	let { projectManager }: Props = $props();
+let { projectManager }: Props = $props();
 
-	let selectedProjectPath = $state<string | null>(null);
+let selectedProjectPath = $state<string | null>(null);
 
-	const projects = $derived(projectManager.projects);
-	const activeProjectPath = $derived(selectedProjectPath ?? projects[0]?.path ?? null);
-	const activeProject = $derived(
-		activeProjectPath
-			? (projects.find((project) => project.path === activeProjectPath) ?? null)
-			: null
-	);
+const projects = $derived(projectManager.projects);
+const activeProjectPath = $derived(selectedProjectPath ?? projects[0]?.path ?? null);
+const activeProject = $derived(
+	activeProjectPath
+		? (projects.find((project) => project.path === activeProjectPath) ?? null)
+		: null
+);
 </script>
 
 {#if projects.length === 0}
@@ -60,7 +60,7 @@
 			{/each}
 		</nav>
 
-		<div class="flex-1 min-w-0 min-h-0 overflow-auto">
+		<div class="min-h-0 min-w-0 flex-1 overflow-auto">
 			{#if activeProjectPath && activeProject}
 				{#key activeProjectPath}
 					<ProjectSettingsForm

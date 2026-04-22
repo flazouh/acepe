@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { OperationStore } from "../../../store/operation-store.svelte.js";
-import type { PermissionRequest } from "../../../types/permission.js";
 import type { Operation } from "../../../types/operation.js";
+import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import { createRenderableToolCall, resolveToolOperation } from "../resolve-tool-operation.js";
 
@@ -68,8 +68,6 @@ function createOperation(overrides?: Partial<Operation>): Operation {
 		name: "Task",
 		kind: "task",
 		status: "completed",
-		lifecycle: "completed",
-		blockedReason: null,
 		title: "Task",
 		arguments: { kind: "other", raw: { description: "Investigate" } },
 		progressiveArguments: undefined,
@@ -94,7 +92,7 @@ function createOperation(overrides?: Partial<Operation>): Operation {
 
 function createOperationLookup(
 	operations: Operation[]
-): Pick<OperationStore, "getById" | "getByToolCallId" | "isBlockedByPermission"> {
+): Pick<OperationStore, "getById" | "getByToolCallId"> {
 	const operationsById = new Map(operations.map((operation) => [operation.id, operation]));
 	const operationsByToolCallId = new Map(
 		operations.map((operation) => [`${operation.sessionId}:${operation.toolCallId}`, operation])
@@ -107,28 +105,12 @@ function createOperationLookup(
 		getByToolCallId(sessionId: string, toolCallId: string) {
 			return operationsByToolCallId.get(`${sessionId}:${toolCallId}`);
 		},
-		isBlockedByPermission(operation: Operation) {
-			return operation.lifecycle === "blocked" && operation.blockedReason === "permission";
-		},
 	};
 }
 
 describe("resolveToolOperation", () => {
 	it("keeps canonical tool arguments and shows inline approval", () => {
-		const operation = createOperation({
-			kind: "execute",
-			status: "pending",
-			lifecycle: "blocked",
-			blockedReason: "permission",
-			arguments: { kind: "execute", command: "git status" },
-		});
-		const operationLookup = createOperationLookup([operation]);
-		const resolved = resolveToolOperation(
-			createToolCall(),
-			createPermission(),
-			operation,
-			operationLookup
-		);
+		const resolved = resolveToolOperation(createToolCall(), createPermission());
 
 		expect(resolved.toolCall.arguments).toEqual({ kind: "execute", command: null });
 		expect(resolved.routeKey).toBe("execute");
@@ -151,13 +133,6 @@ describe("resolveToolOperation", () => {
 	});
 
 	it("keeps exit-plan approvals out of the generic inline action bar", () => {
-		const operation = createOperation({
-			name: "ExitPlanMode",
-			kind: "exit_plan_mode",
-			lifecycle: "blocked",
-			blockedReason: "permission",
-			arguments: { kind: "planMode", mode: "build" },
-		});
 		const resolved = resolveToolOperation(
 			createToolCall({
 				name: "ExitPlanMode",
@@ -171,50 +146,11 @@ describe("resolveToolOperation", () => {
 					parsedArguments: { kind: "planMode", mode: "build" },
 					options: [],
 				},
-			}),
-			operation,
-			createOperationLookup([operation])
+			})
 		);
 
 		expect(resolved.routeKey).toBe("exit_plan_mode");
 		expect(resolved.shouldShowInlinePermissionActionBar).toBe(false);
-	});
-
-	it("keeps inline approval visible during the raw-permission before blocked-lifecycle gap", () => {
-		const operation = createOperation({
-			kind: "execute",
-			status: "pending",
-			lifecycle: "pending",
-			blockedReason: null,
-			arguments: { kind: "execute", command: null },
-		});
-		const resolved = resolveToolOperation(
-			createToolCall(),
-			createPermission(),
-			operation,
-			createOperationLookup([operation])
-		);
-
-		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
-	});
-
-	it("keeps inline approval visible for execute fallback matches when ids differ", () => {
-		const resolved = resolveToolOperation(
-			createToolCall({
-				id: "tool-1",
-				arguments: { kind: "execute", command: "git status" },
-			}),
-			createPermission({
-				tool: {
-					messageID: "message-1",
-					callID: "permission-anchor",
-				},
-			}),
-			null,
-			createOperationLookup([])
-		);
-
-		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
 	});
 
 	it("prefers canonical operation data over transcript fallback rows", () => {
@@ -251,27 +187,5 @@ describe("resolveToolOperation", () => {
 			kind: "execute",
 			command: "git status",
 		});
-	});
-
-	it("uses the canonical display title synthesized from operation evidence", () => {
-		const operation = createOperation({
-			name: "Read",
-			kind: "read",
-			title: "Read",
-			arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-		});
-
-		const renderable = createRenderableToolCall(
-			createToolCall({
-				name: "Read",
-				kind: "read",
-				title: "Read",
-				arguments: { kind: "read", file_path: null, source_context: null },
-			}),
-			operation,
-			createOperationLookup([operation])
-		);
-
-		expect(renderable.title).toBe("Read /tmp/example.txt");
 	});
 });

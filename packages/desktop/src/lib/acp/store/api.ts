@@ -5,16 +5,15 @@
  * All commands are type-checked at compile time.
  */
 
-import type { ResultAsync } from "neverthrow";
+import { okAsync, type ResultAsync } from "neverthrow";
 import type {
 	ProviderMetadataProjection,
 	SessionOpenResult,
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
-import type { StartupSessionsResponse } from "../../services/claude-history-types";
+import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
-import type { ScanProjectSessionsResponse } from "../../utils/tauri-client/types";
 import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { AgentAvailabilityKind, PersistedWorkspaceState, ResumeSessionResult } from "./types";
@@ -43,14 +42,7 @@ export function resumeSession(
 	launchModeId?: string,
 	openToken?: string
 ): ResultAsync<void, AppError> {
-	return tauriClient.acp.resumeSession(
-		sessionId,
-		cwd,
-		attemptId,
-		agentId,
-		launchModeId,
-		openToken
-	);
+	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
 }
 
 /**
@@ -168,9 +160,7 @@ export function getSessionState(sessionId: string): ResultAsync<SessionStateEnve
  *
  * @param projectPaths - Array of project paths to scan for sessions.
  */
-export function scanSessions(
-	projectPaths: string[]
-): ResultAsync<ScanProjectSessionsResponse, AppError> {
+export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> {
 	return tauriClient.history.scanProjectSessions(projectPaths);
 }
 
@@ -232,6 +222,7 @@ export interface AgentInfo {
 	autonomous_supported_mode_ids?: ReadonlyArray<string>;
 	default_selection_rank?: number;
 	provider_metadata?: ProviderMetadataProjection;
+	supports_project_discovery?: boolean;
 }
 
 /**

@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { ResultAsync } from "neverthrow";
-	import { onMount } from "svelte";
-	import type { HTMLAttributes } from "svelte/elements";
-	import type { UserSettingKey } from "$lib/services/converted-session-types.js";
-	import { settings } from "$lib/utils/tauri-client/settings.js";
+import { ResultAsync } from "neverthrow";
+import { onMount } from "svelte";
+import type { HTMLAttributes } from "svelte/elements";
+import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { settings } from "$lib/utils/tauri-client/settings.js";
 
 import { setTheme, type Theme } from "./context.svelte.js";
 
@@ -21,12 +21,12 @@ function isValidTheme(value: unknown): value is Theme {
 	return value === "light" || value === "dark" || value === "system";
 }
 
-	async function loadStoredTheme(): Promise<Theme | null> {
-		const result = await settings
-			.getRaw(USER_THEME_KEY)
-			.map((stored) => {
-				if (stored !== null && isValidTheme(stored)) {
-					return stored;
+async function loadStoredTheme(): Promise<Theme | null> {
+	const result = await settings
+		.getRaw(USER_THEME_KEY)
+		.map((stored) => {
+			if (stored !== null && isValidTheme(stored)) {
+				return stored;
 			}
 			return null;
 		})
@@ -38,12 +38,12 @@ function isValidTheme(value: unknown): value is Theme {
 	return result.isOk() ? result.value : null;
 }
 
-	function saveStoredTheme(value: Theme) {
-		// Fire-and-forget - don't block on save
-		settings.setRaw(USER_THEME_KEY, value).mapErr(() => {
-			// ignore save errors
-		});
-	}
+function saveStoredTheme(value: Theme) {
+	// Fire-and-forget - don't block on save
+	settings.setRaw(USER_THEME_KEY, value).mapErr(() => {
+		// ignore save errors
+	});
+}
 
 function applyTheme(themeValue: Theme) {
 	const root = document.documentElement;

@@ -2,29 +2,7 @@
 
 This section is the **architecture reference** for Acepe's core product concepts.
 
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 28, 'rankSpacing': 34}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart TD
-    n_provider("Provider signal") --> n_projection("Backend projection")
-    n_projection --> n_sessionGraph("Canonical session graph")
-    n_sessionGraph --> n_operations("Operations")
-    n_sessionGraph --> n_interactions("Interactions")
-    n_operations --> n_stores("Desktop stores")
-    n_interactions --> n_stores
-    n_stores --> n_views("UI selectors / views")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
-    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
-    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-
-    class n_provider,n_projection blue;
-    class n_sessionGraph purple;
-    class n_operations,n_interactions green;
-    class n_stores yellow;
-    class n_views orange;
-```
+It also acts as the closest thing this repository has to a local architecture wiki: if there is no separate wiki tree, these pages are the canonical long-form concept surface.
 
 Use it when you need to answer questions like:
 
@@ -46,41 +24,13 @@ When code and concepts disagree:
 
 The goal is to stop the codebase from drifting into multiple hidden authorities.
 
-## Mental model
-
-| Concept | What it is | What it is not |
-|---|---|---|
-| Session graph | The canonical product-state model for a session | A loose cache of whatever the UI last saw |
-| Transcript | Renderable conversation history | The sole authority for runtime tool state |
-| Operation | Durable runtime work record | Just a prettified transcript tool row |
-| Interaction | Durable decision/input gate | A transient popup owned by a component |
-| Reconnect/resume | Rehydration of canonical state | A best-effort replay of raw transport events |
-
 ## Core concepts
 
-| Page | Focus | Read when |
-|---|---|---|
-| [Session graph](./session-graph.md) | Overall ownership model | You need to know what is authoritative |
-| [Operations](./operations.md) | Durable runtime work state | You are touching tool execution or lifecycle |
-| [Interactions](./interactions.md) | Permissions, questions, approvals | You are touching blocked/awaiting-user flows |
-| [Reconnect and resume](./reconnect-and-resume.md) | Restore and survival rules | You are debugging reopen/reconnect drift |
-
-## Canonical ownership at a glance
-
-| Surface | Canonical owner |
-|---|---|
-| Transcript history | `SessionEntryStore` materialized from the session graph |
-| Runtime work | `OperationStore` |
-| Human / policy gates | Interaction, permission, and question stores |
-| Session truth stream | Revisioned session graph envelopes |
-| UI rendering | Selectors over canonical stores |
-
-| If you are asking... | Look here first |
-|---|---|
-| "What is the current tool?" | Operation-backed selectors |
-| "Why is this blocked?" | Interaction + operation linkage |
-| "What should survive reopen?" | Session graph + restore model |
-| "Can the UI infer this from transcript?" | Usually no; check ownership docs |
+- [Session graph](./session-graph.md) — the canonical product-state model
+- [Session lifecycle](./session-lifecycle.md) — the seven-state authority model, public flows, and recovery semantics
+- [Operations](./operations.md) — durable runtime work state
+- [Interactions](./interactions.md) — permissions, questions, and approvals
+- [Reconnect and resume](./reconnect-and-resume.md) — how state survives reopen, reconnect, and refresh
 
 ## Related references
 

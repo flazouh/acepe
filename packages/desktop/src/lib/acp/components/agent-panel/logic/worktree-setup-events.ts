@@ -103,6 +103,19 @@ function appendText(existing: string, next: string): string {
 	return `${existing}${next}`;
 }
 
+function appendCommandHeader(
+	outputText: string,
+	command: string | null,
+	commandIndex: number | null,
+	commandCount: number
+): string {
+	if (!command) return outputText;
+	const prefix =
+		commandIndex !== null && commandCount > 0 ? `[${commandIndex}/${commandCount}] ` : "";
+	const separator = outputText.length > 0 && !outputText.endsWith("\n") ? "\n" : "";
+	return `${outputText}${separator}${prefix}$ ${command}\n`;
+}
+
 export function reduceWorktreeSetupEvent(
 	state: WorktreeSetupState | null,
 	event: WorktreeSetupEvent
@@ -124,7 +137,12 @@ export function reduceWorktreeSetupEvent(
 			commandCount: nextCommandCount,
 			activeCommandIndex: nextCommandIndex,
 			activeCommand: nextCommand,
-			outputText: current.outputText,
+			outputText: appendCommandHeader(
+				current.outputText,
+				event.command,
+				event.commandIndex,
+				nextCommandCount
+			),
 			error: null,
 		};
 	}

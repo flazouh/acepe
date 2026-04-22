@@ -1,21 +1,21 @@
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel";
 import type { Component } from "svelte";
 import {
-	isBrowserNormalizedResult,
-	isExecuteNormalizedResult,
-} from "../../types/normalized-tool-result.js";
-import {
 	getToolKindFilePath,
 	getToolKindSubtitle,
 	getToolKindTitle,
 } from "../../registry/tool-kind-ui-registry.js";
 import type { TurnState } from "../../store/types.js";
+import {
+	isBrowserNormalizedResult,
+	isExecuteNormalizedResult,
+} from "../../types/normalized-tool-result.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
+import { extractBrowserScriptText } from "./browser-tool-display.js";
 import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
 import ToolCallBrowser from "./tool-call-browser.svelte";
-import { extractBrowserScriptText } from "./browser-tool-display.js";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
 import ToolCallEdit from "./tool-call-edit.svelte";

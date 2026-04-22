@@ -8,6 +8,7 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { SessionEntry } from "../../../application/dto/session";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
+import type { TurnState } from "../../../store/types.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
@@ -103,7 +104,7 @@ let {
 	showInlineErrorCard: boolean;
 	errorInfo: ErrorInfo;
 	inlineErrorReferenceId: string | null;
-	inlineErrorReferenceSearchable: string | null;
+	inlineErrorReferenceSearchable: boolean;
 	onRetryConnection: () => void;
 	onDismissError: () => void;
 	onCopyInlineErrorReference: () => void;
@@ -130,7 +131,7 @@ let {
 	effectiveProjectPath: string | null;
 	sessionProjectPath: string | null;
 	sessionEntries: SessionEntry[];
-	sessionTurnState: string;
+	sessionTurnState: TurnState;
 	effectivePathForGit: string | null;
 	createdPr: number | null;
 	createPrRunning: boolean;

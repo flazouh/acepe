@@ -34,6 +34,8 @@ pub struct AgentInfo {
     /// Registry-owned default selection precedence for UI surfaces.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_selection_rank: Option<u16>,
+    /// Whether this agent can discover persisted projects from existing session history.
+    pub supports_project_discovery: bool,
 }
 
 /// Registry for managing all available agents (built-in and custom)
@@ -144,6 +146,7 @@ impl AgentRegistry {
                         .collect(),
                     provider_metadata: provider.frontend_projection(),
                     default_selection_rank: Some(index as u16),
+                    supports_project_discovery: provider.supports_project_discovery(),
                 });
             }
         }
@@ -179,6 +182,7 @@ impl AgentRegistry {
                     .collect(),
                 provider_metadata: provider.frontend_projection(),
                 default_selection_rank: None,
+                supports_project_discovery: provider.supports_project_discovery(),
             });
         }
 
@@ -385,6 +389,33 @@ mod tests {
 
         assert_eq!(claude.default_selection_rank, Some(0));
         assert_eq!(custom.default_selection_rank, None);
+    }
+
+    #[test]
+    fn list_all_for_ui_marks_only_history_backed_agents_as_project_discoverable() {
+        let registry = AgentRegistry::new();
+        registry
+            .register_custom(CustomAgentConfig {
+                id: "custom-agent".to_string(),
+                name: "Custom Agent".to_string(),
+                command: "custom-agent".to_string(),
+                args: vec![],
+                env: HashMap::new(),
+            })
+            .expect("register custom agent");
+
+        let agents = registry.list_all_for_ui();
+        let claude = agents
+            .iter()
+            .find(|agent| agent.id == "claude-code")
+            .expect("Claude agent should exist");
+        let custom = agents
+            .iter()
+            .find(|agent| agent.id == "custom-agent")
+            .expect("custom agent should exist");
+
+        assert!(claude.supports_project_discovery);
+        assert!(!custom.supports_project_discovery);
     }
 
     #[test]

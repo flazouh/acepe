@@ -144,7 +144,7 @@ describe("PermissionStore", () => {
 			]);
 		});
 
-		it("does not semantically match execute permissions by transcript tool shape", () => {
+		it("matches execute permissions by command when the permission anchor id differs", () => {
 			const permission = createExecutePermissionWithCommand(
 				"session-1",
 				"shell-permission",
@@ -154,7 +154,27 @@ describe("PermissionStore", () => {
 
 			store.add(permission);
 
-			expect(store.getForToolCall("session-1", "tool-1")).toBeUndefined();
+			const matched = store.getForToolCall("session-1", {
+				id: "tool-1",
+				name: "Run",
+				arguments: { kind: "execute", command: "git status" },
+				status: "pending",
+				result: null,
+				kind: "execute",
+				title: "Running command",
+				locations: null,
+				skillMeta: null,
+				normalizedQuestions: null,
+				normalizedTodos: null,
+				parentToolUseId: null,
+				taskChildren: null,
+				questionAnswer: null,
+				awaitingPlanApproval: false,
+				planApprovalRequestId: null,
+			});
+
+			expect(matched?.id).toBe(permission.id);
+			expect(matched?.tool?.callID).toBe("shell-permission");
 		});
 
 		it("returns the grouped permission for a canonical operation", () => {

@@ -1,7 +1,7 @@
 use crate::db::repository::{AppSettingsRepository, ProjectRepository};
 use crate::path_safety::{validate_project_directory_from_str, ProjectPathSafetyError};
 use crate::storage::acepe_config;
-use crate::storage::types::{ProjectAcepeConfig, ProjectSettingKey};
+use crate::storage::types::ProjectAcepeConfig;
 use rand::Rng;
 use sea_orm::DatabaseConnection;
 use std::path::Path;
@@ -448,58 +448,6 @@ pub async fn save_project_acepe_config(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_project_setting(
-    app: AppHandle,
-    path: String,
-    key: ProjectSettingKey,
-    value: Option<String>,
-) -> CommandResult<Project> {
-    unexpected_command_result(
-        "save_project_setting",
-        "Failed to save project setting",
-        async {
-            let db = get_db(&app);
-            let canonical_path = validate_project_path_for_storage(&path)?;
-            let canonical_path_str = canonical_path.to_string_lossy().to_string();
-
-            let project = ProjectRepository::get_by_path(&db, &canonical_path_str)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, path = %canonical_path_str, "Failed to load project");
-                    e.to_string()
-                })?
-                .ok_or_else(|| format!("Project not found: {}", canonical_path_str))?;
-
-            match key {
-                ProjectSettingKey::Color => {
-                    let next_color = value
-                        .as_deref()
-                        .map(str::trim)
-                        .filter(|next| !next.is_empty())
-                        .ok_or_else(|| "Project color must not be empty".to_string())?;
-
-                    let row = ProjectRepository::create_or_update(
-                        &db,
-                        canonical_path_str,
-                        project.name,
-                        Some(next_color.to_string()),
-                    )
-                    .await
-                    .map_err(|e| {
-                        tracing::error!(error = %e, "Failed to update project color through generic setting");
-                        e.to_string()
-                    })?;
-
-                    Ok(project_from_row(row))
-                }
-            }
-        }
-        .await,
-    )
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn update_project_order(
     app: AppHandle,
     ordered_paths: Vec<String>,
@@ -569,10 +517,6 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                     let path_str = folder_path.path().to_string_lossy().to_string();
                     let project_name = folder_path.path().to_path_buf();
                     let project_name = project_name_from_path(&project_name, &path_str);
-                    let show_external_cli_sessions =
-                        acepe_config::read_or_default(folder_path.path())
-                            .external_cli_sessions
-                            .show;
 
                     tracing::info!(path = %path_str, name = %project_name, "Project selected");
 
@@ -589,7 +533,11 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                         color: assigned_color,
                         sort_order: 0,
                         icon_path: None,
-                        show_external_cli_sessions,
+                        show_external_cli_sessions: acepe_config::read_or_default(
+                            folder_path.path(),
+                        )
+                        .external_cli_sessions
+                        .show,
                     }))
                 }
                 None => {

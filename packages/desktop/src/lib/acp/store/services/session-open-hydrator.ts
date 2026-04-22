@@ -1,11 +1,8 @@
 import { ResultAsync } from "neverthrow";
 
-import type {
-	SessionOpenFound,
-	SessionStateGraph,
-} from "../../../services/acp-types.js";
-import { materializeSnapshotFromOpenFound } from "../../session-state/session-state-protocol.js";
+import type { SessionOpenFound, SessionStateGraph } from "../../../services/acp-types.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
+import { materializeSnapshotFromOpenFound } from "../../session-state/session-state-protocol.js";
 
 interface SessionOpenStore {
 	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void;
@@ -72,11 +69,13 @@ export class SessionOpenHydrator {
 		requestToken: string,
 		found: SessionOpenFound
 	): ResultAsync<SessionOpenHydrationResult, AppError> {
-		const prior = this.panelChains.get(panelId) ?? Promise.resolve({
-			canonicalSessionId: found.canonicalSessionId,
-			openToken: found.openToken,
-			applied: false,
-		});
+		const prior =
+			this.panelChains.get(panelId) ??
+			Promise.resolve({
+				canonicalSessionId: found.canonicalSessionId,
+				openToken: found.openToken,
+				applied: false,
+			});
 		const queued = prior.then(() => this.applyFound(panelId, requestToken, found));
 		const cleanup = queued.finally(() => {
 			if (this.panelChains.get(panelId) === cleanup) {

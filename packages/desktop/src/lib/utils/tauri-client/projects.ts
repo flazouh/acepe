@@ -2,7 +2,7 @@ import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-import type { ProjectAcepeConfig, ProjectData, ProjectSettingKey } from "./types.js";
+import type { ProjectAcepeConfig, ProjectData } from "./types.js";
 
 const storageCommands = TAURI_COMMAND_CLIENT.storage;
 
@@ -47,14 +47,6 @@ export const projects = {
 		config: ProjectAcepeConfig
 	): ResultAsync<ProjectAcepeConfig, AppError> => {
 		return storageCommands.save_project_acepe_config.invoke<ProjectAcepeConfig>({ path, config });
-	},
-
-	saveProjectSetting: (
-		path: string,
-		key: ProjectSettingKey,
-		value: string | null
-	): ResultAsync<ProjectData, AppError> => {
-		return storageCommands.save_project_setting.invoke<ProjectData>({ path, key, value });
 	},
 
 	updateProjectOrder: (orderedPaths: string[]): ResultAsync<ProjectData[], AppError> => {

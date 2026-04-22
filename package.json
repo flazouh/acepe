@@ -12,14 +12,10 @@
 	},
 	"workspaces": ["packages/*"],
 	"scripts": {
-		"prepare": "husky",
 		"test": "bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/agent-panel-contract test && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test"
 	},
 	"engines": { "node": "20.x" },
 	"dependencies": {
 		"vaul-svelte": "^1.0.0-next.7"
-	},
-	"devDependencies": {
-		"husky": "^9.1.7"
 	}
 }

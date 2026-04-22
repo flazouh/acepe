@@ -16,6 +16,12 @@ const summaryText = $derived.by(() => {
 	if (setupState.activeCommand) return setupState.activeCommand;
 	return "Running setup...";
 });
+
+const progressText = $derived.by(() => {
+	if (setupState.commandCount <= 0) return null;
+	const currentStep = setupState.activeCommandIndex ?? 0;
+	return `${currentStep}/${setupState.commandCount}`;
+});
 const titleText = $derived.by(() => {
 	if (setupState.status === "failed") {
 		return "Setup script failed";
@@ -29,9 +35,7 @@ const titleText = $derived.by(() => {
 });
 const detailsText = $derived(
 	setupState.outputText ||
-		(setupState.status === "creating-worktree"
-			? "Creating worktree..."
-			: "Running setup...")
+		(setupState.status === "creating-worktree" ? "Creating worktree..." : "Running setup...")
 );
 </script>
 
@@ -40,6 +44,7 @@ const detailsText = $derived(
 	title={titleText}
 	summary={summaryText}
 	details={detailsText}
+	progressLabel={progressText}
 	tone={setupState.status === "failed" ? "error" : "running"}
 >
 	{#snippet leading()}

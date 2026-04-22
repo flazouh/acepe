@@ -1,11 +1,11 @@
 {
-  "toolCallId": "call_hyI9YBa76MrNb7Z8TWmI4Fmz",
-  "kind": "other",
-  "sessionUpdate": "tool_call",
-  "status": "pending",
-  "title": "Insert execute fix todos",
-  "rawInput": {
-    "description": "Insert execute fix todos",
-    "query": "INSERT INTO todos (id, title, description, status) VALUES\n  ('execute-parser-tests', 'Add execute parser tests', 'Add failing tests for execute results shaped like { content, detailedContent } and confirm the shared agent panel mapping receives stdout for those payloads.', 'pending'),\n  ('execute-parser-fix', 'Fix execute result parsing', 'Update execute result parsing to read content/detailedContent payloads and strip shell-style <exited with exit code N> suffixes into parsed stdout/exitCode.', 'pending'),\n  ('execute-verify', 'Verify execute output', 'Run targeted tests and desktop typecheck, then verify in the running Tauri app that the Execute tool shows stdout for pwd.', 'pending');"
-  }
+	"toolCallId": "call_hyI9YBa76MrNb7Z8TWmI4Fmz",
+	"kind": "other",
+	"sessionUpdate": "tool_call",
+	"status": "pending",
+	"title": "Insert execute fix todos",
+	"rawInput": {
+		"description": "Insert execute fix todos",
+		"query": "INSERT INTO todos (id, title, description, status) VALUES\n  ('execute-parser-tests', 'Add execute parser tests', 'Add failing tests for execute results shaped like { content, detailedContent } and confirm the shared agent panel mapping receives stdout for those payloads.', 'pending'),\n  ('execute-parser-fix', 'Fix execute result parsing', 'Update execute result parsing to read content/detailedContent payloads and strip shell-style <exited with exit code N> suffixes into parsed stdout/exitCode.', 'pending'),\n  ('execute-verify', 'Verify execute output', 'Run targeted tests and desktop typecheck, then verify in the running Tauri app that the Execute tool shows stdout for pwd.', 'pending');"
+	}
 }

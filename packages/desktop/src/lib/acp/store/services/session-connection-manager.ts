@@ -5,7 +5,7 @@
  * - Session creation (new sessions)
  * - Session connection (resume existing sessions)
  * - Session disconnection
- * - Model/mode switching with optimistic updates
+ * - Model/mode/config switching via canonical capability envelopes
  *
  * This service is extracted from SessionStore to separate concerns
  * and reduce the God class anti-pattern.
@@ -90,9 +90,6 @@ export class SessionConnectionManager {
 	// Concurrent callers get the same Promise — no duplicate API calls.
 	private pendingConnections = new Map<string, ResultAsync<SessionCold, AppError>>();
 
-	// Sequence counter for config option changes — newest call wins on concurrent mutations.
-	private configOptionSeq = new Map<string, number>();
-
 	constructor(
 		private readonly stateReader: ISessionStateReader,
 		private readonly stateWriter: ISessionStateWriter,
@@ -130,10 +127,7 @@ export class SessionConnectionManager {
 		);
 	}
 
-	private setSessionAutonomous(
-		sessionId: string,
-		enabled: boolean
-	): ResultAsync<void, AppError> {
+	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
 		return api.setSessionAutonomous(sessionId, enabled);
 	}
 
@@ -253,7 +247,7 @@ export class SessionConnectionManager {
 	// ============================================
 
 	/**
-	 * Create a new session and connect to ACP.
+	 * Create a new session and seed local state for a not-yet-live ACP session.
 	 */
 	createSession(
 		options: {
@@ -490,12 +484,12 @@ export class SessionConnectionManager {
 							};
 
 							// Initialize hot state BEFORE adding the session to the store.
-							// initializeHotState writes synchronously (bypasses RAF batch),
-							// so the event service will see isConnected: true immediately
-							// when it receives streaming events for this session.
+							// New sessions stay disconnected until canonical resume/first-send
+							// materializes readiness, but we still seed optimistic mode/model
+							// metadata so the composer and settings can render immediately.
 							this.hotStateManager.initializeHotState(sessionId, {
-								status: "ready",
-								isConnected: true,
+								status: "idle",
+								isConnected: false,
 								turnState: "idle",
 								connectionError: null,
 								autonomousEnabled,
@@ -540,15 +534,15 @@ export class SessionConnectionManager {
 							// Mark as preloaded since it's a new session with no entries
 							this.entryManager.markPreloaded(sessionId);
 
-							// Initialize session machine with correct initial states:
-							// - Content: LOADED (new session has no entries to load)
-							// - Connection: READY (already connected via newSession API)
-							this.connectionManager.initializeConnectedSession(sessionId);
+							// New sessions have empty content immediately, but their transport
+							// remains disconnected until resume or first send activates them.
+							this.connectionManager.sendContentLoad(sessionId);
+							this.connectionManager.sendContentLoaded(sessionId);
 
 							// Flush any pending events that arrived before session was added
 							this.eventService.flushPendingEvents(sessionId, eventHandler);
 
-							logger.debug("Session created and connected", {
+							logger.debug("Session created and left disconnected pending activation", {
 								sessionId,
 							});
 
@@ -644,9 +638,7 @@ export class SessionConnectionManager {
 					options?.openToken
 				)
 			)
-			.andThen(() =>
-				ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError)
-			)
+			.andThen(() => ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError))
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
 				const cold = this.stateReader.getSessionCold(sessionId);
@@ -725,11 +717,6 @@ export class SessionConnectionManager {
 			name: m.name,
 			description: m.description ?? undefined,
 		}));
-		const availableCommands = data.availableCommands ?? [];
-		const configOptions = data.configOptions ?? [];
-
-		const currentMode =
-			availableModes.find((m) => m.id === data.modes?.currentModeId) ?? null;
 		const initialModel = this.resolveCurrentModel(
 			effectiveAgentId,
 			availableModels,
@@ -741,11 +728,7 @@ export class SessionConnectionManager {
 		// Cache available models and modes for settings/optimistic display
 		preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
 		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		preferencesStore.updateModelsDisplayCache(
-			effectiveAgentId,
-			modelsDisplay,
-			providerMetadata
-		);
+		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay, providerMetadata);
 		preferencesStore.updateModesCache(effectiveAgentId, availableModes);
 		logger.info("Provider model capabilities on session resume", {
 			sessionId,
@@ -806,7 +789,7 @@ export class SessionConnectionManager {
 	// ============================================
 
 	/**
-	 * Set model for a session (optimistic update with rollback).
+	 * Set model for a session.
 	 * Also tracks the model choice per mode for this session.
 	 */
 	setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
@@ -819,12 +802,7 @@ export class SessionConnectionManager {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
-		const capabilities = this.capabilitiesManager.getCapabilities(sessionId);
-		const newModel = capabilities.availableModels.find((m) => m.id === modelId);
-		const oldModel = hotState.currentModel;
-
-		this.hotStateManager.updateHotState(sessionId, { currentModel: newModel || null });
-		logger.debug("Setting model (optimistic)", { sessionId, modelId });
+		logger.debug("Setting model", { sessionId, modelId });
 
 		// Track model choice per mode for this session
 		if (hotState.currentMode) {
@@ -838,18 +816,13 @@ export class SessionConnectionManager {
 				return undefined;
 			})
 			.mapErr((error) => {
-				this.hotStateManager.updateHotState(sessionId, { currentModel: oldModel });
-				logger.error("Failed to set model, rolling back", {
-					sessionId,
-					modelId,
-					error,
-				});
+				logger.error("Failed to set model", { sessionId, modelId, error });
 				return new AgentError("setModel", error instanceof Error ? error : undefined);
 			});
 	}
 
 	/**
-	 * Set mode for a session (optimistic update with rollback).
+	 * Set mode for a session.
 	 * Also applies model defaults or restores previous model choice for new mode.
 	 *
 	 * Flow:
@@ -871,15 +844,10 @@ export class SessionConnectionManager {
 
 		const capabilities = this.capabilitiesManager.getCapabilities(sessionId);
 		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
-		const oldMode = hotState.currentMode;
 		const oldAutonomousEnabled = hotState.autonomousEnabled;
 		const nextAutonomousEnabled =
 			oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
-		this.hotStateManager.updateHotState(sessionId, {
-			currentMode: newMode || null,
-			autonomousEnabled: nextAutonomousEnabled,
-		});
-		logger.debug("Setting mode (optimistic)", { sessionId, modeId });
+		logger.debug("Setting mode", { sessionId, modeId });
 
 		const applyMode = api.setMode(session.id, modeId);
 
@@ -937,15 +905,7 @@ export class SessionConnectionManager {
 				return okAsync(undefined);
 			})
 			.mapErr((error) => {
-				this.hotStateManager.updateHotState(sessionId, {
-					currentMode: oldMode,
-					autonomousEnabled: oldAutonomousEnabled,
-				});
-				logger.error("Failed to set mode, rolling back", {
-					sessionId,
-					modeId,
-					error,
-				});
+				logger.error("Failed to set mode", { sessionId, modeId, error });
 				return new AgentError("setMode", error instanceof Error ? error : undefined);
 			});
 	}
@@ -962,7 +922,8 @@ export class SessionConnectionManager {
 
 		const hotState = this.stateReader.getHotState(sessionId);
 		const targetEnabled =
-			enabled && this.supportsAutonomousMode(hotState.currentMode ? hotState.currentMode.id : undefined);
+			enabled &&
+			this.supportsAutonomousMode(hotState.currentMode ? hotState.currentMode.id : undefined);
 		if (hotState.autonomousTransition !== "idle") {
 			return errAsync(
 				new AgentError(
@@ -1013,7 +974,7 @@ export class SessionConnectionManager {
 	}
 
 	/**
-	 * Set a configuration option for a session (optimistic update with response override).
+	 * Set a configuration option for a session.
 	 */
 	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
 		const session = this.stateReader.getSessionCold(sessionId);
@@ -1025,38 +986,14 @@ export class SessionConnectionManager {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
-		// Bump sequence — newest call wins on concurrent mutations
-		const seq = (this.configOptionSeq.get(sessionId) ?? 0) + 1;
-		this.configOptionSeq.set(sessionId, seq);
-
-		// Optimistic: update just the changed option's currentValue
-		const optimisticOptions = (hotState.configOptions ?? []).map((opt) =>
-			opt.id === configId ? { ...opt, currentValue: value } : opt
-		);
-		this.hotStateManager.updateHotState(sessionId, { configOptions: optimisticOptions });
-		logger.debug("Setting config option (optimistic)", { sessionId, configId, value });
+		logger.debug("Setting config option", { sessionId, configId, value });
 
 		return api
 			.setConfigOption(session.id, configId, value)
-			.map((response) => {
-				// Only apply if we are still the latest call
-				if (this.configOptionSeq.get(sessionId) !== seq) return;
-
-				// Replace with full state from response (other options may have changed)
-				if (response?.configOptions && Array.isArray(response.configOptions)) {
-					this.hotStateManager.updateHotState(sessionId, {
-						configOptions: response.configOptions,
-					});
-				}
+			.map(() => {
 				logger.debug("Config option set successfully", { sessionId, configId });
 			})
 			.mapErr((error) => {
-				// Only rollback if we are still the latest call
-				if (this.configOptionSeq.get(sessionId) === seq) {
-					this.hotStateManager.updateHotState(sessionId, {
-						configOptions: hotState.configOptions ?? [],
-					});
-				}
 				logger.error("Failed to set config option", {
 					sessionId,
 					configId,

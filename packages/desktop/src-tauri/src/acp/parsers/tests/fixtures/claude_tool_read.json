@@ -1,12 +1,12 @@
 {
-  "toolCallId": "tool-claude-read",
-  "_meta": {
-    "claudeCode": {
-      "toolName": "Read"
-    }
-  },
-  "rawInput": {
-    "file_path": "/tmp/claude.md"
-  },
-  "status": "pending"
+	"toolCallId": "tool-claude-read",
+	"_meta": {
+		"claudeCode": {
+			"toolName": "Read"
+		}
+	},
+	"rawInput": {
+		"file_path": "/tmp/claude.md"
+	},
+	"status": "pending"
 }

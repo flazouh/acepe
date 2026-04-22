@@ -1,7 +1,4 @@
-import type {
-	TurnErrorKind,
-	TurnErrorSource,
-} from "../../services/converted-session-types.js";
+import type { TurnErrorKind, TurnErrorSource } from "../../services/converted-session-types.js";
 
 /**
  * Error message displayed inline in the conversation thread.

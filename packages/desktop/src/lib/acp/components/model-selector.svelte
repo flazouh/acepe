@@ -7,10 +7,7 @@ import {
 } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
-import type {
-	DisplayableModel,
-	ModelsForDisplay,
-} from "../../services/acp-types.js";
+import type { DisplayableModel, ModelsForDisplay } from "../../services/acp-types.js";
 import type { Model } from "../application/dto/model.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
@@ -116,9 +113,7 @@ const triggerProviderMarkSource = $derived.by(() => {
 	return `${displayName} ${currentModelId}`;
 });
 
-const usesVariantSelector = $derived(
-	supportsReasoningEffortPicker(availableModels, modelsDisplay)
-);
+const usesVariantSelector = $derived(supportsReasoningEffortPicker(availableModels, modelsDisplay));
 const reasoningBaseGroupsFromDisplay = $derived.by(() =>
 	groupReasoningModelsFromDisplay(modelsDisplay)
 );
@@ -284,10 +279,7 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	if (modelId !== currentModelId) {
 		logger.info("Changing model", { from: currentModelId, to: modelId });
 
-		const result = await ResultAsync.fromPromise(
-			onModelChange(modelId),
-			(error) => error as Error
-		)
+		const result = await ResultAsync.fromPromise(onModelChange(modelId), (error) => error as Error)
 			.map(() => {
 				logger.info("Model change completed", { modelId });
 				return undefined;

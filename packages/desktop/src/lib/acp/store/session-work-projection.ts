@@ -1,6 +1,6 @@
 import type { SessionStatus } from "../application/dto/session-status.js";
-import type { SessionState } from "./session-state.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
+import type { SessionState } from "./session-state.js";
 
 export type SessionWorkBucket =
 	| "answer_needed"
@@ -90,7 +90,8 @@ export function deriveSessionWorkProjection(
 		input.state.connection === "error" ||
 		input.connectionError != null ||
 		input.activeTurnFailure != null;
-	const needsReview = input.state.activity.kind === "idle" && input.state.attention.hasUnseenCompletion;
+	const needsReview =
+		input.state.activity.kind === "idle" && input.state.attention.hasUnseenCompletion;
 
 	return {
 		state: input.state,

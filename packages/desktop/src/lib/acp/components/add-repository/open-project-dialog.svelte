@@ -7,8 +7,8 @@ import {
 	HeaderActionCell,
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
-	import { Dialog } from "bits-ui";
-	import { ResultAsync } from "neverthrow";
+import { Dialog } from "bits-ui";
+import { ResultAsync } from "neverthrow";
 import { DownloadSimple } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";

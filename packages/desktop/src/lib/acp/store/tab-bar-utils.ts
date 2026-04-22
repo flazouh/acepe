@@ -4,20 +4,20 @@
 
 import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
-import {
-	deriveLiveSessionState,
-	deriveLiveSessionWorkProjection,
-	type LiveSessionWorkInput,
-} from "./live-session-work.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import {
+	deriveLiveSessionState,
+	deriveLiveSessionWorkProjection,
+	type LiveSessionWorkInput,
+} from "./live-session-work.js";
 import type { SessionState } from "./session-state.js";
 import { deriveSessionState } from "./session-state.js";
-import { selectSessionWorkBucket, type SessionWorkBucket } from "./session-work-projection.js";
 import { stripArtifactsFromTitle } from "./session-title-policy.js";
+import { type SessionWorkBucket, selectSessionWorkBucket } from "./session-work-projection.js";
 import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
@@ -237,12 +237,11 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 	const currentToolKind = providedCurrentToolKind;
 	const liveSessionInput: LiveSessionWorkInput = {
 		runtimeState,
-		hotState:
-			hotState ?? {
-				status: "idle",
-				currentMode: null,
-				connectionError: null,
-			},
+		hotState: hotState ?? {
+			status: "idle",
+			currentMode: null,
+			connectionError: null,
+		},
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion,

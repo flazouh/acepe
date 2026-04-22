@@ -26,8 +26,12 @@ interface Props {
 
 let { projectManager, onClose, initialSection }: Props = $props();
 
+// One-time seed from optional `initialSection`; user tab changes are local only after that.
+// svelte-ignore state_referenced_locally
 let activeSection = $state<SettingsSectionId>(
-	initialSection ? migrateSettingsSectionId(initialSection) : "general"
+	initialSection != null && initialSection !== ""
+		? migrateSettingsSectionId(initialSection)
+		: "general"
 );
 
 function handleSectionChange(section: SettingsSectionId) {
@@ -37,11 +41,7 @@ function handleSectionChange(section: SettingsSectionId) {
 
 <div class="relative h-full w-full flex bg-background overflow-hidden gap-1 p-1">
 	<!-- Floating sidebar (full height) -->
-	<SettingsSidebar
-		{activeSection}
-		onSectionChange={handleSectionChange}
-		showProjectSection={Boolean(projectManager)}
-	/>
+	<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
 
 	<!-- Floating close button -->
 	<button
@@ -59,14 +59,6 @@ function handleSectionChange(section: SettingsSectionId) {
 		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-14 pt-8 pb-14 text-[13px] lg:px-16 lg:pt-10 lg:pb-16 xl:px-20 xl:pt-12 xl:pb-20">
 			{#if activeSection === "general"}
 				<GeneralSection />
-			{:else if activeSection === "project"}
-				{#if projectManager}
-					<ProjectSection {projectManager} />
-				{:else}
-					<div class="text-[12px] text-muted-foreground/50">
-						Project settings are only available from the main app view.
-					</div>
-				{/if}
 			{:else if activeSection === "appearance"}
 				<AppearanceSection />
 			{:else if activeSection === "agents"}
@@ -83,6 +75,14 @@ function handleSectionChange(section: SettingsSectionId) {
 				<McpSection />
 			{:else if activeSection === "git"}
 				<GitSection />
+			{:else if activeSection === "project"}
+				{#if projectManager}
+					<ProjectSection {projectManager} />
+				{:else}
+					<div class="text-[12px] text-muted-foreground/50">
+						Project settings are only available from the main app view.
+					</div>
+				{/if}
 			{:else if activeSection === "environments"}
 				<EnvironmentsSection />
 			{:else if activeSection === "worktrees"}

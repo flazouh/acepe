@@ -27,7 +27,6 @@ use sea_orm::{
     PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use uuid::Uuid;
 
 // ============================================================================
@@ -51,31 +50,7 @@ pub struct ProjectRepository;
 
 impl ProjectRepository {
     fn load_project_config(path: &str) -> acepe_config::AcepeConfig {
-        let project_path = Path::new(path);
-        if !project_path.is_dir() {
-            return acepe_config::AcepeConfig::default();
-        }
-
-        match acepe_config::ensure_exists(project_path) {
-            Ok(config) => config,
-            Err(error) => {
-                tracing::warn!(
-                    error = %error,
-                    path,
-                    "Failed to ensure project config exists; using defaults"
-                );
-                acepe_config::read_or_default(project_path)
-            }
-        }
-    }
-
-    fn ensure_project_config(path: &str) -> Result<acepe_config::AcepeConfig> {
-        let project_path = Path::new(path);
-        if !project_path.is_dir() {
-            return Ok(acepe_config::AcepeConfig::default());
-        }
-
-        Ok(acepe_config::ensure_exists(project_path)?)
+        acepe_config::read_or_default(std::path::Path::new(path))
     }
 
     fn display_name(path: &str, stored_name: &str) -> String {
@@ -89,7 +64,6 @@ impl ProjectRepository {
 
     fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
         let name = Self::display_name(&model.path, &model.name);
-        let color = model.color.clone();
         let show_external_cli_sessions = Self::load_project_config(&model.path)
             .external_cli_sessions
             .show;
@@ -100,7 +74,7 @@ impl ProjectRepository {
             name,
             last_opened: model.last_opened.to_rfc3339(),
             created_at: model.created_at.to_rfc3339(),
-            color,
+            color: model.color,
             sort_order: model.sort_order,
             icon_path: model.icon_path,
             show_external_cli_sessions,
@@ -150,9 +124,8 @@ impl ProjectRepository {
                 path = %path,
                 "Project updated"
             );
-            let show_external_cli_sessions = Self::ensure_project_config(&path)?
-                .external_cli_sessions
-                .show;
+            let show_external_cli_sessions =
+                Self::load_project_config(&path).external_cli_sessions.show;
 
             ProjectRow {
                 id,
@@ -198,9 +171,8 @@ impl ProjectRepository {
                 color = %assigned_color,
                 "Project created"
             );
-            let show_external_cli_sessions = Self::ensure_project_config(&path)?
-                .external_cli_sessions
-                .show;
+            let show_external_cli_sessions =
+                Self::load_project_config(&path).external_cli_sessions.show;
 
             ProjectRow {
                 id,
@@ -241,11 +213,7 @@ impl ProjectRepository {
             ),
         }
 
-        if let Some(project_model) = model {
-            return Ok(Some(Self::row_from_model(project_model)));
-        }
-
-        Ok(None)
+        Ok(model.map(Self::row_from_model))
     }
 
     /// Get all projects, ordered by persisted sidebar order.
@@ -287,6 +255,23 @@ impl ProjectRepository {
         );
 
         Ok(models.into_iter().map(Self::row_from_model).collect())
+    }
+
+    pub async fn get_external_hidden_paths(
+        db: &DbConn,
+        project_paths: &[String],
+    ) -> Result<std::collections::HashSet<String>> {
+        let mut hidden_paths = std::collections::HashSet::new();
+
+        for project_path in project_paths {
+            if let Some(project) = Self::get_by_path(db, project_path).await? {
+                if !project.show_external_cli_sessions {
+                    hidden_paths.insert(project.path);
+                }
+            }
+        }
+
+        Ok(hidden_paths)
     }
 
     pub async fn update_icon_path(
@@ -347,30 +332,6 @@ impl ProjectRepository {
         txn.commit().await?;
 
         Self::get_all(db).await
-    }
-
-    pub async fn get_external_hidden_paths(
-        db: &DbConn,
-        project_paths: &[String],
-    ) -> Result<std::collections::HashSet<String>> {
-        if project_paths.is_empty() {
-            return Ok(std::collections::HashSet::new());
-        }
-
-        let models = Project::find()
-            .filter(crate::db::entities::project::Column::Path.is_in(project_paths.to_vec()))
-            .all(db)
-            .await?;
-
-        Ok(models
-            .into_iter()
-            .filter(|model| {
-                !acepe_config::read_or_default(Path::new(&model.path))
-                    .external_cli_sessions
-                    .show
-            })
-            .map(|model| model.path)
-            .collect())
     }
 
     /// Delete a project by path.
@@ -1166,13 +1127,6 @@ pub struct SessionMetadataRow {
     pub sequence_id: Option<i32>,
 }
 
-/// Result of a project session metadata lookup.
-///
-/// `db_row_count` is the unfiltered number of rows the SQLite query found for
-/// the requested projects; callers use it to distinguish "index has no
-/// knowledge of these projects" (zero rows → fall back to a file scan) from
-/// "index has rows but visibility filters hid them all" (non-zero rows → no
-/// fallback needed). `entries` is the post-filter set returned to the UI.
 #[derive(Debug, Clone)]
 pub struct ProjectSessionsLookup {
     pub db_row_count: usize,
@@ -2016,10 +1970,6 @@ impl SessionMetadataRepository {
     }
 
     /// Get all sessions for given project paths, ordered by timestamp DESC.
-    ///
-    /// `external_hidden_paths` lists project paths whose externally-discovered
-    /// sessions (rows with `is_acepe_managed = 0`) should be excluded. Pass an
-    /// empty set for legacy behavior (return everything).
     pub async fn get_for_projects(
         db: &DbConn,
         project_paths: &[String],
@@ -2034,7 +1984,6 @@ impl SessionMetadataRepository {
 
         tracing::debug!(
             project_count = project_paths.len(),
-            external_hidden_count = external_hidden_paths.len(),
             "Loading session metadata for projects"
         );
 
@@ -2053,23 +2002,18 @@ impl SessionMetadataRepository {
         let entries = models
             .into_iter()
             .filter(|model| {
+                let hidden_external_session = external_hidden_paths.contains(&model.project_path)
+                    && model.is_acepe_managed == 0;
+                if hidden_external_session {
+                    return false;
+                }
+
                 state_map
                     .get(&model.id)
                     .map(|state| {
                         AcepeSessionRelationship::from_str(&state.relationship).is_visible()
                     })
                     .unwrap_or(true)
-            })
-            .filter(|model| {
-                // Hide externally-discovered sessions for projects opted in.
-                if model.is_acepe_managed != 0 {
-                    return true;
-                }
-                let effective_project = state_map
-                    .get(&model.id)
-                    .map(|state| state.project_path.as_str())
-                    .unwrap_or(model.project_path.as_str());
-                !external_hidden_paths.contains(effective_project)
             })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
             .collect();

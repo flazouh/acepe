@@ -4,11 +4,7 @@ import {
 	AgentPanelStatusIcon,
 } from "@acepe/ui/agent-panel";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import {
-	CloseAction,
-	FullscreenAction,
-	OverflowMenuTriggerAction,
-} from "@acepe/ui/panel-header";
+import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";

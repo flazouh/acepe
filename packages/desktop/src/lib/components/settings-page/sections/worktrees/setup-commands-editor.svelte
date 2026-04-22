@@ -1,52 +1,84 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { toast } from "svelte-sonner";
-	import { Button } from "$lib/components/ui/button/index.js";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import { Textarea } from "$lib/components/ui/textarea/index.js";
-	import { tauriClient } from "$lib/utils/tauri-client.js";
+import { onMount } from "svelte";
+import { X } from "phosphor-svelte";
+import { Kbd } from "$lib/components/ui/kbd/index.js";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
-	interface Props {
-		projectPath: string;
+interface Props {
+	projectPath: string;
+}
+
+let { projectPath }: Props = $props();
+
+type Status = "loading" | "ready" | "error";
+
+let status = $state<Status>("loading");
+let commands = $state<string[]>([]);
+let newCommand = $state("");
+let inputEl = $state<HTMLInputElement | null>(null);
+let isSaving = $state(false);
+
+async function load() {
+	status = "loading";
+	await tauriClient.git.loadWorktreeConfig(projectPath).match(
+		(config) => {
+			commands = [...(config?.setupCommands ?? [])];
+			status = "ready";
+		},
+		() => {
+			status = "error";
+		}
+	);
+}
+
+onMount(() => {
+	void load();
+});
+
+async function persistCommands(nextCommands: string[]) {
+	isSaving = true;
+	await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
+		() => {
+			isSaving = false;
+		},
+		() => {
+			isSaving = false;
+		}
+	);
+}
+
+async function addCommand() {
+	const trimmed = newCommand.trim();
+	if (!trimmed) return;
+	if (commands.includes(trimmed)) {
+		newCommand = "";
+		return;
 	}
+	const next = [...commands, trimmed];
+	commands = next;
+	newCommand = "";
+	await persistCommands(next);
+	inputEl?.focus();
+}
 
-	let { projectPath }: Props = $props();
+async function removeCommand(index: number) {
+	const next = commands.filter((_, i) => i !== index);
+	commands = next;
+	await persistCommands(next);
+}
 
-	type Status = "loading" | "ready" | "error";
-
-	let status = $state<Status>("loading");
-	let setupScript = $state("");
-	let isSaving = $state(false);
-
-	async function load() {
-		status = "loading";
-		await tauriClient.git.loadWorktreeConfig(projectPath).match(
-			(config) => {
-				setupScript = config ? config.setupScript : "";
-				status = "ready";
-			},
-			() => {
-				status = "error";
-			}
-		);
+function handleKeydown(event: KeyboardEvent) {
+	if (event.key === "Enter") {
+		event.preventDefault();
+		void addCommand();
+	} else if (event.key === "Escape") {
+		newCommand = "";
+		inputEl?.blur();
 	}
+}
 
-	onMount(() => {
-		void load();
-	});
-
-	async function persistScript() {
-		isSaving = true;
-		await tauriClient.git.saveWorktreeConfig(projectPath, setupScript).match(
-			() => {
-				isSaving = false;
-			},
-			(error) => {
-				isSaving = false;
-				toast.error(`Failed to save setup script: ${error.message}`);
-			}
-		);
-	}
+let hasCommands = $derived(commands.length > 0);
 </script>
 
 {#if status === "loading"}
@@ -62,28 +94,41 @@
 		{"Could not load setup scripts"} · {"Retry"}
 	</button>
 {:else}
-	<div class="flex flex-col gap-2">
-		<Textarea
-			rows={6}
-			class="min-h-[120px] font-mono text-[12px] placeholder:text-muted-foreground/50"
-			bind:value={setupScript}
-			placeholder={"Runs after Acepe creates a worktree for this project."}
-			disabled={isSaving}
-		/>
-		<div class="flex items-center justify-between gap-3">
-			<div class="text-[11px] text-muted-foreground/60">
-				Blank value clears the setup script.
-			</div>
-			<Button
-				size="sm"
-				variant="secondary"
-				disabled={isSaving}
-				onclick={() => {
-					void persistScript();
-				}}
+	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
+		{#each commands as command, index (command + index)}
+			<div
+				class="group flex items-center gap-1.5 px-3 h-8 {index > 0 ? 'border-t border-border/40' : ''}"
+				class:opacity-50={isSaving}
 			>
-				{isSaving ? "Saving..." : "Save setup script"}
-			</Button>
+				<span class="min-w-0 flex-1 truncate text-[12px] text-foreground">{command}</span>
+				<button
+					type="button"
+					class="shrink-0 size-5 flex items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground hover:bg-accent group-hover:opacity-100 disabled:pointer-events-none"
+					disabled={isSaving}
+					aria-label="Remove command: {command}"
+					onclick={() => void removeCommand(index)}
+				>
+					<X size={10} />
+				</button>
+			</div>
+		{/each}
+
+		<div
+			class="flex items-center gap-1.5 px-3 h-8 {hasCommands ? 'border-t border-border/40' : ''}"
+			class:opacity-50={isSaving}
+		>
+			<input
+				bind:this={inputEl}
+				type="text"
+				bind:value={newCommand}
+				placeholder={hasCommands ? "add a command..." : "Commands run after creating a worktree (e.g., install dependencies)"}
+				disabled={isSaving}
+				class="min-w-0 flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+				onkeydown={handleKeydown}
+			/>
+			{#if newCommand.trim()}
+				<Kbd class="shrink-0">enter</Kbd>
+			{/if}
 		</div>
 	</div>
 {/if}

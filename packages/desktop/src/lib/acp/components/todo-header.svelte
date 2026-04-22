@@ -73,7 +73,6 @@ function getMarkdown(): string {
 	});
 	return [header, separator, ...rows].join("\n");
 }
-
 </script>
 
 {#if shouldRender && todoState}

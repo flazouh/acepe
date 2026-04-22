@@ -1,6 +1,6 @@
 # Reconnect and resume
 
-Reconnect and resume are where architecture lies get exposed fastest.
+Reconnect and resume are where architectural drift gets exposed fastest.
 
 If Acepe has split authority, reconnect/resume will usually show it through:
 
@@ -10,43 +10,13 @@ If Acepe has split authority, reconnect/resume will usually show it through:
 - incorrect current tool badges,
 - prompts that vanish or attach to the wrong thing.
 
-## Restore pipeline
-
-## Restore pipeline
-
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart TD
-    n_snapshot("Stored canonical snapshot") --> n_runtime("Restore runtime from projection snapshot")
-    n_runtime --> n_register("Register session locally")
-    n_register --> n_envelopes("Apply buffered revisioned envelopes")
-    n_envelopes --> n_live("Live updates as freshness")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-
-    class n_snapshot,n_runtime blue;
-    class n_register,n_envelopes purple;
-    class n_live yellow;
-```
-
 ## Principle
 
 Reconnect and resume should restore from **canonical state first**, then layer live runtime/cache data on top where appropriate.
 
 They must not depend on a component remembering local state or on the live process registry being the only place runtime truth exists.
 
-## Survival table
-
-| State | Should survive reopen/refresh? | Authority |
-|---|---|---|
-| Transcript history | Yes | Canonical session graph |
-| Operation lifecycle | Yes | Canonical operation state |
-| Pending interactions | Yes | Canonical interaction state |
-| Runtime identity needed to continue session | Yes | Projection snapshot + canonical envelopes |
-| Capabilities/config | Yes | Capability envelopes |
-| UI-local open/closed panels | Optional/view-specific | UI layer |
+In the settled lifecycle model, the public recovery action is `resume`. `reconnect` is an internal supervisor repair path, not a long-term public verb.
 
 ## What should survive
 
@@ -68,15 +38,39 @@ The intended restore sequence is:
 4. apply buffered canonical envelopes in revision order,
 5. let live transport updates improve freshness without replacing authority.
 
-## What restores where
+The important normalization rules are:
 
-| Step | Layer | Responsibility |
-|---|---|---|
-| Load snapshot | Backend/desktop boundary | Supply the last canonical known state |
-| Restore runtime | Projection/runtime restore path | Rehydrate runtime facts from stored snapshot |
-| Register session | Session store | Make the target session addressable locally |
-| Apply envelopes | Session event/store layer | Advance revisioned state in order |
-| Render UI | Selectors/components | Reflect canonical state without inventing another source |
+- persisted `Ready` cold-opens as `Detached { restored_requires_attach }`
+- persisted `Activating` or `Reconnecting` cold-open as `Detached { abandoned_in_flight }`
+- irrecoverable restore faults cold-open as `Failed`
+- `Archived` stays `Archived`
+
+That means cold-open is always **history-first**, never fake-live.
+
+## Recovery flow
+
+```text
+cold open
+  |
+  v
+canonical restored state
+  |
+  +--> Detached { reason } -- resume --> activation path --> Ready
+  |
+  +--> Failed ------------- error handling / retry when canonically allowed
+  |
+  +--> Archived ----------- read-only
+```
+
+For live disconnects:
+
+```text
+Ready -> Reconnecting -> Ready
+                   \
+                    +-> Detached { reconnect_exhausted } -> resume -> Ready
+```
+
+If auto-recovery exceeds policy bounds, the UI must have a canonical stop-waiting/manual recovery path instead of spinning forever.
 
 ## What should not happen
 
@@ -86,49 +80,21 @@ Reconnect/resume should not require:
 - guessing blocked state from whether a prompt is visible,
 - depending on the live registry as the only source of runtime truth,
 - provider-specific policy hidden in presentation metadata,
-- raw transport events finalizing durable state independently.
-
-## Anti-pattern map
-
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 22, 'rankSpacing': 28}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart LR
-    n_rawBad("Raw event") --> n_local("Component state") --> n_patchup("Reconnect patch-up logic")
-    n_rawGood("Raw event") --> n_projection("Projection") --> n_graph("Canonical graph") --> n_store("Store") --> n_selector("Selector") --> n_component("Component")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
-    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
-    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-
-    class n_rawBad,n_local,n_patchup orange;
-    class n_rawGood,n_projection blue;
-    class n_graph purple;
-    class n_store yellow;
-    class n_selector,n_component green;
-```
+- raw transport events finalizing durable state independently,
+- reopening a previously live session as if it were already `Ready`.
 
 ## Agent-agnostic rule
 
 Provider-specific reconnect behavior is allowed at the adapter edge, but the shared architecture should still speak in the same concepts:
 
 - session graph,
+- session lifecycle,
 - operations,
 - interactions,
 - revisioned envelopes,
 - canonical runtime state.
 
 That is how Acepe stays agent-agnostic while still supporting provider-specific transports and policies.
-
-## Bug triage matrix
-
-| Question | Good answer |
-|---|---|
-| What should have survived? | A named canonical state element |
-| Where should it live? | Graph node / projection snapshot / envelope |
-| Why is it missing? | Projection, persistence, hydration, or authority leak |
-| Where should the fix go? | At the owning layer, not just the rendering layer |
 
 ## Practical check
 
@@ -141,3 +107,5 @@ When a reconnect/resume bug appears, ask these questions in order:
 5. Did a raw event path incorrectly become an authority path?
 
 That sequence usually finds the real bug faster than debugging the surface symptom in the UI first.
+
+For the full lifecycle state machine and command flow, see [Session lifecycle](./session-lifecycle.md).

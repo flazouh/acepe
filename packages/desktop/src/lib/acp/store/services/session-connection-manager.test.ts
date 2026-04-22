@@ -25,6 +25,7 @@ const closeSession = vi.fn();
 const setMode = vi.fn();
 const setSessionAutonomous = vi.fn();
 const setModel = vi.fn();
+const setConfigOption = vi.fn();
 const stopStreaming = vi.fn();
 
 vi.mock("../api.js", () => ({
@@ -35,6 +36,7 @@ vi.mock("../api.js", () => ({
 		setMode,
 		setSessionAutonomous,
 		setModel,
+		setConfigOption,
 		stopStreaming,
 	},
 }));
@@ -86,7 +88,6 @@ function createMockEventHandler(): SessionEventHandler {
 		updateCurrentMode: vi.fn(),
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
-		applySessionDomainEvent: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
 }
@@ -130,7 +131,10 @@ function createManager(deps: {
  * This simulates the fire-and-forget invoke + SSE lifecycle event pattern.
  */
 function mockResumeWithLifecycleEvent(responseData: {
-	modes: { currentModeId: string; availableModes: Array<{ id: string; name: string; description: string | null }> };
+	modes: {
+		currentModeId: string;
+		availableModes: Array<{ id: string; name: string; description: string | null }>;
+	};
 	models: SessionModelState;
 	availableCommands?: AvailableCommand[];
 	configOptions?: ConfigOptionData[];
@@ -855,7 +859,6 @@ describe("SessionConnectionManager.connectSession", () => {
 				providerBrand: "codex",
 			})
 		);
-
 	});
 
 	it("hydrates hot state with available commands on connect", async () => {
@@ -1336,6 +1339,35 @@ describe("SessionConnectionManager.createSession", () => {
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
 		expect(initUpdate?.availableCommands).toEqual([{ name: "open", description: "Open file" }]);
+	});
+
+	it("keeps a newly created session disconnected until canonical connect materializes readiness", async () => {
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+		expect(initUpdate).toMatchObject({
+			status: "idle",
+			isConnected: false,
+			turnState: "idle",
+			currentMode: { id: "build", name: "Build", description: undefined },
+			currentModel: {
+				id: "gpt-5.2-codex/high",
+				name: "gpt-5.2-codex (high)",
+				description: undefined,
+			},
+			availableCommands: [{ name: "open", description: "Open file" }],
+		});
+		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
 	});
 
 	it("stores sequenceId returned by the backend on the new cold session", async () => {
@@ -2014,9 +2046,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			availableCommands: [],
 			modelsDisplay: undefined,
 		});
-		setMode.mockReturnValue(
-			errAsync(new AgentError("setMode", new Error("backend failed")))
-		);
+		setMode.mockReturnValue(errAsync(new AgentError("setMode", new Error("backend failed"))));
 
 		const manager = createManager({
 			stateReader,
@@ -2032,10 +2062,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setMode).toHaveBeenCalledTimes(1);
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			currentMode: { id: "build", name: "Build", description: null },
-			autonomousEnabled: true,
-		});
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
 	});
 
 	it("disables backend Autonomous when switching from build into plan mode", async () => {
@@ -2084,10 +2111,54 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
-			currentMode: { id: "plan", name: "Plan", description: null },
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("does not mutate hot state directly when setting model", async () => {
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			isConnected: true,
+			status: "ready",
+			turnState: "idle",
+			acpSessionId: sessionId,
+			connectionError: null,
 			autonomousEnabled: false,
+			autonomousTransition: "idle",
+			currentModel: { id: "gpt-4", name: "GPT-4", description: null },
+			currentMode: { id: "build", name: "Build", description: null },
+			availableCommands: [],
+			modelPerMode: {},
+			statusChangedAt: Date.now(),
 		});
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "build", name: "Build", description: null }],
+			availableModels: [{ id: "gpt-5", name: "GPT-5", description: null }],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		setModel.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setModel(sessionId, "gpt-5");
+		expect(result.isOk()).toBe(true);
+		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5");
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
 	});
 });
 

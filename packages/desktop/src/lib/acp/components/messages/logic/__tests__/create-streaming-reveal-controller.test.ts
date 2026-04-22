@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import {
 	CSS_DRAIN_TIMEOUT_MS,
-	REVEAL_TICK_MS,
 	createStreamingRevealController,
+	REVEAL_TICK_MS,
 	type StreamingRevealController,
 } from "../create-streaming-reveal-controller.svelte.js";
 

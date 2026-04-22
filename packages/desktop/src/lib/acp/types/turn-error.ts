@@ -1,7 +1,4 @@
-import type {
-	TurnErrorInfo,
-	TurnErrorSource,
-} from "../../services/converted-session-types.js";
+import type { TurnErrorInfo, TurnErrorSource } from "../../services/converted-session-types.js";
 import type { SessionUpdate } from "./session-update.js";
 
 export type TurnFailureKind = TurnErrorInfo["kind"];

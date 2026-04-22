@@ -63,7 +63,11 @@ const { default: ToolCallRead } = await import("../tool-call-read.svelte");
 
 function createReadToolCall(
 	filePath: string,
-	sourceContext?: { path?: string; excerpt?: string; viewRange?: { startLine?: number; endLine?: number } }
+	sourceContext?: {
+		path?: string;
+		excerpt?: string;
+		viewRange?: { startLine?: number; endLine?: number };
+	}
 ): ToolCall {
 	return {
 		id: "tool-1",

@@ -23,7 +23,12 @@ import type {
 	QueueSessionSnapshot,
 } from "./utils.js";
 
-import { buildQueueItem, calculateSessionUrgency, classifyItem, groupIntoSections } from "./utils.js";
+import {
+	buildQueueItem,
+	calculateSessionUrgency,
+	classifyItem,
+	groupIntoSections,
+} from "./utils.js";
 
 export type { QueueSectionGroup, QueueSectionId } from "./utils.js";
 

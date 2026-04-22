@@ -14,9 +14,8 @@ use crate::acp::model_display::{
 };
 use crate::acp::projections::{
     InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
-    InteractionState, OperationBlockedReason, OperationLifecycle, OperationSnapshot,
-    PlanApprovalSource, SessionProjectionSnapshot, SessionSnapshot, SessionTurnState,
-    TurnFailureSnapshot,
+    InteractionState, OperationSnapshot, PlanApprovalSource, SessionProjectionSnapshot,
+    SessionSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenFound, SessionOpenMissing, SessionOpenResult,
@@ -362,8 +361,6 @@ pub fn export_all_types() {
     export_acp_type!(CanonicalAgentId);
     export_acp_type!(ToolKind);
     export_acp_type!(ToolCallStatus);
-    export_acp_type!(ToolCallLocation);
-    export_acp_type!(SkillMeta);
     export_acp_type!(ChunkAggregationHint);
     export_acp_type!(EditEntry);
     export_acp_type!(ToolSourceRange);
@@ -393,8 +390,6 @@ pub fn export_all_types() {
     export_acp_type!(SessionDomainEvent);
     export_acp_type!(SessionTurnState);
     export_acp_type!(SessionSnapshot);
-    export_acp_type!(OperationLifecycle);
-    export_acp_type!(OperationBlockedReason);
     export_acp_type!(OperationSnapshot);
     export_acp_type!(InteractionKind);
     export_acp_type!(InteractionState);

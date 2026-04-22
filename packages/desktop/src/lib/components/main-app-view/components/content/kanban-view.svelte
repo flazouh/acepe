@@ -92,10 +92,7 @@ import {
 	resolveEmptyStateWorktreePending,
 	resolveEmptyStateWorktreePendingForProjectChange,
 } from "./logic/empty-state-send-state.js";
-import {
-	buildDesktopKanbanScene,
-	type DesktopKanbanSceneEntry,
-} from "./desktop-kanban-scene.js";
+import { buildDesktopKanbanScene, type DesktopKanbanSceneEntry } from "./desktop-kanban-scene.js";
 import {
 	acknowledgeExplicitPanelReveal,
 	applyCompletionAttentionAction,
@@ -302,10 +299,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 				return projectColor ? projectColor : null;
 			},
 			(projectPath) => {
-				const project = projectManager.projects.find(
-					(candidate) => candidate.path === projectPath
-				);
-				return project ? project.iconPath ?? null : null;
+				const project = projectManager.projects.find((candidate) => candidate.path === projectPath);
+				return project ? (project.iconPath ?? null) : null;
 			}
 		);
 
@@ -582,7 +577,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : "Unknown",
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
-				projectIconSrc: project ? project.iconPath ?? null : null,
+				projectIconSrc: project ? (project.iconPath ?? null) : null,
 				activityText,
 				isStreaming: true,
 				modeId: null,
@@ -1039,8 +1034,7 @@ function buildSceneFooter(item: ThreadBoardItem) {
 			filePath: compactDisplay.filePath,
 			toolKind: toScenePermissionToolKind(compactDisplay.kind),
 			progress,
-			allowAlwaysLabel:
-				permission.always && permission.always.length > 0 ? "Always" : undefined,
+			allowAlwaysLabel: permission.always && permission.always.length > 0 ? "Always" : undefined,
 			approveLabel: "Allow",
 			rejectLabel: "Deny",
 		};

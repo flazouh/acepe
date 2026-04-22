@@ -1,5 +1,14 @@
 use super::*;
 
+pub(crate) fn reconnect_policy_for_provider(
+    provider: Option<&dyn crate::acp::provider::AgentProvider>,
+    launch_mode_id: Option<&str>,
+) -> crate::acp::provider::ProviderReconnectPolicy {
+    provider
+        .map(|provider| provider.reconnect_policy(launch_mode_id))
+        .unwrap_or_default()
+}
+
 fn should_retry_initialize_with_fallback(error: &AcpError) -> bool {
     match error {
         AcpError::JsonRpcError(message) => message.contains("Agent process exited unexpectedly"),
@@ -18,31 +27,14 @@ impl AcpClient {
         cwd: String,
         launch_mode_id: Option<String>,
     ) -> AcpResult<ResumeSessionResponse> {
-        let (uses_load_reconnect, reconnect_mode_id) = self
-            .provider
-            .as_ref()
-            .map(|provider| {
-                let provider_kind = provider.parser_agent_type();
-                let uses_load_reconnect =
-                    matches!(provider_kind, crate::acp::parsers::AgentType::Cursor);
-                let reconnect_mode_id = if provider_kind == crate::acp::parsers::AgentType::Copilot
-                {
-                    launch_mode_id
-                        .as_deref()
-                        .map(|mode_id| provider.map_outbound_mode_id(mode_id))
-                } else {
-                    None
-                };
+        let reconnect_policy =
+            reconnect_policy_for_provider(self.provider.as_deref(), launch_mode_id.as_deref());
 
-                (uses_load_reconnect, reconnect_mode_id)
-            })
-            .unwrap_or((false, None));
-
-        if let Some(mode_id) = reconnect_mode_id {
+        if let Some(mode_id) = reconnect_policy.outbound_launch_mode_id {
             self.set_session_mode(session_id.clone(), mode_id).await?;
         }
 
-        if uses_load_reconnect {
+        if reconnect_policy.use_load_semantics {
             self.load_session(session_id, cwd).await
         } else {
             self.resume_session(session_id, cwd).await
@@ -147,17 +139,9 @@ impl AcpClient {
             &mut response.models,
         );
         provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
-
-        let agent_type = provider.parser_agent_type();
-        let capabilities =
-            crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
-        let presentation = crate::acp::model_display::ModelPresentationMetadata {
-            display_family: capabilities.model_display_family,
-            usage_metrics: capabilities.usage_metrics_presentation,
-        };
         response.models.models_display = crate::acp::model_display::build_models_for_display(
             &response.models.available_models,
-            presentation,
+            provider.model_presentation_metadata(),
         );
         self.set_active_session_id(Some(response.session_id.clone()));
 
@@ -271,17 +255,9 @@ impl AcpClient {
             &mut response.models,
             &mut response.modes,
         )?;
-
-        let agent_type = provider.parser_agent_type();
-        let capabilities =
-            crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
-        let presentation = crate::acp::model_display::ModelPresentationMetadata {
-            display_family: capabilities.model_display_family,
-            usage_metrics: capabilities.usage_metrics_presentation,
-        };
         response.models.models_display = crate::acp::model_display::build_models_for_display(
             &response.models.available_models,
-            presentation,
+            provider.model_presentation_metadata(),
         );
         self.set_active_session_id(Some(session_id.clone()));
 
@@ -333,17 +309,9 @@ impl AcpClient {
             &mut response.models,
         );
         provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
-
-        let agent_type = provider.parser_agent_type();
-        let capabilities =
-            crate::acp::parsers::provider_capabilities::provider_capabilities(agent_type);
-        let presentation = crate::acp::model_display::ModelPresentationMetadata {
-            display_family: capabilities.model_display_family,
-            usage_metrics: capabilities.usage_metrics_presentation,
-        };
         response.models.models_display = crate::acp::model_display::build_models_for_display(
             &response.models.available_models,
-            presentation,
+            provider.model_presentation_metadata(),
         );
         self.set_active_session_id(Some(response.session_id.clone()));
 

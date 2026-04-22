@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::acp::projections::{InteractionKind, InteractionSnapshot, OperationSnapshot};
+use crate::acp::projections::InteractionKind;
 use crate::acp::session_update::{TodoUpdate, ToolCallStatus, ToolKind, UsageTelemetryData};
 
 /// Marker enum identifying the domain event kind.
@@ -38,10 +38,6 @@ pub enum SessionDomainEventKind {
 /// structured data that downstream reducers and projections need.  Consumers
 /// can switch on `event.kind` for quick discrimination and access the typed
 /// payload via `event.payload` when richer data is required.
-#[expect(
-    clippy::large_enum_variant,
-    reason = "Canonical operation and interaction snapshots stay inline so the desktop event payload matches the projection contract directly."
-)]
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SessionDomainEventPayload {
@@ -86,8 +82,6 @@ pub enum SessionDomainEventPayload {
         tool_kind: ToolKind,
         status: ToolCallStatus,
         parent_operation_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        operation: Option<OperationSnapshot>,
     },
     OperationChildLinked {
         parent_operation_id: String,
@@ -101,24 +95,12 @@ pub enum SessionDomainEventPayload {
     InteractionUpserted {
         interaction_id: String,
         interaction_kind: InteractionKind,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        operation_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        interaction: Option<InteractionSnapshot>,
     },
     InteractionResolved {
         interaction_id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        operation_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        interaction: Option<InteractionSnapshot>,
     },
     InteractionCancelled {
         interaction_id: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        operation_id: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        interaction: Option<InteractionSnapshot>,
     },
     UsageTelemetryUpdated {
         data: UsageTelemetryData,

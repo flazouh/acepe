@@ -47,10 +47,7 @@ function formatSearchability(referenceSearchable: boolean): string {
 
 export function buildIssueReportDraft(input: BuildIssueReportDraftInput): IssueReportDraft {
 	const metadata = input.metadata ?? [];
-	const contextLines: string[] = [
-		"| Field | Value |",
-		"| --- | --- |",
-	];
+	const contextLines: string[] = ["| Field | Value |", "| --- | --- |"];
 
 	pushContextLine(contextLines, "Surface", input.surface ?? null);
 	pushContextLine(contextLines, "Reference ID", input.referenceId ?? null);
@@ -62,9 +59,10 @@ export function buildIssueReportDraft(input: BuildIssueReportDraftInput): IssueR
 	pushContextLine(
 		contextLines,
 		"Existing issue",
-		input.issueUrl ?? (input.issueNumber !== null && input.issueNumber !== undefined
-			? `#${input.issueNumber}`
-			: null)
+		input.issueUrl ??
+			(input.issueNumber !== null && input.issueNumber !== undefined
+				? `#${input.issueNumber}`
+				: null)
 	);
 	pushContextLine(contextLines, "Diagnostics summary", input.diagnosticsSummary ?? null);
 

@@ -40,7 +40,6 @@ interface Props {
 	onProjectColorChange?: (projectPath: string, color: string) => void;
 	onChangeProjectIcon?: (projectPath: string) => void;
 	onResetProjectIcon?: (projectPath: string) => void;
-	onProjectShowExternalCliSessionsChange?: (projectPath: string, value: boolean) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when file tree expansion state changes */
@@ -91,7 +90,6 @@ let {
 	onProjectColorChange,
 	onChangeProjectIcon,
 	onResetProjectIcon,
-	onProjectShowExternalCliSessionsChange,
 	onRemoveProject,
 	onSelectFile,
 	onFileTreeExpansionChange,
@@ -155,12 +153,7 @@ const displayItems = $derived(
 
 const filteredItems = $derived(logic.filterItems(displayItems, state.searchQuery));
 const sessionGroupsFromData = $derived(
-	logic.createSessionGroups(
-		filteredItems,
-		projectCreatedAtMap,
-		projectSortOrderMap,
-		recentProjects
-	)
+	logic.createSessionGroups(filteredItems, projectCreatedAtMap, projectSortOrderMap, recentProjects)
 );
 const loadingSessionGroups = $derived(logic.createLoadingSessionGroups(recentProjects));
 // Only show skeletons on initial load (no sessions yet).
@@ -193,7 +186,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onProjectColorChange}
 	{onChangeProjectIcon}
 	{onResetProjectIcon}
-	{onProjectShowExternalCliSessionsChange}
 	{onRemoveProject}
 	{sessionGroups}
 	{hasResults}

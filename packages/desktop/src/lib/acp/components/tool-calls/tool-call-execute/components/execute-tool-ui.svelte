@@ -1,20 +1,20 @@
 <script lang="ts">
-	import { AgentToolCard } from "@acepe/ui/agent-panel";
-	import { CodeBlock } from "$lib/components/ui/code-block";
-	import { getSessionStore } from "../../../../store/index.js";
-	import type { TurnState } from "../../../../store/types.js";
-	import type { ToolCall } from "../../../../types/tool-call.js";
-	import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
-	import { getToolStatus } from "../../../../utils/tool-state-utils.js";
-	import ToolContentModal from "../../tool-content-modal.svelte";
-	import { resolveExecuteCommand } from "../logic/resolve-execute-command.js";
-	import { ExecuteToolUIState } from "../state/execute-tool-ui-state.svelte.js";
-	import {
-		resolveExecuteDisplayResult,
-		resolveExecuteFallbackOutputText,
-	} from "../../tool-result-display.js";
-	import ExecuteToolContent from "./execute-tool-content.svelte";
-	import ExecuteToolHeader from "./execute-tool-header.svelte";
+import { AgentToolCard } from "@acepe/ui/agent-panel";
+import { CodeBlock } from "$lib/components/ui/code-block";
+import { getSessionStore } from "../../../../store/index.js";
+import type { TurnState } from "../../../../store/types.js";
+import type { ToolCall } from "../../../../types/tool-call.js";
+import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
+import { getToolStatus } from "../../../../utils/tool-state-utils.js";
+import ToolContentModal from "../../tool-content-modal.svelte";
+import { resolveExecuteCommand } from "../logic/resolve-execute-command.js";
+import { ExecuteToolUIState } from "../state/execute-tool-ui-state.svelte.js";
+import {
+	resolveExecuteDisplayResult,
+	resolveExecuteFallbackOutputText,
+} from "../../tool-result-display.js";
+import ExecuteToolContent from "./execute-tool-content.svelte";
+import ExecuteToolHeader from "./execute-tool-header.svelte";
 
 interface ExecuteToolUIProps {
 	/**

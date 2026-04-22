@@ -57,30 +57,11 @@ pub struct ProjectSessionCounts {
     pub counts: std::collections::HashMap<String, u32>,
 }
 
-/// Response for `scan_project_sessions`, surfacing both successful entries and
-/// any agents whose individual scanner failed during the file-scan fallback.
-///
-/// The frontend uses `failed_agents` to avoid pruning persisted sessions that
-/// belong to a scanner which silently returned zero results due to an error.
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ScanProjectSessionsResponse {
-    pub entries: Vec<HistoryEntry>,
-    /// Canonical agent ids whose scanner failed during the file-scan fallback.
-    /// Empty when results came from the SQLite index fast path or when every
-    /// scanner succeeded.
-    pub failed_agents: Vec<String>,
-}
-
-static SCAN_CACHE: LazyLock<ScanCache<ScanProjectSessionsResponse>> =
-    LazyLock::new(|| ScanCache::new(Duration::from_secs(5)));
-
-static DISCOVER_CACHE: LazyLock<ScanCache<Vec<HistoryEntry>>> =
+static SCAN_CACHE: LazyLock<ScanCache<Vec<HistoryEntry>>> =
     LazyLock::new(|| ScanCache::new(Duration::from_secs(5)));
 
 pub async fn invalidate_scan_cache() {
-    SCAN_CACHE.clear().await;
-    DISCOVER_CACHE.clear().await;
+    SCAN_CACHE.invalidate().await;
 }
 
 /// A single timing stage for session load audit.

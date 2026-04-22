@@ -4,42 +4,6 @@ The **session graph** is Acepe's canonical model of product state for a session.
 
 It is the durable structure that the rest of the architecture should look to when deciding what is true.
 
-## Shape
-
-## Shape
-
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart TB
-    n_session("Session graph") --> n_transcript("Transcript entries")
-    n_session --> n_operations("Operations")
-    n_session --> n_interactions("Interactions")
-    n_session --> n_runtime("Runtime lifecycle")
-    n_session --> n_capabilities("Capabilities / config")
-    n_session --> n_telemetry("Telemetry / budget")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-    classDef gray fill:#DCDCE1,stroke:#A6A6AD,color:#1f2937,stroke-width:1px;
-
-    class n_session purple;
-    class n_transcript gray;
-    class n_operations,n_interactions green;
-    class n_runtime,n_capabilities,n_telemetry blue;
-```
-
-## Ownership table
-
-| Domain | Canonical owner | Typical consumer | Anti-pattern |
-|---|---|---|---|
-| Transcript history | Session graph transcript nodes | Transcript rendering | Mutating durable history from raw chunks |
-| Runtime work | Operation nodes | Tool UI, current/last tool badges | Deriving tool truth from transcript rows |
-| Human gates | Interaction nodes | Permission/question/approval UI | Treating prompts as local component state |
-| Runtime identity/lifecycle | Projection snapshot + canonical envelopes | Reconnect/open flows | Depending only on a live in-memory registry |
-| Capabilities/config | Capability envelopes | Launch/model/config UI | Parsing presentation metadata for policy |
-| Telemetry/budget | Canonical telemetry envelopes | Usage display | Raw telemetry side-channel ownership |
-
 ## What the session graph owns
 
 The session graph owns the state that must remain correct across:
@@ -57,6 +21,7 @@ In practice, that means the session graph owns:
 - operations,
 - interactions,
 - runtime lifecycle,
+- lifecycle actionability/recovery metadata,
 - capabilities and config envelopes,
 - telemetry and budget state.
 
@@ -77,45 +42,19 @@ But raw events are not allowed to become a second durable database.
 
 Acepe should have **one durable authority path** for session truth:
 
-`provider signal -> backend projection -> canonical session graph -> desktop stores -> UI selectors`
+`provider facts -> SessionSupervisor -> canonical session graph -> desktop stores/selectors -> UI`
 
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 28, 'rankSpacing': 34}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart TD
-    n_adapter("Provider adapter") --> n_reducer("Reducer / projector")
-    n_reducer --> n_envelope("SessionStateEnvelope")
-    n_envelope --> n_store("Desktop session store")
-    n_store --> n_entry("SessionEntryStore")
-    n_store --> n_operation("OperationStore")
-    n_store --> n_interaction("Interaction stores")
-    n_store --> n_selector("Rendering selectors")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef green fill:#B4E6C8,stroke:#8FB9A2,color:#1f2937,stroke-width:1px;
-    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
-    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-    classDef gray fill:#DCDCE1,stroke:#A6A6AD,color:#1f2937,stroke-width:1px;
-
-    class n_adapter,n_reducer blue;
-    class n_envelope purple;
-    class n_store yellow;
-    class n_entry gray;
-    class n_operation,n_interaction green;
-    class n_selector orange;
-```
-
-If a feature needs to answer "what is the current tool?", "is this blocked on permission?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.
+If a feature needs to answer "what is the current tool?", "can this session send?", "should the primary CTA be resume or retry?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.
 
 ## Main graph nodes
 
-### 1. Transcript entries
+## 1. Transcript entries
 
 Transcript entries represent the conversation history shown to the user.
 
 They are important for rendering history, but they are not rich enough to own all runtime semantics.
 
-### 2. Operations
+## 2. Operations
 
 Operations represent durable runtime work such as tool execution and its lifecycle.
 
@@ -128,7 +67,7 @@ They own facts like:
 - parent/child links,
 - evidence merged from live and replayed signals.
 
-### 3. Interactions
+## 3. Interactions
 
 Interactions represent things the system is waiting on from a human or policy path, such as:
 
@@ -137,15 +76,6 @@ Interactions represent things the system is waiting on from a human or policy pa
 - plan/apply approvals.
 
 They are canonical state, not transient UI popups.
-
-## View layering
-
-| Layer | What it should do | What it must not do |
-|---|---|---|
-| Provider adapter | Parse provider-specific signals | Leak provider policy into shared UI |
-| Backend projection | Merge into canonical graph | Emit parallel durable truth paths |
-| Desktop stores | Materialize graph into queryable state | Reconstruct semantics from transcript text |
-| UI | Render selectors and actions | Become the hidden owner of domain state |
 
 ## Invariants
 
@@ -156,16 +86,8 @@ The architecture should preserve these invariants:
 3. **Revisions matter.** Canonical envelopes apply in revision order and can be buffered until the target session is registered.
 4. **Transcript is not operation authority.** Tool rows in transcript history are presentation data, not the sole live source of runtime tool state.
 5. **Provider quirks belong at the edge.** Provider-specific parsing and lifecycle policy must be resolved before shared UI/store code consumes the state.
-
-## Fast diagnostic matrix
-
-| Symptom | Usual architectural cause |
-|---|---|
-| Current tool badge disappears after refresh | UI depended on transcript fallback instead of canonical operation state |
-| Permission prompt vanishes on reconnect | Interaction was treated as transient UI state |
-| Runtime/provider state disappears after reopen | Restore path depended on live registry only |
-| Different surfaces disagree on current tool | Multiple authorities are deriving tool state separately |
-| Resume logic differs by provider in shared code | Provider policy leaked beyond adapter/projection boundary |
+6. **Lifecycle truth is backend-owned.** Shared UI may render lifecycle, but it may not reconstruct it from `isConnected`, raw transport timing, or hot-state.
+7. **Actionability is canonical too.** Status alone is not enough; resume/retry/send/archive affordances must come from canonical actionability/recovery fields.
 
 ## Design consequence
 
@@ -177,3 +99,5 @@ When adding a new feature, ask:
 4. Which selector renders it?
 
 If the answer starts with "the component can infer it from a transcript row" or "the frontend can reconstruct it from raw events," that is usually a sign the architecture is drifting.
+
+For the concrete lifecycle machine and flow diagrams, see [Session lifecycle](./session-lifecycle.md).

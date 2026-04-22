@@ -2,8 +2,8 @@
  * Composer / agent-input workflow services (side effects and mount policy live here).
  */
 
-export { prepareWorktreePathForPendingSend } from "./agent-input-worktree-send-workflow.js";
 export {
-	resolvePanelDraftOnMount,
 	type PanelDraftMountResolution,
+	resolvePanelDraftOnMount,
 } from "./agent-input-mount-workflow.js";
+export { prepareWorktreePathForPendingSend } from "./agent-input-worktree-send-workflow.js";

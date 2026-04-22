@@ -1,5 +1,5 @@
-import { createActor } from "xstate";
 import { describe, expect, it } from "vitest";
+import { createActor } from "xstate";
 
 import { composerMachine } from "../composer-machine.js";
 import { deriveStoreComposerState } from "../composer-ui-state.js";

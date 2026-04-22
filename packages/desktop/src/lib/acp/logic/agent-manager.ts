@@ -16,6 +16,7 @@ export interface AgentInfo {
 	/** Current setup state for this agent (optional for compatibility with store Agent). */
 	availability_kind?: AgentAvailabilityKind;
 	default_selection_rank?: number;
+	supports_project_discovery?: boolean;
 }
 
 /**
@@ -82,6 +83,7 @@ export class AgentManager {
 						installed: true,
 					},
 					default_selection_rank: a.default_selection_rank,
+					supports_project_discovery: a.supports_project_discovery,
 				}))
 			)
 			.mapErr((error) => {

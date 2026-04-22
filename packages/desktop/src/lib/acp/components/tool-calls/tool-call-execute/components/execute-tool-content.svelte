@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
+import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
 
 /**
  * Strip the "Exited with code X.Final output:\n\n" or "New output:\n\n" prefix

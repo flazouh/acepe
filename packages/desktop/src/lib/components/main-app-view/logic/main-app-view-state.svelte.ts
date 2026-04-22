@@ -14,8 +14,8 @@
  * ```
  */
 
-import { openIssueReportDraft, type IssueReportDraft } from "$lib/errors/issue-report.js";
 import { okAsync, type ResultAsync } from "neverthrow";
+import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -35,6 +35,7 @@ import type {
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { CHANGELOG, type ChangelogEntry } from "$lib/changelog/index.js";
+import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getSqlStudioStore } from "$lib/sql-studio/index.js";
@@ -46,7 +47,6 @@ import { PanelHandler } from "./managers/panel-handler.js";
 import { ProjectHandler } from "./managers/project-handler.js";
 import { SessionHandler } from "./managers/session-handler.js";
 import { ensureSpawnableAgentSelected } from "./spawnable-agents.js";
-import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 
 const logger = createLogger({ id: "main-app-view-state", name: "MainAppViewState" });
 

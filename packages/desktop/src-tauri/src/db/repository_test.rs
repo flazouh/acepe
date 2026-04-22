@@ -13,21 +13,13 @@ mod session_metadata_tests {
         SessionDescriptorResolutionError, SessionReplayContext,
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
-    use crate::acp::transcript_projection::{
-        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
-    };
-    use crate::acp::types::CanonicalAgentId;
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-        SessionTranscriptSnapshotRepository,
+        SessionProjectionSnapshotRepository,
     };
-    use crate::storage::acepe_config;
-    use chrono::Utc;
-    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Set, Statement};
+    use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
     use tempfile::tempdir;
@@ -136,9 +128,6 @@ mod session_metadata_tests {
         .await
         .expect("create second project");
 
-        assert!(first.show_external_cli_sessions);
-        assert!(second.show_external_cli_sessions);
-
         let updated_second = ProjectRepository::update_icon_path(
             &db,
             &second.path,
@@ -160,59 +149,6 @@ mod session_metadata_tests {
         assert_eq!(reordered[0].sort_order, 0);
         assert_eq!(reordered[1].path, first.path);
         assert_eq!(reordered[1].sort_order, 1);
-    }
-
-    #[tokio::test]
-    async fn project_repository_reads_show_external_visibility_from_acepe_json() {
-        let db = setup_test_db().await;
-        let project_dir = tempdir().expect("tempdir");
-        acepe_config::write(
-            project_dir.path(),
-            &acepe_config::AcepeConfig {
-                version: 1,
-                scripts: acepe_config::ScriptsSection::default(),
-                external_cli_sessions: acepe_config::ExternalCliSessionsSection {
-                    show: false,
-                    extras: Default::default(),
-                },
-                extras: Default::default(),
-            },
-        )
-        .expect("write config");
-
-        let project = ProjectRepository::create_or_update(
-            &db,
-            project_dir.path().to_string_lossy().to_string(),
-            "Gamma".to_string(),
-            Some("green".to_string()),
-        )
-        .await
-        .expect("create project");
-
-        assert!(!project.show_external_cli_sessions);
-        let loaded = ProjectRepository::get_by_path(&db, &project.path)
-            .await
-            .expect("load project")
-            .expect("project row");
-        assert!(!loaded.show_external_cli_sessions);
-    }
-
-    #[tokio::test]
-    async fn project_repository_creates_acepe_json_for_project_directories() {
-        let db = setup_test_db().await;
-        let project_dir = tempdir().expect("tempdir");
-
-        let project = ProjectRepository::create_or_update(
-            &db,
-            project_dir.path().to_string_lossy().to_string(),
-            "Delta".to_string(),
-            Some("orange".to_string()),
-        )
-        .await
-        .expect("create project");
-
-        assert_eq!(project.path, project_dir.path().to_string_lossy());
-        assert!(project_dir.path().join(".acepe.json").exists());
     }
 
     #[tokio::test]
@@ -249,7 +185,6 @@ mod session_metadata_tests {
             interactions: vec![InteractionSnapshot {
                 id: "interaction-1".to_string(),
                 session_id: "session-projection".to_string(),
-                operation_id: None,
                 kind: crate::acp::projections::InteractionKind::Question,
                 state: crate::acp::projections::InteractionState::Answered,
                 json_rpc_request_id: Some(7),
@@ -288,250 +223,6 @@ mod session_metadata_tests {
         assert_eq!(loaded.session.expect("session").last_event_seq, 3);
         assert_eq!(loaded.interactions.len(), 1);
         assert_eq!(loaded.interactions[0].id, "interaction-1");
-    }
-
-    #[tokio::test]
-    async fn test_session_projection_snapshot_defaults_missing_operation_lifecycle() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-legacy".to_string(),
-            "Legacy projection session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "codex".to_string(),
-            "-Users-test-project/session-legacy.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .expect("persist session metadata");
-        let snapshot = SessionProjectionSnapshot {
-            session: Some(SessionSnapshot {
-                session_id: "session-legacy".to_string(),
-                agent_id: Some(CanonicalAgentId::Codex),
-                last_event_seq: 1,
-                turn_state: SessionTurnState::Idle,
-                message_count: 0,
-                last_agent_message_id: None,
-                active_tool_call_ids: vec!["tool-legacy".to_string()],
-                completed_tool_call_ids: Vec::new(),
-                active_turn_failure: None,
-                last_terminal_turn_id: None,
-            }),
-            operations: vec![crate::acp::projections::OperationSnapshot {
-                id: "op-legacy".to_string(),
-                session_id: "session-legacy".to_string(),
-                tool_call_id: "tool-legacy".to_string(),
-                name: "bash".to_string(),
-                kind: Some(crate::acp::session_update::ToolKind::Execute),
-                status: crate::acp::session_update::ToolCallStatus::Pending,
-                lifecycle: crate::acp::projections::OperationLifecycle::Pending,
-                blocked_reason: None,
-                title: Some("Run command".to_string()),
-                arguments: crate::acp::session_update::ToolArguments::Execute {
-                    command: Some("pwd".to_string()),
-                },
-                progressive_arguments: None,
-                result: None,
-                command: Some("pwd".to_string()),
-                locations: None,
-                skill_meta: None,
-                normalized_todos: None,
-                started_at_ms: Some(1),
-                completed_at_ms: None,
-                parent_tool_call_id: None,
-                parent_operation_id: None,
-                child_tool_call_ids: Vec::new(),
-                child_operation_ids: Vec::new(),
-            }],
-            interactions: Vec::new(),
-            runtime: None,
-        };
-        let mut snapshot_json = serde_json::to_value(&snapshot).expect("serialize legacy snapshot");
-        snapshot_json["operations"][0]
-            .as_object_mut()
-            .expect("operation should be an object")
-            .remove("lifecycle");
-
-        crate::db::entities::session_projection_snapshot::Entity::insert(
-            crate::db::entities::session_projection_snapshot::ActiveModel {
-                session_id: Set("session-legacy".to_string()),
-                snapshot_json: Set(snapshot_json.to_string()),
-                updated_at: Set(Utc::now()),
-            },
-        )
-        .exec(&db)
-        .await
-        .expect("insert legacy projection snapshot");
-
-        let loaded = SessionProjectionSnapshotRepository::get(&db, "session-legacy")
-            .await
-            .expect("load legacy snapshot")
-            .expect("legacy snapshot should exist");
-
-        assert_eq!(loaded.operations.len(), 1);
-        assert_eq!(
-            loaded.operations[0].lifecycle,
-            crate::acp::projections::OperationLifecycle::Pending
-        );
-    }
-
-    #[tokio::test]
-    async fn test_session_thread_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-thread".to_string(),
-            "Thread session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-thread.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![],
-            title: "Thread session".to_string(),
-            created_at: "2026-04-16T00:00:00Z".to_string(),
-            current_mode_id: Some("plan".to_string()),
-        };
-
-        SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(
-            &db,
-            "session-thread",
-            &CanonicalAgentId::ClaudeCode,
-        )
-        .await
-        .unwrap()
-        .expect("expected persisted thread snapshot");
-
-        assert_eq!(loaded.title, "Thread session");
-        assert_eq!(loaded.current_mode_id.as_deref(), Some("plan"));
-        assert!(loaded.entries.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_session_thread_snapshot_round_trips_tool_calls() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-thread-tool-call".to_string(),
-            "Thread tool call session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "codex".to_string(),
-            "-Users-test-project/session-thread-tool-call.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![crate::session_jsonl::types::StoredEntry::ToolCall {
-                id: "tool-call-1".to_string(),
-                message: crate::acp::session_update::ToolCallData {
-                    id: "tool-call-1".to_string(),
-                    name: "read_file".to_string(),
-                    arguments: crate::acp::session_update::ToolArguments::Read {
-                        file_path: Some("/Users/test/project/src/main.rs".to_string()),
-                        source_context: None,
-                    },
-                    raw_input: None,
-                    status: crate::acp::session_update::ToolCallStatus::Completed,
-                    kind: Some(crate::acp::session_update::ToolKind::Read),
-                    result: None,
-                    title: Some("Read src/main.rs".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
-                },
-                timestamp: None,
-            }],
-            title: "Thread tool call session".to_string(),
-            created_at: "2026-04-16T00:00:00Z".to_string(),
-            current_mode_id: Some("build".to_string()),
-        };
-
-        SessionThreadSnapshotRepository::set(&db, "session-thread-tool-call", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(
-            &db,
-            "session-thread-tool-call",
-            &CanonicalAgentId::Codex,
-        )
-        .await
-        .unwrap()
-        .expect("expected persisted thread snapshot");
-
-        assert_eq!(loaded.entries.len(), 1);
-        let crate::session_jsonl::types::StoredEntry::ToolCall { message, .. } = &loaded.entries[0]
-        else {
-            panic!("expected tool call entry");
-        };
-        assert_eq!(
-            message.kind,
-            Some(crate::acp::session_update::ToolKind::Read)
-        );
-        assert_eq!(message.name, "read_file");
-    }
-
-    #[tokio::test]
-    async fn test_session_transcript_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-transcript".to_string(),
-            "Transcript session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-transcript.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = TranscriptSnapshot {
-            revision: 5,
-            entries: vec![TranscriptEntry {
-                entry_id: "assistant-1".to_string(),
-                role: TranscriptEntryRole::Assistant,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: "assistant-1:chunk:0".to_string(),
-                    text: "hello".to_string(),
-                }],
-            }],
-        };
-
-        SessionTranscriptSnapshotRepository::set(&db, "session-transcript", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionTranscriptSnapshotRepository::get(&db, "session-transcript")
-            .await
-            .unwrap()
-            .expect("expected persisted transcript snapshot");
-
-        assert_eq!(loaded.revision, 5);
-        assert_eq!(loaded.entries.len(), 1);
-        assert_eq!(loaded.entries[0].entry_id, "assistant-1");
     }
 
     #[tokio::test]
@@ -1071,14 +762,10 @@ mod session_metadata_tests {
         .await;
 
         assert!(result.is_ok());
-        let lookup = result.unwrap();
-        assert_eq!(
-            lookup.entries.len(),
-            2,
-            "Should return 2 sessions for project-a"
-        );
+        let sessions = result.unwrap().entries;
+        assert_eq!(sessions.len(), 2, "Should return 2 sessions for project-a");
 
-        for session in &lookup.entries {
+        for session in &sessions {
             assert_eq!(session.project_path, "/project-a");
         }
     }
@@ -1109,9 +796,7 @@ mod session_metadata_tests {
         .await;
 
         assert!(result.is_ok());
-        let lookup = result.unwrap();
-        assert_eq!(lookup.db_row_count, 0);
-        assert!(lookup.entries.is_empty());
+        assert!(result.unwrap().entries.is_empty());
     }
 
     #[tokio::test]
@@ -1228,121 +913,6 @@ mod session_metadata_tests {
         assert_eq!(sessions[0].id, "session-1");
         assert_eq!(sessions[0].project_path, base_project);
         assert_eq!(sessions[0].worktree_path.as_deref(), Some(worktree));
-    }
-
-    #[tokio::test]
-    async fn test_get_for_projects_hides_external_when_project_in_external_hidden_set() {
-        use std::collections::HashSet;
-
-        let db = setup_test_db().await;
-        let project = "/Users/example/Documents/acepe";
-
-        // External (CLI-discovered) session: file_path NOT under sentinel dirs → is_acepe_managed = 0
-        SessionMetadataRepository::upsert(
-            &db,
-            "external-1".to_string(),
-            "External thread".to_string(),
-            1704067200000,
-            project.to_string(),
-            "claude-code".to_string(),
-            format!("{}/external-1.jsonl", project),
-            1704067200,
-            100,
-        )
-        .await
-        .unwrap();
-
-        // Acepe-managed session: file_path under __session_registry__/ sentinel
-        SessionMetadataRepository::upsert(
-            &db,
-            "acepe-1".to_string(),
-            "Acepe thread".to_string(),
-            1704067300000,
-            project.to_string(),
-            "claude-code".to_string(),
-            "__session_registry__/acepe-1.jsonl".to_string(),
-            1704067300,
-            100,
-        )
-        .await
-        .unwrap();
-
-        // Baseline: empty hidden set returns both sessions.
-        let baseline = SessionMetadataRepository::get_for_projects(
-            &db,
-            &[project.to_string()],
-            &HashSet::new(),
-        )
-        .await
-        .unwrap()
-        .entries;
-        assert_eq!(baseline.len(), 2, "baseline should return both sessions");
-
-        // With project in external-hidden set: only the acepe-managed session remains.
-        let mut hidden = HashSet::new();
-        hidden.insert(project.to_string());
-        let lookup =
-            SessionMetadataRepository::get_for_projects(&db, &[project.to_string()], &hidden)
-                .await
-                .unwrap();
-        assert_eq!(lookup.db_row_count, 2, "DB still has both rows");
-        assert_eq!(lookup.entries.len(), 1, "external session should be hidden");
-        assert_eq!(lookup.entries[0].id, "acepe-1");
-    }
-
-    #[tokio::test]
-    async fn test_get_for_projects_external_hidden_set_is_per_project() {
-        use std::collections::HashSet;
-
-        let db = setup_test_db().await;
-        let project_a = "/project-a";
-        let project_b = "/project-b";
-
-        SessionMetadataRepository::upsert(
-            &db,
-            "ext-a".to_string(),
-            "ext-a".to_string(),
-            1,
-            project_a.to_string(),
-            "claude-code".to_string(),
-            format!("{}/ext-a.jsonl", project_a),
-            1,
-            10,
-        )
-        .await
-        .unwrap();
-        SessionMetadataRepository::upsert(
-            &db,
-            "ext-b".to_string(),
-            "ext-b".to_string(),
-            2,
-            project_b.to_string(),
-            "claude-code".to_string(),
-            format!("{}/ext-b.jsonl", project_b),
-            2,
-            10,
-        )
-        .await
-        .unwrap();
-
-        let mut hidden = HashSet::new();
-        hidden.insert(project_a.to_string());
-
-        let result = SessionMetadataRepository::get_for_projects(
-            &db,
-            &[project_a.to_string(), project_b.to_string()],
-            &hidden,
-        )
-        .await
-        .unwrap()
-        .entries;
-
-        assert_eq!(
-            result.len(),
-            1,
-            "only project-b external session should remain"
-        );
-        assert_eq!(result[0].id, "ext-b");
     }
 
     #[tokio::test]

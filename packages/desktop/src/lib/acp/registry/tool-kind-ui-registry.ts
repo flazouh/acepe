@@ -3,11 +3,7 @@ import { isSearchNormalizedResult } from "../types/normalized-tool-result.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import { extractSkillCallInput } from "../utils/extract-skill-call-input.js";
-import {
-	getDisplayPath,
-	getToolStatus,
-	truncateText,
-} from "../utils/tool-state-utils.js";
+import { getDisplayPath, getToolStatus, truncateText } from "../utils/tool-state-utils.js";
 
 /**
  * Tool UI metadata for a specific tool kind.
@@ -327,9 +323,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			const status = getToolStatus(toolCall, turnState);
 			const skillName = extractSkillCallInput(toolCall.arguments).skill;
 			const displayName = skillName ?? "skill";
-			return status.isPending
-				? `Running ${displayName}`
-				: `Ran ${displayName}`;
+			return status.isPending ? `Running ${displayName}` : `Ran ${displayName}`;
 		},
 		subtitle: (toolCall) => {
 			if (toolCall.skillMeta?.description) {
@@ -375,9 +369,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 	enter_plan_mode: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);
-			return status.isPending
-				? "Entering plan mode"
-				: "Entered plan mode";
+			return status.isPending ? "Entering plan mode" : "Entered plan mode";
 		},
 	},
 

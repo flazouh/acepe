@@ -1,12 +1,17 @@
 import type {
+	CapabilityPreviewState,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
+	SessionGraphRevision,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TranscriptDelta,
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
-import { resolveSessionStateDelta, type SessionStateDeltaResolution } from "./session-state-query-service.js";
+import {
+	resolveSessionStateDelta,
+	type SessionStateDeltaResolution,
+} from "./session-state-query-service.js";
 
 export type SessionStateCommand =
 	| {
@@ -20,6 +25,9 @@ export type SessionStateCommand =
 	| {
 			kind: "applyCapabilities";
 			capabilities: SessionGraphCapabilities;
+			revision: SessionGraphRevision;
+			pendingMutationId: string | null;
+			previewState: CapabilityPreviewState;
 	  }
 	| {
 			kind: "applyTelemetry";
@@ -35,7 +43,9 @@ export type SessionStateCommand =
 			delta: TranscriptDelta;
 	  };
 
-function commandFromDeltaResolution(resolution: SessionStateDeltaResolution): SessionStateCommand[] {
+function commandFromDeltaResolution(
+	resolution: SessionStateDeltaResolution
+): SessionStateCommand[] {
 	switch (resolution.kind) {
 		case "refreshSnapshot":
 			return [
@@ -82,6 +92,9 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyCapabilities",
 					capabilities: envelope.payload.capabilities,
+					revision: envelope.payload.revision,
+					pendingMutationId: envelope.payload.pending_mutation_id ?? null,
+					previewState: envelope.payload.preview_state,
 				},
 			];
 		case "telemetry":

@@ -37,12 +37,10 @@ const pendingPermission = $derived.by(() => {
 		return permissionStore.getForOperation(operation, operationStore) ?? null;
 	}
 
-	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id) ?? null;
+	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
 });
 const renderableToolCall = $derived(createRenderableToolCall(toolCall, operation, operationStore));
-const resolvedOperation = $derived(
-	resolveToolOperation(renderableToolCall, pendingPermission, operation, operationStore)
-);
+const resolvedOperation = $derived(resolveToolOperation(renderableToolCall, pendingPermission));
 const toolDefinition = $derived(
 	getToolDefinition(resolvedOperation.toolCall, resolvedOperation.resolvedKind)
 );

@@ -40,7 +40,6 @@ export function createLoadingSessionGroups(projects: readonly Project[]): Sessio
 			projectName: project.name,
 			projectColor: project.color,
 			projectIconSrc: project.iconPath ?? null,
-			showExternalCliSessions: project.showExternalCliSessions ?? true,
 			sessions: [],
 		}));
 }
@@ -467,7 +466,6 @@ export function createSessionGroups(
 				projectName: project.name,
 				projectColor: project.color,
 				projectIconSrc: project.iconPath ?? null,
-				showExternalCliSessions: project.showExternalCliSessions ?? true,
 				sessions: [],
 			});
 		}
@@ -481,7 +479,6 @@ export function createSessionGroups(
 				projectName: item.projectName,
 				projectColor: item.projectColor,
 				projectIconSrc: item.projectIconSrc ?? null,
-				showExternalCliSessions: true,
 				sessions: [],
 			};
 			groupMap.set(item.projectPath, group);

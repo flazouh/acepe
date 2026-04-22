@@ -1,6 +1,6 @@
 import {
-	promoteLiveMarkdownText,
 	type LiveMarkdownPresentation,
+	promoteLiveMarkdownText,
 } from "./live-markdown-promotion.js";
 import type { StreamingTailSection } from "./parse-streaming-tail.js";
 
@@ -268,9 +268,7 @@ function buildInlineLeaves(text: string, keyBase: string, animate: boolean): Str
 			}
 		}
 
-		leaves.push(
-			createFormattedLeaf(`${keyBase}:leaf:${index}`, match.type, match.text, animate)
-		);
+		leaves.push(createFormattedLeaf(`${keyBase}:leaf:${index}`, match.type, match.text, animate));
 		index += 1;
 		remaining = remaining.slice(match.consumeLength);
 	}
@@ -278,11 +276,7 @@ function buildInlineLeaves(text: string, keyBase: string, animate: boolean): Str
 	return leaves;
 }
 
-function buildParagraphView(
-	key: string,
-	text: string,
-	animate: boolean
-): LiveStreamingSectionView {
+function buildParagraphView(key: string, text: string, animate: boolean): LiveStreamingSectionView {
 	return {
 		key,
 		kind: "paragraph",
@@ -290,7 +284,11 @@ function buildParagraphView(
 	};
 }
 
-function buildHeadingView(key: string, markdown: string, animate: boolean): LiveStreamingSectionView {
+function buildHeadingView(
+	key: string,
+	markdown: string,
+	animate: boolean
+): LiveStreamingSectionView {
 	const match = HEADING_PATTERN.exec(markdown);
 	if (match === null) {
 		return buildParagraphView(key, markdown, animate);

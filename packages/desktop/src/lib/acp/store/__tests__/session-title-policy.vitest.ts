@@ -143,8 +143,7 @@ describe("session-title-policy", () => {
 
 	describe("stripXmlArtifactsFromTitle", () => {
 		it("strips XML tags but preserves @[type:value] tokens", () => {
-			const title =
-				"<ide_opened_file>File</ide_opened_file>@[image:/screenshot.png] Fix bug";
+			const title = "<ide_opened_file>File</ide_opened_file>@[image:/screenshot.png] Fix bug";
 			expect(stripXmlArtifactsFromTitle(title)).toBe("@[image:/screenshot.png] Fix bug");
 		});
 
@@ -159,33 +158,27 @@ describe("session-title-policy", () => {
 		});
 
 		it("strips expanded refs but keeps tokens", () => {
-			expect(
-				stripXmlArtifactsFromTitle("[Attached image: /a.png] @[file:/b.ts] Fix")
-			).toBe("@[file:/b.ts] Fix");
+			expect(stripXmlArtifactsFromTitle("[Attached image: /a.png] @[file:/b.ts] Fix")).toBe(
+				"@[file:/b.ts] Fix"
+			);
 		});
 
 		it("returns empty string for XML-only title", () => {
-			expect(
-				stripXmlArtifactsFromTitle("<ide_opened_file>File</ide_opened_file>")
-			).toBe("");
+			expect(stripXmlArtifactsFromTitle("<ide_opened_file>File</ide_opened_file>")).toBe("");
 		});
 
 		it("normalizes newlines in rich title", () => {
-			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\nFix bug")).toBe(
-				"@[file:/a.ts] Fix bug"
-			);
+			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\nFix bug")).toBe("@[file:/a.ts] Fix bug");
 		});
 
 		it("normalizes literal backslash-n", () => {
-			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\\nFix bug")).toBe(
-				"@[file:/a.ts] Fix bug"
-			);
+			expect(stripXmlArtifactsFromTitle("@[file:/a.ts]\\nFix bug")).toBe("@[file:/a.ts] Fix bug");
 		});
 
 		it("preserves truncated tokens missing closing bracket", () => {
-			expect(
-				stripXmlArtifactsFromTitle("@[image:/var/folders/rw/long-path-here...")
-			).toBe("@[image:/var/folders/rw/long-path-here...");
+			expect(stripXmlArtifactsFromTitle("@[image:/var/folders/rw/long-path-here...")).toBe(
+				"@[image:/var/folders/rw/long-path-here..."
+			);
 		});
 	});
 
@@ -251,10 +244,7 @@ describe("session-title-policy", () => {
 		});
 
 		it("handles truncated tokens missing closing bracket", () => {
-			const result = formatRichSessionTitle(
-				"@[image:/var/folders/rw/long-path-here...",
-				"acepe"
-			);
+			const result = formatRichSessionTitle("@[image:/var/folders/rw/long-path-here...", "acepe");
 			expect(result.richText).toBe("@[image:/var/folders/rw/long-path-here...");
 			expect(result.plainText).toBe("Conversation in acepe");
 		});

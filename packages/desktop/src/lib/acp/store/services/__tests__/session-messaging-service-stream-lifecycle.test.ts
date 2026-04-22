@@ -426,9 +426,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("ignores duplicate terminal errors for the same turn", () => {
-		(
-			deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>
-		).mockReturnValueOnce({
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValueOnce({
 			turnState: "error",
 			activeTurnFailure: {
 				turnId: "turn-1",
@@ -447,9 +445,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("ignores duplicate terminal errors when both turn ids are null", () => {
-		(
-			deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>
-		).mockReturnValueOnce({
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValueOnce({
 			turnState: "error",
 			activeTurnFailure: {
 				turnId: null,

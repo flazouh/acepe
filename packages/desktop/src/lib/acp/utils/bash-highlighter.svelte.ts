@@ -1,18 +1,12 @@
-import { createHighlighter } from "shiki";
 import { ResultAsync } from "neverthrow";
+import { createHighlighter } from "shiki";
 
-import {
-	loadCursorTheme,
-	loadCursorLightTheme,
-	getCursorThemeName,
-} from "./shiki-theme.js";
+import { getCursorThemeName, loadCursorLightTheme, loadCursorTheme } from "./shiki-theme.js";
 
 type ShikiHighlighter = Awaited<ReturnType<typeof createHighlighter>>;
 
 function stripPreCodeWrapper(html: string): string {
-	return html
-		.replace(/^<pre[^>]*><code>/, "")
-		.replace(/<\/code><\/pre>$/, "");
+	return html.replace(/^<pre[^>]*><code>/, "").replace(/<\/code><\/pre>$/, "");
 }
 
 let ready = $state(false);

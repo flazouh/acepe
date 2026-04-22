@@ -14,5 +14,8 @@ export async function loadCheckpointsBeforeTimelineOpen(sessionId: string): Prom
 
 /** Fire-and-forget reload after revert (new safety checkpoint may exist). */
 export function scheduleCheckpointReloadAfterRevert(sessionId: string): void {
-	void checkpointStore.loadCheckpoints(sessionId).match(() => {}, () => {});
+	void checkpointStore.loadCheckpoints(sessionId).match(
+		() => {},
+		() => {}
+	);
 }

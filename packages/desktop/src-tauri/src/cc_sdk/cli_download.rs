@@ -30,7 +30,7 @@ pub const MIN_CLI_VERSION: &str = "2.1.0";
 /// Default CLI version to download if not specified
 pub const DEFAULT_CLI_VERSION: &str = "latest";
 
-type ProgressCallback = dyn Fn(u64, Option<u64>) + Send + Sync;
+type DownloadProgressCallback = Box<dyn Fn(u64, Option<u64>) + Send + Sync>;
 
 /// Get the cache directory for the SDK
 pub fn get_cache_dir() -> Option<PathBuf> {
@@ -98,7 +98,7 @@ pub fn is_cli_cached() -> bool {
 #[cfg(feature = "auto-download")]
 pub async fn download_cli(
     version: Option<&str>,
-    on_progress: Option<Box<ProgressCallback>>,
+    on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     let version = version.unwrap_or(DEFAULT_CLI_VERSION);
     info!("Downloading Claude Code CLI version: {}", version);
@@ -123,10 +123,9 @@ pub async fn download_cli(
 
 /// Stub for download_cli when auto-download feature is disabled
 #[cfg(not(feature = "auto-download"))]
-#[allow(clippy::type_complexity)]
 pub async fn download_cli(
     _version: Option<&str>,
-    _on_progress: Option<Box<ProgressCallback>>,
+    _on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     Err(SdkError::ConfigError(
         "Auto-download feature is not enabled. \
@@ -141,7 +140,7 @@ pub async fn download_cli(
 async fn install_cli_for_platform(
     version: &str,
     target_path: &PathBuf,
-    on_progress: Option<Box<ProgressCallback>>,
+    on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     #[cfg(unix)]
     {
@@ -158,7 +157,7 @@ async fn install_cli_for_platform(
 async fn install_cli_unix(
     version: &str,
     target_path: &PathBuf,
-    on_progress: Option<Box<ProgressCallback>>,
+    on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     use tokio::process::Command;
 
@@ -290,7 +289,7 @@ async fn install_cli_unix(
 async fn install_cli_windows(
     version: &str,
     target_path: &PathBuf,
-    on_progress: Option<Box<ProgressCallback>>,
+    on_progress: Option<DownloadProgressCallback>,
 ) -> Result<PathBuf> {
     use tokio::process::Command;
 

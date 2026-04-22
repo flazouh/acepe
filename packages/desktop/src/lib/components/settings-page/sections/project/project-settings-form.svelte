@@ -1,118 +1,115 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { toast } from "svelte-sonner";
-	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-	import type { ProjectAcepeConfig } from "$lib/utils/tauri-client/types.js";
-	import { Button } from "$lib/components/ui/button/index.js";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import { Switch } from "$lib/components/ui/switch/index.js";
-	import { Textarea } from "$lib/components/ui/textarea/index.js";
-	import { tauriClient } from "$lib/utils/tauri-client.js";
-	import SettingRow from "../../setting-row.svelte";
-	import SettingsSection from "../../settings-section.svelte";
+import { onMount } from "svelte";
+import { toast } from "svelte-sonner";
+import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { ProjectAcepeConfig } from "$lib/utils/tauri-client/types.js";
+import { Button } from "$lib/components/ui/button/index.js";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { Switch } from "$lib/components/ui/switch/index.js";
+import { Textarea } from "$lib/components/ui/textarea/index.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
+import SettingRow from "../../setting-row.svelte";
+import SettingsSection from "../../settings-section.svelte";
 
-	interface Props {
-		projectManager: ProjectManager;
-		projectPath: string;
-		projectName: string;
-	}
+interface Props {
+	projectManager: ProjectManager;
+	projectPath: string;
+	projectName: string;
+}
 
-	type Status = "loading" | "ready" | "error";
+type Status = "loading" | "ready" | "error";
 
-	let { projectManager, projectPath, projectName }: Props = $props();
+let { projectManager, projectPath, projectName }: Props = $props();
 
-	let status = $state<Status>("loading");
-	let hideExternalCliSessions = $state(false);
-	let setupScriptDraft = $state("");
-	let runScriptDraft = $state("");
-	let isSavingVisibility = $state(false);
-	let isSavingSetupScript = $state(false);
-	let isSavingRunScript = $state(false);
+let status = $state<Status>("loading");
+let hideExternalCliSessions = $state(false);
+let setupScriptDraft = $state("");
+let runScriptDraft = $state("");
+let isSavingVisibility = $state(false);
+let isSavingSetupScript = $state(false);
+let isSavingRunScript = $state(false);
 
-	function currentConfig(showExternalCliSessions: boolean): ProjectAcepeConfig {
-		return {
-			setupScript: setupScriptDraft,
-			runScript: runScriptDraft,
-			showExternalCliSessions,
-		};
-	}
+function currentConfig(showExternalCliSessions: boolean): ProjectAcepeConfig {
+	return {
+		setupScript: setupScriptDraft,
+		runScript: runScriptDraft,
+		showExternalCliSessions,
+	};
+}
 
-	function applyLoadedSettings(settings: ProjectAcepeConfig) {
-		hideExternalCliSessions = !settings.showExternalCliSessions;
-		setupScriptDraft = settings.setupScript;
-		runScriptDraft = settings.runScript;
-	}
+function applyLoadedSettings(settings: ProjectAcepeConfig) {
+	hideExternalCliSessions = !settings.showExternalCliSessions;
+	setupScriptDraft = settings.setupScript;
+	runScriptDraft = settings.runScript;
+}
 
-	async function loadSettings() {
-		status = "loading";
-		await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
-			(settings) => {
-				applyLoadedSettings(settings);
-				status = "ready";
-			},
-			(error) => {
-				status = "error";
-				toast.error(`Failed to load project settings: ${error.message}`);
-			}
-		);
-	}
-
-	onMount(() => {
-		void loadSettings();
-	});
-
-	async function reloadVisibilityOrFallback(previousValue: boolean) {
-		await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
-			(settings) => {
-				applyLoadedSettings(settings);
-			},
-			() => {
-				hideExternalCliSessions = previousValue;
-			}
-		);
-	}
-
-	async function saveVisibility(nextValue: boolean) {
-		const previousValue = hideExternalCliSessions;
-		hideExternalCliSessions = nextValue;
-		isSavingVisibility = true;
-
-		const result = await projectManager.updateProjectShowExternalCliSessions(
-			projectPath,
-			!nextValue
-		);
-		if (result.isErr()) {
-			toast.error(`Failed to save project visibility: ${result.error.message}`);
-			await reloadVisibilityOrFallback(previousValue);
+async function loadSettings() {
+	status = "loading";
+	await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
+		(settings) => {
+			applyLoadedSettings(settings);
+			status = "ready";
+		},
+		(error) => {
+			status = "error";
+			toast.error(`Failed to load project settings: ${error.message}`);
 		}
+	);
+}
 
-		isSavingVisibility = false;
+onMount(() => {
+	void loadSettings();
+});
+
+async function reloadVisibilityOrFallback(previousValue: boolean) {
+	await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
+		(settings) => {
+			applyLoadedSettings(settings);
+		},
+		() => {
+			hideExternalCliSessions = previousValue;
+		}
+	);
+}
+
+async function saveVisibility(nextValue: boolean) {
+	const previousValue = hideExternalCliSessions;
+	hideExternalCliSessions = nextValue;
+	isSavingVisibility = true;
+
+	const result = await projectManager.updateProjectShowExternalCliSessions(projectPath, !nextValue);
+	if (result.isErr()) {
+		toast.error(`Failed to save project visibility: ${result.error.message}`);
+		await reloadVisibilityOrFallback(previousValue);
 	}
 
-	async function saveScript(kind: "setup_script" | "run_script") {
-		const isSetup = kind === "setup_script";
-		if (isSetup) {
-			isSavingSetupScript = true;
-		} else {
-			isSavingRunScript = true;
-		}
+	isSavingVisibility = false;
+}
 
-		const nextConfig = currentConfig(!hideExternalCliSessions);
-		await tauriClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).match(
-			(saved) => {
-				applyLoadedSettings(saved);
-			},
-			(error) => {
-				toast.error(`Failed to save project script: ${error.message}`);
-			}
-		);
-
-		if (isSetup) {
-			isSavingSetupScript = false;
-		} else {
-			isSavingRunScript = false;
-		}
+async function saveScript(kind: "setup_script" | "run_script") {
+	const isSetup = kind === "setup_script";
+	if (isSetup) {
+		isSavingSetupScript = true;
+	} else {
+		isSavingRunScript = true;
 	}
+
+	const nextConfig = currentConfig(!hideExternalCliSessions);
+	await tauriClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).match(
+		(saved) => {
+			applyLoadedSettings(saved);
+		},
+		(error) => {
+			toast.error(`Failed to save project script: ${error.message}`);
+		}
+	);
+
+	if (isSetup) {
+		isSavingSetupScript = false;
+	} else {
+		isSavingRunScript = false;
+	}
+}
 </script>
 
 <SettingsSection

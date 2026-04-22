@@ -1,4 +1,7 @@
-import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../session-work-projection.js";
+import {
+	deriveSessionWorkProjection,
+	selectSessionWorkBucket,
+} from "../session-work-projection.js";
 
 import type { ThreadBoardGroup, ThreadBoardItem, ThreadBoardSource } from "./thread-board-item.js";
 import { THREAD_BOARD_STATUS_ORDER, type ThreadBoardStatus } from "./thread-board-status.js";

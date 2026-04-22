@@ -2,11 +2,15 @@
 import { AgentToolQuestion } from "@acepe/ui/agent-panel";
 import { onMount } from "svelte";
 import { useSessionContext } from "../../hooks/use-session-context.js";
+import { getInteractionStore } from "../../store/interaction-store.svelte.js";
 import { getQuestionSelectionStore } from "../../store/question-selection-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { AnsweredQuestion } from "../../types/question.js";
 
-import { resolveDisplayQuestions } from "../../store/question-selectors.js";
+import {
+	findPendingQuestionForToolCall,
+	resolveDisplayQuestions,
+} from "../../store/question-selectors.js";
 import { getQuestionStore } from "../../store/question-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -22,6 +26,7 @@ interface Props {
 
 let { toolCall, turnState, elapsedLabel }: Props = $props();
 
+const interactionStore = getInteractionStore();
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
 const sessionStore = getSessionStore();
@@ -49,10 +54,15 @@ const pendingQuestion = $derived.by(() => {
 			}
 		}
 
-		return questionStore.getForToolCall(sessionId, toolCall.id);
+		return findPendingQuestionForToolCall(
+			Array.from(interactionStore.questionsPending.values()).filter(
+				(q) => q.sessionId === sessionId
+			),
+			toolCall.id
+		);
 	}
 
-	return undefined;
+	return findPendingQuestionForToolCall(interactionStore.questionsPending.values(), toolCall.id);
 });
 
 const displayQuestions = $derived.by(() => {
@@ -66,6 +76,10 @@ const displayQuestions = $derived.by(() => {
 // Check if question has been answered (either from store or from history)
 const answeredQuestionFromStore = $derived.by(() => {
 	return questionStore.getAnswered(toolCall.id);
+});
+
+const answeredQuestionFromInteractions = $derived.by(() => {
+	return interactionStore.answeredQuestions.get(toolCall.id);
 });
 
 // Convert history questionAnswer to AnsweredQuestion format if needed
@@ -90,7 +104,9 @@ const answeredQuestionFromHistory = $derived.by((): AnsweredQuestion | undefined
 });
 
 // Prefer store (fresher) over history
-const answeredQuestion = $derived(answeredQuestionFromStore ?? answeredQuestionFromHistory);
+const answeredQuestion = $derived(
+	answeredQuestionFromInteractions ?? answeredQuestionFromStore ?? answeredQuestionFromHistory
+);
 
 // Determine if we're in interactive mode (question is pending in the store)
 const isInteractive = $derived(pendingQuestion !== undefined);

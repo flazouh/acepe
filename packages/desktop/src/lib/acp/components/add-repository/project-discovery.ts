@@ -5,12 +5,20 @@ function isAcepeManagedWorktreePath(path: string): boolean {
 	return path.includes("/.acepe/worktrees/");
 }
 
+function isAgentManagedDiscoveryPath(path: string): boolean {
+	return path.includes("/.codecs/") || path.endsWith("/.codecs");
+}
+
+function hasHiddenPathSegment(path: string): boolean {
+	return isAcepeManagedWorktreePath(path) || isAgentManagedDiscoveryPath(path);
+}
+
 export function shouldShowDiscoveredProject(info: ProjectInfo): boolean {
 	return (
 		info.path !== "/" &&
 		info.path !== "global" &&
 		!info.is_worktree &&
-		!isAcepeManagedWorktreePath(info.path)
+		!hasHiddenPathSegment(info.path)
 	);
 }
 

@@ -1,30 +1,4 @@
-import { mock } from "bun:test";
-import { describe, expect, it, vi } from "vitest";
-
-mock.module("$lib/analytics.js", () => ({
-	captureException: vi.fn(),
-	captureContractViolation: vi.fn(),
-	initAnalytics: vi.fn(),
-	setAnalyticsEnabled: vi.fn(),
-}));
-mock.module("../../../analytics.js", () => ({
-	captureException: vi.fn(),
-	captureContractViolation: vi.fn(),
-	initAnalytics: vi.fn(),
-	setAnalyticsEnabled: vi.fn(),
-}));
-mock.module("@sentry/browser", () => ({
-	captureException: vi.fn(),
-	init: vi.fn(),
-}));
-mock.module("posthog-js", () => ({
-	default: {
-		init: vi.fn(),
-		capture: vi.fn(),
-		identify: vi.fn(),
-		reset: vi.fn(),
-	},
-}));
+import { describe, expect, it } from "vitest";
 
 import type { OperationSnapshot } from "../../../services/acp-types.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
@@ -68,12 +42,9 @@ function createToolCallEntry(toolCall: ToolCallData) {
 describe("OperationStore", () => {
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
+		const entryStore = new SessionEntryStore(operationStore);
 
-		operationStore.upsertFromToolCall(
-			"session-1",
-			"entry-tool-1",
-			createExecuteToolCall("tool-1", "mkdir demo")
-		);
+		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "mkdir demo"));
 
 		const createdOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(createdOperation).toBeDefined();
@@ -81,33 +52,20 @@ describe("OperationStore", () => {
 		expect(createdOperation?.toolCallId).toBe("tool-1");
 		expect(createdOperation?.kind).toBe("execute");
 		expect(createdOperation?.status).toBe("pending");
-		expect(createdOperation?.lifecycle).toBe("pending");
 		expect(createdOperation?.command).toBe("mkdir demo");
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 
-		operationStore.upsertOperationSnapshot({
-			id: createdOperation?.id ?? "session-1:tool-1",
-			session_id: "session-1",
-			tool_call_id: "tool-1",
-			name: "bash",
-			kind: "execute",
-			status: "pending",
-			lifecycle: "pending",
-			blocked_reason: null,
-			title: "Run command",
-			arguments: { kind: "execute", command: "mkdir demo" },
-			progressive_arguments: { kind: "execute", command: "mkdir demo && cd demo" },
+		entryStore.updateToolCallEntry("session-1", {
+			toolCallId: "tool-1",
+			status: null,
 			result: null,
-			command: "mkdir demo && cd demo",
+			content: null,
+			rawOutput: null,
+			title: null,
 			locations: null,
-			skill_meta: null,
-			normalized_todos: null,
-			started_at_ms: null,
-			completed_at_ms: null,
-			parent_tool_call_id: null,
-			parent_operation_id: null,
-			child_tool_call_ids: [],
-			child_operation_ids: [],
+			normalizedTodos: null,
+			normalizedQuestions: null,
+			streamingArguments: { kind: "execute", command: "mkdir demo && cd demo" },
 		});
 
 		const streamingOperation = operationStore.getByToolCallId("session-1", "tool-1");
@@ -115,44 +73,32 @@ describe("OperationStore", () => {
 		expect(streamingOperation?.command).toBe("mkdir demo && cd demo");
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 
-		operationStore.upsertOperationSnapshot({
-			id: createdOperation?.id ?? "session-1:tool-1",
-			session_id: "session-1",
-			tool_call_id: "tool-1",
-			name: "bash",
-			kind: "execute",
+		entryStore.updateToolCallEntry("session-1", {
+			toolCallId: "tool-1",
 			status: "completed",
-			lifecycle: "completed",
-			blocked_reason: null,
-			title: "Run command",
-			arguments: { kind: "execute", command: "mkdir demo && cd demo" },
-			progressive_arguments: null,
 			result: "done",
-			command: "mkdir demo && cd demo",
+			content: null,
+			rawOutput: null,
+			title: null,
 			locations: null,
-			skill_meta: null,
-			normalized_todos: null,
-			started_at_ms: 1,
-			completed_at_ms: 2,
-			parent_tool_call_id: null,
-			parent_operation_id: null,
-			child_tool_call_ids: [],
-			child_operation_ids: [],
+			normalizedTodos: null,
+			normalizedQuestions: null,
+			arguments: { kind: "execute", command: "mkdir demo && cd demo" },
 		});
 
 		const completedOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(completedOperation?.id).toBe(createdOperation?.id);
 		expect(completedOperation?.status).toBe("completed");
-		expect(completedOperation?.lifecycle).toBe("completed");
 		expect(completedOperation?.result).toBe("done");
 		expect(completedOperation?.progressiveArguments).toBeUndefined();
-		expect(operationStore.getByEntryId("session-1", "entry-tool-1")?.id).toBe(createdOperation?.id);
+		expect(operationStore.getByEntryId("session-1", "tool-1")?.id).toBe(createdOperation?.id);
 	});
 
 	it("preserves parent child relationships for task tool calls", () => {
 		const operationStore = new OperationStore();
+		const entryStore = new SessionEntryStore(operationStore);
 
-		operationStore.upsertFromToolCall("session-1", "entry-task-parent", {
+		entryStore.createToolCallEntry("session-1", {
 			id: "task-parent",
 			name: "task",
 			arguments: { kind: "other", raw: {} },
@@ -202,27 +148,12 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				status: "pending",
-				lifecycle: "blocked",
-				blocked_reason: "permission",
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
 				progressive_arguments: null,
 				result: null,
 				command: "pwd",
-				locations: [{ path: "/tmp/one.ts" }],
-				skill_meta: { description: "Run a command", filePath: null },
-				normalized_todos: [
-					{
-						content: "Do thing",
-						activeForm: "Do thing",
-						status: "pending",
-						startedAt: null,
-						completedAt: null,
-						duration: null,
-					},
-				],
-				started_at_ms: 100,
-				completed_at_ms: null,
+				normalized_todos: null,
 				parent_tool_call_id: null,
 				parent_operation_id: null,
 				child_tool_call_ids: [],
@@ -235,18 +166,18 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				status: "completed",
-				lifecycle: "completed",
-				blocked_reason: null,
 				title: "Second",
 				arguments: { kind: "execute", command: "ls" },
 				progressive_arguments: null,
 				result: "done",
 				command: "ls",
-				locations: null,
-				skill_meta: null,
-				normalized_todos: null,
-				started_at_ms: 200,
-				completed_at_ms: 250,
+				normalized_todos: [
+					{
+						content: "Ship snapshot-backed todo progress",
+						status: "in_progress",
+						activeForm: "Shipping snapshot-backed todo progress",
+					},
+				],
 				parent_tool_call_id: null,
 				parent_operation_id: null,
 				child_tool_call_ids: [],
@@ -256,119 +187,13 @@ describe("OperationStore", () => {
 
 		operationStore.replaceSessionOperations("session-1", snapshots);
 
-		expect(operationStore.getSessionOperations("session-1").map((operation) => operation.id)).toEqual([
-			"op-1",
-			"op-2",
-		]);
-		expect(operationStore.getById("op-1")).toMatchObject({
-			lifecycle: "blocked",
-			blockedReason: "permission",
-			locations: [{ path: "/tmp/one.ts" }],
-			skillMeta: { description: "Run a command", filePath: null },
-			normalizedTodos: [
-				{
-					content: "Do thing",
-					activeForm: "Do thing",
-					status: "pending",
-					startedAt: null,
-					completedAt: null,
-					duration: null,
-				},
-			],
-			startedAtMs: 100,
-		});
+		expect(
+			operationStore.getSessionOperations("session-1").map((operation) => operation.id)
+		).toEqual(["op-1", "op-2"]);
 	});
 
-	it("preserves richer operation evidence when a later snapshot is thinner", () => {
+	it("materializes current and last tool-call views from canonical operations", () => {
 		const operationStore = new OperationStore();
-		operationStore.replaceSessionOperations("session-1", [
-			{
-				id: "op-1",
-				session_id: "session-1",
-				tool_call_id: "tool-1",
-				name: "Read",
-				kind: "read",
-				status: "pending",
-				lifecycle: "blocked",
-				blocked_reason: "permission",
-				title: "Read /tmp/example.txt",
-				arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-				progressive_arguments: null,
-				result: null,
-				command: null,
-				locations: [{ path: "/tmp/example.txt" }],
-				skill_meta: null,
-				normalized_todos: null,
-				started_at_ms: 10,
-				completed_at_ms: null,
-				parent_tool_call_id: null,
-				parent_operation_id: null,
-				child_tool_call_ids: [],
-				child_operation_ids: [],
-			},
-		]);
-
-		operationStore.replaceSessionOperations("session-1", [
-			{
-				id: "op-1",
-				session_id: "session-1",
-				tool_call_id: "tool-1",
-				name: "Read",
-				kind: "read",
-				status: "pending",
-				lifecycle: "blocked",
-				blocked_reason: "permission",
-				title: "Read",
-				arguments: { kind: "read", file_path: null, source_context: null },
-				progressive_arguments: null,
-				result: null,
-				command: null,
-				locations: null,
-				skill_meta: null,
-				normalized_todos: null,
-				started_at_ms: null,
-				completed_at_ms: null,
-				parent_tool_call_id: null,
-				parent_operation_id: null,
-				child_tool_call_ids: [],
-				child_operation_ids: [],
-			},
-		]);
-
-		expect(operationStore.getById("op-1")).toMatchObject({
-			title: "Read /tmp/example.txt",
-			arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-			locations: [{ path: "/tmp/example.txt" }],
-			startedAtMs: 10,
-			blockedReason: "permission",
-		});
-	});
-
-	it("applies deferred blockers when a tool call materializes later", () => {
-		const operationStore = new OperationStore();
-
-		operationStore.updateOperationBlockingFromInteraction(
-			"session-1",
-			"permission-1",
-			null,
-			"tool-1",
-			"Permission",
-			"Pending"
-		);
-
-		const operation = operationStore.upsertFromToolCall(
-			"session-1",
-			"entry-tool-1",
-			createExecuteToolCall("tool-1", "git status")
-		);
-
-		expect(operation.lifecycle).toBe("blocked");
-		expect(operation.blockedReason).toBe("permission");
-	});
-
-	it("clears stored blockers when an operation completes", () => {
-		const operationStore = new OperationStore();
-
 		operationStore.replaceSessionOperations("session-1", [
 			{
 				id: "op-1",
@@ -376,63 +201,88 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				name: "bash",
 				kind: "execute",
-				status: "pending",
-				lifecycle: "blocked",
-				blocked_reason: "permission",
-				title: "Run command",
-				arguments: { kind: "execute", command: "git status" },
+				status: "completed",
+				title: "First",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: "done",
+				command: "pwd",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+			{
+				id: "op-2",
+				session_id: "session-1",
+				tool_call_id: "tool-2",
+				name: "grep",
+				kind: null,
+				status: "in_progress",
+				title: "Second",
+				arguments: { kind: "execute", command: "grep needle" },
 				progressive_arguments: null,
 				result: null,
-				command: "git status",
-				locations: null,
-				skill_meta: null,
+				command: null,
 				normalized_todos: null,
-				started_at_ms: 1,
-				completed_at_ms: null,
 				parent_tool_call_id: null,
 				parent_operation_id: null,
 				child_tool_call_ids: [],
 				child_operation_ids: [],
 			},
 		]);
-		operationStore.updateOperationBlockingFromInteraction(
-			"session-1",
-			"permission-1",
-			"op-1",
-			"tool-1",
-			"Permission",
-			"Pending"
-		);
 
-		const operation = operationStore.updateOperationStatus("session-1", "op-1", "completed");
-
-		expect(operation).toMatchObject({
-			status: "completed",
-			lifecycle: "completed",
-			blockedReason: null,
-		});
+		expect(operationStore.getLastToolCall("session-1")?.id).toBe("tool-2");
+		expect(operationStore.getCurrentStreamingToolCall("session-1")?.id).toBe("tool-2");
+		expect(operationStore.getCurrentToolKind("session-1")).toBe("other");
 	});
 
-	it("drops deferred tool-call blockers when replacing session operations", () => {
+	it("hydrates canonical normalized todos from operation snapshots", () => {
 		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "TodoWrite",
+				kind: null,
+				status: "in_progress",
+				title: "Todo list",
+				arguments: { kind: "other", raw: {} },
+				progressive_arguments: null,
+				result: null,
+				command: null,
+				normalized_todos: [
+					{
+						content: "Audit remaining consumers",
+						status: "completed",
+						activeForm: "Auditing remaining consumers",
+					},
+					{
+						content: "Migrate queue summaries",
+						status: "in_progress",
+						activeForm: "Migrating queue summaries",
+					},
+				],
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
 
-		operationStore.updateOperationBlockingFromInteraction(
-			"session-1",
-			"permission-1",
-			null,
-			"tool-1",
-			"Permission",
-			"Pending"
-		);
-		operationStore.replaceSessionOperations("session-1", []);
-
-		const operation = operationStore.upsertFromToolCall(
-			"session-1",
-			"entry-tool-1",
-			createExecuteToolCall("tool-1", "git status")
-		);
-
-		expect(operation.lifecycle).toBe("pending");
-		expect(operation.blockedReason).toBeNull();
+		expect(operationStore.getLastTodoToolCall("session-1")?.normalizedTodos).toEqual([
+			{
+				content: "Audit remaining consumers",
+				status: "completed",
+				activeForm: "Auditing remaining consumers",
+			},
+			{
+				content: "Migrate queue summaries",
+				status: "in_progress",
+				activeForm: "Migrating queue summaries",
+			},
+		]);
 	});
 });

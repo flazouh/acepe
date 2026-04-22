@@ -3,18 +3,17 @@ import { Colors } from "@acepe/ui/colors";
 import { Selector } from "@acepe/ui";
 import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-	import { useTheme } from "$lib/components/theme/context.svelte.js";
-	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-	import { Heart } from "phosphor-svelte";
-	import { getAgentIcon } from "../constants/thread-list-constants.js";
-	import type { AgentInfo } from "../logic/agent-manager.js";
-	import { getAgentPreferencesStore } from "../store/index.js";
+import { useTheme } from "$lib/components/theme/context.svelte.js";
+import { Skeleton } from "$lib/components/ui/skeleton/index.js";
+import { Heart } from "phosphor-svelte";
+import { getAgentIcon } from "../constants/thread-list-constants.js";
+import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
 
 interface AgentSelectorProps {
-	availableAgents: AgentInfo[];
+	availableAgents: readonly { id: string; name: string }[];
 	currentAgentId: string | null;
 	onAgentChange: (agentId: string) => void;
 	isLoading?: boolean;

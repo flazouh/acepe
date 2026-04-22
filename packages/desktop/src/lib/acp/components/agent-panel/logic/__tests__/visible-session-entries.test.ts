@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session.js";
 import { resolveVisibleSessionEntries } from "../visible-session-entries.js";
 
-function createErrorEntry(message: Extract<SessionEntry, { type: "error" }>["message"]): SessionEntry {
+function createErrorEntry(
+	message: Extract<SessionEntry, { type: "error" }>["message"]
+): SessionEntry {
 	return {
 		id: "error-1",
 		type: "error",

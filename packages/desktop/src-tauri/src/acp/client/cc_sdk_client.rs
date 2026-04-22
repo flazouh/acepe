@@ -28,8 +28,7 @@ use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::model_display::{build_models_for_display, ModelPresentationMetadata};
-use crate::acp::parsers::provider_capabilities::provider_capabilities;
+use crate::acp::model_display::build_models_for_display;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
@@ -977,8 +976,6 @@ pub struct ClaudeCcSdkClient {
     db: Option<DbConn>,
     /// App handle for descriptor-aware provider identity binding.
     app_handle: Option<AppHandle>,
-    /// Deferred options: stored by new_session, consumed by the first send_prompt.
-    pending_options: Option<cc_sdk::ClaudeCodeOptions>,
     pending_mode_id: Option<String>,
     pending_model_id: Option<String>,
     current_cwd: Option<PathBuf>,
@@ -1013,7 +1010,6 @@ impl ClaudeCcSdkClient {
             projection_registry,
             db,
             app_handle: Some(app_handle),
-            pending_options: None,
             pending_mode_id: None,
             pending_model_id: None,
             current_cwd: Some(cwd),
@@ -1394,14 +1390,9 @@ impl ClaudeCcSdkClient {
             &mut model_state,
         );
 
-        let agent_type = self.provider.parser_agent_type();
-        let capabilities = provider_capabilities(agent_type);
         model_state.models_display = build_models_for_display(
             &model_state.available_models,
-            ModelPresentationMetadata {
-                display_family: capabilities.model_display_family,
-                usage_metrics: capabilities.usage_metrics_presentation,
-            },
+            self.provider.model_presentation_metadata(),
         );
 
         tracing::info!(
@@ -1426,9 +1417,8 @@ impl ClaudeCcSdkClient {
 
         for attempt in attempts {
             let cwd = self
-                .pending_options
-                .as_ref()
-                .and_then(|options| options.cwd.clone())
+                .current_cwd
+                .clone()
                 .unwrap_or_else(|| PathBuf::from("."));
             let runtime = resolve_effective_runtime(self.provider.id(), &cwd, &attempt, None);
             tracing::info!(
@@ -1490,6 +1480,28 @@ impl ClaudeCcSdkClient {
         }
 
         Vec::new()
+    }
+
+    async fn connect_pending_session_with_initial_prompt(&mut self, initial_prompt: String) -> AcpResult<()> {
+        let session_id = self.session_id.clone().ok_or_else(|| {
+            AcpError::InvalidState(
+                "cc-sdk session not initialized; call new_session or resume_session first".to_string(),
+            )
+        })?;
+        let cwd = self.current_cwd.clone().ok_or_else(|| {
+            AcpError::InvalidState(
+                "cc-sdk session cwd missing; call new_session or resume_session first".to_string(),
+            )
+        })?;
+        let cwd_string = cwd.to_string_lossy().into_owned();
+        let options = self.build_options(&cwd_string, &session_id, None, false);
+        tracing::info!(
+            session_id = %session_id,
+            prompt_len = initial_prompt.len(),
+            "cc-sdk: first prompt — connecting with initial message..."
+        );
+        self.connect_and_start_bridge(options, session_id, Some(initial_prompt))
+            .await
     }
 
     async fn apply_runtime_mode(&self, mode_id: &str) -> AcpResult<()> {
@@ -2387,11 +2399,6 @@ impl AgentClient for ClaudeCcSdkClient {
         self.reset_stream_runtime_state();
         self.current_cwd = Some(PathBuf::from(&cwd));
         self.restore_session_permission_approvals(&session_id).await;
-        let options = self.build_options(&cwd, &session_id, None, false);
-        // Defer connection until the first send_prompt so the initial user
-        // message is passed to connect() and the CLI starts processing it
-        // immediately (avoids an empty Result before any content).
-        self.pending_options = Some(options);
         self.session_id = Some(session_id.clone());
         let models = self.hydrated_session_model_state().await;
         tracing::info!(
@@ -2434,8 +2441,6 @@ impl AgentClient for ClaudeCcSdkClient {
         self.restore_session_permission_approvals(&session_id).await;
         let history_session_id = self.history_session_id_for_app_session(&session_id).await;
         if !self.session_has_persisted_history(&session_id, &cwd).await {
-            let options = self.build_options(&cwd, &session_id, None, false);
-            self.pending_options = Some(options);
             self.session_id = Some(session_id.clone());
             let models = self.hydrated_session_model_state().await;
             tracing::info!(
@@ -2456,10 +2461,7 @@ impl AgentClient for ClaudeCcSdkClient {
             });
         }
 
-        self.pending_options =
-            Some(self.build_options(&cwd, &session_id, Some(history_session_id.clone()), false));
         let models = self.hydrated_session_model_state().await;
-        self.pending_options = None;
         tracing::info!(
             session_id = %session_id,
             provider = %self.provider.id(),
@@ -2500,10 +2502,7 @@ impl AgentClient for ClaudeCcSdkClient {
         self.current_cwd = Some(PathBuf::from(&cwd));
         self.restore_session_permission_approvals(&new_session_id)
             .await;
-        self.pending_options =
-            Some(self.build_options(&cwd, &new_session_id, Some(session_id.clone()), true));
         let models = self.hydrated_session_model_state().await;
-        self.pending_options = None;
         tracing::info!(
             session_id = %new_session_id,
             provider = %self.provider.id(),
@@ -2540,19 +2539,7 @@ impl AgentClient for ClaudeCcSdkClient {
             self.apply_runtime_mode(&mode_id).await?;
             return Ok(());
         }
-        // Deferred-connection path: `new_session` and the no-history branch of
-        // `resume_session` eagerly cache `ClaudeCodeOptions` in `pending_options`
-        // using whatever `pending_mode_id` was set at that moment. If the caller
-        // seeds a new mode (e.g. enabling autonomous before the first prompt),
-        // rebuild the cached options so the new mode is honored when
-        // `send_prompt_fire_and_forget` finally connects the client.
-        if self.pending_options.is_some() {
-            if let Some(cwd_buf) = self.current_cwd.clone() {
-                let cwd_str = cwd_buf.to_string_lossy().into_owned();
-                let rebuilt = self.build_options(&cwd_str, &session_id, None, false);
-                self.pending_options = Some(rebuilt);
-            }
-        }
+        let _ = session_id;
         Ok(())
     }
 
@@ -2578,18 +2565,9 @@ impl AgentClient for ClaudeCcSdkClient {
 
         let text_len = text.len();
 
-        // If we have pending options, this is the first prompt — connect now
-        // with the user's message so the CLI starts processing immediately.
-        if let Some(options) = self.pending_options.take() {
-            let session_id = self.session_id.clone().unwrap_or_default();
-            tracing::info!(
-                session_id = %session_id,
-                prompt_len = text_len,
-                "cc-sdk: first prompt — connecting with initial message..."
-            );
-            self.connect_and_start_bridge(options, session_id, Some(text))
-                .await?;
-            tracing::info!(session_id = ?self.session_id, "cc-sdk: connected with initial prompt");
+        if self.sdk_client.is_none() {
+            self.connect_pending_session_with_initial_prompt(text).await?;
+            tracing::info!(session_id = ?self.session_id, prompt_len = text_len, "cc-sdk: connected with initial prompt");
             return Ok(());
         }
 
@@ -2854,19 +2832,13 @@ impl AgentClient for ClaudeCcSdkClient {
 mod tests {
     use super::permissions::PendingPermissionKind;
     use super::*;
-    use crate::acp::projections::{
-        InteractionKind, InteractionPayload, InteractionSnapshot, SessionProjectionSnapshot,
-    };
     use crate::acp::session_descriptor::{SessionCompatibilityInput, SessionReplayContext};
     use crate::acp::session_update::ContentChunk;
     use crate::acp::session_update::{
         PermissionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::db::migrations::Migrator;
-    use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository,
-    };
+    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
     use cc_sdk::{CanUseTool, HookCallback};
     use sea_orm::Database;
     use sea_orm_migration::MigratorTrait;
@@ -2877,6 +2849,10 @@ mod tests {
 
     struct TestModelDiscoveryProvider {
         discovery_calls: Arc<AtomicUsize>,
+    }
+
+    struct CwdModelDiscoveryProvider {
+        target_cwd: String,
     }
 
     impl AgentProvider for TestModelDiscoveryProvider {
@@ -2924,6 +2900,42 @@ mod tests {
                     description: Some("Balanced Claude model".to_string()),
                 },
             ]
+        }
+    }
+
+    impl AgentProvider for CwdModelDiscoveryProvider {
+        fn id(&self) -> &str {
+            "claude-code"
+        }
+
+        fn name(&self) -> &str {
+            "Cwd Discovery Provider"
+        }
+
+        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
+            crate::acp::provider::SpawnConfig {
+                command: "unused".to_string(),
+                args: vec![],
+                env: HashMap::new(),
+                env_strategy: None,
+            }
+        }
+
+        fn parser_agent_type(&self) -> AgentType {
+            AgentType::ClaudeCode
+        }
+
+        fn model_discovery_commands(&self) -> Vec<crate::acp::provider::SpawnConfig> {
+            vec![crate::acp::provider::SpawnConfig {
+                command: "python3".to_string(),
+                args: vec![
+                    "-c".to_string(),
+                    "import json, os, sys; target = sys.argv[1]; model = 'expected-model' if os.getcwd() == target else 'wrong-model'; print(json.dumps([{\"id\": model, \"name\": model}]))".to_string(),
+                    self.target_cwd.clone(),
+                ],
+                env: HashMap::new(),
+                env_strategy: None,
+            }]
         }
     }
 
@@ -3110,7 +3122,6 @@ mod tests {
             projection_registry: Arc::new(ProjectionRegistry::new()),
             db: None,
             app_handle: None,
-            pending_options: None,
             pending_mode_id: None,
             pending_model_id: None,
             current_cwd: Some(PathBuf::from("/tmp")),
@@ -3261,22 +3272,21 @@ mod tests {
         assert_eq!(response.modes.current_mode_id, "build");
         assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
         assert_eq!(
-            client
-                .pending_options
-                .as_ref()
-                .expect("resume without persisted history should defer connect")
-                .permission_mode,
+            client.build_options(
+                &temp.path().to_string_lossy(),
+                "session-1",
+                None,
+                false
+            ).permission_mode,
             cc_sdk::PermissionMode::BypassPermissions
         );
     }
 
     #[tokio::test]
-    async fn set_session_mode_rebuilds_pending_options_on_deferred_connection() {
+    async fn set_session_mode_updates_first_activation_options_without_cached_connect_state() {
         // When the frontend enables autonomous before sending the first prompt,
-        // `new_session` has already cached `ClaudeCodeOptions` in
-        // `pending_options` with the default permission mode. `set_session_mode`
-        // must rebuild those options so the deferred `connect_and_start_bridge`
-        // call launches the CLI in `bypassPermissions`.
+        // first-send activation must derive the launch permission mode from the
+        // current session state rather than from cached connect options.
         let temp = tempfile::tempdir().expect("temp dir");
         let mut client = make_test_client();
 
@@ -3284,14 +3294,6 @@ mod tests {
             .new_session(temp.path().to_string_lossy().into_owned())
             .await
             .expect("new_session should succeed");
-        assert_eq!(
-            client
-                .pending_options
-                .as_ref()
-                .expect("new_session should cache options for deferred connect")
-                .permission_mode,
-            cc_sdk::PermissionMode::Default
-        );
 
         client
             .set_session_mode(new_response.session_id, "bypassPermissions".to_string())
@@ -3300,11 +3302,15 @@ mod tests {
 
         assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
         assert_eq!(
-            client
-                .pending_options
-                .as_ref()
-                .expect("pending_options should survive set_session_mode")
-                .permission_mode,
+            client.build_options(
+                &temp.path().to_string_lossy(),
+                client
+                    .session_id
+                    .as_deref()
+                    .expect("new_session should preserve session id for first activation"),
+                None,
+                false
+            ).permission_mode,
             cc_sdk::PermissionMode::BypassPermissions
         );
     }
@@ -3326,49 +3332,43 @@ mod tests {
         )
         .await
         .expect("persist session metadata");
-        SessionProjectionSnapshotRepository::set(
+        let permission_update = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(7),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                ),
+                permission: "Read".to_string(),
+                patterns: vec![path.to_string()],
+                metadata: serde_json::json!({}),
+                always: vec![],
+                auto_accepted: false,
+                tool: None,
+            },
+            session_id: Some("session-1".to_string()),
+        };
+        SessionJournalEventRepository::append_session_update(
             &db,
             "session-1",
-            &SessionProjectionSnapshot {
-                session: None,
-                operations: vec![],
-                interactions: vec![InteractionSnapshot {
-                    id: "permission-1".to_string(),
-                    session_id: "session-1".to_string(),
-                    operation_id: None,
-                    kind: InteractionKind::Permission,
-                    state: InteractionState::Approved,
-                    json_rpc_request_id: Some(7),
-                    reply_handler: Some(
-                        crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                    ),
-                    tool_reference: None,
-                    responded_at_event_seq: Some(2),
-                    response: Some(InteractionResponse::Permission {
-                        accepted: true,
-                        option_id: Some("allow".to_string()),
-                        reply: None,
-                    }),
-                    payload: InteractionPayload::Permission(PermissionData {
-                        id: "permission-1".to_string(),
-                        session_id: "session-1".to_string(),
-                        json_rpc_request_id: Some(7),
-                        reply_handler: Some(
-                            crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                        ),
-                        permission: "Read".to_string(),
-                        patterns: vec![path.to_string()],
-                        metadata: serde_json::json!({}),
-                        always: vec![],
-                        auto_accepted: false,
-                        tool: None,
-                    }),
-                }],
-                runtime: None,
+            &permission_update,
+        )
+        .await
+        .expect("persist permission request");
+        SessionJournalEventRepository::append_interaction_transition(
+            &db,
+            "session-1",
+            "permission-1",
+            InteractionState::Approved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: Some("allow".to_string()),
+                reply: None,
             },
         )
         .await
-        .expect("persist projection snapshot");
+        .expect("persist permission approval");
 
         let mut client = make_test_client();
         client.db = Some(db.clone());
@@ -3447,6 +3447,21 @@ mod tests {
         assert_eq!(state.available_models.len(), 2);
         assert_eq!(state.available_models[0].model_id, "claude-opus-4-6");
         assert_eq!(state.available_models[1].model_id, "claude-sonnet-4-5");
+    }
+
+    #[tokio::test]
+    async fn model_discovery_uses_current_cwd_without_cached_connect_options() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let canonical_cwd = temp.path().canonicalize().expect("canonical cwd");
+        let mut client = make_test_client_with_provider(Arc::new(CwdModelDiscoveryProvider {
+            target_cwd: canonical_cwd.to_string_lossy().into_owned(),
+        }));
+        client.current_cwd = Some(canonical_cwd);
+
+        let models = client.discover_models_from_provider_cli().await;
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].model_id, "expected-model");
     }
 
     #[test]

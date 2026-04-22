@@ -196,7 +196,6 @@ const mockProject: Project = {
 	lastOpened: new Date(),
 	createdAt: new Date(),
 	color: "#3b82f6",
-	showExternalCliSessions: true,
 };
 
 // State

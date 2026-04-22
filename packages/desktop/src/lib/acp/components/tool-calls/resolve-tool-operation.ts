@@ -1,11 +1,9 @@
-import { normalizeToolResult } from "../../store/services/tool-result-normalizer.js";
 import type { OperationStore } from "../../store/operation-store.svelte.js";
-import type { PermissionRequest } from "../../types/permission.js";
+import { normalizeToolResult } from "../../store/services/tool-result-normalizer.js";
 import type { Operation } from "../../types/operation.js";
+import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { resolveOperationDisplayTitle } from "../../session-state/session-state-query-service.js";
-import { permissionMatchesToolCall as permissionMatchesPendingToolCall } from "../../store/operation-association.js";
 
 export type ToolRouteKey = ToolKind | "read_lints";
 
@@ -18,29 +16,12 @@ export interface ResolvedToolOperation {
 
 type OperationLookup = Pick<OperationStore, "getById" | "getByToolCallId">;
 
-function permissionMatchesToolCall(
-	pendingPermission: PermissionRequest | null | undefined,
-	toolCall: ToolCall
-): boolean {
-	if (pendingPermission == null) {
-		return false;
-	}
-
-	return permissionMatchesPendingToolCall(pendingPermission, toolCall);
-}
-
 export function resolveToolOperation(
 	toolCall: ToolCall,
-	pendingPermission: PermissionRequest | null | undefined,
-	operation?: Operation | null,
-	operationStore?: Pick<OperationStore, "isBlockedByPermission">
+	pendingPermission: PermissionRequest | null | undefined
 ): ResolvedToolOperation {
 	const resolvedKind = toolCall.kind ?? "other";
 	const routeKey = resolveToolRouteKey(toolCall, resolvedKind);
-	const isPermissionBlockedOperation =
-		operation != null && operationStore != null
-			? operationStore.isBlockedByPermission(operation)
-			: false;
 
 	return {
 		resolvedKind,
@@ -49,9 +30,6 @@ export function resolveToolOperation(
 		shouldShowInlinePermissionActionBar:
 			pendingPermission !== null &&
 			pendingPermission !== undefined &&
-			(isPermissionBlockedOperation ||
-				operation == null ||
-				permissionMatchesToolCall(pendingPermission, toolCall)) &&
 			resolvedKind !== "exit_plan_mode",
 	};
 }
@@ -115,11 +93,6 @@ function createToolCallFromOperation(
 	operation: Operation,
 	taskChildren: ToolCall[] | null
 ): ToolCall {
-	const title = resolveOperationDisplayTitle({
-		title: operation.title ?? null,
-		arguments: operation.arguments,
-		name: operation.name,
-	});
 	const toolCall: ToolCall = {
 		id: operation.toolCallId,
 		name: operation.name,
@@ -133,7 +106,7 @@ function createToolCallFromOperation(
 			result: operation.result,
 		}),
 		kind: operation.kind,
-		title,
+		title: operation.title,
 		locations: operation.locations,
 		skillMeta: operation.skillMeta,
 		normalizedQuestions: operation.normalizedQuestions,

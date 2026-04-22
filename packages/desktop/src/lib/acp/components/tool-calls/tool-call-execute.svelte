@@ -59,12 +59,8 @@ const commandHtmls = $derived(
 		: []
 );
 
-const strippedStdout = $derived(
-	parsedResult.stdout ? stripAnsiCodes(parsedResult.stdout) : null
-);
-const strippedStderr = $derived(
-	parsedResult.stderr ? stripAnsiCodes(parsedResult.stderr) : null
-);
+const strippedStdout = $derived(parsedResult.stdout ? stripAnsiCodes(parsedResult.stdout) : null);
+const strippedStderr = $derived(parsedResult.stderr ? stripAnsiCodes(parsedResult.stderr) : null);
 
 const stdoutHtml = $derived(
 	bashHighlighter.ready && strippedStdout

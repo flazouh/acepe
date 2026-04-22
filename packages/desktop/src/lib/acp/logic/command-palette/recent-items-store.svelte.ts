@@ -3,7 +3,7 @@
  * Uses Tauri's user settings for persistence.
  */
 
-import { ResultAsync } from "neverthrow";
+import type { ResultAsync } from "neverthrow";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
@@ -104,31 +104,32 @@ export class RecentItemsStore {
 	 * Load recent items from storage.
 	 */
 	load(): ResultAsync<void, Error> {
-		return settings.getRaw(STORAGE_KEY).mapErr((error) => {
-			return new Error(`Failed to load recent items: ${error}`);
-		}).map((stored) => {
-			if (stored !== null) {
-				const parsed = JSON.parse(stored) as Partial<StoredRecentItems>;
-				this._items = {
-					commands: parsed.commands ?? [],
-					sessions: parsed.sessions ?? [],
-					files: parsed.files ?? [],
-				};
-				logger.debug("Loaded recent items:", this._items);
-			}
-		});
+		return settings
+			.getRaw(STORAGE_KEY)
+			.mapErr((error) => {
+				return new Error(`Failed to load recent items: ${error}`);
+			})
+			.map((stored) => {
+				if (stored !== null) {
+					const parsed = JSON.parse(stored) as Partial<StoredRecentItems>;
+					this._items = {
+						commands: parsed.commands ?? [],
+						sessions: parsed.sessions ?? [],
+						files: parsed.files ?? [],
+					};
+					logger.debug("Loaded recent items:", this._items);
+				}
+			});
 	}
 
 	/**
 	 * Persist current items to storage.
 	 */
 	private persist(): void {
-		settings
-			.setRaw(STORAGE_KEY, JSON.stringify(this._items))
-			.match(
-				() => undefined,
-				(error) => logger.error("Failed to persist recent items:", error)
-			);
+		settings.setRaw(STORAGE_KEY, JSON.stringify(this._items)).match(
+			() => undefined,
+			(error) => logger.error("Failed to persist recent items:", error)
+		);
 	}
 }
 

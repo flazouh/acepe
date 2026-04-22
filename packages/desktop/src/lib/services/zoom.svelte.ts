@@ -100,18 +100,21 @@ export class ZoomService {
 	 * Loads the zoom level from the database.
 	 */
 	private loadZoomLevel(): ResultAsync<number, Error> {
-		return settings.getRaw(ZOOM_LEVEL_KEY).mapErr((error) => {
-			return new Error(`Failed to load zoom level: ${String(error)}`);
-		}).map((value) => {
-			if (value === null) {
-				return ZOOM_CONFIG.DEFAULT;
-			}
-			const parsed = parseFloat(value);
-			if (Number.isNaN(parsed)) {
-				return ZOOM_CONFIG.DEFAULT;
-			}
-			return Math.max(ZOOM_CONFIG.MIN, Math.min(parsed, ZOOM_CONFIG.MAX));
-		});
+		return settings
+			.getRaw(ZOOM_LEVEL_KEY)
+			.mapErr((error) => {
+				return new Error(`Failed to load zoom level: ${String(error)}`);
+			})
+			.map((value) => {
+				if (value === null) {
+					return ZOOM_CONFIG.DEFAULT;
+				}
+				const parsed = parseFloat(value);
+				if (Number.isNaN(parsed)) {
+					return ZOOM_CONFIG.DEFAULT;
+				}
+				return Math.max(ZOOM_CONFIG.MIN, Math.min(parsed, ZOOM_CONFIG.MAX));
+			});
 	}
 
 	/**

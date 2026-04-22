@@ -189,15 +189,11 @@ const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, intera
 
 // Create tab bar store for flat, panel-ordered tabs with mode/state/tool indicators
 const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore, unseenStore);
-const sessionOpenHydrator = new SessionOpenHydrator(
-	sessionStore,
-	panelStore,
-	{
-		replaceSessionStateGraph(graph) {
-			interactionStore.replaceSessionStateGraph(graph);
-		},
-	}
-);
+const sessionOpenHydrator = new SessionOpenHydrator(sessionStore, panelStore, {
+	replaceSessionStateGraph(graph) {
+		interactionStore.replaceSessionStateGraph(graph);
+	},
+});
 sessionStore.setSessionOpenHydrator(sessionOpenHydrator);
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
@@ -228,7 +224,9 @@ function focusOrOpenSessionPanel(sessionId: string, acknowledgeCompletion = fals
 	}
 }
 
-function showPermissionNotification(permission: import("$lib/acp/types/permission.js").PermissionRequest): void {
+function showPermissionNotification(
+	permission: import("$lib/acp/types/permission.js").PermissionRequest
+): void {
 	showNotification(
 		{
 			id: permission.id,
@@ -286,9 +284,7 @@ function showQuestionNotification(question: QuestionRequest): void {
 
 function showPlanApprovalNotification(approval: PlanApprovalInteraction): void {
 	const body =
-		approval.source === "exit_plan_mode"
-			? "Approve exiting plan mode"
-			: "Approve generated plan";
+		approval.source === "exit_plan_mode" ? "Approve exiting plan mode" : "Approve generated plan";
 	showNotification(
 		{
 			id: approval.id,
@@ -312,7 +308,9 @@ function showPlanApprovalNotification(approval: PlanApprovalInteraction): void {
 	);
 }
 
-function applyLiveInteractionGraph(graph: import("$lib/services/acp-types.js").SessionStateGraph): void {
+function applyLiveInteractionGraph(
+	graph: import("$lib/services/acp-types.js").SessionStateGraph
+): void {
 	const previousPermissionIds = new Set<string>();
 	const previousQuestionIds = new Set<string>();
 	const previousPlanApprovalIds = new Set<string>();
@@ -573,7 +571,6 @@ function handleAddProjectOpen(path: string, name: string) {
 		name,
 		createdAt: new Date(),
 		color: "cyan",
-		showExternalCliSessions: true,
 	};
 	projectManager.addProject(project).match(
 		() => {
@@ -1070,6 +1067,8 @@ onDestroy(() => {
 <ThemeProvider class="overflow-hidden h-dvh bg-background">
 	<div
 		class="flex flex-col h-full min-h-0 pt-0.5 pb-0.5 overflow-hidden"
+		role="application"
+		aria-label={"Application"}
 		oncontextmenu={handleContextMenu}
 	>
 		<!-- Top bar -->

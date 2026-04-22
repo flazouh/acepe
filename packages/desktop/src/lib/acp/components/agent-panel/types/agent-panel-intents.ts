@@ -1,6 +1,6 @@
+import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 
 /**
  * Named product intents the thin `agent-panel` controller exposes.

@@ -13,7 +13,10 @@ pub use bridge::{build_delta_envelope, build_snapshot_envelope};
 pub use envelope::SessionStateEnvelope;
 pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
 pub use graph::SessionStateGraph;
-pub use protocol::{SessionStateDelta, SessionStatePayload, SessionStateSnapshotMaterialization};
+pub use protocol::{
+    CapabilityPreviewState, SessionStateDelta, SessionStatePayload,
+    SessionStateSnapshotMaterialization,
+};
 pub use reducer::{SessionStateGraphMutation, SessionStateReducer};
 pub use revision::SessionGraphRevision;
 pub use runtime_registry::{

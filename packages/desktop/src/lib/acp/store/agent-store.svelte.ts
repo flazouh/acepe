@@ -88,6 +88,7 @@ export class AgentStore {
 						: [],
 					default_selection_rank: a.default_selection_rank,
 					providerMetadata: resolveProviderMetadataProjection(a.id, a.provider_metadata, a.id),
+					supportsProjectDiscovery: a.supports_project_discovery ?? false,
 				}));
 				this.agentsLoading = false;
 				logger.debug("Loaded agents", { count: this.agents.length });

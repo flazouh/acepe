@@ -1,5 +1,4 @@
 use crate::commands::observability::{unexpected_command_result, CommandResult};
-use crate::history::visibility::load_external_hidden_paths_or_empty;
 use std::cmp::Reverse;
 use std::path::Path;
 
@@ -62,7 +61,7 @@ fn derive_indexed_session_title(session_id: &str, display: &str, title_overridde
 pub async fn scan_project_sessions(
     app: AppHandle,
     project_paths: Vec<String>,
-) -> CommandResult<ScanProjectSessionsResponse> {
+) -> CommandResult<Vec<HistoryEntry>> {
     unexpected_command_result(
         "scan_project_sessions",
         "Failed to scan project sessions",
@@ -178,19 +177,20 @@ pub async fn get_startup_sessions(
 async fn scan_project_sessions_inner(
     project_paths: Vec<String>,
     db: Option<DbConn>,
-) -> Result<ScanProjectSessionsResponse, String> {
+) -> Result<Vec<HistoryEntry>, String> {
     let scan_start = Instant::now();
 
     // Try SQLite index for ALL agents (fast path: ~10-50ms)
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let external_hidden_paths = load_external_hidden_paths_or_empty(
-                db,
-                &project_paths,
-                "scan_project_sessions:index",
-            )
-            .await;
+            let external_hidden_paths =
+                crate::history::visibility::load_external_hidden_paths_or_empty(
+                    db,
+                    &project_paths,
+                    "scan_project_sessions",
+                )
+                .await;
             let result = SessionMetadataRepository::get_for_projects(
                 db,
                 &project_paths,
@@ -201,8 +201,8 @@ async fn scan_project_sessions_inner(
             match &result {
                 Ok(lookup) => tracing::info!(
                     elapsed_ms = idx_ms,
+                    count = lookup.entries.len(),
                     db_row_count = lookup.db_row_count,
-                    visible_count = lookup.entries.len(),
                     "SQLite index query completed"
                 ),
                 Err(e) => tracing::warn!(
@@ -211,15 +211,10 @@ async fn scan_project_sessions_inner(
                     "SQLite index query failed"
                 ),
             }
-            // Fall back to file scan only when the DB has no rows for the
-            // requested projects. If rows exist but visibility filters hid
-            // them all (e.g. user disabled "Show external CLI sessions"),
-            // the empty result is authoritative — re-scanning the filesystem
-            // would just produce the same empty set after ~800ms.
-            result
-                .ok()
-                .filter(|lookup| lookup.db_row_count > 0)
-                .map(|lookup| lookup.entries)
+            match result.ok() {
+                Some(lookup) if lookup.db_row_count > 0 => Some(lookup.entries),
+                _ => None,
+            }
         }
         None => {
             tracing::warn!("No DbConn available — skipping index fast path");
@@ -262,10 +257,7 @@ async fn scan_project_sessions_inner(
             source = "index",
             "Session scan complete (from index)"
         );
-        return Ok(ScanProjectSessionsResponse {
-            entries,
-            failed_agents: Vec::new(),
-        });
+        return Ok(entries);
     }
 
     // Index empty — full scan all agents in parallel
@@ -282,80 +274,51 @@ async fn scan_project_sessions_inner(
 
     let file_scan_ms = file_scan_start.elapsed().as_millis();
     let mut entries = Vec::new();
-    let mut failed_agents: Vec<String> = Vec::new();
-    let external_hidden_paths = match &db {
-        Some(db) => {
-            load_external_hidden_paths_or_empty(db, &project_paths, "scan_project_sessions:files")
-                .await
-        }
-        None => std::collections::HashSet::new(),
-    };
 
     let claude_count = match claude_result {
         Ok(claude_entries) => {
-            let filtered_entries: Vec<HistoryEntry> = claude_entries
-                .into_iter()
-                .filter(|entry| !external_hidden_paths.contains(&entry.project))
-                .collect();
-            let count = filtered_entries.len();
-            entries.extend(filtered_entries);
+            let count = claude_entries.len();
+            entries.extend(claude_entries);
             count
         }
         Err(e) => {
             tracing::warn!(error = %e, "Claude scanner failed");
-            failed_agents.push(CanonicalAgentId::ClaudeCode.as_str().to_string());
             0
         }
     };
 
     let cursor_count = match cursor_result {
         Ok(cursor_entries) => {
-            let filtered_entries: Vec<HistoryEntry> = cursor_entries
-                .iter()
-                .map(cursor_parser::to_history_entry)
-                .filter(|entry| !external_hidden_paths.contains(&entry.project))
-                .collect();
-            let count = filtered_entries.len();
-            entries.extend(filtered_entries);
+            let count = cursor_entries.len();
+            entries.extend(cursor_entries.iter().map(cursor_parser::to_history_entry));
             count
         }
         Err(e) => {
             tracing::warn!(error = %e, "Cursor scanner failed");
-            failed_agents.push(CanonicalAgentId::Cursor.as_str().to_string());
             0
         }
     };
 
     let opencode_count = match opencode_result {
         Ok(opencode_entries) => {
-            let filtered_entries: Vec<HistoryEntry> = opencode_entries
-                .into_iter()
-                .filter(|entry| !external_hidden_paths.contains(&entry.project))
-                .collect();
-            let count = filtered_entries.len();
-            entries.extend(filtered_entries);
+            let count = opencode_entries.len();
+            entries.extend(opencode_entries);
             count
         }
         Err(e) => {
             tracing::warn!(error = %e, "OpenCode scanner failed");
-            failed_agents.push(CanonicalAgentId::OpenCode.as_str().to_string());
             0
         }
     };
 
     let codex_count = match codex_result {
         Ok(codex_entries) => {
-            let filtered_entries: Vec<HistoryEntry> = codex_entries
-                .into_iter()
-                .filter(|entry| !external_hidden_paths.contains(&entry.project))
-                .collect();
-            let count = filtered_entries.len();
-            entries.extend(filtered_entries);
+            let count = codex_entries.len();
+            entries.extend(codex_entries);
             count
         }
         Err(e) => {
             tracing::warn!(error = %e, "Codex scanner failed");
-            failed_agents.push(CanonicalAgentId::Codex.as_str().to_string());
             0
         }
     };
@@ -366,7 +329,6 @@ async fn scan_project_sessions_inner(
         opencode_count,
         codex_count,
         total_entries = entries.len(),
-        failed_agents = ?failed_agents,
         file_scan_ms,
         total_ms = scan_start.elapsed().as_millis(),
         source = "files",
@@ -375,10 +337,7 @@ async fn scan_project_sessions_inner(
 
     entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
 
-    Ok(ScanProjectSessionsResponse {
-        entries,
-        failed_agents,
-    })
+    Ok(entries)
 }
 
 #[cfg(test)]
@@ -490,7 +449,7 @@ pub async fn discover_all_projects_with_sessions() -> CommandResult<Vec<HistoryE
         "discover_all_projects_with_sessions",
         "Failed to discover projects with sessions",
         async {
-            DISCOVER_CACHE
+            SCAN_CACHE
                 .get_or_fetch("discover".to_string(), || async {
                     discover_all_projects_with_sessions_inner().await
                 })

@@ -144,7 +144,6 @@ export class ProjectManager {
 						color: existingProject.color,
 						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 						iconPath: existingProject.iconPath ?? null,
-						showExternalCliSessions: existingProject.showExternalCliSessions,
 					}));
 					this.projects = [importedProject, ...shiftedProjects];
 					// Update count only for new projects
@@ -206,7 +205,6 @@ export class ProjectManager {
 			createdAt: new SvelteDate(),
 			sortOrder: 0,
 			iconPath: null,
-			showExternalCliSessions: true,
 		};
 
 		const shiftedProjects = this.projects.map((existingProject) => ({
@@ -217,7 +215,6 @@ export class ProjectManager {
 			color: existingProject.color,
 			sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
 			iconPath: existingProject.iconPath ?? null,
-			showExternalCliSessions: existingProject.showExternalCliSessions,
 		}));
 		this.projects = [optimisticProject, ...shiftedProjects];
 
@@ -253,6 +250,10 @@ export class ProjectManager {
 		});
 	}
 
+	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
+		return this.client.listProjectImages(projectPath);
+	}
+
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
@@ -283,19 +284,17 @@ export class ProjectManager {
 					return okAsync(undefined);
 				}
 
-				return this.sessionStore.scanSessions([path]).mapErr(
-					(error) =>
-						new ProjectError(
-							`Failed to refresh project sessions: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				);
+				return this.sessionStore
+					.scanSessions([path])
+					.mapErr(
+						(error) =>
+							new ProjectError(
+								`Failed to refresh project sessions: ${error.message}`,
+								"STORAGE_ERROR",
+								error instanceof Error ? error : undefined
+							)
+					);
 			});
-	}
-
-	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
-		return this.client.listProjectImages(projectPath);
 	}
 
 	/**

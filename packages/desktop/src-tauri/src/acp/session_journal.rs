@@ -10,10 +10,7 @@ use crate::acp::session_update::{
     TurnErrorData,
 };
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
-use crate::db::repository::{
-    SerializedSessionJournalEventRow, SessionJournalEventRepository,
-    SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-};
+use crate::db::repository::{SerializedSessionJournalEventRow, SessionJournalEventRepository};
 use chrono::Utc;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
@@ -394,22 +391,7 @@ pub async fn load_stored_projection(
         return Ok(Some(journal_projection));
     }
 
-    let thread_snapshot = SessionThreadSnapshotRepository::get(
-        db,
-        &replay_context.local_session_id,
-        &replay_context.agent_id,
-    )
-    .await?;
-
-    if let Some(snapshot) = thread_snapshot {
-        return Ok(Some(ProjectionRegistry::project_thread_snapshot(
-            &replay_context.local_session_id,
-            Some(replay_context.agent_id.clone()),
-            &snapshot,
-        )));
-    }
-
-    SessionProjectionSnapshotRepository::get(db, &replay_context.local_session_id).await
+    Ok(None)
 }
 
 #[cfg(test)]

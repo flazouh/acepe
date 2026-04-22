@@ -1,8 +1,8 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
 vi.mock("svelte", async () => {

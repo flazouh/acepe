@@ -108,7 +108,10 @@ const highlightedError = $derived.by(() => {
 	});
 });
 
-function reportBoundaryError(nextError: Error, source: "window.error" | "window.unhandledrejection"): void {
+function reportBoundaryError(
+	nextError: Error,
+	source: "window.error" | "window.unhandledrejection"
+): void {
 	const sentryAvailable = isSentryCaptureAvailable();
 	const eventId = captureException(nextError, { source });
 	ensureErrorReference(

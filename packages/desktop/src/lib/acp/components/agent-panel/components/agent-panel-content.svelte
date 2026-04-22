@@ -46,10 +46,14 @@ let virtualizedListRef: VirtualizedEntryList | null = $state(null);
 
 // Prefer props when provided (controller pattern), fall back to store access
 const runtimeState = $derived(
-	isWaitingProp !== undefined ? null : (sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null)
+	isWaitingProp !== undefined
+		? null
+		: sessionId
+			? sessionStore.getSessionRuntimeState(sessionId)
+			: null
 );
 const hotState = $derived(
-	turnStateProp !== undefined ? null : (sessionId ? sessionStore.getHotState(sessionId) : null)
+	turnStateProp !== undefined ? null : sessionId ? sessionStore.getHotState(sessionId) : null
 );
 
 const turnState = $derived<TurnState>(turnStateProp ?? hotState?.turnState ?? "idle");

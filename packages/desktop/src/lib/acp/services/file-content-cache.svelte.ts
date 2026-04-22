@@ -11,7 +11,7 @@
  * - Separate caches for file content and diff content
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { okAsync, type ResultAsync } from "neverthrow";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import { FileContentCacheError } from "../errors/file-content-cache-error.js";
@@ -123,12 +123,15 @@ class FileContentCache {
 			return okAsync(cached);
 		}
 
-		return fileIndex.readFileContent(filePath, projectPath).mapErr((error) => {
-			return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
-		}).map((content) => {
-			this.contentCache.set(cacheKey, content);
-			return content;
-		});
+		return fileIndex
+			.readFileContent(filePath, projectPath)
+			.mapErr((error) => {
+				return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
+			})
+			.map((content) => {
+				this.contentCache.set(cacheKey, content);
+				return content;
+			});
 	}
 
 	/**
@@ -157,19 +160,25 @@ class FileContentCache {
 			projectPath,
 		});
 
-		return fileIndex.getFileDiff(filePath, projectPath).mapErr((error) => {
-			return new FileContentCacheError(`Failed to get diff for ${filePath}: ${error}`, "DIFF_ERROR");
-		}).map((diff) => {
-			logger.info("Diff loaded from backend", {
-				filePath,
-				projectPath,
-				hasOldContent: diff.oldContent !== null,
-				oldLength: diff.oldContent?.length ?? 0,
-				newLength: diff.newContent.length,
+		return fileIndex
+			.getFileDiff(filePath, projectPath)
+			.mapErr((error) => {
+				return new FileContentCacheError(
+					`Failed to get diff for ${filePath}: ${error}`,
+					"DIFF_ERROR"
+				);
+			})
+			.map((diff) => {
+				logger.info("Diff loaded from backend", {
+					filePath,
+					projectPath,
+					hasOldContent: diff.oldContent !== null,
+					oldLength: diff.oldContent?.length ?? 0,
+					newLength: diff.newContent.length,
+				});
+				this.diffCache.set(cacheKey, diff);
+				return diff;
 			});
-			this.diffCache.set(cacheKey, diff);
-			return diff;
-		});
 	}
 
 	/**
@@ -181,15 +190,18 @@ class FileContentCache {
 		projectPath: string,
 		content: string
 	): ResultAsync<void, FileContentCacheError> {
-		return fileIndex.revertFileContent(filePath, projectPath, content).mapErr((error) => {
-			return new FileContentCacheError(
-				`Failed to revert file ${filePath}: ${error}`,
-				"WRITE_ERROR"
-			);
-		}).map(() => {
-			// Invalidate caches for this file after reverting
-			this.invalidateFile(filePath, projectPath);
-		});
+		return fileIndex
+			.revertFileContent(filePath, projectPath, content)
+			.mapErr((error) => {
+				return new FileContentCacheError(
+					`Failed to revert file ${filePath}: ${error}`,
+					"WRITE_ERROR"
+				);
+			})
+			.map(() => {
+				// Invalidate caches for this file after reverting
+				this.invalidateFile(filePath, projectPath);
+			});
 	}
 
 	/**

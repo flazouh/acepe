@@ -2651,8 +2651,7 @@ mod parse_tool_call_update_from_acp {
         assert!(result.is_ok());
         let update = result.unwrap();
         assert!(update.result.is_some());
-        // raw_output is deprecated, should always be None
-        assert!(update.raw_output.is_none());
+        assert_eq!(update.raw_output, update.result);
     }
 
     #[test]

@@ -11,9 +11,9 @@ vi.mock("../../utils/logger.js", () => ({
 	}),
 }));
 
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
+import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function applyStreamingArguments(
 	store: SessionEntryStore,
@@ -43,26 +43,6 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 	});
 
 	describe("updateToolCallEntry / getStreamingArguments", () => {
-		it("does not materialize canonical operations from transcript tool-call entries", () => {
-			const operationStore = new OperationStore();
-			const store = new SessionEntryStore(operationStore);
-
-			store.createToolCallEntry("session1", {
-				id: "tool1",
-				name: "Read",
-				arguments: { kind: "read", file_path: "/tmp/example.txt" },
-				status: "pending",
-				kind: "read",
-				title: "Read /tmp/example.txt",
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-
-			expect(operationStore.getSessionOperations("session1")).toEqual([]);
-		});
-
 		it("should store and retrieve streaming arguments from canonical updates", () => {
 			store.createToolCallEntry("session1", {
 				id: "tool1",
@@ -1078,75 +1058,6 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 			const entries = store.getEntries("session1");
 			expect(entries).toHaveLength(2);
-		});
-	});
-
-	it("preserves canonical operations across transcript replaceSnapshot deltas", () => {
-		const operationStore = new OperationStore();
-		store = new SessionEntryStore(operationStore);
-
-		operationStore.upsertOperationSnapshot({
-			id: "op-1",
-			session_id: "session-1",
-			tool_call_id: "tool-1",
-			name: "Read",
-			kind: "read",
-			status: "pending",
-			lifecycle: "blocked",
-			blocked_reason: "permission",
-			title: "Read /tmp/example.txt",
-			arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-			progressive_arguments: null,
-			result: null,
-			command: "cat /tmp/example.txt",
-			locations: [{ path: "/tmp/example.txt" }],
-			skill_meta: null,
-			normalized_todos: null,
-			started_at_ms: 10,
-			completed_at_ms: null,
-			parent_tool_call_id: null,
-			parent_operation_id: null,
-			child_tool_call_ids: [],
-			child_operation_ids: [],
-		});
-
-		store.applyTranscriptDelta(
-			"session-1",
-			{
-				eventSeq: 8,
-				sessionId: "session-1",
-				snapshotRevision: 8,
-				operations: [
-					{
-						kind: "replaceSnapshot",
-						snapshot: {
-							revision: 8,
-							entries: [
-								{
-									entryId: "assistant-1",
-									role: "assistant",
-									segments: [
-										{
-											kind: "text",
-											segmentId: "assistant-1:segment:8",
-											text: "updated transcript",
-										},
-									],
-								},
-							],
-						},
-					},
-				],
-			},
-			new Date("2026-04-16T00:00:03.000Z")
-		);
-
-		expect(operationStore.getById("op-1")).toMatchObject({
-			lifecycle: "blocked",
-			blockedReason: "permission",
-			title: "Read /tmp/example.txt",
-			command: "cat /tmp/example.txt",
-			locations: [{ path: "/tmp/example.txt" }],
 		});
 	});
 });

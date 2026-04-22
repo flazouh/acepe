@@ -19,9 +19,7 @@ export interface BuildDesktopKanbanSceneOptions {
 	readonly entries: readonly DesktopKanbanSceneEntry[];
 }
 
-export function buildDesktopKanbanScene(
-	options: BuildDesktopKanbanSceneOptions
-): KanbanSceneModel {
+export function buildDesktopKanbanScene(options: BuildDesktopKanbanSceneOptions): KanbanSceneModel {
 	const cards: KanbanSceneCardData[] = [];
 	const placements: KanbanScenePlacement[] = [];
 	const cardIds = new Set<string>();
@@ -63,9 +61,7 @@ export function buildDesktopKanbanScene(
 	};
 }
 
-export function buildKanbanSceneGroups(
-	scene: KanbanSceneModel
-): readonly KanbanSceneColumnGroup[] {
+export function buildKanbanSceneGroups(scene: KanbanSceneModel): readonly KanbanSceneColumnGroup[] {
 	const cardsById = new Map<string, KanbanSceneCardData>();
 	for (const card of scene.cards) {
 		cardsById.set(card.id, card);

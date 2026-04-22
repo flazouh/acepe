@@ -48,9 +48,7 @@ describe("BrowserPanelHeader", () => {
 		const back = container.querySelector(`button[title='${"Go back"}']`);
 		const forward = container.querySelector(`button[title='${"Go forward"}']`);
 		const reload = container.querySelector(`button[title='${"Refresh"}']`);
-		const openExternal = container.querySelector(
-			`button[title='${"Open in browser"}']`
-		);
+		const openExternal = container.querySelector(`button[title='${"Open in browser"}']`);
 		const close = container.querySelector(`button[title='${"Close"}']`);
 
 		expect(urlInput).not.toBeNull();

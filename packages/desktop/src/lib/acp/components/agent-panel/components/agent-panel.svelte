@@ -1200,16 +1200,16 @@ function handleStartInProjectRoot(): void {
 	preSessionWorktreeFailure = null;
 	if (panelId && panelPreparedWorktreeLaunch) {
 		void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
-				() => {
-					activeWorktreePath = null;
-					activeWorktreeOwnerProjectPath = null;
-					panelStore.clearPreparedWorktreeLaunch(panelId);
-					panelStore.setPendingWorktreeEnabled(panelId, false);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
-			);
+			() => {
+				activeWorktreePath = null;
+				activeWorktreeOwnerProjectPath = null;
+				panelStore.clearPreparedWorktreeLaunch(panelId);
+				panelStore.setPendingWorktreeEnabled(panelId, false);
+			},
+			(error) => {
+				toast.error(`Failed to discard prepared worktree: ${error.message}`);
+			}
+		);
 		return;
 	}
 	activeWorktreePath = null;
@@ -1580,7 +1580,11 @@ const queueStripDisplayMessages = $derived.by(() => {
 			displayName: a.displayName,
 			extension: a.extension || null,
 			kind:
-				a.type === "image" ? ("image" as const) : a.type === "text" ? ("other" as const) : ("file" as const),
+				a.type === "image"
+					? ("image" as const)
+					: a.type === "text"
+						? ("other" as const)
+						: ("file" as const),
 		})),
 	}));
 });
@@ -1604,7 +1608,10 @@ function handlePreSessionWorktreeNo(): void {
 	}
 	if (panelId) {
 		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
+			void discardPreparedWorktreeSessionLaunch(
+				panelPreparedWorktreeLaunch.launchToken,
+				true
+			).match(
 				() => {
 					panelStore.clearPreparedWorktreeLaunch(panelId);
 				},
@@ -1631,7 +1638,10 @@ function handlePreSessionWorktreeDismiss(): void {
 	preSessionWorktreeFailure = null;
 	if (panelId) {
 		if (panelPreparedWorktreeLaunch) {
-			void discardPreparedWorktreeSessionLaunch(panelPreparedWorktreeLaunch.launchToken, true).match(
+			void discardPreparedWorktreeSessionLaunch(
+				panelPreparedWorktreeLaunch.launchToken,
+				true
+			).match(
 				() => {
 					panelStore.clearPreparedWorktreeLaunch(panelId);
 				},
@@ -1883,8 +1893,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{worktreeSetupState}
 			{agentInstallState}
 			{sessionId}
-			effectiveProjectPath={effectiveProjectPath}
-			{sessionProjectPath}
+			effectiveProjectPath={effectiveProjectPath ?? null}
+			sessionProjectPath={sessionProjectPath ?? null}
 			sessionEntries={sessionEntries}
 			sessionTurnState={sessionHotState?.turnState ?? "idle"}
 			{effectivePathForGit}

@@ -19,12 +19,13 @@ import type {
 	ToolCallStatus,
 } from "../../../services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
-import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
-import { createLogger } from "../../utils/logger.js";
 import {
 	resolveCanonicalToolCallCreate,
 	resolveCanonicalToolCallUpdate,
 } from "../../session-state/session-state-query-service.js";
+import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
+import { createLogger } from "../../utils/logger.js";
+import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
@@ -99,10 +100,7 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
 }
 
-function reportMissingCanonicalToolCallUpdate(
-	sessionId: string,
-	update: ToolCallUpdate
-): void {
+function reportMissingCanonicalToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
 	captureContractViolation("tool_call_update_without_canonical_entry", {
 		source: "tool-call-manager.updateEntry",
 		sessionId,
@@ -133,7 +131,8 @@ export class ToolCallManager implements IToolCallManager {
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
-		private readonly entryIndex: IEntryIndex
+		private readonly entryIndex: IEntryIndex,
+		private readonly operationStore: OperationStore = new OperationStore()
 	) {}
 
 	private rememberToolCallSession(
@@ -244,6 +243,7 @@ export class ToolCallManager implements IToolCallManager {
 			};
 
 			this.updateToolCallEntryRef(sessionId, existingRef, updatedEntry);
+			this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 			// Re-index children in case taskChildren was added/updated
 			this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -294,6 +294,7 @@ export class ToolCallManager implements IToolCallManager {
 		};
 
 		this.entryStore.addEntry(sessionId, newEntry);
+		this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
 
 		// Index children for O(1) lookup during child updates
 		this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -370,10 +371,10 @@ export class ToolCallManager implements IToolCallManager {
 			normalizedQuestions: update.normalizedQuestions ?? toolCall.normalizedQuestions,
 			normalizedResult: updateResolution.shouldRefreshNormalizedResult
 				? normalizeToolResult({
-					kind: toolCall.kind,
-					arguments: updateResolution.nextArguments,
-					result: updateResolution.nextResult,
-				})
+						kind: toolCall.kind,
+						arguments: updateResolution.nextArguments,
+						result: updateResolution.nextResult,
+					})
 				: toolCall.normalizedResult,
 			progressiveArguments: updateResolution.nextProgressiveArguments,
 			startedAtMs: updateResolution.startedAtMs,
@@ -388,6 +389,7 @@ export class ToolCallManager implements IToolCallManager {
 		};
 
 		this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
+		this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
 
 		// Clean up streaming arguments when tool reaches a terminal status.
 		// At this point the entry has authoritative data and streaming args are redundant.

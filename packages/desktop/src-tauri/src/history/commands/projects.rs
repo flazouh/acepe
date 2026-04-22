@@ -37,6 +37,7 @@ fn visible_history_providers(app: &AppHandle) -> Vec<Arc<dyn AgentProvider>> {
     registry
         .list_all_for_ui()
         .into_iter()
+        .filter(|entry| entry.supports_project_discovery)
         .filter_map(|entry| {
             let canonical = crate::acp::types::CanonicalAgentId::parse(&entry.id);
             registry.get(&canonical)

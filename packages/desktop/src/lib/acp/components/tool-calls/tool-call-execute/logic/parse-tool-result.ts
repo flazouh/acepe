@@ -27,9 +27,7 @@ function normalizeExecEnvelope(raw: string): NormalizedExecEnvelope {
 		}
 
 		const parsedExitCode = Number(shellExitMatch[1]);
-		const outputWithoutExitMarker = raw
-			.slice(0, shellExitMatch.index)
-			.replace(/\r?\n$/, "");
+		const outputWithoutExitMarker = raw.slice(0, shellExitMatch.index).replace(/\r?\n$/, "");
 
 		return {
 			output: outputWithoutExitMarker,

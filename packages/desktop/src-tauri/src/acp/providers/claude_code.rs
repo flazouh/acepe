@@ -216,6 +216,10 @@ impl AgentProvider for ClaudeCodeProvider {
     ) -> Pin<Box<dyn Future<Output = Result<u32, String>> + Send + 'a>> {
         Box::pin(async move { count_claude_sessions_for_project(project_path).await })
     }
+
+    fn supports_project_discovery(&self) -> bool {
+        true
+    }
 }
 
 fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {

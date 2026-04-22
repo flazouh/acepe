@@ -1,5 +1,4 @@
 export type SettingsSectionId =
-	| "project"
 	| "general"
 	| "appearance"
 	| "chat"
@@ -9,6 +8,7 @@ export type SettingsSectionId =
 	| "keybindings"
 	| "mcp"
 	| "git"
+	| "project"
 	| "environments"
 	| "worktrees"
 	| "archived"
@@ -20,7 +20,6 @@ export type SettingsSectionId =
  */
 export function migrateSettingsSectionId(id: string): SettingsSectionId {
 	switch (id) {
-		case "project":
 		case "general":
 		case "appearance":
 		case "chat":
@@ -30,6 +29,7 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		case "keybindings":
 		case "mcp":
 		case "git":
+		case "project":
 		case "environments":
 		case "worktrees":
 		case "archived":

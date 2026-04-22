@@ -4,29 +4,6 @@ An **operation** is the canonical record of runtime work inside a session.
 
 Operations exist so Acepe can represent tool execution as durable product state instead of reconstructing it from transcript rows or provider-specific event timing.
 
-## Operation in one picture
-
-## Operation in one picture
-
-```mermaid
-%%{init: {'theme':'base','flowchart': {'curve': 'basis', 'nodeSpacing': 26, 'rankSpacing': 32}, 'themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#9ca3af', 'lineColor': '#6b7280', 'tertiaryColor': '#ffffff', 'background': '#ffffff'}}}%%
-flowchart TD
-    n_signals("Provider tool signals") --> n_projected("Projected operation")
-    n_projected --> n_store("OperationStore")
-    n_store --> n_selectors("Selectors")
-    n_selectors --> n_ui("Tool UI")
-
-    classDef blue fill:#B4D2F0,stroke:#8BA7C0,color:#1f2937,stroke-width:1px;
-    classDef yellow fill:#FFEBB4,stroke:#D8C58E,color:#1f2937,stroke-width:1px;
-    classDef orange fill:#FFD2AA,stroke:#D7AE89,color:#1f2937,stroke-width:1px;
-    classDef purple fill:#D2BEF0,stroke:#A999C4,color:#1f2937,stroke-width:1px;
-
-    class n_signals blue;
-    class n_projected purple;
-    class n_store yellow;
-    class n_selectors,n_ui orange;
-```
-
 ## Why operations exist
 
 Tool execution has more semantics than transcript history can safely carry.
@@ -42,18 +19,6 @@ A transcript row can tell you that a tool appeared in history. It cannot reliabl
 - reconnect and replay repair.
 
 Operations solve that by giving runtime work its own canonical node.
-
-## Ownership table
-
-| Runtime fact | Owned by operation? | Why |
-|---|---|---|
-| Tool identity | Yes | Different UI surfaces need one shared answer |
-| Lifecycle/status | Yes | Reconnect/resume cannot guess these reliably |
-| Blocked reason | Yes | Blocked state must survive beyond a transient popup |
-| Typed arguments / semantic metadata | Yes | Transcript text is too degraded for stable UI semantics |
-| Timing | Yes | Current and last-tool surfaces need durable execution context |
-| Parent/child links | Yes | Tool relationships are domain state, not display-only hints |
-| Transcript rendering text | No | That belongs to transcript entries |
 
 ## What an operation owns
 
@@ -82,16 +47,6 @@ Typical path:
 4. `OperationStore` materializes and updates operation state,
 5. selectors drive tool-call UI.
 
-## Operation vs transcript
-
-| Question | Transcript row | Operation |
-|---|---|---|
-| "Should this appear in history?" | Yes | Not primary |
-| "What is the current runtime state?" | Weak / degraded | Yes |
-| "What blocked this?" | Not reliable | Yes |
-| "What survives reconnect?" | Not enough by itself | Yes |
-| "What command/title should the current tool UI show?" | Sometimes approximate | Yes |
-
 ## Important boundary
 
 Transcript tool entries are still useful, but their role is narrower:
@@ -102,18 +57,6 @@ Transcript tool entries are still useful, but their role is narrower:
 That boundary matters because transcript replacement can legally degrade tool rows while operation state must stay stable enough to drive live UI.
 
 ## Lifecycle
-
-```mermaid
-%%{init: {'theme':'base','themeVariables': {'fontFamily': 'Inter, ui-sans-serif, system-ui', 'primaryTextColor': '#1f2937', 'lineColor': '#6b7280', 'background': '#ffffff'}}}%%
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Running
-    Running --> Completed
-    Running --> Blocked
-    Running --> Failed
-    Blocked --> Running
-    Blocked --> Failed
-```
 
 Operations may pass through phases like:
 
@@ -137,15 +80,6 @@ That means:
 - the system still preserves the blocked relationship,
 - once the operation exists, the blocker attaches to the same canonical record,
 - terminal lifecycle updates clear blocker state instead of leaving the operation semantically stuck.
-
-## Selector contract
-
-| Selector concern | Should read from |
-|---|---|
-| Current operation for a tool call | Canonical operation association |
-| Display title / known command | Operation semantic fields / resolver helpers |
-| Blocked-on-permission state | Operation + linked interaction |
-| Last meaningful tool | Operation lifecycle/timing, not transcript fallback guessing |
 
 ## What shared UI should do
 

@@ -90,7 +90,7 @@ describe("normalizeToolResult", () => {
 				},
 			},
 			result: {
-				content: "\"Acepe\"",
+				content: '"Acepe"',
 				screenshotUrl: "file:///tmp/acepe.png",
 				success: true,
 			},
@@ -98,7 +98,7 @@ describe("normalizeToolResult", () => {
 
 		expect(normalized).toEqual({
 			kind: "browser",
-			content: "\"Acepe\"",
+			content: '"Acepe"',
 			detailedContent: null,
 			screenshotUrl: "file:///tmp/acepe.png",
 			outcome: "success",

@@ -140,12 +140,7 @@ export class ConnectionManager {
 					connectedAt: new Date(),
 				};
 
-				this.logger.info(
-					"Thread connected:",
-					thread.id,
-					"ACP session:",
-					connection.acpSessionId
-				);
+				this.logger.info("Thread connected:", thread.id, "ACP session:", connection.acpSessionId);
 
 				return connection;
 			})

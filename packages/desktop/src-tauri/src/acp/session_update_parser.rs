@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::acp::agent_context::current_agent;
 use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::parsers::AgentType;
-use crate::acp::projections::InteractionKind;
+use crate::acp::projections::{build_plan_approval_interaction_id, InteractionKind};
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_update::{
     parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolCallStatus, ToolKind,
@@ -242,23 +242,20 @@ pub fn session_update_to_domain_event(
             tool_call,
             session_id,
         } if tool_call.awaiting_plan_approval => {
-            let interaction_id = session_id
-                .as_ref()
-                .zip(tool_call.plan_approval_request_id)
-                .map(|(sid, request_id)| {
-                    format!("{sid}\u{0}{}\u{0}plan\u{0}{request_id}", tool_call.id)
-                })
-                .unwrap_or_else(|| tool_call.id.clone());
+            let interaction_id =
+                if let (Some(sid), Some(rid)) = (session_id.as_deref().filter(|s| !s.is_empty()), tool_call.plan_approval_request_id) {
+                    build_plan_approval_interaction_id(sid, &tool_call.id, rid)
+                } else {
+                    tool_call.id.clone()
+                };
             Some((
                 SessionDomainEventKind::InteractionUpserted,
                 Some(SessionDomainEventPayload::InteractionUpserted {
                     interaction_id,
                     interaction_kind: InteractionKind::PlanApproval,
-                    operation_id: None,
-                    interaction: None,
                 }),
             ))
-        }
+        },
         SessionUpdate::ToolCall { tool_call, .. } => {
             let status = tool_call.status.clone();
             Some((
@@ -270,7 +267,6 @@ pub fn session_update_to_domain_event(
                     tool_kind: tool_call.kind.unwrap_or(ToolKind::Unclassified),
                     status,
                     parent_operation_id: tool_call.parent_tool_use_id.clone(),
-                    operation: None,
                 }),
             ))
         }
@@ -285,7 +281,6 @@ pub fn session_update_to_domain_event(
                     tool_kind: ToolKind::Unclassified,
                     status,
                     parent_operation_id: None,
-                    operation: None,
                 }),
             ))
         }
@@ -296,8 +291,6 @@ pub fn session_update_to_domain_event(
             Some(SessionDomainEventPayload::InteractionUpserted {
                 interaction_id: permission.id.clone(),
                 interaction_kind: InteractionKind::Permission,
-                operation_id: None,
-                interaction: None,
             }),
         )),
         SessionUpdate::QuestionRequest { question, .. } => Some((
@@ -305,8 +298,6 @@ pub fn session_update_to_domain_event(
             Some(SessionDomainEventPayload::InteractionUpserted {
                 interaction_id: question.id.clone(),
                 interaction_kind: InteractionKind::Question,
-                operation_id: None,
-                interaction: None,
             }),
         )),
 

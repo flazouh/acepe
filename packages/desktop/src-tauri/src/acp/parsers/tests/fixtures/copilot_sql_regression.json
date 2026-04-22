@@ -1,11 +1,11 @@
 {
-  "toolCallId": "toolu_011zsvhJm1sLLgAKgXfJpCXE",
-  "kind": "other",
-  "sessionUpdate": "tool_call",
-  "status": "pending",
-  "title": "Mark all done",
-  "rawInput": {
-    "description": "Mark all done",
-    "query": "UPDATE todos SET status='done' WHERE status IN ('pending','in_progress');"
-  }
+	"toolCallId": "toolu_011zsvhJm1sLLgAKgXfJpCXE",
+	"kind": "other",
+	"sessionUpdate": "tool_call",
+	"status": "pending",
+	"title": "Mark all done",
+	"rawInput": {
+		"description": "Mark all done",
+		"query": "UPDATE todos SET status='done' WHERE status IN ('pending','in_progress');"
+	}
 }

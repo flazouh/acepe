@@ -14,13 +14,7 @@ interface Props {
 	onSelect: () => void;
 }
 
-let {
-	data,
-	index,
-	modifierSymbol = "⌘",
-	isMissing = false,
-	onSelect,
-}: Props = $props();
+let { data, index, modifierSymbol = "⌘", isMissing = false, onSelect }: Props = $props();
 
 const color = $derived(data.project.color ?? "#6B7280");
 const shortcutKey = $derived(index + 1);

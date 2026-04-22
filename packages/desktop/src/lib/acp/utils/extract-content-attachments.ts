@@ -10,10 +10,7 @@
  */
 
 import type { ContentBlock } from "../../services/converted-session-types.js";
-import {
-	parseAttachmentTokens,
-	type ParsedAttachment,
-} from "./attachment-token-parser.js";
+import { type ParsedAttachment, parseAttachmentTokens } from "./attachment-token-parser.js";
 
 function extensionFromName(name: string): string {
 	const lastDot = name.lastIndexOf(".");
@@ -35,9 +32,7 @@ function imageDisplayName(block: { uri?: string | null }): string {
 	return "Image";
 }
 
-export function extractAttachmentsFromChunks(
-	chunks: readonly ContentBlock[]
-): ParsedAttachment[] {
+export function extractAttachmentsFromChunks(chunks: readonly ContentBlock[]): ParsedAttachment[] {
 	const results: ParsedAttachment[] = [];
 	for (const block of chunks) {
 		if (block.type === "text") {

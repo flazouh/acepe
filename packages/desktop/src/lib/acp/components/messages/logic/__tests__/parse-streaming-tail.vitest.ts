@@ -111,7 +111,11 @@ describe("parseStreamingTail", () => {
 
 	it("reuses stable settled prefix sections for append-only reveal growth", () => {
 		const previous = parseStreamingTail("# Title\n\nHello");
-		const next = parseStreamingTailIncremental("# Title\n\nHello", previous, "# Title\n\nHello world");
+		const next = parseStreamingTailIncremental(
+			"# Title\n\nHello",
+			previous,
+			"# Title\n\nHello world"
+		);
 
 		expect(next.sections).toEqual([
 			{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },
@@ -153,7 +157,11 @@ describe("parseStreamingTail", () => {
 
 	it("reparses only the previous live tail when reveal growth creates a new block", () => {
 		const previous = parseStreamingTail("# Title\n\nHello");
-		const next = parseStreamingTailIncremental("# Title\n\nHello", previous, "# Title\n\nHello\n\nNext");
+		const next = parseStreamingTailIncremental(
+			"# Title\n\nHello",
+			previous,
+			"# Title\n\nHello\n\nNext"
+		);
 
 		expect(next.sections).toEqual([
 			{ key: "SETTLED:0", kind: "settled", markdown: "# Title" },

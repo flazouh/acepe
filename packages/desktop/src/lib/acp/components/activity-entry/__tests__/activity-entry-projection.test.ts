@@ -2,7 +2,10 @@ import { describe, expect, it } from "bun:test";
 
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
-import { projectActivityEntry, projectSessionPreviewActivity } from "../activity-entry-projection.js";
+import {
+	projectActivityEntry,
+	projectSessionPreviewActivity,
+} from "../activity-entry-projection.js";
 
 function createTaskToolCall(children: ToolCall[]): ToolCall {
 	return {

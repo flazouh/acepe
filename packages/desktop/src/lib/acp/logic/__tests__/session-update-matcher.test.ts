@@ -106,8 +106,8 @@ describe("SessionUpdateMatcher", () => {
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
-connectionComplete: () => "connectionComplete",
-connectionFailed: () => "connectionFailed",
+				connectionComplete: () => "connectionComplete",
+				connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -136,8 +136,8 @@ connectionFailed: () => "connectionFailed",
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
-connectionComplete: () => "connectionComplete",
-connectionFailed: () => "connectionFailed",
+				connectionComplete: () => "connectionComplete",
+				connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -172,8 +172,8 @@ connectionFailed: () => "connectionFailed",
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
-connectionComplete: () => "connectionComplete",
-connectionFailed: () => "connectionFailed",
+				connectionComplete: () => "connectionComplete",
+				connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -204,8 +204,8 @@ connectionFailed: () => "connectionFailed",
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
-connectionComplete: () => "connectionComplete",
-connectionFailed: () => "connectionFailed",
+				connectionComplete: () => "connectionComplete",
+				connectionFailed: () => "connectionFailed",
 			};
 
 			const result = matchSessionUpdate(update, handlers);
@@ -289,8 +289,8 @@ connectionFailed: () => "connectionFailed",
 				turnComplete: () => "turnComplete",
 				turnError: () => "turnError",
 				usageTelemetryUpdate: () => "telemetry",
-connectionComplete: () => "connectionComplete",
-connectionFailed: () => "connectionFailed",
+				connectionComplete: () => "connectionComplete",
+				connectionFailed: () => "connectionFailed",
 			};
 
 			for (const update of metadataUpdates) {

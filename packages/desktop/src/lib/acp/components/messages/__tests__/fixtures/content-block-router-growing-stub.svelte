@@ -40,8 +40,7 @@ $effect(() => {
 
 $effect(() => {
 	const nextActive =
-		isTextBlock(block) &&
-		(block.text.includes("[reveal-active]") ? revealActive : isStreaming);
+		isTextBlock(block) && (block.text.includes("[reveal-active]") ? revealActive : isStreaming);
 	onRevealActivityChange?.(nextActive);
 });
 

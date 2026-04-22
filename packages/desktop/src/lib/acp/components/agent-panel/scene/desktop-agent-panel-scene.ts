@@ -6,28 +6,27 @@ import {
 	type AgentPanelChromeModel,
 	type AgentPanelComposerModel,
 	type AgentPanelPlanSidebarItem,
-	type AgentPanelSceneModel,
 	type AgentPanelSceneEntryModel,
+	type AgentPanelSceneModel,
 	type AgentPanelSessionStatus,
 	type AgentPanelSidebarModel,
 	type AgentPanelStripModel,
 } from "@acepe/ui/agent-panel";
-
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { SessionStatus } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type {
 	NormalizedBrowserResult,
 	NormalizedFetchResult,
 	NormalizedSearchResult,
 	NormalizedWebSearchResult,
 } from "../../../types/normalized-tool-result.js";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
-import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
 import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
@@ -40,7 +39,11 @@ export interface DesktopAgentPanelHeaderInput {
 	projectLabel?: string | null;
 	projectColor?: string | null;
 	branchLabel?: string | null;
-	badges?: readonly { id: string; label: string; tone?: "neutral" | "info" | "success" | "warning" | "danger" }[];
+	badges?: readonly {
+		id: string;
+		label: string;
+		tone?: "neutral" | "info" | "success" | "warning" | "danger";
+	}[];
 	actions?: readonly AgentPanelActionDescriptor[];
 }
 
@@ -115,7 +118,7 @@ type AttachmentScopedBaseActionId =
 
 function createAttachmentScopedActionId(
 	baseActionId: AttachmentScopedBaseActionId,
-	value: string,
+	value: string
 ): AgentPanelActionId {
 	const scopedActionId: `${AttachmentScopedBaseActionId}:${string}` = `${baseActionId}:${value}`;
 	return scopedActionId;
@@ -245,7 +248,8 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 	if (kind === "task") return turnState === "streaming" ? "Task running" : "Task completed";
 	if (kind === "task_output") return "Task output";
 	if (kind === "todo") return turnState === "streaming" ? "Todo running" : "Todo completed";
-	if (kind === "question") return turnState === "streaming" ? "Question running" : "Question completed";
+	if (kind === "question")
+		return turnState === "streaming" ? "Question running" : "Question completed";
 	if (kind === "move") return "Move";
 	if (kind === "skill") return "Skill";
 	if (kind === "tool_search") return "Tool search";
@@ -258,11 +262,15 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 	return "Tool";
 }
 
-function resolveToolTitle(toolCall: ToolCall, kind: ToolKind, turnState: TurnState | undefined): string {
+function resolveToolTitle(
+	toolCall: ToolCall,
+	kind: ToolKind,
+	turnState: TurnState | undefined
+): string {
 	const semanticTitle =
 		kind === "other"
 			? formatOtherToolName(toolCall.name)
-			: (getDefaultToolTitle(kind, turnState) || toolCall.name);
+			: getDefaultToolTitle(kind, turnState) || toolCall.name;
 	const rawTitle = toolCall.title?.trim();
 
 	if (!rawTitle) {
@@ -330,7 +338,9 @@ function getToolFilePath(toolCall: ToolCall): string | undefined {
 	}
 
 	if (toolCall.arguments.kind === "edit") {
-		return toolCall.arguments.edits[0]?.filePath ?? toolCall.arguments.edits[0]?.moveFrom ?? undefined;
+		return (
+			toolCall.arguments.edits[0]?.filePath ?? toolCall.arguments.edits[0]?.moveFrom ?? undefined
+		);
 	}
 
 	if (toolCall.arguments.kind === "delete") {
@@ -459,23 +469,24 @@ function serializeToolResult(result: ToolCall["result"]): string | null {
 
 function getToolResultObject(toolCall: ToolCall): Record<string, unknown> | null {
 	const { result } = toolCall;
-	if (result === null || result === undefined || typeof result !== "object" || Array.isArray(result)) {
+	if (
+		result === null ||
+		result === undefined ||
+		typeof result !== "object" ||
+		Array.isArray(result)
+	) {
 		return null;
 	}
 
 	return result as Record<string, unknown>;
 }
 
-function mapQuestion(
-	toolCall: ToolCall
-):
-	| {
-			question: string;
-			header?: string | null;
-			options?: { label: string; description?: string | null }[] | null;
-			multiSelect?: boolean;
-	  }
-	| null {
+function mapQuestion(toolCall: ToolCall): {
+	question: string;
+	header?: string | null;
+	options?: { label: string; description?: string | null }[] | null;
+	multiSelect?: boolean;
+} | null {
 	const firstQuestion = toolCall.normalizedQuestions?.[0];
 	if (!firstQuestion) {
 		return null;
@@ -638,9 +649,7 @@ function mapBrowserPayload(toolCall: ToolCall): {
 	};
 }
 
-function mapLintDiagnostics(
-	toolCall: ToolCall
-):
+function mapLintDiagnostics(toolCall: ToolCall):
 	| {
 			filePath?: string | null;
 			line?: number | null;
@@ -718,7 +727,12 @@ function mapToolCallEntry(
 	const webSearchPayload = mapWebSearchPayload(toolCall);
 	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
-	const status = mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
+	const status = mapToolStatus(
+		toolCall,
+		turnState,
+		parentCompleted,
+		toolCall.id === activeToolCallId
+	);
 
 	return {
 		id: toolCall.id,
@@ -746,13 +760,15 @@ function mapToolCallEntry(
 		exitCode: executeResult?.exitCode,
 		query:
 			toolCall.arguments.kind === "search" || toolCall.arguments.kind === "webSearch"
-				? toolCall.arguments.query ?? null
+				? (toolCall.arguments.query ?? null)
 				: null,
 		searchPath:
-			toolCall.arguments.kind === "search" ? (toolCall.arguments.file_path ?? undefined) : undefined,
+			toolCall.arguments.kind === "search"
+				? (toolCall.arguments.file_path ?? undefined)
+				: undefined,
 		searchFiles: searchPayload.searchFiles,
 		searchResultCount: searchPayload.searchResultCount,
-		url: toolCall.arguments.kind === "fetch" ? toolCall.arguments.url ?? null : null,
+		url: toolCall.arguments.kind === "fetch" ? (toolCall.arguments.url ?? null) : null,
 		resultText: mapFetchResultText(toolCall),
 		webSearchLinks: webSearchPayload.webSearchLinks,
 		webSearchSummary: webSearchPayload.webSearchSummary,
@@ -937,9 +953,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 		return {
 			id: entry.key,
 			type: "assistant",
-			markdown: contentBlocksToText(
-				entry.message.chunks.map((chunk) => chunk.block)
-			),
+			markdown: contentBlocksToText(entry.message.chunks.map((chunk) => chunk.block)),
 			isStreaming: isStreamingAssistant || entry.isStreaming,
 		};
 	}
@@ -1031,15 +1045,13 @@ export function buildDesktopPlanSidebar(
 	return {
 		title: plan.title,
 		items: derivePlanItems(plan),
-		actions:
-			actions ??
-			[
-				{
-					id: AGENT_PANEL_ACTION_IDS.plan.openDialog,
-					label: "Open plan",
-					state: "enabled",
-				},
-			],
+		actions: actions ?? [
+			{
+				id: AGENT_PANEL_ACTION_IDS.plan.openDialog,
+				label: "Open plan",
+				state: "enabled",
+			},
+		],
 	};
 }
 
@@ -1051,8 +1063,7 @@ export function buildDesktopAttachedFilesSidebar(
 		return null;
 	}
 
-	const actions: AgentPanelActionDescriptor[] = [
-	];
+	const actions: AgentPanelActionDescriptor[] = [];
 
 	return {
 		tabs: panels.map((panel) => {
@@ -1103,7 +1114,9 @@ export function buildDesktopComposerModel(input: DesktopComposerInput): AgentPan
 			state: "enabled",
 		},
 		{
-			id: input.showStop ? AGENT_PANEL_ACTION_IDS.composer.stop : AGENT_PANEL_ACTION_IDS.composer.submit,
+			id: input.showStop
+				? AGENT_PANEL_ACTION_IDS.composer.stop
+				: AGENT_PANEL_ACTION_IDS.composer.submit,
 			label: input.showStop ? "Stop" : input.submitLabel,
 			state: input.canSubmit || input.showStop ? "enabled" : "disabled",
 			disabledReason: input.disabledReason ?? null,
@@ -1188,7 +1201,9 @@ export function buildPlanHeaderStrip(
 	};
 }
 
-export function buildDesktopPrCard(input: DesktopPrCardInput | null | undefined): AgentPanelCardModel | null {
+export function buildDesktopPrCard(
+	input: DesktopPrCardInput | null | undefined
+): AgentPanelCardModel | null {
 	if (!input) {
 		return null;
 	}
@@ -1202,7 +1217,10 @@ export function buildDesktopPrCard(input: DesktopPrCardInput | null | undefined)
 			{
 				id: "files-changed",
 				label: "Files changed",
-				value: input.filesChanged === null || input.filesChanged === undefined ? null : String(input.filesChanged),
+				value:
+					input.filesChanged === null || input.filesChanged === undefined
+						? null
+						: String(input.filesChanged),
 			},
 			{
 				id: "checks",
@@ -1380,15 +1398,13 @@ export function buildDesktopAgentPanelScene(
 			projectColor: options.header.projectColor ?? null,
 			branchLabel: options.header.branchLabel ?? null,
 			badges: options.header.badges ?? [],
-			actions:
-				options.header.actions ??
-				[
-					{
-						id: AGENT_PANEL_ACTION_IDS.header.copySessionMarkdown,
-						label: "Copy",
-						state: "enabled",
-					},
-				],
+			actions: options.header.actions ?? [
+				{
+					id: AGENT_PANEL_ACTION_IDS.header.copySessionMarkdown,
+					label: "Copy",
+					state: "enabled",
+				},
+			],
 		},
 		conversation,
 		composer: options.composer ? buildDesktopComposerModel(options.composer) : null,

@@ -45,21 +45,24 @@ function loadProjectFiles(projectPath: string): void {
 	loadingProjects.add(projectPath);
 	errorByProject.delete(projectPath);
 
-	fileIndex.getProjectFiles(projectPath).mapErr((error) => new Error(String(error))).match(
-		(result) => {
-			// Build file tree
-			const tree = createFileTree(result.files);
+	fileIndex
+		.getProjectFiles(projectPath)
+		.mapErr((error) => new Error(String(error)))
+		.match(
+			(result) => {
+				// Build file tree
+				const tree = createFileTree(result.files);
 
-			// Update state
-			filesByProject.set(projectPath, tree);
-			loadedProjects.add(projectPath);
-			loadingProjects.delete(projectPath);
-		},
-		(error) => {
-			errorByProject.set(projectPath, error.message);
-			loadingProjects.delete(projectPath);
-		}
-	);
+				// Update state
+				filesByProject.set(projectPath, tree);
+				loadedProjects.add(projectPath);
+				loadingProjects.delete(projectPath);
+			},
+			(error) => {
+				errorByProject.set(projectPath, error.message);
+				loadingProjects.delete(projectPath);
+			}
+		);
 }
 
 function handleToggleFolder(projectPath: string, folderPath: string): void {

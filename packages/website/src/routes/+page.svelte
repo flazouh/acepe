@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ArrowRightIcon, BrandLockup, PillButton } from "@acepe/ui";
+import { ArrowRightIcon, BrandLockup, BrandShaderBackground, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
@@ -20,7 +20,7 @@ import type {
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import Header from "$lib/components/header.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
-import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
+import { websiteThemeStore } from "$lib/theme/theme.js";
 import {
 	Stack,
 	ArrowsOutSimple,
@@ -39,7 +39,7 @@ let { data } = $props();
 
 // === Mock data for real component showcases ===
 
-const theme = "dark" as const;
+const theme = $derived($websiteThemeStore);
 
 const mockGridAgents: AgentGridItem[] = $derived([
 	{
@@ -288,7 +288,8 @@ const features = [
 		icon: Stack,
 		label: "Multi-Agent Support",
 		tag: "core",
-		description: "Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
+		description:
+			"Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
 		usecases: [
 			"Use different agents for different tasks without context switching",
 			"Run multiple agents in parallel for faster development",
@@ -300,7 +301,8 @@ const features = [
 		icon: ArrowsOutSimple,
 		label: "Parallel Sessions & Focus",
 		tag: "workflow",
-		description: "Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
+		description:
+			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
 		usecases: [
 			"Run agents on separate tasks and see all of them making progress at once",
 			"Work across multiple repos at the same time without losing track",
@@ -312,7 +314,8 @@ const features = [
 		icon: Lightning,
 		label: "Plan Mode",
 		tag: "planning",
-		description: "Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
+		description:
+			"Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
 		usecases: [
 			"Built-in review and deepen skills refine plans before execution",
 			"Plans render as clean markdown you can copy or download",
@@ -324,7 +327,8 @@ const features = [
 		icon: GitBranch,
 		label: "Checkpoints",
 		tag: "safety",
-		description: "Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
+		description:
+			"Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
 		usecases: [
 			"Auto-checkpoints capture state after each tool run",
 			"Revert entire project or individual files to any checkpoint",
@@ -336,7 +340,8 @@ const features = [
 		icon: ClockCounterClockwise,
 		label: "Session Management",
 		tag: "history",
-		description: "The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
+		description:
+			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
 		usecases: [
 			"Search and filter across all your agent interactions",
 			"Recover context from previous sessions instantly",
@@ -348,7 +353,8 @@ const features = [
 		icon: Command,
 		label: "Keyboard-First",
 		tag: "input",
-		description: "⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
+		description:
+			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
 		usecases: [
 			"Navigate entirely with keyboard shortcuts for flow state",
 			"Customize shortcuts to match your muscle memory",
@@ -360,7 +366,8 @@ const features = [
 		icon: HardDrives,
 		label: "SQL Studio",
 		tag: "data",
-		description: "Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
+		description:
+			"Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
 		usecases: [
 			"Connect to local or remote databases with saved connections",
 			"Browse schemas and tables, run queries, inspect results",
@@ -372,7 +379,8 @@ const features = [
 		icon: Queue,
 		label: "Attention Queue",
 		tag: "triage",
-		description: "Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
+		description:
+			"Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
 		usecases: [
 			"Answer-needed sessions stay at the top until you respond",
 			"See errors and active work before idle sessions",
@@ -393,64 +401,39 @@ const features = [
 		showDownload={data.featureFlags.downloadEnabled}
 	/>
 
-	<main>
-		<!-- Hero + supported agents band share one shader stage so the warm glow
-		     runs continuously from the floating header through the 'Works with' band. -->
-		<div class="relative isolate overflow-hidden">
-			<HeroShaderStage heightClass="h-full" />
+	<main class="pt-20">
+		<!-- Hero Section -->
+		<section class="flex justify-center px-4 pt-16 pb-12 md:px-6 md:pt-24 md:pb-16">
+			<div class="text-center">
+				<AgentIconsRow size={24} class="mb-6" />
 
-			<!-- Hero Section — centered headline + CTA, demo below -->
-			<section class="relative z-10 px-4 pt-36 pb-16 md:px-6 md:pt-44 md:pb-20">
-				<div class="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
-					<h1 class="mb-6 text-balance text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-foreground md:text-[76px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
-						{"The Agentic Developer"}
-						<br class="hidden md:block" />
-						<span class="italic font-normal text-foreground/90">{"Environment"}</span>
-					</h1>
+				<h1 class="mb-6 text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[56px]">
+					{"The Agentic Developer Environment"}
+				</h1>
+				<p class="mx-auto mb-10 max-w-[760px] text-lg leading-[1.5] font-normal tracking-[-0.01em] text-muted-foreground md:text-[22px]">
+					{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."}
+				</p>
 
-					<p class="mb-10 max-w-[620px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
-						{"One native workspace for every coding agent. Run them in parallel, review every change, and ship from plan to PR without leaving the window."}
-					</p>
-
-					<div class="flex flex-col items-center gap-3 sm:flex-row">
-						<PillButton
-							href="/download"
-							variant="invert"
-							size="default"
-							class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
-						>
-							{"Download for macOS"}
-							{#snippet trailingIcon()}
-								<ArrowRightIcon size="lg" />
-							{/snippet}
-						</PillButton>
-					</div>
+				<div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+					<PillButton
+						href="/download"
+						variant="invert"
+						size="default"
+						class="h-11 py-1.5 pr-1.5 pl-5"
+					>
+						{"Get started"}
+						{#snippet trailingIcon()}
+							<ArrowRightIcon size="lg" />
+						{/snippet}
+					</PillButton>
 				</div>
+			</div>
+		</section>
 
-				<!-- Demo — below the hero, centered. Hidden below lg: on phone widths
-				     the multi-panel UI is unreadable and the hero works better as a
-				     focused headline + CTA. -->
-				<div class="hero-demo relative mx-auto mt-20 hidden w-full max-w-[1200px] lg:block">
-					<div class="hero-demo-stage mx-auto">
-						<FeatureShowcase />
-					</div>
-				</div>
-			</section>
-
-			<!-- Supported agents band -->
-			<section class="relative z-10 px-4 pb-24 md:px-6 md:pb-28">
-				<div class="mx-auto flex max-w-4xl flex-col items-center">
-					<div class="mb-5 flex items-center gap-3">
-						<span class="h-px w-10 bg-border/60"></span>
-						<span class="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
-							{"Works with"}
-						</span>
-						<span class="h-px w-10 bg-border/60"></span>
-					</div>
-					<AgentIconsRow size={30} />
-				</div>
-			</section>
-		</div>
+		<!-- Feature Showcase Section -->
+		<section class="mx-auto max-w-[86rem] px-4 pb-24 md:px-6 md:pb-32">
+			<FeatureShowcase />
+		</section>
 
 		<!-- What is an ADE? -->
 		<section class="border-t border-border/50 px-4 py-24 md:px-6 md:py-32">
@@ -701,40 +684,31 @@ const features = [
 		</section>
 
 		<!-- Bottom CTA -->
-		<section class="relative overflow-hidden border-t border-border/50 px-4 py-32 md:px-6 md:py-40">
-			<div class="absolute inset-0 -z-10">
-				<HeroShaderStage heightClass="h-full" accentRing={false} />
-			</div>
-			<div class="relative mx-auto flex max-w-2xl flex-col items-center text-center">
-				<span class="mb-5 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-					{"// ship from plan to PR"}
-				</span>
-				<h2 class="mb-4 text-balance text-3xl leading-[1.1] font-semibold tracking-[-0.03em] md:text-[52px]">
+		<section class="border-t border-border/50 px-4 py-24 md:px-6">
+			<div class="mx-auto flex max-w-2xl flex-col items-center text-center">
+				<h2 class="mb-4 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[36px]">
 					{"Your ADE is ready"}
 				</h2>
-				<p class="mb-10 max-w-[540px] text-pretty text-[15px] leading-[1.65] text-muted-foreground md:text-[18px]">
-					{"Acepe is free while in beta. One download, every agent, full control."}
+				<p class="mb-8 max-w-[500px] whitespace-pre-line text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
+					{"Acepe is free while in beta.\nOne download, every agent, full control."}
 				</p>
-				<div class="flex flex-col items-center gap-3 sm:flex-row">
-					<PillButton
-						href="/download"
-						variant="invert"
-						size="default"
-						class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
-					>
-						{"Download for macOS"}
-						{#snippet trailingIcon()}
-							<ArrowRightIcon size="lg" />
-						{/snippet}
-					</PillButton>
-					<a
-						href="/compare/cursor"
-						class="inline-flex h-12 items-center gap-2 rounded-full border border-white/10 bg-background/40 px-5 text-sm text-muted-foreground backdrop-blur-xl transition-colors hover:border-white/20 hover:text-foreground"
-					>
-						{"See how Acepe compares"}
-						<ArrowRightIcon size="sm" />
-					</a>
-				</div>
+				<PillButton
+					href="/download"
+					variant="invert"
+					size="default"
+					class="h-11 py-1.5 pr-1.5 pl-5"
+				>
+					{"Get started"}
+					{#snippet trailingIcon()}
+						<ArrowRightIcon size="lg" />
+					{/snippet}
+				</PillButton>
+				<a
+					href="/compare/cursor"
+					class="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+				>
+					{"See how Acepe compares →"}
+				</a>
 			</div>
 		</section>
 	</main>
@@ -840,36 +814,6 @@ const features = [
 </div>
 
 <style>
-	.hero-demo {
-		/* Let the product UI render at its natural width, then scale to fit */
-	}
-	.hero-demo-stage {
-		filter: grayscale(1);
-		transition: filter 0.4s ease;
-	}
-	.hero-demo-stage:hover {
-		filter: grayscale(0);
-	}
-	@media (min-width: 1024px) {
-		.hero-demo-stage {
-			width: 1100px;
-			transform-origin: top center;
-			transform: scale(0.72);
-			/* reclaim the empty space left behind by the scale so layout stays tight */
-			margin-bottom: calc(-1 * (1100px * 0.28) * (500 / 1100));
-		}
-	}
-	@media (min-width: 1280px) {
-		.hero-demo-stage {
-			transform: scale(0.82);
-		}
-	}
-	@media (min-width: 1440px) {
-		.hero-demo-stage {
-			transform: scale(0.9);
-		}
-	}
-
 	.feature-card {
 		backdrop-filter: blur(12px);
 	}

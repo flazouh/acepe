@@ -5,12 +5,12 @@
  * so it can be tested in plain .ts test files.
  */
 
-import type { QueueItem } from "./types.js";
 import {
 	deriveSessionWorkProjection,
 	selectQueueWorkBucket,
 	selectSessionWorkBucket,
 } from "../session-work-projection.js";
+import type { QueueItem } from "./types.js";
 
 /**
  * Section IDs for the queue display.

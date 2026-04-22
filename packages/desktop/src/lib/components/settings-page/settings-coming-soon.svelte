@@ -1,11 +1,10 @@
 <script lang="ts">
-import type { Icon } from "phosphor-svelte";
 import { Sparkle } from "phosphor-svelte";
 import { cn } from "$lib/utils.js";
 
 interface Props {
 	/** Phosphor icon component. Defaults to Sparkle. */
-	icon?: typeof Icon;
+	icon?: typeof Sparkle;
 	/** Short headline — e.g., "MCP servers coming soon". */
 	headline: string;
 	/** One-sentence description of what will live here. */

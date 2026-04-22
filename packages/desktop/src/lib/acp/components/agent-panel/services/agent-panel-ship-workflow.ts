@@ -4,13 +4,13 @@
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "svelte-sonner";
-import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
-import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
-import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
-import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { createLogger } from "../../../utils/logger.js";
+import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
+import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 
 const logger = createLogger({ id: "agent-panel-ship-workflow", name: "AgentPanelShipWorkflow" });
 
@@ -62,7 +62,10 @@ export async function runCreatePrWorkflow(args: {
 		const filePaths = modifiedFilesState.files.map((f) =>
 			f.filePath.startsWith(prefix) ? f.filePath.slice(prefix.length) : f.filePath
 		);
-		logger.info("runCreatePrWorkflow: staging modified files", { count: filePaths.length, filePaths });
+		logger.info("runCreatePrWorkflow: staging modified files", {
+			count: filePaths.length,
+			filePaths,
+		});
 		const stageResult = await tauriClient.git.stageFiles(path, filePaths);
 		if (stageResult.isErr()) {
 			setCreatePrRunning(false);
@@ -92,7 +95,9 @@ export async function runCreatePrWorkflow(args: {
 		logger.info("runCreatePrWorkflow: generating commit/PR content via AI", { branch: ctx.branch });
 		const prompt = ctx.prompt;
 
-		const { generateShipContentStreaming } = await import("../../ship-card/ship-card-generation.js");
+		const { generateShipContentStreaming } = await import(
+			"../../ship-card/ship-card-generation.js"
+		);
 		const genResult = await generateShipContentStreaming(
 			prompt,
 			path,

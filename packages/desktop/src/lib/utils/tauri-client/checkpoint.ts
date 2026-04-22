@@ -53,14 +53,16 @@ export const checkpoint = {
 		checkpointId: string,
 		filePath: string
 	): ResultAsync<FileDiffContent, AppError> => {
-		return checkpointCommands.get_file_diff_content.invoke<FileDiffContent>({
-			sessionId,
-			checkpointId,
-			filePath,
-		}).map((res) => ({
-			oldContent: res.oldContent ?? null,
-			newContent: res.newContent,
-		}));
+		return checkpointCommands.get_file_diff_content
+			.invoke<FileDiffContent>({
+				sessionId,
+				checkpointId,
+				filePath,
+			})
+			.map((res) => ({
+				oldContent: res.oldContent ?? null,
+				newContent: res.newContent,
+			}));
 	},
 
 	revert: (

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { IconDotsVertical } from "@tabler/icons-svelte";
-	import { Button, VoiceDownloadProgress } from "@acepe/ui";
+import { IconDotsVertical } from "@tabler/icons-svelte";
+import { Button, VoiceDownloadProgress } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	CloseAction,

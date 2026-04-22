@@ -1,7 +1,6 @@
+import { AgentPanelConversationEntry, AgentPanelSceneEntry } from "@acepe/ui";
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import { AgentPanelConversationEntry, AgentPanelSceneEntry } from "@acepe/ui";
 
 vi.mock(
 	"svelte",

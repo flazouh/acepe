@@ -328,7 +328,11 @@ export function hydratePersistedWorkspacePanels(
 				autoCreated: panel.autoCreated === true ? true : undefined,
 				pendingProjectSelection: panel.pendingProjectSelection,
 				pendingWorktreeEnabled:
-					panel.pendingWorktreeEnabled === true ? true : panel.pendingWorktreeEnabled === false ? false : null,
+					panel.pendingWorktreeEnabled === true
+						? true
+						: panel.pendingWorktreeEnabled === false
+							? false
+							: null,
 				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
 				selectedAgentId: panel.selectedAgentId,
 				agentId: panel.agentId,

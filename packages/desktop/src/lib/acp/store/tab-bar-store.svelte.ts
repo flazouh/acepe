@@ -111,15 +111,12 @@ export class TabBarStore {
 		const operationStore = this.sessionStore.getOperationStore();
 		const currentStreamingToolCall =
 			sessionId !== null ? operationStore.getCurrentStreamingToolCall(sessionId) : null;
-		const currentToolKind = sessionId !== null ? operationStore.getCurrentToolKind(sessionId) : null;
+		const currentToolKind =
+			sessionId !== null ? operationStore.getCurrentToolKind(sessionId) : null;
 
 		const interactionSnapshot =
 			sessionId !== null
-				? buildSessionOperationInteractionSnapshot(
-						sessionId,
-						operationStore,
-						this.interactions
-					)
+				? buildSessionOperationInteractionSnapshot(sessionId, operationStore, this.interactions)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;

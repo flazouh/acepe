@@ -1,33 +1,7 @@
-import { mock } from "bun:test";
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-var getSessionStateMock = vi.fn();
-
-mock.module("$lib/analytics.js", () => ({
-	captureException: vi.fn(),
-	captureContractViolation: vi.fn(),
-	initAnalytics: vi.fn(),
-	setAnalyticsEnabled: vi.fn(),
-}));
-mock.module("../../../analytics.js", () => ({
-	captureException: vi.fn(),
-	captureContractViolation: vi.fn(),
-	initAnalytics: vi.fn(),
-	setAnalyticsEnabled: vi.fn(),
-}));
-mock.module("@sentry/browser", () => ({
-	captureException: vi.fn(),
-	init: vi.fn(),
-}));
-mock.module("posthog-js", () => ({
-	default: {
-		init: vi.fn(),
-		capture: vi.fn(),
-		identify: vi.fn(),
-		reset: vi.fn(),
-	},
-}));
+const getSessionStateMock = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -37,7 +11,6 @@ vi.mock("../api.js", () => ({
 }));
 
 import type {
-	SessionDomainEvent,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TurnFailureSnapshot,
@@ -45,17 +18,13 @@ import type {
 
 import { SessionStore } from "../session-store.svelte.js";
 
-type ProjectionFailureOverride =
-	| Partial<TurnFailureSnapshot>
-	| null;
+type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
 
-function createSessionStateGraph(
-	overrides: GraphOverride = {}
-): SessionStateGraph {
+function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGraph {
 	const activeTurnFailureOverride = overrides.activeTurnFailure;
 	const activeTurnFailure: TurnFailureSnapshot | null =
 		activeTurnFailureOverride === undefined
@@ -360,8 +329,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							name: "bash",
 							kind: "execute",
 							status: "completed",
-							lifecycle: "completed",
-							blocked_reason: null,
 							title: "Run command",
 							arguments: {
 								kind: "execute",
@@ -370,11 +337,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							progressive_arguments: null,
 							result: null,
 							command: "pwd",
-							locations: null,
-							skill_meta: null,
 							normalized_todos: null,
-							started_at_ms: null,
-							completed_at_ms: null,
 							parent_tool_call_id: null,
 							parent_operation_id: null,
 							child_tool_call_ids: [],
@@ -412,469 +375,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 
 		expect(replaceSessionStateGraph).toHaveBeenCalledWith(graph);
-	});
-
-	it("preserves richer canonical operation evidence across snapshot replacement", () => {
-		const store = new SessionStore();
-		const initialGraph = createSessionStateGraph({
-			operations: [
-				{
-					id: "session-1:tool-1",
-					session_id: "session-1",
-					tool_call_id: "tool-1",
-					name: "Read",
-					kind: "read",
-					status: "pending",
-					lifecycle: "blocked",
-					blocked_reason: "permission",
-					title: "Read /tmp/example.txt",
-					arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-					progressive_arguments: null,
-					result: null,
-					command: null,
-					locations: [{ path: "/tmp/example.txt" }],
-					skill_meta: null,
-					normalized_todos: null,
-					started_at_ms: 10,
-					completed_at_ms: null,
-					parent_tool_call_id: null,
-					parent_operation_id: null,
-					child_tool_call_ids: [],
-					child_operation_ids: [],
-				},
-			],
-		});
-		const thinnerGraph = createSessionStateGraph({
-			revision: {
-				graphRevision: 8,
-				transcriptRevision: 8,
-				lastEventSeq: 8,
-			},
-			operations: [
-				{
-					id: "session-1:tool-1",
-					session_id: "session-1",
-					tool_call_id: "tool-1",
-					name: "Read",
-					kind: "read",
-					status: "pending",
-					lifecycle: "blocked",
-					blocked_reason: "permission",
-					title: "Read",
-					arguments: { kind: "read", file_path: null, source_context: null },
-					progressive_arguments: null,
-					result: null,
-					command: null,
-					locations: null,
-					skill_meta: null,
-					normalized_todos: null,
-					started_at_ms: null,
-					completed_at_ms: null,
-					parent_tool_call_id: null,
-					parent_operation_id: null,
-					child_tool_call_ids: [],
-					child_operation_ids: [],
-				},
-			],
-		});
-
-		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
-		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(thinnerGraph));
-
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
-			title: "Read /tmp/example.txt",
-			arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-			locations: [{ path: "/tmp/example.txt" }],
-			startedAtMs: 10,
-		});
-	});
-
-	it("applies live canonical operation events without transcript repair", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-
-		const event: SessionDomainEvent = {
-			event_id: "event-1",
-			seq: 11,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 11,
-			causation_id: null,
-			kind: "operation_upserted",
-			payload: {
-				kind: "operation_upserted",
-				operation_id: "op-1",
-				tool_call_id: "tool-1",
-				tool_name: "Read",
-				tool_kind: "read",
-				status: "pending",
-				parent_operation_id: null,
-				operation: {
-					id: "op-1",
-					session_id: "session-1",
-					tool_call_id: "tool-1",
-					name: "Read",
-					kind: "read",
-					status: "pending",
-					lifecycle: "blocked",
-					blocked_reason: "permission",
-					title: "Read /tmp/example.txt",
-					arguments: { kind: "read", file_path: "/tmp/example.txt", source_context: null },
-					progressive_arguments: null,
-					result: null,
-					command: "cat /tmp/example.txt",
-					locations: [{ path: "/tmp/example.txt" }],
-					skill_meta: null,
-					normalized_todos: null,
-					started_at_ms: null,
-					completed_at_ms: null,
-					parent_tool_call_id: null,
-					parent_operation_id: null,
-					child_tool_call_ids: [],
-					child_operation_ids: [],
-				},
-			},
-		};
-
-		store.applySessionDomainEvent(event);
-		store.createToolCallEntry("session-1", {
-			id: "tool-1",
-			name: "Read",
-			arguments: { kind: "read", file_path: null, source_context: null },
-			status: "pending",
-			kind: "read",
-			title: "Read",
-			locations: null,
-			skillMeta: null,
-			result: null,
-			awaitingPlanApproval: false,
-		});
-
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
-			id: "op-1",
-			title: "Read /tmp/example.txt",
-			command: "cat /tmp/example.txt",
-			lifecycle: "blocked",
-			blockedReason: "permission",
-		});
-	});
-
-	it("updates canonical operation blocking from live interaction events", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-
-		store.applySessionDomainEvent({
-			event_id: "event-1",
-			seq: 11,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 11,
-			causation_id: null,
-			kind: "operation_upserted",
-			payload: {
-				kind: "operation_upserted",
-				operation_id: "op-1",
-				tool_call_id: "tool-1",
-				tool_name: "Read",
-				tool_kind: "read",
-				status: "pending",
-				parent_operation_id: null,
-				operation: {
-					id: "op-1",
-					session_id: "session-1",
-					tool_call_id: "tool-1",
-					name: "Read",
-					kind: "read",
-					status: "pending",
-					lifecycle: "pending",
-					blocked_reason: null,
-					title: "Read",
-					arguments: { kind: "read", file_path: null, source_context: null },
-					progressive_arguments: null,
-					result: null,
-					command: null,
-					locations: null,
-					skill_meta: null,
-					normalized_todos: null,
-					started_at_ms: null,
-					completed_at_ms: null,
-					parent_tool_call_id: null,
-					parent_operation_id: null,
-					child_tool_call_ids: [],
-					child_operation_ids: [],
-				},
-			},
-		});
-
-		store.applySessionDomainEvent({
-			event_id: "event-2",
-			seq: 12,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 12,
-			causation_id: null,
-			kind: "interaction_upserted",
-			payload: {
-				kind: "interaction_upserted",
-				interaction_id: "perm-1",
-				interaction_kind: "Permission",
-				operation_id: "op-1",
-				interaction: {
-					id: "perm-1",
-					session_id: "session-1",
-					operation_id: "op-1",
-					kind: "Permission",
-					state: "Pending",
-					json_rpc_request_id: 41,
-					reply_handler: null,
-					tool_reference: {
-						messageId: "entry-1",
-						callId: "tool-1",
-					},
-					responded_at_event_seq: null,
-					response: null,
-					payload: {
-						Permission: {
-							id: "perm-1",
-							sessionId: "session-1",
-							jsonRpcRequestId: 41,
-							replyHandler: null,
-							permission: "Read",
-							patterns: [],
-							metadata: {},
-							always: [],
-							autoAccepted: false,
-							tool: {
-								messageId: "entry-1",
-								callId: "tool-1",
-							},
-						},
-					},
-				},
-			},
-		});
-
-		expect(store.getOperationStore().getById("op-1")).toMatchObject({
-			lifecycle: "blocked",
-			blockedReason: "permission",
-		});
-
-		store.applySessionDomainEvent({
-			event_id: "event-3",
-			seq: 13,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 13,
-			causation_id: null,
-			kind: "interaction_resolved",
-			payload: {
-				kind: "interaction_resolved",
-				interaction_id: "perm-1",
-				operation_id: "op-1",
-				interaction: {
-					id: "perm-1",
-					session_id: "session-1",
-					operation_id: "op-1",
-					kind: "Permission",
-					state: "Approved",
-					json_rpc_request_id: 41,
-					reply_handler: null,
-					tool_reference: {
-						messageId: "entry-1",
-						callId: "tool-1",
-					},
-					responded_at_event_seq: 13,
-					response: null,
-					payload: {
-						Permission: {
-							id: "perm-1",
-							sessionId: "session-1",
-							jsonRpcRequestId: 41,
-							replyHandler: null,
-							permission: "Read",
-							patterns: [],
-							metadata: {},
-							always: [],
-							autoAccepted: false,
-							tool: {
-								messageId: "entry-1",
-								callId: "tool-1",
-							},
-						},
-					},
-				},
-			},
-		});
-
-		expect(store.getOperationStore().getById("op-1")).toMatchObject({
-			lifecycle: "pending",
-			blockedReason: null,
-		});
-	});
-
-	it("creates a skeletal canonical operation when a live upsert arrives without an enriched snapshot", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-
-		store.applySessionDomainEvent({
-			event_id: "event-skeletal",
-			seq: 21,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 21,
-			causation_id: null,
-			kind: "operation_upserted",
-			payload: {
-				kind: "operation_upserted",
-				operation_id: "op-skeletal",
-				tool_call_id: "tool-skeletal",
-				tool_name: "Bash",
-				tool_kind: "execute",
-				status: "pending",
-				parent_operation_id: null,
-				operation: null,
-			},
-		});
-
-		expect(store.getOperationStore().getById("op-skeletal")).toMatchObject({
-			id: "op-skeletal",
-			toolCallId: "tool-skeletal",
-			name: "Bash",
-			kind: "execute",
-			lifecycle: "pending",
-			arguments: { kind: "execute", command: null },
-			startedAtMs: 21,
-		});
-	});
-
-	it("backfills deferred interaction blocking when the operation arrives after the interaction", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-
-		store.applySessionDomainEvent({
-			event_id: "event-early-interaction",
-			seq: 31,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 31,
-			causation_id: null,
-			kind: "interaction_upserted",
-			payload: {
-				kind: "interaction_upserted",
-				interaction_id: "perm-early",
-				interaction_kind: "Permission",
-				operation_id: "op-early",
-				interaction: {
-					id: "perm-early",
-					session_id: "session-1",
-					operation_id: null,
-					kind: "Permission",
-					state: "Pending",
-					json_rpc_request_id: 77,
-					reply_handler: null,
-					tool_reference: {
-						messageId: "entry-early",
-						callId: "tool-early",
-					},
-					responded_at_event_seq: null,
-					response: null,
-					payload: {
-						Permission: {
-							id: "perm-early",
-							sessionId: "session-1",
-							jsonRpcRequestId: 77,
-							replyHandler: null,
-							permission: "Bash",
-							patterns: [],
-							metadata: {},
-							always: [],
-							autoAccepted: false,
-							tool: {
-								messageId: "entry-early",
-								callId: "tool-early",
-							},
-						},
-					},
-				},
-			},
-		});
-
-		store.applySessionDomainEvent({
-			event_id: "event-late-operation",
-			seq: 32,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 32,
-			causation_id: null,
-			kind: "operation_upserted",
-			payload: {
-				kind: "operation_upserted",
-				operation_id: "op-early",
-				tool_call_id: "tool-early",
-				tool_name: "Bash",
-				tool_kind: "execute",
-				status: "pending",
-				parent_operation_id: null,
-				operation: null,
-			},
-		});
-
-		expect(store.getOperationStore().getById("op-early")).toMatchObject({
-			lifecycle: "blocked",
-			blockedReason: "permission",
-		});
-
-		store.applySessionDomainEvent({
-			event_id: "event-cancelled-interaction",
-			seq: 33,
-			session_id: "session-1",
-			provider_session_id: null,
-			occurred_at_ms: 33,
-			causation_id: null,
-			kind: "interaction_cancelled",
-			payload: {
-				kind: "interaction_cancelled",
-				interaction_id: "perm-early",
-				operation_id: null,
-				interaction: {
-					id: "perm-early",
-					session_id: "session-1",
-					operation_id: null,
-					kind: "Permission",
-					state: "Rejected",
-					json_rpc_request_id: 77,
-					reply_handler: null,
-					tool_reference: {
-						messageId: "entry-early",
-						callId: "tool-early",
-					},
-					responded_at_event_seq: 33,
-					response: null,
-					payload: {
-						Permission: {
-							id: "perm-early",
-							sessionId: "session-1",
-							jsonRpcRequestId: 77,
-							replyHandler: null,
-							permission: "Bash",
-							patterns: [],
-							metadata: {},
-							always: [],
-							autoAccepted: false,
-							tool: {
-								messageId: "entry-early",
-								callId: "tool-early",
-							},
-						},
-					},
-				},
-			},
-		});
-
-		expect(store.getOperationStore().getById("op-early")).toMatchObject({
-			lifecycle: "pending",
-			blockedReason: null,
-		});
 	});
 
 	it("hydrates lifecycle envelopes without needing a full graph refresh", () => {
@@ -955,6 +455,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					],
 					autonomousEnabled: true,
 				},
+				pending_mutation_id: null,
+				preview_state: "canonical",
 				revision: {
 					graphRevision: 9,
 					transcriptRevision: 7,

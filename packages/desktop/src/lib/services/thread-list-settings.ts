@@ -31,12 +31,15 @@ export class ThreadListSettingsService {
 	 * Returns default settings if none have been saved.
 	 */
 	getSettings(): ResultAsync<ThreadListSettings, Error> {
-		return settingsService.getThreadListSettings().mapErr((error) => {
-			return new Error(`Failed to get thread list settings: ${error}`);
-		}).map((settings) => ({
-			hiddenProjects: settings.hiddenProjects,
-			archivedSessions: settings.archivedSessions ?? [],
-		}));
+		return settingsService
+			.getThreadListSettings()
+			.mapErr((error) => {
+				return new Error(`Failed to get thread list settings: ${error}`);
+			})
+			.map((settings) => ({
+				hiddenProjects: settings.hiddenProjects,
+				archivedSessions: settings.archivedSessions ?? [],
+			}));
 	}
 
 	/**

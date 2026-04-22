@@ -145,6 +145,10 @@ impl AgentProvider for CodexProvider {
                 .map_err(|error| format!("Failed to count Codex sessions: {error}"))
         })
     }
+
+    fn supports_project_discovery(&self) -> bool {
+        true
+    }
 }
 
 pub(crate) fn adapt_codex_wrapper_plan_update(update: &SessionUpdate) -> Option<SessionUpdate> {
