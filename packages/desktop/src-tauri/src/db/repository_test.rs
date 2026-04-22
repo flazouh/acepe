@@ -13,17 +13,11 @@ mod session_metadata_tests {
         SessionDescriptorResolutionError, SessionReplayContext,
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
-    use crate::acp::transcript_projection::{
-        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
-    };
-    use crate::acp::types::CanonicalAgentId;
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-        SessionTranscriptSnapshotRepository,
+        SessionProjectionSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;

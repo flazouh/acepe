@@ -1,7 +1,7 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-var getSessionStateMock = vi.fn();
+const getSessionStateMock = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {

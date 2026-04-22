@@ -2832,19 +2832,13 @@ impl AgentClient for ClaudeCcSdkClient {
 mod tests {
     use super::permissions::PendingPermissionKind;
     use super::*;
-    use crate::acp::projections::{
-        InteractionKind, InteractionPayload, InteractionSnapshot, SessionProjectionSnapshot,
-    };
     use crate::acp::session_descriptor::{SessionCompatibilityInput, SessionReplayContext};
     use crate::acp::session_update::ContentChunk;
     use crate::acp::session_update::{
         PermissionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::db::migrations::Migrator;
-    use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository,
-    };
+    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
     use cc_sdk::{CanUseTool, HookCallback};
     use sea_orm::Database;
     use sea_orm_migration::MigratorTrait;

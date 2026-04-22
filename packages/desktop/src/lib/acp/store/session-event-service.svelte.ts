@@ -327,8 +327,6 @@ export class SessionEventService {
 			return;
 		}
 
-		const session = handler.getSessionCold(sessionId);
-
 		if (logger.isLevelEnabled("debug")) {
 			logger.debug("Received session update", {
 				type: update.type,

@@ -10,10 +10,7 @@ use crate::acp::session_update::{
     TurnErrorData,
 };
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
-use crate::db::repository::{
-    SerializedSessionJournalEventRow, SessionJournalEventRepository,
-    SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-};
+use crate::db::repository::{SerializedSessionJournalEventRow, SessionJournalEventRepository};
 use chrono::Utc;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};

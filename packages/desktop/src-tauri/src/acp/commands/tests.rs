@@ -21,9 +21,6 @@ use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
 use crate::db::repository::SessionMetadataRepository;
-use crate::db::repository::{
-    SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
-};
 use async_trait::async_trait;
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;

@@ -438,9 +438,7 @@ pub async fn get_session_open_result(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        apply_session_title_metadata, history_replay_family, persist_canonical_materialization,
-    };
+    use super::{apply_session_title_metadata, history_replay_family};
     use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};

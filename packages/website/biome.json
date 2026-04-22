@@ -48,7 +48,6 @@
 				"noMisleadingInstantiator": "error",
 				"noNonNullAssertedOptionalChain": "error",
 				"noUnsafeDeclarationMerging": "error",
-				"noUnusedExpressions": "off",
 				"useIterableCallbackReturn": "off"
 			}
 		},

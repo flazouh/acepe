@@ -489,10 +489,7 @@ mod tests {
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::types::CanonicalAgentId;
-    use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
-    };
+    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
     use crate::session_jsonl::types::{
         StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
         StoredUserMessage,

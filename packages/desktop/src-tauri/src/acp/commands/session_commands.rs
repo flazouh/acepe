@@ -24,7 +24,7 @@ use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
     SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
-    SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+    SessionProjectionSnapshotRepository,
 };
 use sea_orm::DbConn;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -1765,13 +1765,10 @@ mod tests {
         SessionGraphLifecycleStatus, SessionGraphRuntimeRegistry,
     };
     use crate::acp::session_update::{ContentChunk, PermissionData, SessionUpdate};
-    use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
+    use crate::acp::transcript_projection::TranscriptProjectionRegistry;
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
     use crate::db::migrations::Migrator;
-    use crate::db::repository::{
-        SessionJournalEventRepository, SessionMetadataRepository,
-        SessionTranscriptSnapshotRepository,
-    };
+    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;

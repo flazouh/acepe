@@ -722,11 +722,6 @@ export class SessionConnectionManager {
 			name: m.name,
 			description: m.description ?? undefined,
 		}));
-		const availableCommands = data.availableCommands ?? [];
-		const configOptions = data.configOptions ?? [];
-
-		const currentMode =
-			availableModes.find((m) => m.id === data.modes?.currentModeId) ?? null;
 		const initialModel = this.resolveCurrentModel(
 			effectiveAgentId,
 			availableModels,
@@ -816,7 +811,6 @@ export class SessionConnectionManager {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
-		const capabilities = this.capabilitiesManager.getCapabilities(sessionId);
 		logger.debug("Setting model", { sessionId, modelId });
 
 		// Track model choice per mode for this session

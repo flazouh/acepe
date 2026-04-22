@@ -40,8 +40,6 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 			return "agents";
 		case "personalization":
 			return "voice";
-		case "project":
-			return "project";
 		default:
 			return "general";
 	}

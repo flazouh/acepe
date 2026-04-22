@@ -10,7 +10,6 @@ use crate::acp::client::{
 };
 use crate::acp::client_trait::AgentClient;
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::parsers::AgentType;
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::types::PromptRequest;
