@@ -13,8 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+# dorny/paths-filter on pull_request uses the GitHub API to list changed files — needs pull-requests:read
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   CARGO_INCREMENTAL: 0
