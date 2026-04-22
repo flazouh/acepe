@@ -192,7 +192,7 @@ export class SessionRepository {
 			.map((entries) => {
 				// Read fresh sessions to avoid stale snapshot overwrites from concurrent scans
 				const freshSessions = this.stateReader.getAllSessions();
-				this.refreshSessionsFromScan(freshSessions, entries);
+				this.refreshSessionsFromScan(freshSessions, entries, projectPaths);
 				this.stateWriter.removeScanningProjects(projectPaths);
 				logger.debug("Scan complete", { total: entries.length });
 			})
@@ -205,9 +205,23 @@ export class SessionRepository {
 
 	/**
 	 * Refresh sessions from a batch scan result.
+	 *
+	 * When `scannedProjectPaths` is provided, sessions belonging to those
+	 * projects that are NOT in `entries` are pruned from the store. This is
+	 * how per-project visibility toggles (e.g. "Hide external CLI sessions")
+	 * take effect on re-scan: the backend filter removes them from `entries`,
+	 * and this function removes them from the in-memory store.
+	 *
+	 * Transient (just-created) sessions and sessions the user has actively
+	 * preloaded are always preserved to avoid dropping work in progress.
 	 */
-	refreshSessionsFromScan(existingSessions: SessionCold[], entries: HistoryEntry[]): void {
-		if (entries.length === 0) {
+	refreshSessionsFromScan(
+		existingSessions: SessionCold[],
+		entries: HistoryEntry[],
+		scannedProjectPaths?: readonly string[]
+	): void {
+		const rescannedProjects = new Set(scannedProjectPaths ?? []);
+		if (entries.length === 0 && rescannedProjects.size === 0) {
 			return;
 		}
 
@@ -253,9 +267,19 @@ export class SessionRepository {
 			}
 		}
 
-		// Keep any existing sessions that weren't in the scan results
+		// Keep any existing sessions that weren't in the scan results.
+		// Pruning only applies to sessions whose project was rescanned.
+		// We additionally preserve transient sessions and any session the
+		// user has actively preloaded — dropping a loaded session out from
+		// under the user would be worse than leaving a stale entry around
+		// until the next successful scan.
 		for (const existingSession of existingSessionsMap.values()) {
-			mergedSessions.push(existingSession);
+			const rescannedProject = rescannedProjects.has(existingSession.projectPath);
+			const preserveTransientSession = existingSession.sessionLifecycleState === "created";
+			const preservePreloadedSession = this.entryManager.isPreloaded(existingSession.id);
+			if (!rescannedProject || preserveTransientSession || preservePreloadedSession) {
+				mergedSessions.push(existingSession);
+			}
 		}
 
 		// Sort by updatedAt DESC

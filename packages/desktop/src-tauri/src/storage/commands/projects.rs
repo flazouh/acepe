@@ -1,7 +1,10 @@
 use crate::db::repository::{AppSettingsRepository, ProjectRepository};
 use crate::path_safety::{validate_project_directory_from_str, ProjectPathSafetyError};
+use crate::storage::acepe_config;
+use crate::storage::types::ProjectAcepeConfig;
 use rand::Rng;
 use sea_orm::DatabaseConnection;
+use std::path::Path;
 use tauri::{AppHandle, State};
 
 use super::icon_detection::detect_project_icon;
@@ -12,6 +15,15 @@ use crate::commands::observability::{
 
 const PROJECT_ICON_BACKFILL_KEY: &str = "project_icon_backfill_v2";
 
+fn project_acepe_config_from_file(project_path: &Path) -> ProjectAcepeConfig {
+    let config = acepe_config::read_or_default(project_path);
+    ProjectAcepeConfig {
+        setup_script: config.scripts.setup,
+        run_script: config.scripts.run,
+        show_external_cli_sessions: config.external_cli_sessions.show,
+    }
+}
+
 fn project_from_row(row: crate::db::repository::ProjectRow) -> Project {
     Project {
         path: row.path,
@@ -21,6 +33,7 @@ fn project_from_row(row: crate::db::repository::ProjectRow) -> Project {
         color: row.color,
         sort_order: row.sort_order,
         icon_path: row.icon_path,
+        show_external_cli_sessions: row.show_external_cli_sessions,
     }
 }
 
@@ -353,6 +366,88 @@ pub async fn update_project_icon(
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_project_acepe_config(
+    app: AppHandle,
+    path: String,
+) -> CommandResult<ProjectAcepeConfig> {
+    unexpected_command_result(
+        "get_project_acepe_config",
+        "Failed to load project .acepe.json config",
+        async {
+            let db = get_db(&app);
+            let canonical_path = validate_project_path_for_storage(&path)?;
+            let canonical_path_str = canonical_path.to_string_lossy().to_string();
+
+            ProjectRepository::get_by_path(&db, &canonical_path_str)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, path = %canonical_path_str, "Failed to load project");
+                    e.to_string()
+                })?
+                .ok_or_else(|| format!("Project not found: {}", canonical_path_str))?;
+
+            Ok(project_acepe_config_from_file(&canonical_path))
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_project_acepe_config(
+    app: AppHandle,
+    path: String,
+    config: ProjectAcepeConfig,
+) -> CommandResult<ProjectAcepeConfig> {
+    unexpected_command_result(
+        "save_project_acepe_config",
+        "Failed to save project .acepe.json config",
+        async {
+            let db = get_db(&app);
+            let canonical_path = validate_project_path_for_storage(&path)?;
+            let canonical_path_str = canonical_path.to_string_lossy().to_string();
+
+            ProjectRepository::get_by_path(&db, &canonical_path_str)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, path = %canonical_path_str, "Failed to load project");
+                    e.to_string()
+                })?
+                .ok_or_else(|| format!("Project not found: {}", canonical_path_str))?;
+
+            let next_setup_script = config.setup_script;
+            let next_run_script = config.run_script;
+            let next_show_external_cli_sessions = config.show_external_cli_sessions;
+
+            let updated = acepe_config::update(&canonical_path, |current| {
+                current.version = 1;
+                current.scripts.setup = next_setup_script.clone();
+                current.scripts.run = next_run_script.clone();
+                current.external_cli_sessions.show = next_show_external_cli_sessions;
+            })
+            .map_err(|error| {
+                tracing::error!(
+                    error = %error,
+                    path = %canonical_path_str,
+                    "Failed to update .acepe.json"
+                );
+                error.to_string()
+            })?;
+
+            crate::history::commands::invalidate_scan_cache().await;
+
+            Ok(ProjectAcepeConfig {
+                setup_script: updated.scripts.setup,
+                run_script: updated.scripts.run,
+                show_external_cli_sessions: updated.external_cli_sessions.show,
+            })
+        }
+        .await,
+    )
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn update_project_order(
     app: AppHandle,
     ordered_paths: Vec<String>,
@@ -438,6 +533,11 @@ pub async fn browse_project(_app: AppHandle) -> CommandResult<Option<Project>> {
                         color: assigned_color,
                         sort_order: 0,
                         icon_path: None,
+                        show_external_cli_sessions: acepe_config::read_or_default(
+                            folder_path.path(),
+                        )
+                        .external_cli_sessions
+                        .show,
                     }))
                 }
                 None => {

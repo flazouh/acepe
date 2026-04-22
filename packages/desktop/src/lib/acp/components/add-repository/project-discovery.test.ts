@@ -36,7 +36,7 @@ describe("shouldShowDiscoveredProject", () => {
 		).toBe(false);
 	});
 
-	it("hides projects nested inside hidden directories", () => {
+	it("hides agent-managed discovery paths", () => {
 		expect(
 			shouldShowDiscoveredProject({
 				path: "/Users/alex/.codecs/acepe-scratch",
@@ -44,6 +44,16 @@ describe("shouldShowDiscoveredProject", () => {
 				is_worktree: false,
 			})
 		).toBe(false);
+	});
+
+	it("keeps legitimate hidden-directory projects discoverable", () => {
+		expect(
+			shouldShowDiscoveredProject({
+				path: "/Users/alex/.dotfiles",
+				agent_id: "copilot",
+				is_worktree: false,
+			})
+		).toBe(true);
 	});
 
 	it("keeps main project roots discoverable", () => {

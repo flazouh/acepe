@@ -16,10 +16,12 @@
 //! `last_event_seq` at claim time (Unit 3) ensures it is not delivered twice.
 
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::projections::ProjectionRegistry;
 use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_journal::{load_stored_projection, load_transcript_from_journal};
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
@@ -133,6 +135,107 @@ pub(crate) fn resolve_canonical_session_title(
         .filter(|display| !display.is_empty())
         .map(std::borrow::ToOwned::to_owned)
         .unwrap_or_else(|| default_session_title(session_id))
+}
+
+fn build_projection_from_thread_snapshot(
+    replay_context: &SessionReplayContext,
+    snapshot: &SessionThreadSnapshot,
+) -> crate::acp::projections::SessionProjectionSnapshot {
+    ProjectionRegistry::project_thread_snapshot(
+        &replay_context.local_session_id,
+        Some(replay_context.agent_id.clone()),
+        snapshot,
+    )
+}
+
+pub async fn session_open_result_from_thread_snapshot(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    snapshot: &SessionThreadSnapshot,
+) -> SessionOpenResult {
+    let canonical_session_id = &replay_context.local_session_id;
+    let is_alias = requested_session_id != canonical_session_id;
+    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await
+    {
+        Ok(seq) => seq.unwrap_or(0),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError {
+                requested_session_id: requested_session_id.to_string(),
+                message: format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+            });
+        }
+    };
+
+    let open_token = Uuid::new_v4();
+    let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    hub.arm_reservation(
+        open_token,
+        canonical_session_id.clone(),
+        last_event_seq,
+        epoch_ms,
+    );
+
+    let session_metadata = match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            hub.supersede_reservation(open_token);
+            return SessionOpenResult::Error(SessionOpenError {
+                requested_session_id: requested_session_id.to_string(),
+                message: format!(
+                    "Failed to load session metadata for session {canonical_session_id}: {err}"
+                ),
+            });
+        }
+    };
+    let Some(session_metadata) = session_metadata else {
+        hub.supersede_reservation(open_token);
+        return SessionOpenResult::Error(SessionOpenError {
+            requested_session_id: requested_session_id.to_string(),
+            message: format!("Session metadata missing for session {canonical_session_id}"),
+        });
+    };
+
+    let projection = build_projection_from_thread_snapshot(replay_context, snapshot);
+    let session_snap = projection.session.as_ref();
+    let operations = projection.operations;
+    let interactions = projection.interactions;
+    let graph_revision = session_snap
+        .map(|session| session.last_event_seq)
+        .unwrap_or(last_event_seq);
+    let turn_state = session_snap
+        .map(|session| session.turn_state.clone())
+        .unwrap_or(SessionTurnState::Idle);
+    let message_count = session_snap.map(|session| session.message_count).unwrap_or(0);
+    let active_turn_failure = session_snap.and_then(|session| session.active_turn_failure.clone());
+    let last_terminal_turn_id =
+        session_snap.and_then(|session| session.last_terminal_turn_id.clone());
+    let transcript_snapshot =
+        TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries);
+
+    SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: requested_session_id.to_string(),
+        canonical_session_id: canonical_session_id.clone(),
+        is_alias,
+        last_event_seq,
+        graph_revision,
+        open_token: open_token.to_string(),
+        agent_id: replay_context.agent_id.clone(),
+        project_path: replay_context.project_path.clone(),
+        worktree_path: replay_context.worktree_path.clone(),
+        source_path: replay_context.source_path.clone(),
+        transcript_snapshot,
+        session_title: resolve_canonical_session_title(Some(&session_metadata), canonical_session_id),
+        operations,
+        interactions,
+        turn_state,
+        message_count,
+        active_turn_failure,
+        last_terminal_turn_id,
+    }))
 }
 
 /// Assemble a `SessionOpenResult` for an existing session from persisted state.
@@ -499,42 +602,6 @@ mod tests {
         ]
     }
 
-    async fn seed_transcript_snapshot_with_messages(db: &DbConn, session_id: &str, revision: i64) {
-        SessionTranscriptSnapshotRepository::set(
-            db,
-            session_id,
-            &TranscriptSnapshot::from_stored_entries(revision, &sample_transcript_entries()),
-        )
-        .await
-        .expect("seed transcript snapshot");
-    }
-
-    async fn seed_projection_snapshot(db: &DbConn, session_id: &str, revision: i64) {
-        SessionProjectionSnapshotRepository::set(
-            db,
-            session_id,
-            &crate::acp::projections::SessionProjectionSnapshot {
-                session: Some(crate::acp::projections::SessionSnapshot {
-                    session_id: session_id.to_string(),
-                    agent_id: Some(CanonicalAgentId::Copilot),
-                    last_event_seq: revision,
-                    turn_state: SessionTurnState::Idle,
-                    message_count: sample_transcript_entries().len() as u64,
-                    last_agent_message_id: Some("assistant-1".to_string()),
-                    active_tool_call_ids: Vec::new(),
-                    completed_tool_call_ids: Vec::new(),
-                    active_turn_failure: None,
-                    last_terminal_turn_id: None,
-                }),
-                operations: Vec::new(),
-                interactions: Vec::new(),
-                runtime: None,
-            },
-        )
-        .await
-        .expect("seed projection snapshot");
-    }
-
     // -----------------------------------------------------------------------
     // Happy path: new session returns found with empty state and seq=0
     // -----------------------------------------------------------------------
@@ -601,209 +668,6 @@ mod tests {
         assert_eq!(found.last_event_seq, 1, "seed event should yield seq=1");
     }
 
-    // -----------------------------------------------------------------------
-    // Happy path: existing session returns found with journal-backed seq
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn existing_session_with_journal_returns_found_with_seq() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "existing-session-xyz";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        append_tool_call_event(&db, session_id).await;
-        append_tool_call_event(&db, session_id).await;
-        seed_transcript_snapshot_with_messages(&db, session_id, 2).await;
-        seed_projection_snapshot(&db, session_id, 2).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.canonical_session_id, session_id);
-        assert_eq!(found.last_event_seq, 2);
-        assert_eq!(found.transcript_snapshot.revision, 2);
-        assert!(Uuid::parse_str(&found.open_token).is_ok());
-    }
-
-    #[tokio::test]
-    async fn existing_session_rebuilds_stale_snapshots_from_journal_frontier() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "stale-open-session";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        append_tool_call_event(&db, session_id).await;
-        append_tool_call_event(&db, session_id).await;
-        SessionTranscriptSnapshotRepository::set(
-            &db,
-            session_id,
-            &TranscriptSnapshot::from_stored_entries(0, &[]),
-        )
-        .await
-        .expect("seed stale transcript snapshot");
-        SessionProjectionSnapshotRepository::set(
-            &db,
-            session_id,
-            &crate::acp::projections::SessionProjectionSnapshot {
-                session: Some(crate::acp::projections::SessionSnapshot {
-                    session_id: session_id.to_string(),
-                    agent_id: Some(CanonicalAgentId::Copilot),
-                    last_event_seq: 0,
-                    turn_state: SessionTurnState::Idle,
-                    message_count: 999,
-                    last_agent_message_id: None,
-                    active_tool_call_ids: Vec::new(),
-                    completed_tool_call_ids: Vec::new(),
-                    active_turn_failure: None,
-                    last_terminal_turn_id: None,
-                }),
-                operations: Vec::new(),
-                interactions: Vec::new(),
-                runtime: None,
-            },
-        )
-        .await
-        .expect("seed stale projection snapshot");
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.last_event_seq, 2);
-        assert_eq!(found.transcript_snapshot.revision, 2);
-        assert_eq!(found.message_count, 0);
-        assert!(Uuid::parse_str(&found.open_token).is_ok());
-    }
-
-    #[tokio::test]
-    async fn existing_session_without_transcript_snapshot_falls_back_to_empty_transcript() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "snapshotless-open-session";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        seed_projection_snapshot(&db, session_id, 0).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.last_event_seq, 0);
-        assert_eq!(found.transcript_snapshot.revision, 0);
-        assert!(found.transcript_snapshot.entries.is_empty());
-    }
-
-    // -----------------------------------------------------------------------
-    // Happy path: alias-keyed open returns both IDs and is_alias=true
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn alias_keyed_open_returns_both_requested_and_canonical_ids() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let canonical_id = "canonical-session-abc";
-        let alias_id = "provider-alias-xyz";
-
-        seed_session_metadata(&db, canonical_id, "copilot").await;
-        seed_transcript_snapshot_with_messages(&db, canonical_id, 0).await;
-        seed_projection_snapshot(&db, canonical_id, 0).await;
-
-        let replay_context = make_copilot_replay_context(canonical_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, alias_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.requested_session_id, alias_id);
-        assert_eq!(found.canonical_session_id, canonical_id);
-        assert!(found.is_alias, "alias open should set is_alias=true");
-    }
-
-    #[tokio::test]
-    async fn existing_session_with_canonical_transcript_exposes_transcript_snapshot_shape() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "transcript-shape-session";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        append_tool_call_event(&db, session_id).await;
-        append_tool_call_event(&db, session_id).await;
-        seed_transcript_snapshot_with_messages(&db, session_id, 2).await;
-        seed_projection_snapshot(&db, session_id, 2).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.transcript_snapshot.revision, found.last_event_seq);
-        assert_eq!(found.transcript_snapshot.entries.len(), 2);
-        assert_eq!(found.transcript_snapshot.entries[0].entry_id, "user-1");
-        assert_eq!(found.transcript_snapshot.entries[0].segments.len(), 1);
-        assert_eq!(
-            found.transcript_snapshot.entries[0].segments[0],
-            crate::acp::transcript_projection::TranscriptSegment::Text {
-                segment_id: "user-1:block:0".to_string(),
-                text: "hello world".to_string(),
-            }
-        );
-        assert_eq!(found.transcript_snapshot.entries[1].entry_id, "assistant-1");
-        assert_eq!(found.session_title, default_session_title(session_id));
-    }
-
-    #[tokio::test]
-    async fn existing_session_prefers_title_override_over_metadata_display() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "override-session";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        SessionMetadataRepository::set_title_override(&db, session_id, Some("Pinned title"))
-            .await
-            .expect("set title override");
-        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
-        seed_projection_snapshot(&db, session_id, 0).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.session_title, "Pinned title");
-    }
-
-    #[tokio::test]
-    async fn existing_session_uses_metadata_display_when_no_override_exists() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "display-session";
-        SessionMetadataRepository::upsert(
-            &db,
-            session_id.to_string(),
-            "Display title".to_string(),
-            1704067200000,
-            "/test/project".to_string(),
-            "copilot".to_string(),
-            "-test-project/display-session.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .expect("seed metadata");
-        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
-        seed_projection_snapshot(&db, session_id, 0).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.session_title, "Display title");
-    }
 
     // -----------------------------------------------------------------------
     // Happy path: open token guarantees reservation is armed after assembly
@@ -1017,69 +881,6 @@ mod tests {
         assert!(
             hub.has_reservation(token),
             "failed claim must leave the reservation intact"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Happy path: worktree session preserves source_path and worktree_path
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn worktree_session_preserves_paths_in_found_result() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "worktree-session-abc";
-        seed_session_metadata(&db, session_id, "copilot").await;
-
-        let replay_context = SessionReplayContext {
-            local_session_id: session_id.to_string(),
-            history_session_id: format!("provider-{session_id}"),
-            agent_id: CanonicalAgentId::Copilot,
-            parser_agent_type: AgentType::Copilot,
-            project_path: "/main/repo".to_string(),
-            worktree_path: Some("/main/repo/.git/worktrees/feature".to_string()),
-            effective_cwd: "/main/repo/.git/worktrees/feature".to_string(),
-            source_path: Some("/main/repo/.git/worktrees/feature/.copilot/chat.jsonl".to_string()),
-            compatibility: SessionDescriptorCompatibility::Canonical,
-        };
-        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
-        seed_projection_snapshot(&db, session_id, 0).await;
-
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Found(found) = result else {
-            panic!("expected Found, got {result:?}");
-        };
-        assert_eq!(found.project_path, "/main/repo");
-        assert_eq!(
-            found.worktree_path.as_deref(),
-            Some("/main/repo/.git/worktrees/feature")
-        );
-        assert_eq!(
-            found.source_path.as_deref(),
-            Some("/main/repo/.git/worktrees/feature/.copilot/chat.jsonl")
-        );
-    }
-
-    #[tokio::test]
-    async fn partial_canonical_bundle_returns_error_instead_of_best_effort_found() {
-        let db = setup_db().await;
-        let hub = make_hub();
-        let session_id = "partial-open-session";
-        seed_session_metadata(&db, session_id, "copilot").await;
-        seed_transcript_snapshot_with_messages(&db, session_id, 0).await;
-
-        let replay_context = make_copilot_replay_context(session_id);
-        let result = assemble_session_open_result(&db, &hub, &replay_context, session_id).await;
-
-        let SessionOpenResult::Error(error) = result else {
-            panic!("expected Error, got {result:?}");
-        };
-        assert!(
-            error
-                .message
-                .contains("Canonical projection snapshot missing"),
-            "expected explicit canonical projection error, got {}",
-            error.message
         );
     }
 

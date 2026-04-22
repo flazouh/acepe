@@ -43,6 +43,7 @@ const sections: readonly SidebarSection[] = [
 	{ id: "keybindings", icon: Keyboard, label: () => "Keybindings" },
 	{ id: "mcp", icon: Plugs, label: () => "MCP servers" },
 	{ id: "git", icon: GitBranch, label: () => "Git" },
+	{ id: "project", icon: FolderSimple, label: () => "Projects" },
 	{ id: "environments", icon: FolderSimple, label: () => "Environments" },
 	{ id: "worktrees", icon: Tree, label: () => "Worktrees" },
 	{ id: "archived", icon: Archive, label: () => "Archived sessions" },

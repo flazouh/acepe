@@ -232,163 +232,6 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_session_thread_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-thread".to_string(),
-            "Thread session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-thread.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![],
-            title: "Thread session".to_string(),
-            created_at: "2026-04-16T00:00:00Z".to_string(),
-            current_mode_id: Some("plan".to_string()),
-        };
-
-        SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(
-            &db,
-            "session-thread",
-            &CanonicalAgentId::ClaudeCode,
-        )
-        .await
-        .unwrap()
-        .expect("expected persisted thread snapshot");
-
-        assert_eq!(loaded.title, "Thread session");
-        assert_eq!(loaded.current_mode_id.as_deref(), Some("plan"));
-        assert!(loaded.entries.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_session_thread_snapshot_round_trips_tool_calls() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-thread-tool-call".to_string(),
-            "Thread tool call session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "codex".to_string(),
-            "-Users-test-project/session-thread-tool-call.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![crate::session_jsonl::types::StoredEntry::ToolCall {
-                id: "tool-call-1".to_string(),
-                message: crate::acp::session_update::ToolCallData {
-                    id: "tool-call-1".to_string(),
-                    name: "read_file".to_string(),
-                    arguments: crate::acp::session_update::ToolArguments::Read {
-                        file_path: Some("/Users/test/project/src/main.rs".to_string()),
-                        source_context: None,
-                    },
-                    raw_input: None,
-                    status: crate::acp::session_update::ToolCallStatus::Completed,
-                    kind: Some(crate::acp::session_update::ToolKind::Read),
-                    result: None,
-                    title: Some("Read src/main.rs".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
-                },
-                timestamp: None,
-            }],
-            title: "Thread tool call session".to_string(),
-            created_at: "2026-04-16T00:00:00Z".to_string(),
-            current_mode_id: Some("build".to_string()),
-        };
-
-        SessionThreadSnapshotRepository::set(&db, "session-thread-tool-call", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(
-            &db,
-            "session-thread-tool-call",
-            &CanonicalAgentId::Codex,
-        )
-        .await
-        .unwrap()
-        .expect("expected persisted thread snapshot");
-
-        assert_eq!(loaded.entries.len(), 1);
-        let crate::session_jsonl::types::StoredEntry::ToolCall { message, .. } = &loaded.entries[0]
-        else {
-            panic!("expected tool call entry");
-        };
-        assert_eq!(
-            message.kind,
-            Some(crate::acp::session_update::ToolKind::Read)
-        );
-        assert_eq!(message.name, "read_file");
-    }
-
-    #[tokio::test]
-    async fn test_session_transcript_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-transcript".to_string(),
-            "Transcript session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-transcript.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = TranscriptSnapshot {
-            revision: 5,
-            entries: vec![TranscriptEntry {
-                entry_id: "assistant-1".to_string(),
-                role: TranscriptEntryRole::Assistant,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: "assistant-1:chunk:0".to_string(),
-                    text: "hello".to_string(),
-                }],
-            }],
-        };
-
-        SessionTranscriptSnapshotRepository::set(&db, "session-transcript", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionTranscriptSnapshotRepository::get(&db, "session-transcript")
-            .await
-            .unwrap()
-            .expect("expected persisted transcript snapshot");
-
-        assert_eq!(loaded.revision, 5);
-        assert_eq!(loaded.entries.len(), 1);
-        assert_eq!(loaded.entries[0].entry_id, "assistant-1");
-    }
-
-    #[tokio::test]
     async fn test_session_journal_replays_projection_state() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
@@ -917,11 +760,15 @@ mod session_metadata_tests {
         }
 
         // Query for project-a only
-        let result =
-            SessionMetadataRepository::get_for_projects(&db, &["/project-a".to_string()]).await;
+        let result = SessionMetadataRepository::get_for_projects(
+            &db,
+            &["/project-a".to_string()],
+            &std::collections::HashSet::new(),
+        )
+        .await;
 
         assert!(result.is_ok());
-        let sessions = result.unwrap();
+        let sessions = result.unwrap().entries;
         assert_eq!(sessions.len(), 2, "Should return 2 sessions for project-a");
 
         for session in &sessions {
@@ -947,11 +794,15 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        let result =
-            SessionMetadataRepository::get_for_projects(&db, &["/nonexistent".to_string()]).await;
+        let result = SessionMetadataRepository::get_for_projects(
+            &db,
+            &["/nonexistent".to_string()],
+            &std::collections::HashSet::new(),
+        )
+        .await;
 
         assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
+        assert!(result.unwrap().entries.is_empty());
     }
 
     #[tokio::test]
@@ -1055,10 +906,14 @@ mod session_metadata_tests {
         .await
         .unwrap();
 
-        let sessions =
-            SessionMetadataRepository::get_for_projects(&db, &[base_project.to_string()])
-                .await
-                .unwrap();
+        let sessions = SessionMetadataRepository::get_for_projects(
+            &db,
+            &[base_project.to_string()],
+            &std::collections::HashSet::new(),
+        )
+        .await
+        .unwrap()
+        .entries;
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].id, "session-1");

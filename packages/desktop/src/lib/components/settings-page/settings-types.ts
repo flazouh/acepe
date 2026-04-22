@@ -8,6 +8,7 @@ export type SettingsSectionId =
 	| "keybindings"
 	| "mcp"
 	| "git"
+	| "project"
 	| "environments"
 	| "worktrees"
 	| "archived"
@@ -28,6 +29,7 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		case "keybindings":
 		case "mcp":
 		case "git":
+		case "project":
 		case "environments":
 		case "worktrees":
 		case "archived":
@@ -39,7 +41,7 @@ export function migrateSettingsSectionId(id: string): SettingsSectionId {
 		case "personalization":
 			return "voice";
 		case "project":
-			return "agents";
+			return "project";
 		default:
 			return "general";
 	}

@@ -1,7 +1,10 @@
 {
-  "worktree": {
-    "setupCommands": [
-      "bun i"
-    ]
+  "version": 1,
+  "scripts": {
+    "setup": "bun i",
+    "run": ""
+  },
+  "externalCliSessions": {
+    "show": false
   }
 }

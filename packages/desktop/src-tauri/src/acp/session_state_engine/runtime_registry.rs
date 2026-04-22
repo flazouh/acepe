@@ -1,4 +1,6 @@
 use crate::acp::client_session::SessionModes;
+use crate::acp::lifecycle::LifecycleCheckpoint;
+use crate::acp::lifecycle::SessionSupervisor;
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
@@ -7,13 +9,13 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
 };
 use crate::acp::session_state_engine::{
-    build_delta_envelope, SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
+    build_delta_envelope, CapabilityPreviewState, SessionGraphRevision, SessionStateEnvelope,
+    SessionStatePayload,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptProjectionRegistry};
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
-use dashmap::DashMap;
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -35,9 +37,9 @@ impl Default for SessionGraphRuntimeSnapshot {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SessionGraphRuntimeRegistry {
-    sessions: Arc<DashMap<String, SessionGraphRuntimeSnapshot>>,
+    supervisor: Arc<SessionSupervisor>,
 }
 
 pub struct LiveSessionStateEnvelopeRequest<'a> {
@@ -54,16 +56,24 @@ pub struct LiveSessionStateEnvelopeRequest<'a> {
 impl SessionGraphRuntimeRegistry {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            sessions: Arc::new(DashMap::new()),
-        }
+        Self::with_supervisor(Arc::new(SessionSupervisor::new()))
+    }
+
+    #[must_use]
+    pub fn with_supervisor(supervisor: Arc<SessionSupervisor>) -> Self {
+        Self { supervisor }
+    }
+
+    #[must_use]
+    pub fn supervisor(&self) -> &Arc<SessionSupervisor> {
+        &self.supervisor
     }
 
     #[must_use]
     pub fn snapshot_for_session(&self, session_id: &str) -> SessionGraphRuntimeSnapshot {
-        self.sessions
-            .get(session_id)
-            .map(|entry| entry.clone())
+        self.supervisor
+            .snapshot_for_session(session_id)
+            .map(|checkpoint| SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint))
             .unwrap_or_default()
     }
 
@@ -74,18 +84,21 @@ impl SessionGraphRuntimeRegistry {
         lifecycle: SessionGraphLifecycle,
         capabilities: SessionGraphCapabilities,
     ) {
-        self.sessions.insert(
-            session_id,
-            SessionGraphRuntimeSnapshot {
-                graph_revision,
-                lifecycle,
-                capabilities,
-            },
-        );
+        let checkpoint = SessionGraphRuntimeSnapshot {
+            graph_revision,
+            lifecycle,
+            capabilities,
+        }
+        .into_checkpoint();
+        let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
     }
 
     pub fn remove_session(&self, session_id: &str) {
-        self.sessions.remove(session_id);
+        self.supervisor.remove_session(session_id);
+    }
+
+    pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
+        let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
     }
 
     pub fn apply_session_update_with_graph_seed(
@@ -94,65 +107,52 @@ impl SessionGraphRuntimeRegistry {
         graph_revision_seed: i64,
         update: &SessionUpdate,
     ) -> i64 {
-        let mut state = self.sessions.entry(session_id.to_string()).or_default();
-        state.graph_revision = state
-            .graph_revision
-            .max(graph_revision_seed)
-            .saturating_add(1);
-
-        match update {
-            SessionUpdate::ConnectionComplete {
-                models,
-                modes,
-                available_commands,
-                config_options,
-                autonomous_enabled,
-                ..
-            } => {
-                state.lifecycle = SessionGraphLifecycle {
-                    status: SessionGraphLifecycleStatus::Ready,
-                    error_message: None,
-                    can_reconnect: true,
-                };
-                state.capabilities = SessionGraphCapabilities {
-                    models: Some(models.clone()),
-                    modes: Some(modes.clone()),
-                    available_commands: available_commands.clone(),
-                    config_options: config_options.clone(),
-                    autonomous_enabled: *autonomous_enabled,
-                };
-            }
-            SessionUpdate::ConnectionFailed { error, .. } => {
-                state.lifecycle = SessionGraphLifecycle {
-                    status: SessionGraphLifecycleStatus::Error,
-                    error_message: Some(error.clone()),
-                    can_reconnect: true,
-                };
-            }
-            SessionUpdate::AvailableCommandsUpdate { update, .. } => {
-                state.capabilities.available_commands = update.available_commands.clone();
-            }
-            SessionUpdate::CurrentModeUpdate { update, .. } => {
-                if let Some(modes) = state.capabilities.modes.as_mut() {
-                    modes.current_mode_id = update.current_mode_id.clone();
-                } else {
-                    state.capabilities.modes = Some(SessionModes {
-                        current_mode_id: update.current_mode_id.clone(),
-                        available_modes: Vec::new(),
-                    });
-                }
-            }
-            SessionUpdate::ConfigOptionUpdate { update, .. } => {
-                state.capabilities.config_options = update.config_options.clone();
-            }
-            _ => {}
-        }
-
-        state.graph_revision
+        let mut state = self.snapshot_for_session(session_id);
+        state.apply_update_with_graph_seed(graph_revision_seed, update);
+        let graph_revision = state.graph_revision;
+        self.supervisor
+            .replace_checkpoint_for_compat(session_id.to_string(), state.into_checkpoint());
+        graph_revision
     }
 
     pub fn apply_session_update(&self, session_id: &str, update: &SessionUpdate) -> i64 {
         self.apply_session_update_with_graph_seed(session_id, 0, update)
+    }
+
+    pub fn replace_capabilities_with_graph_seed(
+        &self,
+        session_id: &str,
+        graph_revision_seed: i64,
+        capabilities: SessionGraphCapabilities,
+    ) -> i64 {
+        let mut state = self.snapshot_for_session(session_id);
+        state.graph_revision = state
+            .graph_revision
+            .max(graph_revision_seed)
+            .saturating_add(1);
+        state.capabilities = capabilities;
+        let graph_revision = state.graph_revision;
+        self.supervisor
+            .replace_checkpoint_for_compat(session_id.to_string(), state.into_checkpoint());
+        graph_revision
+    }
+
+    #[must_use]
+    pub fn build_capabilities_envelope(
+        &self,
+        session_id: &str,
+        capabilities: SessionGraphCapabilities,
+        revision: SessionGraphRevision,
+        pending_mutation_id: Option<String>,
+        preview_state: CapabilityPreviewState,
+    ) -> SessionStateEnvelope {
+        build_live_session_state_capabilities_envelope(
+            session_id,
+            capabilities,
+            revision,
+            pending_mutation_id,
+            preview_state,
+        )
     }
 
     #[expect(
@@ -163,6 +163,16 @@ impl SessionGraphRuntimeRegistry {
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
     ) -> Option<SessionStateEnvelope> {
+        if should_emit_session_state_capabilities(request.update) {
+            return Some(build_live_session_state_capabilities_envelope(
+                request.session_id,
+                self.snapshot_for_session(request.session_id).capabilities,
+                request.revision,
+                None,
+                CapabilityPreviewState::Canonical,
+            ));
+        }
+
         if should_emit_session_state_snapshot(request.update) {
             return self
                 .build_snapshot_envelope(
@@ -220,6 +230,24 @@ impl SessionGraphRuntimeRegistry {
             )),
             SessionFrontierDecision::AcceptDelta { .. } => None,
         }
+    }
+
+    pub async fn build_snapshot_envelope_for_session(
+        &self,
+        db: &DbConn,
+        session_id: &str,
+        revision: SessionGraphRevision,
+        projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
+    ) -> Option<SessionStateEnvelope> {
+        self.build_snapshot_envelope(
+            db,
+            session_id,
+            revision,
+            projection_registry,
+            transcript_projection_registry,
+        )
+        .await
     }
 
     async fn build_snapshot_envelope(
@@ -280,6 +308,95 @@ impl SessionGraphRuntimeRegistry {
     }
 }
 
+impl SessionGraphRuntimeSnapshot {
+    pub(crate) fn apply_update_with_graph_seed(
+        &mut self,
+        graph_revision_seed: i64,
+        update: &SessionUpdate,
+    ) -> i64 {
+        self.graph_revision = self
+            .graph_revision
+            .max(graph_revision_seed)
+            .saturating_add(1);
+        self.apply_update(update);
+        self.graph_revision
+    }
+
+    pub(crate) fn apply_update(&mut self, update: &SessionUpdate) {
+        match update {
+            SessionUpdate::ConnectionComplete {
+                models,
+                modes,
+                available_commands,
+                config_options,
+                autonomous_enabled,
+                ..
+            } => {
+                self.lifecycle = SessionGraphLifecycle {
+                    status: SessionGraphLifecycleStatus::Ready,
+                    error_message: None,
+                    can_reconnect: true,
+                };
+                self.capabilities = SessionGraphCapabilities {
+                    models: Some(models.clone()),
+                    modes: Some(modes.clone()),
+                    available_commands: available_commands.clone(),
+                    config_options: config_options.clone(),
+                    autonomous_enabled: *autonomous_enabled,
+                };
+            }
+            SessionUpdate::ConnectionFailed { error, .. } => {
+                self.lifecycle = SessionGraphLifecycle {
+                    status: SessionGraphLifecycleStatus::Error,
+                    error_message: Some(error.clone()),
+                    can_reconnect: true,
+                };
+            }
+            SessionUpdate::AvailableCommandsUpdate { update, .. } => {
+                self.capabilities.available_commands = update.available_commands.clone();
+            }
+            SessionUpdate::CurrentModeUpdate { update, .. } => {
+                if let Some(modes) = self.capabilities.modes.as_mut() {
+                    modes.current_mode_id = update.current_mode_id.clone();
+                } else {
+                    self.capabilities.modes = Some(SessionModes {
+                        current_mode_id: update.current_mode_id.clone(),
+                        available_modes: Vec::new(),
+                    });
+                }
+            }
+            SessionUpdate::ConfigOptionUpdate { update, .. } => {
+                self.capabilities.config_options = update.config_options.clone();
+            }
+            _ => {}
+        }
+    }
+
+    #[must_use]
+    pub fn into_checkpoint(self) -> LifecycleCheckpoint {
+        LifecycleCheckpoint::from_live_runtime(
+            self.graph_revision,
+            self.lifecycle,
+            self.capabilities,
+        )
+    }
+
+    #[must_use]
+    pub fn from_checkpoint(checkpoint: &LifecycleCheckpoint) -> Self {
+        Self {
+            graph_revision: checkpoint.graph_revision,
+            lifecycle: checkpoint.compat_graph_lifecycle(),
+            capabilities: checkpoint.capabilities.clone(),
+        }
+    }
+}
+
+impl Default for SessionGraphRuntimeRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn build_live_session_state_delta_envelope(
     delta: &TranscriptDelta,
     from_revision: SessionGraphRevision,
@@ -310,6 +427,35 @@ fn build_live_session_state_telemetry_envelope(
     }
 }
 
+fn build_live_session_state_capabilities_envelope(
+    session_id: &str,
+    capabilities: SessionGraphCapabilities,
+    revision: SessionGraphRevision,
+    pending_mutation_id: Option<String>,
+    preview_state: CapabilityPreviewState,
+) -> SessionStateEnvelope {
+    SessionStateEnvelope {
+        session_id: session_id.to_string(),
+        graph_revision: revision.graph_revision,
+        last_event_seq: revision.last_event_seq,
+        payload: SessionStatePayload::Capabilities {
+            capabilities: Box::new(capabilities),
+            revision,
+            pending_mutation_id,
+            preview_state,
+        },
+    }
+}
+
+fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
+    matches!(
+        update,
+        SessionUpdate::AvailableCommandsUpdate { .. }
+            | SessionUpdate::CurrentModeUpdate { .. }
+            | SessionUpdate::ConfigOptionUpdate { .. }
+    )
+}
+
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
     matches!(
         update,
@@ -319,9 +465,6 @@ fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
             | SessionUpdate::QuestionRequest { .. }
             | SessionUpdate::TurnComplete { .. }
             | SessionUpdate::TurnError { .. }
-            | SessionUpdate::AvailableCommandsUpdate { .. }
-            | SessionUpdate::CurrentModeUpdate { .. }
-            | SessionUpdate::ConfigOptionUpdate { .. }
             | SessionUpdate::ConnectionComplete { .. }
             | SessionUpdate::ConnectionFailed { .. }
     )
@@ -330,10 +473,12 @@ fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
+        build_live_session_state_capabilities_envelope, build_live_session_state_delta_envelope,
+        build_live_session_state_telemetry_envelope, CapabilityPreviewState,
         SessionGraphRuntimeRegistry,
     };
     use crate::acp::client_session::{default_modes, default_session_model_state};
+    use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
     use crate::acp::session_state_engine::selectors::SessionGraphLifecycleStatus;
     use crate::acp::session_state_engine::SessionGraphRevision;
     use crate::acp::session_state_engine::SessionStatePayload;
@@ -504,6 +649,32 @@ mod tests {
                 assert_eq!(revision, SessionGraphRevision::new(15, 8, 22));
             }
             other => panic!("expected telemetry payload, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn capabilities_envelope_carries_revision_and_preview_metadata() {
+        let revision = SessionGraphRevision::new(15, 8, 22);
+        let envelope = build_live_session_state_capabilities_envelope(
+            "session-1",
+            SessionGraphCapabilities::empty(),
+            revision,
+            Some("mutation-1".to_string()),
+            CapabilityPreviewState::Pending,
+        );
+
+        match envelope.payload {
+            SessionStatePayload::Capabilities {
+                revision,
+                pending_mutation_id,
+                preview_state,
+                ..
+            } => {
+                assert_eq!(revision, SessionGraphRevision::new(15, 8, 22));
+                assert_eq!(pending_mutation_id.as_deref(), Some("mutation-1"));
+                assert_eq!(preview_state, CapabilityPreviewState::Pending);
+            }
+            other => panic!("expected capabilities payload, got {:?}", other),
         }
     }
 }

@@ -1,6 +1,8 @@
 import type {
+	CapabilityPreviewState,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
+	SessionGraphRevision,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TranscriptDelta,
@@ -20,6 +22,9 @@ export type SessionStateCommand =
 	| {
 			kind: "applyCapabilities";
 			capabilities: SessionGraphCapabilities;
+			revision: SessionGraphRevision;
+			pendingMutationId: string | null;
+			previewState: CapabilityPreviewState;
 	  }
 	| {
 			kind: "applyTelemetry";
@@ -82,6 +87,9 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyCapabilities",
 					capabilities: envelope.payload.capabilities,
+					revision: envelope.payload.revision,
+					pendingMutationId: envelope.payload.pendingMutationId ?? null,
+					previewState: envelope.payload.previewState,
 				},
 			];
 		case "telemetry":

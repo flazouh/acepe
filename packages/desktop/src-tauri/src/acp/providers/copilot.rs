@@ -153,6 +153,17 @@ impl AgentProvider for CopilotProvider {
         }
     }
 
+    fn reconnect_policy(
+        &self,
+        requested_launch_mode_id: Option<&str>,
+    ) -> crate::acp::provider::ProviderReconnectPolicy {
+        crate::acp::provider::ProviderReconnectPolicy {
+            use_load_semantics: false,
+            outbound_launch_mode_id: requested_launch_mode_id
+                .map(|mode_id| self.map_outbound_mode_id(mode_id)),
+        }
+    }
+
     fn apply_session_defaults(
         &self,
         cwd: &Path,
@@ -443,6 +454,18 @@ mod tests {
             "https://agentclientprotocol.com/protocol/session-modes#plan"
         );
         assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
+    }
+
+    #[test]
+    fn reconnect_policy_maps_launch_mode_through_provider_contract() {
+        let provider = CopilotProvider;
+        let reconnect_policy = provider.reconnect_policy(Some("build"));
+
+        assert!(!reconnect_policy.use_load_semantics);
+        assert_eq!(
+            reconnect_policy.outbound_launch_mode_id.as_deref(),
+            Some("https://agentclientprotocol.com/protocol/session-modes#agent")
+        );
     }
 
     #[test]

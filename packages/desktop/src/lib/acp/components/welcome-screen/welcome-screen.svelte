@@ -1,6 +1,7 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, Button, PillButton } from "@acepe/ui";
+import { BrandLockup, BrandShaderBackground, Button } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
+import { ArrowRight } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
@@ -36,7 +37,19 @@ const SPLASH_AGENTS: { id: string; alt: string }[] = [
 	{ id: "opencode", alt: "OpenCode" },
 ];
 
+// Vendor labels grounded in reality — confident product data, not marketing copy.
+const AGENT_VENDORS: Record<string, string> = {
+	"claude-code": "Anthropic",
+	cursor: "Cursor",
+	copilot: "GitHub",
+	opencode: "SST",
+	codex: "OpenAI",
+};
+
 type OnboardingStep = "splash" | "agents" | "projects" | "scanning";
+
+// Visible steps for the progress indicator — scanning is an internal transition, not a step.
+const ONBOARDING_STEPS: readonly OnboardingStep[] = ["splash", "agents", "projects"] as const;
 
 interface OnboardingImportErrorState {
 	readonly title: string;
@@ -64,17 +77,23 @@ const onboardingAvailableAgents = $derived(getOnboardingSelectableAgents(agentSt
 const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
+// Index into ONBOARDING_STEPS for the progress indicator. Scanning reuses the projects step.
+const currentStepIndex = $derived(
+	onboardingStep === "scanning" ? 2 : ONBOARDING_STEPS.indexOf(onboardingStep)
+);
 
 function isUnexpectedOnboardingImportError(error: AppError): boolean {
 	return error.code !== "VALIDATION_ERROR";
 }
 
-// Handle Cmd+Enter keyboard shortcut (advances from splash to agents)
+// Handle Cmd+Enter keyboard shortcut (advances between non-terminal steps)
 function handleKeydown(event: KeyboardEvent) {
 	if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
 		event.preventDefault();
 		if (onboardingStep === "splash") {
 			advanceFromSplash();
+		} else if (onboardingStep === "agents" && onboardingSelectedAgents.length > 0) {
+			onboardingStep = "projects";
 		}
 	}
 }
@@ -335,188 +354,372 @@ async function finishOnboarding(): Promise<void> {
 		}
 	);
 }
+
+// Track cursor over interactive surfaces so a soft spotlight can follow it.
+// No $effect — pointer handler writes CSS custom properties directly on the element.
+function trackPointer(event: PointerEvent) {
+	const target = event.currentTarget as HTMLElement;
+	const rect = target.getBoundingClientRect();
+	target.style.setProperty("--spot-x", `${event.clientX - rect.left}px`);
+	target.style.setProperty("--spot-y", `${event.clientY - rect.top}px`);
+}
 </script>
 
 <!-- Shader background layer (persistent across all steps) -->
 <BrandShaderBackground />
 
-<!-- Content layer -->
+<!-- Soft vignette: pulls focus toward center, dampens shader edges without adding a visible frame. -->
 <div
-	class="relative z-10 flex flex-col items-center justify-center h-full w-full max-w-4xl mx-auto px-6 py-12"
->
-	{#if onboardingStep === "splash"}
-		<!-- Splash: 16:9 card with welcome message -->
-		<div
-			class="flex aspect-video w-[640px] flex-col rounded-2xl bg-background p-8"
-		>
-			<!-- Top Left: Logo + Label -->
-			<BrandLockup
-				class="gap-3"
-				markClass="h-8 w-8"
-				wordmarkClass="text-lg text-foreground"
-			/>
+	class="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_48%,transparent,rgba(0,0,0,0.55)_100%)]"
+	aria-hidden="true"
+></div>
 
-			<!-- Center: Welcome Message -->
-			<div class="flex-1 flex flex-col justify-center gap-4">
-				<h1 class="text-3xl font-bold text-foreground">{"Welcome to Acepe"}</h1>
-				<p class="text-base text-muted-foreground max-w-lg">
-					{"Your unified interface for AI coding agents. Work with Claude, Copilot, Codex, and other agents in parallel, all in one place."}
+<!-- Brand lockup + progress indicator — pinned top-left, persistent. -->
+<div class="absolute left-9 top-8 z-20 flex flex-col gap-4">
+	<BrandLockup
+		class="gap-2.5"
+		markClass="h-6 w-6"
+		wordmarkClass="text-[0.75rem] font-medium tracking-[0.24em] text-white/70"
+	/>
+	<!-- 3-segment progress. Calm, honest, no numbers or percentages. -->
+	<div class="flex items-center gap-1.5" aria-label="Onboarding progress" role="progressbar">
+		{#each ONBOARDING_STEPS as _, index (index)}
+			<span
+				class="progress-pill {index === currentStepIndex
+					? 'progress-pill--active'
+					: index < currentStepIndex
+						? 'progress-pill--done'
+						: ''}"
+			></span>
+		{/each}
+	</div>
+</div>
+
+<!-- Content layer. Card mounts with a short opacity breath whenever the step changes. -->
+<div class="onboarding-surface relative z-10 flex min-h-full w-full items-center justify-center px-6 py-24">
+	{#key onboardingStep}
+	{#if onboardingStep === "splash"}
+		<div class="onboarding-card bg-card flex w-full max-w-[600px] flex-col gap-10 rounded-3xl p-8">
+			<!-- Headline mirrors the marketing hero — one voice from landing to desktop. -->
+			<div class="flex flex-col gap-5">
+				<h1 class="text-[2.25rem] font-medium leading-[1.08] tracking-[-0.028em] text-white">
+					{"The Agentic Developer Environment"}
+				</h1>
+				<p class="text-[0.9375rem] leading-[1.55] text-white/55">
+					{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."}
 				</p>
 			</div>
 
-			<!-- Bottom: Agent Icons (left) + CTA Button (right) -->
+			<!-- Agent strip: full-color brand marks, unframed. -->
+			<div class="flex items-center gap-3">
+				{#each SPLASH_AGENTS as agent (agent.id)}
+					<div class="flex size-8 items-center justify-center rounded-lg bg-white/[0.04]">
+						<AgentIcon agentId={agent.id} size={18} />
+					</div>
+				{/each}
+			</div>
+
+			<!-- CTA row. No border divider — whitespace separates. -->
 			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-2">
-					{#each SPLASH_AGENTS as agent (agent.id)}
-						<AgentIcon agentId={agent.id} size={20} class="opacity-60" />
-					{/each}
-				</div>
-				<div class="flex items-center rounded-xl border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0">
-					<Button
-						variant="headerAction"
-						size="headerAction"
-						class="group/open-pr h-9 gap-2 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
-						onclick={advanceFromSplash}
+				<span class="flex items-center gap-1.5 text-[0.75rem] text-white/40">
+					<kbd class="keycap">⌘</kbd>
+					<kbd class="keycap">↵</kbd>
+					<span class="ml-1">{"to continue"}</span>
+				</span>
+				<Button
+					variant="default"
+					size="lg"
+					class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92"
+					onclick={advanceFromSplash}
+				>
+					<span>{"Get started"}</span>
+					<ArrowRight weight="bold" class="size-4" />
+				</Button>
+			</div>
+		</div>
+	{:else if onboardingStep === "agents"}
+		<div class="onboarding-card bg-card flex w-full max-w-[760px] flex-col gap-8 rounded-3xl p-8">
+			<div class="flex flex-col gap-3">
+				<h2 class="text-[1.625rem] font-medium leading-tight tracking-[-0.02em] text-white">
+					{"Choose your agents"}
+				</h2>
+				<p class="max-w-[460px] text-[0.9375rem] leading-[1.55] text-white/55">
+					{"Pick the agents you work with. We'll surface projects where you've used them."}
+				</p>
+			</div>
+
+			<div class="grid grid-cols-3 gap-2.5">
+				{#each onboardingAvailableAgents as agent (agent.id)}
+					{@const isSelected = onboardingSelectedAgents.includes(agent.id)}
+					{@const vendor = AGENT_VENDORS[agent.id] ?? ""}
+					<button
+						type="button"
+						aria-pressed={isSelected}
+						aria-label={agent.name}
+						onclick={() => toggleOnboardingAgent(agent.id)}
+						onpointermove={trackPointer}
+						class="agent-card group relative flex items-center gap-3.5 rounded-xl px-4 py-3.5 text-left {isSelected
+							? 'agent-card--selected'
+							: ''}"
 					>
-						<span>{"Get Started"}</span>
+						<!-- Icon tile. Selection lifts the tile surface and unmutes the icon;
+						     the icon itself keeps its native brand color when selected. -->
+						<div
+							class="flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 {isSelected
+								? 'bg-white/10'
+								: 'bg-white/[0.045] group-hover:bg-white/[0.075]'}"
+						>
+							<AgentIcon
+								agentId={agent.id}
+								size={20}
+								class="agent-icon {isSelected ? '' : 'agent-icon--monochrome'}"
+							/>
+						</div>
+						<div class="flex min-w-0 flex-col gap-0.5">
+							<span
+								class="truncate text-[0.875rem] font-medium leading-tight transition-colors duration-200 {isSelected
+									? 'text-white'
+									: 'text-white/85 group-hover:text-white'}"
+							>
+								{agent.name}
+							</span>
+							{#if vendor}
+								<span class="truncate text-[0.6875rem] tracking-wide text-white/35">
+									{vendor}
+								</span>
+							{/if}
+						</div>
+					</button>
+				{/each}
+			</div>
+
+			<div class="flex items-center justify-between">
+				<span class="flex items-center gap-1.5 text-[0.75rem] text-white/40">
+					{#if onboardingSelectedAgents.length === 0}
+						<span>{"Select at least one agent"}</span>
+					{:else}
+						<kbd class="keycap">⌘</kbd>
+						<kbd class="keycap">↵</kbd>
+						<span class="ml-1">{`to continue · ${onboardingSelectedAgents.length} selected`}</span>
+					{/if}
+				</span>
+				<Button
+					variant="default"
+					size="lg"
+					class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92 disabled:bg-white/[0.06] disabled:text-white/30 disabled:shadow-none"
+					disabled={onboardingSelectedAgents.length === 0}
+					onclick={() => (onboardingStep = "projects")}
+				>
+					<span>{"Continue"}</span>
+					<ArrowRight weight="bold" class="size-4" />
+				</Button>
+			</div>
+		</div>
+	{:else if onboardingStep === "projects"}
+		<div
+			class="onboarding-card bg-card flex max-h-[min(640px,calc(100vh-10rem))] w-full max-w-[760px] flex-col rounded-3xl"
+		>
+			<div class="flex flex-col gap-3 px-8 pt-8 pb-6">
+				<h2 class="text-[1.625rem] font-medium leading-tight tracking-[-0.02em] text-white">
+					{"Import your projects"}
+				</h2>
+				<p class="max-w-[480px] text-[0.9375rem] leading-[1.55] text-white/55">
+					{"We found these projects where your selected agents have sessions. Pick the ones you want to bring in."}
+				</p>
+			</div>
+
+			<div class="flex min-h-0 flex-1 flex-col gap-3 px-8">
+				{#if onboardingImportError}
+					<AgentErrorCard
+						title={onboardingImportError.title}
+						summary={onboardingImportError.summary}
+						details={onboardingImportError.details}
+						referenceId={onboardingImportError.referenceId}
+						referenceSearchable={onboardingImportError.referenceSearchable}
+						onDismiss={() => {
+							onboardingImportError = null;
+							onboardingImportProjectPath = null;
+							onboardingImportProjectName = null;
+						}}
+						onCopyReferenceId={copyOnboardingImportReferenceId}
+						issueActionLabel={onboardingIssueDraft
+							? resolveIssueActionLabel(onboardingIssueDraft)
+							: "Create issue"}
+						onIssueAction={onboardingIssueDraft ? handleOnboardingIssueAction : undefined}
+					/>
+				{/if}
+				{#if filteredProjects.length === 0 && !onboardingProjectsLoading}
+					<div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
+						<p class="text-[0.875rem] text-white/70">{"No matching projects found"}</p>
+						<p class="max-w-[320px] text-[0.8125rem] text-white/45">
+							{"Go back to adjust your agent selection, or skip — you can import projects anytime."}
+						</p>
+					</div>
+				{:else}
+					<div class="min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/[0.02]">
+						<ProjectTable
+							projects={filteredProjects}
+							loading={onboardingProjectsLoading}
+							addedPaths={onboardingAddedPaths}
+							selectedAgentIds={onboardingSelectedAgents}
+							onImport={handleOnboardingImport}
+						/>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Footer. No top border — we use whitespace + a soft inset surface to delineate. -->
+			<div class="flex items-center justify-between px-8 pt-6 pb-8">
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-9 rounded-lg px-3 text-[0.8125rem] text-white/55 hover:bg-white/[0.04] hover:text-white"
+					onclick={() => (onboardingStep = "agents")}
+				>
+					{"Back"}
+				</Button>
+				<div class="flex items-center gap-2">
+					<Button
+						variant="ghost"
+						size="sm"
+						class="h-9 rounded-lg px-3 text-[0.8125rem] text-white/55 hover:bg-white/[0.04] hover:text-white"
+						onclick={() => finishOnboarding()}
+					>
+						{"Skip for now"}
+					</Button>
+					<Button
+						variant="default"
+						size="lg"
+						class="h-9 gap-2 rounded-xl bg-primary px-5 text-[0.9375rem] font-medium text-primary-foreground shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_10px_24px_-12px_rgba(0,0,0,0.55)] hover:bg-primary/92"
+						onclick={() => finishOnboarding()}
+					>
+						<span>{"Finish"}</span>
+						<ArrowRight weight="bold" class="size-4" />
 					</Button>
 				</div>
 			</div>
 		</div>
 	{:else}
-		<!-- Agents / Projects / Scanning steps -->
-		{#if onboardingStep !== "projects"}
-			<BrandLockup
-				class="mb-8 gap-3"
-				markClass="h-10 w-10"
-				wordmarkClass="text-3xl text-foreground tracking-[0.14em]"
-			/>
-		{/if}
-
-		<div
-			class="w-full rounded-xl border border-border/50 bg-background {onboardingStep === 'projects'
-				? 'mx-auto flex max-h-[min(560px,calc(100vh-10rem))] max-w-2xl flex-col overflow-hidden p-5'
-				: 'max-w-3xl p-6'}"
-		>
-			{#if onboardingStep === "agents"}
-				<div class="space-y-6">
-					<div class="text-center space-y-2">
-						<h2 class="text-2xl font-semibold">{"Choose your agents"}</h2>
-						<p class="text-sm text-muted-foreground">
-							{"Select one or more AI agents to use. You can always change this later in settings."}
-						</p>
-					</div>
-
-					<div class="grid w-fit grid-cols-3 grid-rows-2 gap-4 mx-auto">
-						{#each onboardingAvailableAgents as agent (agent.id)}
-							<Button
-								variant="headerAction"
-								size="headerAction"
-								class="h-14 w-14 justify-center rounded-xl border-0 bg-transparent p-0 shadow-none"
-								aria-label={agent.name}
-								aria-pressed={onboardingSelectedAgents.includes(agent.id)}
-								title={agent.name}
-								onclick={() => toggleOnboardingAgent(agent.id)}
-							>
-								<AgentIcon
-									agentId={agent.id}
-									size={28}
-									class={onboardingSelectedAgents.includes(agent.id)
-										? "opacity-100 transition-opacity"
-										: "opacity-50 transition-opacity"}
-								/>
-							</Button>
-						{/each}
-					</div>
-
-					<div class="flex justify-end gap-3">
-						<div class="flex items-center rounded-xl border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0">
-							<Button
-								variant="headerAction"
-								size="headerAction"
-								class="h-9 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
-								disabled={onboardingSelectedAgents.length === 0}
-								onclick={() => (onboardingStep = "projects")}
-							>
-								{"Confirm"}
-							</Button>
-						</div>
-					</div>
-				</div>
-			{:else if onboardingStep === "projects"}
-				<div class="flex min-h-0 flex-col space-y-4">
-					{#if onboardingImportError}
-						<AgentErrorCard
-							title={onboardingImportError.title}
-							summary={onboardingImportError.summary}
-							details={onboardingImportError.details}
-							referenceId={onboardingImportError.referenceId}
-							referenceSearchable={onboardingImportError.referenceSearchable}
-							onDismiss={() => {
-								onboardingImportError = null;
-								onboardingImportProjectPath = null;
-								onboardingImportProjectName = null;
-							}}
-							onCopyReferenceId={copyOnboardingImportReferenceId}
-							issueActionLabel={onboardingIssueDraft
-								? resolveIssueActionLabel(onboardingIssueDraft)
-								: "Create issue"}
-							onIssueAction={onboardingIssueDraft ? handleOnboardingIssueAction : undefined}
-						/>
-					{/if}
-					{#if filteredProjects.length === 0 && !onboardingProjectsLoading}
-						<div class="flex flex-col items-center justify-center py-12 text-center space-y-3">
-							<p class="text-sm text-muted-foreground">{"No projects found with selected agents"}</p>
-							<p class="text-xs text-muted-foreground/70">
-								{"Go back to select different agents, or skip importing for now."}
-							</p>
-						</div>
-					{:else}
-						<div class="min-h-0 flex-1 overflow-y-auto">
-							<ProjectTable
-								projects={filteredProjects}
-								loading={onboardingProjectsLoading}
-								addedPaths={onboardingAddedPaths}
-								selectedAgentIds={onboardingSelectedAgents}
-								onImport={handleOnboardingImport}
-							/>
-						</div>
-					{/if}
-
-					<div class="flex justify-between pt-4">
-						<div class="flex items-center rounded-xl border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0">
-							<Button
-								variant="headerAction"
-								size="headerAction"
-								class="h-9 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
-								onclick={() => (onboardingStep = "agents")}
-							>
-								{"Back"}
-							</Button>
-						</div>
-						<div class="flex gap-3">
-							<PillButton variant="ghost" onclick={() => finishOnboarding()}>
-								{"Skip for now"}
-							</PillButton>
-							<div class="flex items-center rounded-xl border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0">
-								<Button
-									variant="headerAction"
-									size="headerAction"
-									class="h-9 rounded-none border-0 bg-transparent px-3 text-sm shadow-none"
-									onclick={() => finishOnboarding()}
-								>
-									{"Finish"}
-								</Button>
-							</div>
-						</div>
-					</div>
-				</div>
-			{:else}
-				<div class="flex flex-col items-center justify-center py-12 gap-3">
-					<Spinner class="h-8 w-8" />
-					<p class="text-sm text-muted-foreground">{onboardingBusyMessage || "Loading..."}</p>
-				</div>
-			{/if}
+		<!-- Scanning — unframed. -->
+		<div class="flex flex-col items-center gap-4">
+			<Spinner class="h-7 w-7 text-white/70" />
+			<p class="text-[0.875rem] text-white/55">{onboardingBusyMessage || "Loading…"}</p>
 		</div>
 	{/if}
+	{/key}
 </div>
+
+<style>
+	/*
+	 * One calm opacity breath on mount — and re-fires on each step change
+	 * because the content is wrapped in {#key onboardingStep}. No fly, no stagger.
+	 */
+	.onboarding-card {
+		position: relative;
+		box-shadow:
+			0 30px 60px -18px rgba(0, 0, 0, 0.55),
+			0 14px 28px -18px rgba(0, 0, 0, 0.45);
+		animation: onboarding-fade 280ms ease-out both;
+	}
+
+	@keyframes onboarding-fade {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	/*
+	 * Progress pills. Three short dashes beneath the wordmark.
+	 * Honest progression — no numbers, no percentages, no marketing gloss.
+	 */
+	.progress-pill {
+		display: block;
+		height: 2px;
+		width: 1.25rem;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.1);
+		transition:
+			background-color 220ms ease,
+			width 220ms ease;
+	}
+
+	.progress-pill--done {
+		background: rgba(255, 255, 255, 0.28);
+	}
+
+	.progress-pill--active {
+		width: 1.75rem;
+		background: rgba(240, 238, 230, 0.9);
+	}
+
+	/*
+	 * Agent icons. Monochrome at rest so no single brand color competes with
+	 * the selection state. On selection, the filter is dropped and the icon
+	 * renders in its native brand color — orange for Claude, etc.
+	 */
+	:global(.agent-icon) {
+		transition:
+			filter 200ms ease,
+			opacity 200ms ease;
+	}
+
+	:global(.agent-icon--monochrome) {
+		filter: grayscale(1) brightness(1.15);
+		opacity: 0.72;
+	}
+
+	:global(.agent-card:hover .agent-icon--monochrome) {
+		filter: grayscale(0) brightness(1);
+		opacity: 0.95;
+	}
+
+	/*
+	 * Keycap. Real physical feel via stacked inset shadows — no border.
+	 */
+	:global(.onboarding-surface .keycap) {
+		display: inline-flex;
+		height: 1.25rem;
+		min-width: 1.25rem;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.375rem;
+		border-radius: 0.3125rem;
+		background: rgba(255, 255, 255, 0.045);
+		color: rgba(255, 255, 255, 0.72);
+		font-family:
+			ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-size: 0.6875rem;
+		line-height: 1;
+		box-shadow:
+			inset 0 1px 0 rgba(255, 255, 255, 0.06),
+			inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+	}
+
+	/*
+	 * Agent card. No border. Surface is a low-opacity white wash.
+	 * A cursor-following spotlight replaces the usual hover tint — signature
+	 * JetBrains/Linear affordance, costs almost nothing, feels tactile.
+	 */
+	:global(.agent-card) {
+		background: rgba(255, 255, 255, 0.025);
+		transition:
+			background-color 200ms ease,
+			transform 200ms ease;
+	}
+
+	:global(.agent-card:hover) {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	:global(.agent-card--selected) {
+		background: rgba(240, 238, 230, 0.08);
+	}
+
+	:global(.agent-card:focus-visible) {
+		outline: none;
+		box-shadow: 0 0 0 2px rgba(240, 238, 230, 0.55);
+	}
+</style>

@@ -1,4 +1,5 @@
 use crate::db::entities::prelude::*;
+use crate::storage::acepe_config;
 use crate::{
     acp::agent_context::with_agent,
     acp::parsers::provider_capabilities::{
@@ -42,11 +43,16 @@ pub struct ProjectRow {
     pub color: String,
     pub sort_order: i32,
     pub icon_path: Option<String>,
+    pub show_external_cli_sessions: bool,
 }
 
 pub struct ProjectRepository;
 
 impl ProjectRepository {
+    fn load_project_config(path: &str) -> acepe_config::AcepeConfig {
+        acepe_config::read_or_default(std::path::Path::new(path))
+    }
+
     fn display_name(path: &str, stored_name: &str) -> String {
         std::path::Path::new(path)
             .file_name()
@@ -58,6 +64,9 @@ impl ProjectRepository {
 
     fn row_from_model(model: crate::db::entities::project::Model) -> ProjectRow {
         let name = Self::display_name(&model.path, &model.name);
+        let show_external_cli_sessions = Self::load_project_config(&model.path)
+            .external_cli_sessions
+            .show;
 
         ProjectRow {
             id: model.id,
@@ -68,6 +77,7 @@ impl ProjectRepository {
             color: model.color,
             sort_order: model.sort_order,
             icon_path: model.icon_path,
+            show_external_cli_sessions,
         }
     }
 
@@ -114,6 +124,8 @@ impl ProjectRepository {
                 path = %path,
                 "Project updated"
             );
+            let show_external_cli_sessions =
+                Self::load_project_config(&path).external_cli_sessions.show;
 
             ProjectRow {
                 id,
@@ -124,6 +136,7 @@ impl ProjectRepository {
                 color: final_color,
                 sort_order,
                 icon_path,
+                show_external_cli_sessions,
             }
         } else {
             // Create new project - assign random color if not provided
@@ -158,6 +171,8 @@ impl ProjectRepository {
                 color = %assigned_color,
                 "Project created"
             );
+            let show_external_cli_sessions =
+                Self::load_project_config(&path).external_cli_sessions.show;
 
             ProjectRow {
                 id,
@@ -168,6 +183,7 @@ impl ProjectRepository {
                 color: assigned_color,
                 sort_order: 0,
                 icon_path: None,
+                show_external_cli_sessions,
             }
         };
 
@@ -239,6 +255,23 @@ impl ProjectRepository {
         );
 
         Ok(models.into_iter().map(Self::row_from_model).collect())
+    }
+
+    pub async fn get_external_hidden_paths(
+        db: &DbConn,
+        project_paths: &[String],
+    ) -> Result<std::collections::HashSet<String>> {
+        let mut hidden_paths = std::collections::HashSet::new();
+
+        for project_path in project_paths {
+            if let Some(project) = Self::get_by_path(db, project_path).await? {
+                if !project.show_external_cli_sessions {
+                    hidden_paths.insert(project.path);
+                }
+            }
+        }
+
+        Ok(hidden_paths)
     }
 
     pub async fn update_icon_path(
@@ -1094,6 +1127,12 @@ pub struct SessionMetadataRow {
     pub sequence_id: Option<i32>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ProjectSessionsLookup {
+    pub db_row_count: usize,
+    pub entries: Vec<SessionMetadataRow>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReservedWorktreeLaunchRow {
     pub launch_token: String,
@@ -1934,9 +1973,13 @@ impl SessionMetadataRepository {
     pub async fn get_for_projects(
         db: &DbConn,
         project_paths: &[String],
-    ) -> Result<Vec<SessionMetadataRow>> {
+        external_hidden_paths: &std::collections::HashSet<String>,
+    ) -> Result<ProjectSessionsLookup> {
         if project_paths.is_empty() {
-            return Ok(Vec::new());
+            return Ok(ProjectSessionsLookup {
+                db_row_count: 0,
+                entries: Vec::new(),
+            });
         }
 
         tracing::debug!(
@@ -1950,15 +1993,21 @@ impl SessionMetadataRepository {
             .all(db)
             .await?;
 
-        let count = models.len();
-        tracing::debug!(count = count, "Loaded session metadata");
+        let db_row_count = models.len();
+        tracing::debug!(count = db_row_count, "Loaded session metadata");
 
         let session_ids: Vec<String> = models.iter().map(|model| model.id.clone()).collect();
         let state_map = Self::load_state_map(db, &session_ids).await?;
 
-        Ok(models
+        let entries = models
             .into_iter()
             .filter(|model| {
+                let hidden_external_session = external_hidden_paths.contains(&model.project_path)
+                    && model.is_acepe_managed == 0;
+                if hidden_external_session {
+                    return false;
+                }
+
                 state_map
                     .get(&model.id)
                     .map(|state| {
@@ -1967,7 +2016,12 @@ impl SessionMetadataRepository {
                     .unwrap_or(true)
             })
             .map(|model| compose_session_metadata_row(model.clone(), state_map.get(&model.id)))
-            .collect())
+            .collect();
+
+        Ok(ProjectSessionsLookup {
+            db_row_count,
+            entries,
+        })
     }
 
     /// Get startup sessions for specific session IDs.

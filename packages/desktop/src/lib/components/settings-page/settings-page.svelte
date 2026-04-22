@@ -10,6 +10,7 @@ import GeneralSection from "./sections/general-section.svelte";
 import GitSection from "./sections/git-section.svelte";
 import KeybindingsSection from "./sections/keybindings-section.svelte";
 import McpSection from "./sections/mcp-section.svelte";
+import ProjectSection from "./sections/project-section.svelte";
 import SkillsSection from "./sections/skills-section.svelte";
 import UsageSection from "./sections/usage-section.svelte";
 import VoiceSection from "./sections/voice-section.svelte";
@@ -70,6 +71,14 @@ function handleSectionChange(section: SettingsSectionId) {
 				<McpSection />
 			{:else if activeSection === "git"}
 				<GitSection />
+			{:else if activeSection === "project"}
+				{#if projectManager}
+					<ProjectSection {projectManager} />
+				{:else}
+					<div class="text-[12px] text-muted-foreground/50">
+						Project settings are only available from the main app view.
+					</div>
+				{/if}
 			{:else if activeSection === "environments"}
 				<EnvironmentsSection />
 			{:else if activeSection === "worktrees"}

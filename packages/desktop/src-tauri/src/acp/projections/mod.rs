@@ -137,8 +137,7 @@ pub struct SessionProjectionSnapshot {
     pub operations: Vec<OperationSnapshot>,
     pub interactions: Vec<InteractionSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub runtime:
-        Option<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot>,
+    pub runtime: Option<crate::acp::lifecycle::LifecycleCheckpoint>,
 }
 
 impl SessionSnapshot {

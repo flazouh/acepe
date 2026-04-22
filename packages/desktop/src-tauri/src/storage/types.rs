@@ -136,6 +136,14 @@ impl std::fmt::Display for UserSettingKey {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectAcepeConfig {
+    pub setup_script: String,
+    pub run_script: String,
+    pub show_external_cli_sessions: bool,
+}
+
 /// Custom keybindings stored as a map of command -> key
 /// Example: { "selector.agent.toggle": "$mod+o" }
 pub type CustomKeybindings = std::collections::HashMap<String, String>;

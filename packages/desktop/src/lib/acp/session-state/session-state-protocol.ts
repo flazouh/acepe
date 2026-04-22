@@ -1,4 +1,5 @@
 import type {
+	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
 	SessionGraphCapabilities,
@@ -18,6 +19,7 @@ export type {
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,
 	SessionGraphRevision,
+	CapabilityPreviewState,
 	SessionStateDelta,
 	SessionStateEnvelope,
 	SessionStateGraph,

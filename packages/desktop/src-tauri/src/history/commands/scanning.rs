@@ -184,12 +184,25 @@ async fn scan_project_sessions_inner(
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let result = SessionMetadataRepository::get_for_projects(db, &project_paths).await;
+            let external_hidden_paths =
+                crate::history::visibility::load_external_hidden_paths_or_empty(
+                    db,
+                    &project_paths,
+                    "scan_project_sessions",
+                )
+                .await;
+            let result = SessionMetadataRepository::get_for_projects(
+                db,
+                &project_paths,
+                &external_hidden_paths,
+            )
+            .await;
             let idx_ms = idx_start.elapsed().as_millis();
             match &result {
-                Ok(entries) => tracing::info!(
+                Ok(lookup) => tracing::info!(
                     elapsed_ms = idx_ms,
-                    count = entries.len(),
+                    count = lookup.entries.len(),
+                    db_row_count = lookup.db_row_count,
                     "SQLite index query completed"
                 ),
                 Err(e) => tracing::warn!(
@@ -198,7 +211,10 @@ async fn scan_project_sessions_inner(
                     "SQLite index query failed"
                 ),
             }
-            result.ok().filter(|entries| !entries.is_empty())
+            match result.ok() {
+                Some(lookup) if lookup.db_row_count > 0 => Some(lookup.entries),
+                _ => None,
+            }
         }
         None => {
             tracing::warn!("No DbConn available — skipping index fast path");

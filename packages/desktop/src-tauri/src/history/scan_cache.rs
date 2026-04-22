@@ -132,6 +132,10 @@ where
             }
         }
     }
+
+    pub async fn invalidate(&self) {
+        self.entries.lock().await.clear();
+    }
 }
 
 #[cfg(test)]

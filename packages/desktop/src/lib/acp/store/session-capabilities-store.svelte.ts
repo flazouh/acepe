@@ -24,6 +24,9 @@ export const DEFAULT_CAPABILITIES: SessionCapabilities = {
 	availableModels: [],
 	availableModes: [],
 	availableCommands: [],
+	revision: null,
+	pendingMutationId: null,
+	previewState: "partial",
 };
 
 /**
@@ -58,7 +61,29 @@ export class SessionCapabilitiesStore implements ICapabilitiesManager {
 	 */
 	updateCapabilities(sessionId: string, updates: Partial<SessionCapabilities>): void {
 		const current = this.capabilities.get(sessionId) ?? DEFAULT_CAPABILITIES;
-		this.capabilities.set(sessionId, { ...current, ...updates });
+		this.capabilities.set(sessionId, {
+			availableModels:
+				updates.availableModels === undefined ? current.availableModels : updates.availableModels,
+			availableModes:
+				updates.availableModes === undefined ? current.availableModes : updates.availableModes,
+			availableCommands:
+				updates.availableCommands === undefined
+					? current.availableCommands
+					: updates.availableCommands,
+			revision: updates.revision === undefined ? current.revision : updates.revision,
+			pendingMutationId:
+				updates.pendingMutationId === undefined
+					? current.pendingMutationId
+					: updates.pendingMutationId,
+			previewState:
+				updates.previewState === undefined ? current.previewState : updates.previewState,
+			modelsDisplay:
+				updates.modelsDisplay === undefined ? current.modelsDisplay : updates.modelsDisplay,
+			providerMetadata:
+				updates.providerMetadata === undefined
+					? current.providerMetadata
+					: updates.providerMetadata,
+		});
 	}
 
 	/**
@@ -78,6 +103,9 @@ export class SessionCapabilitiesStore implements ICapabilitiesManager {
 			availableModels: capabilities.availableModels,
 			availableModes: capabilities.availableModes,
 			availableCommands: capabilities.availableCommands ?? [],
+			revision: null,
+			pendingMutationId: null,
+			previewState: "canonical",
 			providerMetadata: capabilities.providerMetadata,
 		});
 	}

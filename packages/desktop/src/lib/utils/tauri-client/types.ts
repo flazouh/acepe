@@ -69,6 +69,13 @@ export interface ProjectData {
 	color: string;
 	sort_order: number;
 	icon_path?: string | null;
+	show_external_cli_sessions?: boolean;
+}
+
+export interface ProjectAcepeConfig {
+	setupScript: string;
+	runScript: string;
+	showExternalCliSessions: boolean;
 }
 
 /** Thread list display settings */

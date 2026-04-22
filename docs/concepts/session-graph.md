@@ -21,6 +21,7 @@ In practice, that means the session graph owns:
 - operations,
 - interactions,
 - runtime lifecycle,
+- lifecycle actionability/recovery metadata,
 - capabilities and config envelopes,
 - telemetry and budget state.
 
@@ -41,9 +42,9 @@ But raw events are not allowed to become a second durable database.
 
 Acepe should have **one durable authority path** for session truth:
 
-`provider signal -> backend projection -> canonical session graph -> desktop stores -> UI selectors`
+`provider facts -> SessionSupervisor -> canonical session graph -> desktop stores/selectors -> UI`
 
-If a feature needs to answer "what is the current tool?", "is this blocked on permission?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.
+If a feature needs to answer "what is the current tool?", "can this session send?", "should the primary CTA be resume or retry?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.
 
 ## Main graph nodes
 
@@ -85,6 +86,8 @@ The architecture should preserve these invariants:
 3. **Revisions matter.** Canonical envelopes apply in revision order and can be buffered until the target session is registered.
 4. **Transcript is not operation authority.** Tool rows in transcript history are presentation data, not the sole live source of runtime tool state.
 5. **Provider quirks belong at the edge.** Provider-specific parsing and lifecycle policy must be resolved before shared UI/store code consumes the state.
+6. **Lifecycle truth is backend-owned.** Shared UI may render lifecycle, but it may not reconstruct it from `isConnected`, raw transport timing, or hot-state.
+7. **Actionability is canonical too.** Status alone is not enough; resume/retry/send/archive affordances must come from canonical actionability/recovery fields.
 
 ## Design consequence
 
@@ -96,3 +99,5 @@ When adding a new feature, ask:
 4. Which selector renders it?
 
 If the answer starts with "the component can infer it from a transcript row" or "the frontend can reconstruct it from raw events," that is usually a sign the architecture is drifting.
+
+For the concrete lifecycle machine and flow diagrams, see [Session lifecycle](./session-lifecycle.md).

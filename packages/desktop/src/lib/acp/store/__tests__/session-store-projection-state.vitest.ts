@@ -458,6 +458,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					],
 					autonomousEnabled: true,
 				},
+				pendingMutationId: null,
+				previewState: "canonical",
 				revision: {
 					graphRevision: 9,
 					transcriptRevision: 7,

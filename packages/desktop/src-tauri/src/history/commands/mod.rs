@@ -60,6 +60,10 @@ pub struct ProjectSessionCounts {
 static SCAN_CACHE: LazyLock<ScanCache<Vec<HistoryEntry>>> =
     LazyLock::new(|| ScanCache::new(Duration::from_secs(5)));
 
+pub async fn invalidate_scan_cache() {
+    SCAN_CACHE.invalidate().await;
+}
+
 /// A single timing stage for session load audit.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TimingStage {

@@ -1,5 +1,6 @@
 use super::*;
 use crate::acp::client_session::default_modes;
+use crate::acp::client::session_lifecycle::reconnect_policy_for_provider;
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::{InteractionState, ProjectionRegistry};
@@ -151,6 +152,24 @@ impl AgentProvider for TestProvider {
         }
     }
 
+    fn reconnect_policy(
+        &self,
+        requested_launch_mode_id: Option<&str>,
+    ) -> crate::acp::provider::ProviderReconnectPolicy {
+        match self.id {
+            "cursor" => crate::acp::provider::ProviderReconnectPolicy {
+                use_load_semantics: true,
+                outbound_launch_mode_id: None,
+            },
+            "copilot" => crate::acp::provider::ProviderReconnectPolicy {
+                use_load_semantics: false,
+                outbound_launch_mode_id: requested_launch_mode_id
+                    .map(|mode_id| self.map_outbound_mode_id(mode_id)),
+            },
+            _ => crate::acp::provider::ProviderReconnectPolicy::default(),
+        }
+    }
+
     fn model_fallback_for_empty_list(
         &self,
         current_model_id: &str,
@@ -247,6 +266,57 @@ fn create_no_launcher_test_client() -> AcpClient {
     let provider: StdArc<dyn AgentProvider> = StdArc::new(NoLauncherProvider);
     let cwd = std::env::current_dir().expect("current dir should be available");
     AcpClient::new_with_provider(provider, None, cwd).expect("client should be created")
+}
+
+#[test]
+fn reconnect_policy_for_provider_uses_provider_owned_load_semantics() {
+    let provider: StdArc<dyn AgentProvider> = StdArc::new(TestProvider { id: "cursor" });
+    let reconnect_policy = reconnect_policy_for_provider(Some(provider.as_ref()), Some("build"));
+
+    assert!(reconnect_policy.use_load_semantics);
+    assert_eq!(reconnect_policy.outbound_launch_mode_id, None);
+}
+
+#[test]
+fn reconnect_policy_for_provider_maps_launch_mode_without_client_branching() {
+    let provider: StdArc<dyn AgentProvider> = StdArc::new(TestProvider { id: "copilot" });
+    let reconnect_policy = reconnect_policy_for_provider(Some(provider.as_ref()), Some("build"));
+
+    assert!(!reconnect_policy.use_load_semantics);
+    assert_eq!(
+        reconnect_policy.outbound_launch_mode_id.as_deref(),
+        Some("build")
+    );
+}
+
+#[test]
+fn provider_owned_model_presentation_metadata_matches_provider_contract() {
+    let provider = TestProvider { id: "codex" };
+    let presentation = provider.model_presentation_metadata();
+
+    assert_eq!(
+        presentation.display_family,
+        crate::acp::model_display::ModelDisplayFamily::CodexReasoningEffort
+    );
+    assert_eq!(
+        presentation.usage_metrics,
+        crate::acp::model_display::UsageMetricsPresentation::SpendAndContext
+    );
+}
+
+#[test]
+fn session_lifecycle_uses_provider_owned_model_presentation_contract() {
+    let source = include_str!("session_lifecycle.rs");
+    let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+    assert!(
+        production_source.contains("provider.model_presentation_metadata()"),
+        "session lifecycle should use provider-owned model presentation metadata"
+    );
+    assert!(
+        !production_source.contains("provider_capabilities(agent_type)"),
+        "session lifecycle should not reconstruct model presentation from parser agent type"
+    );
 }
 
 async fn setup_test_db() -> DbConn {
@@ -1044,7 +1114,7 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
 }
 
 #[tokio::test]
-async fn load_stored_projection_falls_back_to_legacy_projection_snapshot() {
+async fn load_stored_projection_ignores_legacy_projection_snapshot_without_journal() {
     let db = setup_test_db().await;
     SessionMetadataRepository::upsert(
         &db,
@@ -1073,14 +1143,7 @@ async fn load_stored_projection_falls_back_to_legacy_projection_snapshot() {
     let replay_context = replay_context_for_session(&db, "session-legacy").await;
     let stored_projection = load_stored_projection(&db, &replay_context)
         .await
-        .expect("load stored projection")
-        .expect("legacy snapshot should be returned");
+        .expect("load stored projection");
 
-    assert_eq!(
-        stored_projection
-            .session
-            .expect("session snapshot should be present")
-            .session_id,
-        "session-legacy"
-    );
+    assert!(stored_projection.is_none());
 }

@@ -2,6 +2,8 @@
 
 This section is the **architecture reference** for Acepe's core product concepts.
 
+It also acts as the closest thing this repository has to a local architecture wiki: if there is no separate wiki tree, these pages are the canonical long-form concept surface.
+
 Use it when you need to answer questions like:
 
 - What is the canonical session graph?
@@ -25,6 +27,7 @@ The goal is to stop the codebase from drifting into multiple hidden authorities.
 ## Core concepts
 
 - [Session graph](./session-graph.md) — the canonical product-state model
+- [Session lifecycle](./session-lifecycle.md) — the seven-state authority model, public flows, and recovery semantics
 - [Operations](./operations.md) — durable runtime work state
 - [Interactions](./interactions.md) — permissions, questions, and approvals
 - [Reconnect and resume](./reconnect-and-resume.md) — how state survives reopen, reconnect, and refresh

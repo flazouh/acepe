@@ -149,6 +149,16 @@ impl AgentProvider for CursorProvider {
         }
     }
 
+    fn reconnect_policy(
+        &self,
+        _requested_launch_mode_id: Option<&str>,
+    ) -> crate::acp::provider::ProviderReconnectPolicy {
+        crate::acp::provider::ProviderReconnectPolicy {
+            use_load_semantics: true,
+            outbound_launch_mode_id: None,
+        }
+    }
+
     fn model_fallback_for_empty_list(
         &self,
         current_model_id: &str,
@@ -718,6 +728,15 @@ mod tests {
         assert_eq!(provider.map_outbound_mode_id("build"), "agent");
         assert_eq!(provider.normalize_mode_id("agent"), "build");
         assert_eq!(provider.normalize_mode_id("ask"), "build");
+    }
+
+    #[test]
+    fn reconnect_policy_uses_provider_owned_load_semantics() {
+        let provider = CursorProvider;
+        let reconnect_policy = provider.reconnect_policy(Some("build"));
+
+        assert!(reconnect_policy.use_load_semantics);
+        assert_eq!(reconnect_policy.outbound_launch_mode_id, None);
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use super::*;
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
     ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput,
@@ -88,42 +89,10 @@ pub(crate) async fn persist_session_metadata_for_cwd(
 }
 
 async fn ensure_session_anchor_snapshots(
-    db: &DbConn,
-    session_id: &str,
-    agent_id: &CanonicalAgentId,
+    _db: &DbConn,
+    _session_id: &str,
+    _agent_id: &CanonicalAgentId,
 ) -> anyhow::Result<()> {
-    if SessionTranscriptSnapshotRepository::get(db, session_id)
-        .await?
-        .is_none()
-    {
-        SessionTranscriptSnapshotRepository::set(
-            db,
-            session_id,
-            &TranscriptSnapshot::from_stored_entries(0, &[]),
-        )
-        .await?;
-    }
-
-    if SessionProjectionSnapshotRepository::get(db, session_id)
-        .await?
-        .is_none()
-    {
-        SessionProjectionSnapshotRepository::set(
-            db,
-            session_id,
-            &SessionProjectionSnapshot {
-                session: Some(crate::acp::projections::SessionSnapshot::new(
-                    session_id.to_string(),
-                    Some(agent_id.clone()),
-                )),
-                operations: Vec::new(),
-                interactions: Vec::new(),
-                runtime: None,
-            },
-        )
-        .await?;
-    }
-
     Ok(())
 }
 
@@ -335,7 +304,8 @@ pub async fn acp_get_session_state(
         )
         .await?;
         let last_event_seq = revision.last_event_seq;
-        let transcript_snapshot = load_transcript_snapshot_for_state_lookup(
+        let transcript_snapshot = load_transcript_snapshot_for_state_lookup_with_app(
+            Some(&app),
             db.inner(),
             transcript_registry.inner().as_ref(),
             &canonical_session_id,
@@ -413,25 +383,32 @@ async fn load_transcript_snapshot_for_state_lookup(
     replay_context: Option<&SessionReplayContext>,
     last_event_seq: i64,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
+    load_transcript_snapshot_for_state_lookup_with_app(
+        None,
+        db,
+        transcript_registry,
+        canonical_session_id,
+        requested_session_id,
+        replay_context,
+        last_event_seq,
+    )
+    .await
+}
+
+async fn load_transcript_snapshot_for_state_lookup_with_app(
+    app: Option<&AppHandle>,
+    db: &DbConn,
+    transcript_registry: &TranscriptProjectionRegistry,
+    canonical_session_id: &str,
+    requested_session_id: &str,
+    replay_context: Option<&SessionReplayContext>,
+    last_event_seq: i64,
+) -> Result<TranscriptSnapshot, SerializableAcpError> {
     if let Some(snapshot) = transcript_registry
         .snapshot_for_session(canonical_session_id)
         .or_else(|| transcript_registry.snapshot_for_session(requested_session_id))
     {
         return Ok(snapshot);
-    }
-
-    let stored_snapshot = SessionTranscriptSnapshotRepository::get(db, canonical_session_id)
-        .await
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!(
-                "Failed to load transcript snapshot for state lookup {canonical_session_id}: {error}"
-            ),
-        })?;
-
-    if let Some(snapshot) = stored_snapshot.as_ref() {
-        if snapshot.revision >= last_event_seq || replay_context.is_none() {
-            return Ok(snapshot.clone());
-        }
     }
 
     if let Some(replay_context) = replay_context {
@@ -447,10 +424,35 @@ async fn load_transcript_snapshot_for_state_lookup(
                 return Ok(journal_snapshot);
             }
         }
+
+        if let Some(app) = app {
+            if let Some(provider_snapshot) =
+                crate::history::commands::session_loading::ensure_canonical_session_materialized(
+                    app.clone(),
+                    replay_context,
+                )
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to load provider-owned transcript for state lookup {canonical_session_id}: {error}"
+                    ),
+                })?
+            {
+                return Ok(TranscriptSnapshot::from_stored_entries(
+                    last_event_seq,
+                    &provider_snapshot.entries,
+                ));
+            }
+        }
     }
 
-    Ok(stored_snapshot
-        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[])))
+    Ok(TranscriptSnapshot::from_stored_entries(last_event_seq, &[]))
+}
+
+fn projection_contains_restorable_content(snapshot: &SessionProjectionSnapshot) -> bool {
+    snapshot.session.is_some()
+        || !snapshot.operations.is_empty()
+        || !snapshot.interactions.is_empty()
 }
 
 #[derive(Debug, Clone)]
@@ -512,7 +514,10 @@ async fn load_session_projection_lookup(
     } else {
         None
     };
-    if let Some(stored_projection) = stored_projection {
+    let stored_runtime = stored_projection.as_ref().and_then(|snapshot| snapshot.runtime.clone());
+    if let Some(stored_projection) = stored_projection
+        .filter(projection_contains_restorable_content)
+    {
         return Ok(SessionProjectionLookup {
             projection: stored_projection,
             metadata,
@@ -561,6 +566,8 @@ async fn load_session_projection_lookup(
         ),
         &imported_thread_snapshot,
     );
+    let mut imported_projection = imported_projection;
+    imported_projection.runtime = stored_runtime;
 
     Ok(SessionProjectionLookup {
         projection: imported_projection,
@@ -643,11 +650,35 @@ pub async fn acp_new_session(
                 .await?
         };
 
-        // Store the client keyed by session_id only after session metadata is durably attached.
+        tracing::info!(
+            session_id = %result.session_id,
+            "New session created with dedicated client"
+        );
+        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+        app.state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
+            .inner()
+            .reserve(db.inner(), projection_registry.inner(), &result.session_id)
+            .await
+            .map_err(|error| {
+                tracing::error!(
+                    session_id = %result.session_id,
+                    error = %error,
+                    "Failed to reserve supervisor runtime checkpoint for new session"
+                );
+                client.stop();
+                SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to reserve lifecycle runtime checkpoint for session {}: {error}",
+                        result.session_id
+                    ),
+                }
+            })?;
+
+        // Store the client keyed by session_id only after session metadata and
+        // supervisor state are durably attached.
         if let Some(old_client) =
             session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
         {
-            // Stop the replaced client
             tracing::warn!(
                 session_id = %redact_session_id(&result.session_id),
                 agent_id = %agent_id_enum.as_str(),
@@ -659,11 +690,6 @@ pub async fn acp_new_session(
             tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
         }
 
-        tracing::info!(
-            session_id = %result.session_id,
-            "New session created with dedicated client"
-        );
-        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
         let session_open =
             build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
 
@@ -693,6 +719,57 @@ pub async fn acp_resume_session(
     attempt_id: u64,
     open_token: Option<String>,
 ) -> CommandResult<()> {
+    resume_session_with_app_handle_and_worker(
+        &app,
+        session_id,
+        cwd,
+        agent_id,
+        launch_mode_id,
+        attempt_id,
+        open_token,
+        |app, session_id, cwd, agent_id_enum, launch_mode_id, resume_descriptor, open_token| async move {
+            async_resume_session_work(
+                &app,
+                &session_id,
+                cwd,
+                agent_id_enum,
+                launch_mode_id,
+                &resume_descriptor,
+                open_token,
+            )
+            .await
+        },
+    )
+    .await
+}
+
+pub(crate) async fn resume_session_with_app_handle_and_worker<R, Work, Fut>(
+    app: &AppHandle<R>,
+    session_id: String,
+    cwd: String,
+    agent_id: Option<String>,
+    launch_mode_id: Option<String>,
+    attempt_id: u64,
+    open_token: Option<String>,
+    work: Work,
+) -> CommandResult<()>
+where
+    R: tauri::Runtime,
+    Work: FnOnce(
+            AppHandle<R>,
+            String,
+            PathBuf,
+            CanonicalAgentId,
+            Option<String>,
+            crate::acp::session_descriptor::SessionDescriptor,
+            Option<String>,
+        ) -> Fut
+        + Send
+        + 'static,
+    Fut: std::future::Future<Output = Result<ResumeSessionResponse, SerializableAcpError>>
+        + Send
+        + 'static,
+{
     expected_acp_command_result("acp_resume_session", async {
         tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, attempt_id, "acp_resume_session called");
 
@@ -705,10 +782,58 @@ pub async fn acp_resume_session(
             ProjectAccessReason::SessionResume,
         )?;
         let agent_id_enum = resume_target.descriptor.agent_id.clone();
+        let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
+        let projection_registry = app.try_state::<Arc<ProjectionRegistry>>();
+        if let (Some(runtime_registry), Some(projection_registry)) =
+            (runtime_registry.as_ref(), projection_registry.as_ref())
+        {
+            let supervisor = app.state::<Arc<SessionSupervisor>>();
+            supervisor
+                .inner()
+                .transition_lifecycle_state(
+                    db.inner(),
+                    projection_registry.inner(),
+                    &session_id,
+                    crate::acp::lifecycle::LifecycleState::activating(),
+                )
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to persist activating checkpoint for session {session_id}: {error}"
+                    ),
+                })?;
+
+            let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+            let revision = load_live_session_graph_revision(
+                db.inner(),
+                transcript_projection_registry.inner(),
+                Some(runtime_registry.inner().as_ref()),
+                &session_id,
+            )
+            .await?;
+
+            if let Some(envelope) = runtime_registry
+                .inner()
+                .build_snapshot_envelope_for_session(
+                    db.inner(),
+                    &session_id,
+                    revision,
+                    projection_registry.inner(),
+                    transcript_projection_registry.inner(),
+                )
+                .await
+            {
+                publish_session_state_envelope(
+                    app.state::<Arc<AcpEventHubState>>().inner(),
+                    envelope,
+                );
+            }
+        }
 
         // Clone values needed for the async task
         let app_clone = app.clone();
         let resume_descriptor = resume_target.descriptor.clone();
+        let work = work;
 
         // --- Spawn the async task for heavy work ---
         // We capture the JoinHandle and spawn a follow-up task to catch panics,
@@ -718,13 +843,13 @@ pub async fn acp_resume_session(
         let handle = tokio::spawn(async move {
             let result = timeout(
                 RESUME_SESSION_TIMEOUT,
-                async_resume_session_work(
-                    &app_clone,
-                    &session_id,
+                work(
+                    app_clone.clone(),
+                    session_id.clone(),
                     cwd,
                     agent_id_enum,
                     launch_mode_id,
-                    &resume_descriptor,
+                    resume_descriptor,
                     open_token,
                 ),
             )
@@ -817,8 +942,8 @@ pub async fn acp_resume_session(
 }
 
 /// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
-async fn emit_lifecycle_event(
-    app: &AppHandle,
+pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     hub: &Option<Arc<AcpEventHubState>>,
     update: crate::acp::session_update::SessionUpdate,
     session_id: &str,
@@ -828,6 +953,7 @@ async fn emit_lifecycle_event(
         return;
     };
     let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let base_revision = match load_live_session_graph_revision(
         app.state::<DbConn>().inner(),
         app.state::<Arc<TranscriptProjectionRegistry>>().inner(),
@@ -848,14 +974,23 @@ async fn emit_lifecycle_event(
             return;
         }
     };
-    if let Some(runtime_registry) = runtime_registry.as_ref() {
-        runtime_registry
-            .inner()
-            .apply_session_update_with_graph_seed(
-                session_id,
-                base_revision.graph_revision,
-                &update,
-            );
+    if let Err(error) = app
+        .state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
+        .inner()
+        .transition_lifecycle(
+            app.state::<DbConn>().inner(),
+            projection_registry.inner(),
+            session_id,
+            &update,
+        )
+        .await
+    {
+        tracing::error!(
+            session_id = %session_id,
+            error = %error,
+            "Failed to persist supervisor-owned lifecycle transition"
+        );
+        return;
     }
     let revision = match load_live_session_graph_revision(
         app.state::<DbConn>().inner(),
@@ -877,8 +1012,16 @@ async fn emit_lifecycle_event(
             return;
         }
     };
+    let lifecycle_event =
+        crate::acp::ui_event_dispatcher::AcpUiEvent::session_update(update.clone());
+    if let Err(error) = lifecycle_event.publish_direct(hub) {
+        tracing::error!(
+            error = %error,
+            session_id = %session_id,
+            "Failed to publish direct ACP lifecycle session update"
+        );
+    }
     if let Some(runtime_registry) = runtime_registry.as_ref() {
-        let projection_registry = app.state::<Arc<ProjectionRegistry>>();
         let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
         if let Some(envelope) = runtime_registry
             .inner()
@@ -915,13 +1058,6 @@ async fn load_live_session_graph_revision(
         .unwrap_or(0);
     let transcript_revision = transcript_projection_registry
         .snapshot_for_session(session_id)
-        .or(SessionTranscriptSnapshotRepository::get(db, session_id)
-            .await
-            .map_err(|error| SerializableAcpError::InvalidState {
-                message: format!(
-                    "Failed to determine transcript frontier for session {session_id}: {error}"
-                ),
-            })?)
         .map(|snapshot| snapshot.revision)
         .unwrap_or(0);
     let graph_revision = runtime_registry
@@ -937,7 +1073,7 @@ async fn load_live_session_graph_revision(
 
 fn runtime_snapshot_for_refresh(
     runtime_registry: Option<&SessionGraphRuntimeRegistry>,
-    stored_runtime: Option<&SessionGraphRuntimeSnapshot>,
+    stored_runtime: Option<&crate::acp::lifecycle::LifecycleCheckpoint>,
     session_id: &str,
 ) -> SessionGraphRuntimeSnapshot {
     let live_runtime = runtime_registry
@@ -948,7 +1084,9 @@ fn runtime_snapshot_for_refresh(
         return live_runtime;
     }
 
-    stored_runtime.cloned().unwrap_or_default()
+    stored_runtime
+        .map(SessionGraphRuntimeSnapshot::from_checkpoint)
+        .unwrap_or_default()
 }
 
 fn projection_snapshot_with_runtime(
@@ -959,12 +1097,32 @@ fn projection_snapshot_with_runtime(
     let mut projection_snapshot = projection_registry.session_projection(session_id);
     let runtime_snapshot = runtime_registry.snapshot_for_session(session_id);
     if runtime_snapshot.graph_revision > 0 {
-        projection_snapshot.runtime = Some(runtime_snapshot);
+        projection_snapshot.runtime = Some(runtime_snapshot.into_checkpoint());
     }
     projection_snapshot
 }
 
-fn publish_session_state_envelope(hub: &Arc<AcpEventHubState>, envelope: SessionStateEnvelope) {
+async fn projection_snapshot_with_persisted_runtime(
+    db: &DbConn,
+    projection_registry: &ProjectionRegistry,
+    session_id: &str,
+) -> Result<SessionProjectionSnapshot, SerializableAcpError> {
+    let mut projection_snapshot = projection_registry.session_projection(session_id);
+    projection_snapshot.runtime = SessionProjectionSnapshotRepository::get(db, session_id)
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to load stored runtime checkpoint for session {session_id}: {error}"
+            ),
+        })?
+        .and_then(|snapshot| snapshot.runtime);
+    Ok(projection_snapshot)
+}
+
+pub(crate) fn publish_session_state_envelope(
+    hub: &Arc<AcpEventHubState>,
+    envelope: SessionStateEnvelope,
+) {
     let session_state_payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
         tracing::error!(
             %error,
@@ -1019,17 +1177,14 @@ async fn load_transcript_snapshot_for_resume(
     db: &DbConn,
     session_id: &str,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
-    if let Some(snapshot) = SessionTranscriptSnapshotRepository::get(db, session_id)
-        .await
-        .map_err(|error| SerializableAcpError::InvalidState {
-            message: format!(
-                "Failed to load transcript snapshot for resumed session {session_id}: {error}"
-            ),
-        })?
-    {
-        return Ok(snapshot);
-    }
+    load_transcript_snapshot_for_resume_with_app(None, db, session_id).await
+}
 
+async fn load_transcript_snapshot_for_resume_with_app(
+    app: Option<&AppHandle>,
+    db: &DbConn,
+    session_id: &str,
+) -> Result<TranscriptSnapshot, SerializableAcpError> {
     let journal_max = SessionJournalEventRepository::max_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
@@ -1045,6 +1200,21 @@ async fn load_transcript_snapshot_for_resume(
             ),
         })?;
     let has_metadata = metadata.is_some();
+    let replay_context = metadata
+        .as_ref()
+        .map(|row| {
+            SessionMetadataRepository::resolve_existing_session_replay_context_from_metadata(
+                session_id,
+                Some(row),
+                SessionCompatibilityInput::default(),
+            )
+        })
+        .transpose()
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+                "Failed to resolve replay context for resumed session {session_id}: {error}"
+            ),
+        })?;
     if has_metadata && journal_max == Some(1) {
         let first_event = crate::db::entities::session_journal_event::Entity::find()
             .filter(crate::db::entities::session_journal_event::Column::SessionId.eq(session_id))
@@ -1061,6 +1231,27 @@ async fn load_transcript_snapshot_for_resume(
             .is_some_and(|event| event.event_kind == "materialization_barrier")
         {
             return Ok(TranscriptSnapshot::from_stored_entries(1, &[]));
+        }
+    }
+    if let Some(app) = app {
+        if let Some(replay_context) = replay_context.as_ref() {
+            if let Some(provider_snapshot) =
+                crate::history::commands::session_loading::ensure_canonical_session_materialized(
+                    app.clone(),
+                    replay_context,
+                )
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Failed to load provider-owned transcript for resumed session {session_id}: {error}"
+                    ),
+                })?
+            {
+                return Ok(TranscriptSnapshot::from_stored_entries(
+                    journal_max.unwrap_or(0),
+                    &provider_snapshot.entries,
+                ));
+            }
         }
     }
     if let Some(metadata) = metadata {
@@ -1184,7 +1375,8 @@ async fn async_resume_session_work(
 
     let replay_context: crate::acp::session_descriptor::SessionReplayContext =
         resume_descriptor.clone().into();
-    crate::history::commands::session_loading::ensure_canonical_session_materialized(
+    let restored_thread_snapshot =
+        crate::history::commands::session_loading::ensure_canonical_session_materialized(
         app.clone(),
         &replay_context,
     )
@@ -1194,7 +1386,19 @@ async fn async_resume_session_work(
             "Failed to materialize canonical session state for resumed session {session_id}: {error}"
         ),
     })?;
-    let transcript_snapshot = load_transcript_snapshot_for_resume(db.inner(), session_id).await?;
+    let transcript_snapshot = if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+        let last_event_seq = SessionJournalEventRepository::max_event_seq(db.inner(), session_id)
+            .await
+            .map_err(|error| SerializableAcpError::InvalidState {
+                message: format!(
+                    "Failed to determine journal cutoff for resumed session {session_id}: {error}"
+                ),
+            })?
+            .unwrap_or(0);
+        TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries)
+    } else {
+        load_transcript_snapshot_for_resume_with_app(Some(&app), db.inner(), session_id).await?
+    };
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
 
@@ -1225,15 +1429,24 @@ async fn async_resume_session_work(
             ),
         })?;
     if let Some(stored_projection) = stored_projection {
-        if let Some(runtime_snapshot) = stored_projection.runtime.clone() {
-            runtime_registry.restore_session_state(
-                session_id.to_string(),
-                runtime_snapshot.graph_revision,
-                runtime_snapshot.lifecycle,
-                runtime_snapshot.capabilities,
-            );
+        if let Some(runtime_checkpoint) = stored_projection.runtime.clone() {
+            runtime_registry.restore_session_checkpoint(session_id.to_string(), runtime_checkpoint);
         }
-        projection_registry.restore_session_projection(stored_projection);
+        if projection_contains_restorable_content(&stored_projection) {
+            projection_registry.restore_session_projection(stored_projection);
+        } else if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+            projection_registry.restore_session_projection(ProjectionRegistry::project_thread_snapshot(
+                session_id,
+                Some(replay_context.agent_id.clone()),
+                snapshot,
+            ));
+        }
+    } else if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+        projection_registry.restore_session_projection(ProjectionRegistry::project_thread_snapshot(
+            session_id,
+            Some(replay_context.agent_id.clone()),
+            snapshot,
+        ));
     }
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
@@ -1348,18 +1561,16 @@ pub async fn acp_fork_session(
     agent_id: Option<String>,
 ) -> CommandResult<NewSessionResponse> {
     expected_acp_command_result("acp_fork_session", async {
-        tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_fork_session called");
-        let db = app.state::<DbConn>();
-        let fork_target =
-            resolve_fork_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
-        let cwd = validate_session_cwd(&fork_target.launch_cwd, ProjectAccessReason::Other)?;
+        let (fork_target, cwd, ready_dispatch_permit) =
+            fork_preflight_with_app_handle(&app, &session_id, &cwd, agent_id.as_deref()).await?;
         let registry = app.state::<Arc<AgentRegistry>>();
         let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
         let session_registry = app.state::<SessionRegistry>();
         let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+        let db = app.state::<DbConn>();
+        let supervisor = app.try_state::<Arc<SessionSupervisor>>();
         let agent_id_enum = fork_target.launch_agent_id.clone();
 
-        // Create and initialize client with cwd so subprocess spawns in correct directory
         let mut client = create_and_initialize_client(
             &registry,
             &opencode_manager,
@@ -1370,7 +1581,15 @@ pub async fn acp_fork_session(
         )
         .await?;
 
-        // Fork the session
+        if let (Some(supervisor), Some(permit)) = (supervisor.as_ref(), ready_dispatch_permit.as_ref()) {
+            supervisor
+                .inner()
+                .validate_ready_dispatch_permit(permit)
+                .map_err(|error| SerializableAcpError::ProtocolError {
+                    message: error.to_string(),
+                })?;
+        }
+
         tracing::debug!("Forking session");
         let result = client
             .fork_session(
@@ -1383,11 +1602,9 @@ pub async fn acp_fork_session(
                 SerializableAcpError::from(e)
             })?;
 
-        // Store the client keyed by NEW session_id
         if let Some(old_client) =
             session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
         {
-            // Stop the replaced client
             tracing::warn!(
                 session_id = %redact_session_id(&result.session_id),
                 agent_id = %agent_id_enum.as_str(),
@@ -1417,6 +1634,38 @@ pub async fn acp_fork_session(
         })
     }
     .await)
+}
+
+pub(crate) async fn fork_preflight_with_app_handle<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    session_id: &str,
+    cwd: &str,
+    agent_id: Option<&str>,
+) -> Result<
+    (
+        ResolvedForkSession,
+        std::path::PathBuf,
+        Option<ReadyDispatchPermit>,
+    ),
+    SerializableAcpError,
+> {
+    tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_fork_session called");
+    let db = app.state::<DbConn>();
+    let fork_target =
+        resolve_fork_session_target(db.inner(), session_id, cwd, agent_id).await?;
+    let cwd = validate_session_cwd(&fork_target.launch_cwd, ProjectAccessReason::Other)?;
+    let ready_dispatch_permit = app
+        .try_state::<Arc<SessionSupervisor>>()
+        .map(|supervisor| {
+            supervisor
+                .inner()
+                .issue_ready_dispatch_permit(session_id)
+                .map_err(|error| SerializableAcpError::ProtocolError {
+                    message: error.to_string(),
+                })
+        })
+        .transpose()?;
+    Ok((fork_target, cwd, ready_dispatch_permit))
 }
 
 /// Close a session and clean up its client
@@ -1458,41 +1707,31 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
 
             // Clean up streaming accumulator state for this session
             crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);
-            let runtime_registry = app.state::<Arc<SessionGraphRuntimeRegistry>>();
-            let runtime_projection = projection_snapshot_with_runtime(
+            let runtime_projection = projection_snapshot_with_persisted_runtime(
+                db.inner(),
                 projection_registry.inner().as_ref(),
-                runtime_registry.inner().as_ref(),
                 &session_id,
-            );
-            if projection_has_runtime_state(&runtime_projection) {
+            )
+            .await?;
+            if let Some(runtime_checkpoint) = runtime_projection.runtime.clone() {
                 SessionProjectionSnapshotRepository::set(
                     db.inner(),
                     &session_id,
-                    &runtime_projection,
+                    &SessionProjectionSnapshot {
+                        session: None,
+                        operations: Vec::new(),
+                        interactions: Vec::new(),
+                        runtime: Some(runtime_checkpoint),
+                    },
                 )
                 .await
                 .map_err(|error| SerializableAcpError::InvalidState {
                     message: format!(
-                        "Failed to persist projection snapshot for session {session_id}: {error}"
+                        "Failed to persist runtime checkpoint for session {session_id}: {error}"
                     ),
                 })?;
             }
             projection_registry.remove_session(&session_id);
-            if let Some(transcript_snapshot) =
-                transcript_projection_registry.snapshot_for_session(&session_id)
-            {
-                SessionTranscriptSnapshotRepository::set(
-                    db.inner(),
-                    &session_id,
-                    &transcript_snapshot,
-                )
-                .await
-                .map_err(|error| SerializableAcpError::InvalidState {
-                    message: format!(
-                        "Failed to persist transcript snapshot for session {session_id}: {error}"
-                    ),
-                })?;
-            }
             transcript_projection_registry.remove_session(&session_id);
 
             Ok(())
@@ -1651,7 +1890,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resume_uses_persisted_canonical_transcript_snapshot() {
+    async fn resume_returns_empty_transcript_without_provider_or_journal_history() {
         let db = setup_test_db().await;
         SessionMetadataRepository::ensure_exists(
             &db,
@@ -1662,19 +1901,12 @@ mod tests {
         )
         .await
         .expect("seed metadata");
-        SessionTranscriptSnapshotRepository::set(
-            &db,
-            "resume-session",
-            &TranscriptSnapshot::from_stored_entries(3, &[]),
-        )
-        .await
-        .expect("persist transcript snapshot");
 
         let transcript = load_transcript_snapshot_for_resume(&db, "resume-session")
             .await
             .expect("load transcript snapshot");
 
-        assert_eq!(transcript.revision, 3);
+        assert_eq!(transcript.revision, 0);
     }
 
     #[tokio::test]
@@ -1689,13 +1921,6 @@ mod tests {
         )
         .await
         .expect("seed metadata");
-        SessionTranscriptSnapshotRepository::set(
-            &db,
-            "live-session",
-            &TranscriptSnapshot::from_stored_entries(3, &[]),
-        )
-        .await
-        .expect("persist transcript snapshot");
         SessionJournalEventRepository::append_materialization_barrier(&db, "live-session")
             .await
             .expect("append barrier 1");
@@ -1722,7 +1947,7 @@ mod tests {
         .expect("load live graph revision");
 
         assert_eq!(revision.graph_revision, 5);
-        assert_eq!(revision.transcript_revision, 3);
+        assert_eq!(revision.transcript_revision, 0);
         assert_eq!(revision.last_event_seq, 5);
     }
 
@@ -1738,13 +1963,6 @@ mod tests {
         )
         .await
         .expect("seed metadata");
-        SessionTranscriptSnapshotRepository::set(
-            &db,
-            "live-session",
-            &TranscriptSnapshot::from_stored_entries(3, &[]),
-        )
-        .await
-        .expect("persist transcript snapshot");
         SessionJournalEventRepository::append_materialization_barrier(&db, "live-session")
             .await
             .expect("append barrier");
@@ -1770,7 +1988,7 @@ mod tests {
         .expect("load live graph revision");
 
         assert_eq!(revision.graph_revision, 9);
-        assert_eq!(revision.transcript_revision, 3);
+        assert_eq!(revision.transcript_revision, 0);
         assert_eq!(revision.last_event_seq, 1);
     }
 
@@ -1786,13 +2004,6 @@ mod tests {
         )
         .await
         .expect("seed metadata");
-        SessionTranscriptSnapshotRepository::set(
-            &db,
-            "state-session",
-            &TranscriptSnapshot::from_stored_entries(0, &[]),
-        )
-        .await
-        .expect("persist stale transcript snapshot");
         SessionJournalEventRepository::append_session_update(
             &db,
             "state-session",
@@ -1859,30 +2070,24 @@ mod tests {
 
     #[test]
     fn runtime_snapshot_for_refresh_falls_back_to_stored_runtime_state() {
-        let stored_runtime =
-            crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot {
-                graph_revision: 12,
-                lifecycle: crate::acp::session_state_engine::selectors::SessionGraphLifecycle {
-                    status: SessionGraphLifecycleStatus::Ready,
-                    error_message: None,
-                    can_reconnect: true,
-                },
-                capabilities:
-                    crate::acp::session_state_engine::selectors::SessionGraphCapabilities {
-                        models: None,
-                        modes: Some(crate::acp::client_session::SessionModes {
-                            current_mode_id: "plan".to_string(),
-                            available_modes: Vec::new(),
-                        }),
-                        available_commands: vec![crate::acp::session_update::AvailableCommand {
-                            name: "compact".to_string(),
-                            description: "Compact".to_string(),
-                            input: None,
-                        }],
-                        config_options: Vec::new(),
-                        autonomous_enabled: false,
-                    },
-            };
+        let stored_runtime = crate::acp::lifecycle::LifecycleCheckpoint::new(
+            12,
+            crate::acp::lifecycle::LifecycleState::ready(),
+            crate::acp::session_state_engine::selectors::SessionGraphCapabilities {
+                models: None,
+                modes: Some(crate::acp::client_session::SessionModes {
+                    current_mode_id: "plan".to_string(),
+                    available_modes: Vec::new(),
+                }),
+                available_commands: vec![crate::acp::session_update::AvailableCommand {
+                    name: "compact".to_string(),
+                    description: "Compact".to_string(),
+                    input: None,
+                }],
+                config_options: Vec::new(),
+                autonomous_enabled: false,
+            },
+        );
 
         let snapshot = runtime_snapshot_for_refresh(None, Some(&stored_runtime), "session-1");
 

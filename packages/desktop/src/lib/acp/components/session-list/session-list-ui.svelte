@@ -1151,46 +1151,48 @@ function openCreateBranchDialog(projectPath: string): void {
 														</Tooltip.Content>
 													</Tooltip.Root>
 												{/if}
-												<ProjectHeaderOverflowMenu
-													projectName={group.projectName}
-													currentColor={group.projectColor}
-													currentViewMode={viewMode}
-													onColorChange={onProjectColorChange
-														? (color) => onProjectColorChange(group.projectPath, color)
-														: undefined}
-													onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-													projectIconSrc={group.projectIconSrc}
-													onResetProjectIcon={onResetProjectIcon
-														? () => onResetProjectIcon(group.projectPath)
-														: undefined}
-													onRemoveProject={onRemoveProject
-														? () => onRemoveProject(group.projectPath)
-														: undefined}
-												/>
-												{#if shouldShowProjectCreateButton()}
-													<div
-														class="flex items-center"
-														role="presentation"
-														onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-														onkeydown={(e) => e.stopPropagation()}
-													>
-														<Tooltip.Root>
-															<Tooltip.Trigger>
-																<button
-																	type="button"
-																	class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-																	aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-																>
-																	<IconPlus class="h-3 w-3" />
-																</button>
-															</Tooltip.Trigger>
-															<Tooltip.Content>
-																{getProjectCreateButtonTooltipLabel(group.projectName)}
-															</Tooltip.Content>
-														</Tooltip.Root>
-													</div>
-												{/if}
 											</div>
+										{/snippet}
+										{#snippet trailing()}
+											<ProjectHeaderOverflowMenu
+												projectName={group.projectName}
+												currentColor={group.projectColor}
+												currentViewMode={viewMode}
+												onColorChange={onProjectColorChange
+													? (color) => onProjectColorChange(group.projectPath, color)
+													: undefined}
+												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+												projectIconSrc={group.projectIconSrc}
+												onResetProjectIcon={onResetProjectIcon
+													? () => onResetProjectIcon(group.projectPath)
+													: undefined}
+												onRemoveProject={onRemoveProject
+													? () => onRemoveProject(group.projectPath)
+													: undefined}
+											/>
+											{#if shouldShowProjectCreateButton()}
+												<div
+													class="flex items-center"
+													role="presentation"
+													onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+													onkeydown={(e) => e.stopPropagation()}
+												>
+													<Tooltip.Root>
+														<Tooltip.Trigger>
+															<button
+																type="button"
+																class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+																aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
+															>
+																<IconPlus class="h-3 w-3" />
+															</button>
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															{getProjectCreateButtonTooltipLabel(group.projectName)}
+														</Tooltip.Content>
+													</Tooltip.Root>
+												</div>
+											{/if}
 										{/snippet}
 									</ProjectHeader>
 								</ContextMenu.Trigger>
@@ -1336,46 +1338,48 @@ function openCreateBranchDialog(projectPath: string): void {
 												</Tooltip.Content>
 											</Tooltip.Root>
 										{/if}
-										<ProjectHeaderOverflowMenu
-											projectName={group.projectName}
-											currentColor={group.projectColor}
-											currentViewMode={viewMode}
-											onColorChange={onProjectColorChange
-												? (color) => onProjectColorChange(group.projectPath, color)
-												: undefined}
-											onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-											projectIconSrc={group.projectIconSrc}
-											onResetProjectIcon={onResetProjectIcon
-												? () => onResetProjectIcon(group.projectPath)
-												: undefined}
-											onRemoveProject={onRemoveProject
-												? () => onRemoveProject(group.projectPath)
-												: undefined}
-										/>
-										{#if shouldShowProjectCreateButton()}
-											<div
-												class="flex shrink-0 items-center"
-												role="presentation"
-												onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
-												onkeydown={(e) => e.stopPropagation()}
-											>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<button
-															type="button"
-															class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-															aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
-														>
-															<IconPlus class="h-3 w-3" />
-														</button>
-													</Tooltip.Trigger>
-													<Tooltip.Content>
-														{getProjectCreateButtonTooltipLabel(group.projectName)}
-													</Tooltip.Content>
-												</Tooltip.Root>
-											</div>
-										{/if}
 									</div>
+								{/snippet}
+								{#snippet trailing()}
+									<ProjectHeaderOverflowMenu
+										projectName={group.projectName}
+										currentColor={group.projectColor}
+										currentViewMode={viewMode}
+										onColorChange={onProjectColorChange
+											? (color) => onProjectColorChange(group.projectPath, color)
+											: undefined}
+										onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
+										projectIconSrc={group.projectIconSrc}
+										onResetProjectIcon={onResetProjectIcon
+											? () => onResetProjectIcon(group.projectPath)
+											: undefined}
+										onRemoveProject={onRemoveProject
+											? () => onRemoveProject(group.projectPath)
+											: undefined}
+									/>
+									{#if shouldShowProjectCreateButton()}
+										<div
+											class="flex shrink-0 items-center"
+											role="presentation"
+											onclick={(e) => handleProjectCreateButtonClick(e, group.projectPath)}
+											onkeydown={(e) => e.stopPropagation()}
+										>
+											<Tooltip.Root>
+												<Tooltip.Trigger>
+													<button
+														type="button"
+														class="flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+														aria-label={getProjectCreateButtonTooltipLabel(group.projectName)}
+													>
+														<IconPlus class="h-3 w-3" />
+													</button>
+												</Tooltip.Trigger>
+												<Tooltip.Content>
+													{getProjectCreateButtonTooltipLabel(group.projectName)}
+												</Tooltip.Content>
+											</Tooltip.Root>
+										</div>
+									{/if}
 								{/snippet}
 							</ProjectHeader>
 						</ContextMenu.Trigger>

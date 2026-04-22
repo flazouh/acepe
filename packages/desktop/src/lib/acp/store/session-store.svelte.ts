@@ -30,6 +30,7 @@ import type {
 	SessionOpenFound,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
+	SessionGraphRevision,
 	SessionStateGraph,
 	SessionStateEnvelope,
 	SessionTurnState,
@@ -327,6 +328,31 @@ function projectGraphCapabilities(
 		configOptions: capabilities.configOptions,
 		autonomousEnabled: capabilities.autonomousEnabled ?? false,
 	};
+}
+
+function isNewerGraphRevision(
+	current: SessionGraphRevision | null,
+	incoming: SessionGraphRevision
+): boolean {
+	if (current === null) {
+		return true;
+	}
+
+	if (incoming.graphRevision !== current.graphRevision) {
+		return incoming.graphRevision > current.graphRevision;
+	}
+
+	if (incoming.lastEventSeq !== current.lastEventSeq) {
+		return incoming.lastEventSeq > current.lastEventSeq;
+	}
+
+	return incoming.transcriptRevision > current.transcriptRevision;
+}
+
+function deriveCapabilityPreviewState(
+	capabilities: SessionGraphCapabilities
+): SessionCapabilities["previewState"] {
+	return capabilities.models && capabilities.modes ? "canonical" : "partial";
 }
 
 function connectionErrorFromGraphState(
@@ -750,6 +776,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			availableModes: projectedCapabilities.availableModes,
 			availableModels: projectedCapabilities.availableModels,
 			availableCommands: projectedCapabilities.availableCommands,
+			revision: graph.revision,
+			pendingMutationId: null,
+			previewState: deriveCapabilityPreviewState(graph.capabilities),
 			modelsDisplay: projectedCapabilities.modelsDisplay,
 			providerMetadata: projectedCapabilities.providerMetadata,
 		});
@@ -1183,7 +1212,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 
 	/**
-	 * Create a new session and connect to ACP.
+	 * Create a new session and seed store state before ACP activation materializes.
 	 */
 	createSession(options: {
 		projectPath: string;
@@ -1572,6 +1601,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				if (!session) {
 					continue;
 				}
+				const currentCapabilities = this.capabilitiesStore.getCapabilities(sessionId);
+				if (!isNewerGraphRevision(currentCapabilities.revision ?? null, command.revision)) {
+					continue;
+				}
 				const projectedCapabilities = projectGraphCapabilities(
 					session.agentId,
 					command.capabilities
@@ -1580,6 +1613,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					availableModes: projectedCapabilities.availableModes,
 					availableModels: projectedCapabilities.availableModels,
 					availableCommands: projectedCapabilities.availableCommands,
+					revision: command.revision,
+					pendingMutationId: command.pendingMutationId,
+					previewState: command.previewState,
 					modelsDisplay: projectedCapabilities.modelsDisplay,
 					providerMetadata: projectedCapabilities.providerMetadata,
 				});

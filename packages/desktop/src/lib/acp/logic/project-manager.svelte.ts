@@ -16,6 +16,7 @@ export interface Project {
 	color: string;
 	sortOrder?: number;
 	iconPath?: string | null;
+	showExternalCliSessions?: boolean;
 }
 
 /**
@@ -251,6 +252,47 @@ export class ProjectManager {
 
 	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
 		return this.client.listProjectImages(projectPath);
+	}
+
+	updateProjectShowExternalCliSessions(
+		path: string,
+		value: boolean
+	): ResultAsync<void, ProjectError> {
+		return this.client
+			.updateProjectShowExternalCliSessions(path, value)
+			.map(() => {
+				const existingIndex = this.projects.findIndex((project) => project.path === path);
+				if (existingIndex >= 0) {
+					this.projects = this.projects.map((project, index) =>
+						index === existingIndex
+							? {
+									path: project.path,
+									name: project.name,
+									lastOpened: project.lastOpened,
+									createdAt: project.createdAt,
+									color: project.color,
+									sortOrder: project.sortOrder,
+									iconPath: project.iconPath,
+									showExternalCliSessions: value,
+								}
+							: project
+					);
+				}
+			})
+			.andThen(() => {
+				if (this.sessionStore === null) {
+					return okAsync(undefined);
+				}
+
+				return this.sessionStore.scanSessions([path]).mapErr(
+					(error) =>
+						new ProjectError(
+							`Failed to refresh project sessions: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				);
+			});
 	}
 
 	/**

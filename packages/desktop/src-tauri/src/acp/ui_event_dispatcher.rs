@@ -12,7 +12,7 @@ use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::db::repository::SessionJournalEventRepository;
 use crate::db::repository::{
-    SessionProjectionSnapshotRepository, SessionTranscriptSnapshotRepository,
+    SessionProjectionSnapshotRepository,
 };
 use sea_orm::DbConn;
 use serde_json::Value;
@@ -165,7 +165,10 @@ impl AcpUiEvent {
     }
 }
 
-pub(crate) async fn publish_direct_session_update(app: &AppHandle, update: SessionUpdate) -> bool {
+pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    update: SessionUpdate,
+) -> bool {
     let Some(hub_state) = app.try_state::<Arc<AcpEventHubState>>() else {
         tracing::warn!(
             session_id = update.session_id(),
@@ -897,45 +900,33 @@ fn projection_has_runtime_state(
         || snapshot.runtime.is_some()
 }
 
-fn projection_snapshot_with_runtime(
-    projection_registry: &ProjectionRegistry,
-    runtime_graph_registry: &SessionGraphRuntimeRegistry,
-    session_id: &str,
-) -> crate::acp::projections::SessionProjectionSnapshot {
-    let mut projection_snapshot = projection_registry.session_projection(session_id);
-    let runtime_snapshot = runtime_graph_registry.snapshot_for_session(session_id);
-    if runtime_snapshot.graph_revision > 0 {
-        projection_snapshot.runtime = Some(runtime_snapshot);
-    }
-    projection_snapshot
-}
-
 async fn checkpoint_session_snapshots(
     db: &DbConn,
     session_id: &str,
-    projection_registry: &ProjectionRegistry,
-    runtime_graph_registry: &SessionGraphRuntimeRegistry,
-    transcript_projection_registry: &TranscriptProjectionRegistry,
+    _projection_registry: &ProjectionRegistry,
+    _runtime_graph_registry: &SessionGraphRuntimeRegistry,
+    _transcript_projection_registry: &TranscriptProjectionRegistry,
 ) {
-    if let Some(transcript_snapshot) =
-        transcript_projection_registry.snapshot_for_session(session_id)
-    {
-        if let Err(error) =
-            SessionTranscriptSnapshotRepository::set(db, session_id, &transcript_snapshot).await
-        {
+    let stored_runtime = match SessionProjectionSnapshotRepository::get(db, session_id).await {
+        Ok(snapshot) => snapshot.and_then(|snapshot| snapshot.runtime),
+        Err(error) => {
             tracing::error!(
                 error = %error,
                 session_id,
-                "Failed to checkpoint transcript snapshot after terminal session update"
+                "Failed to load stored runtime checkpoint before snapshot checkpoint"
             );
+            return;
         }
-    }
-
-    let projection_snapshot =
-        projection_snapshot_with_runtime(projection_registry, runtime_graph_registry, session_id);
-    if !projection_has_runtime_state(&projection_snapshot) {
+    };
+    let Some(stored_runtime) = stored_runtime else {
         return;
-    }
+    };
+    let projection_snapshot = crate::acp::projections::SessionProjectionSnapshot {
+        session: None,
+        operations: Vec::new(),
+        interactions: Vec::new(),
+        runtime: Some(stored_runtime),
+    };
 
     if let Err(error) =
         SessionProjectionSnapshotRepository::set(db, session_id, &projection_snapshot).await
@@ -974,19 +965,39 @@ async fn persist_dispatch_event(
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
                 .unwrap_or(0);
-            let graph_revision = runtime_graph_registry.apply_session_update_with_graph_seed(
-                session_id,
-                record.event_seq.saturating_sub(1),
-                update.as_ref(),
-            );
+            let checkpoint = match runtime_graph_registry
+                .supervisor()
+                .record_session_update(
+                    db,
+                    projection_registry,
+                    session_id,
+                    record.event_seq,
+                    update.as_ref(),
+                )
+                .await
+            {
+                Ok(checkpoint) => checkpoint,
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        session_id,
+                        event_name = event.event_name,
+                        "Failed to persist supervisor-owned runtime checkpoint"
+                    );
+                    return DispatchPersistenceEffects::default();
+                }
+            };
             let transcript_delta = transcript_projection_registry
                 .apply_session_update(record.event_seq, update.as_ref());
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
                 .unwrap_or(0);
-            let revision =
-                SessionGraphRevision::new(graph_revision, transcript_revision, record.event_seq);
+            let revision = SessionGraphRevision::new(
+                checkpoint.graph_revision,
+                transcript_revision,
+                record.event_seq,
+            );
             let session_state_envelope = runtime_graph_registry
                 .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
                     db,

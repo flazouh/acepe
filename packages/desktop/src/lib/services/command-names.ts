@@ -67,6 +67,8 @@ export const COMMANDS = {
     "browse_project": "browse_project",
     "browse_project_icon": "browse_project_icon",
     "list_project_images": "list_project_images",
+    "get_project_acepe_config": "get_project_acepe_config",
+    "save_project_acepe_config": "save_project_acepe_config",
     "backfill_project_icons": "backfill_project_icons",
     "get_api_key": "get_api_key",
     "save_api_key": "save_api_key",

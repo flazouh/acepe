@@ -12,6 +12,7 @@ use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
+use crate::acp::model_display::ModelPresentationMetadata;
 use crate::acp::parsers::provider_capabilities::{
     all_provider_capabilities, find_provider_capabilities_by_id, provider_capabilities,
 };
@@ -65,6 +66,12 @@ pub struct ModelFallbackCandidate {
 pub struct BackendIdentityPolicy {
     pub requires_persisted_provider_session_id: bool,
     pub prefers_incoming_provider_session_id_alias: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ProviderReconnectPolicy {
+    pub use_load_semantics: bool,
+    pub outbound_launch_mode_id: Option<String>,
 }
 
 impl BackendIdentityPolicy {
@@ -310,6 +317,26 @@ pub trait AgentProvider: Send + Sync {
     /// Outbound UI mode ID mapping to provider-native mode IDs.
     fn map_outbound_mode_id(&self, mode_id: &str) -> String {
         mode_id.to_string()
+    }
+
+    /// Provider-owned reconnect policy.
+    ///
+    /// Providers use this to express reconnect-time behavior without pushing
+    /// provider-specific branching into shared client lifecycle code.
+    fn reconnect_policy(&self, _requested_launch_mode_id: Option<&str>) -> ProviderReconnectPolicy {
+        ProviderReconnectPolicy::default()
+    }
+
+    /// Provider-owned model presentation metadata for frontend model selectors.
+    ///
+    /// Shared runtime code should consume this contract directly instead of
+    /// reconstructing presentation policy from parser agent identity.
+    fn model_presentation_metadata(&self) -> ModelPresentationMetadata {
+        let capabilities = provider_capabilities(self.parser_agent_type());
+        ModelPresentationMetadata {
+            display_family: capabilities.model_display_family,
+            usage_metrics: capabilities.usage_metrics_presentation,
+        }
     }
 
     /// Mode IDs visible to the UI for this provider.

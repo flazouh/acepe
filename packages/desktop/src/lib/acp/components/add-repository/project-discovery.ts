@@ -5,10 +5,8 @@ function isAcepeManagedWorktreePath(path: string): boolean {
 	return path.includes("/.acepe/worktrees/");
 }
 
-function hasHiddenPathSegment(path: string): boolean {
-	return path
-		.split("/")
-		.some((segment) => segment.length > 1 && segment.startsWith("."));
+function isAgentManagedDiscoveryPath(path: string): boolean {
+	return path.includes("/.codecs/");
 }
 
 export function shouldShowDiscoveredProject(info: ProjectInfo): boolean {
@@ -17,7 +15,7 @@ export function shouldShowDiscoveredProject(info: ProjectInfo): boolean {
 		info.path !== "global" &&
 		!info.is_worktree &&
 		!isAcepeManagedWorktreePath(info.path) &&
-		!hasHiddenPathSegment(info.path)
+		!isAgentManagedDiscoveryPath(info.path)
 	);
 }
 
