@@ -1,26 +1,19 @@
 # Code Quality Standards
 
-This project uses **ESLint** for linting and **Prettier** for code formatting.
+This project uses **Biome** for formatting and linting in the Svelte/TS packages. See `packages/*/package.json` for per-package `check` / `test` scripts.
 
 ## Quick Reference
 
 ```bash
-bun run format        # Format code
-bun run format:check  # Check formatting
-bun run lint          # Lint code
-bun run lint:fix      # Fix linting issues
+# Desktop / website: see package scripts, e.g.
+(cd packages/desktop && bunx @biomejs/biome check .)
+# Full monorepo test (same order as CI’s JS surface)
+bun run test
 ```
 
-## Automated Checks
+## Automated checks (source of truth)
 
-The following checks run automatically on pre-commit via lefthook:
-
-1. **ESLint** - Code quality and best practices
-2. **Prettier** - Code formatting
-3. **TypeScript** - Type checking
-4. **Tests** - Unit and integration tests
-
-Run `bun run format` and `bun run lint:fix` before committing to ensure compliance.
+**GitHub Actions** (`.github/workflows/ci.yml` on pull requests to `main`) runs Biome, TypeScript / Svelte checks, the structural-test ban, and package tests for `desktop`, `website`, `ui`, and `agent-panel-contract`, plus Rust clippy and tests. There are **no git hooks** in this repo; rely on CI or run `bun run test` locally before pushing.
 
 ## Test-Driven Development (TDD)
 

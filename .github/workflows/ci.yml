@@ -17,11 +17,12 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  # ── JS: lint + typecheck + test (all parallel inside one job) ───────
+  # ── JS/TS: format+lint+typecheck + all package tests (parallel) ────
+  # Matches root `bun run test` coverage, plus svelte-check on desktop and full Biome check.
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
 
@@ -36,33 +37,37 @@ jobs:
       # Website svelte-check needs env vars declared in .env for $env/static/public types
       - run: cp packages/website/.env.example packages/website/.env
 
-      # All three run in parallel via background processes
-      - name: Lint + Typecheck + Test
+      - name: Forbid structural tests (repo-wide)
+        run: bun scripts/forbid-structural-tests.ts packages
+
+      - name: Biome + typecheck + tests
         run: |
-          # Lint (desktop + website in parallel)
-          (cd packages/desktop && bunx @biomejs/biome lint .) &
-          LINT_DESKTOP=$!
-          (cd packages/website && bunx @biomejs/biome lint .) &
-          LINT_WEBSITE=$!
-
-          # Typecheck desktop (tsgo)
+          set -euo pipefail
+          (cd packages/desktop && bunx @biomejs/biome check --diagnostic-level=error .) &
+          BIOME_DESKTOP=$!
+          (cd packages/website && bunx @biomejs/biome check --diagnostic-level=error .) &
+          BIOME_WEBSITE=$!
           (cd packages/desktop && bun run check) &
-          CHECK_DESKTOP=$!
-
-          # Typecheck website (svelte-check)
+          CHECK_DESKTOP_TSGO=$!
+          (cd packages/desktop && bun run check:svelte) &
+          CHECK_DESKTOP_SVELTE=$!
           (cd packages/website && bun run check) &
           CHECK_WEBSITE=$!
-
-          # Tests
-          (cd packages/desktop && AGENT=1 bun test $(find src -type f \( -name '*.test.ts' -o -name '*.vitest.ts' \))) &
+          (cd packages/ui && bun run check) &
+          CHECK_UI=$!
+          (cd packages/agent-panel-contract && bun test) &
+          TEST_AGENT=$!
+          (cd packages/ui && bun test) &
+          TEST_UI=$!
+          (cd packages/desktop && bun run test) &
           TEST_DESKTOP=$!
           (cd packages/website && bun run test) &
           TEST_WEBSITE=$!
 
-          # Wait and collect exit codes
           FAIL=0
-          for PID in $LINT_DESKTOP $LINT_WEBSITE $CHECK_DESKTOP $CHECK_WEBSITE $TEST_DESKTOP $TEST_WEBSITE; do
-            wait $PID || FAIL=1
+          for PID in $BIOME_DESKTOP $BIOME_WEBSITE $CHECK_DESKTOP_TSGO $CHECK_DESKTOP_SVELTE \
+            $CHECK_WEBSITE $CHECK_UI $TEST_AGENT $TEST_UI $TEST_DESKTOP $TEST_WEBSITE; do
+            wait "$PID" || FAIL=1
           done
           exit $FAIL
 
