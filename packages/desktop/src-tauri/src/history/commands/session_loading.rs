@@ -137,6 +137,8 @@ async fn load_unified_session_content_with_context(
         .map(|session| apply_session_title_metadata(session, context.session_metadata.as_ref())))
 }
 
+// Full journal round-trip for provider-owned materialization; reserved until wired into the open path.
+#[allow(dead_code)]
 fn build_transcript_snapshot(
     revision: i64,
     snapshot: &SessionThreadSnapshot,
@@ -147,6 +149,7 @@ fn build_transcript_snapshot(
     )
 }
 
+#[allow(dead_code)]
 fn build_projection_snapshot(
     replay_context: &SessionReplayContext,
     revision: i64,
@@ -163,6 +166,7 @@ fn build_projection_snapshot(
     projection
 }
 
+#[allow(dead_code)]
 fn projection_last_event_seq(
     snapshot: &crate::acp::projections::SessionProjectionSnapshot,
 ) -> Option<i64> {
@@ -172,6 +176,7 @@ fn projection_last_event_seq(
         .map(|session| session.last_event_seq)
 }
 
+#[allow(dead_code)]
 async fn persist_canonical_materialization(
     db: &DbConn,
     replay_context: &SessionReplayContext,
@@ -439,22 +444,17 @@ pub async fn get_session_open_result(
 #[cfg(test)]
 mod tests {
     use super::{apply_session_title_metadata, history_replay_family};
-    use crate::acp::event_hub::AcpEventHubState;
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
-    use crate::acp::session_open_snapshot::{assemble_session_open_result, SessionOpenResult};
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::{
         SessionJournalEventRepository, SessionMetadataRepository, SessionMetadataRow,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-        SessionTranscriptSnapshotRepository,
     };
     use crate::session_jsonl::types::StoredEntry;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
-    use std::sync::Arc;
 
     async fn setup_test_db() -> DbConn {
         let db = Database::connect("sqlite::memory:")

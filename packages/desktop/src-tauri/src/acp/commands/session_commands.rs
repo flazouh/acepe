@@ -375,6 +375,7 @@ pub async fn acp_get_session_state(
     .await)
 }
 
+#[cfg(test)]
 async fn load_transcript_snapshot_for_state_lookup(
     db: &DbConn,
     transcript_registry: &TranscriptProjectionRegistry,
@@ -743,6 +744,10 @@ pub async fn acp_resume_session(
     .await
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Resume wiring passes validated inputs into the async work closure; splitting further would obscure the command boundary."
+)]
 pub(crate) async fn resume_session_with_app_handle_and_worker<R, Work, Fut>(
     app: &AppHandle<R>,
     session_id: String,
@@ -1173,6 +1178,7 @@ fn replay_buffered_session_state_events(
     hub.replay_buffered_events(replayable);
 }
 
+#[cfg(test)]
 async fn load_transcript_snapshot_for_resume(
     db: &DbConn,
     session_id: &str,
@@ -1397,7 +1403,7 @@ async fn async_resume_session_work(
             .unwrap_or(0);
         TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries)
     } else {
-        load_transcript_snapshot_for_resume_with_app(Some(&app), db.inner(), session_id).await?
+        load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
     };
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);

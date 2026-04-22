@@ -10,6 +10,11 @@ use crate::session_jsonl::types::{
     StoredContentBlock, StoredEntry, StoredUserMessage,
 };
 
+#[cfg(test)]
+use anyhow::Result;
+#[cfg(test)]
+use super::parse_full_session;
+
 pub fn convert_full_session_to_entries(session: &FullSession) -> SessionThreadSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
 

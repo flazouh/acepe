@@ -8,7 +8,6 @@ use crate::acp::client_session::{apply_provider_model_fallback, parse_model_disc
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{drain_permissions_as_failed, truncate_for_log};
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::parsers::AgentType;
 use crate::acp::permission_tracker::{PermissionTracker, WebSearchDedup};
 use crate::acp::provider::AgentProvider;
 use crate::acp::provider_extensions::InboundResponseAdapter;

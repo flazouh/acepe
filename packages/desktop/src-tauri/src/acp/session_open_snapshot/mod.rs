@@ -483,17 +483,11 @@ pub async fn session_open_result_for_new_session(
 mod tests {
     use super::*;
     use crate::acp::event_hub::AcpEventHubState;
-    use crate::acp::parsers::AgentType;
-    use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
-    use crate::session_jsonl::types::{
-        StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
-        StoredUserMessage,
-    };
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
@@ -517,20 +511,6 @@ mod tests {
         SessionMetadataRepository::ensure_exists(db, session_id, "/test/project", agent_id, None)
             .await
             .expect("seed metadata");
-    }
-
-    fn make_copilot_replay_context(session_id: &str) -> SessionReplayContext {
-        SessionReplayContext {
-            local_session_id: session_id.to_string(),
-            history_session_id: format!("provider-{session_id}"),
-            agent_id: CanonicalAgentId::Copilot,
-            parser_agent_type: AgentType::Copilot,
-            project_path: "/test/project".to_string(),
-            worktree_path: None,
-            effective_cwd: "/test/project".to_string(),
-            source_path: None,
-            compatibility: SessionDescriptorCompatibility::Canonical,
-        }
     }
 
     async fn append_tool_call_event(db: &DbConn, session_id: &str) {
@@ -563,40 +543,6 @@ mod tests {
         SessionJournalEventRepository::append_session_update(db, session_id, &update)
             .await
             .expect("append journal event");
-    }
-
-    fn sample_transcript_entries() -> Vec<StoredEntry> {
-        vec![
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some("hello world".to_string()),
-                    },
-                    chunks: vec![],
-                    sent_at: None,
-                },
-                timestamp: None,
-            },
-            StoredEntry::Assistant {
-                id: "assistant-1".to_string(),
-                message: StoredAssistantMessage {
-                    chunks: vec![StoredAssistantChunk {
-                        chunk_type: "message".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some("hi back".to_string()),
-                        },
-                    }],
-                    model: Some("gpt-5.4".to_string()),
-                    display_model: Some("GPT-5.4".to_string()),
-                    received_at: None,
-                },
-                timestamp: None,
-            },
-        ]
     }
 
     // -----------------------------------------------------------------------

@@ -891,15 +891,6 @@ struct DispatchPersistenceEffects {
     session_state_envelope: Option<SessionStateEnvelope>,
 }
 
-fn projection_has_runtime_state(
-    snapshot: &crate::acp::projections::SessionProjectionSnapshot,
-) -> bool {
-    snapshot.session.is_some()
-        || !snapshot.operations.is_empty()
-        || !snapshot.interactions.is_empty()
-        || snapshot.runtime.is_some()
-}
-
 async fn checkpoint_session_snapshots(
     db: &DbConn,
     session_id: &str,

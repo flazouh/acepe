@@ -1,6 +1,6 @@
-# CI: pull request only to main (not on push to main). Path-aware frontend vs backend; see
-# "filter" job and path groups below. When changing workspace layout, update filters here
-# in the same PR. New package under packages/* → add the path to the appropriate group (js/rust/shared).
+# CI: pull request only to main (not on push to main). Path-aware by affected package/stack.
+# Keep Frontend/Backend as always-present checks so branch protection never depends on skipped jobs.
+# When changing workspace layout or package dependencies, update the filter fanout in the same PR.
 name: CI
 
 on:
@@ -13,7 +13,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
-# dorny/paths-filter on pull_request uses the GitHub API to list changed files — needs pull-requests:read
 permissions:
   contents: read
   pull-requests: read
@@ -31,6 +30,10 @@ jobs:
     name: Path filter
     runs-on: ubuntu-latest
     outputs:
+      run_desktop: ${{ steps.combine.outputs.run_desktop }}
+      run_website: ${{ steps.combine.outputs.run_website }}
+      run_ui: ${{ steps.combine.outputs.run_ui }}
+      run_agent_panel_contract: ${{ steps.combine.outputs.run_agent_panel_contract }}
       run_frontend: ${{ steps.combine.outputs.run_frontend }}
       run_backend: ${{ steps.combine.outputs.run_backend }}
     steps:
@@ -45,44 +48,93 @@ jobs:
         uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
         with:
           filters: |
-            js:
+            desktop_frontend:
               - 'packages/desktop/**'
               - '!packages/desktop/src-tauri/**'
-              - 'packages/website/**'
-              - 'packages/ui/**'
-              - 'packages/agent-panel-contract/**'
-              - 'packages/changelog/**'
-              - 'scripts/**'
-            rust:
+            desktop_rust:
               - 'packages/desktop/src-tauri/**'
+            website:
+              - 'packages/website/**'
+            ui:
+              - 'packages/ui/**'
+            agent_panel_contract:
+              - 'packages/agent-panel-contract/**'
+            changelog:
+              - 'packages/changelog/**'
+            root_scripts:
+              - 'scripts/**'
             shared:
               - 'bun.lock'
               - 'package.json'
               - '.github/workflows/**'
+              - '.github/actions/**'
+              - '.node-version'
+              - 'coderabbit.yaml'
+              - 'opencode.json'
+              - 'railway.json'
 
-      - name: Set stack flags from filter (or full matrix on workflow_dispatch)
+      - name: Set affected job flags from filter (or full matrix on workflow_dispatch)
         id: combine
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_desktop=true" >> "$GITHUB_OUTPUT"
+            echo "run_website=true" >> "$GITHUB_OUTPUT"
+            echo "run_ui=true" >> "$GITHUB_OUTPUT"
+            echo "run_agent_panel_contract=true" >> "$GITHUB_OUTPUT"
             echo "run_frontend=true" >> "$GITHUB_OUTPUT"
             echo "run_backend=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run_desktop=false" >> "$GITHUB_OUTPUT"
+            echo "run_website=false" >> "$GITHUB_OUTPUT"
+            echo "run_ui=false" >> "$GITHUB_OUTPUT"
+            echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
             echo "run_frontend=false" >> "$GITHUB_OUTPUT"
             echo "run_backend=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          js='${{ steps.paths.outputs.js }}'
-          rust='${{ steps.paths.outputs.rust }}'
+          desktop_frontend='${{ steps.paths.outputs.desktop_frontend }}'
+          desktop_rust='${{ steps.paths.outputs.desktop_rust }}'
+          website='${{ steps.paths.outputs.website }}'
+          ui='${{ steps.paths.outputs.ui }}'
+          agent_panel_contract='${{ steps.paths.outputs.agent_panel_contract }}'
+          changelog='${{ steps.paths.outputs.changelog }}'
+          root_scripts='${{ steps.paths.outputs.root_scripts }}'
           shared='${{ steps.paths.outputs.shared }}'
-          if [ "$js" = "true" ] || [ "$shared" = "true" ]; then
+
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_desktop=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_desktop=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_website=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_website=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$ui" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_ui=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_ui=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$agent_panel_contract" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_agent_panel_contract=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$website" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_frontend=false" >> "$GITHUB_OUTPUT"
           fi
-          if [ "$rust" = "true" ] || [ "$shared" = "true" ]; then
+
+          if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_backend=false" >> "$GITHUB_OUTPUT"
@@ -112,49 +164,75 @@ jobs:
   frontend:
     name: Frontend
     needs: filter
-    if: needs.filter.outputs.run_frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RUN_FRONTEND: ${{ needs.filter.outputs.run_frontend }}
+      RUN_DESKTOP: ${{ needs.filter.outputs.run_desktop }}
+      RUN_WEBSITE: ${{ needs.filter.outputs.run_website }}
+      RUN_UI: ${{ needs.filter.outputs.run_ui }}
+      RUN_AGENT_PANEL_CONTRACT: ${{ needs.filter.outputs.run_agent_panel_contract }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: oven-sh/setup-bun@v2
+        if: env.RUN_FRONTEND == 'true'
         with:
           bun-version: 1.3.10
           cache: true
           cache-dependency-path: bun.lock
 
-      - run: bun install --frozen-lockfile
+      - if: env.RUN_FRONTEND == 'true'
+        run: bun install --frozen-lockfile
 
-      - run: cp packages/website/.env.example packages/website/.env
+      - name: No affected frontend packages
+        if: env.RUN_FRONTEND != 'true'
+        run: echo "No affected frontend packages; Frontend check is a no-op."
 
-      - name: Biome + typecheck + tests
+      - name: Prepare website env
+        if: env.RUN_WEBSITE == 'true'
+        run: cp packages/website/.env.example packages/website/.env
+
+      - name: Relevant frontend checks
+        if: env.RUN_FRONTEND == 'true'
         run: |
           set -euo pipefail
-          (cd packages/desktop && bunx @biomejs/biome check --diagnostic-level=error .) &
-          BIOME_DESKTOP=$!
-          (cd packages/website && bunx @biomejs/biome check --diagnostic-level=error .) &
-          BIOME_WEBSITE=$!
-          (cd packages/desktop && bun run check) &
-          CHECK_DESKTOP_TSGO=$!
-          (cd packages/desktop && bun run check:svelte) &
-          CHECK_DESKTOP_SVELTE=$!
-          (cd packages/website && bun run check) &
-          CHECK_WEBSITE=$!
-          (cd packages/ui && bun run check) &
-          CHECK_UI=$!
-          (cd packages/agent-panel-contract && bun test) &
-          TEST_AGENT=$!
-          (cd packages/ui && bun test) &
-          TEST_UI=$!
-          (cd packages/desktop && bun run test) &
-          TEST_DESKTOP=$!
-          (cd packages/website && bun run test) &
-          TEST_WEBSITE=$!
+          PIDS=""
+
+          run_bg() {
+            (
+              eval "$1"
+            ) &
+            pid=$!
+            PIDS="$PIDS $pid"
+          }
+
+          # Desktop runs for direct desktop edits, workspace dependency edits,
+          # and Rust changes because src-tauri exports committed TS contracts.
+          if [ "$RUN_DESKTOP" = "true" ]; then
+            run_bg "cd packages/desktop && bunx @biomejs/biome check --diagnostic-level=error ."
+            run_bg "cd packages/desktop && bun run check"
+            run_bg "cd packages/desktop && bun run check:svelte"
+            run_bg "cd packages/desktop && bun run test"
+          fi
+
+          if [ "$RUN_WEBSITE" = "true" ]; then
+            run_bg "cd packages/website && bunx @biomejs/biome check --diagnostic-level=error ."
+            run_bg "cd packages/website && bun run check"
+            run_bg "cd packages/website && bun run test"
+          fi
+
+          if [ "$RUN_UI" = "true" ]; then
+            run_bg "cd packages/ui && bun run check"
+            run_bg "cd packages/ui && bun test"
+          fi
+
+          if [ "$RUN_AGENT_PANEL_CONTRACT" = "true" ]; then
+            run_bg "cd packages/agent-panel-contract && bun test"
+          fi
 
           FAIL=0
-          for PID in $BIOME_DESKTOP $BIOME_WEBSITE $CHECK_DESKTOP_TSGO $CHECK_DESKTOP_SVELTE \
-            $CHECK_WEBSITE $CHECK_UI $TEST_AGENT $TEST_UI $TEST_DESKTOP $TEST_WEBSITE; do
+          for PID in $PIDS; do
             wait "$PID" || FAIL=1
           done
           exit $FAIL
@@ -163,23 +241,31 @@ jobs:
   backend:
     name: Backend
     needs: filter
-    if: needs.filter.outputs.run_backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RUN_BACKEND: ${{ needs.filter.outputs.run_backend }}
     steps:
       - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
+        if: env.RUN_BACKEND == 'true'
         with:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+        if: env.RUN_BACKEND == 'true'
         with:
           workspaces: packages/desktop/src-tauri -> target
           prefix-key: v2
           cache-on-failure: "true"
 
+      - name: No affected backend packages
+        if: env.RUN_BACKEND != 'true'
+        run: echo "No affected backend packages; Backend check is a no-op."
+
       - name: Install system deps
+        if: env.RUN_BACKEND == 'true'
         run: |
           sudo apt-get update -q
           sudo apt-get install -yq --no-install-recommends \
@@ -187,37 +273,9 @@ jobs:
             libgtk-3-dev libayatana-appindicator3-dev libasound2-dev patchelf
 
       - name: Clippy + Test
+        if: env.RUN_BACKEND == 'true'
         working-directory: packages/desktop/src-tauri
         run: |
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
           cargo test --no-default-features -- --skip claude_history::export_types
-
-  # Fails on failure/cancel; skipped path-filtered jobs are OK. Require this (or the workflow) in branch protection.
-  ci-ok:
-    name: CI complete
-    needs:
-      - filter
-      - structural_forbid
-      - frontend
-      - backend
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify no failed required jobs
-        env:
-          F_FILTER: ${{ needs.filter.result }}
-          F_FORBID: ${{ needs.structural_forbid.result }}
-          F_FE: ${{ needs.frontend.result }}
-          F_BE: ${{ needs.backend.result }}
-        run: |
-          set -euo pipefail
-          for label_val in "filter:$F_FILTER" "structural_forbid:$F_FORBID" "frontend:$F_FE" "backend:$F_BE"; do
-            name="${label_val%%:*}"
-            r="${label_val#*:}"
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
-              echo "Job $name ended with: $r"
-              exit 1
-            fi
-          done
-          echo "CI checks passed (skipped jobs are normal when a path does not match that stack)."

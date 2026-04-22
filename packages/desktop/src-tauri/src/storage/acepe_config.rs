@@ -232,6 +232,8 @@ pub fn read_or_default(project_root: &Path) -> AcepeConfig {
     }
 }
 
+/// Creates `.acepe.json` with defaults if missing. Reserved for first-run wiring.
+#[allow(dead_code)]
 pub fn ensure_exists(project_root: &Path) -> Result<AcepeConfig, AcepeConfigError> {
     let path = config_path(project_root)?;
     if path.exists() {
