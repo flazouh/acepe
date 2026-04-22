@@ -31,7 +31,7 @@ const sortedAgents = $derived.by(() =>
 
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 const defaultAgent = $derived(
-	defaultAgentId ? agentStore.agents.find((a) => a.id === defaultAgentId) ?? null : null
+	defaultAgentId ? (agentStore.agents.find((a) => a.id === defaultAgentId) ?? null) : null
 );
 const selectableAgents = $derived(
 	agentStore.agents.filter((a) => agentPreferencesStore.selectedAgentIds.includes(a.id))

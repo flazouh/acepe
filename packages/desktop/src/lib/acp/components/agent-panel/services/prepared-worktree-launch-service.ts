@@ -5,9 +5,6 @@
 
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
-export function discardPreparedWorktreeSessionLaunch(
-	launchToken: string,
-	deleteWorktree: boolean
-) {
+export function discardPreparedWorktreeSessionLaunch(launchToken: string, deleteWorktree: boolean) {
 	return tauriClient.git.discardPreparedWorktreeSessionLaunch(launchToken, deleteWorktree);
 }

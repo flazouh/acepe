@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
-
+import type { SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
-import type { SessionPlanResponse } from "../../../../services/claude-history.js";
 import {
 	buildDesktopAgentPanelScene,
 	buildDesktopComposerModel,
@@ -75,7 +74,10 @@ describe("desktop agent panel scene adapter", () => {
 					id: "ask-1",
 					question: "Ship this now?",
 					description: "Need your approval before merging.",
-					options: [{ id: "yes", label: "Yes" }, { id: "later", label: "Later" }],
+					options: [
+						{ id: "yes", label: "Yes" },
+						{ id: "later", label: "Later" },
+					],
 				},
 			},
 			{
@@ -744,7 +746,7 @@ describe("desktop agent panel scene adapter", () => {
 					skillMeta: null,
 					normalizedResult: {
 						kind: "sql",
-						rawText: "{\n  \"rowsAffected\": 3\n}",
+						rawText: '{\n  "rowsAffected": 3\n}',
 						rowCount: null,
 					},
 					normalizedQuestions: null,
@@ -767,7 +769,7 @@ describe("desktop agent panel scene adapter", () => {
 						raw_name: "unknown",
 						raw_kind_hint: "other",
 						title: "Mystery tool",
-						arguments_preview: "{\"foo\":\"bar\"}",
+						arguments_preview: '{"foo":"bar"}',
 						signals_tried: ["provider_name_map", "argument_shape"],
 					},
 					rawInput: { foo: "bar" },
@@ -793,7 +795,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			type: "tool_call",
 			kind: "other",
-			detailsText: "{\n  \"rowsAffected\": 3\n}",
+			detailsText: '{\n  "rowsAffected": 3\n}',
 		});
 		expect(conversation.entries[1]).toMatchObject({
 			type: "tool_call",
@@ -807,7 +809,8 @@ describe("desktop agent panel scene adapter", () => {
 			slug: "jwt-migration",
 			title: "JWT migration plan",
 			summary: "Replace session auth and rotate refresh tokens.",
-			content: "# JWT migration plan\n\n1. Create JWT service\n2. Replace session middleware\n- [x] Audit current auth flow",
+			content:
+				"# JWT migration plan\n\n1. Create JWT service\n2. Replace session middleware\n- [x] Audit current auth flow",
 			filePath: "/tmp/jwt-migration.md",
 		};
 

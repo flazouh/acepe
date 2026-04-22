@@ -11,8 +11,8 @@
 	- checking_permission / recording: red filled circle with rounded stop square, soft pulsing glow
 -->
 <script lang="ts">
-	import { VoiceDownloadProgress } from "@acepe/ui";
-	import { Microphone } from "phosphor-svelte";
+import { VoiceDownloadProgress } from "@acepe/ui";
+import { Microphone } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";

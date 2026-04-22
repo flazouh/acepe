@@ -17,10 +17,7 @@ export type MergedAssistantDisplayEntry = {
 	isStreaming?: boolean;
 };
 
-export type VirtualizedDisplayEntry =
-	| SessionEntry
-	| MergedAssistantDisplayEntry
-	| ThinkingEntry;
+export type VirtualizedDisplayEntry = SessionEntry | MergedAssistantDisplayEntry | ThinkingEntry;
 
 export const THINKING_DISPLAY_ENTRY: ThinkingEntry = {
 	type: "thinking",

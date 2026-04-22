@@ -11,9 +11,9 @@ vi.mock("../../utils/logger.js", () => ({
 	}),
 }));
 
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
+import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function applyStreamingArguments(
 	store: SessionEntryStore,

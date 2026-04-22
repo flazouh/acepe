@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 const getMock = mock(() => ({ match: (ok: (value: boolean | null) => boolean) => ok(null) }));
 const sentryInitMock = mock(() => undefined);
 const sentrySetUserMock = mock(() => undefined);
-const sentryWithScopeMock = mock((callback: (scope: { setExtra: (key: string, value: string | number | boolean) => void }) => void) => {
-	callback({
-		setExtra: () => undefined,
-	});
-});
+const sentryWithScopeMock = mock(
+	(
+		callback: (scope: { setExtra: (key: string, value: string | number | boolean) => void }) => void
+	) => {
+		callback({
+			setExtra: () => undefined,
+		});
+	}
+);
 const sentryCaptureExceptionMock = mock(() => undefined);
 const posthogInitMock = mock(() => undefined);
 const posthogIdentifyMock = mock(() => undefined);
@@ -114,7 +118,11 @@ describe("analytics", () => {
 		getVersionMock.mockReset();
 		getVersionMock.mockResolvedValue("1.2.3");
 		sentryWithScopeMock.mockImplementation(
-			(callback: (scope: { setExtra: (key: string, value: string | number | boolean) => void }) => void) => {
+			(
+				callback: (scope: {
+					setExtra: (key: string, value: string | number | boolean) => void;
+				}) => void
+			) => {
 				callback({
 					setExtra: () => undefined,
 				});
@@ -319,12 +327,18 @@ describe("analytics", () => {
 		import.meta.env.VITE_POSTHOG_KEY = "ph_test";
 		Object.defineProperty(globalThis, "localStorage", {
 			value: {
-				getItem: () => { throw new Error("quota exceeded"); },
-				setItem: () => { throw new Error("quota exceeded"); },
+				getItem: () => {
+					throw new Error("quota exceeded");
+				},
+				setItem: () => {
+					throw new Error("quota exceeded");
+				},
 				removeItem: () => {},
 				clear: () => {},
 				key: () => null,
-				get length() { return 0; },
+				get length() {
+					return 0;
+				},
 			} satisfies Storage,
 			configurable: true,
 		});

@@ -6,12 +6,11 @@
  */
 
 import type { SessionMachineSnapshot } from "../../../logic/session-machine.js";
-import type { SessionMachineActor } from "../../session-connection-service.svelte.js";
-
 /**
  * Interface for managing connection state machines.
  */
 import type { ActiveTurnFailure } from "../../../types/turn-error.js";
+import type { SessionMachineActor } from "../../session-connection-service.svelte.js";
 
 export interface IConnectionManager {
 	// ============================================
@@ -96,10 +95,7 @@ export interface IConnectionManager {
 	/**
 	 * Send turn failure event to state machine.
 	 */
-	sendTurnFailed(
-		sessionId: string,
-		failure: ActiveTurnFailure
-	): void;
+	sendTurnFailed(sessionId: string, failure: ActiveTurnFailure): void;
 
 	/**
 	 * Send disconnect event to state machine.

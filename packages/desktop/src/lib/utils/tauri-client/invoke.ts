@@ -10,8 +10,8 @@ import {
 	findErrorReference,
 } from "../../errors/error-reference.js";
 import {
-	parseSerializableCommandError,
 	type CommandErrorClassification,
+	parseSerializableCommandError,
 	type SerializableCommandError,
 } from "./serializable-command-error.schema.js";
 
@@ -90,20 +90,26 @@ function createInvokeError(cmd: string, error: InvokeErrorValue): AgentError {
 		return new TauriCommandError(commandError);
 	}
 
-	return attachErrorReference(new AgentError(cmd, normalizeInvokeError(error)), createLocalReferenceDetails());
+	return attachErrorReference(
+		new AgentError(cmd, normalizeInvokeError(error)),
+		createLocalReferenceDetails()
+	);
 }
 
-function reportCommandFailure(error: AgentError, context: {
-	commandName: string;
-	invokeId: string;
-	elapsedMs: number;
-	referenceId: string;
-	referenceSearchable: boolean;
-	classification?: CommandErrorClassification;
-	backendCorrelationId?: string;
-	backendEventId?: string;
-	diagnosticsSummary?: string;
-}): void {
+function reportCommandFailure(
+	error: AgentError,
+	context: {
+		commandName: string;
+		invokeId: string;
+		elapsedMs: number;
+		referenceId: string;
+		referenceSearchable: boolean;
+		classification?: CommandErrorClassification;
+		backendCorrelationId?: string;
+		backendEventId?: string;
+		diagnosticsSummary?: string;
+	}
+): void {
 	void import("../../analytics.js")
 		.then(({ captureCommandFailure }) => {
 			captureCommandFailure(error, context);
@@ -169,9 +175,7 @@ function invokeAsyncWithRuntime<T>(
 				classification:
 					invokeError instanceof TauriCommandError ? invokeError.classification : "unexpected",
 				backendCorrelationId:
-					invokeError instanceof TauriCommandError
-						? invokeError.backendCorrelationId
-						: undefined,
+					invokeError instanceof TauriCommandError ? invokeError.backendCorrelationId : undefined,
 				backendEventId:
 					invokeError instanceof TauriCommandError ? invokeError.backendEventId : undefined,
 				diagnosticsSummary:

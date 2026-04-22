@@ -42,7 +42,10 @@ import type {
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });
 
-function matchesTurnId(previousTurnId: string | null | undefined, nextTurnId: string | null | undefined): boolean {
+function matchesTurnId(
+	previousTurnId: string | null | undefined,
+	nextTurnId: string | null | undefined
+): boolean {
 	if (previousTurnId == null || nextTurnId == null) {
 		return previousTurnId == null && nextTurnId == null;
 	}

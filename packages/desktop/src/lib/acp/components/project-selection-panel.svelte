@@ -22,11 +22,7 @@ interface Props {
 	preSelectedProjectPath?: string | null;
 }
 
-let {
-	projects,
-	onProjectSelected,
-	preSelectedProjectPath = null,
-}: Props = $props();
+let { projects, onProjectSelected, preSelectedProjectPath = null }: Props = $props();
 const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
 const modifierSymbol = isMac ? "⌘" : "Ctrl";
 

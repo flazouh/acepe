@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	interface Props {
-		height: number;
-		resizeHandle?: Snippet;
-		tabs: Snippet;
-		body: Snippet;
-	}
+interface Props {
+	height: number;
+	resizeHandle?: Snippet;
+	tabs: Snippet;
+	body: Snippet;
+}
 
-	let { height, resizeHandle, tabs, body }: Props = $props();
+let { height, resizeHandle, tabs, body }: Props = $props();
 </script>
 
 <div data-testid="shared-terminal-drawer-stub" style={`height: ${height}px;`}>

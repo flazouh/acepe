@@ -1,5 +1,5 @@
-import { safeJsonStringify } from "../../logic/json-utils.js";
 import type { JsonValue } from "../../../services/converted-session-types.js";
+import { safeJsonStringify } from "../../logic/json-utils.js";
 import {
 	isExecuteNormalizedResult,
 	isFetchNormalizedResult,
@@ -9,9 +9,9 @@ import {
 } from "../../types/normalized-tool-result.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import {
+	type ParsedToolResult,
 	parseToolResultOutput,
 	parseToolResultWithExitCode,
-	type ParsedToolResult,
 } from "./tool-call-execute/logic/parse-tool-result.js";
 import { parseFetchResult } from "./tool-call-fetch/logic/parse-fetch-result.js";
 import { parseSearchResult } from "./tool-call-search/logic/parse-grep-output.js";
@@ -30,10 +30,14 @@ interface SearchToolResponseMeta {
 }
 
 function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
-	return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
+	return (
+		value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+	);
 }
 
-function extractSearchToolResponseMeta(result: JsonValue | null | undefined): SearchToolResponseMeta | undefined {
+function extractSearchToolResponseMeta(
+	result: JsonValue | null | undefined
+): SearchToolResponseMeta | undefined {
 	if (!isJsonObject(result)) {
 		return undefined;
 	}

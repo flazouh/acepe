@@ -37,10 +37,10 @@ import type { ConfigOptionData } from "../../services/converted-session-types.js
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
-import type { ActiveTurnFailure } from "../types/turn-error.js";
-import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import type { AvailableCommand } from "../types/available-command";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
+import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 
 /**
  * Turn state for streaming sessions.

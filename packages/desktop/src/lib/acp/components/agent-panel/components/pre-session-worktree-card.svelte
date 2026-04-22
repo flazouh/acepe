@@ -1,37 +1,37 @@
 <script lang="ts">
-	import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
-	import { extractProjectName } from "$lib/acp/utils/path-utils.js";
-	import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
+import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
+import { extractProjectName } from "$lib/acp/utils/path-utils.js";
+import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
 
-	interface Props {
-		pendingWorktreeEnabled: boolean;
-		alwaysEnabled?: boolean;
-		failureMessage?: string | null;
-		projectPath?: string;
-		projectName?: string | null;
-		onYes: () => void;
-		onNo: () => void;
-		onAlways: () => void;
-		onDismiss: () => void;
-		onRetry?: () => void;
-	}
+interface Props {
+	pendingWorktreeEnabled: boolean;
+	alwaysEnabled?: boolean;
+	failureMessage?: string | null;
+	projectPath?: string;
+	projectName?: string | null;
+	onYes: () => void;
+	onNo: () => void;
+	onAlways: () => void;
+	onDismiss: () => void;
+	onRetry?: () => void;
+}
 
-	let {
-		pendingWorktreeEnabled,
-		alwaysEnabled = false,
-		failureMessage = null,
-		projectPath = undefined,
-		projectName = null,
-		onYes,
-		onNo,
-		onAlways,
-		onDismiss,
-		onRetry,
-	}: Props = $props();
+let {
+	pendingWorktreeEnabled,
+	alwaysEnabled = false,
+	failureMessage = null,
+	projectPath = undefined,
+	projectName = null,
+	onYes,
+	onNo,
+	onAlways,
+	onDismiss,
+	onRetry,
+}: Props = $props();
 
-	const resolvedProjectName = $derived(
-		projectPath ? (projectName ?? extractProjectName(projectPath)) : null
-	);
+const resolvedProjectName = $derived(
+	projectPath ? (projectName ?? extractProjectName(projectPath)) : null
+);
 </script>
 
 <SharedPreSessionWorktreeCard

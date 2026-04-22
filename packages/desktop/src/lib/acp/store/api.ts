@@ -42,14 +42,7 @@ export function resumeSession(
 	launchModeId?: string,
 	openToken?: string
 ): ResultAsync<void, AppError> {
-	return tauriClient.acp.resumeSession(
-		sessionId,
-		cwd,
-		attemptId,
-		agentId,
-		launchModeId,
-		openToken
-	);
+	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
 }
 
 /**

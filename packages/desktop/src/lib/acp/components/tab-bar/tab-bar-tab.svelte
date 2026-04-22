@@ -39,9 +39,7 @@ let isTruncated = $state(false);
 let containerElement: HTMLSpanElement | undefined = $state();
 let textElement: HTMLSpanElement | undefined = $state();
 
-const displayTitle = $derived(
-	normalizeTitleForDisplay(tab.title ?? "") || "New Thread"
-);
+const displayTitle = $derived(normalizeTitleForDisplay(tab.title ?? "") || "New Thread");
 const hasTurns = $derived(tab.conversationPreview.length > 0);
 
 // ARIA label for state icon

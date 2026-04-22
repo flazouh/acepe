@@ -29,7 +29,10 @@ function createRevision(graphRevision: number): SessionGraphRevision {
 	};
 }
 
-function createCapabilities(currentModeId: string, currentModelId: string): SessionGraphCapabilities {
+function createCapabilities(
+	currentModeId: string,
+	currentModelId: string
+): SessionGraphCapabilities {
 	return {
 		models: {
 			currentModelId,

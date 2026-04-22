@@ -57,10 +57,7 @@ describe("empty-state panel context", () => {
 		expect(panelStore.spawnPanel).not.toHaveBeenCalled();
 		expect(panelStore.setPanelProjectPath).toHaveBeenCalledWith("empty-state-panel", "/repo");
 		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("empty-state-panel", "claude-code");
-		expect(panelStore.setPendingWorktreeEnabled).toHaveBeenCalledWith(
-			"empty-state-panel",
-			false
-		);
+		expect(panelStore.setPendingWorktreeEnabled).toHaveBeenCalledWith("empty-state-panel", false);
 	});
 
 	it("attaches created session to the pre-spawned panel", () => {

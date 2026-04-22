@@ -7,7 +7,9 @@ import type {
 type JsonObject = { readonly [key: string]: JsonValue };
 
 function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
-	return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
+	return (
+		value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+	);
 }
 
 function stringifyJsonValue(value: JsonValue | null | undefined): string | null {
@@ -75,11 +77,7 @@ function parseHeaderArrayItem(item: JsonValue, headers: FetchHeaderMetadata[]): 
 	}
 
 	const name =
-		typeof item.name === "string"
-			? item.name
-			: typeof item.key === "string"
-				? item.key
-				: null;
+		typeof item.name === "string" ? item.name : typeof item.key === "string" ? item.key : null;
 	const value = item.value ?? null;
 	pushHeader(headers, name, value);
 }
@@ -139,7 +137,9 @@ function findContentType(headers: readonly FetchHeaderMetadata[]): string | null
 	return null;
 }
 
-export function parseFetchResult(result: JsonValue | null | undefined): NormalizedFetchResult | null {
+export function parseFetchResult(
+	result: JsonValue | null | undefined
+): NormalizedFetchResult | null {
 	if (result === null || result === undefined) {
 		return null;
 	}

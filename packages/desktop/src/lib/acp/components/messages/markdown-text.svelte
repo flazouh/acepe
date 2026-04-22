@@ -139,9 +139,7 @@ function htmlNeedsBadgeMount(html: string | null): boolean {
 		return false;
 	}
 
-	return (
-		html.includes("file-path-badge-placeholder") || html.includes("github-badge-placeholder")
-	);
+	return html.includes("file-path-badge-placeholder") || html.includes("github-badge-placeholder");
 }
 
 $effect(() => {

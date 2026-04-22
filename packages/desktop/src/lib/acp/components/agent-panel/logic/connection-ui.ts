@@ -1,6 +1,6 @@
+import type { TurnState } from "../../../store/types.js";
 import type { ErrorMessage } from "../../../types/error-message.js";
 import type { PanelConnectionErrorDetails } from "../../../types/panel-connection-state";
-import type { TurnState } from "../../../store/types.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state";
 
 export interface PanelErrorInfo {
@@ -40,8 +40,7 @@ function formatTurnErrorDetails(error: ErrorMessage): string {
 export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 	const panelHasError = inputs.panelConnectionState === PanelConnectionState.ERROR;
 	const sessionHasError = typeof inputs.sessionConnectionError === "string";
-	const turnHasError =
-		inputs.sessionTurnState === "error" && inputs.activeTurnError !== null;
+	const turnHasError = inputs.sessionTurnState === "error" && inputs.activeTurnError !== null;
 
 	if (panelHasError) {
 		return {

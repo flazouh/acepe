@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { AgentError } from "../../acp/errors/app-error.js";
+
 const captureCommandFailureMock = mock(() => undefined);
 
 mock.module("../../analytics.js", () => ({
 	captureCommandFailure: captureCommandFailureMock,
 }));
 
-import { TauriCommandError, invokeAsyncWithRuntimeForTesting } from "./invoke.js";
+import { invokeAsyncWithRuntimeForTesting, TauriCommandError } from "./invoke.js";
 
 const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
 

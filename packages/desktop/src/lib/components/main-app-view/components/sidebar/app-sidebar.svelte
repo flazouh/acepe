@@ -301,7 +301,10 @@ function getCurrentProjectOrder(projects: readonly Project[]): string[] {
 		.map((project) => project.path);
 }
 
-function areProjectOrdersEqual(currentOrder: readonly string[], nextOrder: readonly string[]): boolean {
+function areProjectOrdersEqual(
+	currentOrder: readonly string[],
+	nextOrder: readonly string[]
+): boolean {
 	if (currentOrder.length !== nextOrder.length) {
 		return false;
 	}

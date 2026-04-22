@@ -305,7 +305,10 @@ describe("ActivityEntry todo progress", () => {
 			deletions: 0,
 			isStreaming: true,
 			taskDescription: "Investigate session rendering",
-			taskSubagentSummaries: ["Investigate session rendering", "packages/desktop/src/lib/app-shell.ts"],
+			taskSubagentSummaries: [
+				"Investigate session rendering",
+				"packages/desktop/src/lib/app-shell.ts",
+			],
 			taskSubagentTools: [
 				{
 					id: "child-1",

@@ -2,10 +2,12 @@
  * Retry UX for panel connection errors — product intent extracted from agent-panel handlers.
  */
 
-import type { Project } from "$lib/acp/logic/project-manager.svelte";
-import { PanelConnectionEvent } from "$lib/acp/types/panel-connection-state.js";
-import { PanelConnectionState } from "$lib/acp/types/panel-connection-state.js";
 import { toast } from "svelte-sonner";
+import type { Project } from "$lib/acp/logic/project-manager.svelte";
+import {
+	PanelConnectionEvent,
+	PanelConnectionState,
+} from "$lib/acp/types/panel-connection-state.js";
 
 export function runPanelConnectionRetry(args: {
 	sessionId: string | null;

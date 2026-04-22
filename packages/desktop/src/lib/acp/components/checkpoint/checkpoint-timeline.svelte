@@ -129,9 +129,7 @@ async function handleRevert(checkpoint: Checkpoint) {
 	result.match(
 		(revertResult) => {
 			if (revertResult.success) {
-				toast.success(
-					`Reverted to checkpoint #${checkpoint.checkpointNumber}`
-				);
+				toast.success(`Reverted to checkpoint #${checkpoint.checkpointNumber}`);
 			} else {
 				toast.warning(
 					`Partially reverted: ${revertResult.revertedFiles.length} succeeded, ${revertResult.failedFiles.length} failed`

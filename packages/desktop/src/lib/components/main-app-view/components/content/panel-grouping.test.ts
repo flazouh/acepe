@@ -155,10 +155,7 @@ describe("sortProjectGroupsForMultiLayout", () => {
 	});
 
 	it("does not mutate the input array", () => {
-		const input = [
-			makeGroup("/tmp/zulu", "zulu"),
-			makeGroup("/tmp/alpha", "Alpha"),
-		];
+		const input = [makeGroup("/tmp/zulu", "zulu"), makeGroup("/tmp/alpha", "Alpha")];
 		const snapshot = input.map((g) => g.projectPath);
 		sortProjectGroupsForMultiLayout(input);
 		expect(input.map((g) => g.projectPath)).toEqual(snapshot);

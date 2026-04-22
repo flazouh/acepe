@@ -17,15 +17,15 @@ describe("resolveCompletionAttentionAction", () => {
 	});
 
 	it("marks completion unseen when it finishes off-panel", () => {
-		expect(
-			resolveCompletionAttentionAction({ kind: "turn-complete", panelIsFocused: false })
-		).toBe("mark_unseen");
+		expect(resolveCompletionAttentionAction({ kind: "turn-complete", panelIsFocused: false })).toBe(
+			"mark_unseen"
+		);
 	});
 
 	it("keeps completion seen when it finishes on the focused panel", () => {
-		expect(
-			resolveCompletionAttentionAction({ kind: "turn-complete", panelIsFocused: true })
-		).toBe("mark_seen");
+		expect(resolveCompletionAttentionAction({ kind: "turn-complete", panelIsFocused: true })).toBe(
+			"mark_seen"
+		);
 	});
 });
 

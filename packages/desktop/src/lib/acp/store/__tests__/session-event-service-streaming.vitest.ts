@@ -19,10 +19,7 @@ vi.mock("../utils/logger.js", () => ({
 	}),
 }));
 
-import type {
-	SessionStateEnvelope,
-	TranscriptDelta,
-} from "../../../services/acp-types.js";
+import type { SessionStateEnvelope, TranscriptDelta } from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -233,11 +230,11 @@ describe("SessionEventService streaming delta handling", () => {
 						entryId: "assistant-1",
 						role: "assistant",
 						segments: [
-						{
-							kind: "text",
-							segmentId: "assistant-1:segment:7",
-							text: "hello",
-						},
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:7",
+								text: "hello",
+							},
 						],
 					},
 				},
@@ -1759,9 +1756,7 @@ describe("SessionEventService streaming delta handling", () => {
 		]);
 
 		const integrationHandler: SessionEventHandler = {
-			getSessionCold: vi
-				.fn()
-				.mockReturnValue({ id: sessionId, agentId: "cursor" } as SessionCold),
+			getSessionCold: vi.fn().mockReturnValue({ id: sessionId, agentId: "cursor" } as SessionCold),
 			isPreloaded: vi.fn().mockReturnValue(true),
 			getEntries: vi.fn().mockImplementation((id: string) => entryStore.getEntries(id)),
 			getHotState: vi

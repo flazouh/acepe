@@ -37,10 +37,18 @@ function getProjectForSession(projectPath: string | null): Project | null {
 	return recentProjects.find((p) => p.path === projectPath) ?? null;
 }
 
-function getProjectInfo(panel: PanelTabInfo): { name: string; color: string; iconSrc: string | null } {
+function getProjectInfo(panel: PanelTabInfo): {
+	name: string;
+	color: string;
+	iconSrc: string | null;
+} {
 	const project = getProjectForSession(panel.sessionProjectPath);
 	if (project) {
-		return { name: project.name, color: getProjectColor(project), iconSrc: project.iconPath ?? null };
+		return {
+			name: project.name,
+			color: getProjectColor(project),
+			iconSrc: project.iconPath ?? null,
+		};
 	}
 	return { name: "?", color: "var(--orange-500, #f97316)", iconSrc: null };
 }

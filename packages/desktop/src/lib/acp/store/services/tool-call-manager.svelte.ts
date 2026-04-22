@@ -19,12 +19,12 @@ import type {
 	ToolCallStatus,
 } from "../../../services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
-import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
-import { createLogger } from "../../utils/logger.js";
 import {
 	resolveCanonicalToolCallCreate,
 	resolveCanonicalToolCallUpdate,
 } from "../../session-state/session-state-query-service.js";
+import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
+import { createLogger } from "../../utils/logger.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
@@ -100,10 +100,7 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
 }
 
-function reportMissingCanonicalToolCallUpdate(
-	sessionId: string,
-	update: ToolCallUpdate
-): void {
+function reportMissingCanonicalToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
 	captureContractViolation("tool_call_update_without_canonical_entry", {
 		source: "tool-call-manager.updateEntry",
 		sessionId,
@@ -374,10 +371,10 @@ export class ToolCallManager implements IToolCallManager {
 			normalizedQuestions: update.normalizedQuestions ?? toolCall.normalizedQuestions,
 			normalizedResult: updateResolution.shouldRefreshNormalizedResult
 				? normalizeToolResult({
-					kind: toolCall.kind,
-					arguments: updateResolution.nextArguments,
-					result: updateResolution.nextResult,
-				})
+						kind: toolCall.kind,
+						arguments: updateResolution.nextArguments,
+						result: updateResolution.nextResult,
+					})
 				: toolCall.normalizedResult,
 			progressiveArguments: updateResolution.nextProgressiveArguments,
 			startedAtMs: updateResolution.startedAtMs,

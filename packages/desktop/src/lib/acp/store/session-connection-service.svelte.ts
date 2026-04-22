@@ -15,13 +15,13 @@
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { createActor } from "xstate";
-import type { ActiveTurnFailure } from "../types/turn-error.js";
 import {
 	ConnectionEvent,
 	ContentEvent,
 	type SessionMachineSnapshot,
 	sessionMachine,
 } from "../logic/session-machine.js";
+import type { ActiveTurnFailure } from "../types/turn-error.js";
 import { createLogger } from "../utils/logger.js";
 import type { IConnectionManager } from "./services/interfaces/index.js";
 
@@ -210,10 +210,7 @@ export class SessionConnectionService implements IConnectionManager {
 	/**
 	 * Send turn failure event to state machine.
 	 */
-	sendTurnFailed(
-		sessionId: string,
-		failure: ActiveTurnFailure
-	): void {
+	sendTurnFailed(sessionId: string, failure: ActiveTurnFailure): void {
 		const machine = this.getMachine(sessionId);
 		if (machine) {
 			machine.send({

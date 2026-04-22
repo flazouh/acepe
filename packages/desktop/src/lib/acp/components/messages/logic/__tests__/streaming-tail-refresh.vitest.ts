@@ -74,5 +74,4 @@ describe("streamingTailRefresh", () => {
 
 		expect(node.dataset.streamingActive).toBeUndefined();
 	});
-
 });

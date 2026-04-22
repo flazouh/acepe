@@ -1,8 +1,8 @@
 import { okAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
+import { api } from "$lib/acp/store/api.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { api } from "$lib/acp/store/api.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });

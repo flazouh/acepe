@@ -29,7 +29,16 @@ export type KanbanThreadDialogHandle = {
 	requestClosePanelConfirmation(): void;
 };
 
-let { panelId, mode, projectManager, mainAppState, onFocusPanel, onToggleFullscreenPanel, onDismiss, onClosePanel }: Props = $props();
+let {
+	panelId,
+	mode,
+	projectManager,
+	mainAppState,
+	onFocusPanel,
+	onToggleFullscreenPanel,
+	onDismiss,
+	onClosePanel,
+}: Props = $props();
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();

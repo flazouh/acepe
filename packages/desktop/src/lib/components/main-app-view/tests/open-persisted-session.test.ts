@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import type { SessionOpenResult } from "$lib/services/acp-types.js";
 
 const getSessionOpenResultMock = mock(() => okAsync(createFoundResult("session-1")));
 
@@ -68,13 +68,12 @@ describe("openPersistedSession", () => {
 	});
 
 	it("dedupes concurrent calls for the same panel", async () => {
-		getSessionOpenResultMock.mockImplementation(
-			() =>
-				ResultAsync.fromSafePromise(
-					new Promise<SessionOpenResult>((resolve) => {
-						setTimeout(() => resolve(createFoundResult("session-1")), 0);
-					})
-				)
+		getSessionOpenResultMock.mockImplementation(() =>
+			ResultAsync.fromSafePromise(
+				new Promise<SessionOpenResult>((resolve) => {
+					setTimeout(() => resolve(createFoundResult("session-1")), 0);
+				})
+			)
 		);
 
 		openPersistedSession({
@@ -102,13 +101,12 @@ describe("openPersistedSession", () => {
 	});
 
 	it("dedupes concurrent calls for the same panel across initialization and session handlers", async () => {
-		getSessionOpenResultMock.mockImplementation(
-			() =>
-				ResultAsync.fromSafePromise(
-					new Promise<SessionOpenResult>((resolve) => {
-						setTimeout(() => resolve(createFoundResult("session-1")), 0);
-					})
-				)
+		getSessionOpenResultMock.mockImplementation(() =>
+			ResultAsync.fromSafePromise(
+				new Promise<SessionOpenResult>((resolve) => {
+					setTimeout(() => resolve(createFoundResult("session-1")), 0);
+				})
+			)
 		);
 
 		openPersistedSession({
@@ -194,10 +192,11 @@ describe("openPersistedSession", () => {
 	});
 
 	it("swallows reconnect failures after hydration", async () => {
-		sessionStore.connectSession = mock(() =>
-			errAsync(new Error("resume failed")) as unknown as ReturnType<
-				SessionOpenStore["connectSession"]
-			>
+		sessionStore.connectSession = mock(
+			() =>
+				errAsync(new Error("resume failed")) as unknown as ReturnType<
+					SessionOpenStore["connectSession"]
+				>
 		);
 
 		openPersistedSession({

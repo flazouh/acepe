@@ -187,10 +187,9 @@ describe("OperationStore", () => {
 
 		operationStore.replaceSessionOperations("session-1", snapshots);
 
-		expect(operationStore.getSessionOperations("session-1").map((operation) => operation.id)).toEqual([
-			"op-1",
-			"op-2",
-		]);
+		expect(
+			operationStore.getSessionOperations("session-1").map((operation) => operation.id)
+		).toEqual(["op-1", "op-2"]);
 	});
 
 	it("materializes current and last tool-call views from canonical operations", () => {

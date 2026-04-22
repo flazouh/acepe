@@ -4,8 +4,8 @@
 
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
-import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import { extractTodoProgressFromToolCall } from "../../components/session-list/session-list-logic.js";
+import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
@@ -19,7 +19,10 @@ import { checkpointStore } from "../checkpoint-store.svelte.js";
 import { deriveLiveSessionState } from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
-import { deriveSessionWorkProjection, selectLegacySessionStatus } from "../session-work-projection.js";
+import {
+	deriveSessionWorkProjection,
+	selectLegacySessionStatus,
+} from "../session-work-projection.js";
 import type { SessionHotState } from "../types.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";

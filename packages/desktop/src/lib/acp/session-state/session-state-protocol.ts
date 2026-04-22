@@ -15,11 +15,11 @@ import type {
 } from "../../services/acp-types.js";
 
 export type {
+	CapabilityPreviewState,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,
 	SessionGraphRevision,
-	CapabilityPreviewState,
 	SessionStateDelta,
 	SessionStateEnvelope,
 	SessionStateGraph,
@@ -107,7 +107,9 @@ export function listGraphAuthorityIds(graph: SessionStateGraph): {
 	operationIds: string[];
 	interactionIds: string[];
 } {
-	const operationIds: string[] = graph.operations.map((operation: OperationSnapshot) => operation.id);
+	const operationIds: string[] = graph.operations.map(
+		(operation: OperationSnapshot) => operation.id
+	);
 	const interactionIds: string[] = graph.interactions.map(
 		(interaction: InteractionSnapshot) => interaction.id
 	);

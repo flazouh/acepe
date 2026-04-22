@@ -26,8 +26,12 @@ interface Props {
 
 let { projectManager, onClose, initialSection }: Props = $props();
 
+// One-time seed from optional `initialSection`; user tab changes are local only after that.
+// svelte-ignore state_referenced_locally
 let activeSection = $state<SettingsSectionId>(
-	initialSection ? migrateSettingsSectionId(initialSection) : "general"
+	initialSection != null && initialSection !== ""
+		? migrateSettingsSectionId(initialSection)
+		: "general"
 );
 
 function handleSectionChange(section: SettingsSectionId) {

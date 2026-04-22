@@ -3,9 +3,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 
-import {
-	ALLOWED_STATIC_TAURI_INVOKES,
-} from "../src/lib/utils/tauri-client/non-registry-command-allowlist.js";
+import { ALLOWED_STATIC_TAURI_INVOKES } from "../src/lib/utils/tauri-client/non-registry-command-allowlist.js";
 
 const DESKTOP_ROOT = join(import.meta.dir, "..");
 const SOURCE_ROOT = join(DESKTOP_ROOT, "src", "lib");

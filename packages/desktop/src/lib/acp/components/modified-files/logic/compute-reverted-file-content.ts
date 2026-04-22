@@ -18,7 +18,10 @@ type LegacyChangeContent = {
 	noEOFCRAdditions: boolean;
 };
 
-type CompatibleHunkContent = FileDiffMetadata["hunks"][number]["hunkContent"][number] | LegacyContextContent | LegacyChangeContent;
+type CompatibleHunkContent =
+	| FileDiffMetadata["hunks"][number]["hunkContent"][number]
+	| LegacyContextContent
+	| LegacyChangeContent;
 type CompatibleFileDiffMetadata = FileDiffMetadata & {
 	deletionLines?: string[];
 	additionLines?: string[];
@@ -95,10 +98,7 @@ export function computeRevertedFileContent(
 			const contextLineCount = getContentLineCount(content.lines);
 			appendLines(
 				revertedLines,
-				currentAdditionLines.slice(
-					nextCurrentLineIndex,
-					nextCurrentLineIndex + contextLineCount
-				)
+				currentAdditionLines.slice(nextCurrentLineIndex, nextCurrentLineIndex + contextLineCount)
 			);
 			nextCurrentLineIndex += contextLineCount;
 			continue;

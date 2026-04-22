@@ -1,14 +1,14 @@
 {
-  "type": "tool_use",
-  "id": "tool-codex-move",
-  "kind": "move",
-  "input": {
-    "parsed_cmd": [
-      {
-        "type": "move",
-        "from": "/tmp/a",
-        "to": "/tmp/b"
-      }
-    ]
-  }
+	"type": "tool_use",
+	"id": "tool-codex-move",
+	"kind": "move",
+	"input": {
+		"parsed_cmd": [
+			{
+				"type": "move",
+				"from": "/tmp/a",
+				"to": "/tmp/b"
+			}
+		]
+	}
 }

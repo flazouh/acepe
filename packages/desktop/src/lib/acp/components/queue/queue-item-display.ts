@@ -2,12 +2,12 @@ import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import {
-	getTaskSubagentSummaries as getProjectedTaskSubagentSummaries,
-	projectTaskActivity,
-	selectActivityTool,
 	type ActivityTaskProjection,
 	type ActivityToolSelection,
 	type ActivityToolSelectionInput,
+	getTaskSubagentSummaries as getProjectedTaskSubagentSummaries,
+	projectTaskActivity,
+	selectActivityTool,
 } from "../activity-entry/activity-entry-projection.js";
 
 export type QueueItemToolDisplayInput = ActivityToolSelectionInput;

@@ -37,7 +37,10 @@ import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
 } from "$lib/acp/store/live-session-work.js";
-import { formatRichSessionTitle, formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
+import {
+	formatRichSessionTitle,
+	formatSessionTitleForDisplay,
+} from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { extractTodoProgressFromToolCall } from "$lib/acp/components/session-list/session-list-logic.js";
 import {
@@ -420,7 +423,9 @@ const activityEntryFileToolDisplayText = $derived(
 const activityEntryToolContent = $derived(
 	suppressPlanApprovalToolPreview
 		? null
-		: (activityProjection?.isFileTool ? null : (activityProjection?.toolContent ?? null))
+		: activityProjection?.isFileTool
+			? null
+			: (activityProjection?.toolContent ?? null)
 );
 const activityEntryShowToolShimmer = $derived(
 	suppressPlanApprovalToolPreview ? false : (activityProjection?.showToolShimmer ?? false)

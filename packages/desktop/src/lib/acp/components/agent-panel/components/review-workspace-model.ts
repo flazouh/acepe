@@ -1,6 +1,6 @@
 import {
-	getReviewWorkspaceDefaultIndex,
 	type AgentPanelFileReviewStatus,
+	getReviewWorkspaceDefaultIndex,
 	type ReviewWorkspaceFileItem,
 } from "@acepe/ui/agent-panel";
 

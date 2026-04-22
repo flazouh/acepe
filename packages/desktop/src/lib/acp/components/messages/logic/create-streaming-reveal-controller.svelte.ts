@@ -16,7 +16,10 @@ const MAX_COMPLETION_ADVANCE_CHARS = 512;
 const STREAMING_BACKLOG_DIVISOR = 10;
 const COMPLETION_BACKLOG_DIVISOR = 2;
 
-type MotionMediaQuery = Pick<MediaQueryList, "matches" | "addEventListener" | "removeEventListener">;
+type MotionMediaQuery = Pick<
+	MediaQueryList,
+	"matches" | "addEventListener" | "removeEventListener"
+>;
 
 export interface StreamingRevealController {
 	setState(sourceText: string, isStreaming: boolean, options?: { seedFromSource?: boolean }): void;
@@ -29,7 +32,10 @@ export interface StreamingRevealController {
 }
 
 function getMotionMediaQuery(): MotionMediaQuery | null {
-	if (typeof globalThis.window !== "undefined" && typeof globalThis.window.matchMedia === "function") {
+	if (
+		typeof globalThis.window !== "undefined" &&
+		typeof globalThis.window.matchMedia === "function"
+	) {
 		return globalThis.window.matchMedia("(prefers-reduced-motion: reduce)");
 	}
 
@@ -116,19 +122,13 @@ export function createStreamingRevealController(
 		if (isStreamingSource) {
 			return Math.min(
 				MAX_STREAMING_ADVANCE_CHARS,
-				Math.max(
-					MIN_STREAMING_ADVANCE_CHARS,
-					Math.ceil(backlog / STREAMING_BACKLOG_DIVISOR)
-				)
+				Math.max(MIN_STREAMING_ADVANCE_CHARS, Math.ceil(backlog / STREAMING_BACKLOG_DIVISOR))
 			);
 		}
 
 		return Math.min(
 			MAX_COMPLETION_ADVANCE_CHARS,
-			Math.max(
-				MIN_COMPLETION_ADVANCE_CHARS,
-				Math.ceil(backlog / COMPLETION_BACKLOG_DIVISOR)
-			)
+			Math.max(MIN_COMPLETION_ADVANCE_CHARS, Math.ceil(backlog / COMPLETION_BACKLOG_DIVISOR))
 		);
 	}
 

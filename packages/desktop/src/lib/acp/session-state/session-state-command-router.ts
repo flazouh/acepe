@@ -8,7 +8,10 @@ import type {
 	TranscriptDelta,
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
-import { resolveSessionStateDelta, type SessionStateDeltaResolution } from "./session-state-query-service.js";
+import {
+	resolveSessionStateDelta,
+	type SessionStateDeltaResolution,
+} from "./session-state-query-service.js";
 
 export type SessionStateCommand =
 	| {
@@ -40,7 +43,9 @@ export type SessionStateCommand =
 			delta: TranscriptDelta;
 	  };
 
-function commandFromDeltaResolution(resolution: SessionStateDeltaResolution): SessionStateCommand[] {
+function commandFromDeltaResolution(
+	resolution: SessionStateDeltaResolution
+): SessionStateCommand[] {
 	switch (resolution.kind) {
 		case "refreshSnapshot":
 			return [

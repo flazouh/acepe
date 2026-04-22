@@ -14,6 +14,6 @@ export async function invoke<
 	return tauriInvoke<TResult>(command, args);
 }
 
+export type { Commands as GeneratedCommands } from "../services/command-names.js";
 export { COMMANDS as Commands } from "../services/command-names.js";
 export { TAURI_COMMAND_CLIENT } from "../services/tauri-command-client.js";
-export type { Commands as GeneratedCommands } from "../services/command-names.js";

@@ -1,7 +1,6 @@
 import type { JsonValue } from "$lib/services/converted-session-types.js";
-
-import { isBrowserNormalizedResult } from "../../types/normalized-tool-result.js";
 import type { NormalizedBrowserResult } from "../../types/normalized-tool-result.js";
+import { isBrowserNormalizedResult } from "../../types/normalized-tool-result.js";
 import type { ToolCall } from "../../types/tool-call.js";
 
 function getBrowserRawArguments(toolCall: ToolCall): Record<string, unknown> | null {
@@ -20,7 +19,9 @@ function getBrowserRawArguments(toolCall: ToolCall): Record<string, unknown> | n
 type JsonObject = { readonly [key: string]: JsonValue };
 
 function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
-	return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
+	return (
+		value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+	);
 }
 
 function stringifyJsonValue(value: JsonValue | null | undefined): string | null {

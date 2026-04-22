@@ -16,14 +16,13 @@
  */
 
 import { SvelteMap } from "svelte/reactivity";
-
+import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
 import type {
 	ContentBlock,
 	ContentChunk,
 	ToolArguments,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
-import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
@@ -162,7 +161,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.preloadedIds.add(sessionId);
 	}
 
-	replaceTranscriptSnapshot(sessionId: string, snapshot: TranscriptSnapshot, timestamp: Date): void {
+	replaceTranscriptSnapshot(
+		sessionId: string,
+		snapshot: TranscriptSnapshot,
+		timestamp: Date
+	): void {
 		const entries = this.mergeTranscriptSnapshotEntries(
 			sessionId,
 			convertTranscriptSnapshotToSessionEntries(snapshot, timestamp)
@@ -388,9 +391,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		}
 
 		const previousToolCallId = isToolCallEntry(previousEntry) ? previousEntry.message.id : null;
-		const updatedToolCallId = isToolCallEntry(normalizedEntry)
-			? normalizedEntry.message.id
-			: null;
+		const updatedToolCallId = isToolCallEntry(normalizedEntry) ? normalizedEntry.message.id : null;
 		if (previousToolCallId !== null && updatedToolCallId !== null) {
 			if (previousToolCallId !== updatedToolCallId) {
 				// No delete API for tool index; fallback to rebuild when ID changes.

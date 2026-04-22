@@ -26,12 +26,9 @@ export function resolveTailTarget(contentRoot: HTMLElement): HTMLElement | null 
 
 export function scrollTailToVisibleEnd(
 	scrollContainer: HTMLDivElement,
-	contentRoot: HTMLElement | undefined,
+	contentRoot: HTMLElement | undefined
 ): void {
-	const maxScrollTop = Math.max(
-		0,
-		scrollContainer.scrollHeight - scrollContainer.clientHeight,
-	);
+	const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
 	if (maxScrollTop <= 0) {
 		return;
 	}

@@ -1,5 +1,5 @@
-import { canCancelVoiceInteraction } from "./voice-ui-state.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";
+import { canCancelVoiceInteraction } from "./voice-ui-state.js";
 
 export function handleVoiceMicKeyDown(
 	event: KeyboardEvent,

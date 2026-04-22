@@ -1,15 +1,15 @@
 import type { SessionEntry } from "$lib/acp/application/dto/session.js";
 import type {
+	TranscriptEntry,
+	TranscriptSegment,
+	TranscriptSnapshot,
+} from "$lib/services/acp-types.js";
+import type {
 	ContentBlock,
 	ToolCallData,
 	ToolCallStatus,
 	ToolKind,
 } from "$lib/services/converted-session-types.js";
-import type {
-	TranscriptEntry,
-	TranscriptSegment,
-	TranscriptSnapshot,
-} from "$lib/services/acp-types.js";
 
 function toContentBlock(text: string): ContentBlock {
 	return {
@@ -167,8 +167,7 @@ export function appendTranscriptSegmentToSessionEntry(
 
 	if (entry.type === "tool_call") {
 		const previousTitle = entry.message.title ?? entry.message.name;
-		const nextTitle =
-			previousTitle.length > 0 ? `${previousTitle}\n${segment.text}` : segment.text;
+		const nextTitle = previousTitle.length > 0 ? `${previousTitle}\n${segment.text}` : segment.text;
 		return {
 			id: entry.id,
 			type: "tool_call",

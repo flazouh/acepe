@@ -14,12 +14,12 @@ import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state.js";
 import { clearWorktreeEnabled } from "../components/worktree/worktree-storage.js";
 import { areReviewFileSnapshotsEqual } from "../review/review-file-revision.js";
+import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { createLogger } from "../utils/logger.js";
 import type { AgentStore } from "./agent-store.svelte.js";
 import type { BrowserPanel } from "./browser-panel-type.js";
 import { DEFAULT_BROWSER_PANEL_WIDTH, MIN_BROWSER_PANEL_WIDTH } from "./browser-panel-type.js";
 import { EmbeddedTerminalStore } from "./embedded-terminal-store.svelte.js";
-
 import {
 	createFilePanelCacheKey,
 	getFirstAttachedFilePanelId,
@@ -35,7 +35,6 @@ import type { ReviewPanel } from "./review-panel-type.js";
 import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import { DEFAULT_TERMINAL_PANEL_WIDTH, MIN_TERMINAL_PANEL_WIDTH } from "./terminal-panel-type.js";
-import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
@@ -795,8 +794,8 @@ export class PanelStore {
 						...p,
 						sessionId,
 						pendingProjectSelection: false,
-						pendingWorktreeEnabled: sessionId === null ? p.pendingWorktreeEnabled ?? null : null,
-						preparedWorktreeLaunch: sessionId === null ? p.preparedWorktreeLaunch ?? null : null,
+						pendingWorktreeEnabled: sessionId === null ? (p.pendingWorktreeEnabled ?? null) : null,
+						preparedWorktreeLaunch: sessionId === null ? (p.preparedWorktreeLaunch ?? null) : null,
 						projectPath: session?.projectPath ?? p.projectPath,
 						agentId: session?.agentId ?? p.agentId,
 						sourcePath: session?.sourcePath ?? p.sourcePath,

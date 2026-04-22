@@ -1,25 +1,25 @@
 {
-  "toolCallId": "tool-claude-question",
-  "_meta": {
-    "claudeCode": {
-      "toolName": "AskUserQuestion"
-    }
-  },
-  "rawInput": {
-    "questions": [
-      {
-        "question": "Pick",
-        "header": "Task",
-        "options": [
-          {
-            "label": "A",
-            "description": "Do A"
-          }
-        ],
-        "multiSelect": false
-      }
-    ]
-  },
-  "status": "pending",
-  "kind": "think"
+	"toolCallId": "tool-claude-question",
+	"_meta": {
+		"claudeCode": {
+			"toolName": "AskUserQuestion"
+		}
+	},
+	"rawInput": {
+		"questions": [
+			{
+				"question": "Pick",
+				"header": "Task",
+				"options": [
+					{
+						"label": "A",
+						"description": "Do A"
+					}
+				],
+				"multiSelect": false
+			}
+		]
+	},
+	"status": "pending",
+	"kind": "think"
 }

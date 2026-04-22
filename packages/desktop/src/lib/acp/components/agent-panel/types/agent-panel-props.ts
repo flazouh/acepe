@@ -1,7 +1,7 @@
+import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte";
 import type { FilePanel } from "../../../store/file-panel-type.js";
-import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { ModifiedFilesState } from "../../modified-files/types/modified-files-state.js";
 
 /**
@@ -203,5 +203,4 @@ export interface AgentPanelProps {
 	 * Callback to resize an attached file panel.
 	 */
 	readonly onResizeAttachedFilePanel?: (filePanelId: string, delta: number) => void;
-
 }

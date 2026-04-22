@@ -17,7 +17,9 @@ export const fileIndex = {
 	},
 
 	getProjectGitStatusSummary: (projectPath: string): ResultAsync<FileGitStatus[], AppError> => {
-		return fileIndexCommands.get_project_git_status_summary.invoke<FileGitStatus[]>({ projectPath });
+		return fileIndexCommands.get_project_git_status_summary.invoke<FileGitStatus[]>({
+			projectPath,
+		});
 	},
 
 	getProjectGitOverviewSummary: (

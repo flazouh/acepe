@@ -71,7 +71,9 @@ describe("kanban view scene contract", () => {
 			"idle",
 			"error",
 		]);
-		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "planning")?.items).toEqual([]);
+		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "planning")?.items).toEqual(
+			[]
+		);
 	});
 
 	it("keeps optimistic cards ahead of live session cards in the same column", () => {
@@ -94,9 +96,10 @@ describe("kanban view scene contract", () => {
 		});
 
 		expect(scene.placements.map((placement) => placement.cardId)).toEqual(["panel-1", "session-1"]);
-		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "working")?.items.map((card) => card.id)).toEqual([
-			"panel-1",
-			"session-1",
-		]);
+		expect(
+			buildKanbanSceneGroups(scene)
+				.find((group) => group.id === "working")
+				?.items.map((card) => card.id)
+		).toEqual(["panel-1", "session-1"]);
 	});
 });

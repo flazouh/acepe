@@ -1,30 +1,30 @@
 <script lang="ts">
-	import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
-	import { onMount } from "svelte";
-	import { toast } from "svelte-sonner";
-	import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
-	import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
-	import { buildAgentErrorIssueDraft } from "$lib/acp/components/agent-panel/logic/issue-report-draft.js";
-	import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
-	import { FilePanel } from "$lib/acp/components/file-panel/index.js";
-	import FilePanelTabs from "$lib/acp/components/file-panel/file-panel-tabs.svelte";
-	import { AgentPanel } from "$lib/acp/components/index.js";
-	import { ReviewPanel } from "$lib/acp/components/review-panel/index.js";
-	import { TerminalPanel, TerminalTabs } from "$lib/acp/components/terminal-panel/index.js";
-	import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-	import { getViewModeState } from "$lib/acp/logic/view-mode-state.js";
-	import {
-		getAgentPreferencesStore,
+import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
+import { onMount } from "svelte";
+import { toast } from "svelte-sonner";
+import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import { buildAgentErrorIssueDraft } from "$lib/acp/components/agent-panel/logic/issue-report-draft.js";
+import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
+import { FilePanel } from "$lib/acp/components/file-panel/index.js";
+import FilePanelTabs from "$lib/acp/components/file-panel/file-panel-tabs.svelte";
+import { AgentPanel } from "$lib/acp/components/index.js";
+import { ReviewPanel } from "$lib/acp/components/review-panel/index.js";
+import { TerminalPanel, TerminalTabs } from "$lib/acp/components/terminal-panel/index.js";
+import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import { getViewModeState } from "$lib/acp/logic/view-mode-state.js";
+import {
+	getAgentPreferencesStore,
 	getAgentStore,
 	getPanelStore,
 	getSessionStore,
 } from "$lib/acp/store/index.js";
-	import { createLogger } from "$lib/acp/utils/logger.js";
-	import { useTheme } from "$lib/components/theme/context.svelte.js";
-	import { ensureErrorReference } from "$lib/errors/error-reference.js";
-	import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
-	import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
-	import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
+import { createLogger } from "$lib/acp/utils/logger.js";
+import { useTheme } from "$lib/components/theme/context.svelte.js";
+import { ensureErrorReference } from "$lib/errors/error-reference.js";
+import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
+import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
 
 import { groupAllPanelsByProject, sortProjectGroupsForMultiLayout } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
@@ -92,8 +92,7 @@ function normalizeBoundaryError(error: unknown): Error {
 				errorLike.backendCorrelationId;
 		}
 		if (typeof errorLike.backendEventId === "string") {
-			(nextError as Error & { backendEventId?: string }).backendEventId =
-				errorLike.backendEventId;
+			(nextError as Error & { backendEventId?: string }).backendEventId = errorLike.backendEventId;
 		}
 		return nextError;
 	}
@@ -228,14 +227,12 @@ $effect(() => {
 // re-fires every dependent `$effect` on sibling panels — producing a
 // visible flicker across other panels when one is opened or closed.
 const availableAgents = $derived(
-	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map(
-		(a) => ({
-			id: a.id,
-			name: a.name,
-			icon: a.icon,
-			availability_kind: a.availability_kind,
-		})
-	)
+	getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map((a) => ({
+		id: a.id,
+		name: a.name,
+		icon: a.icon,
+		availability_kind: a.availability_kind,
+	}))
 );
 
 // Focused view: panels grouped by project (needed for view mode state and card layout)
@@ -272,7 +269,9 @@ const viewModeState = $derived.by(() =>
 // True multi-project layout: cards layout with no focused project (all groups visible).
 // Drives wrapper removal, explicit project ordering, and per-panel project badge visibility.
 const isMultiCardsMode = $derived(
-	viewModeState.layout === "cards" && viewModeState.activeProjectPath == null && allGroups.length > 1
+	viewModeState.layout === "cards" &&
+		viewModeState.activeProjectPath == null &&
+		allGroups.length > 1
 );
 
 // Explicitly-sorted groups for true multi-project rendering. project/single modes keep

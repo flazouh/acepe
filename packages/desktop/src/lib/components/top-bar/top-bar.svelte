@@ -68,20 +68,51 @@ const updateActionText = $derived(
 type LayoutFamily = "standard" | "kanban";
 type ThemeOption = { value: Theme; label: string };
 
-const layoutFamilies: { value: LayoutFamily; label: string; description: string; color: string }[] = [
-	{ value: "standard", label: "Standard", description: "Classic panel layout.", color: Colors[COLOR_NAMES.PURPLE] },
-	{ value: "kanban", label: "Kanban", description: "Board-style columns.", color: Colors[COLOR_NAMES.PINK] },
-];
+const layoutFamilies: { value: LayoutFamily; label: string; description: string; color: string }[] =
+	[
+		{
+			value: "standard",
+			label: "Standard",
+			description: "Classic panel layout.",
+			color: Colors[COLOR_NAMES.PURPLE],
+		},
+		{
+			value: "kanban",
+			label: "Kanban",
+			description: "Board-style columns.",
+			color: Colors[COLOR_NAMES.PINK],
+		},
+	];
 const themeOptions: ThemeOption[] = [
 	{ value: "light", label: "Light" },
 	{ value: "dark", label: "Dark" },
 	{ value: "system", label: "System" },
 ];
 
-const standardViewModes: { value: Exclude<ViewMode, "kanban">; label: string; description: string; color: string }[] = [
-	{ value: "single", label: "Single", description: "One agent at a time.", color: Colors[COLOR_NAMES.PURPLE] },
-	{ value: "project", label: "Project", description: "Group by project.", color: Colors[COLOR_NAMES.ORANGE] },
-	{ value: "multi", label: "Multi", description: "All agents side by side.", color: "var(--success)" },
+const standardViewModes: {
+	value: Exclude<ViewMode, "kanban">;
+	label: string;
+	description: string;
+	color: string;
+}[] = [
+	{
+		value: "single",
+		label: "Single",
+		description: "One agent at a time.",
+		color: Colors[COLOR_NAMES.PURPLE],
+	},
+	{
+		value: "project",
+		label: "Project",
+		description: "Group by project.",
+		color: Colors[COLOR_NAMES.ORANGE],
+	},
+	{
+		value: "multi",
+		label: "Multi",
+		description: "All agents side by side.",
+		color: "var(--success)",
+	},
 ];
 
 const isKanbanView = $derived(panelStore.viewMode === "kanban");

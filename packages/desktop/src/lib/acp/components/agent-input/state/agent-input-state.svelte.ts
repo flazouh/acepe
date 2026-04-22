@@ -491,16 +491,19 @@ export class AgentInputState {
 		this.loadedProjectPath = projectPath;
 
 		const invalidateCachedFiles = refresh
-			? fileIndex.invalidateProjectFiles(projectPath).mapErr(
-					(err) =>
-						new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
-				).orElse((error) => {
-					this.logger.warn("[loadProjectFiles] Failed to invalidate cached project files", {
-						projectPath,
-						error,
-					});
-					return okAsync(undefined);
-				})
+			? fileIndex
+					.invalidateProjectFiles(projectPath)
+					.mapErr(
+						(err) =>
+							new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
+					)
+					.orElse((error) => {
+						this.logger.warn("[loadProjectFiles] Failed to invalidate cached project files", {
+							projectPath,
+							error,
+						});
+						return okAsync(undefined);
+					})
 			: okAsync(undefined);
 
 		return invalidateCachedFiles
@@ -509,10 +512,7 @@ export class AgentInputState {
 					.getProjectFiles(projectPath)
 					.mapErr(
 						(err) =>
-							new FileLoadError(
-								projectPath,
-								err instanceof Error ? err : new Error(String(err))
-							)
+							new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
 					)
 			)
 			.map((index) => {

@@ -18,17 +18,13 @@ import type {
 
 import { SessionStore } from "../session-store.svelte.js";
 
-type ProjectionFailureOverride =
-	| Partial<TurnFailureSnapshot>
-	| null;
+type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
 
-function createSessionStateGraph(
-	overrides: GraphOverride = {}
-): SessionStateGraph {
+function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGraph {
 	const activeTurnFailureOverride = overrides.activeTurnFailure;
 	const activeTurnFailure: TurnFailureSnapshot | null =
 		activeTurnFailureOverride === undefined

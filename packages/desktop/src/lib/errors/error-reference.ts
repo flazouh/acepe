@@ -39,10 +39,7 @@ export function createLocalReferenceDetails(): ErrorReferenceDetails {
 	};
 }
 
-export function attachErrorReference<T extends Error>(
-	error: T,
-	details: ErrorReferenceDetails
-): T {
+export function attachErrorReference<T extends Error>(error: T, details: ErrorReferenceDetails): T {
 	(error as ErrorWithReference).__acepeReferenceDetails = details;
 	return error;
 }

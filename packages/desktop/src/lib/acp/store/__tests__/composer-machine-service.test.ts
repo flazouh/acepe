@@ -109,9 +109,7 @@ describe("ComposerMachineService", () => {
 			currentModel: { id: "m1", name: "M1" },
 			autonomousEnabled: false,
 		});
-		const service = new ComposerMachineService((id) =>
-			id === "s1" ? hotState : makeHot()
-		);
+		const service = new ComposerMachineService((id) => (id === "s1" ? hotState : makeHot()));
 		let resolveOp: (v: boolean) => void = () => {};
 		const p = new Promise<boolean>((r) => {
 			resolveOp = r;

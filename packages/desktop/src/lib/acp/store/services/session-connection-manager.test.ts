@@ -131,7 +131,10 @@ function createManager(deps: {
  * This simulates the fire-and-forget invoke + SSE lifecycle event pattern.
  */
 function mockResumeWithLifecycleEvent(responseData: {
-	modes: { currentModeId: string; availableModes: Array<{ id: string; name: string; description: string | null }> };
+	modes: {
+		currentModeId: string;
+		availableModes: Array<{ id: string; name: string; description: string | null }>;
+	};
 	models: SessionModelState;
 	availableCommands?: AvailableCommand[];
 	configOptions?: ConfigOptionData[];
@@ -856,7 +859,6 @@ describe("SessionConnectionManager.connectSession", () => {
 				providerBrand: "codex",
 			})
 		);
-
 	});
 
 	it("hydrates hot state with available commands on connect", async () => {
@@ -1358,7 +1360,11 @@ describe("SessionConnectionManager.createSession", () => {
 			isConnected: false,
 			turnState: "idle",
 			currentMode: { id: "build", name: "Build", description: undefined },
-			currentModel: { id: "gpt-5.2-codex/high", name: "gpt-5.2-codex (high)", description: undefined },
+			currentModel: {
+				id: "gpt-5.2-codex/high",
+				name: "gpt-5.2-codex (high)",
+				description: undefined,
+			},
 			availableCommands: [{ name: "open", description: "Open file" }],
 		});
 		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
@@ -2040,9 +2046,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			availableCommands: [],
 			modelsDisplay: undefined,
 		});
-		setMode.mockReturnValue(
-			errAsync(new AgentError("setMode", new Error("backend failed")))
-		);
+		setMode.mockReturnValue(errAsync(new AgentError("setMode", new Error("backend failed"))));
 
 		const manager = createManager({
 			stateReader,

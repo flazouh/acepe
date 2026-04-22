@@ -162,9 +162,9 @@ describe("virtualized-entry-display", () => {
 			},
 		]);
 
-		expect(resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
-			5_000
-		);
+		expect(
+			resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))
+		).toBe(5_000);
 	});
 
 	it("keeps live thought durations growing while the trailing thinking indicator is visible", () => {
@@ -184,11 +184,11 @@ describe("virtualized-entry-display", () => {
 			startedAtMs: Date.parse("2026-01-01T00:00:00.000Z"),
 		});
 
-		expect(resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
-			8_000
-		);
-		expect(resolveDisplayEntryThinkingDurationMs(display, 1, Date.parse("2026-01-01T00:00:08.000Z"))).toBe(
-			8_000
-		);
+		expect(
+			resolveDisplayEntryThinkingDurationMs(display, 0, Date.parse("2026-01-01T00:00:08.000Z"))
+		).toBe(8_000);
+		expect(
+			resolveDisplayEntryThinkingDurationMs(display, 1, Date.parse("2026-01-01T00:00:08.000Z"))
+		).toBe(8_000);
 	});
 });

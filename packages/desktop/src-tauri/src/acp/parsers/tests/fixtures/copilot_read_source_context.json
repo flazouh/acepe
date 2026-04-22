@@ -1,13 +1,13 @@
 {
-  "toolCallId": "toolu_read_ctx",
-  "kind": "read",
-  "sessionUpdate": "tool_call",
-  "status": "pending",
-  "title": "Read src/lib.rs",
-  "rawInput": {
-    "path": "/project/src/lib.rs",
-    "file_path": "/project/src/lib.rs",
-    "view_range": { "start_line": 5, "end_line": 20 },
-    "lines": "5| use std::io;\n6| pub fn main() {}\n"
-  }
+	"toolCallId": "toolu_read_ctx",
+	"kind": "read",
+	"sessionUpdate": "tool_call",
+	"status": "pending",
+	"title": "Read src/lib.rs",
+	"rawInput": {
+		"path": "/project/src/lib.rs",
+		"file_path": "/project/src/lib.rs",
+		"view_range": { "start_line": 5, "end_line": 20 },
+		"lines": "5| use std::io;\n6| pub fn main() {}\n"
+	}
 }

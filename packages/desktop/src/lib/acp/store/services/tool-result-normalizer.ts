@@ -1,9 +1,9 @@
 import type { JsonValue } from "../../../services/converted-session-types.js";
+import { parseBrowserToolResult } from "../../components/tool-calls/browser-tool-display.js";
 import { parseToolResultWithExitCode } from "../../components/tool-calls/tool-call-execute/logic/parse-tool-result.js";
 import { parseFetchResult } from "../../components/tool-calls/tool-call-fetch/logic/parse-fetch-result.js";
 import { parseSearchResult } from "../../components/tool-calls/tool-call-search/logic/parse-grep-output.js";
 import { parseWebSearchResult } from "../../components/tool-calls/tool-call-web-search/logic/parse-web-search-result.js";
-import { parseBrowserToolResult } from "../../components/tool-calls/browser-tool-display.js";
 import type {
 	NormalizedExecuteResult,
 	NormalizedSearchResult,
@@ -24,14 +24,20 @@ interface SearchToolResponseMeta {
 }
 
 function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
-	return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
+	return (
+		value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value)
+	);
 }
 
 function isEmptyRawResult(result: JsonValue | null | undefined): boolean {
-	return result === null || result === undefined || (typeof result === "string" && result.length === 0);
+	return (
+		result === null || result === undefined || (typeof result === "string" && result.length === 0)
+	);
 }
 
-function extractSearchToolResponseMeta(result: JsonValue | null | undefined): SearchToolResponseMeta | undefined {
+function extractSearchToolResponseMeta(
+	result: JsonValue | null | undefined
+): SearchToolResponseMeta | undefined {
 	if (!isJsonObject(result)) {
 		return undefined;
 	}
@@ -186,7 +192,7 @@ function normalizeSqlResult(result: JsonValue): NormalizedSqlResult | null {
 			? result.rowCount
 			: typeof result.row_count === "number"
 				? result.row_count
-				: rows?.length ?? null;
+				: (rows?.length ?? null);
 
 	return {
 		kind: "sql",

@@ -30,12 +30,8 @@ vi.mock("../../store/api.js", () => ({
 	},
 }));
 
-const {
-	cancelQuestion,
-	InboundRequestHandler,
-	respondToPermission,
-	respondToQuestion,
-} = await import("../inbound-request-handler.js");
+const { cancelQuestion, InboundRequestHandler, respondToPermission, respondToQuestion } =
+	await import("../inbound-request-handler.js");
 
 describe("InboundRequestHandler", () => {
 	let handler: InstanceType<typeof InboundRequestHandler>;

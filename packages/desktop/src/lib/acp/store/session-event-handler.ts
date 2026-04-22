@@ -6,13 +6,12 @@
  */
 
 import type { ResultAsync } from "neverthrow";
-
+import type { SessionStateEnvelope } from "../../services/acp-types.js";
 import type {
 	ConfigOptionData,
 	ContentBlock,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
-import type { SessionStateEnvelope } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";

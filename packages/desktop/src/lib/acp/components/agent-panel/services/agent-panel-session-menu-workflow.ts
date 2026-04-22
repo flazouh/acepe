@@ -4,13 +4,13 @@
 
 import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
-import type { SessionCold, SessionEntry } from "../../../application/dto/session";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
-import { createLogger } from "../../../utils/logger.js";
+import type { SessionCold, SessionEntry } from "../../../application/dto/session";
+import type { createLogger } from "../../../utils/logger.js";
+import { sessionEntriesToMarkdown } from "../../../utils/session-to-markdown.js";
 import { copySessionToClipboard, copyTextToClipboard } from "../logic/clipboard-manager.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target.js";
-import { sessionEntriesToMarkdown } from "../../../utils/session-to-markdown.js";
 
 type Logger = ReturnType<typeof createLogger>;
 
@@ -154,9 +154,14 @@ export async function openSessionFileInAcepePanel(args: {
 	);
 }
 
-export async function exportSessionMarkdownToClipboard(entries: ReadonlyArray<SessionEntry>): Promise<void> {
+export async function exportSessionMarkdownToClipboard(
+	entries: ReadonlyArray<SessionEntry>
+): Promise<void> {
 	const markdown = sessionEntriesToMarkdown(entries);
-	await ResultAsync.fromPromise(navigator.clipboard.writeText(markdown), (e) => new Error(String(e))).match(
+	await ResultAsync.fromPromise(
+		navigator.clipboard.writeText(markdown),
+		(e) => new Error(String(e))
+	).match(
 		() => toast.success("Copied to clipboard"),
 		(err) => toast.error(`Failed to export: ${err.message}`)
 	);

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/browser";
-import posthog from "posthog-js";
 import { ResultAsync } from "neverthrow";
+import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
@@ -137,7 +137,8 @@ async function readAppVersion(): Promise<string | null> {
 
 	return ResultAsync.fromPromise(
 		import("@tauri-apps/api/app").then((mod) => mod.getVersion()),
-		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
+		(error) =>
+			normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
 	).match(
 		(version) => {
 			appVersion = version;
@@ -194,7 +195,8 @@ async function initializeSentry(version: string | null): Promise<void> {
 				beforeSend: (event) => (analyticsEnabled ? event : null),
 			});
 		}),
-		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to initialize Sentry")
+		(error) =>
+			normalizeError(error instanceof Error ? error : undefined, "Failed to initialize Sentry")
 	).match(
 		() => {
 			sentryInitialized = true;
@@ -227,7 +229,8 @@ async function initializePostHog(version: string | null): Promise<void> {
 				opt_out_capturing_by_default: !analyticsEnabled,
 			});
 		}),
-		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to initialize PostHog")
+		(error) =>
+			normalizeError(error instanceof Error ? error : undefined, "Failed to initialize PostHog")
 	).match(
 		() => {
 			posthogInitialized = true;
@@ -290,10 +293,7 @@ export function captureContractViolation(
 	contract: string,
 	properties: TelemetryEventProperties = {}
 ): void {
-	captureEvent(
-		CONTRACT_VIOLATION_EVENT,
-		Object.assign({}, properties, { contract })
-	);
+	captureEvent(CONTRACT_VIOLATION_EVENT, Object.assign({}, properties, { contract }));
 }
 
 export function captureException(
@@ -319,10 +319,7 @@ export function captureException(
 	}
 }
 
-export function captureCommandFailure(
-	error: Error,
-	context: CommandFailureTelemetryContext
-): void {
+export function captureCommandFailure(error: Error, context: CommandFailureTelemetryContext): void {
 	if (context.classification === "expected") {
 		return;
 	}
@@ -400,7 +397,11 @@ export async function setAnalyticsEnabled(enabled: boolean): Promise<void> {
 
 			posthog.opt_out_capturing();
 		}),
-		(error) => normalizeError(error instanceof Error ? error : undefined, "Failed to update PostHog preference")
+		(error) =>
+			normalizeError(
+				error instanceof Error ? error : undefined,
+				"Failed to update PostHog preference"
+			)
 	).match(
 		() => undefined,
 		(error) => {

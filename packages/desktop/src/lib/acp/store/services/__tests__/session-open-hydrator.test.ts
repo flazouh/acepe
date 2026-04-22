@@ -3,9 +3,7 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { SessionOpenFound } from "../../../../services/acp-types.js";
 import { SessionOpenHydrator } from "../session-open-hydrator.js";
 
-function createFoundResult(
-	overrides?: Partial<SessionOpenFound>
-): SessionOpenFound {
+function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFound {
 	const requestedSessionId = overrides?.requestedSessionId ?? "requested-session";
 	const canonicalSessionId = overrides?.canonicalSessionId ?? "canonical-session";
 	const isAlias = overrides?.isAlias ?? false;
@@ -88,11 +86,7 @@ describe("SessionOpenHydrator", () => {
 		hydrator.beginAttempt("panel-1");
 		const activeToken = hydrator.beginAttempt("panel-1");
 
-		const result = await hydrator.hydrateFound(
-			"panel-1",
-			"session-open-1",
-			createFoundResult()
-		);
+		const result = await hydrator.hydrateFound("panel-1", "session-open-1", createFoundResult());
 
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap()).toEqual({
@@ -123,11 +117,7 @@ describe("SessionOpenHydrator", () => {
 
 	it("ignores older revisions after a newer snapshot was applied", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
-		await hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ lastEventSeq: 5 })
-		);
+		await hydrator.hydrateFound("panel-1", requestToken, createFoundResult({ lastEventSeq: 5 }));
 
 		const older = await hydrator.hydrateFound(
 			"panel-1",

@@ -284,14 +284,16 @@ export class ProjectManager {
 					return okAsync(undefined);
 				}
 
-				return this.sessionStore.scanSessions([path]).mapErr(
-					(error) =>
-						new ProjectError(
-							`Failed to refresh project sessions: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				);
+				return this.sessionStore
+					.scanSessions([path])
+					.mapErr(
+						(error) =>
+							new ProjectError(
+								`Failed to refresh project sessions: ${error.message}`,
+								"STORAGE_ERROR",
+								error instanceof Error ? error : undefined
+							)
+					);
 			});
 	}
 

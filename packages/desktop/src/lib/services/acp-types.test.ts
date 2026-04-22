@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-
+import {
+	createSnapshotEnvelope,
+	graphFromSessionOpenFound,
+	materializeSnapshotFromOpenFound,
+} from "../acp/session-state/session-state-protocol.js";
 import type {
 	CanonicalAgentId,
 	SessionGraphCapabilities,
@@ -9,11 +13,6 @@ import type {
 	SessionStateGraph,
 	SessionTurnState,
 } from "./acp-types.js";
-import {
-	createSnapshotEnvelope,
-	graphFromSessionOpenFound,
-	materializeSnapshotFromOpenFound,
-} from "../acp/session-state/session-state-protocol.js";
 
 describe("session-state protocol graph contract", () => {
 	it("builds a graph-backed snapshot envelope from a canonical open result", () => {

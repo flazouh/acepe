@@ -1,5 +1,5 @@
-import type { Attachment } from "../../agent-input/types/attachment.js";
 import type { MessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
+import type { Attachment } from "../../agent-input/types/attachment.js";
 
 type QueuedMessage = {
 	id: string;

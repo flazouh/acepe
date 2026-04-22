@@ -44,7 +44,9 @@ const sourceExcerpt = $derived.by(() => {
 	if (streamingArgs?.kind === "read" && streamingArgs.source_context?.excerpt) {
 		return streamingArgs.source_context.excerpt;
 	}
-	return toolCall.arguments.kind === "read" ? (toolCall.arguments.source_context?.excerpt ?? null) : null;
+	return toolCall.arguments.kind === "read"
+		? (toolCall.arguments.source_context?.excerpt ?? null)
+		: null;
 });
 const sourceRangeLabel = $derived.by(() => {
 	const streamingArgs = sessionStore.getStreamingArguments(toolCall.id);

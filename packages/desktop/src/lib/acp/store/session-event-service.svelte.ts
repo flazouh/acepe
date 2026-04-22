@@ -10,7 +10,12 @@
 
 import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
-
+import type {
+	SessionGraphCapabilities,
+	SessionGraphLifecycle,
+	SessionModelState,
+	SessionStateEnvelope,
+} from "../../services/acp-types.js";
 import type {
 	AvailableCommand,
 	ConfigOptionData,
@@ -19,12 +24,6 @@ import type {
 	SessionUpdate,
 	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
-import type {
-	SessionModelState,
-	SessionGraphCapabilities,
-	SessionGraphLifecycle,
-	SessionStateEnvelope,
-} from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
@@ -75,7 +74,10 @@ function getSessionId(update: SessionUpdate): string | null | undefined {
 /** Data payload delivered with a connectionComplete lifecycle event. */
 export interface ConnectionCompleteData {
 	models: SessionModelState;
-	modes: { currentModeId?: string; availableModes?: Array<{ id: string; name: string; description?: string | null }> };
+	modes: {
+		currentModeId?: string;
+		availableModes?: Array<{ id: string; name: string; description?: string | null }>;
+	};
 	availableCommands: AvailableCommand[];
 	configOptions: ConfigOptionData[];
 	autonomousEnabled: boolean;
@@ -234,11 +236,18 @@ export class SessionEventService {
 	 * Initialize session update subscription.
 	 */
 	initializeSessionUpdates(handler: SessionEventHandler): ResultAsync<void, AppError> {
-		if (this.eventSubscriber && this.sessionUpdateSubscriptionId && this.sessionStateSubscriptionId) {
+		if (
+			this.eventSubscriber &&
+			this.sessionUpdateSubscriptionId &&
+			this.sessionStateSubscriptionId
+		) {
 			return okAsync(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
-		if (this.eventSubscriber && (!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)) {
+		if (
+			this.eventSubscriber &&
+			(!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)
+		) {
 			this.eventSubscriber = null;
 		}
 
@@ -488,7 +497,10 @@ export class SessionEventService {
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
 		this.latestSessionStateGraphRevision.set(
 			envelope.sessionId,
-			Math.max(this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0, envelope.graphRevision)
+			Math.max(
+				this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0,
+				envelope.graphRevision
+			)
 		);
 		this.advanceConnectionMaterializationWaiter(envelope);
 		if (!this.hasKnownSession(handler, envelope.sessionId)) {
@@ -671,11 +683,7 @@ export class SessionEventService {
 	/**
 	 * Buffer event for session that may still be creating (race condition).
 	 */
-	private bufferPendingEvent(
-		sessionId: string,
-		update: SessionUpdate,
-		envelopeSeq?: number
-	): void {
+	private bufferPendingEvent(sessionId: string, update: SessionUpdate, envelopeSeq?: number): void {
 		this.bufferPending(sessionId, {
 			kind: "sessionUpdate",
 			update,
@@ -722,10 +730,7 @@ export class SessionEventService {
 
 		logger.debug("Buffered event for pending session", {
 			sessionId,
-			type:
-				pendingEvent.kind === "sessionUpdate"
-					? pendingEvent.update.type
-					: "sessionState",
+			type: pendingEvent.kind === "sessionUpdate" ? pendingEvent.update.type : "sessionState",
 			bufferSize: pending.length,
 		});
 	}

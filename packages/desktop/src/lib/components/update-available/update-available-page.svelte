@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { BrandLockup, BrandShaderBackground, TextShimmer, VoiceDownloadProgress } from "@acepe/ui";
+import { BrandLockup, BrandShaderBackground, TextShimmer, VoiceDownloadProgress } from "@acepe/ui";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { onMount } from "svelte";
 import {
 	isUpdaterInstallInProgress,
 	type UpdaterBannerState,
 } from "$lib/components/main-app-view/logic/updater-state.js";
-	import { Button } from "$lib/components/ui/button/index.js";
+import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 const UPDATE_PROGRESS_SEGMENT_COUNT = 96;
 

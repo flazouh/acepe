@@ -127,10 +127,7 @@ export class SessionConnectionManager {
 		);
 	}
 
-	private setSessionAutonomous(
-		sessionId: string,
-		enabled: boolean
-	): ResultAsync<void, AppError> {
+	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
 		return api.setSessionAutonomous(sessionId, enabled);
 	}
 
@@ -641,9 +638,7 @@ export class SessionConnectionManager {
 					options?.openToken
 				)
 			)
-			.andThen(() =>
-				ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError)
-			)
+			.andThen(() => ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError))
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
 				const cold = this.stateReader.getSessionCold(sessionId);
@@ -733,11 +728,7 @@ export class SessionConnectionManager {
 		// Cache available models and modes for settings/optimistic display
 		preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
 		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		preferencesStore.updateModelsDisplayCache(
-			effectiveAgentId,
-			modelsDisplay,
-			providerMetadata
-		);
+		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay, providerMetadata);
 		preferencesStore.updateModesCache(effectiveAgentId, availableModes);
 		logger.info("Provider model capabilities on session resume", {
 			sessionId,
@@ -931,7 +922,8 @@ export class SessionConnectionManager {
 
 		const hotState = this.stateReader.getHotState(sessionId);
 		const targetEnabled =
-			enabled && this.supportsAutonomousMode(hotState.currentMode ? hotState.currentMode.id : undefined);
+			enabled &&
+			this.supportsAutonomousMode(hotState.currentMode ? hotState.currentMode.id : undefined);
 		if (hotState.autonomousTransition !== "idle") {
 			return errAsync(
 				new AgentError(

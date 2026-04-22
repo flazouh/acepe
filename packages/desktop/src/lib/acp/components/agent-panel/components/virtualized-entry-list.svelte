@@ -565,7 +565,6 @@ export function scrollToTop() {
 	}
 	vlistRef?.scrollToIndex(0);
 }
-
 </script>
 
 <!--

@@ -94,11 +94,11 @@ describe("tool definition registry", () => {
 				},
 			},
 			result: {
-				content: "\"Wrong raw payload\"",
+				content: '"Wrong raw payload"',
 			},
 			normalizedResult: {
 				kind: "browser",
-				content: "\"Acepe\"",
+				content: '"Acepe"',
 				detailedContent: null,
 				screenshotUrl: null,
 				outcome: "success",
@@ -113,7 +113,7 @@ describe("tool definition registry", () => {
 			subtitle: "(() => document.title)()",
 			filePath: undefined,
 			status: "done",
-			detailsText: "\"Acepe\"",
+			detailsText: '"Acepe"',
 			scriptText: "(() => document.title)()",
 		});
 	});

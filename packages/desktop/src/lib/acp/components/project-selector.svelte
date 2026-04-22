@@ -8,10 +8,10 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 
-	import { getAgentIcon } from "../constants/thread-list-constants.js";
-	import type { Project } from "../logic/project-manager.svelte.js";
-	import { getProjectColor, TAG_COLORS } from "../utils/colors.js";
-	import { createLogger } from "../utils/logger.js";
+import { getAgentIcon } from "../constants/thread-list-constants.js";
+import type { Project } from "../logic/project-manager.svelte.js";
+import { getProjectColor, TAG_COLORS } from "../utils/colors.js";
+import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
 
 interface ProjectSelectorProps {

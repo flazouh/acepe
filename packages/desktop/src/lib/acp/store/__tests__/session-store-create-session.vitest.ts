@@ -111,9 +111,7 @@ describe("SessionStore.createSession", () => {
 
 		store.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				errAsync(new Error("Provider crashed during session creation"))
-			),
+			createSession: vi.fn(() => errAsync(new Error("Provider crashed during session creation"))),
 		};
 
 		const result = await store.createSession({
@@ -180,9 +178,7 @@ describe("SessionStore.createSession", () => {
 		expect(hydrateCreated).toHaveBeenCalledWith(
 			expect.objectContaining({
 				outcome: "found",
-				operations: expect.arrayContaining([
-					expect.objectContaining({ id: "op-1", name: "Read" }),
-				]),
+				operations: expect.arrayContaining([expect.objectContaining({ id: "op-1", name: "Read" })]),
 			})
 		);
 	});

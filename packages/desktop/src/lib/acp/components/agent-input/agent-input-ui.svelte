@@ -125,19 +125,21 @@ const voiceMicTooltipLabels = $derived.by(() => ({
 	stopRecording: "Stop recording",
 	startRecording: "Start voice recording",
 }));
-const voiceRecordingOverlayPhase = $derived.by((): "checking_permission" | "recording" | "error" => {
-	const v = voiceState;
-	if (!v) {
+const voiceRecordingOverlayPhase = $derived.by(
+	(): "checking_permission" | "recording" | "error" => {
+		const v = voiceState;
+		if (!v) {
+			return "error";
+		}
+		if (v.phase === "checking_permission") {
+			return "checking_permission";
+		}
+		if (v.phase === "recording") {
+			return "recording";
+		}
 		return "error";
 	}
-	if (v.phase === "checking_permission") {
-		return "checking_permission";
-	}
-	if (v.phase === "recording") {
-		return "recording";
-	}
-	return "error";
-});
+);
 const voiceOverlayActive = $derived.by(() => {
 	const currentVoiceState = voiceState;
 	if (currentVoiceState === null) {
@@ -1684,7 +1686,6 @@ $effect(() => {
 	const cursorPos = Math.min(getSerializedCursorOffset(editorRef), _message.length);
 	syncEditorFromMessage(cursorPos);
 });
-
 </script>
 
 <div

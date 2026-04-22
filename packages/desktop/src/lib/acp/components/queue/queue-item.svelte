@@ -137,9 +137,7 @@ const permissionVerb = $derived.by(() => {
 	}
 	return pendingPermission.permission;
 });
-const displayTitle = $derived(
-	normalizeTitleForDisplay(item.title || "") || "New Thread"
-);
+const displayTitle = $derived(normalizeTitleForDisplay(item.title || "") || "New Thread");
 
 const questionId = $derived(pendingQuestion?.tool?.callID ?? pendingQuestion?.id ?? "");
 

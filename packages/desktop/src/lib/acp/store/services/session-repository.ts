@@ -17,10 +17,7 @@ import { tauriClient } from "../../../utils/tauri-client.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
-import {
-	isFallbackSessionTitle,
-	stripArtifactsFromTitle,
-} from "../session-title-policy.js";
+import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
 import type { SessionCold } from "../types.js";
 import type {
 	IConnectionManager,
@@ -84,7 +81,6 @@ function resolveSessionTitle(
  * Repository for session persistence and loading operations.
  */
 export class SessionRepository {
-
 	constructor(
 		private readonly stateReader: ISessionStateReader,
 		private readonly stateWriter: ISessionStateWriter,

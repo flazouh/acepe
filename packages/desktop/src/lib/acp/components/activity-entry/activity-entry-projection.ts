@@ -1,19 +1,21 @@
 import type { ActivityEntryTodoProgress } from "@acepe/ui";
 import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
-
-import { getToolCompactDisplayText, getToolKindFilePath } from "../../registry/tool-kind-ui-registry.js";
-import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
-import type { TurnState } from "../../store/types.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
+import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
+import {
+	getToolCompactDisplayText,
+	getToolKindFilePath,
+} from "../../registry/tool-kind-ui-registry.js";
+import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
 import {
+	type CompactToolDisplay,
 	compactAgentToolEntry,
 	resolveCompactToolDisplay,
 	resolveFullToolEntry,
-	type CompactToolDisplay,
 } from "../tool-calls/tool-definition-registry.js";
 
 export type CompactActivityKind = "idle" | "thinking" | "streaming" | "paused";
@@ -229,7 +231,9 @@ export function projectTaskActivity(
 			: null;
 	const preferredSummary = preferredRawChild ? getChildSummary(preferredRawChild) : null;
 	const latestTaskSubagentTool =
-		orderedChildren.length > 0 ? compactAgentToolEntry(orderedChildren[orderedChildren.length - 1]) : null;
+		orderedChildren.length > 0
+			? compactAgentToolEntry(orderedChildren[orderedChildren.length - 1])
+			: null;
 	const taskDescription =
 		preferredRawChild && isTodoLikeChild(preferredRawChild) && preferredSummary
 			? preferredSummary
@@ -289,9 +293,7 @@ function getFileToolDisplayText(
 	return `${verb} ${fileName}`;
 }
 
-export function projectActivityEntry(
-	input: ActivityEntryProjectionInput
-): ActivityEntryProjection {
+export function projectActivityEntry(input: ActivityEntryProjectionInput): ActivityEntryProjection {
 	const selectedTool = selectActivityTool(input);
 	const toolCall = selectedTool?.toolCall ?? null;
 	const toolKind = selectedTool?.toolKind ?? null;

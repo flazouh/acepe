@@ -186,7 +186,10 @@ function parseLiveMarkdownSections(buffer: string[], startIndex: number): Stream
 		const listMarkerFamily = getListMarkerFamily(currentLine);
 		if (listMarkerFamily !== null) {
 			let nextIndex = lineIndex + 1;
-			while (nextIndex < buffer.length && getListMarkerFamily(buffer[nextIndex]) === listMarkerFamily) {
+			while (
+				nextIndex < buffer.length &&
+				getListMarkerFamily(buffer[nextIndex]) === listMarkerFamily
+			) {
 				nextIndex += 1;
 			}
 

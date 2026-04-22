@@ -12,14 +12,7 @@ interface Props {
 	onOpenChange: (open: boolean) => void;
 }
 
-let {
-	open,
-	projectPath,
-	images,
-	onSelect,
-	onBrowse,
-	onOpenChange,
-}: Props = $props();
+let { open, projectPath, images, onSelect, onBrowse, onOpenChange }: Props = $props();
 
 function relativePath(absolutePath: string): string {
 	if (absolutePath.startsWith(projectPath)) {

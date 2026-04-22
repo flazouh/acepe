@@ -1,84 +1,84 @@
 <script lang="ts">
-	import { onMount } from "svelte";
-	import { X } from "phosphor-svelte";
-	import { Kbd } from "$lib/components/ui/kbd/index.js";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import { tauriClient } from "$lib/utils/tauri-client.js";
+import { onMount } from "svelte";
+import { X } from "phosphor-svelte";
+import { Kbd } from "$lib/components/ui/kbd/index.js";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
-	interface Props {
-		projectPath: string;
-	}
+interface Props {
+	projectPath: string;
+}
 
-	let { projectPath }: Props = $props();
+let { projectPath }: Props = $props();
 
-	type Status = "loading" | "ready" | "error";
+type Status = "loading" | "ready" | "error";
 
-	let status = $state<Status>("loading");
-	let commands = $state<string[]>([]);
-	let newCommand = $state("");
-	let inputEl = $state<HTMLInputElement | null>(null);
-	let isSaving = $state(false);
+let status = $state<Status>("loading");
+let commands = $state<string[]>([]);
+let newCommand = $state("");
+let inputEl = $state<HTMLInputElement | null>(null);
+let isSaving = $state(false);
 
-	async function load() {
-		status = "loading";
-		await tauriClient.git.loadWorktreeConfig(projectPath).match(
-			(config) => {
-				commands = [...(config?.setupCommands ?? [])];
-				status = "ready";
-			},
-			() => {
-				status = "error";
-			}
-		);
-	}
-
-	onMount(() => {
-		void load();
-	});
-
-	async function persistCommands(nextCommands: string[]) {
-		isSaving = true;
-		await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
-			() => {
-				isSaving = false;
-			},
-			() => {
-				isSaving = false;
-			}
-		);
-	}
-
-	async function addCommand() {
-		const trimmed = newCommand.trim();
-		if (!trimmed) return;
-		if (commands.includes(trimmed)) {
-			newCommand = "";
-			return;
+async function load() {
+	status = "loading";
+	await tauriClient.git.loadWorktreeConfig(projectPath).match(
+		(config) => {
+			commands = [...(config?.setupCommands ?? [])];
+			status = "ready";
+		},
+		() => {
+			status = "error";
 		}
-		const next = [...commands, trimmed];
-		commands = next;
+	);
+}
+
+onMount(() => {
+	void load();
+});
+
+async function persistCommands(nextCommands: string[]) {
+	isSaving = true;
+	await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
+		() => {
+			isSaving = false;
+		},
+		() => {
+			isSaving = false;
+		}
+	);
+}
+
+async function addCommand() {
+	const trimmed = newCommand.trim();
+	if (!trimmed) return;
+	if (commands.includes(trimmed)) {
 		newCommand = "";
-		await persistCommands(next);
-		inputEl?.focus();
+		return;
 	}
+	const next = [...commands, trimmed];
+	commands = next;
+	newCommand = "";
+	await persistCommands(next);
+	inputEl?.focus();
+}
 
-	async function removeCommand(index: number) {
-		const next = commands.filter((_, i) => i !== index);
-		commands = next;
-		await persistCommands(next);
+async function removeCommand(index: number) {
+	const next = commands.filter((_, i) => i !== index);
+	commands = next;
+	await persistCommands(next);
+}
+
+function handleKeydown(event: KeyboardEvent) {
+	if (event.key === "Enter") {
+		event.preventDefault();
+		void addCommand();
+	} else if (event.key === "Escape") {
+		newCommand = "";
+		inputEl?.blur();
 	}
+}
 
-	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === "Enter") {
-			event.preventDefault();
-			void addCommand();
-		} else if (event.key === "Escape") {
-			newCommand = "";
-			inputEl?.blur();
-		}
-	}
-
-	let hasCommands = $derived(commands.length > 0);
+let hasCommands = $derived(commands.length > 0);
 </script>
 
 {#if status === "loading"}

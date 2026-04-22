@@ -4,17 +4,17 @@ import { findErrorReference } from "$lib/errors/error-reference.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
 import { SoundEffect } from "../../types/sounds.js";
 import { playSound } from "../../utils/sound.js";
-import { prepareWorktreePathForPendingSend } from "./services/index.js";
+import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
+import { SessionCreationError } from "./errors/agent-input-error.js";
 import {
+	type ComposerRestoreSnapshot,
 	formatPreSessionSendFailure,
 	restoreComposerStateAfterFailedSend,
-	type ComposerRestoreSnapshot,
 } from "./logic/first-send-recovery.js";
-import { prepareMessageForSend, type PreparedMessage } from "./logic/message-preparation.js";
+import { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 import { createPendingUserEntry } from "./logic/pending-user-entry.js";
-import { SessionCreationError } from "./errors/agent-input-error.js";
+import { prepareWorktreePathForPendingSend } from "./services/index.js";
 import type { Attachment } from "./types/attachment.js";
-import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
 
 function cloneAttachmentForRestore(attachment: Attachment): Attachment {
 	if (attachment.content !== undefined) {
@@ -237,7 +237,10 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		}
 
 		if (effectivePanelId && !props.sessionId) {
-			host.panelStore.setPendingUserEntry(effectivePanelId, createPendingUserEntry(prepared.content));
+			host.panelStore.setPendingUserEntry(
+				effectivePanelId,
+				createPendingUserEntry(prepared.content)
+			);
 		}
 
 		playSound(SoundEffect.Paste);
@@ -350,7 +353,9 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				if (effectivePanelId) {
 					host.panelStore.clearPendingUserEntry(effectivePanelId);
 				}
-				props.onWorktreeCreateFailed?.("Failed to create worktree. Session will run without branch isolation.");
+				props.onWorktreeCreateFailed?.(
+					"Failed to create worktree. Session will run without branch isolation."
+				);
 				if (sessionIdForDispatch) {
 					host.sessionStore.composerEndDispatch(sessionIdForDispatch);
 				}
@@ -454,7 +459,9 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		host.sessionStore.composerBeginDispatch(sessionId);
 		host.sessionStore
 			.cancelStreaming(sessionId)
-			.andThen(() => host.sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments))
+			.andThen(() =>
+				host.sessionStore.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
+			)
 			.mapErr((error) => {
 				console.error("Steer failed:", error);
 				return error;
@@ -493,7 +500,9 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 	}
 
 	function restoreQueuedMessage(draft: string, attachments: readonly Attachment[]): void {
-		const restoredAttachments = attachments.map((attachment) => cloneAttachmentForRestore(attachment));
+		const restoredAttachments = attachments.map((attachment) =>
+			cloneAttachmentForRestore(attachment)
+		);
 		applyComposerRestoreSnapshot({
 			draft,
 			attachments: restoredAttachments,

@@ -31,9 +31,7 @@ export function resolveSelectedModeMenuOptionId(
 	return input.currentModeId;
 }
 
-export function resolveModeMenuAction(
-	input: ResolveModeMenuActionInput
-): ModeMenuActionResolution {
+export function resolveModeMenuAction(input: ResolveModeMenuActionInput): ModeMenuActionResolution {
 	if (input.selectedOptionId === MODE_MENU_OPTION_ID.AUTO) {
 		return {
 			modeIdToApply: input.currentModeId === input.buildModeId ? null : input.buildModeId,
