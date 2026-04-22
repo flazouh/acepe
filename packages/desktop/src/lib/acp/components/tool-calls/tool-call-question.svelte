@@ -56,9 +56,9 @@ const pendingQuestion = $derived.by(() => {
 
 		return findPendingQuestionForToolCall(
 			Array.from(interactionStore.questionsPending.values()).filter(
-				(q) => q.sessionId === sessionId,
+				(q) => q.sessionId === sessionId
 			),
-			toolCall.id,
+			toolCall.id
 		);
 	}
 
