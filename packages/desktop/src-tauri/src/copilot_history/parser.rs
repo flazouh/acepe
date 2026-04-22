@@ -421,6 +421,7 @@ pub(crate) fn convert_events_to_updates(
 pub(crate) async fn scan_copilot_sessions_at_root(
     session_state_root: &Path,
     project_paths: &[String],
+    limit_per_project: bool,
 ) -> Result<Vec<CopilotListedSession>, String> {
     let workspace_projects = canonical_workspace_projects(project_paths);
     if !project_paths.is_empty() && workspace_projects.is_empty() {
@@ -487,7 +488,11 @@ pub(crate) async fn scan_copilot_sessions_at_root(
     }
 
     sessions.sort_by_key(|session| Reverse(session.updated_at_ms));
-    Ok(limit_sessions_per_project(sessions))
+    if limit_per_project {
+        Ok(limit_sessions_per_project(sessions))
+    } else {
+        Ok(sessions)
+    }
 }
 
 fn limit_sessions_per_project(sessions: Vec<CopilotListedSession>) -> Vec<CopilotListedSession> {
@@ -1040,6 +1045,7 @@ mod tests {
         let sessions = scan_copilot_sessions_at_root(
             root.path(),
             &[project.path().to_string_lossy().into_owned()],
+            true,
         )
         .await
         .expect("scan should succeed");
@@ -1075,6 +1081,7 @@ mod tests {
         let sessions = scan_copilot_sessions_at_root(
             root.path(),
             &[project.path().to_string_lossy().into_owned()],
+            true,
         )
         .await
         .expect("scan should succeed");
@@ -1099,7 +1106,7 @@ mod tests {
         )
         .expect("write workspace");
 
-        let sessions = scan_copilot_sessions_at_root(root.path(), &[])
+        let sessions = scan_copilot_sessions_at_root(root.path(), &[], true)
             .await
             .expect("scan should succeed");
 

@@ -96,7 +96,7 @@ async fn double_reservation_returns_error_without_second_write() {
 }
 
 #[tokio::test]
-async fn legacy_restore_helpers_cannot_overwrite_supervisor_checkpoint() {
+async fn restore_session_checkpoint_replaces_supervisor_checkpoint() {
     let db = setup_db().await;
     seed_session_metadata(&db, "session-1").await;
     let projection_registry = ProjectionRegistry::new();
@@ -107,22 +107,20 @@ async fn legacy_restore_helpers_cannot_overwrite_supervisor_checkpoint() {
     let supervisor = Arc::new(SessionSupervisor::new());
     let runtime_registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
 
-    let reserved = supervisor
+    let _reserved = supervisor
         .reserve(&db, &projection_registry, "session-1")
         .await
         .expect("reserve session");
-    runtime_registry.restore_session_checkpoint(
-        "session-1".to_string(),
-        LifecycleCheckpoint::new(
-            99,
-            LifecycleState::ready(),
-            SessionGraphCapabilities::empty(),
-        ),
+    let restored = LifecycleCheckpoint::new(
+        99,
+        LifecycleState::ready(),
+        SessionGraphCapabilities::empty(),
     );
+    runtime_registry.restore_session_checkpoint("session-1".to_string(), restored.clone());
 
     let current = supervisor
         .snapshot_for_session("session-1")
         .expect("supervisor checkpoint");
-    assert_eq!(current.graph_revision, reserved.graph_revision);
-    assert_eq!(current.lifecycle, reserved.lifecycle);
+    assert_eq!(current.graph_revision, restored.graph_revision);
+    assert_eq!(current.lifecycle, restored.lifecycle);
 }

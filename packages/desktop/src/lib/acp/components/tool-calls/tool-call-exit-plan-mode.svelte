@@ -117,7 +117,10 @@ $effect(() => {
 	const handleKeyDown = (e: KeyboardEvent) => {
 		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
 			e.preventDefault();
-			const current = permissionStore.getForToolCall(sessionContext?.sessionId, toolCall.id);
+			const current = permissionStore.getForToolCall(
+				sessionContext?.sessionId,
+				toolCall,
+			);
 			if (current?.id === currentPermissionId) {
 				handleBuildManual();
 			}

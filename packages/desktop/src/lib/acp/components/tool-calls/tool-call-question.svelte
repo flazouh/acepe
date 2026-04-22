@@ -53,6 +53,13 @@ const pendingQuestion = $derived.by(() => {
 				return matchedQuestion;
 			}
 		}
+
+		return findPendingQuestionForToolCall(
+			Array.from(interactionStore.questionsPending.values()).filter(
+				(q) => q.sessionId === sessionId,
+			),
+			toolCall.id,
+		);
 	}
 
 	return findPendingQuestionForToolCall(interactionStore.questionsPending.values(), toolCall.id);

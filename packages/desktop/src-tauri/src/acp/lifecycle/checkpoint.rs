@@ -9,9 +9,15 @@ use specta::Type;
 
 pub const LIFECYCLE_CHECKPOINT_SCHEMA_VERSION: u8 = 2;
 
+fn default_lifecycle_checkpoint_schema_version() -> u8 {
+    LIFECYCLE_CHECKPOINT_SCHEMA_VERSION
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LifecycleCheckpoint {
+    /// Older persisted checkpoints may omit this field; treat as current version for migration.
+    #[serde(default = "default_lifecycle_checkpoint_schema_version")]
     pub schema_version: u8,
     pub graph_revision: i64,
     pub lifecycle: LifecycleState,

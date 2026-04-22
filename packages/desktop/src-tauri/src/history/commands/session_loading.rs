@@ -176,7 +176,6 @@ fn projection_last_event_seq(
         .map(|session| session.last_event_seq)
 }
 
-#[allow(dead_code)]
 async fn persist_canonical_materialization(
     db: &DbConn,
     replay_context: &SessionReplayContext,
@@ -386,6 +385,9 @@ pub async fn ensure_canonical_session_materialized(
         session_metadata,
     };
     let snapshot = load_unified_session_content_with_context(app, context).await?;
+    if let Some(ref snap) = snapshot {
+        persist_canonical_materialization(&db, replay_context, snap).await?;
+    }
     Ok(snapshot)
 }
 

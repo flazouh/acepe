@@ -32,7 +32,7 @@ pub async fn list_workspace_sessions(
     project_paths: &[String],
 ) -> Result<Vec<CopilotListedSession>, String> {
     let session_state_root = parser::resolve_copilot_session_state_root()?;
-    parser::scan_copilot_sessions_at_root(&session_state_root, project_paths).await
+    parser::scan_copilot_sessions_at_root(&session_state_root, project_paths, true).await
 }
 
 pub async fn list_workspace_project_paths() -> Result<Vec<String>, String> {
@@ -50,7 +50,13 @@ pub async fn list_workspace_project_paths() -> Result<Vec<String>, String> {
 }
 
 pub async fn count_workspace_sessions_for_project(project_path: &str) -> Result<u32, String> {
-    let sessions = list_workspace_sessions(&[project_path.to_string()]).await?;
+    let session_state_root = parser::resolve_copilot_session_state_root()?;
+    let sessions = parser::scan_copilot_sessions_at_root(
+        &session_state_root,
+        &[project_path.to_string()],
+        false,
+    )
+    .await?;
     u32::try_from(sessions.len())
         .map_err(|error| format!("Failed to convert Copilot session count: {error}"))
 }

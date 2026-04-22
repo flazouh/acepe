@@ -990,7 +990,7 @@ fn build_operation_id(session_id: &str, tool_call_id: &str) -> String {
     format!("{session_id}:{tool_call_id}")
 }
 
-fn build_plan_approval_interaction_id(
+pub(crate) fn build_plan_approval_interaction_id(
     session_id: &str,
     tool_call_id: &str,
     json_rpc_request_id: u64,

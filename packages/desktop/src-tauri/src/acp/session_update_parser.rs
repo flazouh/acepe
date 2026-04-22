@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::acp::agent_context::current_agent;
 use crate::acp::domain_events::{SessionDomainEventKind, SessionDomainEventPayload};
 use crate::acp::parsers::AgentType;
-use crate::acp::projections::InteractionKind;
+use crate::acp::projections::{build_plan_approval_interaction_id, InteractionKind};
 use crate::acp::provider::AgentProvider;
 use crate::acp::session_update::{
     parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolCallStatus, ToolKind,
@@ -238,13 +238,24 @@ pub fn session_update_to_domain_event(
         }
 
         // ── tool execution ─────────────────────────────────────────────────
-        SessionUpdate::ToolCall { tool_call, .. } if tool_call.awaiting_plan_approval => Some((
-            SessionDomainEventKind::InteractionUpserted,
-            Some(SessionDomainEventPayload::InteractionUpserted {
-                interaction_id: tool_call.id.clone(),
-                interaction_kind: InteractionKind::PlanApproval,
-            }),
-        )),
+        SessionUpdate::ToolCall {
+            tool_call,
+            session_id,
+        } if tool_call.awaiting_plan_approval => {
+            let interaction_id =
+                if let (Some(sid), Some(rid)) = (session_id.as_deref().filter(|s| !s.is_empty()), tool_call.plan_approval_request_id) {
+                    build_plan_approval_interaction_id(sid, &tool_call.id, rid)
+                } else {
+                    tool_call.id.clone()
+                };
+            Some((
+                SessionDomainEventKind::InteractionUpserted,
+                Some(SessionDomainEventPayload::InteractionUpserted {
+                    interaction_id,
+                    interaction_kind: InteractionKind::PlanApproval,
+                }),
+            ))
+        },
         SessionUpdate::ToolCall { tool_call, .. } => {
             let status = tool_call.status.clone();
             Some((

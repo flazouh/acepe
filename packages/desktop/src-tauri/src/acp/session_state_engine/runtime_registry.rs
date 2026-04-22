@@ -90,7 +90,8 @@ impl SessionGraphRuntimeRegistry {
             capabilities,
         }
         .into_checkpoint();
-        let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
+        self.supervisor
+            .replace_checkpoint_for_compat(session_id, checkpoint);
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -98,7 +99,8 @@ impl SessionGraphRuntimeRegistry {
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
-        let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
+        self.supervisor
+            .replace_checkpoint_for_compat(session_id, checkpoint);
     }
 
     pub fn apply_session_update_with_graph_seed(

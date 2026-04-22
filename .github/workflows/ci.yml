@@ -35,6 +35,8 @@ jobs:
       run_ui: ${{ steps.combine.outputs.run_ui }}
       run_agent_panel_contract: ${{ steps.combine.outputs.run_agent_panel_contract }}
       run_frontend: ${{ steps.combine.outputs.run_frontend }}
+      run_tauri_backend: ${{ steps.combine.outputs.run_tauri_backend }}
+      run_gpui_poc: ${{ steps.combine.outputs.run_gpui_poc }}
       run_backend: ${{ steps.combine.outputs.run_backend }}
     steps:
       - uses: actions/checkout@v5
@@ -72,6 +74,8 @@ jobs:
               - 'coderabbit.yaml'
               - 'opencode.json'
               - 'railway.json'
+            gpui_agent_panel_poc:
+              - 'packages/gpui-agent-panel-poc/**'
 
       - name: Set affected job flags from filter (or full matrix on workflow_dispatch)
         id: combine
@@ -83,6 +87,8 @@ jobs:
             echo "run_ui=true" >> "$GITHUB_OUTPUT"
             echo "run_agent_panel_contract=true" >> "$GITHUB_OUTPUT"
             echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+            echo "run_tauri_backend=true" >> "$GITHUB_OUTPUT"
+            echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
             echo "run_backend=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -92,6 +98,8 @@ jobs:
             echo "run_ui=false" >> "$GITHUB_OUTPUT"
             echo "run_agent_panel_contract=false" >> "$GITHUB_OUTPUT"
             echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+            echo "run_tauri_backend=false" >> "$GITHUB_OUTPUT"
+            echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
             echo "run_backend=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -103,6 +111,7 @@ jobs:
           changelog='${{ steps.paths.outputs.changelog }}'
           root_scripts='${{ steps.paths.outputs.root_scripts }}'
           shared='${{ steps.paths.outputs.shared }}'
+          gpui_agent_panel_poc='${{ steps.paths.outputs.gpui_agent_panel_poc }}'
 
           if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$changelog" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_desktop=true" >> "$GITHUB_OUTPUT"
@@ -135,6 +144,18 @@ jobs:
           fi
 
           if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_tauri_backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_tauri_backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$gpui_agent_panel_poc" = "true" ]; then
+            echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ] || [ "$gpui_agent_panel_poc" = "true" ]; then
             echo "run_backend=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_backend=false" >> "$GITHUB_OUTPUT"
@@ -245,6 +266,8 @@ jobs:
     timeout-minutes: 30
     env:
       RUN_BACKEND: ${{ needs.filter.outputs.run_backend }}
+      RUN_TAURI_BACKEND: ${{ needs.filter.outputs.run_tauri_backend }}
+      RUN_GPUI_POC: ${{ needs.filter.outputs.run_gpui_poc }}
     steps:
       - uses: actions/checkout@v5
 
@@ -254,28 +277,43 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
-        if: env.RUN_BACKEND == 'true'
+        if: env.RUN_TAURI_BACKEND == 'true'
         with:
           workspaces: packages/desktop/src-tauri -> target
           prefix-key: v2
+          cache-on-failure: "true"
+
+      - uses: Swatinem/rust-cache@v2
+        if: env.RUN_GPUI_POC == 'true'
+        with:
+          workspaces: packages/gpui-agent-panel-poc -> target
+          prefix-key: v2-gpui
           cache-on-failure: "true"
 
       - name: No affected backend packages
         if: env.RUN_BACKEND != 'true'
         run: echo "No affected backend packages; Backend check is a no-op."
 
-      - name: Install system deps
-        if: env.RUN_BACKEND == 'true'
+      - name: Install system deps (Tauri)
+        if: env.RUN_TAURI_BACKEND == 'true'
         run: |
           sudo apt-get update -q
           sudo apt-get install -yq --no-install-recommends \
             libwebkit2gtk-4.1-dev librsvg2-dev \
             libgtk-3-dev libayatana-appindicator3-dev libasound2-dev patchelf
 
-      - name: Clippy + Test
-        if: env.RUN_BACKEND == 'true'
+      - name: Tauri clippy + test
+        if: env.RUN_TAURI_BACKEND == 'true'
         working-directory: packages/desktop/src-tauri
         run: |
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
           cargo test --no-default-features -- --skip claude_history::export_types
+
+      - name: gpui-agent-panel-poc clippy + test
+        if: env.RUN_GPUI_POC == 'true'
+        working-directory: packages/gpui-agent-panel-poc
+        run: |
+          set -o pipefail
+          cargo clippy --all-targets -- -D warnings
+          cargo test
