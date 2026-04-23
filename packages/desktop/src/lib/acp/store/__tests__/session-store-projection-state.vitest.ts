@@ -73,6 +73,13 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 			errorMessage: null,
 			canReconnect: true,
 		},
+		activity: overrides.activity ?? {
+			kind: activeTurnFailure === null ? "idle" : "error",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
 		capabilities: overrides.capabilities ?? {
 			models: null,
 			modes: null,
@@ -406,6 +413,86 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 		expect(store.getSessionState("session-1")).toMatchObject({
 			connection: "error",
+		});
+	});
+
+	it("hydrates graph-backed activity from snapshot envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			lifecycle: {
+				status: "ready",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+
+		expect(store.getHotState("session-1")).toMatchObject({
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+	});
+
+	it("preserves graph-backed activity topology across lifecycle-only envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			lifecycle: {
+				status: "ready",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: {
+					status: "error",
+					errorMessage: "Connection dropped",
+					canReconnect: true,
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getHotState("session-1")).toMatchObject({
+			activity: {
+				kind: "error",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
 		});
 	});
 

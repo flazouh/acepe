@@ -356,6 +356,56 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.status).toBe("streaming");
 	});
 
+	it("uses graph-backed running activity when no live tool call is available", () => {
+		const snapshot = buildQueueSessionSnapshot({
+			id: "session-1",
+			agentId: "opencode",
+			projectPath: "/repo",
+			title: "Queue item",
+			entries: [],
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
+			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
+			runtimeState: {
+				connectionPhase: "connected",
+				contentPhase: "loaded",
+				activityPhase: "idle",
+				canSubmit: true,
+				canCancel: false,
+				showStop: false,
+				showThinking: false,
+				showConnectingOverlay: false,
+				showConversation: true,
+				showReadyPlaceholder: false,
+			},
+			hotState: {
+				status: "ready",
+				currentMode: { id: "build", name: "Build" },
+				connectionError: null,
+				activity: {
+					kind: "running_operation",
+					activeOperationCount: 2,
+					activeSubagentCount: 1,
+					dominantOperationId: "op-2",
+					blockingInteractionId: null,
+				},
+			},
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPermission: null,
+				pendingPlanApproval: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(snapshot.isStreaming).toBe(true);
+		expect(snapshot.isThinking).toBe(false);
+		expect(snapshot.state.activity.kind).toBe("streaming");
+		expect(snapshot.status).toBe("streaming");
+	});
+
 	it("surfaces connectionError as error status even when runtime stays connected", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",

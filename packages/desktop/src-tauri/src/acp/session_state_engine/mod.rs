@@ -22,5 +22,8 @@ pub use revision::SessionGraphRevision;
 pub use runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
-pub use selectors::{SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus};
+pub use selectors::{
+    select_session_graph_activity, SessionGraphActivity, SessionGraphActivityKind,
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
+};
 pub use snapshot_builder::build_graph_from_open_found;

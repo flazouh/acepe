@@ -374,7 +374,11 @@ export type SessionGraphLifecycle = { status: SessionGraphLifecycleStatus; error
 
 export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
 
-export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities }
+export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | "waiting_for_user" | "paused" | "error" | "idle"
+
+export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null }
+
+export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 

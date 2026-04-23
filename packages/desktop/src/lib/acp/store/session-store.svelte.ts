@@ -21,6 +21,7 @@ import {
 } from "../../services/acp-provider-metadata.js";
 import type {
 	SessionGraphCapabilities,
+	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionOpenFound,
@@ -357,6 +358,80 @@ function connectionErrorFromGraphState(
 	}
 
 	return null;
+}
+
+function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraphActivity {
+	return {
+		kind: activity.kind,
+		activeOperationCount: activity.activeOperationCount,
+		activeSubagentCount: activity.activeSubagentCount,
+		dominantOperationId: activity.dominantOperationId ?? null,
+		blockingInteractionId: activity.blockingInteractionId ?? null,
+	};
+}
+
+function deriveRecoveredActivityKind(
+	activity: SessionGraphActivity,
+	turnState: SessionHotState["turnState"]
+): SessionGraphActivity["kind"] {
+	if (activity.blockingInteractionId != null) {
+		return "waiting_for_user";
+	}
+
+	if (activity.activeOperationCount > 0) {
+		return "running_operation";
+	}
+
+	if (turnState === "streaming") {
+		return "awaiting_model";
+	}
+
+	return "idle";
+}
+
+function reconcileStoredGraphActivity(
+	activity: SessionGraphActivity | null | undefined,
+	lifecycle: SessionGraphLifecycle,
+	turnState: SessionHotState["turnState"],
+	activeTurnFailure: ActiveTurnFailure | null
+): SessionGraphActivity | null {
+	const previousActivity = activity ?? null;
+
+	if (lifecycle.status === "error" || activeTurnFailure !== null) {
+		if (previousActivity === null) {
+			return {
+				kind: "error",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			};
+		}
+
+		return {
+			kind: "error",
+			activeOperationCount: previousActivity.activeOperationCount,
+			activeSubagentCount: previousActivity.activeSubagentCount,
+			dominantOperationId: previousActivity.dominantOperationId ?? null,
+			blockingInteractionId: previousActivity.blockingInteractionId ?? null,
+		};
+	}
+
+	if (previousActivity === null) {
+		return null;
+	}
+
+	if (previousActivity.kind !== "error") {
+		return cloneSessionGraphActivity(previousActivity);
+	}
+
+	return {
+		kind: deriveRecoveredActivityKind(previousActivity, turnState),
+		activeOperationCount: previousActivity.activeOperationCount,
+		activeSubagentCount: previousActivity.activeSubagentCount,
+		dominantOperationId: previousActivity.dominantOperationId ?? null,
+		blockingInteractionId: previousActivity.blockingInteractionId ?? null,
+	};
 }
 
 /**
@@ -773,6 +848,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			isConnected: graph.lifecycle.status === "ready",
 			acpSessionId: graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
 			turnState: mapTurnStateToHotState(graph.turnState),
+			activity: cloneSessionGraphActivity(graph.activity),
 			activeTurnFailure,
 			lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 			connectionError: connectionErrorFromGraphState(graph.lifecycle, activeTurnFailure),
@@ -1558,6 +1634,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.hotStateStore.updateHotState(sessionId, {
 					status: toSessionStatusFromGraphLifecycle(command.lifecycle),
 					isConnected: command.lifecycle.status === "ready",
+					activity: reconcileStoredGraphActivity(
+						hotState.activity ?? null,
+						command.lifecycle,
+						hotState.turnState,
+						hotState.activeTurnFailure ?? null
+					),
 					acpSessionId: command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
 					connectionError: connectionErrorFromGraphState(
 						command.lifecycle,

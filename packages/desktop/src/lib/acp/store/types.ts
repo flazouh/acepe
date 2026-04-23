@@ -32,7 +32,10 @@ export type {
 // STORE-SPECIFIC TYPES
 // ============================================
 
-import type { ProviderMetadataProjection } from "../../services/acp-types.js";
+import type {
+	ProviderMetadataProjection,
+	SessionGraphActivity,
+} from "../../services/acp-types.js";
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
@@ -101,6 +104,7 @@ export interface SessionHotState {
 	readonly status: SessionStatus;
 	readonly isConnected: boolean;
 	readonly turnState: TurnState;
+	readonly activity?: SessionGraphActivity | null;
 	readonly acpSessionId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
@@ -126,6 +130,7 @@ export const DEFAULT_HOT_STATE: SessionHotState = {
 	status: "idle",
 	isConnected: false,
 	turnState: "idle",
+	activity: null,
 	acpSessionId: null,
 	connectionError: null,
 	activeTurnFailure: null,

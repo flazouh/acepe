@@ -1,9 +1,9 @@
 import {
 	selectCanonicalSessionActivity,
 	type CanonicalSessionActivity,
-	type CanonicalSessionActivityInput,
 } from "../logic/session-activity.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
+import type { SessionGraphActivity } from "../../services/acp-types.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";
@@ -18,7 +18,7 @@ export interface LiveSessionWorkInput {
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly hotState: Pick<
 		SessionHotState,
-		"status" | "currentMode" | "connectionError" | "activeTurnFailure"
+		"status" | "currentMode" | "connectionError" | "activeTurnFailure" | "activity"
 	>;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly interactionSnapshot: Pick<
@@ -37,9 +37,10 @@ type LiveConnectionState =
 	| "paused"
 	| "error";
 
-function normalizeLifecycle(
-	input: LiveSessionWorkInput
-): CanonicalSessionActivityInput["lifecycle"] {
+function normalizeLifecycle(input: LiveSessionWorkInput): {
+	connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
+	activityPhase: "idle" | "awaiting_model" | "running" | "paused";
+} {
 	if (input.runtimeState === null) {
 		const hotStatus = input.hotState.status;
 		if (hotStatus === "idle") {
@@ -106,26 +107,55 @@ function normalizeLifecycle(
 	};
 }
 
-function hasPendingInput(input: LiveSessionWorkInput): boolean {
-	return (
-		input.interactionSnapshot.pendingQuestion !== null ||
-		input.interactionSnapshot.pendingPlanApproval !== null ||
-		input.interactionSnapshot.pendingPermission !== null
-	);
+function canonicalActivityFromGraphActivity(
+	activity: SessionGraphActivity | null | undefined
+): CanonicalSessionActivity | null {
+	if (activity == null) {
+		return null;
+	}
+
+	switch (activity.kind) {
+		case "awaiting_model":
+			return "awaiting_model";
+		case "running_operation":
+			return "running_operation";
+		case "waiting_for_user":
+			return "waiting_for_user";
+		case "paused":
+			return "paused";
+		case "error":
+			return "error";
+		case "idle":
+			return "idle";
+	}
 }
 
-export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
+function fallbackCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
 	const lifecycle = normalizeLifecycle(input);
+
 	return selectCanonicalSessionActivity({
 		lifecycle,
-		hasActiveOperation: input.currentStreamingToolCall !== null,
-		hasPendingInput: hasPendingInput(input),
+		hasActiveOperation:
+			lifecycle.activityPhase === "running" || input.currentStreamingToolCall !== null,
+		hasPendingInput:
+			input.interactionSnapshot.pendingPlanApproval !== null ||
+			input.interactionSnapshot.pendingPermission !== null ||
+			input.interactionSnapshot.pendingQuestion !== null,
 		hasError:
 			input.hotState.status === "error" ||
 			input.hotState.connectionError !== null ||
 			input.hotState.activeTurnFailure != null,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
+}
+
+export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
+	const graphBackedActivity = canonicalActivityFromGraphActivity(input.hotState.activity ?? null);
+	if (graphBackedActivity !== null) {
+		return graphBackedActivity;
+	}
+
+	return fallbackCanonicalActivity(input);
 }
 
 function deriveLiveConnectionState(input: LiveSessionWorkInput): LiveConnectionState {

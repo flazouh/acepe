@@ -156,6 +156,68 @@ describe("panelToTab", () => {
 			expect(tab.state.activity.kind).toBe("thinking");
 		});
 
+		it("should be thinking when graph-backed activity is awaiting_model", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({
+						status: "ready",
+						activity: {
+							kind: "awaiting_model",
+							activeOperationCount: 0,
+							activeSubagentCount: 0,
+							dominantOperationId: null,
+							blockingInteractionId: null,
+						},
+					}),
+					runtimeState: {
+						connectionPhase: "connected",
+						contentPhase: "loaded",
+						activityPhase: "idle",
+						canSubmit: true,
+						canCancel: false,
+						showStop: false,
+						showThinking: false,
+						showConnectingOverlay: false,
+						showConversation: true,
+						showReadyPlaceholder: false,
+					},
+				})
+			);
+
+			expect(tab.state.activity.kind).toBe("thinking");
+		});
+
+		it("should be streaming when graph-backed activity is running_operation", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({
+						status: "ready",
+						activity: {
+							kind: "running_operation",
+							activeOperationCount: 2,
+							activeSubagentCount: 1,
+							dominantOperationId: "op-2",
+							blockingInteractionId: null,
+						},
+					}),
+					runtimeState: {
+						connectionPhase: "connected",
+						contentPhase: "loaded",
+						activityPhase: "idle",
+						canSubmit: true,
+						canCancel: false,
+						showStop: false,
+						showThinking: false,
+						showConnectingOverlay: false,
+						showConversation: true,
+						showReadyPlaceholder: false,
+					},
+				})
+			);
+
+			expect(tab.state.activity.kind).toBe("streaming");
+		});
+
 		it("should be idle when status is idle", () => {
 			const tab = panelToTab(
 				makeInput({

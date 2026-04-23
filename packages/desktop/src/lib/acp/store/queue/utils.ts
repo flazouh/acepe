@@ -69,7 +69,7 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly hotState: Pick<
 		SessionHotState,
-		"status" | "currentMode" | "connectionError" | "activeTurnFailure"
+		"status" | "currentMode" | "connectionError" | "activeTurnFailure" | "activity"
 	>;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,

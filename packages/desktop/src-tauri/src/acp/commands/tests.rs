@@ -13,8 +13,9 @@ use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
 };
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
-    SessionGraphRevision, SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
+    CapabilityPreviewState, SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateEnvelope, SessionStateGraph,
+    SessionStatePayload,
 };
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSnapshot;
@@ -413,6 +414,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
             error_message: None,
             can_reconnect: true,
         },
+        activity: SessionGraphActivity::idle(),
         capabilities: SessionGraphCapabilities::empty(),
     };
 

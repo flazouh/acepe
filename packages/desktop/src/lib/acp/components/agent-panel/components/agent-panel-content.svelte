@@ -89,6 +89,7 @@ const sessionWorkProjection = $derived.by(() => {
 			currentMode: hotState?.currentMode ?? null,
 			connectionError: hotState?.connectionError ?? null,
 			activeTurnFailure: hotState?.activeTurnFailure ?? null,
+			activity: hotState?.activity ?? null,
 		},
 		currentStreamingToolCall,
 		interactionSnapshot: {

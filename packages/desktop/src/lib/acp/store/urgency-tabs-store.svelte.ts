@@ -203,6 +203,7 @@ export class UrgencyTabsStore {
 					statusChangedAt: Date.now(),
 					connectionError: null,
 					activeTurnFailure: null,
+					activity: null,
 				};
 
 		// Get pending question for this session

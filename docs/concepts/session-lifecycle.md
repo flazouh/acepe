@@ -4,6 +4,15 @@ The **session lifecycle** is Acepe's canonical model for whether a session is li
 
 It exists so shared code does not have to guess from transport status, frontend hot-state, or provider-specific timing.
 
+Lifecycle is not the whole session-activity answer.
+
+For this pipeline, lifecycle and session activity are related but separate canonical graph-backed fields:
+
+- **lifecycle** answers whether the session is detached, ready, failed, reconnecting, and what actions are allowed,
+- **activity** answers whether the session is awaiting model output, running work, blocked on an interaction, paused, in error, or idle.
+
+Shared UI may render both, but it must not reconstruct session activity from lifecycle alone once the graph activity contract exists.
+
 ## Authority chain
 
 Acepe's lifecycle truth flows through one path:
@@ -119,6 +128,8 @@ Canonical lifecycle payloads also carry fields like:
 - `lifecycleRevision`
 
 That is what lets the UI show the right CTA without reconstructing policy from local booleans.
+
+The same rule applies to session activity copy: "Planning next moves", working/tool activity, waiting-for-user prompts, and paused/error affordances must flow from graph-backed activity materialized by desktop stores, not from ad hoc lifecycle/status heuristics.
 
 ## Capability rule
 

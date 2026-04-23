@@ -6,7 +6,8 @@ use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphLifecycleStatus,
 };
 use crate::acp::session_state_engine::{
     build_delta_envelope, CapabilityPreviewState, SessionGraphRevision, SessionStateEnvelope,
@@ -274,6 +275,13 @@ impl SessionGraphRuntimeRegistry {
             SessionSnapshot::new(session_id.to_string(), Some(agent_id.clone()))
         });
         let runtime_snapshot = self.snapshot_for_session(session_id);
+        let activity = select_session_graph_activity(
+            &runtime_snapshot.lifecycle,
+            &session_snapshot.turn_state,
+            &projection_snapshot.operations,
+            &projection_snapshot.interactions,
+            session_snapshot.active_turn_failure.as_ref(),
+        );
 
         Some(SessionStateEnvelope {
             session_id: session_id.to_string(),
@@ -299,6 +307,7 @@ impl SessionGraphRuntimeRegistry {
                     active_turn_failure: session_snapshot.active_turn_failure,
                     last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
                     lifecycle: runtime_snapshot.lifecycle,
+                    activity,
                     capabilities: runtime_snapshot.capabilities,
                 }),
             },

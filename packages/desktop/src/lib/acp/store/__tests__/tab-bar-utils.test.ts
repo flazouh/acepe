@@ -152,6 +152,40 @@ describe("panelToTab", () => {
 			expect(tab.state.connection).toBe("connecting");
 		});
 
+		it("prefers graph-backed running activity over missing live tool-call truthiness", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({
+						status: "ready",
+						currentMode: { id: "build", name: "Build" },
+						activity: {
+							kind: "running_operation",
+							activeOperationCount: 2,
+							activeSubagentCount: 1,
+							dominantOperationId: "op-2",
+							blockingInteractionId: null,
+						},
+					}),
+					runtimeState: {
+						connectionPhase: "connected",
+						contentPhase: "loaded",
+						activityPhase: "idle",
+						canSubmit: true,
+						canCancel: false,
+						showStop: false,
+						showThinking: false,
+						showConnectingOverlay: false,
+						showConversation: true,
+						showReadyPlaceholder: false,
+					},
+					currentStreamingToolCall: null,
+				})
+			);
+
+			expect(tab.workBucket).toBe("working");
+			expect(tab.state.activity.kind).toBe("streaming");
+		});
+
 		it("derives connecting state from status=loading", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "loading" }) }));
 			expect(tab.state.connection).toBe("connecting");

@@ -22,6 +22,46 @@ Object.defineProperty(globalThis, "sessionStorage", {
 	value: storageMock,
 });
 
+const sessionStoreState = vi.hoisted(() => ({
+	runtimeState: null as
+		| null
+		| {
+				connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
+				contentPhase: "empty" | "loading" | "loaded";
+				activityPhase: "idle" | "running" | "waiting_for_user";
+				canSubmit: boolean;
+				canCancel: boolean;
+				showStop: boolean;
+				showThinking: boolean;
+				showConnectingOverlay: boolean;
+				showConversation: boolean;
+				showReadyPlaceholder: boolean;
+		  },
+	hotState: {
+		turnState: "idle" as "idle" | "running" | "completed" | "error",
+		status:
+			"idle" as "idle" | "loading" | "connecting" | "ready" | "streaming" | "error",
+		currentMode: null,
+		connectionError: null,
+		activeTurnFailure: null,
+		activity: null as
+			| null
+			| {
+					kind:
+						| "awaiting_model"
+						| "running_operation"
+						| "waiting_for_user"
+						| "paused"
+						| "error"
+						| "idle";
+					activeOperationCount: number;
+					activeSubagentCount: number;
+					dominantOperationId: string | null;
+					blockingInteractionId: string | null;
+			  },
+	},
+}));
+
 vi.mock(
 	"svelte",
 	async () =>
@@ -39,14 +79,8 @@ vi.mock("mode-watcher", () => ({
 
 vi.mock("../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
-		getSessionRuntimeState: () => null,
-		getHotState: () => ({
-			turnState: "idle",
-			status: "idle",
-			currentMode: null,
-			connectionError: null,
-			activeTurnFailure: null,
-		}),
+		getSessionRuntimeState: () => sessionStoreState.runtimeState,
+		getHotState: () => sessionStoreState.hotState,
 		getOperationStore: () => ({
 			getCurrentStreamingToolCall: () => null,
 		}),
@@ -144,6 +178,15 @@ function renderContent(
 describe("AgentPanelContent", () => {
 	afterEach(() => {
 		cleanup();
+		sessionStoreState.runtimeState = null;
+		sessionStoreState.hotState = {
+			turnState: "idle",
+			status: "idle",
+			currentMode: null,
+			connectionError: null,
+			activeTurnFailure: null,
+			activity: null,
+		};
 	});
 
 	it("renders the virtualized conversation list for active sessions", () => {
@@ -160,6 +203,76 @@ describe("AgentPanelContent", () => {
 
 		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
 			"true"
+		);
+	});
+
+	it("derives waiting-state from graph-backed awaiting-model activity", () => {
+		sessionStoreState.runtimeState = {
+			connectionPhase: "connected",
+			contentPhase: "loaded",
+			activityPhase: "idle",
+			canSubmit: true,
+			canCancel: false,
+			showStop: false,
+			showThinking: false,
+			showConnectingOverlay: false,
+			showConversation: true,
+			showReadyPlaceholder: false,
+		};
+		sessionStoreState.hotState = {
+			turnState: "idle",
+			status: "ready",
+			currentMode: null,
+			connectionError: null,
+			activeTurnFailure: null,
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		};
+
+		const view = renderContent({ kind: "conversation", errorDetails: null });
+
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
+			"true"
+		);
+	});
+
+	it("does not report waiting-state for graph-backed running operations", () => {
+		sessionStoreState.runtimeState = {
+			connectionPhase: "connected",
+			contentPhase: "loaded",
+			activityPhase: "idle",
+			canSubmit: true,
+			canCancel: false,
+			showStop: false,
+			showThinking: false,
+			showConnectingOverlay: false,
+			showConversation: true,
+			showReadyPlaceholder: false,
+		};
+		sessionStoreState.hotState = {
+			turnState: "idle",
+			status: "ready",
+			currentMode: null,
+			connectionError: null,
+			activeTurnFailure: null,
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		};
+
+		const view = renderContent({ kind: "conversation", errorDetails: null });
+
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
+			"false"
 		);
 	});
 
