@@ -1,8 +1,11 @@
-import type { ModelsForDisplay, ProviderMetadataProjection } from "$lib/services/acp-provider-metadata.js";
-import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
-import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
+import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
+} from "$lib/services/acp-provider-metadata.js";
+import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
 
 export type CapabilitySourceKind =
 	| "liveSession"
@@ -46,9 +49,7 @@ function toModels(capabilities: ResolvedCapabilities): Model[] {
 }
 
 function hasUsableModelsDisplay(modelsDisplay: ModelsForDisplay | null | undefined): boolean {
-	return (
-		modelsDisplay?.groups.some((group) => group.models.length > 0) ?? false
-	);
+	return modelsDisplay?.groups.some((group) => group.models.length > 0) ?? false;
 }
 
 function hasLiveCapabilities(capabilities: SessionCapabilities | null): boolean {

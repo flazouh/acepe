@@ -1,9 +1,11 @@
-import { ResultAsync, okAsync } from "neverthrow";
+import { okAsync, ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
 import { BUILTIN_PROVIDER_METADATA_BY_AGENT_ID } from "$lib/services/acp-provider-metadata.js";
-import { PreconnectionCapabilitiesState, resetForTesting } from "./preconnection-capabilities-state.svelte.js";
+import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
+import {
+	PreconnectionCapabilitiesState,
+	resetForTesting,
+} from "./preconnection-capabilities-state.svelte.js";
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;

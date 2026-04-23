@@ -45,6 +45,7 @@ import {
 	okAsync,
 	type ResultAsync,
 } from "neverthrow";
+import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -52,7 +53,6 @@ import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
@@ -313,20 +313,22 @@ export class InitializationManager {
 					new InitializationError("loadAvailableAgents", error instanceof Error ? error : undefined)
 			)
 			.andThen((agents) =>
-				this.preconnectionAgentSkillsStore.initialize(agents).orElse((error) => {
-					logger.warn("Failed to warm preconnection agent skills; continuing startup", {
-						error,
-					});
-					return okAsync(undefined);
-				})
-				.andThen(() =>
-					preconnectionCapabilitiesState.initializeStartupGlobal(agents).orElse((error) => {
-						logger.warn("Failed to warm startup-global preconnection capabilities", {
+				this.preconnectionAgentSkillsStore
+					.initialize(agents)
+					.orElse((error) => {
+						logger.warn("Failed to warm preconnection agent skills; continuing startup", {
 							error,
 						});
 						return okAsync(undefined);
 					})
-				)
+					.andThen(() =>
+						preconnectionCapabilitiesState.initializeStartupGlobal(agents).orElse((error) => {
+							logger.warn("Failed to warm startup-global preconnection capabilities", {
+								error,
+							});
+							return okAsync(undefined);
+						})
+					)
 			);
 
 		return NeverthrowResultAsync.combine([

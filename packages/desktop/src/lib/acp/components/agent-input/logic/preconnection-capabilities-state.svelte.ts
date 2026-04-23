@@ -1,12 +1,9 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import { createLogger } from "$lib/acp/utils/logger.js";
 import type { AgentInfo } from "$lib/acp/store/api.js";
-import type {
-	ProviderMetadataProjection,
-	ResolvedCapabilities,
-} from "$lib/services/acp-types.js";
+import { createLogger } from "$lib/acp/utils/logger.js";
+import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 interface EnsureLoadedInput {
