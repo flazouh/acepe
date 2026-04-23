@@ -12,6 +12,7 @@ import {
 	type KanbanTaskCardData,
 	type KanbanToolData,
 } from "@acepe/ui";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { SvelteMap } from "svelte/reactivity";
 import { onDestroy, onMount } from "svelte";
@@ -333,6 +334,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 				: null,
 			worktreePath: identity?.worktreePath ? identity.worktreePath : null,
 			worktreeDeleted: metadata?.worktreeDeleted ?? false,
+			linkedPr: metadata?.linkedPr ?? null,
 		});
 	}
 
@@ -404,6 +406,18 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;
 
 	const richTitleResult = formatRichSessionTitle(item.title, item.projectName);
+	const prFooter = item.linkedPr
+		? {
+				prNumber: item.linkedPr.prNumber,
+				state: item.linkedPr.state,
+				title: item.linkedPr.title,
+				url: item.linkedPr.url,
+				additions: item.linkedPr.additions,
+				deletions: item.linkedPr.deletions,
+				isLoading: item.linkedPr.isLoading,
+				hasResolvedDetails: item.linkedPr.hasResolvedDetails,
+			}
+		: null;
 
 	return {
 		id: item.sessionId,
@@ -432,6 +446,8 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		sequenceId: item.sequenceId,
 		isWorktreeSession: Boolean(item.worktreePath),
 		worktreeDeleted: item.worktreeDeleted ?? false,
+		prFooter,
+		hideHeaderDiff: prFooter !== null,
 	};
 }
 
@@ -531,10 +547,12 @@ function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
 		isWorktreeSession: card.isWorktreeSession ?? false,
 		worktreeDeleted: card.worktreeDeleted ?? false,
 		footer,
+		prFooter: card.prFooter ?? null,
 		menuActions,
 		showCloseAction: item !== undefined,
 		hideBody: footer?.kind === "permission",
 		flushFooter: false,
+		hideHeaderDiff: card.hideHeaderDiff ?? false,
 	};
 }
 
@@ -591,6 +609,8 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 				sequenceId: null,
 				isWorktreeSession: Boolean(panel.worktreePath),
 				worktreeDeleted: false,
+				prFooter: null,
+				hideHeaderDiff: false,
 			},
 		});
 	}
@@ -706,6 +726,27 @@ function handleCardClick(cardId: string) {
 	applyCompletionAttentionAction(unseenStore, item.panelId, { kind: "explicit-reveal" });
 	activeDialogMode = "inspect";
 	activeDialogPanelId = item.panelId;
+}
+
+function handlePrFooterOpen(cardId: string): void {
+	const item = itemLookup.get(cardId);
+	if (!item || item.linkedPr == null) {
+		return;
+	}
+
+	panelStore.openGitDialog(item.projectPath, undefined, {
+		section: "prs",
+		prNumber: item.linkedPr.prNumber,
+	});
+}
+
+function handlePrFooterOpenExternal(cardId: string): void {
+	const item = itemLookup.get(cardId);
+	if (!item || item.linkedPr?.url == null) {
+		return;
+	}
+
+	void openUrl(item.linkedPr.url).catch(() => {});
 }
 
 function handleCloseSession(item: ThreadBoardItem): void {
@@ -1386,6 +1427,8 @@ function handleRejectPlanApproval(sessionId: string): void {
 			onQuestionNext={handleNextQuestion}
 			onPlanApprove={handleApprovePlanApproval}
 			onPlanReject={handleRejectPlanApproval}
+			onPrFooterOpen={handlePrFooterOpen}
+			onPrFooterOpenExternal={handlePrFooterOpenExternal}
 		>
 			{#snippet columnHeaderActions(columnId)}
 				{#if columnId === "planning" || columnId === "working"}

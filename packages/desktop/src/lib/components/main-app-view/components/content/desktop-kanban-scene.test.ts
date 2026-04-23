@@ -37,10 +37,12 @@ function makeCard(id: string, title: string): KanbanSceneCardData {
 		hasUnseenCompletion: false,
 		sequenceId: null,
 		footer,
+		prFooter: null,
 		menuActions,
 		showCloseAction: false,
 		hideBody: false,
 		flushFooter: false,
+		hideHeaderDiff: false,
 	};
 }
 
@@ -148,5 +150,57 @@ describe("buildDesktopKanbanScene", () => {
 			"session-1",
 		]);
 		expect(groups.find((group) => group.id === "planning")?.items).toEqual([]);
+	});
+
+	it("preserves kanban PR footer projections on scene cards", () => {
+		const scene = buildDesktopKanbanScene({
+			columns,
+			entries: [
+				{
+					columnId: "working",
+					card: {
+						id: "session-1",
+						title: "Build motion layer",
+						agentIconSrc: "/agent.svg",
+						agentLabel: "Agent",
+						isAutoMode: false,
+						projectName: "acepe",
+						projectColor: "#9858FF",
+						activityText: null,
+						isStreaming: false,
+						modeId: null,
+						diffInsertions: 0,
+						diffDeletions: 0,
+						errorText: null,
+						todoProgress: null,
+						taskCard: null,
+						latestTool: null,
+						hasUnseenCompletion: false,
+						sequenceId: null,
+						footer: null,
+						prFooter: {
+							prNumber: 178,
+							state: "OPEN",
+							title: "Add canonical session PR linking",
+							url: "https://github.com/flazouh/acepe/pull/178",
+							additions: 12,
+							deletions: 4,
+							isLoading: false,
+							hasResolvedDetails: true,
+						},
+						menuActions: [],
+						showCloseAction: false,
+						hideBody: false,
+						flushFooter: false,
+						hideHeaderDiff: true,
+					},
+					orderKey: "session:working:1000:session-1",
+					source: "session",
+				},
+			],
+		});
+
+		expect(scene.cards[0]?.prFooter?.prNumber).toBe(178);
+		expect(scene.cards[0]?.hideHeaderDiff).toBe(true);
 	});
 });

@@ -4,13 +4,15 @@
 
 import type { ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
+import type { SessionPrLinkMode } from "$lib/acp/application/dto/session-linked-pr.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 export function persistSessionPrNumber(
 	sessionId: string,
-	prNumber: number
+	prNumber: number | null,
+	prLinkMode?: SessionPrLinkMode | null
 ): ResultAsync<void, AppError> {
-	return tauriClient.history.setSessionPrNumber(sessionId, prNumber);
+	return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
 }
 
 export function persistSessionWorktreePathAfterRename(

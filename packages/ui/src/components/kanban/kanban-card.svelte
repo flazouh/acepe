@@ -26,6 +26,7 @@ interface Props {
 	/** Close button callback. When provided, renders a compact X button in the header. */
 	onClose?: () => void;
 	footer?: Snippet;
+	bottomFooter?: Snippet;
 	tally?: Snippet;
 	/** Renders a todo header section at the bottom of the card body. When provided, inline todoProgress in the tally is hidden. */
 	todoSection?: Snippet;
@@ -45,6 +46,7 @@ let {
 	onclick,
 	onClose,
 	footer,
+	bottomFooter,
 	tally,
 	todoSection,
 	showMenu = false,
@@ -57,7 +59,9 @@ let {
 }: Props = $props();
 
 const title = $derived(card.title ? capitalizeLeadingCharacter(card.title) : "Untitled session");
-const hasDiff = $derived(card.diffInsertions > 0 || card.diffDeletions > 0);
+const hasDiff = $derived(
+	!card.hideHeaderDiff && (card.diffInsertions > 0 || card.diffDeletions > 0)
+);
 const isGhost = $derived(presentationMode === "ghost");
 const isInteractive = $derived(!isGhost && Boolean(onclick));
 const showBody = $derived(
@@ -251,6 +255,13 @@ function handleKeydown(event: KeyboardEvent): void {
 			</div>
 		{/if}
 
+		{#if !isGhost && bottomFooter}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="border-t border-border/40" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				{@render bottomFooter()}
+			</div>
+		{/if}
+
 		<!-- Tally footer: usage + todo segments + diff pill -->
 		{#if hasFooterContent}
 			<div class="flex min-w-0 flex-wrap items-center gap-2 border-t border-border/40 px-1.5 py-0.5" data-testid="kanban-card-tally">
@@ -276,6 +287,13 @@ function handleKeydown(event: KeyboardEvent): void {
 		{#if hasTodoSection && todoSection}
 			<div class="border-t border-border/40">
 				{@render todoSection()}
+			</div>
+		{/if}
+
+		{#if !isGhost && bottomFooter}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="border-t border-border/40" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+				{@render bottomFooter()}
 			</div>
 		{/if}
 	{/if}

@@ -1,4 +1,8 @@
 import type { SessionSummary } from "../application/dto/session.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+} from "../application/dto/session-linked-pr.js";
 import type { SessionActivityInfo } from "../components/session-list/session-list-types.js";
 
 import { ProjectManager } from "../logic/project-manager.svelte.js";
@@ -97,6 +101,14 @@ export type SessionDisplayItem = {
 	 */
 	prState?: "OPEN" | "CLOSED" | "MERGED";
 	/**
+	 * Canonical PR link ownership mode.
+	 */
+	prLinkMode?: SessionPrLinkMode;
+	/**
+	 * Shared linked PR summary.
+	 */
+	linkedPr?: SessionLinkedPr;
+	/**
 	 * True when the session still has a worktree path, but that worktree was deleted.
 	 */
 	worktreeDeleted?: boolean;
@@ -124,6 +136,8 @@ export function sessionSummaryToDisplayItem(session: SessionSummary): SessionDis
 		worktreePath: session.worktreePath,
 		prNumber: session.prNumber,
 		prState: session.prState,
+		prLinkMode: session.prLinkMode,
+		linkedPr: session.linkedPr,
 		worktreeDeleted: session.worktreeDeleted,
 		sequenceId: session.sequenceId,
 	};

@@ -172,6 +172,7 @@ pub async fn get_startup_sessions(
                     worktree_path: session.worktree_path,
                     worktree_deleted,
                     pr_number: session.pr_number.map(|number| number as i64),
+                    pr_link_mode: session.pr_link_mode,
                     session_lifecycle_state: Some(session_lifecycle_state),
                     sequence_id: session.sequence_id,
                 });
@@ -263,6 +264,7 @@ async fn scan_project_sessions_inner(
                 worktree_path: s.worktree_path,
                 worktree_deleted,
                 pr_number: s.pr_number.map(|n| n as i64),
+                pr_link_mode: s.pr_link_mode,
                 session_lifecycle_state: Some(session_lifecycle_state),
                 sequence_id: s.sequence_id,
             });

@@ -81,6 +81,8 @@ describe("SessionStore PR state refresh caching", () => {
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(1);
 		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
+		expect(store.getSessionCold("session-pr-1")?.linkedPr?.title).toBe("Test PR");
+		expect(store.getSessionCold("session-pr-1")?.linkedPr?.additions).toBe(10);
 	});
 
 	it("preserves historical updatedAt when PR state refresh changes prState", async () => {

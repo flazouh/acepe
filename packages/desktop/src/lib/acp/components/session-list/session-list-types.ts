@@ -1,4 +1,8 @@
 import type { ToolKind } from "../../types/tool-kind.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+} from "../../application/dto/session-linked-pr.js";
 
 /**
  * Todo progress for display in session list.
@@ -73,6 +77,10 @@ export interface SessionListItem {
 	prNumber?: number;
 	/** Current PR state (OPEN, CLOSED, MERGED) */
 	prState?: "OPEN" | "CLOSED" | "MERGED";
+	/** Canonical PR link ownership mode. */
+	prLinkMode?: SessionPrLinkMode;
+	/** Shared linked PR summary used across all session surfaces. */
+	linkedPr?: SessionLinkedPr;
 	/** Per-project sequence ID for Acepe-native sessions */
 	sequenceId?: number;
 }

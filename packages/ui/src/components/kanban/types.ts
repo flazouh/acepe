@@ -21,6 +21,17 @@ export interface KanbanTaskCardData {
 	readonly toolCalls: readonly AgentToolEntry[];
 }
 
+export interface KanbanPrFooterData {
+	readonly prNumber: number;
+	readonly state: "OPEN" | "CLOSED" | "MERGED";
+	readonly title: string | null;
+	readonly url: string | null;
+	readonly additions: number | null;
+	readonly deletions: number | null;
+	readonly isLoading: boolean;
+	readonly hasResolvedDetails: boolean;
+}
+
 export interface KanbanCardData {
 	readonly id: string;
 	readonly title: string | null;
@@ -45,6 +56,8 @@ export interface KanbanCardData {
 	readonly sequenceId: number | null;
 	readonly isWorktreeSession?: boolean;
 	readonly worktreeDeleted?: boolean;
+	readonly prFooter?: KanbanPrFooterData | null;
+	readonly hideHeaderDiff?: boolean;
 }
 
 export interface KanbanColumnGroup {

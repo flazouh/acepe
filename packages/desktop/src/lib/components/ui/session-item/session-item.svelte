@@ -55,6 +55,7 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
+import SessionPrLinkMenu from "$lib/acp/components/shared/session-pr-link-menu.svelte";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
 
@@ -692,6 +693,12 @@ function handleNextQuestion() {
 										{"Rename"}
 									</DropdownMenu.Item>
 								{/if}
+								<SessionPrLinkMenu
+									sessionId={session.id}
+									projectPath={session.projectPath}
+									linkedPr={session.linkedPr ?? null}
+									prLinkMode={session.prLinkMode ?? "automatic"}
+								/>
 								{#if onExportMarkdown || onExportJson}
 									<DropdownMenu.Separator />
 									<DropdownMenu.Sub>

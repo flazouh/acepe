@@ -33,10 +33,12 @@ function makeCard(id: string, title: string): KanbanSceneCardData {
 		hasUnseenCompletion: false,
 		sequenceId: null,
 		footer,
+		prFooter: null,
 		menuActions,
 		showCloseAction: false,
 		hideBody: false,
 		flushFooter: false,
+		hideHeaderDiff: false,
 	};
 }
 

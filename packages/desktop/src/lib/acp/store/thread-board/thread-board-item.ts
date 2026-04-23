@@ -2,6 +2,7 @@ import type { TodoProgressInfo } from "$lib/acp/components/session-list/session-
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 import type { ToolKind } from "$lib/acp/types/tool-kind.js";
 import type { ActiveTurnFailure } from "$lib/acp/types/turn-error.js";
+import type { SessionLinkedPr } from "../../application/dto/session-linked-pr.js";
 
 import type { SessionState } from "../session-state.js";
 
@@ -32,6 +33,7 @@ export interface ThreadBoardSource {
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;
 	readonly worktreeDeleted?: boolean;
+	readonly linkedPr?: SessionLinkedPr | null;
 }
 
 export interface ThreadBoardItem {
@@ -59,6 +61,7 @@ export interface ThreadBoardItem {
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;
 	readonly worktreeDeleted?: boolean;
+	readonly linkedPr?: SessionLinkedPr | null;
 	readonly status: ThreadBoardStatus;
 }
 

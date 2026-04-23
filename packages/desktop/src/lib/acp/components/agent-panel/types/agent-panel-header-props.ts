@@ -1,4 +1,8 @@
 import type { ParsedAttachment } from "$lib/acp/utils/attachment-token-parser.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+} from "$lib/acp/application/dto/session-linked-pr.js";
 import type { SessionStatusUI } from "./session-status-ui";
 
 /**
@@ -42,10 +46,13 @@ export interface AgentPanelHeaderProps {
 	readonly agentName: string | null;
 	readonly isFullscreen: boolean;
 	readonly sessionStatus: SessionStatusUI;
+	readonly projectPath: string | null;
 	readonly projectName: string;
 	readonly projectColor: string;
 	readonly projectIconSrc?: string | null;
 	readonly sequenceId?: number | null;
+	readonly linkedPr?: SessionLinkedPr | null;
+	readonly prLinkMode?: SessionPrLinkMode | null;
 	readonly hideProjectBadge?: boolean;
 	readonly debugPanelState?: unknown;
 	readonly onClose?: () => void;

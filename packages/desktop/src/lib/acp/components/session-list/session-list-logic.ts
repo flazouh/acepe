@@ -263,6 +263,8 @@ export function createDisplayItems(
 			worktreeDeleted: session.worktreeDeleted,
 			prNumber: session.prNumber,
 			prState: session.prState,
+			prLinkMode: session.prLinkMode,
+			linkedPr: session.linkedPr,
 			sequenceId: session.sequenceId,
 		};
 	});

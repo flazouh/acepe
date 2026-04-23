@@ -303,6 +303,7 @@ export { Input, Root as InputRoot } from "./components/input/index.js";
 export type {
 	KanbanCardData,
 	KanbanColumnGroup,
+	KanbanPrFooterData,
 	KanbanPermissionData,
 	KanbanQuestionData,
 	KanbanQuestionOption,
@@ -316,6 +317,7 @@ export type {
 	KanbanScenePlacementSource,
 	KanbanScenePermissionFooterData,
 	KanbanScenePlanApprovalFooterData,
+	KanbanScenePrFooterData,
 	KanbanSceneQuestionFooterData,
 	KanbanTaskCardData,
 	KanbanToolData,
@@ -326,6 +328,7 @@ export {
 	KanbanColumn,
 	KanbanCompactComposer,
 	KanbanSceneBoard,
+	KanbanScenePrFooter,
 } from "./components/kanban/index.js";
 export { MarkdownDisplay } from "./components/markdown/index.js";
 export {

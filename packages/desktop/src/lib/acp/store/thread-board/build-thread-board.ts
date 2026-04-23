@@ -59,6 +59,7 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		sequenceId: source.sequenceId ?? null,
 		worktreePath: source.worktreePath ?? null,
 		worktreeDeleted: source.worktreeDeleted ?? false,
+		linkedPr: source.linkedPr ?? null,
 		status,
 	};
 }

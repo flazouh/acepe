@@ -72,6 +72,7 @@ import {
 import type {
 	Mode,
 	Model,
+	SessionLinkedPr,
 	SessionCapabilities,
 	SessionCold,
 	SessionContextBudget,
@@ -79,13 +80,17 @@ import type {
 	SessionHotState,
 	SessionIdentity,
 	SessionMetadata,
+	SessionPrLinkMode,
 	SessionUsageTelemetry,
 } from "./types.js";
 import "../errors/app-error.js";
 import type { PrDetails } from "../../utils/tauri-client/git.js";
+import type { GitStackedPrStep } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
+import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
 import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
 import { SessionNotFoundError } from "../errors/app-error.js";
+import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/session-pr-link-attribution.js";
 import { createLogger } from "../utils/logger.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
@@ -225,6 +230,20 @@ const PR_STATE_CACHE_TTL_MS = 60_000;
 interface CachedPrDetails {
 	details: PrDetails;
 	fetchedAt: number;
+}
+
+function buildResolvedSessionLinkedPr(details: PrDetails): SessionLinkedPr {
+	return {
+		prNumber: details.number,
+		state: details.state,
+		url: details.url,
+		title: details.title,
+		additions: details.additions,
+		deletions: details.deletions,
+		isDraft: details.isDraft,
+		isLoading: false,
+		hasResolvedDetails: true,
+	};
 }
 
 function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string {
@@ -368,8 +387,6 @@ export interface SessionStoreCallbacks {
 	onTurnComplete?: (sessionId: string) => void;
 	onTurnInterrupted?: (sessionId: string) => void;
 	onTurnError?: (sessionId: string) => void;
-	/** Called when a PR number is discovered in agent messages (e.g. Claude created a PR autonomously). */
-	onPrNumberFound?: (sessionId: string, prNumber: number) => void;
 }
 
 export class SessionStore implements SessionEventHandler, ISessionStateReader, ISessionStateWriter {
@@ -401,6 +418,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// PR details cache/dedupe (prevents repeated gh pr view storms during scans)
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
 	private readonly prDetailsInflight = new Map<string, ResultAsync<PrDetails | null, never>>();
+	private readonly prLinkUpdateSequence = new Map<string, number>();
 
 	// Connection service (state machines + connection tracking)
 	private readonly connectionService = new SessionConnectionService();
@@ -574,6 +592,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			parentId: session.parentId,
 			prNumber: session.prNumber,
 			prState: session.prState,
+			prLinkMode: session.prLinkMode,
+			linkedPr: session.linkedPr,
 			worktreeDeleted: session.worktreeDeleted,
 			sequenceId: session.sequenceId,
 		};
@@ -1390,8 +1410,97 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	// ============================================
-	// PR STATE REFRESH
+	// PR LINKING + STATE REFRESH
 	// ============================================
+
+	updateSessionPrLink(
+		sessionId: string,
+		projectPath: string,
+		prNumber: number | null,
+		prLinkMode: SessionPrLinkMode
+	): ResultAsync<void, AppError> {
+		const session = this.getSessionCold(sessionId);
+		if (!session) {
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+
+		const nextLinkedPr =
+			prNumber == null
+				? undefined
+				: session.linkedPr?.prNumber === prNumber
+					? {
+							prNumber: session.linkedPr.prNumber,
+							state: session.linkedPr.state,
+							url: session.linkedPr.url,
+							title: session.linkedPr.title,
+							additions: session.linkedPr.additions,
+							deletions: session.linkedPr.deletions,
+							isDraft: session.linkedPr.isDraft,
+							isLoading: session.linkedPr.isLoading,
+							hasResolvedDetails: session.linkedPr.hasResolvedDetails,
+						}
+					: buildPartialSessionLinkedPr(prNumber, session.prState);
+		const nextPrState =
+			prNumber == null ? undefined : nextLinkedPr ? nextLinkedPr.state : session.prState;
+
+		this.updateSession(
+			sessionId,
+			{
+				prNumber: prNumber ?? undefined,
+				prState: nextPrState,
+				prLinkMode,
+				linkedPr: nextLinkedPr,
+			},
+			{ touchUpdatedAt: false }
+		);
+
+		if (prNumber != null) {
+			this.setLinkedPrLoading(projectPath, prNumber, true);
+			void this.refreshSessionPrState(sessionId, projectPath, prNumber);
+		}
+
+		return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
+	}
+
+	restoreAutomaticSessionPrLink(
+		sessionId: string,
+		projectPath: string
+	): ResultAsync<void, AppError> {
+		return this.updateSessionPrLink(sessionId, projectPath, null, "automatic");
+	}
+
+	applyAutomaticPrLinkFromShipWorkflow(
+		sessionId: string,
+		projectPath: string,
+		pr: GitStackedPrStep
+	): ResultAsync<number | null, never> {
+		const nextSequence = (this.prLinkUpdateSequence.get(sessionId) ?? 0) + 1;
+		this.prLinkUpdateSequence.set(sessionId, nextSequence);
+
+		return resolveAutomaticSessionPrNumberFromShipWorkflow(projectPath, pr).andThen((prNumber) => {
+			if (this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
+				return okAsync<number | null, never>(null);
+			}
+
+			if (prNumber == null) {
+				return okAsync<number | null, never>(null);
+			}
+
+			const session = this.getSessionCold(sessionId);
+			if (!session || session.prLinkMode === "manual") {
+				return okAsync<number | null, never>(null);
+			}
+
+			return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic")
+				.map(() => prNumber)
+				.orElse(() => okAsync<number | null, never>(null));
+		});
+	}
+
+	invalidatePrDetails(projectPath: string, prNumber: number): void {
+		const cacheKey = this.getPrDetailsCacheKey(projectPath, prNumber);
+		this.prDetailsCache.delete(cacheKey);
+	}
 
 	/**
 	 * Fetch the current PR state from GitHub for a single session and update the store.
@@ -1412,6 +1521,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.applyPrDetailsToSessions(projectPath, prNumber, cachedDetails);
 			return okAsync<PrDetails | null, never>(cachedDetails);
 		}
+
+		this.setLinkedPrLoading(projectPath, prNumber, true);
 
 		const inflightRequest = this.prDetailsInflight.get(cacheKey);
 		if (inflightRequest) {
@@ -1441,6 +1552,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					prNumber,
 					error: err.message,
 				});
+				this.setLinkedPrLoading(projectPath, prNumber, false);
 				return okAsync<PrDetails | null, never>(null);
 			});
 
@@ -1492,21 +1604,73 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 
 		for (const session of matchingSessions) {
-			if (details.state !== session.prState) {
-				logger.info("refreshSessionPrState: updating session prState", {
+			const nextLinkedPr = buildResolvedSessionLinkedPr(details);
+			const linkedPrChanged =
+				session.linkedPr?.state !== nextLinkedPr.state ||
+				session.linkedPr?.url !== nextLinkedPr.url ||
+				session.linkedPr?.title !== nextLinkedPr.title ||
+				session.linkedPr?.additions !== nextLinkedPr.additions ||
+				session.linkedPr?.deletions !== nextLinkedPr.deletions ||
+				session.linkedPr?.isDraft !== nextLinkedPr.isDraft ||
+				session.linkedPr?.isLoading !== nextLinkedPr.isLoading ||
+				session.linkedPr?.hasResolvedDetails !== nextLinkedPr.hasResolvedDetails;
+
+			if (details.state !== session.prState || linkedPrChanged) {
+				logger.info("refreshSessionPrState: updating session linked PR", {
 					sessionId: session.id,
 					oldState: session.prState,
 					newState: details.state,
 				});
-				this.updateSession(session.id, { prState: details.state }, { touchUpdatedAt: false });
+				this.updateSession(
+					session.id,
+					{
+						prState: details.state,
+						linkedPr: nextLinkedPr,
+					},
+					{ touchUpdatedAt: false }
+				);
+			}
+		}
+	}
+
+	private setLinkedPrLoading(projectPath: string, prNumber: number, isLoading: boolean): void {
+		const matchingSessions = this.sessions.filter(
+			(session) => session.projectPath === projectPath && session.prNumber === prNumber
+		);
+
+		for (const session of matchingSessions) {
+			const nextLinkedPr = session.linkedPr
+				? {
+						prNumber: session.linkedPr.prNumber,
+						state: session.linkedPr.state,
+						url: session.linkedPr.url,
+						title: session.linkedPr.title,
+						additions: session.linkedPr.additions,
+						deletions: session.linkedPr.deletions,
+						isDraft: session.linkedPr.isDraft,
+						isLoading,
+						hasResolvedDetails: session.linkedPr.hasResolvedDetails,
+					}
+				: {
+						prNumber,
+						state: session.prState ?? "OPEN",
+						url: null,
+						title: null,
+						additions: null,
+						deletions: null,
+						isDraft: null,
+						isLoading,
+						hasResolvedDetails: false,
+					};
+
+			if (
+				session.linkedPr?.isLoading === nextLinkedPr.isLoading &&
+				session.linkedPr?.hasResolvedDetails === nextLinkedPr.hasResolvedDetails
+			) {
 				continue;
 			}
 
-			logger.debug("refreshSessionPrState: state unchanged, skipping", {
-				sessionId: session.id,
-				currentState: session.prState,
-				newState: details.state,
-			});
+			this.updateSession(session.id, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
 		}
 	}
 

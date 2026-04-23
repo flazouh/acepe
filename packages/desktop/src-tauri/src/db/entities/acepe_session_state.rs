@@ -28,6 +28,9 @@ pub struct Model {
     /// Optional PR number tracked by Acepe.
     pub pr_number: Option<i32>,
 
+    /// Ownership mode for the linked PR.
+    pub pr_link_mode: Option<String>,
+
     /// Per-project sequence ID for Acepe-tracked sessions.
     pub sequence_id: Option<i32>,
 

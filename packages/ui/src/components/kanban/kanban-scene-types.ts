@@ -5,7 +5,7 @@ import type {
 	ActivityEntryQuestionProgress,
 	SectionedFeedSectionId,
 } from "../attention-queue/types.js";
-import type { KanbanCardData } from "./types.js";
+import type { KanbanCardData, KanbanPrFooterData } from "./types.js";
 
 export interface KanbanSceneMenuAction {
 	readonly id: string;
@@ -56,8 +56,11 @@ export type KanbanSceneFooterData =
 	| KanbanScenePermissionFooterData
 	| KanbanScenePlanApprovalFooterData;
 
+export type KanbanScenePrFooterData = KanbanPrFooterData;
+
 export interface KanbanSceneCardData extends KanbanCardData {
 	readonly footer: KanbanSceneFooterData | null;
+	readonly prFooter: KanbanScenePrFooterData | null;
 	readonly menuActions: readonly KanbanSceneMenuAction[];
 	readonly showCloseAction: boolean;
 	readonly hideBody: boolean;

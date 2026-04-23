@@ -37,6 +37,7 @@ export type { SessionCold } from "./session-cold.js";
 export type { SessionEntry } from "./session-entry.js";
 // Identity & Metadata
 export type { SessionIdentity } from "./session-identity.js";
+export type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js";
 export type { SessionMetadata } from "./session-metadata.js";
 // State & Capabilities
 export type { SessionStatus } from "./session-status.js";

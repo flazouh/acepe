@@ -1,3 +1,5 @@
+import type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js";
+
 export type SessionLifecycleState = "created" | "persisted";
 
 /**
@@ -35,6 +37,16 @@ export interface SessionMetadata {
 	 * Ephemeral — defaults to "OPEN" when prNumber is set, updated from live GitHub data.
 	 */
 	readonly prState?: "OPEN" | "CLOSED" | "MERGED";
+	/**
+	 * Ownership mode for the canonical session-to-PR link.
+	 * Persisted in Acepe-owned session state; legacy linked rows default to automatic.
+	 */
+	readonly prLinkMode?: SessionPrLinkMode;
+	/**
+	 * Shared linked-PR summary projected from the canonical session link.
+	 * Ephemeral — refreshed from GitHub details and reused across all UI surfaces.
+	 */
+	readonly linkedPr?: SessionLinkedPr;
 	/**
 	 * True when the session still points at a worktree path, but that worktree was deleted.
 	 * Ephemeral — used so the UI can keep the tree icon and show it in red.

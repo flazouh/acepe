@@ -1,5 +1,6 @@
 import type { ResultAsync } from "neverthrow";
 
+import type { SessionPrLinkMode } from "../../acp/application/dto/session-linked-pr.js";
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { SessionOpenResult } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
@@ -70,8 +71,16 @@ export const history = {
 		return historyCommands.count_sessions_for_project.invoke<ProjectSessionCounts>({ projectPath });
 	},
 
-	setSessionPrNumber: (sessionId: string, prNumber: number | null): ResultAsync<void, AppError> => {
-		return historyCommands.set_session_pr_number.invoke<void>({ sessionId, prNumber });
+	setSessionPrNumber: (
+		sessionId: string,
+		prNumber: number | null,
+		prLinkMode?: SessionPrLinkMode | null
+	): ResultAsync<void, AppError> => {
+		return historyCommands.set_session_pr_number.invoke<void>({
+			sessionId,
+			prNumber,
+			prLinkMode: prLinkMode ?? null,
+		});
 	},
 
 	setSessionTitle: (sessionId: string, title: string): ResultAsync<void, AppError> => {

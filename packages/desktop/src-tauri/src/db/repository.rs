@@ -1123,6 +1123,7 @@ pub struct SessionMetadataRow {
     pub provider_session_id: Option<String>,
     pub worktree_path: Option<String>,
     pub pr_number: Option<i32>,
+    pub pr_link_mode: Option<String>,
     pub is_acepe_managed: bool,
     pub sequence_id: Option<i32>,
 }
@@ -1202,6 +1203,9 @@ fn compose_session_metadata_row(
         .and_then(|state| state.worktree_path.clone())
         .or(model.worktree_path.clone());
     let pr_number = state.and_then(|state| state.pr_number).or(model.pr_number);
+    let pr_link_mode = state
+        .and_then(|state| state.pr_link_mode.clone())
+        .or_else(|| pr_number.map(|_| "automatic".to_string()));
     let sequence_id = state
         .and_then(|state| state.sequence_id)
         .or(model.sequence_id);
@@ -1222,6 +1226,7 @@ fn compose_session_metadata_row(
         provider_session_id: model.provider_session_id,
         worktree_path,
         pr_number,
+        pr_link_mode,
         is_acepe_managed,
         sequence_id,
     }
@@ -1628,6 +1633,7 @@ impl SessionMetadataRepository {
                         title_override: Set(None),
                         worktree_path: Set(worktree_path.map(|path| path.to_string())),
                         pr_number: Set(None),
+                        pr_link_mode: Set(None),
                         sequence_id: Set(Some(next_sequence_id)),
                         created_at: Set(now),
                         updated_at: Set(now),
@@ -1695,6 +1701,7 @@ impl SessionMetadataRepository {
                         title_override: Set(None),
                         worktree_path: Set(None),
                         pr_number: Set(None),
+                        pr_link_mode: Set(None),
                         sequence_id: Set(Some(next_sequence_id)),
                         created_at: Set(now),
                         updated_at: Set(now),
@@ -1933,6 +1940,7 @@ impl SessionMetadataRepository {
                             title_override: Set(None),
                             worktree_path: Set(state_worktree_path),
                             pr_number: Set(state_pr_number),
+                            pr_link_mode: Set(None),
                             sequence_id: Set(Some(assigned_sequence_id)),
                             created_at: Set(now),
                             updated_at: Set(now),
@@ -2505,6 +2513,7 @@ impl SessionMetadataRepository {
                 title_override: Set(None),
                 worktree_path: Set(Some(worktree_path.to_string())),
                 pr_number: Set(None),
+                pr_link_mode: Set(None),
                 sequence_id: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
@@ -2546,6 +2555,7 @@ impl SessionMetadataRepository {
                 title_override: Set(title_override.map(str::to_string)),
                 worktree_path: Set(metadata.worktree_path),
                 pr_number: Set(metadata.pr_number),
+                pr_link_mode: Set(metadata.pr_number.map(|_| "automatic".to_string())),
                 sequence_id: Set(None),
                 created_at: Set(now),
                 updated_at: Set(now),
@@ -2723,22 +2733,50 @@ impl SessionMetadataRepository {
         db: &DbConn,
         session_id: &str,
         pr_number: Option<i32>,
+        pr_link_mode: Option<&str>,
     ) -> Result<()> {
-        tracing::debug!(session_id = %session_id, pr_number = ?pr_number, "Setting PR number");
+        tracing::debug!(
+            session_id = %session_id,
+            pr_number = ?pr_number,
+            pr_link_mode = ?pr_link_mode,
+            "Setting PR number"
+        );
 
         if let Some(model) = SessionMetadata::find_by_id(session_id).one(db).await? {
             let now = Utc::now();
             let mut active: session_metadata::ActiveModel = model.into();
+            let state_project_path = active.project_path.as_ref().clone();
+            let state_worktree_path = active.worktree_path.as_ref().clone();
             active.pr_number = Set(pr_number);
             active.updated_at = Set(now);
             active.update(db).await?;
             if let Some(existing_state) = AcepeSessionState::find_by_id(session_id).one(db).await? {
                 let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                 state_active.pr_number = Set(pr_number);
+                state_active.pr_link_mode = Set(pr_link_mode.map(str::to_string));
                 state_active.updated_at = Set(now);
                 state_active.update(db).await?;
+            } else if pr_number.is_some() || pr_link_mode.is_some() {
+                let state = acepe_session_state::ActiveModel {
+                    session_id: Set(session_id.to_string()),
+                    relationship: Set(AcepeSessionRelationship::Discovered.as_str().to_string()),
+                    project_path: Set(state_project_path),
+                    title_override: Set(None),
+                    worktree_path: Set(state_worktree_path),
+                    pr_number: Set(pr_number),
+                    pr_link_mode: Set(pr_link_mode.map(str::to_string)),
+                    sequence_id: Set(None),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                };
+                state.insert(db).await?;
             }
-            tracing::info!(session_id = %session_id, pr_number = ?pr_number, "PR number set");
+            tracing::info!(
+                session_id = %session_id,
+                pr_number = ?pr_number,
+                pr_link_mode = ?pr_link_mode,
+                "PR number set"
+            );
         }
 
         Ok(())

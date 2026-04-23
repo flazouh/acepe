@@ -46,6 +46,10 @@ pub struct HistoryEntry {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "prNumber")]
     pub pr_number: Option<i64>,
 
+    /// Ownership mode for the session-linked PR.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "prLinkMode")]
+    pub pr_link_mode: Option<String>,
+
     /// Whether the worktree path stored for this session no longer exists on disk.
     #[serde(
         default,

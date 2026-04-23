@@ -12,6 +12,7 @@
 	import KanbanCard from "./kanban-card.svelte";
 	import KanbanSceneMenu from "./kanban-scene-menu.svelte";
 	import KanbanScenePlanApprovalFooter from "./kanban-scene-plan-approval-footer.svelte";
+	import KanbanScenePrFooter from "./kanban-scene-pr-footer.svelte";
 
 	import type {
 		KanbanSceneCardData,
@@ -19,6 +20,7 @@
 		KanbanSceneModel,
 		KanbanScenePermissionFooterData,
 		KanbanScenePlanApprovalFooterData,
+		KanbanScenePrFooterData,
 		KanbanSceneQuestionFooterData,
 	} from "./kanban-scene-types.js";
 
@@ -44,6 +46,8 @@ interface Props {
 	onQuestionNext?: (cardId: string, currentQuestionIndex: number, totalQuestions: number) => void;
 	onPlanApprove?: (cardId: string) => void;
 	onPlanReject?: (cardId: string) => void;
+	onPrFooterOpen?: (cardId: string) => void;
+	onPrFooterOpenExternal?: (cardId: string) => void;
 }
 
 let {
@@ -64,6 +68,8 @@ let {
 	onQuestionNext = () => {},
 	onPlanApprove = () => {},
 	onPlanReject = () => {},
+	onPrFooterOpen = () => {},
+	onPrFooterOpenExternal = () => {},
 }: Props = $props();
 
 const sceneModel = $derived.by((): KanbanSceneModel => {
@@ -105,6 +111,10 @@ function resolvePlanApprovalFooter(
 
 	return card.footer;
 }
+
+function resolvePrFooter(card: KanbanSceneCardData): KanbanScenePrFooterData | null {
+	return card.prFooter;
+}
 </script>
 
 <KanbanBoard layout={boardLayout} {emptyHint} {columnHeaderActions}>
@@ -112,6 +122,7 @@ function resolvePlanApprovalFooter(
 		{@const questionFooterData = resolveQuestionFooter(sceneCard)}
 		{@const permissionFooterData = resolvePermissionFooter(sceneCard)}
 		{@const planApprovalFooterData = resolvePlanApprovalFooter(sceneCard)}
+		{@const prFooterData = resolvePrFooter(sceneCard)}
 		<KanbanCard
 			card={sceneCard}
 			onclick={onCardClick ? () => onCardClick(sceneCard.id) : undefined}
@@ -175,6 +186,23 @@ function resolvePlanApprovalFooter(
 						rejectLabel={planApprovalFooterData.rejectLabel}
 						onApprove={() => onPlanApprove(sceneCard.id)}
 						onReject={() => onPlanReject(sceneCard.id)}
+					/>
+				{/if}
+			{/snippet}
+
+			{#snippet bottomFooter()}
+				{#if prFooterData}
+					<KanbanScenePrFooter
+						prNumber={prFooterData.prNumber}
+						state={prFooterData.state}
+						title={prFooterData.title}
+						url={prFooterData.url}
+						additions={prFooterData.additions}
+						deletions={prFooterData.deletions}
+						isLoading={prFooterData.isLoading}
+						hasResolvedDetails={prFooterData.hasResolvedDetails}
+						onOpen={() => onPrFooterOpen(sceneCard.id)}
+						onOpenExternal={() => onPrFooterOpenExternal(sceneCard.id)}
 					/>
 				{/if}
 			{/snippet}

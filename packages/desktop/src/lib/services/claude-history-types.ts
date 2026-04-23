@@ -40,6 +40,10 @@ worktreePath?: string | null;
  */
 prNumber?: number | null; 
 /**
+ * Ownership mode for the session-linked PR.
+ */
+prLinkMode?: string | null; 
+/**
  * Whether the worktree path stored for this session no longer exists on disk.
  */
 worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null; 

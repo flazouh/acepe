@@ -9,6 +9,7 @@ import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import AgentSelector from "../../agent-selector.svelte";
+import SessionPrLinkMenu from "../../shared/session-pr-link-menu.svelte";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 
 import type { AgentPanelHeaderProps } from "../types/agent-panel-header-props.js";
@@ -27,10 +28,13 @@ let {
 	agentName: _agentName,
 	isFullscreen,
 	sessionStatus,
+	projectPath,
 	projectName,
 	projectColor,
 	projectIconSrc,
 	sequenceId,
+	linkedPr = null,
+	prLinkMode = "automatic",
 	hideProjectBadge = false,
 	onClose,
 	onToggleFullscreen,
@@ -108,6 +112,14 @@ const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 							size={16}
 						/>
 					</DropdownMenu.Item>
+					{#if sessionId && projectPath}
+						<SessionPrLinkMenu
+							sessionId={sessionId}
+							projectPath={projectPath}
+							linkedPr={linkedPr}
+							prLinkMode={prLinkMode}
+						/>
+					{/if}
 					{#if hasExportSubmenu}
 						<DropdownMenu.Separator />
 						<DropdownMenu.Sub>

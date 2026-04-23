@@ -1,5 +1,6 @@
 import type { SessionEntry } from "./session-entry.js";
 import type { SessionIdentity } from "./session-identity.js";
+import type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js";
 import type { SessionStatus } from "./session-status.js";
 
 /**
@@ -23,6 +24,10 @@ export interface SessionSummary extends SessionIdentity {
 	readonly prNumber?: number;
 	/** Current PR state (OPEN, CLOSED, MERGED) — ephemeral, updated from live GitHub data */
 	readonly prState?: "OPEN" | "CLOSED" | "MERGED";
+	/** Canonical PR link ownership mode. */
+	readonly prLinkMode?: SessionPrLinkMode;
+	/** Shared linked PR summary for sidebar, panel, and kanban projections. */
+	readonly linkedPr?: SessionLinkedPr;
 	/** True when the session's recorded worktree path no longer exists. */
 	readonly worktreeDeleted?: boolean;
 	/** Per-project sequence ID for Acepe-native sessions */
