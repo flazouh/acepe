@@ -1,8 +1,28 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
 
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
+mock.module("@sentry/browser", () => ({
+	init: () => undefined,
+	setUser: () => undefined,
+	withScope: () => undefined,
+	captureException: () => undefined,
+}));
+
+mock.module("$lib/analytics.js", () => ({
+	captureContractViolation: () => undefined,
+	captureException: () => undefined,
+	initAnalytics: async () => undefined,
+}));
+
+mock.module("../../../analytics.js", () => ({
+	captureContractViolation: () => undefined,
+	captureException: () => undefined,
+	initAnalytics: async () => undefined,
+}));
+
 import {
+	deriveCompactActivityKind,
 	projectActivityEntry,
 	projectSessionPreviewActivity,
 } from "../activity-entry-projection.js";
@@ -66,6 +86,14 @@ function createTodoToolCall(id: string, status: ToolCall["status"]): ToolCall {
 }
 
 describe("projectActivityEntry", () => {
+	it("maps canonical activity to compact activity kinds", () => {
+		expect(deriveCompactActivityKind("awaiting_model", null)).toBe("thinking");
+		expect(deriveCompactActivityKind("waiting_for_user", null)).toBe("thinking");
+		expect(deriveCompactActivityKind("running_operation", null)).toBe("streaming");
+		expect(deriveCompactActivityKind("paused", null)).toBe("paused");
+		expect(deriveCompactActivityKind("idle", "paused")).toBe("paused");
+	});
+
 	it("prefers nested todo children over trailing reads in task projections", () => {
 		const taskTool = createTaskToolCall([
 			createTodoToolCall("child-todo", "in_progress"),

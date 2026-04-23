@@ -33,31 +33,67 @@ vi.mock("@acepe/ui", async () => ({
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("../../../../store/session-store.svelte.js", () => ({
+vi.mock("mode-watcher", () => ({
+	mode: { current: "dark" },
+}));
+
+vi.mock("../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
 		getSessionRuntimeState: () => null,
-		getHotState: () => ({ turnState: "idle" }),
+		getHotState: () => ({
+			turnState: "idle",
+			status: "idle",
+			currentMode: null,
+			connectionError: null,
+			activeTurnFailure: null,
+		}),
+		getOperationStore: () => ({
+			getCurrentStreamingToolCall: () => null,
+		}),
 	}),
 }));
 
-vi.mock("../../../messages/message-wrapper.svelte", async () => ({
+vi.mock("../../../store/interaction-store.svelte.js", () => ({
+	getInteractionStore: () => ({}),
+}));
+
+vi.mock("../../../store/operation-association.js", () => ({
+	buildSessionOperationInteractionSnapshot: () => ({
+		pendingQuestion: null,
+		pendingQuestionOperation: null,
+		pendingPermission: null,
+		pendingPermissionOperation: null,
+		pendingPlanApproval: null,
+		pendingPlanApprovalOperation: null,
+	}),
+}));
+
+vi.mock("../../messages/message-wrapper.svelte", async () => ({
 	default: (await import("./fixtures/message-wrapper-stub.svelte")).default,
 }));
 
-vi.mock("../../../messages/user-message.svelte", async () => ({
+vi.mock("../../messages/user-message.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("../../../project-selection-panel.svelte", async () => ({
+vi.mock("../../messages/assistant-message.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("../../../ready-to-assist-placeholder.svelte", async () => ({
+vi.mock("../../project-selection-panel.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("../virtualized-entry-list.svelte", async () => ({
+vi.mock("../../ready-to-assist-placeholder.svelte", async () => ({
+	default: (await import("./fixtures/user-message-stub.svelte")).default,
+}));
+
+vi.mock("./virtualized-entry-list.svelte", async () => ({
 	default: (await import("./fixtures/virtualized-entry-list-stub.svelte")).default,
+}));
+
+vi.mock("../../tool-calls/index.js", () => ({
+	ToolCallRouter: () => null,
 }));
 
 import AgentPanelContent from "../agent-panel-content.svelte";
@@ -78,6 +114,7 @@ function renderContent(
 	overrides?: {
 		sessionId?: string;
 		sessionEntries?: readonly SessionEntry[];
+		isWaitingForResponse?: boolean;
 	}
 ) {
 	return render(AgentPanelContent, {
@@ -100,6 +137,7 @@ function renderContent(
 		availableAgents: [],
 		effectiveTheme: "dark",
 		modifiedFilesState: null,
+		isWaitingForResponse: overrides?.isWaitingForResponse,
 	});
 }
 
@@ -112,6 +150,17 @@ describe("AgentPanelContent", () => {
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBeTruthy();
+	});
+
+	it("forwards an explicit waiting-state prop to the conversation list", () => {
+		const view = renderContent(
+			{ kind: "conversation", errorDetails: null },
+			{ isWaitingForResponse: true }
+		);
+
+		expect(view.getByTestId("virtualized-entry-list-stub").getAttribute("data-waiting")).toBe(
+			"true"
+		);
 	});
 
 	it("does not duplicate connection errors inside the scrollable conversation", () => {

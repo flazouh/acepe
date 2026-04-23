@@ -12,10 +12,14 @@ import type { Project } from "../../../logic/project-manager.svelte";
 import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import { getAgentStore } from "../../../store/index.js";
 import { getConnectionStore } from "../../../store/connection-store.svelte.js";
+import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
+import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
+import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
 import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
+import { selectLegacySessionStatus } from "../../../store/session-work-projection.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
@@ -162,6 +166,8 @@ let {
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const connectionStore = getConnectionStore();
+const interactionStore = getInteractionStore();
+const operationStore = sessionStore.getOperationStore();
 const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
@@ -208,6 +214,21 @@ const firstMessageAttachments = $derived.by(() => {
 
 // Hot state: status, isStreaming (changes during activity)
 const sessionHotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
+const currentStreamingToolCall = $derived(
+	sessionId ? operationStore.getCurrentStreamingToolCall(sessionId) : null
+);
+const interactionSnapshot = $derived.by(() =>
+	sessionId
+		? buildSessionOperationInteractionSnapshot(sessionId, operationStore, interactionStore)
+		: {
+				pendingQuestion: null,
+				pendingQuestionOperation: null,
+				pendingPermission: null,
+				pendingPermissionOperation: null,
+				pendingPlanApproval: null,
+				pendingPlanApprovalOperation: null,
+			}
+);
 
 // Computed from granular data
 const FILE_MODIFYING_KINDS = new Set(["edit", "delete", "move"]);
@@ -341,6 +362,29 @@ const browserSidebarUrl = $derived(
 );
 // Canonical runtime state from session machine.
 const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
+const sessionWorkProjection = $derived.by(() => {
+	if (!sessionId) {
+		return null;
+	}
+
+	return deriveLiveSessionWorkProjection({
+		runtimeState,
+		hotState: {
+			status: sessionHotState?.status ?? "idle",
+			currentMode: sessionHotState?.currentMode ?? null,
+			connectionError: sessionHotState?.connectionError ?? null,
+			activeTurnFailure: sessionHotState?.activeTurnFailure ?? null,
+		},
+		currentStreamingToolCall,
+		interactionSnapshot: {
+			pendingQuestion: interactionSnapshot.pendingQuestion,
+			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
+			pendingPermission: interactionSnapshot.pendingPermission,
+		},
+		hasUnseenCompletion: false,
+	});
+});
+const sessionCanonicalActivity = $derived(sessionWorkProjection?.canonicalActivity ?? null);
 const entriesCount = $derived(sessionEntries.length);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
@@ -368,17 +412,10 @@ const agentName = $derived(effectivePanelAgentId);
 const sessionStatus = $derived.by(() => {
 	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
 		return "connecting";
-	const connectionPhase = runtimeState?.connectionPhase;
-	const activityPhase = runtimeState?.activityPhase;
-	if (!connectionPhase) return null;
-	if (connectionPhase === "failed") return "error";
-	if (connectionPhase === "connecting") return "connecting";
-	if (connectionPhase === "disconnected") return "idle";
-	if (activityPhase === "running") return "streaming";
-	return "ready";
+	return sessionWorkProjection ? selectLegacySessionStatus(sessionWorkProjection) : null;
 });
 const mappedSessionStatus = $derived(mapSessionStatusToUI(sessionStatus));
-const sessionIsStreaming = $derived(runtimeState?.activityPhase === "running");
+const sessionIsStreaming = $derived(sessionCanonicalActivity === "running_operation");
 const sessionCanSubmit = $derived(runtimeState?.canSubmit ?? false);
 const sessionShowStop = $derived(runtimeState?.showStop ?? false);
 const sessionConnectionError = $derived(sessionHotState?.connectionError ?? null);
@@ -1829,7 +1866,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{effectiveTheme}
 						{modifiedFilesState}
 						turnState={sessionHotState?.turnState ?? "idle"}
-						isWaitingForResponse={runtimeState?.showThinking ?? false}
+						isWaitingForResponse={sessionCanonicalActivity === "awaiting_model"}
 					/>
 				</div>
 				{#if viewState.kind === "conversation" && !contentIsAtTop}

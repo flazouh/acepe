@@ -1,3 +1,8 @@
+import {
+	selectCanonicalSessionActivity,
+	type CanonicalSessionActivity,
+	type CanonicalSessionActivityInput,
+} from "../logic/session-activity.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
@@ -32,53 +37,123 @@ type LiveConnectionState =
 	| "paused"
 	| "error";
 
-function deriveLiveConnectionState(input: LiveSessionWorkInput): LiveConnectionState {
+function normalizeLifecycle(
+	input: LiveSessionWorkInput
+): CanonicalSessionActivityInput["lifecycle"] {
 	if (input.runtimeState === null) {
 		const hotStatus = input.hotState.status;
 		if (hotStatus === "idle") {
-			return "disconnected";
+			return {
+				connectionPhase: "disconnected",
+				activityPhase: "idle",
+			};
 		}
 		if (hotStatus === "loading" || hotStatus === "connecting") {
-			return "connecting";
+			return {
+				connectionPhase: "connecting",
+				activityPhase: "idle",
+			};
 		}
 		if (hotStatus === "streaming") {
-			return "streaming";
+			return {
+				connectionPhase: "connected",
+				activityPhase: "awaiting_model",
+			};
 		}
 		if (hotStatus === "paused") {
-			return "paused";
+			return {
+				connectionPhase: "connected",
+				activityPhase: "paused",
+			};
 		}
 		if (hotStatus === "error") {
-			return "error";
+			return {
+				connectionPhase: "failed",
+				activityPhase: "idle",
+			};
 		}
-		return "ready";
-	}
-
-	if (input.runtimeState.connectionPhase === "failed") {
-		return "error";
-	}
-
-	if (input.runtimeState.connectionPhase === "connecting") {
-		return "connecting";
-	}
-
-	if (input.runtimeState.connectionPhase === "disconnected") {
-		return "disconnected";
+		return {
+			connectionPhase: "connected",
+			activityPhase: "idle",
+		};
 	}
 
 	if (input.hotState.status === "paused") {
-		return "paused";
-	}
-
-	if (input.runtimeState.showThinking) {
-		return "awaitingResponse";
-	}
-
-	if (input.runtimeState.activityPhase === "waiting_for_user") {
-		return "awaitingResponse";
+		return {
+			connectionPhase: input.runtimeState.connectionPhase,
+			activityPhase: "paused",
+		};
 	}
 
 	if (input.runtimeState.activityPhase === "running") {
+		const activityPhase = input.runtimeState.showThinking ? "awaiting_model" : "running";
+		return {
+			connectionPhase: input.runtimeState.connectionPhase,
+			activityPhase,
+		};
+	}
+
+	if (input.runtimeState.activityPhase === "waiting_for_user") {
+		return {
+			connectionPhase: input.runtimeState.connectionPhase,
+			activityPhase: "awaiting_model",
+		};
+	}
+
+	return {
+		connectionPhase: input.runtimeState.connectionPhase,
+		activityPhase: "idle",
+	};
+}
+
+function hasPendingInput(input: LiveSessionWorkInput): boolean {
+	return (
+		input.interactionSnapshot.pendingQuestion !== null ||
+		input.interactionSnapshot.pendingPlanApproval !== null ||
+		input.interactionSnapshot.pendingPermission !== null
+	);
+}
+
+export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
+	const lifecycle = normalizeLifecycle(input);
+	return selectCanonicalSessionActivity({
+		lifecycle,
+		hasActiveOperation: input.currentStreamingToolCall !== null,
+		hasPendingInput: hasPendingInput(input),
+		hasError:
+			input.hotState.status === "error" ||
+			input.hotState.connectionError !== null ||
+			input.hotState.activeTurnFailure != null,
+		hasUnseenCompletion: input.hasUnseenCompletion,
+	});
+}
+
+function deriveLiveConnectionState(input: LiveSessionWorkInput): LiveConnectionState {
+	const lifecycle = normalizeLifecycle(input);
+	const canonicalActivity = deriveLiveCanonicalActivity(input);
+
+	if (canonicalActivity === "error") {
+		return "error";
+	}
+
+	if (lifecycle.connectionPhase === "connecting") {
+		return "connecting";
+	}
+
+	if (lifecycle.connectionPhase === "disconnected") {
+		return "disconnected";
+	}
+
+	if (canonicalActivity === "paused") {
+		return "paused";
+	}
+
+	if (canonicalActivity === "running_operation") {
 		return "streaming";
+	}
+
+	if (canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user") {
+		return "awaitingResponse";
 	}
 
 	return "ready";
@@ -100,11 +175,13 @@ export function deriveLiveSessionWorkProjection(
 	input: LiveSessionWorkInput
 ): SessionWorkProjection {
 	const state = deriveLiveSessionState(input);
+	const canonicalActivity = deriveLiveCanonicalActivity(input);
 	return deriveSessionWorkProjection({
 		state,
 		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 		connectionError: input.hotState.connectionError,
 		activeTurnFailure: input.hotState.activeTurnFailure ?? null,
+		canonicalActivity,
 	});
 }
 

@@ -16,13 +16,10 @@ import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.j
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
-import { deriveLiveSessionState } from "../live-session-work.js";
+import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
-import {
-	deriveSessionWorkProjection,
-	selectLegacySessionStatus,
-} from "../session-work-projection.js";
+import { selectLegacySessionStatus } from "../session-work-projection.js";
 import type { SessionHotState } from "../types.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
@@ -141,6 +138,13 @@ export function buildQueueSessionSnapshot(
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
+	const workProjection = deriveLiveSessionWorkProjection({
+		runtimeState: input.runtimeState,
+		hotState: input.hotState,
+		currentStreamingToolCall: input.currentStreamingToolCall,
+		interactionSnapshot: input.interactionSnapshot,
+		hasUnseenCompletion: input.hasUnseenCompletion,
+	});
 
 	return {
 		id: input.id,
@@ -153,16 +157,9 @@ export function buildQueueSessionSnapshot(
 		lastToolCall: input.lastToolCall,
 		lastTodoToolCall: input.lastTodoToolCall,
 		state,
-		isStreaming: state.activity.kind === "streaming",
-		isThinking: state.activity.kind === "thinking",
-		status: selectLegacySessionStatus(
-			deriveSessionWorkProjection({
-				state,
-				currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
-				connectionError: input.hotState.connectionError,
-				activeTurnFailure: input.hotState.activeTurnFailure ?? null,
-			})
-		),
+		isStreaming: workProjection.compactActivityKind === "streaming",
+		isThinking: workProjection.compactActivityKind === "thinking",
+		status: selectLegacySessionStatus(workProjection),
 		updatedAt: input.updatedAt,
 		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 		connectionError: input.hotState.connectionError,

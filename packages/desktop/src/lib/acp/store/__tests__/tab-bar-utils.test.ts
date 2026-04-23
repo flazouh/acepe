@@ -141,10 +141,10 @@ describe("panelToTab", () => {
 	});
 
 	describe("state derivation — various panel states", () => {
-		it("derives connected streaming state from status=streaming", () => {
+		it("derives connected thinking state from status=streaming when runtime facts are unavailable", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "streaming" }) }));
 			expect(tab.state.connection).toBe("connected");
-			expect(tab.state.activity.kind).toBe("streaming");
+			expect(tab.state.activity.kind).toBe("thinking");
 		});
 
 		it("derives connecting state from status=connecting", () => {
@@ -168,7 +168,7 @@ describe("panelToTab", () => {
 					hotState: makeHotState({ status: "ready", connectionError: "Resume failed" }),
 				})
 			);
-			expect(tab.state.connection).toBe("connected");
+			expect(tab.state.connection).toBe("error");
 			expect(tab.workBucket).toBe("error");
 		});
 
@@ -187,7 +187,7 @@ describe("panelToTab", () => {
 					}),
 				})
 			);
-			expect(tab.state.connection).toBe("connected");
+			expect(tab.state.connection).toBe("error");
 			expect(tab.workBucket).toBe("error");
 		});
 

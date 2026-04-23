@@ -668,10 +668,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		const state = this.connectionService.getState(sessionId);
 		if (!state) return null;
-
-		const entries = this.entryStore.getEntries(sessionId);
-		const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
-		return deriveSessionRuntimeState(state, lastEntry);
+		return deriveSessionRuntimeState(state);
 	}
 
 	/**

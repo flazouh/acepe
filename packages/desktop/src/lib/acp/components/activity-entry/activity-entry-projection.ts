@@ -2,7 +2,7 @@ import type { ActivityEntryTodoProgress } from "@acepe/ui";
 import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 import { capitalizeLeadingCharacter } from "@acepe/ui/utils";
 import type { SessionStatus } from "../../application/dto/session-status.js";
-import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
+import type { CanonicalSessionActivity } from "../../logic/session-activity.js";
 import {
 	getToolCompactDisplayText,
 	getToolKindFilePath,
@@ -72,10 +72,10 @@ export function isActiveCompactActivityKind(activityKind: CompactActivityKind): 
 }
 
 export function deriveCompactActivityKind(
-	runtimeState: SessionRuntimeState | null,
+	canonicalActivity: CanonicalSessionActivity | null,
 	sessionStatus: SessionStatus | null
 ): CompactActivityKind {
-	if (runtimeState?.showThinking) {
+	if (canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user") {
 		return "thinking";
 	}
 
@@ -83,7 +83,11 @@ export function deriveCompactActivityKind(
 		return "paused";
 	}
 
-	if (runtimeState?.activityPhase === "running") {
+	if (canonicalActivity === "paused") {
+		return "paused";
+	}
+
+	if (canonicalActivity === "running_operation") {
 		return "streaming";
 	}
 
