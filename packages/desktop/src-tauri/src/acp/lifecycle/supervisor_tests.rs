@@ -2,9 +2,7 @@ use crate::acp::lifecycle::{LifecycleCheckpoint, LifecycleState, SessionSupervis
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
-use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
-};
+use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use std::sync::Arc;
@@ -32,7 +30,7 @@ async fn seed_session_metadata(db: &DbConn, session_id: &str) {
 }
 
 #[tokio::test]
-async fn reserve_persists_reserved_checkpoint_and_advances_frontier() {
+async fn reserve_sets_reserved_checkpoint_and_advances_frontier() {
     let db = setup_db().await;
     seed_session_metadata(&db, "session-1").await;
     let projection_registry = ProjectionRegistry::new();
@@ -55,13 +53,11 @@ async fn reserve_persists_reserved_checkpoint_and_advances_frontier() {
             .expect("load max seq"),
         Some(1)
     );
-    let stored_projection = SessionProjectionSnapshotRepository::get(&db, "session-1")
-        .await
-        .expect("load stored projection")
-        .expect("stored projection");
-    let stored_runtime = stored_projection.runtime.expect("runtime checkpoint");
-    assert_eq!(stored_runtime.graph_revision, checkpoint.graph_revision);
-    assert_eq!(stored_runtime.lifecycle, checkpoint.lifecycle);
+    let supervisor_checkpoint = supervisor
+        .snapshot_for_session("session-1")
+        .expect("supervisor checkpoint");
+    assert_eq!(supervisor_checkpoint.graph_revision, checkpoint.graph_revision);
+    assert_eq!(supervisor_checkpoint.lifecycle, checkpoint.lifecycle);
 }
 
 #[tokio::test]

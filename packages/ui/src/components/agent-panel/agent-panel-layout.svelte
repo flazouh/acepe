@@ -66,14 +66,16 @@
 	/>
 
 	<!-- Message list -->
-	<div bind:this={scrollContainer} class="flex-1 min-h-0 overflow-y-auto bg-accent/20 py-1">
+	<div bind:this={scrollContainer} class="flex-1 min-h-0 overflow-y-auto bg-accent/20">
 		{#each entries as entry (entry.id)}
 			<div class="py-1.5 px-3">
 				{#if entry.type === "user"}
 					<AgentUserMessage text={entry.text} />
 				{:else if entry.type === "assistant"}
 					<AgentAssistantMessage
-						markdown={entry.markdown}
+						message={{
+							chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
+						}}
 						isStreaming={entry.isStreaming}
 						{iconBasePath}
 					/>

@@ -2,6 +2,8 @@ import type {
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
+	SessionGraphActivity,
+	SessionGraphActivityKind,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,
@@ -16,6 +18,8 @@ import type {
 
 export type {
 	CapabilityPreviewState,
+	SessionGraphActivity,
+	SessionGraphActivityKind,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,
@@ -26,6 +30,71 @@ export type {
 	SessionStatePayload,
 	SessionStateSnapshotMaterialization,
 };
+
+function isActiveOperation(operation: OperationSnapshot): boolean {
+	return operation.status === "pending" || operation.status === "in_progress";
+}
+
+function selectSessionGraphActivity(input: {
+	lifecycle: SessionGraphLifecycle;
+	turnState: SessionStateGraph["turnState"];
+	operations: OperationSnapshot[];
+	interactions: InteractionSnapshot[];
+	activeTurnFailure?: SessionStateGraph["activeTurnFailure"];
+}): SessionGraphActivity {
+	const activeOperations = input.operations.filter(isActiveOperation);
+	const blockingInteraction =
+		input.interactions.find((interaction) => interaction.state === "Pending") ?? null;
+	const dominantOperationId = activeOperations[0]?.id ?? null;
+
+	if (input.lifecycle.status === "error" || input.activeTurnFailure != null) {
+		return {
+			kind: "error",
+			activeOperationCount: activeOperations.length,
+			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
+			dominantOperationId,
+			blockingInteractionId: blockingInteraction?.id ?? null,
+		};
+	}
+
+	if (blockingInteraction !== null) {
+		return {
+			kind: "waiting_for_user",
+			activeOperationCount: activeOperations.length,
+			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
+			dominantOperationId,
+			blockingInteractionId: blockingInteraction.id,
+		};
+	}
+
+	if (activeOperations.length > 0) {
+		return {
+			kind: "running_operation",
+			activeOperationCount: activeOperations.length,
+			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
+			dominantOperationId,
+			blockingInteractionId: null,
+		};
+	}
+
+	if (input.turnState === "Running") {
+		return {
+			kind: "awaiting_model",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+	}
+
+	return {
+		kind: "idle",
+		activeOperationCount: 0,
+		activeSubagentCount: 0,
+		dominantOperationId: null,
+		blockingInteractionId: null,
+	};
+}
 
 export function graphFromSessionOpenFound(
 	found: SessionOpenFound,
@@ -53,6 +122,13 @@ export function graphFromSessionOpenFound(
 		activeTurnFailure: found.activeTurnFailure,
 		lastTerminalTurnId: found.lastTerminalTurnId,
 		lifecycle,
+		activity: selectSessionGraphActivity({
+			lifecycle,
+			turnState: found.turnState,
+			operations: found.operations,
+			interactions: found.interactions,
+			activeTurnFailure: found.activeTurnFailure,
+		}),
 		capabilities,
 	};
 }

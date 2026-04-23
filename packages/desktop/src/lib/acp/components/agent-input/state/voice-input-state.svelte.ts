@@ -19,13 +19,7 @@ import { WaveformState } from "./waveform-state.svelte.js";
 const ERROR_RESET_DELAY_MS = 8000;
 const TRANSCRIBING_WATCHDOG_MS = 30_000;
 
-function log(msg: string, data?: Record<string, unknown>): void {
-	if (data) {
-		console.log(`[voice] ${msg}`, data);
-	} else {
-		console.log(`[voice] ${msg}`);
-	}
-}
+function log(_msg: string, _data?: Record<string, unknown>): void {}
 
 function previewText(text: string): string {
 	const normalized = text.replace(/\s+/g, " ").trim();

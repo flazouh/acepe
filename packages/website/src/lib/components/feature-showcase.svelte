@@ -22,9 +22,9 @@ const features: Feature[] = [
 let activeFeature = $state("agent");
 </script>
 
-<div class="flex flex-col gap-4">
+<div class="flex flex-col gap-2 md:gap-3">
 	<!-- Feature selector pills -->
-	<div class="flex items-center justify-center gap-1">
+	<div class="flex items-center justify-center gap-2 md:gap-3">
 		{#each features as feature (feature.id)}
 			{@const isActive = activeFeature === feature.id}
 			<button
@@ -34,7 +34,7 @@ let activeFeature = $state("agent");
 					: 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}"
 				onclick={() => (activeFeature = feature.id)}
 			>
-				<feature.icon class="size-4" weight={isActive ? "fill" : "regular"} style="color: {isActive ? 'currentColor' : feature.color}" />
+				<feature.icon class="size-4" weight="fill" style="color: {isActive ? 'currentColor' : feature.color}" />
 				{feature.label}
 			</button>
 		{/each}

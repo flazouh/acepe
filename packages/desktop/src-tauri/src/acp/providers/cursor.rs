@@ -270,7 +270,7 @@ impl AgentProvider for CursorProvider {
                                     error = %error,
                                     "Cursor session lookup failed"
                                 );
-                                Ok(None)
+                                Err(format!("Cursor provider history load failed: {error}"))
                             }
                         }
                     }
@@ -296,7 +296,7 @@ impl AgentProvider for CursorProvider {
                                     error = %error,
                                     "Cursor session lookup failed"
                                 );
-                                Ok(None)
+                                Err(format!("Cursor provider history load failed: {error}"))
                             }
                         }
                     }
@@ -315,7 +315,7 @@ impl AgentProvider for CursorProvider {
                             error = %error,
                             "Cursor session lookup failed"
                         );
-                        Ok(None)
+                        Err(format!("Cursor provider history load failed: {error}"))
                     }
                 }
             }

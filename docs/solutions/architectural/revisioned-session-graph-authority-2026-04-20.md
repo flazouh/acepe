@@ -1,6 +1,7 @@
 ---
 title: Revisioned session graph is the only product-state authority
 date: 2026-04-20
+last_updated: 2026-04-24
 category: architectural
 module: desktop ACP session state
 problem_type: architecture
@@ -31,7 +32,7 @@ Raw `acp-session-update` frames still exist, but only as transport-time coordina
 |-------|------------------------|------------------------|
 | Transcript history | `SessionStatePayload::Snapshot` and `SessionStatePayload::Delta` | raw chunk events may drive optimistic UX only |
 | Turn lifecycle | canonical graph lifecycle + revisions | raw `turnComplete` / `turnError` are observational |
-| Runtime / Cursor state | canonical runtime stored in projection snapshots and reopen refresh state | live registry is a cache, not the only source |
+| Runtime / Cursor state | canonical envelopes and live runtime after attach | provider-owned history restores content; Acepe does not persist a second cold-open runtime checkpoint |
 | Current / last tool UI | canonical `OperationStore` materialized from graph operations | transcript tool rows are presentation only |
 | Usage telemetry | `SessionStatePayload::Telemetry` | raw telemetry updates are observational only |
 | Commands / modes / config / capabilities | canonical graph and capability envelopes | raw update lanes are observational only |
@@ -57,13 +58,54 @@ Frontend consumers must apply envelopes in revision order and buffer them until 
 - Emit canonical telemetry envelopes instead of making telemetry a raw-only side channel.
 - Treat the live runtime registry as a materialized cache over canonical state, not a hidden second database.
 
-### Projection snapshots and reopen / refresh
+### Reopen / refresh
 
-- Persist runtime with transcript, operations, and interactions in `SessionProjectionSnapshot`.
-- On reopen, restore runtime into the registry from the stored projection snapshot.
-- On refresh / cold open, use stored runtime when no live runtime entry exists.
+- On cold reopen, rebuild content from provider-owned history.
+- Do not persist a separate Acepe-owned runtime checkpoint for reopen.
+- Let reconnect/live envelopes repopulate runtime lifecycle and capability state after attach.
 
-This is why Cursor/runtime state survives refresh and reopen even when the live process registry has been dropped.
+### Cold-open restore delivery
+
+The 2026-04-23 provider-authority refactor made this boundary concrete instead
+of aspirational:
+
+1. `history/commands/session_loading.rs` now returns provider-translated content
+   directly from `load_provider_owned_session_snapshot(...)` and no longer
+   materializes transcript/projection/thread copies into Acepe-managed durable
+   storage.
+2. `acp/session_journal.rs` no longer treats `session_journal_event` as a
+   replayable transcript/tool payload store. The durable journal is narrowed to
+   Acepe-owned metadata, interaction, and lifecycle markers.
+3. `acp/commands/session_commands.rs` no longer restores runtime state from a
+   local checkpoint on reopen or close. Cold reopen gets content from provider
+   history; live reconnect repopulates runtime lifecycle and capabilities after
+   attach.
+4. The snapshot-table cleanup migration drops
+   `session_projection_snapshot`, `session_transcript_snapshot`, and
+   `session_thread_snapshot` outright instead of preserving compatibility stubs.
+
+The operational rule is:
+
+- provider-owned files/logs/JSONL own cold-open content,
+- provider live transport owns attached-session freshness,
+- Acepe local durability owns only metadata it genuinely owns.
+
+If any new reopen path tries to add a second local content or runtime checkpoint
+for safety, it is reintroducing the split-brain this refactor removed.
+
+### Failure semantics
+
+Honest failure is part of the authority model.
+
+- Missing provider history returns an explicit `missing` open result instead of
+  a stale local fallback.
+- Unparseable provider history returns a non-retryable `parseFailure`.
+- Generic provider-load failures remain retryable `internal` errors and must
+  not be mislabeled as parse failures.
+
+That distinction matters because "try again later" is a real product path for
+flush gaps or transient provider failures, while malformed provider history is
+not.
 
 ## Frontend responsibilities
 
@@ -104,7 +146,7 @@ The migration is complete only when these legacy authority paths are gone:
 2. raw turn-complete / turn-error lanes finalizing the session independently of canonical lifecycle,
 3. raw telemetry ownership,
 4. transcript-tool-entry fallback as the source of current / last tool UI,
-5. refresh / reopen depending on a live runtime registry entry to reconstruct Cursor/runtime state.
+5. cold reopen depending on Acepe-local checkpoint persistence to reconstruct Cursor/runtime state.
 
 If any of those paths still own state, Acepe regresses into split-brain behavior such as duplicated user messages, missing Cursor state after reopen, or inconsistent tool badges.
 
@@ -116,8 +158,12 @@ If any of those paths still own state, Acepe regresses into split-brain behavior
 - `packages/desktop/src/lib/acp/store/__tests__/operation-store.vitest.ts`
 - `packages/desktop/src-tauri/src/acp/session_state_engine/runtime_registry.rs`
 - `packages/desktop/src-tauri/src/acp/commands/session_commands.rs`
+- `packages/desktop/src-tauri/src/history/commands/session_loading.rs`
+- `packages/desktop/src/lib/components/main-app-view/tests/open-persisted-session.test.ts`
 
 ## Related
 
 - `docs/solutions/best-practices/deterministic-tool-call-reconciler-2026-04-18.md`
 - `docs/solutions/best-practices/telemetry-integration-tauri-svelte-privacy-first-2026-04-14.md`
+- `docs/solutions/best-practices/provider-owned-policy-and-identity-not-ui-projections-2026-04-09.md`
+- `docs/plans/2026-04-23-002-refactor-provider-owned-restore-authority-plan.md`

@@ -28,7 +28,7 @@ async fn test_migrations_run_successfully() {
 }
 
 #[tokio::test]
-async fn test_snapshot_tables_exist_after_migrations() {
+async fn test_legacy_snapshot_tables_are_removed_after_migrations() {
     let db = setup_test_db().await;
 
     for table_name in [
@@ -47,8 +47,8 @@ async fn test_snapshot_tables_exist_after_migrations() {
             .expect("query snapshot table existence");
 
         assert!(
-            row.is_some(),
-            "expected snapshot table {table_name} to exist after migrations"
+            row.is_none(),
+            "expected legacy snapshot table {table_name} to be removed after migrations"
         );
     }
 }

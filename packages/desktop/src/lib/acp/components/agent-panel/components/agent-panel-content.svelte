@@ -1,5 +1,8 @@
 <script lang="ts">
 import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
+import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
+import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
+import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -35,6 +38,8 @@ let {
 }: AgentPanelContentProps = $props();
 
 const sessionStore = getSessionStore();
+const interactionStore = getInteractionStore();
+const operationStore = sessionStore.getOperationStore();
 const logger = createLogger({
 	id: "agent-panel-content-trace",
 	name: "AgentPanelContentTrace",
@@ -55,10 +60,52 @@ const runtimeState = $derived(
 const hotState = $derived(
 	turnStateProp !== undefined ? null : sessionId ? sessionStore.getHotState(sessionId) : null
 );
+const currentStreamingToolCall = $derived(
+	isWaitingProp !== undefined || !sessionId
+		? null
+		: operationStore.getCurrentStreamingToolCall(sessionId)
+);
+const interactionSnapshot = $derived.by(() =>
+	isWaitingProp !== undefined || !sessionId
+		? {
+				pendingQuestion: null,
+				pendingQuestionOperation: null,
+				pendingPermission: null,
+				pendingPermissionOperation: null,
+				pendingPlanApproval: null,
+				pendingPlanApprovalOperation: null,
+			}
+		: buildSessionOperationInteractionSnapshot(sessionId, operationStore, interactionStore)
+);
+const sessionWorkProjection = $derived.by(() => {
+	if (isWaitingProp !== undefined || !sessionId) {
+		return null;
+	}
+
+	return deriveLiveSessionWorkProjection({
+		runtimeState,
+		hotState: {
+			status: hotState?.status ?? "idle",
+			currentMode: hotState?.currentMode ?? null,
+			connectionError: hotState?.connectionError ?? null,
+			activeTurnFailure: hotState?.activeTurnFailure ?? null,
+			activity: hotState?.activity ?? null,
+		},
+		currentStreamingToolCall,
+		interactionSnapshot: {
+			pendingQuestion: interactionSnapshot.pendingQuestion,
+			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
+			pendingPermission: interactionSnapshot.pendingPermission,
+		},
+		hasUnseenCompletion: false,
+	});
+});
 
 const turnState = $derived<TurnState>(turnStateProp ?? hotState?.turnState ?? "idle");
 const isStreaming = $derived(turnState === "streaming");
-const isWaitingForResponse = $derived(isWaitingProp ?? runtimeState?.showThinking ?? false);
+const isWaitingForResponse = $derived(
+	isWaitingProp ?? sessionWorkProjection?.canonicalActivity === "awaiting_model"
+);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {

@@ -37,6 +37,8 @@
 		leadingControl?: Snippet;
 		dropdownMenu?: Snippet;
 		trailingActions?: Snippet;
+		/** Renders in the action cell before the dropdown menu — use for status icons. */
+		statusAction?: Snippet;
 		controls?: Snippet;
 		/**
 		 * Optional hover-expansion slot. When provided, it renders inside a panel that
@@ -73,6 +75,7 @@
 		leadingControl,
 		dropdownMenu,
 		trailingActions,
+		statusAction,
 		controls,
 		expansion,
 		subtitle,
@@ -214,6 +217,9 @@
 					{#if controls}
 						{@render controls()}
 					{:else}
+						{#if statusAction}
+							{@render statusAction()}
+						{/if}
 						{#if dropdownMenu}
 							{@render dropdownMenu()}
 						{/if}

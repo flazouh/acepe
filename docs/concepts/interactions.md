@@ -47,6 +47,10 @@ Interactions should own:
 - linkage to the relevant operation or tool call,
 - enough metadata to render the right UX after reconnect.
 
+Interactions also participate in graph-backed session activity.
+
+When an interaction is pending, the session-level activity summary may legitimately become `waiting_for_user`, even if operations are still active underneath. That dominance must be decided in canonical graph-backed state so reopen, reconnect, queue, tab, and panel surfaces all agree.
+
 ## What the UI should not do
 
 The UI should not treat permissions, questions, or plan approvals as purely local component state.
@@ -77,5 +81,7 @@ If interactions are canonical:
 - pending prompts can re-render correctly,
 - keyboard shortcuts and action buttons can resolve the same pending interaction,
 - late-arriving operation data can still attach to the existing gate.
+
+And because the blocking interaction is linked into session activity, UI surfaces can explain why a session is waiting without inventing a second authority path from local modal state.
 
 If interactions are not canonical, reconnect becomes a race between UI timing and transport timing.

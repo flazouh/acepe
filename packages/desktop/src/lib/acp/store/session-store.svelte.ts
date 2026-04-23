@@ -20,6 +20,7 @@ import {
 	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
+	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -412,6 +413,80 @@ function connectionErrorFromGraphState(
 	return null;
 }
 
+function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraphActivity {
+	return {
+		kind: activity.kind,
+		activeOperationCount: activity.activeOperationCount,
+		activeSubagentCount: activity.activeSubagentCount,
+		dominantOperationId: activity.dominantOperationId ?? null,
+		blockingInteractionId: activity.blockingInteractionId ?? null,
+	};
+}
+
+function deriveRecoveredActivityKind(
+	activity: SessionGraphActivity,
+	turnState: SessionHotState["turnState"]
+): SessionGraphActivity["kind"] {
+	if (activity.blockingInteractionId != null) {
+		return "waiting_for_user";
+	}
+
+	if (activity.activeOperationCount > 0) {
+		return "running_operation";
+	}
+
+	if (turnState === "streaming") {
+		return "awaiting_model";
+	}
+
+	return "idle";
+}
+
+function reconcileStoredGraphActivity(
+	activity: SessionGraphActivity | null | undefined,
+	lifecycle: SessionGraphLifecycle,
+	turnState: SessionHotState["turnState"],
+	activeTurnFailure: ActiveTurnFailure | null
+): SessionGraphActivity | null {
+	const previousActivity = activity ?? null;
+
+	if (lifecycle.status === "error" || activeTurnFailure !== null) {
+		if (previousActivity === null) {
+			return {
+				kind: "error",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			};
+		}
+
+		return {
+			kind: "error",
+			activeOperationCount: previousActivity.activeOperationCount,
+			activeSubagentCount: previousActivity.activeSubagentCount,
+			dominantOperationId: previousActivity.dominantOperationId ?? null,
+			blockingInteractionId: previousActivity.blockingInteractionId ?? null,
+		};
+	}
+
+	if (previousActivity === null) {
+		return null;
+	}
+
+	if (previousActivity.kind !== "error") {
+		return cloneSessionGraphActivity(previousActivity);
+	}
+
+	return {
+		kind: deriveRecoveredActivityKind(previousActivity, turnState),
+		activeOperationCount: previousActivity.activeOperationCount,
+		activeSubagentCount: previousActivity.activeSubagentCount,
+		dominantOperationId: previousActivity.dominantOperationId ?? null,
+		blockingInteractionId: previousActivity.blockingInteractionId ?? null,
+	};
+}
+
 /**
  * Callbacks for handling permission and question requests.
  * These are set during initialization to avoid circular dependencies.
@@ -652,7 +727,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Check if a session exists and has been preloaded (entries loaded from disk).
+	 * Check if a session exists and has been preloaded from persisted provider history.
 	 * Returns the cold session data if preloaded, null otherwise.
 	 */
 	getSessionDetail(sessionId: string): SessionCold | null {
@@ -726,10 +801,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		const state = this.connectionService.getState(sessionId);
 		if (!state) return null;
-
-		const entries = this.entryStore.getEntries(sessionId);
-		const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
-		return deriveSessionRuntimeState(state, lastEntry);
+		return deriveSessionRuntimeState(state);
 	}
 
 	/**
@@ -834,6 +906,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			isConnected: graph.lifecycle.status === "ready",
 			acpSessionId: graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
 			turnState: mapTurnStateToHotState(graph.turnState),
+			activity: cloneSessionGraphActivity(graph.activity),
 			activeTurnFailure,
 			lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 			connectionError: connectionErrorFromGraphState(graph.lifecycle, activeTurnFailure),
@@ -962,7 +1035,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Mark session as loaded (entries fetched from disk).
+	 * Mark session as loaded after persisted history entries have been fetched.
 	 */
 	setSessionLoaded(sessionId: string): void {
 		const hotState = this.getHotState(sessionId);
@@ -1017,7 +1090,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	/**
 	 * Clear cached entries/runtime for a session without removing session metadata.
-	 * Used to force a fresh reload from disk for historical sessions.
+	 * Used to force a fresh reload from persisted provider history for historical sessions.
 	 */
 	clearSessionEntries(sessionId: string): void {
 		this.entryStore.clearEntries(sessionId);
@@ -1181,7 +1254,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Preload full session details from disk.
+	 * Preload full session details from persisted provider history.
 	 */
 	preloadSessions(
 		sessionIds: string[]
@@ -1192,7 +1265,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Register a minimal cold-shell so that openPersistedSession can find session
 	 * metadata when the session is only present in the backend registry (not yet in the
-	 * local store). The canonical snapshot is applied by the subsequent
+	 * local store). The canonical provider-open snapshot is applied by the subsequent
 	 * openPersistedSession call; this method only seeds the lookup.
 	 *
 	 * No-op when the session is already registered.
@@ -1226,7 +1299,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Load a historical session from disk.
+	 * Load a historical session from persisted provider history metadata.
 	 */
 	loadHistoricalSession(
 		id: string,
@@ -1697,7 +1770,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	refreshAllPrStates(): void {
 		const sessionsWithPr = this.sessions.filter((s) => s.prNumber != null);
 		for (const session of sessionsWithPr) {
-			void this.refreshSessionPrState(session.id, session.projectPath, session.prNumber!);
+			const prNumber = session.prNumber;
+			if (prNumber == null) {
+				continue;
+			}
+			void this.refreshSessionPrState(session.id, session.projectPath, prNumber);
 		}
 	}
 
@@ -2040,6 +2117,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.hotStateStore.updateHotState(sessionId, {
 					status: toSessionStatusFromGraphLifecycle(command.lifecycle),
 					isConnected: command.lifecycle.status === "ready",
+					activity: reconcileStoredGraphActivity(
+						hotState.activity ?? null,
+						command.lifecycle,
+						hotState.turnState,
+						hotState.activeTurnFailure ?? null
+					),
 					acpSessionId: command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
 					connectionError: connectionErrorFromGraphState(
 						command.lifecycle,

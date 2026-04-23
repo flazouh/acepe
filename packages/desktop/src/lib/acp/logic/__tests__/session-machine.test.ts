@@ -346,6 +346,7 @@ describe("Session Machine", () => {
 			expect(waiting.showStop).toBe(true);
 			expect(waiting.canCancel).toBe(true);
 			expect(waiting.activityPhase).toBe("waiting_for_user");
+			expect(waiting.showThinking).toBe(true);
 
 			const running = deriveSessionRuntimeState({
 				content: ContentState.LOADED,
@@ -354,6 +355,7 @@ describe("Session Machine", () => {
 			expect(running.showStop).toBe(true);
 			expect(running.canCancel).toBe(true);
 			expect(running.activityPhase).toBe("running");
+			expect(running.showThinking).toBe(false);
 		});
 
 		it("should suppress blocking connecting overlay once content is loaded", () => {

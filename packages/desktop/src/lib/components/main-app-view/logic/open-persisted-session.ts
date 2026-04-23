@@ -4,6 +4,7 @@ import { api } from "$lib/acp/store/api.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import type { SessionOpenResult } from "$lib/services/acp-types.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
 const inflightPanelIds = new Set<string>();
@@ -37,7 +38,19 @@ function missingSessionMessage(session: ReturnType<SessionOpenStore["getSessionC
 		return "This Cursor history session is view-only and can't be reopened because no canonical resumable state was persisted.";
 	}
 
-	return "This session can't be reopened because no canonical session state is available.";
+	return "This session can't be reopened yet because provider history isn't available. Retry once the provider has flushed the session history.";
+}
+
+function errorSessionMessage(result: Extract<SessionOpenResult, { outcome: "error" }>): string {
+	if (result.reason === "parseFailure") {
+		return "This session can't be reopened because the provider history could not be parsed.";
+	}
+
+	if (result.retryable) {
+		return "This session couldn't be reopened because Acepe hit an internal error while loading it. Try again in a moment.";
+	}
+
+	return "This session couldn't be reopened because Acepe hit an internal error while loading it.";
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -98,12 +111,14 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 
 			if (result.outcome === "error") {
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionLoaded(sessionId);
-				logger.warn("Session open returned retryable error", {
+				sessionStore.setSessionOpenMissing(sessionId, errorSessionMessage(result));
+				logger.warn("Session open returned explicit error state", {
 					source,
 					panelId,
 					sessionId,
 					message: result.message,
+					reason: result.reason,
+					retryable: result.retryable,
 				});
 				return okAsync(undefined);
 			}

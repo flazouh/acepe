@@ -178,3 +178,6 @@ export type {
 	AgentInputModelSelectorReasoningGroup,
 	AgentInputModelSelectorVariant,
 } from "./agent-input-model-selector-types.js";
+
+export type { ChunkGroup, GroupedAssistantChunks } from "../../lib/assistant-message/assistant-chunk-grouper.js";
+export type { AssistantMessage, AssistantMessageChunk, ContentBlock, StreamingAnimationMode } from "../../lib/assistant-message/types.js";

@@ -285,17 +285,19 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
-export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
+export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
 
-export type LifecycleStatus = "reserved" | "activating" | "reconnecting" | "ready" | "detached" | "failed" | "archived"
+export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore"
 
-export type DetachedReason = "userRequested" | "transportClosed" | "providerEnded" | "projectContextLost" | "reconnectRequired" | "legacyAmbiguousRestore"
+export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
 
-export type FailureReason = "startupFailed" | "activationFailed" | "rpcError" | "providerMisconfigured" | "explicitErrorHandlingRequired"
+export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
 
-export type LifecycleState = { status: LifecycleStatus; active_session_id?: string | null; last_provider_session_id?: string | null; detached_reason?: DetachedReason | null; failure_reason?: FailureReason | null; error_message?: string | null; last_connected_at_ms?: number | null; last_ready_at_ms?: number | null; last_disconnected_at_ms?: number | null }
-
-export type LifecycleCheckpoint = { schema_version: number; graph_revision: number; lifecycle: LifecycleState; capabilities: SessionGraphCapabilities }
+export type LifecycleCheckpoint = {
+/**
+ * Older persisted checkpoints may omit this field; treat as current version for migration.
+ */
+schemaVersion?: number; graphRevision: number; lifecycle: LifecycleState; capabilities: SessionGraphCapabilities }
 
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; runtime?: LifecycleCheckpoint | null }
 
@@ -303,7 +305,13 @@ export type SessionProjectionSnapshot = { session: SessionSnapshot | null; opera
  * Payload for the `error` outcome — persisted state was found but could not
  * be loaded or proven consistent.
  */
-export type SessionOpenError = { requestedSessionId: string; message: string }
+export type SessionOpenErrorReason = "parseFailure" | "internal"
+
+/**
+ * Payload for the `error` outcome — persisted state was found but could not
+ * be loaded or proven consistent.
+ */
+export type SessionOpenError = { requestedSessionId: string; message: string; reason: SessionOpenErrorReason; retryable: boolean }
 
 /**
  * Full payload for a `found` outcome.
@@ -374,7 +382,13 @@ export type SessionGraphLifecycle = { status: SessionGraphLifecycleStatus; error
 
 export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
 
-export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities }
+export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | "waiting_for_user" | "paused" | "error" | "idle"
+
+export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null }
+
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
+
+export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 

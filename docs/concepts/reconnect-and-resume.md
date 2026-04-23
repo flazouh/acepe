@@ -12,9 +12,9 @@ If Acepe has split authority, reconnect/resume will usually show it through:
 
 ## Principle
 
-Reconnect and resume should restore from **canonical state first**, then layer live runtime/cache data on top where appropriate.
+Reconnect and resume should restore from **provider-owned persisted history first**, then layer live runtime/cache data on top where appropriate.
 
-They must not depend on a component remembering local state or on the live process registry being the only place runtime truth exists.
+They must not depend on Acepe persisting a second local restore authority or on the live process registry being the only place runtime truth exists.
 
 In the settled lifecycle model, the public recovery action is `resume`. `reconnect` is an internal supervisor repair path, not a long-term public verb.
 
@@ -32,11 +32,10 @@ Across reopen, reconnect, and refresh, Acepe should preserve:
 
 The intended restore sequence is:
 
-1. load the stored canonical snapshot,
-2. restore runtime state from projection snapshot data,
-3. register the session locally,
-4. apply buffered canonical envelopes in revision order,
-5. let live transport updates improve freshness without replacing authority.
+1. load provider-owned persisted session history and translate it into the canonical session graph,
+2. register the session locally,
+3. apply buffered canonical envelopes in revision order,
+4. let live transport updates improve freshness without replacing authority.
 
 The important normalization rules are:
 

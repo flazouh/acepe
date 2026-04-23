@@ -1,20 +1,16 @@
 use super::*;
 use crate::acp::event_hub::AcpEventHubState;
-use crate::acp::projections::ProjectionRegistry;
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_journal::{SessionJournalEvent, SessionJournalEventPayload};
-use crate::acp::session_open_snapshot::{SessionOpenMissing, SessionOpenResult};
+use crate::acp::session_open_snapshot::{SessionOpenError, SessionOpenMissing, SessionOpenResult};
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::commands::observability::{
     unexpected_command_result, CommandResult, SerializableCommandError,
 };
 use crate::db::repository::SessionMetadataRepository;
 use crate::opencode_history::commands::fetch_opencode_session;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
-};
+use sea_orm::DbConn;
 use std::sync::Arc;
 
 fn canonicalize_persisted_worktree_path(worktree_path: &str) -> Result<std::path::PathBuf, String> {
@@ -88,6 +84,17 @@ fn apply_derived_current_mode_metadata(
     session
 }
 
+fn session_open_error_from_provider_load(
+    requested_session_id: &str,
+    message: String,
+) -> SessionOpenError {
+    if message.contains("provider history parse failed") {
+        SessionOpenError::parse_failure(requested_session_id, message)
+    } else {
+        SessionOpenError::internal(requested_session_id, message)
+    }
+}
+
 fn history_replay_family(agent: &CanonicalAgentId) -> HistoryReplayFamily {
     crate::acp::parsers::provider_capabilities::provider_capabilities(
         crate::acp::parsers::AgentType::from_canonical(agent),
@@ -133,227 +140,7 @@ async fn load_unified_session_content_with_context(
         .map(|session| apply_session_title_metadata(session, context.session_metadata.as_ref())))
 }
 
-// Full journal round-trip for provider-owned materialization; reserved until wired into the open path.
-#[allow(dead_code)]
-fn build_transcript_snapshot(
-    revision: i64,
-    snapshot: &SessionThreadSnapshot,
-) -> crate::acp::transcript_projection::TranscriptSnapshot {
-    crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
-        revision,
-        &snapshot.entries,
-    )
-}
-
-#[allow(dead_code)]
-fn build_projection_snapshot(
-    replay_context: &SessionReplayContext,
-    revision: i64,
-    snapshot: &SessionThreadSnapshot,
-) -> crate::acp::projections::SessionProjectionSnapshot {
-    let mut projection = ProjectionRegistry::project_thread_snapshot(
-        &replay_context.local_session_id,
-        Some(replay_context.agent_id.clone()),
-        snapshot,
-    );
-    if let Some(session) = projection.session.as_mut() {
-        session.last_event_seq = revision;
-    }
-    projection
-}
-
-#[allow(dead_code)]
-fn projection_last_event_seq(
-    snapshot: &crate::acp::projections::SessionProjectionSnapshot,
-) -> Option<i64> {
-    snapshot
-        .session
-        .as_ref()
-        .map(|session| session.last_event_seq)
-}
-
-async fn persist_canonical_materialization(
-    db: &DbConn,
-    replay_context: &SessionReplayContext,
-    snapshot: &SessionThreadSnapshot,
-) -> Result<(), String> {
-    let session_id = replay_context.local_session_id.clone();
-    let replay_context_for_txn = replay_context.clone();
-    let file_path = replay_context
-        .source_path
-        .clone()
-        .unwrap_or_else(|| format!("__session_registry__/{}", replay_context.local_session_id));
-
-    SessionMetadataRepository::upsert(
-        db,
-        replay_context.local_session_id.clone(),
-        snapshot.title.clone(),
-        chrono::Utc::now().timestamp_millis(),
-        replay_context.project_path.clone(),
-        replay_context.agent_id.as_str().to_string(),
-        file_path.clone(),
-        0,
-        0,
-    )
-    .await
-    .map_err(|error| {
-        format!(
-            "Failed to persist canonical session metadata for {}: {error}",
-            replay_context.local_session_id
-        )
-    })?;
-    if let Some(worktree_path) = replay_context.worktree_path.as_deref() {
-        SessionMetadataRepository::set_worktree_path(
-            db,
-            &replay_context.local_session_id,
-            worktree_path,
-            Some(&replay_context.project_path),
-            Some(replay_context.agent_id.as_str()),
-        )
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to persist canonical worktree metadata for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?;
-    }
-
-    db.transaction::<_, (), sea_orm::DbErr>(|txn| {
-        let session_id = session_id.clone();
-        let snapshot = snapshot.clone();
-        let replay_context = replay_context_for_txn.clone();
-        Box::pin(async move {
-            let now = chrono::Utc::now();
-            let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
-                .select_only()
-                .column_as(
-                    crate::db::entities::session_journal_event::Column::EventSeq.max(),
-                    "max_seq",
-                )
-                .filter(
-                    crate::db::entities::session_journal_event::Column::SessionId.eq(&session_id),
-                )
-                .into_tuple::<Option<i64>>()
-                .one(txn)
-                .await?
-                .flatten();
-            let revision = if let Some(revision) = max_seq {
-                revision
-            } else {
-                let barrier = SessionJournalEvent::new(
-                    &session_id,
-                    1,
-                    SessionJournalEventPayload::MaterializationBarrier,
-                );
-                crate::db::entities::session_journal_event::Entity::insert(
-                    crate::db::entities::session_journal_event::ActiveModel {
-                        event_id: Set(barrier.event_id.clone()),
-                        session_id: Set(barrier.session_id.clone()),
-                        event_seq: Set(barrier.event_seq),
-                        event_kind: Set(barrier.event_kind().to_string()),
-                        event_json: Set(serde_json::to_string(&barrier.payload)
-                            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?),
-                        created_at: Set(now),
-                    },
-                )
-                .exec(txn)
-                .await?;
-                barrier.event_seq
-            };
-            let transcript_json =
-                serde_json::to_string(&build_transcript_snapshot(revision, &snapshot))
-                    .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
-
-            if let Some(existing_model) =
-                crate::db::entities::session_transcript_snapshot::Entity::find_by_id(&session_id)
-                    .one(txn)
-                    .await?
-            {
-                let mut active: crate::db::entities::session_transcript_snapshot::ActiveModel =
-                    existing_model.into();
-                active.snapshot_json = Set(transcript_json.clone());
-                active.updated_at = Set(now);
-                active.update(txn).await?;
-            } else {
-                crate::db::entities::session_transcript_snapshot::Entity::insert(
-                    crate::db::entities::session_transcript_snapshot::ActiveModel {
-                        session_id: Set(session_id.clone()),
-                        snapshot_json: Set(transcript_json.clone()),
-                        updated_at: Set(now),
-                    },
-                )
-                .exec(txn)
-                .await?;
-            }
-
-            let thread_snapshot_json = serde_json::to_string(&snapshot)
-                .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
-            if let Some(existing_model) =
-                crate::db::entities::session_thread_snapshot::Entity::find_by_id(&session_id)
-                    .one(txn)
-                    .await?
-            {
-                let mut active: crate::db::entities::session_thread_snapshot::ActiveModel =
-                    existing_model.into();
-                active.snapshot_json = Set(thread_snapshot_json);
-                active.updated_at = Set(now);
-                active.update(txn).await?;
-            } else {
-                crate::db::entities::session_thread_snapshot::Entity::insert(
-                    crate::db::entities::session_thread_snapshot::ActiveModel {
-                        session_id: Set(session_id.clone()),
-                        snapshot_json: Set(thread_snapshot_json),
-                        updated_at: Set(now),
-                    },
-                )
-                .exec(txn)
-                .await?;
-            }
-
-            let projection_snapshot_json = serde_json::to_string(&build_projection_snapshot(
-                &replay_context,
-                revision,
-                &snapshot,
-            ))
-            .map_err(|error| sea_orm::DbErr::Custom(error.to_string()))?;
-            if let Some(existing_model) =
-                crate::db::entities::session_projection_snapshot::Entity::find_by_id(&session_id)
-                    .one(txn)
-                    .await?
-            {
-                let mut active: crate::db::entities::session_projection_snapshot::ActiveModel =
-                    existing_model.into();
-                active.snapshot_json = Set(projection_snapshot_json);
-                active.updated_at = Set(now);
-                active.update(txn).await?;
-            } else {
-                crate::db::entities::session_projection_snapshot::Entity::insert(
-                    crate::db::entities::session_projection_snapshot::ActiveModel {
-                        session_id: Set(session_id.clone()),
-                        snapshot_json: Set(projection_snapshot_json),
-                        updated_at: Set(now),
-                    },
-                )
-                .exec(txn)
-                .await?;
-            }
-
-            Ok(())
-        })
-    })
-    .await
-    .map_err(|error| {
-        format!(
-            "Failed to persist canonical snapshots for {}: {error}",
-            replay_context.local_session_id
-        )
-    })?;
-
-    Ok(())
-}
-
-pub async fn ensure_canonical_session_materialized(
+pub async fn load_provider_owned_session_snapshot(
     app: AppHandle,
     replay_context: &SessionReplayContext,
 ) -> Result<Option<SessionThreadSnapshot>, String> {
@@ -381,11 +168,7 @@ pub async fn ensure_canonical_session_materialized(
         compatibility: replay_context.compatibility.clone(),
         session_metadata,
     };
-    let snapshot = load_unified_session_content_with_context(app, context).await?;
-    if let Some(ref snap) = snapshot {
-        persist_canonical_materialization(&db, replay_context, snap).await?;
-    }
-    Ok(snapshot)
+    load_unified_session_content_with_context(app, context).await
 }
 
 #[tauri::command]
@@ -411,14 +194,11 @@ pub async fn get_session_open_result(
     .await;
     let replay_context = context.replay_context();
     let thread_content =
-        match ensure_canonical_session_materialized(app_clone, &replay_context).await {
+        match load_provider_owned_session_snapshot(app_clone, &replay_context).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
                 return Ok(SessionOpenResult::Error(
-                    crate::acp::session_open_snapshot::SessionOpenError {
-                        requested_session_id: session_id,
-                        message: error,
-                    },
+                    session_open_error_from_provider_load(&session_id, error),
                 ));
             }
         };
@@ -443,9 +223,12 @@ pub async fn get_session_open_result(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_session_title_metadata, history_replay_family};
+    use super::{
+        apply_session_title_metadata, history_replay_family, session_open_error_from_provider_load,
+    };
     use crate::acp::provider::HistoryReplayFamily;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
+    use crate::acp::session_open_snapshot::SessionOpenErrorReason;
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
@@ -613,6 +396,31 @@ mod tests {
             super::derive_current_mode_id_from_entries(&session.entries),
             Some("plan".to_string())
         );
+    }
+
+    #[test]
+    fn provider_history_parse_failures_are_non_retryable_parse_errors() {
+        let error = session_open_error_from_provider_load(
+            "session-1",
+            "Claude provider history parse failed: invalid JSON".to_string(),
+        );
+
+        assert!(matches!(
+            error.reason,
+            SessionOpenErrorReason::ParseFailure
+        ));
+        assert!(!error.retryable);
+    }
+
+    #[test]
+    fn provider_history_load_failures_remain_retryable_internal_errors() {
+        let error = session_open_error_from_provider_load(
+            "session-1",
+            "Copilot provider history load failed: transport timeout".to_string(),
+        );
+
+        assert!(matches!(error.reason, SessionOpenErrorReason::Internal));
+        assert!(error.retryable);
     }
 
     #[tokio::test]

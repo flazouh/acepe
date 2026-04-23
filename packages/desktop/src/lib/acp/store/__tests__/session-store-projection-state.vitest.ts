@@ -73,6 +73,13 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 			errorMessage: null,
 			canReconnect: true,
 		},
+		activity: overrides.activity ?? {
+			kind: activeTurnFailure === null ? "idle" : "error",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
 		capabilities: overrides.capabilities ?? {
 			models: null,
 			modes: null,
@@ -409,6 +416,86 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("hydrates graph-backed activity from snapshot envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			lifecycle: {
+				status: "ready",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+
+		expect(store.getHotState("session-1")).toMatchObject({
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+	});
+
+	it("preserves graph-backed activity topology across lifecycle-only envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			lifecycle: {
+				status: "ready",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: {
+					status: "error",
+					errorMessage: "Connection dropped",
+					canReconnect: true,
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getHotState("session-1")).toMatchObject({
+			activity: {
+				kind: "error",
+				activeOperationCount: 2,
+				activeSubagentCount: 1,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+		});
+	});
+
 	it("hydrates capabilities envelopes into capability and hot-state selectors", () => {
 		const store = new SessionStore();
 		addColdSession(store);
@@ -589,7 +676,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("refreshes from a canonical snapshot when a delta frontier mismatches the loaded transcript", async () => {
+	it("refreshes from the canonical provider-open snapshot when a delta frontier mismatches the loaded transcript", async () => {
 		const store = new SessionStore();
 		const initialGraph = createSessionStateGraph();
 		const refreshedGraph = createSessionStateGraph({

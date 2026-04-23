@@ -34,6 +34,12 @@
 
 {#if visible}
 	<div class="w-full">
+		{#if isExpanded && hasExpandedContent && expandedContent}
+			<div class="rounded-t-md bg-input/30 overflow-hidden border border-b-0 border-border">
+				{@render expandedContent()}
+			</div>
+		{/if}
+
 		<div
 			role="button"
 			tabindex="0"
@@ -46,7 +52,7 @@
 			}}
 			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-input/30 {hasExpandedContent
 				? 'cursor-pointer'
-				: 'cursor-default'} {isExpanded ? 'rounded-b-none border-b-0' : ''}"
+				: 'cursor-default'} {isExpanded ? 'rounded-t-none border-t-0' : ''}"
 		>
 			<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">
 				{@render headerMain()}
@@ -58,12 +64,6 @@
 				</div>
 			{/if}
 		</div>
-
-		{#if isExpanded && hasExpandedContent && expandedContent}
-			<div class="rounded-b-md bg-input/30 overflow-hidden border border-t-0 border-border">
-				{@render expandedContent()}
-			</div>
-		{/if}
 
 		{#if fetchError}
 			<div class="px-3 py-1.5 text-xs text-destructive/70 bg-input/30 rounded-b-lg border border-t-0 border-border">

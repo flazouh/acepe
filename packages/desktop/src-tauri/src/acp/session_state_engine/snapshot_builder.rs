@@ -2,7 +2,7 @@ use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 
 pub fn build_graph_from_open_found(
@@ -10,6 +10,13 @@ pub fn build_graph_from_open_found(
     lifecycle: SessionGraphLifecycle,
     capabilities: SessionGraphCapabilities,
 ) -> SessionStateGraph {
+    let activity = select_session_graph_activity(
+        &lifecycle,
+        &found.turn_state,
+        &found.operations,
+        &found.interactions,
+        found.active_turn_failure.as_ref(),
+    );
     SessionStateGraph {
         requested_session_id: found.requested_session_id.clone(),
         canonical_session_id: found.canonical_session_id.clone(),
@@ -31,6 +38,7 @@ pub fn build_graph_from_open_found(
         active_turn_failure: found.active_turn_failure.clone(),
         last_terminal_turn_id: found.last_terminal_turn_id.clone(),
         lifecycle,
+        activity,
         capabilities,
     }
 }
@@ -40,7 +48,7 @@ mod tests {
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_open_snapshot::SessionOpenFound;
     use crate::acp::session_state_engine::selectors::{
-        SessionGraphCapabilities, SessionGraphLifecycle,
+        SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
     };
     use crate::acp::transcript_projection::TranscriptSnapshot;
     use crate::acp::types::CanonicalAgentId;
@@ -84,5 +92,6 @@ mod tests {
         assert_eq!(graph.revision.graph_revision, 9);
         assert_eq!(graph.revision.transcript_revision, 3);
         assert_eq!(graph.revision.last_event_seq, 11);
+        assert_eq!(graph.activity.kind, SessionGraphActivityKind::Idle);
     }
 }

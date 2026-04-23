@@ -76,7 +76,7 @@
 			<button
 				type="button"
 				onclick={() => onLinkClick(releaseUrl)}
-				class="ml-auto text-[9px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+				class="ml-auto text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
 				title={`Open release notes for v${version}`}
 			>
 				v{version}
@@ -84,7 +84,7 @@
 		{:else if releaseUrl}
 			<a
 				href={releaseUrl}
-				class="ml-auto text-[9px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+				class="ml-auto text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
 				title={`Open release notes for v${version}`}
 			>
 				v{version}
