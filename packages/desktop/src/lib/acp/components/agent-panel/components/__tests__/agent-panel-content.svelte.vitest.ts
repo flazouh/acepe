@@ -23,42 +23,37 @@ Object.defineProperty(globalThis, "sessionStorage", {
 });
 
 const sessionStoreState = vi.hoisted(() => ({
-	runtimeState: null as
-		| null
-		| {
-				connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
-				contentPhase: "empty" | "loading" | "loaded";
-				activityPhase: "idle" | "running" | "waiting_for_user";
-				canSubmit: boolean;
-				canCancel: boolean;
-				showStop: boolean;
-				showThinking: boolean;
-				showConnectingOverlay: boolean;
-				showConversation: boolean;
-				showReadyPlaceholder: boolean;
-		  },
+	runtimeState: null as null | {
+		connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
+		contentPhase: "empty" | "loading" | "loaded";
+		activityPhase: "idle" | "running" | "waiting_for_user";
+		canSubmit: boolean;
+		canCancel: boolean;
+		showStop: boolean;
+		showThinking: boolean;
+		showConnectingOverlay: boolean;
+		showConversation: boolean;
+		showReadyPlaceholder: boolean;
+	},
 	hotState: {
 		turnState: "idle" as "idle" | "running" | "completed" | "error",
-		status:
-			"idle" as "idle" | "loading" | "connecting" | "ready" | "streaming" | "error",
+		status: "idle" as "idle" | "loading" | "connecting" | "ready" | "streaming" | "error",
 		currentMode: null,
 		connectionError: null,
 		activeTurnFailure: null,
-		activity: null as
-			| null
-			| {
-					kind:
-						| "awaiting_model"
-						| "running_operation"
-						| "waiting_for_user"
-						| "paused"
-						| "error"
-						| "idle";
-					activeOperationCount: number;
-					activeSubagentCount: number;
-					dominantOperationId: string | null;
-					blockingInteractionId: string | null;
-			  },
+		activity: null as null | {
+			kind:
+				| "awaiting_model"
+				| "running_operation"
+				| "waiting_for_user"
+				| "paused"
+				| "error"
+				| "idle";
+			activeOperationCount: number;
+			activeSubagentCount: number;
+			dominantOperationId: string | null;
+			blockingInteractionId: string | null;
+		},
 	},
 }));
 

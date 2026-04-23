@@ -32,10 +32,7 @@ export type {
 // STORE-SPECIFIC TYPES
 // ============================================
 
-import type {
-	ProviderMetadataProjection,
-	SessionGraphActivity,
-} from "../../services/acp-types.js";
+import type { ProviderMetadataProjection, SessionGraphActivity } from "../../services/acp-types.js";
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import type { Mode, Model, SessionStatus } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";

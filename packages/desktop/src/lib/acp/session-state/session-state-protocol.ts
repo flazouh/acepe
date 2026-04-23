@@ -1,9 +1,9 @@
 import type {
 	CapabilityPreviewState,
-	SessionGraphActivity,
-	SessionGraphActivityKind,
 	InteractionSnapshot,
 	OperationSnapshot,
+	SessionGraphActivity,
+	SessionGraphActivityKind,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphLifecycleStatus,

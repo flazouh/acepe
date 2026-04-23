@@ -104,7 +104,7 @@ const sessionWorkProjection = $derived.by(() => {
 const turnState = $derived<TurnState>(turnStateProp ?? hotState?.turnState ?? "idle");
 const isStreaming = $derived(turnState === "streaming");
 const isWaitingForResponse = $derived(
-	isWaitingProp ?? (sessionWorkProjection?.canonicalActivity === "awaiting_model")
+	isWaitingProp ?? sessionWorkProjection?.canonicalActivity === "awaiting_model"
 );
 
 // Sync streaming state to bindable prop for parent component

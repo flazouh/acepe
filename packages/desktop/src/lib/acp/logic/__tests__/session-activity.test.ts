@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-	selectCanonicalSessionActivity,
 	type CanonicalSessionActivityInput,
+	selectCanonicalSessionActivity,
 } from "../session-activity.js";
 
 function makeInput(
@@ -62,9 +62,7 @@ describe("selectCanonicalSessionActivity", () => {
 
 	it("returns error before every other state", () => {
 		expect(
-			selectCanonicalSessionActivity(
-				makeInput("failed", "paused", true, true, true, false)
-			)
+			selectCanonicalSessionActivity(makeInput("failed", "paused", true, true, true, false))
 		).toBe("error");
 	});
 

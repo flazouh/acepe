@@ -20,8 +20,8 @@ import {
 	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
-	SessionGraphCapabilities,
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionOpenFound,
@@ -1528,7 +1528,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	refreshAllPrStates(): void {
 		const sessionsWithPr = this.sessions.filter((s) => s.prNumber != null);
 		for (const session of sessionsWithPr) {
-			void this.refreshSessionPrState(session.id, session.projectPath, session.prNumber!);
+			const prNumber = session.prNumber;
+			if (prNumber == null) {
+				continue;
+			}
+			void this.refreshSessionPrState(session.id, session.projectPath, prNumber);
 		}
 	}
 

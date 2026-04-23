@@ -1,9 +1,9 @@
+import type { SessionGraphActivity } from "../../services/acp-types.js";
 import {
-	selectCanonicalSessionActivity,
 	type CanonicalSessionActivity,
+	selectCanonicalSessionActivity,
 } from "../logic/session-activity.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
-import type { SessionGraphActivity } from "../../services/acp-types.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";
