@@ -195,7 +195,7 @@ async function init(version: number) {
 >
 	<div
 		bind:this={primaryContainer}
-		class="absolute inset-0 block h-full w-full transition-opacity duration-[1400ms] ease-out {shaderReady
+		class="absolute inset-x-0 top-0 block h-[calc(100%+60px)] w-full transition-opacity duration-[1400ms] ease-out {shaderReady
 			? 'opacity-100'
 			: 'opacity-0'}"
 	></div>
@@ -203,7 +203,7 @@ async function init(version: number) {
 	{#if accentRing}
 		<div
 			bind:this={accentContainer}
-			class="absolute inset-0 block h-full w-full mix-blend-screen transition-opacity duration-[1800ms] ease-out {shaderReady
+			class="absolute inset-x-0 top-0 block h-[calc(100%+60px)] w-full mix-blend-screen transition-opacity duration-[1800ms] ease-out {shaderReady
 				? 'opacity-60'
 				: 'opacity-0'}"
 		></div>
