@@ -36,6 +36,7 @@ import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
+import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
 import {
@@ -416,6 +417,15 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 				deletions: item.linkedPr.deletions,
 				isLoading: item.linkedPr.isLoading,
 				hasResolvedDetails: item.linkedPr.hasResolvedDetails,
+				checks: item.linkedPr.checks,
+				isChecksLoading: item.linkedPr.isChecksLoading,
+				hasResolvedChecks: item.linkedPr.hasResolvedChecks,
+				onOpenCheck: (check) => {
+					if (check.detailsUrl == null) {
+						return;
+					}
+					void openUrl(check.detailsUrl).catch(() => {});
+				},
 			}
 		: null;
 
@@ -1406,6 +1416,20 @@ function handleRejectPlanApproval(sessionId: string): void {
 	</Dialog>
 
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+		{#each threadBoard as section (section.status)}
+			{#each section.items as item (item.sessionId)}
+				{#if item.linkedPr}
+					{#key `${item.projectPath}:${item.linkedPr.prNumber}`}
+						<PrChecksSurface
+							projectPath={item.projectPath}
+							prNumber={item.linkedPr.prNumber}
+							surfaceId={`kanban:${item.sessionId}`}
+						/>
+					{/key}
+				{/if}
+			{/each}
+		{/each}
+
 		<KanbanSceneBoard
 			model={sceneModel}
 			emptyHint="No sessions"

@@ -1,10 +1,11 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PrDetails } from "../../../utils/tauri-client/git.js";
+import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
 
 const setSessionPrNumberMock = vi.fn();
 const prDetailsMock = vi.fn();
+const prChecksMock = vi.fn();
 const resolveAutomaticSessionPrNumberFromShipWorkflowMock = vi.fn();
 
 vi.mock("../api.js", () => ({
@@ -19,6 +20,7 @@ vi.mock("../../../utils/tauri-client.js", () => ({
 	tauriClient: {
 		git: {
 			prDetails: prDetailsMock,
+			prChecks: prChecksMock,
 		},
 		history: {
 			setSessionPrNumber: setSessionPrNumberMock,
@@ -51,6 +53,14 @@ function createPrDetails(overrides: Partial<PrDetails> = {}): PrDetails {
 	};
 }
 
+function createPrChecks(overrides: Partial<PrChecks> = {}): PrChecks {
+	return {
+		prNumber: overrides.prNumber ?? 42,
+		headSha: overrides.headSha ?? "abc123",
+		checkRuns: overrides.checkRuns ?? [],
+	};
+}
+
 describe("SessionStore PR linking", () => {
 	let store: SessionStore;
 
@@ -60,6 +70,8 @@ describe("SessionStore PR linking", () => {
 		setSessionPrNumberMock.mockReturnValue(okAsync(undefined));
 		prDetailsMock.mockReset();
 		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+		prChecksMock.mockReset();
+		prChecksMock.mockReturnValue(okAsync(createPrChecks()));
 		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReset();
 	});
 
@@ -101,6 +113,10 @@ describe("SessionStore PR linking", () => {
 				isDraft: false,
 				isLoading: false,
 				hasResolvedDetails: true,
+				checksHeadSha: null,
+				checks: [],
+				isChecksLoading: false,
+				hasResolvedChecks: false,
 			},
 			updatedAt: new Date("2026-04-23T20:00:00.000Z"),
 			createdAt: new Date("2026-04-23T19:00:00.000Z"),

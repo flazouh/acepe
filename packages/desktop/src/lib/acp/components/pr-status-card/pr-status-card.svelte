@@ -19,26 +19,32 @@ import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Result } from "neverthrow";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
+import PrChecksSurface from "../shared/pr-checks-surface.svelte";
+import type { SessionLinkedPr } from "../../application/dto/session";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 import { renderMarkdownSync } from "../../utils/markdown-renderer.js";
 
 interface Props {
+	sessionId: string | null;
 	projectPath: string;
 	prNumber: number | null;
 	isCreating: boolean;
 	prDetails: PrDetails | null;
 	fetchError: string | null;
+	linkedPr: SessionLinkedPr | null;
 	/** Live streaming data from AI generation — shown before the PR is created. */
 	streamingData?: ShipCardData | null;
 }
 
 let {
+	sessionId,
 	projectPath,
 	prNumber,
 	isCreating,
 	prDetails,
 	fetchError,
+	linkedPr,
 	streamingData = null,
 }: Props = $props();
 
@@ -92,6 +98,13 @@ function handleCommitClick(sha: string) {
 	diffModalOpen = true;
 }
 
+function handleOpenCheck(check: NonNullable<AgentPanelPrCardModel["checks"]>[number], event: MouseEvent) {
+	event.stopPropagation();
+	if (check.detailsUrl?.startsWith("https://github.com/")) {
+		void openUrl(check.detailsUrl).catch(() => {});
+	}
+}
+
 const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 	if (prDetails) {
 		return {
@@ -111,6 +124,11 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 					handleCommitClick(commit.oid);
 				},
 			})),
+			checks: linkedPr?.checks ?? [],
+			isChecksLoading: linkedPr?.isChecksLoading ?? false,
+			hasResolvedChecks: linkedPr?.hasResolvedChecks ?? false,
+			checksCollapseThreshold: 3,
+			onOpenCheck: handleOpenCheck,
 			onOpen: handleOpenGitHub,
 		};
 	}
@@ -139,6 +157,16 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 	};
 });
 </script>
+
+{#if projectPath && linkedPr}
+	{#key `${projectPath}:${linkedPr.prNumber}`}
+		<PrChecksSurface
+			{projectPath}
+			prNumber={linkedPr.prNumber}
+			surfaceId={sessionId ? `agent-panel-pr-card:${sessionId}` : `agent-panel-pr-card:${linkedPr.prNumber}`}
+		/>
+	{/key}
+{/if}
 
 {#if isVisible}
 	<SharedAgentPanelPrCard

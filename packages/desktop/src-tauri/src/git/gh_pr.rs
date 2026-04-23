@@ -573,7 +573,7 @@ struct RawPrChecks {
     #[serde(default)]
     head_ref_oid: String,
     #[serde(default)]
-    status_check_rollup: Vec<RawStatusCheckRollupEntry>,
+    status_check_rollup: Option<Vec<RawStatusCheckRollupEntry>>,
 }
 
 fn parse_check_status(raw: &str) -> PrCheckStatus {
@@ -617,6 +617,7 @@ fn parse_pr_checks(output: &str, pr_number: i32) -> Result<PrChecks, String> {
     // Filter to CheckRun entries only — GitHub Checks API, not legacy status contexts.
     let check_runs = raw
         .status_check_rollup
+        .unwrap_or_default()
         .into_iter()
         .filter(|entry| entry.typename == "CheckRun")
         .map(|entry| PrCheckRun {
@@ -730,7 +731,7 @@ mod tests {
 
     #[cfg(unix)]
     use super::{merge_pull_request, MergeStrategy};
-    use super::{parse_pr_details, parse_pr_checks, PrCheckConclusion, PrCheckStatus, PrState};
+    use super::{parse_pr_checks, parse_pr_details, PrCheckConclusion, PrCheckStatus, PrState};
 
     #[cfg(unix)]
     fn env_lock() -> &'static Mutex<()> {
@@ -863,7 +864,11 @@ mod tests {
 
         assert_eq!(checks.pr_number, 42);
         assert_eq!(checks.head_sha, "abc123");
-        assert_eq!(checks.check_runs.len(), 2, "legacy statuses must be filtered out");
+        assert_eq!(
+            checks.check_runs.len(),
+            2,
+            "legacy statuses must be filtered out"
+        );
 
         let build = &checks.check_runs[0];
         assert_eq!(build.name, "build");
@@ -885,7 +890,7 @@ mod tests {
 
     #[test]
     fn parse_pr_checks_handles_missing_rollup() {
-        let json = r#"{ "headRefOid": "def456" }"#;
+        let json = r#"{ "headRefOid": "def456", "statusCheckRollup": null }"#;
         let checks = parse_pr_checks(json, 7).expect("expected empty rollup to parse");
         assert_eq!(checks.head_sha, "def456");
         assert!(checks.check_runs.is_empty());

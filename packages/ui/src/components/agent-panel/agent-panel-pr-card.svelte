@@ -7,6 +7,7 @@
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
 	import { LoadingIcon } from "../icons/index.js";
+	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
 
 	interface Props {
@@ -19,7 +20,12 @@
 	let { visible, model, fetchError = null, initiallyExpanded = false }: Props = $props();
 
 	const hasExpandedContent = $derived(
-		Boolean(model.descriptionHtml) || (model.commits?.length ?? 0) > 0 || model.mode === "streaming"
+		Boolean(model.descriptionHtml) ||
+			(model.commits?.length ?? 0) > 0 ||
+			(model.checks?.length ?? 0) > 0 ||
+			Boolean(model.isChecksLoading) ||
+			Boolean(model.hasResolvedChecks) ||
+			model.mode === "streaming"
 	);
 	const prState = $derived(
 		model.state === "MERGED" ? "merged" : model.state === "CLOSED" ? "closed" : "open"
@@ -108,6 +114,21 @@
 						<span class="text-[11px] text-foreground/70 truncate leading-none">{commit.message}</span>
 					</div>
 				{/each}
+			</div>
+		{/if}
+
+		{#if model.mode === "pr" && ((model.checks?.length ?? 0) > 0 || model.isChecksLoading || model.hasResolvedChecks)}
+			<div
+				class:border-t={Boolean(model.descriptionHtml) || (model.commits?.length ?? 0) > 0}
+				class="px-3 py-2 border-border/30"
+			>
+				<PrChecksList
+					checks={model.checks ?? []}
+					isLoading={model.isChecksLoading ?? false}
+					hasResolved={model.hasResolvedChecks ?? false}
+					collapseThreshold={model.checksCollapseThreshold ?? 3}
+					onOpenCheck={model.onOpenCheck}
+				/>
 			</div>
 		{/if}
 	{/snippet}

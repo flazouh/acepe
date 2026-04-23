@@ -1907,6 +1907,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{prCardRenderKey}
 			{prDetails}
 			{prFetchError}
+			linkedPr={sessionMetadata?.linkedPr ?? null}
 			{streamingShipData}
 			{modifiedFilesState}
 			onEnterReviewMode={handleEnterReviewMode}

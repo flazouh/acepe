@@ -217,6 +217,10 @@ export const git = {
 		return gitCommands.pr_details.invoke<PrDetails>({ projectPath, prNumber });
 	},
 
+	prChecks: (projectPath: string, prNumber: number): ResultAsync<PrChecks, AppError> => {
+		return gitCommands.pr_checks.invoke<PrChecks>({ projectPath, prNumber });
+	},
+
 	mergePr: (
 		projectPath: string,
 		prNumber: number,
@@ -341,6 +345,36 @@ export interface PrCommit {
 	messageHeadline: string;
 	additions: number;
 	deletions: number;
+}
+
+export type PrCheckStatus = "QUEUED" | "IN_PROGRESS" | "COMPLETED" | "UNKNOWN";
+
+export type PrCheckConclusion =
+	| "SUCCESS"
+	| "FAILURE"
+	| "NEUTRAL"
+	| "CANCELLED"
+	| "SKIPPED"
+	| "TIMED_OUT"
+	| "ACTION_REQUIRED"
+	| "STALE"
+	| "STARTUP_FAILURE"
+	| "UNKNOWN";
+
+export interface PrCheckRun {
+	name: string;
+	status: PrCheckStatus;
+	conclusion: PrCheckConclusion | null;
+	detailsUrl: string | null;
+	startedAt: string | null;
+	completedAt: string | null;
+	workflowName: string | null;
+}
+
+export interface PrChecks {
+	prNumber: number;
+	headSha: string;
+	checkRuns: PrCheckRun[];
 }
 
 /** Pull request state as reported by GitHub. */

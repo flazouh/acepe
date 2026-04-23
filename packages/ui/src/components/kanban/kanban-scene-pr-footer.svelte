@@ -2,6 +2,7 @@
 	import { ArrowSquareOut, GitPullRequest } from "phosphor-svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
+	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";
 
 	let {
 		prNumber,
@@ -12,6 +13,10 @@
 		deletions,
 		isLoading,
 		hasResolvedDetails,
+		checks,
+		isChecksLoading,
+		hasResolvedChecks,
+		onOpenCheck,
 		onOpen,
 		onOpenExternal,
 	}: {
@@ -23,9 +28,15 @@
 		deletions: number | null;
 		isLoading: boolean;
 		hasResolvedDetails: boolean;
+		checks: readonly PrChecksItem[];
+		isChecksLoading: boolean;
+		hasResolvedChecks: boolean;
+		onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
 		onOpen: () => void;
 		onOpenExternal: () => void;
 	} = $props();
+
+	let checksExpanded = $state(false);
 
 	function handleKeydown(event: KeyboardEvent): void {
 		if (event.key !== "Enter" && event.key !== " ") {
@@ -65,11 +76,26 @@
 				<div class="mt-1 h-3 w-40 rounded bg-muted" aria-hidden="true"></div>
 			{/if}
 			<div class="mt-1">
-				{#if hasResolvedDetails && additions != null && deletions != null}
-					<DiffPill insertions={additions} deletions={deletions} variant="plain" class="text-[10px]" />
-				{:else}
-					<div class="h-3 w-20 rounded bg-muted" aria-hidden="true"></div>
-				{/if}
+				<div class="flex items-center gap-2">
+					{#if hasResolvedDetails && additions != null && deletions != null}
+						<DiffPill insertions={additions} deletions={deletions} variant="plain" class="text-[10px]" />
+					{:else}
+						<div class="h-3 w-20 rounded bg-muted" aria-hidden="true"></div>
+					{/if}
+					<button
+						type="button"
+						class="inline-flex h-5 items-center gap-1 rounded px-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						aria-label={checksExpanded ? "Hide CI checks" : "Show CI checks"}
+						title={checksExpanded ? "Hide CI checks" : "Show CI checks"}
+						onclick={(event) => {
+							event.stopPropagation();
+							checksExpanded = !checksExpanded;
+						}}
+					>
+						<PrChecksSummary checks={checks} isLoading={isChecksLoading} hasResolved={hasResolvedChecks} />
+						<span>CI</span>
+					</button>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -88,3 +114,15 @@
 		<ArrowSquareOut size={12} weight="bold" />
 	</button>
 </div>
+
+{#if checksExpanded}
+	<div class="border-t border-border/30 px-2 pb-2 pt-1.5">
+		<PrChecksList
+			{checks}
+			isLoading={isChecksLoading}
+			hasResolved={hasResolvedChecks}
+			collapseThreshold={3}
+			{onOpenCheck}
+		/>
+	</div>
+{/if}

@@ -3,6 +3,7 @@ import type {
 	AgentToolKind,
 	AgentToolStatus,
 } from "../agent-panel/types.js";
+import type { PrChecksItem } from "../pr-checks/types.js";
 import type { SectionedFeedSectionId } from "../attention-queue/types.js";
 
 export interface KanbanToolData {
@@ -30,6 +31,10 @@ export interface KanbanPrFooterData {
 	readonly deletions: number | null;
 	readonly isLoading: boolean;
 	readonly hasResolvedDetails: boolean;
+	readonly checks: readonly PrChecksItem[];
+	readonly isChecksLoading: boolean;
+	readonly hasResolvedChecks: boolean;
+	readonly onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
 }
 
 export interface KanbanCardData {

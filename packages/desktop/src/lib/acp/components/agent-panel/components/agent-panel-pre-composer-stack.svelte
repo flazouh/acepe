@@ -5,7 +5,7 @@ import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
-import type { SessionEntry } from "../../../application/dto/session";
+import type { SessionEntry, SessionLinkedPr } from "../../../application/dto/session";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
 import type { TurnState } from "../../../store/types.js";
@@ -75,6 +75,7 @@ let {
 	prCardRenderKey,
 	prDetails,
 	prFetchError,
+	linkedPr,
 	streamingShipData,
 	modifiedFilesState,
 	onEnterReviewMode,
@@ -138,6 +139,7 @@ let {
 	prCardRenderKey: number;
 	prDetails: PrDetails | null;
 	prFetchError: string | null;
+	linkedPr: SessionLinkedPr | null;
 	streamingShipData: ShipCardData | null;
 	modifiedFilesState: ModifiedFilesState | null;
 	onEnterReviewMode: (s: ModifiedFilesState) => void;
@@ -232,11 +234,13 @@ let {
 						{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}
 							{#key prCardRenderKey}
 								<PrStatusCard
+									{sessionId}
 									projectPath={effectivePathForGit}
 									prNumber={createdPr}
 									isCreating={createPrRunning}
 									{prDetails}
 									fetchError={prFetchError}
+									{linkedPr}
 									streamingData={streamingShipData}
 								/>
 							{/key}

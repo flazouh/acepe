@@ -349,6 +349,8 @@ export interface AgentPanelComposerModel {
 	copy?: AgentPanelComposerCopy | null;
 }
 
+import type { PrChecksItem } from "../pr-checks/types.js";
+
 export interface AgentPanelPrCommitItem {
 	sha: string;
 	message: string;
@@ -366,6 +368,11 @@ export interface AgentPanelPrCardModel {
 	deletions?: number;
 	descriptionHtml?: string | null;
 	commits?: readonly AgentPanelPrCommitItem[];
+	checks?: readonly PrChecksItem[];
+	isChecksLoading?: boolean;
+	hasResolvedChecks?: boolean;
+	checksCollapseThreshold?: number;
+	onOpenCheck?: (check: PrChecksItem, event: MouseEvent) => void;
 	isStreaming?: boolean;
 	generatingLabel?: string;
 	creatingLabel?: string;

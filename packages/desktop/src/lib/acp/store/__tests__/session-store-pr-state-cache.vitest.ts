@@ -1,11 +1,13 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PrDetails } from "../../../utils/tauri-client/git.js";
+import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
 
 const prDetailsMock =
 	vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>>();
+const prChecksMock =
+	vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrChecks, AppError>>();
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -18,12 +20,13 @@ vi.mock("../api.js", () => ({
 vi.mock("../../../utils/tauri-client.js", () => ({
 	openFileInEditor: vi.fn(),
 	revealInFinder: vi.fn(),
-	tauriClient: {
-		git: {
-			prDetails: prDetailsMock,
+		tauriClient: {
+			git: {
+				prDetails: prDetailsMock,
+				prChecks: prChecksMock,
+			},
 		},
-	},
-}));
+	}));
 
 vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	clearSessionModelPerMode: vi.fn(),
@@ -59,12 +62,34 @@ function addSessionWithPr(store: SessionStore, sessionId: string, prNumber: numb
 	});
 }
 
+function createPrChecks(overrides: Partial<PrChecks> = {}): PrChecks {
+	return {
+		prNumber: overrides.prNumber ?? 83,
+		headSha: overrides.headSha ?? "abc123",
+		checkRuns:
+			overrides.checkRuns ??
+			[
+				{
+					name: "build",
+					status: "IN_PROGRESS",
+					conclusion: null,
+					detailsUrl: "https://github.com/example/repo/actions/runs/1",
+					startedAt: "2026-04-23T12:00:00Z",
+					completedAt: null,
+					workflowName: "CI",
+				},
+			],
+	};
+}
+
 describe("SessionStore PR state refresh caching", () => {
 	let store: SessionStore;
 
 	beforeEach(() => {
 		store = new SessionStore();
 		prDetailsMock.mockReset();
+		prChecksMock.mockReset();
+		prChecksMock.mockReturnValue(okAsync(createPrChecks()));
 		vi.useFakeTimers();
 	});
 
@@ -83,6 +108,7 @@ describe("SessionStore PR state refresh caching", () => {
 		expect(store.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
 		expect(store.getSessionCold("session-pr-1")?.linkedPr?.title).toBe("Test PR");
 		expect(store.getSessionCold("session-pr-1")?.linkedPr?.additions).toBe(10);
+		expect(store.getSessionCold("session-pr-1")?.linkedPr?.checksHeadSha).toBe("abc123");
 	});
 
 	it("preserves historical updatedAt when PR state refresh changes prState", async () => {
@@ -146,5 +172,32 @@ describe("SessionStore PR state refresh caching", () => {
 		await store.refreshSessionPrState("session-pr-1", "/test/path", 83);
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(2);
+	});
+
+	it("dedupes in-flight requests for PR checks and applies them to linked PRs", async () => {
+		addSessionWithPr(store, "session-pr-1", 83);
+		addSessionWithPr(store, "session-pr-2", 83);
+
+		let resolveChecks: ((checks: PrChecks) => void) | undefined;
+		const checksPromise = new Promise<PrChecks>((resolve) => {
+			resolveChecks = resolve;
+		});
+
+		prChecksMock.mockReturnValue(
+			ResultAsync.fromPromise(checksPromise, () => new AgentError("prChecks"))
+		);
+
+		const firstRequest = store.refreshSessionPrChecks("session-pr-1", "/test/path", 83);
+		const secondRequest = store.refreshSessionPrChecks("session-pr-2", "/test/path", 83);
+
+		expect(prChecksMock).toHaveBeenCalledTimes(1);
+
+		resolveChecks?.(createPrChecks({ checkRuns: [] }));
+
+		await firstRequest;
+		await secondRequest;
+
+		expect(store.getSessionCold("session-pr-1")?.linkedPr?.hasResolvedChecks).toBe(true);
+		expect(store.getSessionCold("session-pr-2")?.linkedPr?.checks).toEqual([]);
 	});
 });

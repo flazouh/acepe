@@ -136,6 +136,12 @@ export {
 	getReviewWorkspaceDefaultIndex,
 	resolveReviewWorkspaceSelectedIndex,
 } from "./components/agent-panel/index.js";
+export type {
+	PrChecksItem,
+	PrChecksItemConclusion,
+	PrChecksItemStatus,
+} from "./components/pr-checks/index.js";
+export { PrChecksList, PrChecksSummary } from "./components/pr-checks/index.js";
 export {
 	AgentPanelScene,
 	AgentPanelSceneConversation,
