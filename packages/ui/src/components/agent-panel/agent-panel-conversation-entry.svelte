@@ -42,7 +42,13 @@
 {#if entry.type === "user"}
 	<AgentUserMessage text={entry.text} />
 {:else if entry.type === "assistant"}
-	<AgentAssistantMessage markdown={entry.markdown} isStreaming={entry.isStreaming} {iconBasePath} />
+	<AgentAssistantMessage
+		message={{
+			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
+		}}
+		isStreaming={entry.isStreaming}
+		{iconBasePath}
+	/>
 {:else if entry.type === "thinking"}
 	<AgentToolRow title={getPlanningPlaceholderLabel(entry.durationMs)} status="running" padded={false} />
 {:else if isToolCall(entry) && entry.todos && entry.todos.length > 0}

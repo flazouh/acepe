@@ -3,6 +3,8 @@
 
 	import type { AgentTodoItem } from "./types.js";
 
+	import { untrack } from "svelte";
+
 	import { SegmentedProgress } from "../segmented-progress/index.js";
 	import { TextShimmer } from "../text-shimmer/index.js";
 	import TodoNumberIcon from "./todo-number-icon.svelte";
@@ -16,6 +18,7 @@
 		allCompletedLabel: string;
 		pausedLabel: string;
 		compact?: boolean;
+		initiallyExpanded?: boolean;
 		copyButton?: Snippet;
 	}
 
@@ -28,10 +31,11 @@
 		allCompletedLabel,
 		pausedLabel,
 		compact = false,
+		initiallyExpanded = true,
 		copyButton,
 	}: Props = $props();
 
-	let isExpanded = $state(true);
+	let isExpanded = $state(untrack(() => initiallyExpanded));
 
 	const shouldRender = $derived(totalCount > 0);
 

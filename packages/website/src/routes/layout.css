@@ -21,19 +21,19 @@
 	--radius: 0.625rem;
 
 	/* Dark theme colors — matched to desktop app */
-	--background: #1a1a1a;
+	--background: #121212;
 	--foreground: #d8dee9;
-	--card: #232323;
+	--card: #1a1a1a;
 	--card-foreground: #ffffff;
-	--popover: #272727;
+	--popover: #1e1e1e;
 	--popover-foreground: #ffffff;
 	--primary: var(--token-brand-primary);
 	--primary-foreground: var(--token-brand-primary-foreground);
 	--secondary: #565656;
 	--secondary-foreground: #ececec;
-	--muted: #3a3a3a;
+	--muted: #2a2a2a;
 	--muted-foreground: #cccccc;
-	--accent: #303030;
+	--accent: #313131;
 	--accent-foreground: #ffffff;
 	--destructive: #bf616a;
 	--destructive-foreground: #ffffff;

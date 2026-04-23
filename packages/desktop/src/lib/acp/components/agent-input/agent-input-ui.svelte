@@ -1464,13 +1464,15 @@ function handleEditorCut(event: ClipboardEvent): void {
 }
 
 function handleEditorFocus(): void {
+	const panelId = props.panelId;
 	if (
 		shouldSyncPanelFocusOnEditorFocus({
 			focusedPanelId: panelStore.focusedPanelId,
-			panelId: props.panelId,
-		})
+			panelId,
+		}) &&
+		panelId
 	) {
-		panelStore.focusPanel(props.panelId);
+		panelStore.focusPanel(panelId);
 	}
 	kb.setContext("inputFocused", true);
 }

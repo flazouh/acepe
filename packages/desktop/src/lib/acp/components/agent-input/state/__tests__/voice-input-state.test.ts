@@ -1,6 +1,6 @@
 import { mock } from "bun:test";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listenMock = vi.fn();
 const cancelRecordingMock = vi.fn();
@@ -71,6 +71,62 @@ async function flushAsync(times = 20): Promise<void> {
 	for (let index = 0; index < times; index += 1) {
 		await Promise.resolve();
 	}
+}
+
+function installTimerHarness() {
+	const originalSetTimeout = globalThis.setTimeout.bind(globalThis);
+	const originalClearTimeout = globalThis.clearTimeout.bind(globalThis);
+	const originalSetInterval = globalThis.setInterval.bind(globalThis);
+	const originalClearInterval = globalThis.clearInterval.bind(globalThis);
+	const timeouts = new Map<Parameters<typeof clearTimeout>[0], () => void>();
+	const intervals = new Map<Parameters<typeof clearInterval>[0], () => void>();
+
+	vi.spyOn(globalThis, "setTimeout").mockImplementation((handler) => {
+		if (typeof handler !== "function") {
+			throw new Error("voice-input-state test timer harness expects function timeouts");
+		}
+
+		const timerId = originalSetTimeout(() => undefined, 0);
+		originalClearTimeout(timerId);
+		timeouts.set(timerId, handler);
+		return timerId;
+	});
+
+	vi.spyOn(globalThis, "clearTimeout").mockImplementation((timerId) => {
+		timeouts.delete(timerId);
+	});
+
+	vi.spyOn(globalThis, "setInterval").mockImplementation((handler) => {
+		if (typeof handler !== "function") {
+			throw new Error("voice-input-state test timer harness expects function intervals");
+		}
+
+		const timerId = originalSetInterval(() => undefined, 60_000);
+		originalClearInterval(timerId);
+		intervals.set(timerId, handler);
+		return timerId;
+	});
+
+	vi.spyOn(globalThis, "clearInterval").mockImplementation((timerId) => {
+		intervals.delete(timerId);
+	});
+
+	return {
+		runPendingTimeouts(): void {
+			const pending = [...timeouts.values()];
+			timeouts.clear();
+			for (const callback of pending) {
+				callback();
+			}
+		},
+		tickIntervals(times = 1): void {
+			for (let index = 0; index < times; index += 1) {
+				for (const callback of [...intervals.values()]) {
+					callback();
+				}
+			}
+		},
+	};
 }
 
 describe("VoiceInputState", () => {
@@ -162,6 +218,10 @@ describe("VoiceInputState", () => {
 		loadModelMock.mockReturnValue(okAsync(undefined));
 		downloadModelMock.mockReturnValue(okAsync(undefined));
 		stopRecordingMock.mockReturnValue(okAsync(undefined));
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	it("enters recording immediately when model is already loaded", async () => {
@@ -386,7 +446,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("cancels pointer press-and-hold if released during startup", async () => {
-		vi.useFakeTimers();
+		const timers = installTimerHarness();
 		const pendingModelStatus = createPendingResult<{
 			is_downloaded: boolean;
 			is_loaded: boolean;
@@ -398,7 +458,7 @@ describe("VoiceInputState", () => {
 		const state = new VoiceInputState({ sessionId: "session-pointer-startup" });
 
 		state.onMicPointerDown(createPointerEvent());
-		vi.advanceTimersByTime(VoiceInputState.PRESS_AND_HOLD_THRESHOLD_MS);
+		timers.runPendingTimeouts();
 		await flushAsync();
 
 		expect(state.phase).toBe("checking_permission");
@@ -413,7 +473,6 @@ describe("VoiceInputState", () => {
 		await flushAsync();
 
 		expect(startRecordingMock).not.toHaveBeenCalled();
-		vi.useRealTimers();
 	});
 
 	it("cancels click-to-toggle startup on a second click before recording begins", async () => {
@@ -481,7 +540,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("shows a tenths timer while recording and clears it after stop", async () => {
-		vi.useFakeTimers();
+		const timers = installTimerHarness();
 		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-timer" });
@@ -492,7 +551,7 @@ describe("VoiceInputState", () => {
 		expect(state.phase).toBe("recording");
 		expect(state.recordingElapsedLabel).toBe("0.0s");
 
-		vi.advanceTimersByTime(150);
+		timers.tickIntervals();
 		expect(state.recordingElapsedLabel).toBe("0.1s");
 
 		state.onMicPointerUp();
@@ -500,7 +559,6 @@ describe("VoiceInputState", () => {
 
 		expect(state.phase).toBe("transcribing");
 		expect(state.recordingElapsedLabel).toBeNull();
-		vi.useRealTimers();
 	});
 
 	it("ignores download progress for other models", async () => {

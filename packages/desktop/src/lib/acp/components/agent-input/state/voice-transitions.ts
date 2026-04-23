@@ -30,6 +30,5 @@ export function transition(
 	if (VALID_TRANSITIONS[current].has(next)) {
 		return next;
 	}
-	console.warn(`[voice] BLOCKED transition: ${current} → ${next}`);
 	return null;
 }

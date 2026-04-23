@@ -48,10 +48,13 @@ vi.mock("svelte", async () => {
 });
 
 vi.mock("@acepe/ui/agent-panel", async () => {
+	const actual =
+		await vi.importActual<typeof import("@acepe/ui/agent-panel")>("@acepe/ui/agent-panel");
 	const AgentToolThinking = (await import("./__tests__/fixtures/agent-tool-thinking-stub.svelte"))
 		.default;
 
 	return {
+		...actual,
 		AgentToolThinking,
 	};
 });
@@ -260,9 +263,10 @@ describe("AssistantMessage thinking auto-scroll", () => {
 
 	it("falls back to an empty message when the runtime prop is invalid", () => {
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		const invalidMessage = "invalid message" as never;
 
 		const view = render(AssistantMessageComponent, {
-			message: undefined,
+			message: invalidMessage,
 			isStreaming: true,
 		});
 
@@ -270,7 +274,7 @@ describe("AssistantMessage thinking auto-scroll", () => {
 		expect(warnSpy).toHaveBeenCalledWith(
 			"[ASSISTANT_MESSAGE_INVALID_PROP]",
 			expect.objectContaining({
-				hasCandidate: false,
+				hasCandidate: true,
 				isStreaming: true,
 			})
 		);

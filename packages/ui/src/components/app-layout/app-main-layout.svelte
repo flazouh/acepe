@@ -19,7 +19,7 @@
 	Shared app shell — used by both desktop main-app-view.svelte and website demo.
 	Desktop wraps this in <ThemeProvider class="bg-primary p-1 overflow-hidden h-dvh">.
 -->
-<div class="flex flex-col h-full min-h-0 gap-0.5 bg-background rounded-xl p-0.5">
+<div class="flex flex-col h-full min-h-0 gap-0.5 overflow-hidden">
 	<!-- Header card — tab bar + top bar -->
 	{#if tabBar}
 		<div

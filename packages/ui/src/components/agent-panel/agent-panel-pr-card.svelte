@@ -75,7 +75,7 @@
 			<CaretDown
 				size={14}
 				weight="bold"
-				class="shrink-0 text-muted-foreground transition-transform {isExpanded ? 'rotate-180' : ''}"
+				class="shrink-0 text-muted-foreground transition-transform {isExpanded ? '' : 'rotate-180'}"
 			/>
 		{/if}
 	{/snippet}

@@ -56,6 +56,12 @@ const mockGridAgents: AgentGridItem[] = $derived([
 		available: true,
 	},
 	{
+		id: "copilot",
+		name: "Copilot",
+		iconSrc: `/svgs/agents/copilot/copilot-icon-${theme}.svg`,
+		available: true,
+	},
+	{
 		id: "cursor",
 		name: "Cursor",
 		iconSrc: `/svgs/agents/cursor/cursor-icon-${theme}.svg`,
@@ -289,7 +295,8 @@ const features = [
 		icon: Stack,
 		label: "Multi-Agent Support",
 		tag: "core",
-		description: "Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
+		description:
+			"Claude Code, Codex, Cursor Agent, OpenCode. Switch with ⌘L. Use whichever agent fits the task.",
 		usecases: [
 			"Use different agents for different tasks without context switching",
 			"Run multiple agents in parallel for faster development",
@@ -301,7 +308,8 @@ const features = [
 		icon: ArrowsOutSimple,
 		label: "Parallel Sessions & Focus",
 		tag: "workflow",
-		description: "Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
+		description:
+			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
 		usecases: [
 			"Run agents on separate tasks and see all of them making progress at once",
 			"Work across multiple repos at the same time without losing track",
@@ -313,7 +321,8 @@ const features = [
 		icon: Lightning,
 		label: "Plan Mode",
 		tag: "planning",
-		description: "Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
+		description:
+			"Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
 		usecases: [
 			"Built-in review and deepen skills refine plans before execution",
 			"Plans render as clean markdown you can copy or download",
@@ -325,7 +334,8 @@ const features = [
 		icon: GitBranch,
 		label: "Checkpoints",
 		tag: "safety",
-		description: "Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
+		description:
+			"Point-in-time file snapshots at every step. If the agent goes sideways, revert the whole session or just the files you care about.",
 		usecases: [
 			"Auto-checkpoints capture state after each tool run",
 			"Revert entire project or individual files to any checkpoint",
@@ -337,7 +347,8 @@ const features = [
 		icon: ClockCounterClockwise,
 		label: "Session Management",
 		tag: "history",
-		description: "The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
+		description:
+			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
 		usecases: [
 			"Search and filter across all your agent interactions",
 			"Recover context from previous sessions instantly",
@@ -349,7 +360,8 @@ const features = [
 		icon: Command,
 		label: "Keyboard-First",
 		tag: "input",
-		description: "⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
+		description:
+			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
 		usecases: [
 			"Navigate entirely with keyboard shortcuts for flow state",
 			"Customize shortcuts to match your muscle memory",
@@ -361,7 +373,8 @@ const features = [
 		icon: HardDrives,
 		label: "SQL Studio",
 		tag: "data",
-		description: "Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
+		description:
+			"Query PostgreSQL, MySQL, and SQLite without leaving the app. Schema explorer, SQL editor, and results grid in one overlay.",
 		usecases: [
 			"Connect to local or remote databases with saved connections",
 			"Browse schemas and tables, run queries, inspect results",
@@ -373,7 +386,8 @@ const features = [
 		icon: Queue,
 		label: "Attention Queue",
 		tag: "triage",
-		description: "Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
+		description:
+			"Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
 		usecases: [
 			"Answer-needed sessions stay at the top until you respond",
 			"See errors and active work before idle sessions",
@@ -395,30 +409,41 @@ const features = [
 	/>
 
 	<main>
-		<!-- Hero + supported agents band share one shader stage so the warm glow
-		     runs continuously from the floating header through the 'Works with' band. -->
+		<!-- Hero and demo share one shader stage so the warm glow stays continuous
+		     from the floating header through the first screen. -->
 		<div class="relative isolate overflow-hidden">
 			<HeroShaderStage heightClass="h-full" />
 
 			<!-- Hero Section — centered headline + CTA, demo below -->
-			<section class="relative z-10 px-4 pt-36 pb-16 md:px-6 md:pt-44 md:pb-20">
+			<section class="relative z-10 px-4 pt-36 pb-24 md:px-6 md:pt-42 md:pb-32">
 				<div class="mx-auto flex w-full max-w-4xl flex-col items-center text-center">
-					<h1 class="mb-6 text-balance text-5xl leading-[1.02] font-semibold tracking-[-0.035em] text-foreground md:text-[76px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
-						{"The Agentic Developer"}
-						<br class="hidden md:block" />
-						{"Environment"}
+					<div class="mb-7 flex flex-col items-center gap-4">
+						<div class="flex items-center gap-3">
+							<span class="h-px w-10 bg-border/60"></span>
+							<span class="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
+								{"Works with"}
+							</span>
+							<span class="h-px w-10 bg-border/60"></span>
+						</div>
+						<AgentIconsRow size={22} />
+					</div>
+
+					<h1 class="mb-5 text-[30px] leading-[1.16] font-semibold tracking-[0.055em] text-foreground md:text-[56px] [text-shadow:0_1px_30px_rgba(0,0,0,0.45)]">
+						{"The Agentic"}
+						<br />
+						{"Developer Environment"}
 					</h1>
 
-					<p class="mb-10 max-w-[620px] text-pretty text-base leading-[1.55] text-muted-foreground md:text-[19px]">
+					<p class="mb-12 max-w-[680px] tracking-[0.045em] text-base leading-[1.5] text-muted-foreground md:text-[18px]">
 						{"One native workspace for every coding agent. Run them in parallel, review every change, and ship from plan to PR without leaving the window."}
 					</p>
 
-					<div class="flex flex-col items-center gap-3 sm:flex-row">
+					<div class="flex flex-col items-center gap-2.5 sm:flex-row">
 						<PillButton
 							href="/download"
 							variant="invert"
 							size="default"
-							class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
+							class="h-12 py-1.5 pr-1.5 pl-6"
 						>
 							{"Download for macOS"}
 							{#snippet trailingIcon()}
@@ -431,41 +456,29 @@ const features = [
 				<!-- Demo — below the hero, centered. Hidden below lg: on phone widths
 				     the multi-panel UI is unreadable and the hero works better as a
 				     focused headline + CTA. -->
-				<div class="hero-demo relative mx-auto mt-20 hidden w-full max-w-[1200px] lg:block">
+				<div class="hero-demo relative mx-auto mt-24 hidden w-full max-w-[1320px] lg:block">
 					<div class="hero-demo-stage mx-auto">
 						<FeatureShowcase />
 					</div>
 				</div>
 			</section>
-
-			<!-- Supported agents band -->
-			<section class="relative z-10 px-4 pb-24 md:px-6 md:pb-28">
-				<div class="mx-auto flex max-w-4xl flex-col items-center">
-					<div class="mb-5 flex items-center gap-3">
-						<span class="h-px w-10 bg-border/60"></span>
-						<span class="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/80">
-							{"Works with"}
-						</span>
-						<span class="h-px w-10 bg-border/60"></span>
-					</div>
-					<AgentIconsRow size={30} />
-				</div>
-			</section>
 		</div>
 
 		<!-- What is an ADE? -->
-		<section class="border-t border-border/50 px-4 py-24 md:px-6 md:py-32">
+		<section class="border-t border-border/50 px-4 pt-24 pb-24 md:px-6 md:pt-32 md:pb-32">
 			<div class="mx-auto max-w-4xl">
 				<div class="mb-16 flex flex-col items-center text-center">
 					<div class="mb-5 flex items-center gap-2">
 						<span class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">//</span>
 						<span class="font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground">The new paradigm</span>
 					</div>
-					<h2 class="mb-6 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[40px]">
+					<h2 class="mb-4 text-2xl leading-[1.2] font-semibold tracking-[-0.03em] md:text-[40px]">
 						{"Why an ADE?"}
 					</h2>
 					<p class="max-w-[640px] text-[15px] leading-[1.7] text-muted-foreground md:text-[17px]">
-						{"Every new agent is another terminal window, another scrollback buffer, another thing to manually track. An ADE collapses all of that into one workspace."}
+						{"More agents means more windows to manage."}
+						<br />
+						{"An ADE brings them into one workspace."}
 					</p>
 				</div>
 
@@ -477,7 +490,7 @@ const features = [
 						</div>
 						<h3 class="mb-2 text-sm font-semibold">{"Run any agent, in parallel"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{"Claude Code, Codex, Cursor Agent, OpenCode, all in one window. Start multiple agents on separate tasks and switch between them with ⌘L."}
+							{"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Switch tasks with ⌘L."}
 						</p>
 					</div>
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
@@ -486,7 +499,7 @@ const features = [
 						</div>
 						<h3 class="mb-2 text-sm font-semibold">{"See what every agent is doing"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{"Each session shows its agent, project color, and live status at a glance. The attention queue surfaces what needs you. Plans, todos, file diffs, and code all render cleanly inside the app."}
+							{"See agent, project, and status at a glance. Plans, todos, diffs, and code stay readable."}
 						</p>
 					</div>
 					<div class="feature-card rounded-xl border border-border/50 bg-card/20 p-6">
@@ -495,7 +508,7 @@ const features = [
 						</div>
 						<h3 class="mb-2 text-sm font-semibold">{"Revert, checkpoint, intervene"}</h3>
 						<p class="text-[13px] leading-relaxed text-muted-foreground">
-							{"Checkpoints snapshot your files after every tool run, so you can revert a single file or a whole session. Review plans before the agent acts on them, and intervene mid-task if something looks wrong."}
+							{"Checkpoint every tool run, revert a file or session, and step in whenever needed."}
 						</p>
 					</div>
 				</div>
@@ -557,7 +570,7 @@ const features = [
 									class:md:border-l={i % 2 === 0}
 									style="border-color: var(--border-color-half, rgba(255,255,255,0.05));"
 								>
-									<div class="showcase w-full max-w-sm">
+									<div class="showcase w-full max-w-lg">
 										{#if feature.id === "multi-agent"}
 											<AgentSelectionGrid agents={mockGridAgents} selectedAgentId="claude-code" />
 										{:else if feature.id === "parallel"}
@@ -843,33 +856,25 @@ const features = [
 <DevShaderSwitcher />
 
 <style>
-	.hero-demo {
-		/* Let the product UI render at its natural width, then scale to fit */
-	}
-	.hero-demo-stage {
-		filter: grayscale(1);
-		transition: filter 0.4s ease;
-	}
-	.hero-demo-stage:hover {
-		filter: grayscale(0);
-	}
 	@media (min-width: 1024px) {
 		.hero-demo-stage {
-			width: 1100px;
+			width: 1220px;
 			transform-origin: top center;
-			transform: scale(0.72);
+			transform: scale(0.94);
 			/* reclaim the empty space left behind by the scale so layout stays tight */
-			margin-bottom: calc(-1 * (1100px * 0.28) * (500 / 1100));
+			margin-bottom: calc(-1 * (1220px * 0.06) * (500 / 1100));
 		}
 	}
 	@media (min-width: 1280px) {
 		.hero-demo-stage {
-			transform: scale(0.82);
+			transform: scale(1);
+			margin-bottom: 0;
 		}
 	}
 	@media (min-width: 1440px) {
 		.hero-demo-stage {
-			transform: scale(0.9);
+			transform: scale(1.04);
+			margin-bottom: calc(-1 * (1220px * 0.04) * (500 / 1100));
 		}
 	}
 
@@ -884,12 +889,12 @@ const features = [
 
 	.plan-showcase,
 	.checkpoint-showcase {
-		transform: scale(0.92);
+		transform: scale(1);
 		transform-origin: center center;
 	}
 
 	.queue-showcase {
-		width: 70%;
+		width: 90%;
 		margin: 0 auto;
 	}
 

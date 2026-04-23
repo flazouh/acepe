@@ -1,7 +1,7 @@
 <script lang="ts">
-import {
-	AgentInputAutonomousToggle,
-	AgentInputConfigOptionSelector,
+	import {
+		AgentInputAutonomousToggle,
+		AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
 	AgentInputMetricsChip,
@@ -11,35 +11,24 @@ import {
 	AgentInputToolbar,
 	AgentPanelDeck,
 	AgentPanelComposer,
-	AgentPanelComposerFrame,
-	AgentPanelErrorCard,
-	AgentPanelFooter,
-	AgentPanelInstallCard,
-	AgentPanelModifiedFileRow,
-	AgentPanelModifiedFilesHeader,
+		AgentPanelComposerFrame,
+		AgentPanelFooter,
+		AgentPanelStatusIcon,
+		AgentPanelModifiedFileRow,
+		AgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls,
-	AgentPanelPermissionBar,
-	AgentPanelPermissionBarActions,
-	AgentPanelPermissionBarIcon,
-	AgentPanelPermissionBarProgress,
 	AgentPanelPlanHeader,
 	AgentPanelPrCard,
-	AgentPanelQueueCardStrip,
 	AgentPanelScene,
 	AgentPanelTerminalDrawer,
-	AgentPanelTodoHeader,
-	AgentPanelWorktreeSetupCard,
 } from "@acepe/ui";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import type {
 	AgentPanelModifiedFileItem,
 	AgentPanelModifiedFilesTrailingModel,
 	AgentPanelPrCardModel,
-	AgentPanelQueuedMessage,
 	AgentPanelSceneModel,
-	AgentTodoItem,
 } from "@acepe/ui/agent-panel";
-import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -216,72 +205,26 @@ function createTaskEntry(params: {
 	};
 }
 
-function createReviewQueueConversation(): DemoConversationEntry[] {
+function createRemoveEffectConversation(): DemoConversationEntry[] {
 	return [
 		createUserEntry(
 			"composer-primary-user",
-			"Tighten the review queue so the shared agent panel stops drifting between desktop and website."
+			"There's a $effect in session-list.svelte syncing scroll position — replace it with a derived + action pattern."
 		),
 		{
-			id: "composer-primary-todos",
+			id: "composer-primary-read",
 			type: "tool_call",
-			title: "Todo",
-			status: "running",
-			todos: [
-				{
-					content: "Trace shared footer and deck ownership",
-					activeForm: "Tracing shared footer and deck ownership",
-					status: "completed",
-				},
-				{
-					content: "Move layout parity into @acepe/ui",
-					activeForm: "Moving layout parity into @acepe/ui",
-					status: "completed",
-				},
-				{
-					content: "Verify homepage showcase spacing",
-					activeForm: "Verifying homepage showcase spacing",
-					status: "in_progress",
-				},
-			],
-		},
-		{
-			id: "composer-primary-search",
-			type: "tool_call",
-			kind: "search",
-			title: "Search",
-			subtitle: "shared panel surfaces",
-			query: "AgentPanelDeck AgentPanelFooter AgentPanelComposerFrame",
-			searchPath: "packages",
-			searchFiles: [
-				"packages/ui/src/components/agent-panel/agent-panel-deck.svelte",
-				"packages/ui/src/components/agent-panel/agent-panel-footer.svelte",
-				"packages/website/src/lib/components/agent-panel-demo.svelte",
-			],
-			searchResultCount: 3,
+			kind: "read",
+			title: "Read",
+			filePath: "packages/desktop/src/lib/components/session-list.svelte",
 			status: "done",
 		},
 		{
-			id: "composer-primary-web-search",
+			id: "composer-primary-edit",
 			type: "tool_call",
-			kind: "web_search",
-			title: "Web search",
-			subtitle: "homepage panel parity examples",
-			query: "agent panel parity extraction shared ui",
-			webSearchSummary:
-				"Found references to the extracted panel deck, composer frame, and footer parity work across the project documentation.",
-			webSearchLinks: [
-				{
-					title: "Acepe docs",
-					url: "https://acepe.dev/docs/panel-parity",
-					domain: "acepe.dev",
-				},
-				{
-					title: "Shared panel extraction notes",
-					url: "https://acepe.dev/changelog/shared-panel-extraction",
-					domain: "acepe.dev",
-				},
-			],
+			kind: "edit",
+			title: "Edit",
+			filePath: "packages/desktop/src/lib/components/session-list.svelte",
 			status: "done",
 		},
 		{
@@ -289,114 +232,107 @@ function createReviewQueueConversation(): DemoConversationEntry[] {
 			type: "tool_call",
 			kind: "execute",
 			title: "Run",
-			command: "cd packages/website && bun run check",
+			command: "cd packages/desktop && bun run check",
 			stdout: "svelte-check found 0 errors and 0 warnings",
 			exitCode: 0,
 			status: "done",
 		},
 		createAssistantEntry(
 			"composer-primary-assistant",
-			"Pulled the shared panel rail and composer frame into `@acepe/ui`, then removed the website-only footer drift.\n\nNow I’m checking the remaining spacing deltas before we call the extraction complete.",
-			true
+			"Replaced the `$effect` with a `scrollToBottom` action driven by a `$derived` count:\n\n```ts\n// before\n$effect(() => {\n  if (entries.length)\n    el.scrollTop = el.scrollHeight;\n});\n\n// after\nlet count = $derived(entries.length);\n```\n```svelte\n<div use:scrollToBottom={count} ...>\n```\n\nThe action fires only when `count` changes and doesn't read reactive state inside an effect body."
 		),
 	];
 }
 
-function createAuditConversation(): DemoConversationEntry[] {
+function createKeyboardNavConversation(): DemoConversationEntry[] {
 	return [
 		createUserEntry(
 			"composer-verify-user",
-			"Trace the remaining parity gaps before we ship the homepage showcase."
+			"Wire ⌘[ and ⌘] to cycle between panels — only ⌘L is bound right now."
 		),
-		createTaskEntry({
-			id: "composer-verify-task",
-			description: "Run parity review subagent",
-			prompt:
-				"Review the shared panel extraction and surface only the remaining parity regressions between desktop and website.",
-			resultText:
-				"Flagged two issues: the shared shell still removed the right border outside fullscreen, and the website composer placeholder drifted from desktop copy.",
-			status: "done",
-			children: [
-				{
-					id: "composer-verify-task-search",
-					type: "tool_call",
-					kind: "search",
-					title: "Search",
-					subtitle: "panel parity regression",
-					query: "border-r-0 placeholder panel composer",
-					searchPath: "packages",
-					searchFiles: [
-						"packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
-						"packages/website/src/lib/components/agent-panel-demo.svelte",
-					],
-					searchResultCount: 2,
-					status: "done",
-				},
-				{
-					id: "composer-verify-task-read",
-					type: "tool_call",
-					kind: "read",
-					title: "Read",
-					filePath: "packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
-					status: "done",
-				},
-				{
-					id: "composer-verify-task-edit",
-					type: "tool_call",
-					kind: "edit",
-					title: "Edit",
-					filePath: "packages/website/src/lib/components/agent-panel-demo.svelte",
-					status: "done",
-				},
-			],
-		}),
 		{
-			id: "composer-verify-lints",
+			id: "composer-verify-search",
 			type: "tool_call",
-			title: "Read lints",
-			status: "done",
-			lintDiagnostics: [
-				{
-					filePath: "packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
-					line: 52,
-					message: "right border is suppressed outside fullscreen mode",
-					severity: "warning",
-				},
-				{
-					filePath: "packages/website/src/lib/components/agent-panel-demo.svelte",
-					line: 78,
-					message: "placeholder copy diverges from the desktop composer",
-					severity: "warning",
-				},
+			kind: "search",
+			title: "Search",
+			subtitle: "keyboard handler",
+			query: "keydown meta panel focus",
+			searchPath: "packages/desktop/src",
+			searchFiles: [
+				"packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
+				"packages/desktop/src/lib/stores/panel-focus-store.ts",
 			],
+			searchResultCount: 2,
+			status: "done",
+		},
+		{
+			id: "composer-verify-read",
+			type: "tool_call",
+			kind: "read",
+			title: "Read",
+			filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
+			status: "done",
+		},
+		{
+			id: "composer-verify-edit",
+			type: "tool_call",
+			kind: "edit",
+			title: "Edit",
+			filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
+			status: "done",
+		},
+		{
+			id: "composer-verify-execute",
+			type: "tool_call",
+			kind: "execute",
+			title: "Run",
+			command: "cd packages/desktop && bun test panel-keyboard",
+			stdout: "PASS  panel-keyboard-handler › cycles panels with ⌘[ and ⌘]",
+			exitCode: 0,
+			status: "done",
 		},
 		createAssistantEntry(
 			"composer-verify-assistant",
-			"Found the last two regressions:\n\n1. the shared shell was still removing the right border in non-fullscreen mode\n2. the website composer placeholder was drifting from desktop copy\n\nBoth are now mapped back to the shared panel surfaces."
+			"Added `⌘[` / `⌘]` to `panel-keyboard-handler.ts`:\n\n```ts\ncase \"[\":\n  if (meta) { focusPrev(); return true; }\n  break;\ncase \"]\":\n  if (meta) { focusNext(); return true; }\n  break;\n```\n\nBoth shortcuts respect the existing `keyboardDisabled` guard and are no-ops when a text input is focused."
 		),
 	];
 }
 
-function createReleaseNotesConversation(): DemoConversationEntry[] {
+function createNarrowStatusConversation(): DemoConversationEntry[] {
 	return [
 		createUserEntry(
 			"composer-polish-user",
-			"Draft tighter release notes for the extracted panel primitives."
+			"The status prop on AgentPanelHeader still accepts string — narrow it to the AgentStatus union before the public export."
 		),
 		{
-			id: "composer-polish-fetch",
+			id: "composer-polish-read",
 			type: "tool_call",
-			kind: "fetch",
-			title: "Fetch",
-			subtitle: "acepe.dev",
-			url: "https://acepe.dev/changelog",
-			resultText:
-				"Current notes mention composer extraction but omit the shared deck, footer parity fixes, and homepage showcase alignment.",
+			kind: "read",
+			title: "Read",
+			filePath: "packages/ui/src/components/agent-panel/types.ts",
+			status: "done",
+		},
+		{
+			id: "composer-polish-edit",
+			type: "tool_call",
+			kind: "edit",
+			title: "Edit",
+			filePath: "packages/ui/src/components/agent-panel/types.ts",
+			status: "done",
+		},
+		{
+			id: "composer-polish-execute",
+			type: "tool_call",
+			kind: "execute",
+			title: "Run",
+			command: "cd packages/desktop && bun run check",
+			stdout: "svelte-check found 0 errors and 0 warnings",
+			exitCode: 0,
 			status: "done",
 		},
 		createAssistantEntry(
 			"composer-polish-assistant",
-			"### Agent panel extraction\n- moved the shared panel deck into `@acepe/ui`\n- restored footer parity between desktop and website\n- aligned composer framing, placeholder copy, and shell chrome across both surfaces"
+			"Replaced `string` with the `AgentStatus` union in `types.ts`:\n\n```ts\nexport type AgentStatus =\n  | \"empty\"\n  | \"connected\"\n  | \"running\"\n  | \"idle\"\n  | \"done\"\n  | \"error\";\n```\n\nAll 4 call sites already pass a valid member — the type check now proves it."
 		),
 	];
 }
@@ -406,23 +342,23 @@ function createReleaseNotesConversation(): DemoConversationEntry[] {
 const demoModifiedFiles: readonly AgentPanelModifiedFileItem[] = [
 	{
 		id: "f1",
-		filePath: "packages/ui/src/components/agent-panel/agent-panel-shell.svelte",
-		additions: 12,
-		deletions: 3,
+		filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
+		additions: 14,
+		deletions: 2,
 		reviewStatus: "accepted",
 	},
 	{
 		id: "f2",
-		filePath: "packages/ui/src/components/agent-panel/agent-panel-footer.svelte",
-		additions: 28,
-		deletions: 2,
+		filePath: "packages/desktop/src/lib/stores/panel-focus-store.ts",
+		additions: 6,
+		deletions: 0,
 		reviewStatus: "partial",
 	},
 	{
 		id: "f3",
-		filePath: "packages/website/src/lib/components/agent-panel-demo.svelte",
-		additions: 8,
-		deletions: 1,
+		filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.test.ts",
+		additions: 22,
+		deletions: 0,
 	},
 ];
 
@@ -434,65 +370,33 @@ const demoModifiedFilesTrailing: AgentPanelModifiedFilesTrailingModel = {
 	totalCount: 3,
 };
 
-const demoTodoItems: readonly AgentTodoItem[] = [
-	{
-		content: "Trace shared footer and deck ownership",
-		activeForm: "Tracing footer ownership",
-		status: "completed",
-		duration: 4200,
-	},
-	{
-		content: "Move layout parity into @acepe/ui",
-		activeForm: "Moving layout parity",
-		status: "completed",
-		duration: 8100,
-	},
-	{
-		content: "Verify homepage showcase spacing",
-		activeForm: "Verifying showcase spacing",
-		status: "in_progress",
-	},
-	{ content: "Run final type check", activeForm: "Running type check", status: "pending" },
-];
-
-const demoCurrentTask: AgentTodoItem = demoTodoItems[2];
-
-const demoQueueMessages: readonly AgentPanelQueuedMessage[] = [
-	{
-		id: "q1",
-		content: "Also update the README with the new API docs",
-		attachmentCount: 0,
-		attachments: [],
-	},
-	{
-		id: "q2",
-		content: "Run the test suite after those changes",
-		attachmentCount: 1,
-		attachments: [{ id: "qa1", displayName: "screenshot.png", extension: "png", kind: "image" }],
-	},
-];
-
 const demoPrCardModel: AgentPanelPrCardModel = {
 	mode: "pr",
-	number: 128,
-	title: "fix: agent panel shell layout",
+	number: 171,
+	title: "feat(desktop): add ⌘[ / ⌘] panel navigation",
 	state: "OPEN",
-	additions: 54,
-	deletions: 63,
+	additions: 42,
+	deletions: 2,
 	descriptionHtml:
-		"<p>Makes card backgrounds opaque and uses preComposer slot for card placement.</p>",
+		"<p>Adds <code>⌘[</code> and <code>⌘]</code> shortcuts to cycle between panels. Respects the keyboard-disabled guard and ignores events inside text inputs.</p>",
 	commits: [
 		{
-			sha: "e965d5c",
-			message: "style(ui): make card backgrounds opaque",
-			insertions: 12,
-			deletions: 8,
+			sha: "a3f91c2",
+			message: "feat: add focusPrev/focusNext to panel-focus-store",
+			insertions: 6,
+			deletions: 0,
 		},
 		{
-			sha: "d079f81",
-			message: "feat(website): wire remaining components into demo",
-			insertions: 42,
-			deletions: 55,
+			sha: "b7e04d1",
+			message: "feat: wire ⌘[ / ⌘] in panel-keyboard-handler",
+			insertions: 14,
+			deletions: 2,
+		},
+		{
+			sha: "c2d18a0",
+			message: "test: panel-keyboard-handler cycles panels",
+			insertions: 22,
+			deletions: 0,
 		},
 	],
 };
@@ -526,7 +430,7 @@ function getPanelStatus(panel: DemoPanel): DemoPanel["status"] {
 let panels = $state<DemoPanel[]>([
 	{
 		id: "composer-primary",
-		title: "Unblock review queue",
+		title: "Remove $effect from session list",
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
@@ -564,13 +468,13 @@ let panels = $state<DemoPanel[]>([
 		micTitle: "Record with Claude",
 		browserActive: false,
 		terminalActive: false,
-		conversationEntries: createReviewQueueConversation(),
+		conversationEntries: createRemoveEffectConversation(),
 		draftText: "",
 		editorRef: null,
 	},
 	{
 		id: "composer-verify",
-		title: "Audit panel regressions",
+		title: "Add ⌘[ / ⌘] panel navigation",
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
@@ -608,13 +512,13 @@ let panels = $state<DemoPanel[]>([
 		micTitle: "Record with Codex",
 		browserActive: true,
 		terminalActive: false,
-		conversationEntries: createAuditConversation(),
+		conversationEntries: createKeyboardNavConversation(),
 		draftText: "",
 		editorRef: null,
 	},
 	{
 		id: "composer-polish",
-		title: "Polish release notes flow",
+		title: "Narrow AgentStatus to a union type",
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
@@ -652,7 +556,7 @@ let panels = $state<DemoPanel[]>([
 		micTitle: "Record with Cursor",
 		browserActive: false,
 		terminalActive: true,
-		conversationEntries: createReleaseNotesConversation(),
+		conversationEntries: createNarrowStatusConversation(),
 		draftText: "",
 		editorRef: null,
 	},
@@ -825,7 +729,7 @@ function handleSubmit(panel: DemoPanel): void {
 					<AgentPanelComposer
 						class="border-t-0 p-0"
 						inputClass="flex-shrink-0 border border-border bg-input/30"
-						contentClass="p-3"
+						contentClass="p-4 py-4"
 					>
 						{#snippet content()}
 							<AgentInputEditor
@@ -913,7 +817,7 @@ function handleSubmit(panel: DemoPanel): void {
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
 						{#snippet headerControls()}
-							<AgentPanelStatusIcon status={getPanelStatus(panel)} />
+							<AgentPanelStatusIcon status={panel.status} />
 							<OverflowMenuTriggerAction title="More actions" />
 							<FullscreenAction isFullscreen={false} onToggle={noop} />
 							<CloseAction onClose={noop} />
@@ -931,42 +835,8 @@ function handleSubmit(panel: DemoPanel): void {
 						{/snippet}
 						{#snippet preComposerOverride()}
 							<div class="flex flex-col gap-1 px-5 pb-1">
-								{#if panel.id === "composer-primary"}
-									<AgentPanelPermissionBar
-										verb="Edit"
-										filePath="packages/ui/src/components/agent-panel/agent-panel-shell.svelte"
-										hasProgress={true}
-									>
-										{#snippet leading()}
-											<AgentPanelPermissionBarIcon kind="edit" />
-										{/snippet}
-										{#snippet progress()}
-											<AgentPanelPermissionBarProgress completed={1} total={3} />
-										{/snippet}
-										{#snippet actionBar()}
-											<AgentPanelPermissionBarActions
-												onAllow={() => {}}
-												onDeny={() => {}}
-												onAlwaysAllow={() => {}}
-												showAlwaysAllow={true}
-											/>
-										{/snippet}
-									</AgentPanelPermissionBar>
-									<AgentPanelWorktreeSetupCard
-										visible={true}
-										title="Worktree"
-										summary="Setting up review worktree"
-										details="Cloning to ../acepe-panel-parity on branch fix/panel-parity"
-										tone="running"
-									/>
-									<AgentPanelInstallCard
-										title="Installing"
-										summary="Claude Code v1.2.3"
-										details="Downloading binary…"
-										progressPercent={42}
-									/>
-								{:else if panel.id === "composer-verify"}
-									<AgentPanelModifiedFilesHeader visible={true}>
+								{#if panel.id === "composer-verify"}
+									<AgentPanelModifiedFilesHeader visible={true} initiallyExpanded={false}>
 										{#snippet leadingContent()}
 											<span class="pl-2 text-[10px] font-medium text-muted-foreground">3 files changed</span>
 										{/snippet}
@@ -982,36 +852,7 @@ function handleSubmit(panel: DemoPanel): void {
 									<AgentPanelPrCard
 										visible={true}
 										model={demoPrCardModel}
-									/>
-									<AgentPanelTodoHeader
-										items={demoTodoItems}
-										currentTask={demoCurrentTask}
-										completedCount={2}
-										totalCount={4}
-										isLive={true}
-										allCompletedLabel="All tasks completed"
-										pausedLabel="Tasks paused"
-									/>
-								{:else if panel.id === "composer-polish"}
-									<AgentPanelErrorCard
-										title="Connection error"
-										summary="Failed to connect to agent"
-										details="ECONNREFUSED 127.0.0.1:3000 — the agent process may have crashed. Check logs for details."
-										onRetry={() => {}}
-										onDismiss={() => {}}
-									/>
-									<AgentPanelQueueCardStrip
-										messages={demoQueueMessages}
-										isPaused={false}
-										queueLabel="Queued"
-										pausedLabel="Paused"
-										resumeLabel="Resume"
-										clearLabel="Clear"
-										sendLabel="Send"
-										cancelLabel="Cancel"
-										onCancel={() => {}}
-										onClear={() => {}}
-										onSendNow={() => {}}
+										initiallyExpanded={false}
 									/>
 								{/if}
 							</div>
