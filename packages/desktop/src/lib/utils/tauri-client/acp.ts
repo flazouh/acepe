@@ -5,6 +5,7 @@ import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
 import type { SessionStateEnvelope } from "../../services/acp-types.js";
+import type { ResolvedCapabilities } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { ACP_PREFIX } from "./commands.js";
 import { invokeAsync } from "./invoke.js";
@@ -35,6 +36,16 @@ export const acp = {
 		return acpCommands.list_preconnection_commands.invoke<
 			Array<{ name: string; description: string; input?: { hint: string } | null }>
 		>({ cwd, agentId });
+	},
+
+	listPreconnectionCapabilities: (
+		cwd: string,
+		agentId: string
+	): ResultAsync<ResolvedCapabilities, AppError> => {
+		return invokeAsync(`${ACP_PREFIX}list_preconnection_capabilities`, {
+			cwd,
+			agentId,
+		}) as ResultAsync<ResolvedCapabilities, AppError>;
 	},
 
 	resumeSession: (

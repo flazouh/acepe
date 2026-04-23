@@ -1,7 +1,11 @@
 use super::super::provider::{
     command_exists, AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
+use crate::acp::capability_resolution::{
+    failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
+};
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::client::codex_native_config::load_codex_native_config_state;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
@@ -78,6 +82,35 @@ impl AgentProvider for CodexProvider {
                         .await
                 }
                 None => Ok(Vec::new()),
+            }
+        })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let effective_cwd = cwd
+                .map(PathBuf::from)
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            match load_codex_native_config_state(effective_cwd.as_path()) {
+                Ok(state) => match resolve_static_capabilities(
+                    self,
+                    effective_cwd.as_path(),
+                    ResolvedCapabilityStatus::Resolved,
+                    crate::acp::client::codex_native_config::build_codex_native_session_model_state_with_state(
+                        &state,
+                    ),
+                    crate::acp::client_session::default_modes(),
+                ) {
+                    Ok(capabilities) => capabilities,
+                    Err(error) => failed_capabilities(self, error.to_string()),
+                },
+                Err(error) => failed_capabilities(self, error.to_string()),
             }
         })
     }

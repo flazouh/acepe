@@ -17,6 +17,7 @@ export const COMMANDS = {
     "get_event_bridge_info": "acp_get_event_bridge_info",
     "get_session_state": "acp_get_session_state",
     "list_agents": "acp_list_agents",
+    "list_preconnection_capabilities": "acp_list_preconnection_capabilities",
     "list_preconnection_commands": "acp_list_preconnection_commands",
     "install_agent": "acp_install_agent",
     "uninstall_agent": "acp_uninstall_agent",

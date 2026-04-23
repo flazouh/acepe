@@ -1,6 +1,8 @@
 use super::*;
 use crate::acp::client::session_lifecycle::reconnect_policy_for_provider;
-use crate::acp::client_session::default_modes;
+use crate::acp::client_session::{
+    apply_provider_model_fallback, default_modes, parse_model_discovery_output,
+};
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::{InteractionState, ProjectionRegistry};
@@ -304,18 +306,67 @@ fn provider_owned_model_presentation_metadata_matches_provider_contract() {
     );
 }
 
-#[test]
-fn session_lifecycle_uses_provider_owned_model_presentation_contract() {
-    let source = include_str!("session_lifecycle.rs");
-    let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
+#[tokio::test]
+async fn session_lifecycle_uses_provider_owned_model_presentation_contract() {
+    let provider = TestProvider { id: "codex" };
+    let cwd = std::env::current_dir().expect("current dir should be available");
+    let models = crate::acp::client::SessionModelState {
+        available_models: vec![crate::acp::client::AvailableModel {
+            model_id: "gpt-5".to_string(),
+            name: "gpt-5".to_string(),
+            description: None,
+        }],
+        current_model_id: "gpt-5".to_string(),
+        models_display: ModelsForDisplay::default(),
+        provider_metadata: None,
+    };
 
-    assert!(
-        production_source.contains("provider.model_presentation_metadata()"),
-        "session lifecycle should use provider-owned model presentation metadata"
+    let resolved = crate::acp::capability_resolution::resolve_live_capabilities(
+        &provider,
+        &cwd,
+        models,
+        default_modes(),
+    )
+    .await
+    .expect("live capability resolution should succeed");
+
+    let expected = crate::acp::model_display::build_models_for_display(
+        &resolved.available_models,
+        provider.model_presentation_metadata(),
     );
-    assert!(
-        !production_source.contains("provider_capabilities(agent_type)"),
-        "session lifecycle should not reconstruct model presentation from parser agent type"
+
+    assert_eq!(resolved.models_display.presentation, expected.presentation);
+    assert_eq!(
+        resolved
+            .models_display
+            .groups
+            .iter()
+            .map(|group| {
+                (
+                    group.label.clone(),
+                    group
+                        .models
+                        .iter()
+                        .map(|model| (model.model_id.clone(), model.display_name.clone()))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        expected
+            .groups
+            .iter()
+            .map(|group| {
+                (
+                    group.label.clone(),
+                    group
+                        .models
+                        .iter()
+                        .map(|model| (model.model_id.clone(), model.display_name.clone()))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        "session lifecycle should use provider-owned model presentation metadata"
     );
 }
 

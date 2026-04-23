@@ -20,15 +20,14 @@ use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
 };
 use crate::acp::client_session::{
-    apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
-    SessionModelState,
+    default_modes, default_session_model_state, AvailableModel, SessionModelState,
 };
+use crate::acp::capability_resolution::{resolve_static_capabilities, ResolvedCapabilityStatus};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::model_display::build_models_for_display;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
@@ -36,7 +35,6 @@ use crate::acp::projections::{
 };
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::runtime_resolver::resolve_effective_runtime;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
@@ -1383,17 +1381,29 @@ impl ClaudeCcSdkClient {
                 model_state.current_model_id = model.model_id.clone();
             }
         }
-
-        apply_provider_model_fallback(self.provider.as_ref(), &mut model_state);
-        crate::acp::client_session::apply_provider_metadata(
+        let cwd = self
+            .current_cwd
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("."));
+        let status = if model_state.available_models.is_empty() {
+            ResolvedCapabilityStatus::Partial
+        } else {
+            ResolvedCapabilityStatus::Resolved
+        };
+        if let Ok(resolved_capabilities) = resolve_static_capabilities(
             self.provider.as_ref(),
-            &mut model_state,
-        );
-
-        model_state.models_display = build_models_for_display(
-            &model_state.available_models,
-            self.provider.model_presentation_metadata(),
-        );
+            cwd.as_path(),
+            status,
+            model_state.clone(),
+            default_modes(),
+        ) {
+            model_state = SessionModelState {
+                available_models: resolved_capabilities.available_models,
+                current_model_id: resolved_capabilities.current_model_id,
+                models_display: resolved_capabilities.models_display,
+                provider_metadata: Some(resolved_capabilities.provider_metadata),
+            };
+        }
 
         tracing::info!(
             provider = %self.provider.id(),
@@ -1410,76 +1420,15 @@ impl ClaudeCcSdkClient {
     }
 
     async fn discover_models_from_provider_cli(&self) -> Vec<crate::acp::client::AvailableModel> {
-        let attempts = self.provider.model_discovery_commands();
-        if attempts.is_empty() {
-            return Vec::new();
-        }
-
-        for attempt in attempts {
-            let cwd = self
-                .current_cwd
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("."));
-            let runtime = resolve_effective_runtime(self.provider.id(), &cwd, &attempt, None);
-            tracing::info!(
-                provider = %self.provider.id(),
-                command = %runtime.command,
-                args = ?runtime.args,
-                "cc-sdk running provider model discovery command"
-            );
-
-            let mut command = tokio::process::Command::new(&runtime.command);
-            command.args(&runtime.args);
-            command.stdin(std::process::Stdio::null());
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-            command.current_dir(&runtime.cwd);
-
-            for (key, value) in &runtime.env {
-                command.env(key, value);
-            }
-
-            let output = match timeout(Duration::from_secs(10), command.output()).await {
-                Ok(Ok(output)) => output,
-                Ok(Err(error)) => {
-                    tracing::debug!(
-                        command = %runtime.command,
-                        args = ?runtime.args,
-                        error = %error,
-                        "Claude model discovery command failed"
-                    );
-                    continue;
-                }
-                Err(_) => {
-                    tracing::debug!(
-                        command = %runtime.command,
-                        args = ?runtime.args,
-                        "Claude model discovery command timed out"
-                    );
-                    continue;
-                }
-            };
-
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let mut models = crate::acp::client::parse_model_discovery_output(&stdout);
-
-            tracing::info!(
-                provider = %self.provider.id(),
-                status = ?output.status.code(),
-                stdout = %crate::acp::client_transport::truncate_for_log(&stdout, 512),
-                stderr = %crate::acp::client_transport::truncate_for_log(&stderr, 512),
-                parsed_model_ids = ?models.iter().map(|model| model.model_id.clone()).collect::<Vec<_>>(),
-                "cc-sdk provider model discovery result"
-            );
-
-            if !models.is_empty() {
-                models.sort_by(|a, b| a.model_id.cmp(&b.model_id));
-                return models;
-            }
-        }
-
-        Vec::new()
+        let cwd = self
+            .current_cwd
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("."));
+        crate::acp::capability_resolution::discover_models_from_provider_cli(
+            self.provider.as_ref(),
+            cwd.as_path(),
+        )
+        .await
     }
 
     async fn connect_pending_session_with_initial_prompt(

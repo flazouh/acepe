@@ -10,6 +10,7 @@ use tauri::AppHandle;
 
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::capability_resolution::ResolvedCapabilities;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
 use crate::acp::model_display::ModelPresentationMetadata;
@@ -180,6 +181,14 @@ pub enum PreconnectionSlashMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub enum PreconnectionCapabilityMode {
+    Unsupported,
+    StartupGlobal,
+    ProjectScoped,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct FrontendProviderProjection {
     pub provider_brand: &'static str,
     pub display_name: &'static str,
@@ -189,6 +198,7 @@ pub struct FrontendProviderProjection {
     pub default_alias: Option<&'static str>,
     pub reasoning_effort_support: bool,
     pub preconnection_slash_mode: PreconnectionSlashMode,
+    pub preconnection_capability_mode: PreconnectionCapabilityMode,
 }
 
 impl Default for FrontendProviderProjection {
@@ -202,6 +212,7 @@ impl Default for FrontendProviderProjection {
             default_alias: None,
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
+            preconnection_capability_mode: PreconnectionCapabilityMode::Unsupported,
         }
     }
 }
@@ -457,6 +468,24 @@ pub trait AgentProvider: Send + Sync {
         _cwd: Option<&'a Path>,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
         Box::pin(async { Ok(Vec::new()) })
+    }
+
+    /// Provider-owned capability loading before a session exists.
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        _cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = ResolvedCapabilities> + Send + 'a>> {
+        let provider_metadata = self.frontend_projection();
+        Box::pin(async move { ResolvedCapabilities {
+            status: crate::acp::capability_resolution::ResolvedCapabilityStatus::Unsupported,
+            available_models: Vec::new(),
+            current_model_id: String::new(),
+            models_display: Default::default(),
+            provider_metadata,
+            available_modes: Vec::new(),
+            current_mode_id: String::new(),
+        } })
     }
 
     /// Provider-owned hook for enriching parsed session updates before shared processing.

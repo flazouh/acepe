@@ -130,19 +130,23 @@ impl AcpClient {
             .provider
             .as_ref()
             .ok_or(AcpError::NoProviderConfigured)?;
-        response.modes = response.modes.normalize_with_provider(provider.as_ref());
-        self.hydrate_missing_models_for_provider(provider.as_ref(), &mut response.models)
-            .await;
-        apply_provider_model_fallback(provider.as_ref(), &mut response.models);
-        crate::acp::client_session::apply_provider_metadata(
+        let resolved_capabilities = crate::acp::capability_resolution::resolve_live_capabilities(
             provider.as_ref(),
-            &mut response.models,
-        );
-        provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
-        response.models.models_display = crate::acp::model_display::build_models_for_display(
-            &response.models.available_models,
-            provider.model_presentation_metadata(),
-        );
+            &self.cwd,
+            response.models,
+            response.modes,
+        )
+        .await?;
+        response.models = crate::acp::client::SessionModelState {
+            available_models: resolved_capabilities.available_models,
+            current_model_id: resolved_capabilities.current_model_id,
+            models_display: resolved_capabilities.models_display,
+            provider_metadata: Some(resolved_capabilities.provider_metadata),
+        };
+        response.modes = crate::acp::client::SessionModes {
+            current_mode_id: resolved_capabilities.current_mode_id,
+            available_modes: resolved_capabilities.available_modes,
+        };
         self.set_active_session_id(Some(response.session_id.clone()));
 
         tracing::info!(
@@ -242,23 +246,23 @@ impl AcpClient {
             .provider
             .as_ref()
             .ok_or(AcpError::NoProviderConfigured)?;
-        response.modes = response.modes.normalize_with_provider(provider.as_ref());
-        self.hydrate_missing_models_for_provider(provider.as_ref(), &mut response.models)
-            .await;
-        apply_provider_model_fallback(provider.as_ref(), &mut response.models);
-        crate::acp::client_session::apply_provider_metadata(
+        let resolved_capabilities = crate::acp::capability_resolution::resolve_live_capabilities(
             provider.as_ref(),
-            &mut response.models,
-        );
-        provider.apply_session_defaults(
             std::path::Path::new(cwd),
-            &mut response.models,
-            &mut response.modes,
-        )?;
-        response.models.models_display = crate::acp::model_display::build_models_for_display(
-            &response.models.available_models,
-            provider.model_presentation_metadata(),
-        );
+            response.models,
+            response.modes,
+        )
+        .await?;
+        response.models = crate::acp::client::SessionModelState {
+            available_models: resolved_capabilities.available_models,
+            current_model_id: resolved_capabilities.current_model_id,
+            models_display: resolved_capabilities.models_display,
+            provider_metadata: Some(resolved_capabilities.provider_metadata),
+        };
+        response.modes = crate::acp::client::SessionModes {
+            current_mode_id: resolved_capabilities.current_mode_id,
+            available_modes: resolved_capabilities.available_modes,
+        };
         self.set_active_session_id(Some(session_id.clone()));
 
         tracing::info!(
@@ -300,19 +304,23 @@ impl AcpClient {
             .provider
             .as_ref()
             .ok_or(AcpError::NoProviderConfigured)?;
-        response.modes = response.modes.normalize_with_provider(provider.as_ref());
-        self.hydrate_missing_models_for_provider(provider.as_ref(), &mut response.models)
-            .await;
-        apply_provider_model_fallback(provider.as_ref(), &mut response.models);
-        crate::acp::client_session::apply_provider_metadata(
+        let resolved_capabilities = crate::acp::capability_resolution::resolve_live_capabilities(
             provider.as_ref(),
-            &mut response.models,
-        );
-        provider.apply_session_defaults(&self.cwd, &mut response.models, &mut response.modes)?;
-        response.models.models_display = crate::acp::model_display::build_models_for_display(
-            &response.models.available_models,
-            provider.model_presentation_metadata(),
-        );
+            &self.cwd,
+            response.models,
+            response.modes,
+        )
+        .await?;
+        response.models = crate::acp::client::SessionModelState {
+            available_models: resolved_capabilities.available_models,
+            current_model_id: resolved_capabilities.current_model_id,
+            models_display: resolved_capabilities.models_display,
+            provider_metadata: Some(resolved_capabilities.provider_metadata),
+        };
+        response.modes = crate::acp::client::SessionModes {
+            current_mode_id: resolved_capabilities.current_mode_id,
+            available_modes: resolved_capabilities.available_modes,
+        };
         self.set_active_session_id(Some(response.session_id.clone()));
 
         tracing::info!(

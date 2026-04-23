@@ -7,7 +7,7 @@ use crate::acp::parsers::provider_capabilities::{
 use crate::acp::parsers::types::ParsedUsageTelemetry;
 use crate::acp::provider::{
     BackendIdentityPolicy, FrontendProviderProjection, FrontendVariantGroup, HistoryReplayFamily,
-    HistoryReplayPolicy, PlanAdapterPolicy, PreconnectionSlashMode,
+    HistoryReplayPolicy, PlanAdapterPolicy, PreconnectionCapabilityMode, PreconnectionSlashMode,
 };
 use crate::acp::providers::CustomAgentConfig;
 use crate::acp::registry::AgentRegistry;
@@ -42,6 +42,7 @@ static FUTURE_PROVIDER_CAPABILITIES: [ProviderCapabilities; 1] = [ProviderCapabi
         default_alias: None,
         reasoning_effort_support: false,
         preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
+        preconnection_capability_mode: PreconnectionCapabilityMode::Unsupported,
     },
     transport_family: TransportFamily::SharedChat,
     tool_vocabulary: ToolVocabulary::ClaudeCode,

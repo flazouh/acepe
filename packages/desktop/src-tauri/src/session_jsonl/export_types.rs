@@ -5,6 +5,7 @@ use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
 };
+use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
 use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
@@ -70,6 +71,8 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
+export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
+
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
 	displayName: string;
@@ -79,6 +82,7 @@ export type ProviderMetadataProjection = {
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
+	preconnectionCapabilityMode?: PreconnectionCapabilityMode;
 };
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
@@ -93,6 +97,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	copilot: {
 		providerBrand: "copilot",
@@ -103,6 +108,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	cursor: {
 		providerBrand: "cursor",
@@ -113,6 +119,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	opencode: {
 		providerBrand: "opencode",
@@ -123,6 +130,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	codex: {
 		providerBrand: "codex",
@@ -133,6 +141,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: true,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 };
 
@@ -148,6 +157,8 @@ function cloneProviderMetadataProjection(
 		defaultAlias: providerMetadata.defaultAlias,
 		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
+		preconnectionCapabilityMode:
+			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
 	};
 }
 
@@ -174,6 +185,7 @@ export function resolveProviderMetadataProjection(
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "unsupported",
+		preconnectionCapabilityMode: "unsupported",
 	};
 }
 
@@ -358,6 +370,8 @@ pub fn export_all_types() {
     export_acp_type!(ModelsForDisplay);
     export_acp_type!(SessionModelState);
     export_acp_type!(SessionModes);
+    export_acp_type!(ResolvedCapabilityStatus);
+    export_acp_type!(ResolvedCapabilities);
     export_acp_type!(ConfigOptionValue);
     export_acp_type!(ConfigOptionData);
     export_acp_type!(NewSessionResponse);

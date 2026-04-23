@@ -390,6 +390,47 @@ fn test_provider_response_filtering_logic() {
     assert_eq!(connected_model_count, 3);
 }
 
+/// Test provider default selection prefers connected-provider defaults over first fallback.
+#[test]
+fn test_provider_default_model_prefers_connected_defaults() {
+    let connected_set: std::collections::HashSet<&str> =
+        ["anthropic", "google"].into_iter().collect();
+    let provider_defaults = HashMap::from([
+        ("google".to_string(), "gemini-3-pro".to_string()),
+        ("anthropic".to_string(), "claude-sonnet-4-5".to_string()),
+    ]);
+    let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
+
+    let selected = OpenCodeHttpClient::get_provider_default_model(
+        &connected_set,
+        &provider_defaults,
+        fallback_model,
+    );
+
+    assert!(selected.is_some());
+    let selected_id = selected.expect("provider default model should resolve");
+    assert!(
+        selected_id == "anthropic/claude-sonnet-4-5" || selected_id == "google/gemini-3-pro",
+        "expected a connected-provider default, got {selected_id}"
+    );
+}
+
+/// Test provider default selection falls back to the first available model when needed.
+#[test]
+fn test_provider_default_model_falls_back_when_defaults_missing() {
+    let connected_set: std::collections::HashSet<&str> = ["anthropic"].into_iter().collect();
+    let provider_defaults = HashMap::new();
+    let fallback_model = Some(&"anthropic/claude-opus-4".to_string());
+
+    let selected = OpenCodeHttpClient::get_provider_default_model(
+        &connected_set,
+        &provider_defaults,
+        fallback_model,
+    );
+
+    assert_eq!(selected.as_deref(), Some("anthropic/claude-opus-4"));
+}
+
 /// Test convert_api_response_to_message with user message containing text
 #[test]
 fn test_convert_user_message_with_text() {

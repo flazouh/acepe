@@ -4,9 +4,8 @@ use crate::acp::client_loop::{
     StdoutLoopContext,
 };
 use crate::acp::client_rpc;
-use crate::acp::client_session::{apply_provider_model_fallback, parse_model_discovery_output};
 use crate::acp::client_trait::AgentClient;
-use crate::acp::client_transport::{drain_permissions_as_failed, truncate_for_log};
+use crate::acp::client_transport::drain_permissions_as_failed;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::permission_tracker::{PermissionTracker, WebSearchDedup};
 use crate::acp::provider::AgentProvider;
@@ -23,7 +22,6 @@ use std::sync::Arc as StdArc;
 use tauri::{AppHandle, Manager};
 use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{oneshot, Mutex};
-use tokio::time::{timeout, Duration};
 
 mod auth;
 pub mod cc_sdk_client;
@@ -32,7 +30,6 @@ pub mod codex_native_config;
 pub mod codex_native_events;
 pub mod forge_protocol;
 mod lifecycle;
-mod model_discovery;
 mod prompt_ops;
 mod replay_guard;
 mod rpc_io;

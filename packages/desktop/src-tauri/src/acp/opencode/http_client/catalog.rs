@@ -6,7 +6,7 @@ impl OpenCodeHttpClient {
     /// Helper function to get the provider default model ID.
     /// Uses the provider-reported defaults for connected providers,
     /// falling back to the first available model.
-    fn get_provider_default_model(
+    pub(super) fn get_provider_default_model(
         connected_set: &std::collections::HashSet<&str>,
         provider_defaults: &HashMap<String, String>,
         fallback_model: Option<&String>,
@@ -63,7 +63,7 @@ impl OpenCodeHttpClient {
     }
 
     /// Fetch available models from OpenCode's /provider endpoint.
-    pub(super) async fn fetch_available_models(&self) -> AcpResult<(Vec<AvailableModel>, String)> {
+    pub(crate) async fn fetch_available_models(&self) -> AcpResult<(Vec<AvailableModel>, String)> {
         let base_url = self.base_url().await?;
         let url = format!("{}/provider", base_url);
 

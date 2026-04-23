@@ -2,6 +2,9 @@ use super::super::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use super::opencode_settings::apply_opencode_session_defaults;
+use crate::acp::capability_resolution::{
+    failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
+};
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
@@ -19,6 +22,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Manager;
+use tokio::time::{timeout, Duration};
 
 /// OpenCode HTTP Agent Provider
 /// Uses HTTP REST API + SSE instead of ACP JSON-RPC
@@ -146,6 +150,64 @@ impl AgentProvider for OpenCodeProvider {
                 .list_preconnection_commands(cwd.to_string_lossy().to_string())
                 .await
                 .map_err(|error| error.to_string())
+        })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let Some(cwd) = cwd else {
+                return failed_capabilities(self, "OpenCode preconnection capabilities require cwd".to_string());
+            };
+
+            let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+            let start_result = timeout(Duration::from_secs(5), opencode_manager.get_or_start(cwd)).await;
+            let (project_key, manager) = match start_result {
+                Ok(Ok(result)) => result,
+                Ok(Err(error)) => return failed_capabilities(self, error.to_string()),
+                Err(_) => {
+                    return failed_capabilities(
+                        self,
+                        "Timed out while booting OpenCode runtime for capability loading".to_string(),
+                    )
+                }
+            };
+
+            let provider = Arc::new(OpenCodeProvider);
+            let client = match OpenCodeHttpClient::new(manager, project_key, provider) {
+                Ok(client) => client,
+                Err(error) => return failed_capabilities(self, error.to_string()),
+            };
+
+            match client.fetch_available_models().await {
+                Ok((available_models, current_model_id)) => {
+                    let models = SessionModelState {
+                        available_models,
+                        current_model_id,
+                        models_display: Default::default(),
+                        provider_metadata: Some(self.frontend_projection()),
+                    };
+                    let modes = SessionModes {
+                        current_mode_id: "build".to_string(),
+                        available_modes: crate::acp::client_session::default_modes().available_modes,
+                    };
+                    match resolve_static_capabilities(
+                        self,
+                        cwd,
+                        ResolvedCapabilityStatus::Resolved,
+                        models,
+                        modes,
+                    ) {
+                        Ok(capabilities) => capabilities,
+                        Err(error) => failed_capabilities(self, error.to_string()),
+                    }
+                }
+                Err(error) => failed_capabilities(self, error.to_string()),
+            }
         })
     }
 

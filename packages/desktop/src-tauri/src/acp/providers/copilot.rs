@@ -2,6 +2,7 @@ use super::super::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use super::copilot_settings::apply_copilot_session_defaults;
+use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
@@ -110,6 +111,21 @@ impl AgentProvider for CopilotProvider {
             };
 
             load_copilot_preconnection_commands(cwd, dirs::home_dir().as_deref()).await
+        })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let effective_cwd = cwd
+                .map(PathBuf::from)
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            resolve_generic_preconnection_capabilities(self, effective_cwd.as_path()).await
         })
     }
 
@@ -645,5 +661,49 @@ mod tests {
         assert_eq!(models.current_model_id, "gpt-5.4");
         assert_eq!(models.available_models.len(), 1);
         assert_eq!(models.available_models[0].model_id, "gpt-5.4");
+    }
+
+    #[test]
+    fn configured_copilot_model_does_not_override_explicit_current_model() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let project = temp.path().join("project");
+        fs::create_dir_all(home.join(".copilot")).expect("create user copilot dir");
+        fs::create_dir_all(&project).expect("create project dir");
+
+        fs::write(
+            home.join(".copilot/config.json"),
+            r#"{
+  "model": "gpt-5.4"
+}"#,
+        )
+        .expect("write user config");
+
+        let mut models = SessionModelState {
+            available_models: vec![AvailableModel {
+                model_id: "gpt-4.1".to_string(),
+                name: "GPT-4.1".to_string(),
+                description: None,
+            }],
+            current_model_id: "gpt-4.1".to_string(),
+            models_display: Default::default(),
+            provider_metadata: None,
+        };
+        let mut modes = SessionModes {
+            current_mode_id: "build".to_string(),
+            available_modes: vec![],
+        };
+
+        super::super::copilot_settings::apply_copilot_session_defaults_from_paths(
+            Some(home.as_path()),
+            project.as_path(),
+            &mut models,
+            &mut modes,
+        )
+        .expect("copilot session defaults should apply");
+
+        assert_eq!(models.current_model_id, "gpt-4.1");
+        assert_eq!(models.available_models.len(), 1);
+        assert_eq!(models.available_models[0].model_id, "gpt-4.1");
     }
 }

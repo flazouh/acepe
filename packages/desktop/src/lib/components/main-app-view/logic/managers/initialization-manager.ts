@@ -52,6 +52,7 @@ import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { getChangelogEntriesSince } from "$lib/changelog/index.js";
@@ -304,6 +305,7 @@ export class InitializationManager {
 	 * @returns ResultAsync indicating success or error
 	 */
 	private loadBasicMetadata(): ResultAsync<void, MainAppViewError> {
+		const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 		const loadAgentsAndWarmPreconnectionCommands = this.agentStore
 			.loadAvailableAgents()
 			.mapErr(
@@ -317,6 +319,14 @@ export class InitializationManager {
 					});
 					return okAsync(undefined);
 				})
+				.andThen(() =>
+					preconnectionCapabilitiesState.initializeStartupGlobal(agents).orElse((error) => {
+						logger.warn("Failed to warm startup-global preconnection capabilities", {
+							error,
+						});
+						return okAsync(undefined);
+					})
+				)
 			);
 
 		return NeverthrowResultAsync.combine([

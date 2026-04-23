@@ -3,6 +3,7 @@ use super::super::provider::{
     SpawnConfig,
 };
 use super::claude_code_settings::resolve_claude_runtime_mode_id;
+use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
@@ -140,6 +141,21 @@ impl AgentProvider for ClaudeCodeProvider {
                 }
                 None => Ok(Vec::new()),
             }
+        })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let effective_cwd = cwd
+                .map(PathBuf::from)
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            resolve_generic_preconnection_capabilities(self, effective_cwd.as_path()).await
         })
     }
 
