@@ -45,6 +45,12 @@ function toModels(capabilities: ResolvedCapabilities): Model[] {
 	}));
 }
 
+function hasUsableModelsDisplay(modelsDisplay: ModelsForDisplay | null | undefined): boolean {
+	return (
+		modelsDisplay?.groups.some((group) => group.models.length > 0) ?? false
+	);
+}
+
 function hasLiveCapabilities(capabilities: SessionCapabilities | null): boolean {
 	if (!capabilities) {
 		return false;
@@ -53,7 +59,7 @@ function hasLiveCapabilities(capabilities: SessionCapabilities | null): boolean 
 	return (
 		capabilities.availableModes.length > 0 ||
 		capabilities.availableModels.length > 0 ||
-		Boolean(capabilities.modelsDisplay)
+		hasUsableModelsDisplay(capabilities.modelsDisplay)
 	);
 }
 
@@ -61,7 +67,7 @@ function hasCachedCapabilities(input: ResolveCapabilitySourceInput): boolean {
 	return (
 		input.cachedModes.length > 0 ||
 		input.cachedModels.length > 0 ||
-		Boolean(input.cachedModelsDisplay)
+		hasUsableModelsDisplay(input.cachedModelsDisplay)
 	);
 }
 

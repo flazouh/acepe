@@ -195,10 +195,15 @@ impl AgentProvider for OpenCodeProvider {
                         current_mode_id: "build".to_string(),
                         available_modes: crate::acp::client_session::default_modes().available_modes,
                     };
+                    let status = if models.available_models.is_empty() {
+                        ResolvedCapabilityStatus::Partial
+                    } else {
+                        ResolvedCapabilityStatus::Resolved
+                    };
                     match resolve_static_capabilities(
                         self,
                         cwd,
-                        ResolvedCapabilityStatus::Resolved,
+                        status,
                         models,
                         modes,
                     ) {

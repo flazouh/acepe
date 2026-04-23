@@ -22,6 +22,11 @@ interface GetCapabilitiesInput {
 	preconnectionCapabilityMode: ProviderMetadataProjection["preconnectionCapabilityMode"];
 }
 
+type FetchCapabilities = (
+	projectPath: string,
+	agentId: string
+) => ResultAsync<ResolvedCapabilities, AppError>;
+
 const logger = createLogger({
 	id: "preconnection-capabilities",
 	name: "PreconnectionCapabilities",
@@ -86,6 +91,13 @@ export function resetForTesting(): void {
 
 export class PreconnectionCapabilitiesState {
 	loadingCacheKey = $state<string | null>(null);
+	private readonly fetchCapabilities: FetchCapabilities;
+
+	constructor(fetchCapabilities?: FetchCapabilities) {
+		this.fetchCapabilities = fetchCapabilities
+			? fetchCapabilities
+			: tauriClient.acp.listPreconnectionCapabilities;
+	}
 
 	ensureLoaded(input: EnsureLoadedInput): ResultAsync<void, AppError> {
 		const cacheKey = buildCacheKey(
@@ -93,6 +105,23 @@ export class PreconnectionCapabilitiesState {
 			input.projectPath,
 			input.preconnectionCapabilityMode
 		);
+		const existingRequest = cacheKey ? inFlightByKey.get(cacheKey) : undefined;
+		if (existingRequest && cacheKey) {
+			this.loadingCacheKey = cacheKey;
+			return existingRequest
+				.map(() => {
+					if (this.loadingCacheKey === cacheKey) {
+						this.loadingCacheKey = null;
+					}
+				})
+				.mapErr((error) => {
+					if (this.loadingCacheKey === cacheKey) {
+						this.loadingCacheKey = null;
+					}
+					return error;
+				});
+		}
+
 		const alreadyLoaded = cacheKey ? capabilitiesByKey.has(cacheKey) : false;
 		const alreadyLoading = cacheKey ? loadingByKey.has(cacheKey) : false;
 
@@ -115,13 +144,10 @@ export class PreconnectionCapabilitiesState {
 		}
 
 		const cwd = input.projectPath ?? "";
-		const existingRequest = inFlightByKey.get(cacheKey);
-		const request = existingRequest ?? tauriClient.acp.listPreconnectionCapabilities(cwd, agentId);
+		const request = this.fetchCapabilities(cwd, agentId);
 
-		if (!existingRequest) {
-			inFlightByKey.set(cacheKey, request);
-			loadingByKey.set(cacheKey, true);
-		}
+		inFlightByKey.set(cacheKey, request);
+		loadingByKey.set(cacheKey, true);
 		this.loadingCacheKey = cacheKey;
 
 		return request

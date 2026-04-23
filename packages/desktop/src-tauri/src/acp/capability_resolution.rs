@@ -47,6 +47,7 @@ pub async fn discover_models_from_provider_cli(
         let runtime = resolve_effective_runtime(provider.id(), cwd, &attempt, None);
         let mut command = Command::new(&runtime.command);
         command.args(&runtime.args);
+        command.kill_on_drop(true);
         command.stdin(Stdio::null());
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
