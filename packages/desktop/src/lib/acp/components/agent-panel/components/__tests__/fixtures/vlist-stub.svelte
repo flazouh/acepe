@@ -5,6 +5,7 @@ import { onMount } from "svelte";
 import {
 	dataLengthHistory,
 	getDefaultViewportSize,
+	getRenderedItemAt,
 	scrollToIndexCalls,
 	shouldSuppressRenderedChildren,
 } from "./vlist-stub-state.js";
@@ -91,11 +92,21 @@ export function _setScrollSize(size: number): void {
 export function _setViewportSize(size: number): void {
 	_viewportSize = size;
 }
+
+function getRenderedItem(index: number): unknown {
+	return getRenderedItemAt(data, index);
+}
+
+function getRenderedKey(index: number): string | number {
+	const item = getRenderedItem(index);
+	return getKey ? getKey(item, index) : index;
+}
 </script>
 
 <div data-testid="vlist-stub" {...rest}>
 	{#if !shouldSuppressRenderedChildren()}
-		{#each data as item, index}
+		{#each data as _item, index (getRenderedKey(index))}
+			{@const item = getRenderedItem(index)}
 			{@render children(item, index)}
 		{/each}
 	{/if}

@@ -21,8 +21,8 @@ use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_journal::{load_stored_projection, load_transcript_from_journal};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{
@@ -157,18 +157,18 @@ pub async fn session_open_result_from_thread_snapshot(
 ) -> SessionOpenResult {
     let canonical_session_id = &replay_context.local_session_id;
     let is_alias = requested_session_id != canonical_session_id;
-    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await
-    {
-        Ok(seq) => seq.unwrap_or(0),
-        Err(err) => {
-            return SessionOpenResult::Error(SessionOpenError {
-                requested_session_id: requested_session_id.to_string(),
-                message: format!(
+    let last_event_seq =
+        match SessionJournalEventRepository::max_event_seq(db, canonical_session_id).await {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
                     "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
                 ),
-            });
-        }
-    };
+                });
+            }
+        };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
@@ -179,18 +179,19 @@ pub async fn session_open_result_from_thread_snapshot(
         epoch_ms,
     );
 
-    let session_metadata = match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
-        Ok(metadata) => metadata,
-        Err(err) => {
-            hub.supersede_reservation(open_token);
-            return SessionOpenResult::Error(SessionOpenError {
-                requested_session_id: requested_session_id.to_string(),
-                message: format!(
-                    "Failed to load session metadata for session {canonical_session_id}: {err}"
-                ),
-            });
-        }
-    };
+    let session_metadata =
+        match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError {
+                    requested_session_id: requested_session_id.to_string(),
+                    message: format!(
+                        "Failed to load session metadata for session {canonical_session_id}: {err}"
+                    ),
+                });
+            }
+        };
     let Some(session_metadata) = session_metadata else {
         hub.supersede_reservation(open_token);
         return SessionOpenResult::Error(SessionOpenError {
@@ -209,7 +210,9 @@ pub async fn session_open_result_from_thread_snapshot(
     let turn_state = session_snap
         .map(|session| session.turn_state.clone())
         .unwrap_or(SessionTurnState::Idle);
-    let message_count = session_snap.map(|session| session.message_count).unwrap_or(0);
+    let message_count = session_snap
+        .map(|session| session.message_count)
+        .unwrap_or(0);
     let active_turn_failure = session_snap.and_then(|session| session.active_turn_failure.clone());
     let last_terminal_turn_id =
         session_snap.and_then(|session| session.last_terminal_turn_id.clone());
@@ -228,7 +231,10 @@ pub async fn session_open_result_from_thread_snapshot(
         worktree_path: replay_context.worktree_path.clone(),
         source_path: replay_context.source_path.clone(),
         transcript_snapshot,
-        session_title: resolve_canonical_session_title(Some(&session_metadata), canonical_session_id),
+        session_title: resolve_canonical_session_title(
+            Some(&session_metadata),
+            canonical_session_id,
+        ),
         operations,
         interactions,
         turn_state,
@@ -610,7 +616,6 @@ mod tests {
         };
         assert_eq!(found.last_event_seq, 1, "seed event should yield seq=1");
     }
-
 
     // -----------------------------------------------------------------------
     // Happy path: open token guarantees reservation is armed after assembly

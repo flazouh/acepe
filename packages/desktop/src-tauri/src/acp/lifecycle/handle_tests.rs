@@ -33,7 +33,11 @@ fn ready_dispatch_permit_rejects_runtime_epoch_changes() {
     let session_id = "session-ready";
     assert!(supervisor.seed_checkpoint(
         session_id.to_string(),
-        LifecycleCheckpoint::new(1, LifecycleState::ready(), SessionGraphCapabilities::empty()),
+        LifecycleCheckpoint::new(
+            1,
+            LifecycleState::ready(),
+            SessionGraphCapabilities::empty()
+        ),
     ));
 
     let permit = supervisor
@@ -41,7 +45,11 @@ fn ready_dispatch_permit_rejects_runtime_epoch_changes() {
         .expect("ready session should get dispatch permit");
     supervisor.replace_checkpoint_for_compat(
         session_id.to_string(),
-        LifecycleCheckpoint::new(2, LifecycleState::ready(), SessionGraphCapabilities::empty()),
+        LifecycleCheckpoint::new(
+            2,
+            LifecycleState::ready(),
+            SessionGraphCapabilities::empty(),
+        ),
     );
 
     let error = supervisor

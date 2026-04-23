@@ -107,12 +107,12 @@ impl SessionSupervisor {
         &self,
         session_id: &str,
     ) -> Result<ReadyDispatchPermit, ReadyDispatchError> {
-        let entry = self
-            .sessions
-            .get(session_id)
-            .ok_or_else(|| ReadyDispatchError::SessionNotFound {
-                session_id: session_id.to_string(),
-            })?;
+        let entry =
+            self.sessions
+                .get(session_id)
+                .ok_or_else(|| ReadyDispatchError::SessionNotFound {
+                    session_id: session_id.to_string(),
+                })?;
 
         if entry.checkpoint.lifecycle.status != LifecycleStatus::Ready {
             return Err(ReadyDispatchError::SessionNotReady {

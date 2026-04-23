@@ -12,6 +12,7 @@ import {
 	scrollToIndexCalls,
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
+	setUndefinedRenderedIndexes,
 } from "./fixtures/vlist-stub-state.js";
 
 type ResizeObserverCallback = () => void;
@@ -294,6 +295,37 @@ describe("VirtualizedEntryList auto-scroll", () => {
 
 		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("ignores transient undefined rows from Virtua during data churn", async () => {
+		const view = renderList({
+			entries: [
+				createAssistantEntry("assistant-1", "first"),
+				createAssistantEntry("assistant-2", "second"),
+			],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		setUndefinedRenderedIndexes([0]);
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [createAssistantEntry("assistant-2", "second")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await tick();
+
+		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		expect(stubs.length).toBe(0);
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
 	});
 
 	it("appends thinking indicator when waiting for response", async () => {

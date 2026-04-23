@@ -258,6 +258,24 @@ describe("AssistantMessage thinking auto-scroll", () => {
 		expect(view.container.querySelector(".group\\/assistant-message")).toBeTruthy();
 	});
 
+	it("falls back to an empty message when the runtime prop is invalid", () => {
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		const view = render(AssistantMessageComponent, {
+			message: undefined,
+			isStreaming: true,
+		});
+
+		expect(view.container.querySelector(".group\\/assistant-message")).toBeNull();
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[ASSISTANT_MESSAGE_INVALID_PROP]",
+			expect.objectContaining({
+				hasCandidate: false,
+				isStreaming: true,
+			})
+		);
+	});
+
 	it("keeps trailing non-text blocks hidden while the last text group is still streaming", async () => {
 		const view = render(AssistantMessageComponent, {
 			message: createStreamingMessageWithTrailingBlocks("Answer"),

@@ -110,6 +110,17 @@ fn canonicalize_reconnect_error(error: SerializableAcpError) -> SerializableAcpE
     }
 }
 
+fn reconnect_error_indicates_live_session_is_already_loaded(error: &SerializableAcpError) -> bool {
+    match error {
+        SerializableAcpError::JsonRpcError { message }
+        | SerializableAcpError::ProtocolError { message }
+        | SerializableAcpError::InvalidState { message } => {
+            message.to_ascii_lowercase().contains("already loaded")
+        }
+        _ => false,
+    }
+}
+
 async fn reconnect_client_session(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
     session_id: &str,
@@ -169,11 +180,24 @@ where
             };
 
             if let Ok(response) = existing_resume_result {
+                session_registry
+                    .cache_ready_snapshot(&session_id, response.clone())
+                    .map_err(SerializableAcpError::from)?;
                 tracing::info!(session_id = %session_id, "Session resumed: reused existing client");
                 return Ok(response);
             }
 
             if let Err(error) = existing_resume_result {
+                if reconnect_error_indicates_live_session_is_already_loaded(&error) {
+                    if let Some(snapshot) = session_registry.get_ready_snapshot(&session_id) {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "Session already loaded on existing client; reusing cached readiness"
+                        );
+                        return Ok(snapshot);
+                    }
+                }
+
                 tracing::warn!(
                     session_id = %session_id,
                     error = %error,
@@ -224,6 +248,10 @@ where
             "Session resumed: created new client"
         );
     }
+
+    session_registry
+        .cache_ready_snapshot(&session_id, result.clone())
+        .map_err(SerializableAcpError::from)?;
 
     Ok(result)
 }

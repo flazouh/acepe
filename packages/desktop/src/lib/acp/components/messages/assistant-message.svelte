@@ -39,12 +39,34 @@ let {
 	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
 }: Props = $props();
 
+const EMPTY_ASSISTANT_MESSAGE: AssistantMessage = {
+	chunks: [],
+};
+
+function resolveAssistantMessage(candidate: AssistantMessage | undefined): AssistantMessage {
+	if (candidate && Array.isArray(candidate.chunks)) {
+		return candidate;
+	}
+
+	if (import.meta.env.DEV) {
+		console.warn("[ASSISTANT_MESSAGE_INVALID_PROP]", {
+			revealMessageKey,
+			isStreaming,
+			projectPath: propProjectPath ?? sessionContext?.projectPath,
+			hasCandidate: candidate !== undefined,
+		});
+	}
+
+	return EMPTY_ASSISTANT_MESSAGE;
+}
+
 // Get projectPath from session context, with prop fallback
 const sessionContext = useSessionContext();
 const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
+const safeMessage = $derived(resolveAssistantMessage(message));
 
 const groupedChunks = $derived.by(() => {
-	const grouped = groupAssistantChunks(message.chunks);
+	const grouped = groupAssistantChunks(safeMessage.chunks);
 
 	// Sanitize the first text group in message chunks
 	if (grouped.messageGroups.length > 0 && grouped.messageGroups[0].type === "text") {
@@ -116,7 +138,7 @@ const visibleMessageGroups = $derived.by(() => {
 
 /** "Thinking" or "Thinking for Xs" while streaming, "Thought" or "Thought for Xs" when done */
 const thinkingHeaderLabel = $derived.by(() => {
-	const ms = message.thinkingDurationMs;
+	const ms = safeMessage.thinkingDurationMs;
 	if (isStreaming && ms != null && ms >= 0) {
 		const s = Math.round(ms / 1000);
 		return `Thinking for ${String(s <= 1 ? 1 : s)}s`;
@@ -222,7 +244,7 @@ $effect(() => {
 			{#if showThinkingBlock}
 				<AgentToolThinking
 					headerLabel={thinkingHeaderLabel}
-					showHeader={!isStreaming || message.thinkingDurationMs != null}
+					showHeader={!isStreaming || safeMessage.thinkingDurationMs != null}
 					status={isStreaming ? "running" : "done"}
 					collapsed={isCollapsed}
 					onCollapseChange={(next: boolean) => {

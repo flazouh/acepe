@@ -46,3 +46,14 @@ export function shouldRouteWindowVoiceHold(params: {
 
 	return params.panelId === params.focusedPanelId;
 }
+
+export function shouldSyncPanelFocusOnEditorFocus(params: {
+	focusedPanelId: string | null;
+	panelId?: string;
+}): boolean {
+	if (!params.panelId) {
+		return false;
+	}
+
+	return params.panelId !== params.focusedPanelId;
+}

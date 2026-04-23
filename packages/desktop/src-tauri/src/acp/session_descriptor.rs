@@ -347,6 +347,50 @@ pub fn resolve_existing_session_resume(
     })
 }
 
+pub fn resolve_live_pending_session_resume(
+    facts: SessionDescriptorFacts,
+    requested_cwd: &str,
+    explicit_agent_override: Option<CanonicalAgentId>,
+) -> Result<ResolvedResumeSession, SessionDescriptorResolutionError> {
+    let mut descriptor =
+        resolve_existing_session_descriptor(facts, SessionCompatibilityInput::default())?;
+
+    if let SessionDescriptorCompatibility::ReadOnly { missing_facts } =
+        descriptor.compatibility.clone()
+    {
+        if missing_facts != vec![SessionDescriptorMissingFact::ProviderSessionId] {
+            return Err(
+                SessionDescriptorResolutionError::ExistingSessionNotResumable {
+                    session_id: descriptor.local_session_id,
+                    missing_facts,
+                },
+            );
+        }
+
+        descriptor.compatibility = SessionDescriptorCompatibility::Canonical;
+        descriptor.history_session_id = descriptor.local_session_id.clone();
+    }
+
+    if let Some(override_agent_id) = explicit_agent_override {
+        if override_agent_id != descriptor.agent_id {
+            return Err(
+                SessionDescriptorResolutionError::IncompatibleAgentOverride {
+                    session_id: descriptor.local_session_id.clone(),
+                    stored_agent_id: descriptor.agent_id.clone(),
+                    override_agent_id,
+                },
+            );
+        }
+    }
+
+    let launch_cwd = resolve_launch_cwd(&descriptor, requested_cwd);
+
+    Ok(ResolvedResumeSession {
+        descriptor,
+        launch_cwd,
+    })
+}
+
 pub fn resolve_existing_session_fork(
     facts: SessionDescriptorFacts,
     requested_cwd: &str,
@@ -446,6 +490,29 @@ mod tests {
                 stored_agent_id: CanonicalAgentId::Copilot,
                 override_agent_id: CanonicalAgentId::ClaudeCode,
             }
+        );
+    }
+
+    #[test]
+    fn resolve_live_pending_session_resume_allows_claude_without_provider_id() {
+        let resolved = resolve_live_pending_session_resume(
+            SessionDescriptorFacts {
+                local_session_id: "session-1".to_string(),
+                provider_session_id: None,
+                agent_id: Some(CanonicalAgentId::ClaudeCode),
+                project_path: Some("/repo".to_string()),
+                worktree_path: None,
+                source_path: None,
+            },
+            "/fallback",
+            None,
+        )
+        .expect("live pending session should resume");
+
+        assert_eq!(resolved.descriptor.history_session_id, "session-1");
+        assert_eq!(
+            resolved.descriptor.compatibility,
+            SessionDescriptorCompatibility::Canonical
         );
     }
 

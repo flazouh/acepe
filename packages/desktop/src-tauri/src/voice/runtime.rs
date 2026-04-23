@@ -380,7 +380,11 @@ fn worker_loop(
                 );
                 if !matches_session {
                     tracing::warn!(session_id, "worker: not recording for this session");
-                    let _ = reply.send(Err(anyhow::anyhow!("Not currently recording")));
+                    let _ = reply.send(Ok(TranscriptionResult {
+                        text: String::new(),
+                        language: None,
+                        duration_ms: 0,
+                    }));
                     continue;
                 }
 
@@ -995,11 +999,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stop_when_not_recording_returns_error() {
+    async fn stop_when_not_recording_returns_empty_transcription() {
         let handle = VoiceRuntimeHandle::spawn(Box::new(super::super::engine::StubEngine))
             .expect("spawn runtime");
         let result = handle.stop_recording("session-99".to_string(), None).await;
-        assert!(result.is_err(), "stop when idle should return Err");
+        let transcription = result.expect("stop when idle should return an empty result");
+        assert!(transcription.text.is_empty());
+        assert_eq!(transcription.language, None);
+        assert_eq!(transcription.duration_ms, 0);
     }
 
     #[tokio::test]

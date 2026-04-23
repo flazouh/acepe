@@ -11,9 +11,9 @@ use crate::session_jsonl::types::{
 };
 
 #[cfg(test)]
-use anyhow::Result;
-#[cfg(test)]
 use super::parse_full_session;
+#[cfg(test)]
+use anyhow::Result;
 
 pub fn convert_full_session_to_entries(session: &FullSession) -> SessionThreadSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
