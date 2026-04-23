@@ -11,7 +11,6 @@ use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::db::repository::SessionJournalEventRepository;
-use crate::db::repository::SessionProjectionSnapshotRepository;
 use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
@@ -889,45 +888,6 @@ struct DispatchPersistenceEffects {
     session_state_envelope: Option<SessionStateEnvelope>,
 }
 
-async fn checkpoint_session_snapshots(
-    db: &DbConn,
-    session_id: &str,
-    _projection_registry: &ProjectionRegistry,
-    _runtime_graph_registry: &SessionGraphRuntimeRegistry,
-    _transcript_projection_registry: &TranscriptProjectionRegistry,
-) {
-    let stored_runtime = match SessionProjectionSnapshotRepository::get(db, session_id).await {
-        Ok(snapshot) => snapshot.and_then(|snapshot| snapshot.runtime),
-        Err(error) => {
-            tracing::error!(
-                error = %error,
-                session_id,
-                "Failed to load stored runtime checkpoint before snapshot checkpoint"
-            );
-            return;
-        }
-    };
-    let Some(stored_runtime) = stored_runtime else {
-        return;
-    };
-    let projection_snapshot = crate::acp::projections::SessionProjectionSnapshot {
-        session: None,
-        operations: Vec::new(),
-        interactions: Vec::new(),
-        runtime: Some(stored_runtime),
-    };
-
-    if let Err(error) =
-        SessionProjectionSnapshotRepository::set(db, session_id, &projection_snapshot).await
-    {
-        tracing::error!(
-            error = %error,
-            session_id,
-            "Failed to checkpoint projection snapshot after terminal session update"
-        );
-    }
-}
-
 async fn persist_dispatch_event(
     db: Option<&DbConn>,
     event: &AcpUiEvent,
@@ -945,15 +905,16 @@ async fn persist_dispatch_event(
         return DispatchPersistenceEffects::default();
     };
 
+    let previous_runtime_snapshot = runtime_graph_registry.snapshot_for_session(session_id);
+    let previous_transcript_revision = transcript_projection_registry
+        .snapshot_for_session(session_id)
+        .map(|snapshot| snapshot.revision)
+        .unwrap_or(0);
+
     match SessionJournalEventRepository::append_session_update(db, session_id, update.as_ref())
         .await
     {
         Ok(Some(record)) => {
-            let previous_runtime_snapshot = runtime_graph_registry.snapshot_for_session(session_id);
-            let previous_transcript_revision = transcript_projection_registry
-                .snapshot_for_session(session_id)
-                .map(|snapshot| snapshot.revision)
-                .unwrap_or(0);
             let checkpoint = match runtime_graph_registry
                 .supervisor()
                 .record_session_update(
@@ -1007,25 +968,54 @@ async fn persist_dispatch_event(
                     transcript_delta: transcript_delta.as_ref(),
                 })
                 .await;
-            if matches!(
-                update.as_ref(),
-                SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
-            ) {
-                checkpoint_session_snapshots(
-                    db,
-                    session_id,
-                    projection_registry,
-                    runtime_graph_registry,
-                    transcript_projection_registry,
-                )
-                .await;
-            }
             let _ = transcript_delta;
             DispatchPersistenceEffects {
                 session_state_envelope,
             }
         }
-        Ok(None) => DispatchPersistenceEffects::default(),
+        Ok(None) => {
+            let synthetic_event_seq = previous_runtime_snapshot
+                .graph_revision
+                .max(previous_transcript_revision)
+                .saturating_add(1);
+            let graph_revision = runtime_graph_registry.apply_session_update_with_graph_seed(
+                session_id,
+                synthetic_event_seq.saturating_sub(1),
+                update.as_ref(),
+            );
+            let transcript_delta = transcript_projection_registry
+                .apply_session_update(synthetic_event_seq, update.as_ref());
+            let transcript_revision = transcript_projection_registry
+                .snapshot_for_session(session_id)
+                .map(|snapshot| snapshot.revision)
+                .unwrap_or(previous_transcript_revision);
+            let revision =
+                SessionGraphRevision::new(graph_revision, transcript_revision, synthetic_event_seq);
+            let session_state_envelope = runtime_graph_registry
+                .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                    db,
+                    session_id,
+                    update: update.as_ref(),
+                    previous_revision: SessionGraphRevision::new(
+                        if previous_runtime_snapshot.graph_revision > 0 {
+                            previous_runtime_snapshot.graph_revision
+                        } else {
+                            synthetic_event_seq.saturating_sub(1)
+                        },
+                        previous_transcript_revision,
+                        synthetic_event_seq.saturating_sub(1),
+                    ),
+                    revision,
+                    projection_registry,
+                    transcript_projection_registry,
+                    transcript_delta: transcript_delta.as_ref(),
+                })
+                .await;
+            let _ = transcript_delta;
+            DispatchPersistenceEffects {
+                session_state_envelope,
+            }
+        }
         Err(error) => {
             tracing::error!(
                 error = %error,

@@ -170,7 +170,7 @@ describe("SessionOpenHydrator", () => {
 	// Unit 0: Characterization — pre-cutover session hydration invariants
 	// ==========================================================================
 
-	it("[characterize] pre-cutover session with no sourcePath hydrates successfully through open path", async () => {
+	it("[characterize] pre-cutover session with no sourcePath hydrates successfully through provider-authoritative open", async () => {
 		// A session recorded before the canonical materialization was in place will
 		// arrive with sourcePath: null and lastEventSeq: 0. It must still hydrate
 		// through the current open path without error.
@@ -196,7 +196,7 @@ describe("SessionOpenHydrator", () => {
 	});
 
 	// ==========================================================================
-	// U7 E2E proof: canonical snapshot invariants
+	// U7 E2E proof: canonical provider-open invariants
 	// ==========================================================================
 
 	it("[E2E] openToken from found result is preserved verbatim through hydrateFound", async () => {

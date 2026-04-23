@@ -115,7 +115,7 @@ impl AgentProvider for CodexProvider {
                         error = %error,
                         "Codex session parse failed"
                     );
-                    Ok(None)
+                    Err(format!("Codex provider history load failed: {error}"))
                 }
             }
         })

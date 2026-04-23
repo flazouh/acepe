@@ -125,7 +125,7 @@ This is also an explicit product tradeoff: some sessions that currently reopen f
 - **Is reopening from provider-owned history fast enough without a local snapshot fast path?** Yes. Rust parsing is treated as sufficiently fast for this slice, so the plan does not add a latency gate before cleanup.
 - **Do historical sessions need a special preservation path before legacy snapshot storage is removed?** No. Historical sessions follow the same provider-authoritative open path as all other sessions; this slice adds no special-case preservation mechanism.
 - **Should this plan design a subordinate cache or index now?** No. This slice introduces no cache. If the performance gate fails, Phase 3 cleanup stops and a separate planning cycle is required before any cache work begins.
-- **What is the exact migration choreography for the legacy snapshot tables?** Keep all existing applied migrations, including `m20260423_000001_create_missing_session_snapshot_tables`, and add one later cleanup migration in Unit 6 that drops the snapshot tables outright after provider-authoritative restore is proven. Do not leave compatibility stubs.
+- **What is the exact migration choreography for the legacy snapshot tables?** Keep all existing applied migrations, and use the Unit 6 cleanup migration slot (`m20260423_000001_move_runtime_checkpoint_to_acepe_session_state` in the implementation branch) to drop the snapshot tables outright after provider-authoritative restore is proven. Do not leave compatibility stubs.
 - **Should the metadata-only durable event tail rename `session_journal_event` in this refactor?** No. Keep the existing table name and narrow its contents in place; renaming the table is unnecessary migration churn for this slice and does not change authority semantics.
 
 ## High-Level Technical Design
@@ -427,7 +427,7 @@ flowchart TB
 
 **Approach:**
 - Remove dead entities, migrations, and repository paths only after provider-authoritative open behavior and metadata-only durability are proven.
-- Keep the existing migration history intact and add one cleanup migration after `m20260423_000001_create_missing_session_snapshot_tables` that drops the snapshot tables outright; do not leave schema-only compatibility stubs.
+- Keep the existing migration history intact and use the cleanup migration slot implemented in `m20260423_000001_move_runtime_checkpoint_to_acepe_session_state` to drop the snapshot tables outright; do not leave schema-only compatibility stubs.
 - Reconcile architecture docs so they describe the session graph as canonical runtime behavior, not Acepe-owned durable transcript truth.
 - Do not carry forward the local-only “recreate missing snapshot tables” symptom fix; that patch reinstates stores this plan intentionally removes.
 - Ensure docs and tests lock in that provider-owned history is the restore authority and local durable storage is metadata-only.

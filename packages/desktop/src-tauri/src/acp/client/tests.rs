@@ -11,7 +11,7 @@ use crate::acp::session_update::PlanSource;
 use crate::acp::session_update::{PermissionData, SessionUpdate};
 use crate::db::migrations::Migrator;
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionProjectionSnapshotRepository,
+    SessionJournalEventRepository, SessionMetadataRepository,
 };
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
@@ -1114,7 +1114,7 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
 }
 
 #[tokio::test]
-async fn load_stored_projection_ignores_legacy_projection_snapshot_without_journal() {
+async fn load_stored_projection_is_none_without_journal() {
     let db = setup_test_db().await;
     SessionMetadataRepository::upsert(
         &db,
@@ -1135,11 +1135,6 @@ async fn load_stored_projection_ignores_legacy_projection_snapshot_without_journ
         "session-legacy".to_string(),
         crate::acp::types::CanonicalAgentId::Codex,
     );
-    let snapshot = registry.session_projection("session-legacy");
-    SessionProjectionSnapshotRepository::set(&db, "session-legacy", &snapshot)
-        .await
-        .expect("persist legacy projection snapshot");
-
     let replay_context = replay_context_for_session(&db, "session-legacy").await;
     let stored_projection = load_stored_projection(&db, &replay_context)
         .await

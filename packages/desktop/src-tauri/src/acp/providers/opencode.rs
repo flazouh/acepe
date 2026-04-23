@@ -218,7 +218,7 @@ impl AgentProvider for OpenCodeProvider {
                         error = ?error,
                         "HTTP fallback also failed for OpenCode session"
                     );
-                    Ok(None)
+                    Err(format!("OpenCode provider history load failed: {error}"))
                 }
             }
         })

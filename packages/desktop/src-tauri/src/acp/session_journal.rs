@@ -5,11 +5,7 @@ use crate::acp::projections::{
 };
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_update::{
-    ContentChunk, PermissionData, QuestionData, SessionUpdate, ToolCallData, ToolCallUpdateData,
-    TurnErrorData,
-};
-use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
+use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate, TurnErrorData};
 use crate::db::repository::{SerializedSessionJournalEventRow, SessionJournalEventRepository};
 use chrono::Utc;
 use sea_orm::DbConn;
@@ -19,30 +15,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum ProjectionJournalUpdate {
-    UserMessageChunk {
-        chunk: ContentChunk,
-        session_id: Option<String>,
-    },
-    AgentMessageChunk {
-        chunk: ContentChunk,
-        part_id: Option<String>,
-        message_id: Option<String>,
-        session_id: Option<String>,
-    },
-    AgentThoughtChunk {
-        chunk: ContentChunk,
-        part_id: Option<String>,
-        message_id: Option<String>,
-        session_id: Option<String>,
-    },
-    ToolCall {
-        tool_call: ToolCallData,
-        session_id: Option<String>,
-    },
-    ToolCallUpdate {
-        update: ToolCallUpdateData,
-        session_id: Option<String>,
-    },
     PermissionRequest {
         permission: PermissionData,
         session_id: Option<String>,
@@ -66,43 +38,6 @@ impl ProjectionJournalUpdate {
     #[must_use]
     pub fn from_session_update(update: &SessionUpdate) -> Option<Self> {
         match update {
-            SessionUpdate::UserMessageChunk { chunk, session_id } => Some(Self::UserMessageChunk {
-                chunk: chunk.clone(),
-                session_id: session_id.clone(),
-            }),
-            SessionUpdate::AgentMessageChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            } => Some(Self::AgentMessageChunk {
-                chunk: chunk.clone(),
-                part_id: part_id.clone(),
-                message_id: message_id.clone(),
-                session_id: session_id.clone(),
-            }),
-            SessionUpdate::AgentThoughtChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            } => Some(Self::AgentThoughtChunk {
-                chunk: chunk.clone(),
-                part_id: part_id.clone(),
-                message_id: message_id.clone(),
-                session_id: session_id.clone(),
-            }),
-            SessionUpdate::ToolCall {
-                tool_call,
-                session_id,
-            } => Some(Self::ToolCall {
-                tool_call: tool_call.clone(),
-                session_id: session_id.clone(),
-            }),
-            SessionUpdate::ToolCallUpdate { update, session_id } => Some(Self::ToolCallUpdate {
-                update: update.clone(),
-                session_id: session_id.clone(),
-            }),
             SessionUpdate::PermissionRequest {
                 permission,
                 session_id,
@@ -140,41 +75,6 @@ impl ProjectionJournalUpdate {
     #[must_use]
     pub fn into_session_update(self) -> SessionUpdate {
         match self {
-            Self::UserMessageChunk { chunk, session_id } => {
-                SessionUpdate::UserMessageChunk { chunk, session_id }
-            }
-            Self::AgentMessageChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            } => SessionUpdate::AgentMessageChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            },
-            Self::AgentThoughtChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            } => SessionUpdate::AgentThoughtChunk {
-                chunk,
-                part_id,
-                message_id,
-                session_id,
-            },
-            Self::ToolCall {
-                tool_call,
-                session_id,
-            } => SessionUpdate::ToolCall {
-                tool_call,
-                session_id,
-            },
-            Self::ToolCallUpdate { update, session_id } => {
-                SessionUpdate::ToolCallUpdate { update, session_id }
-            }
             Self::PermissionRequest {
                 permission,
                 session_id,
@@ -357,32 +257,6 @@ pub async fn load_projection_from_journal(
     Ok(Some(rebuild_session_projection(replay_context, &events)))
 }
 
-pub async fn load_transcript_from_journal(
-    db: &DbConn,
-    replay_context: &SessionReplayContext,
-) -> Result<Option<TranscriptSnapshot>, anyhow::Error> {
-    let rows = SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
-        .await?;
-    let events = decode_serialized_events(replay_context, rows)?;
-    let transcript_registry = TranscriptProjectionRegistry::new();
-    let mut saw_projection_update = false;
-
-    for event in events {
-        let SessionJournalEventPayload::ProjectionUpdate { update } = event.payload else {
-            continue;
-        };
-        saw_projection_update = true;
-        let session_update = update.into_session_update();
-        let _ = transcript_registry.apply_session_update(event.event_seq, &session_update);
-    }
-
-    if !saw_projection_update {
-        return Ok(None);
-    }
-
-    Ok(transcript_registry.snapshot_for_session(&replay_context.local_session_id))
-}
-
 pub async fn load_stored_projection(
     db: &DbConn,
     replay_context: &SessionReplayContext,
@@ -399,9 +273,7 @@ mod tests {
     use super::{decode_serialized_events, ProjectionJournalUpdate, SessionJournalEventPayload};
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::SessionReplayContext;
-    use crate::acp::session_update::{
-        SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
-    };
+    use crate::acp::session_update::{PermissionData, SessionUpdate};
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::SerializedSessionJournalEventRow;
 
@@ -409,33 +281,24 @@ mod tests {
     fn decode_serialized_events_uses_replay_context_to_restore_projection_updates() {
         let payload = SessionJournalEventPayload::ProjectionUpdate {
             update: Box::new(
-                ProjectionJournalUpdate::from_session_update(&SessionUpdate::ToolCall {
-                    tool_call: ToolCallData {
-                        id: "tool-call-1".to_string(),
-                        name: "Read".to_string(),
-                        arguments: ToolArguments::Read {
-                            file_path: Some("/repo/README.md".to_string()),
-                            source_context: None,
-                        },
-                        raw_input: None,
-                        status: ToolCallStatus::Completed,
-                        result: None,
-                        kind: Some(ToolKind::Read),
-                        title: Some("Read README".to_string()),
-                        locations: None,
-                        skill_meta: None,
-                        normalized_questions: None,
-                        normalized_todos: None,
-                        normalized_todo_update: None,
-                        parent_tool_use_id: None,
-                        task_children: None,
-                        question_answer: None,
-                        awaiting_plan_approval: false,
-                        plan_approval_request_id: None,
+                ProjectionJournalUpdate::from_session_update(&SessionUpdate::PermissionRequest {
+                    permission: PermissionData {
+                        id: "permission-1".to_string(),
+                        session_id: "local-session".to_string(),
+                        json_rpc_request_id: Some(7),
+                        reply_handler: Some(
+                            crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                        ),
+                        permission: "Read".to_string(),
+                        patterns: vec!["/repo/README.md".to_string()],
+                        metadata: serde_json::json!({}),
+                        always: vec![],
+                        auto_accepted: false,
+                        tool: None,
                     },
                     session_id: Some("local-session".to_string()),
                 })
-                .expect("tool call should be journaled"),
+                .expect("permission request should be journaled"),
             ),
         };
         let rows = vec![SerializedSessionJournalEventRow {
@@ -464,15 +327,15 @@ mod tests {
         assert_eq!(decoded.len(), 1);
         match &decoded[0].payload {
             SessionJournalEventPayload::ProjectionUpdate { update } => match update.as_ref() {
-                ProjectionJournalUpdate::ToolCall {
-                    tool_call,
+                ProjectionJournalUpdate::PermissionRequest {
+                    permission,
                     session_id,
                 } => {
-                    assert_eq!(tool_call.id, "tool-call-1");
-                    assert_eq!(tool_call.kind, Some(ToolKind::Read));
+                    assert_eq!(permission.id, "permission-1");
+                    assert_eq!(permission.permission, "Read");
                     assert_eq!(session_id.as_deref(), Some("local-session"));
                 }
-                other => panic!("expected tool call update, got {:?}", other),
+                other => panic!("expected permission request update, got {:?}", other),
             },
             other => panic!("expected projection payload, got {:?}", other),
         }
