@@ -79,7 +79,7 @@ use file_index::{
     search_project_files_for_explorer, FileIndexService,
 };
 use git::commands::{browse_clone_destination, git_clone, git_collect_ship_context};
-use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_details};
+use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_checks, git_pr_details};
 use git::operations::{
     git_commit, git_create_branch, git_delete_branch, git_diff_stats, git_discard_changes,
     git_fetch, git_log, git_panel_status, git_pull, git_push, git_remote_status,

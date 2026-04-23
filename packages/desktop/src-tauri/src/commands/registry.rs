@@ -383,6 +383,7 @@ macro_rules! git_command_entries {
             worktree_disk_size: git_worktree_disk_size,
             collect_ship_context: git_collect_ship_context,
             pr_details: git_pr_details,
+            pr_checks: git_pr_checks,
             merge_pr: git_merge_pr,
             get_open_pr_for_branch: get_open_pr_for_branch,
             watch_head: git_watch_head,

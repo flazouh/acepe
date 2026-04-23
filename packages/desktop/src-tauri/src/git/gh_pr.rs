@@ -497,6 +497,182 @@ pub async fn get_pr_details(project_path: &Path, pr_number: i32) -> Result<PrDet
     parse_pr_details(&out)
 }
 
+/// Status of a single GitHub check run for a PR head commit.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq, Default)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PrCheckStatus {
+    #[default]
+    Queued,
+    InProgress,
+    Completed,
+    /// GitHub may return other statuses (e.g. WAITING, PENDING, REQUESTED). Treat as non-terminal.
+    Unknown,
+}
+
+/// Conclusion for a completed GitHub check run.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PrCheckConclusion {
+    Success,
+    Failure,
+    Neutral,
+    Cancelled,
+    Skipped,
+    TimedOut,
+    ActionRequired,
+    Stale,
+    StartupFailure,
+    Unknown,
+}
+
+/// A single GitHub check run attached to the PR's head commit.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PrCheckRun {
+    pub name: String,
+    pub status: PrCheckStatus,
+    pub conclusion: Option<PrCheckConclusion>,
+    pub details_url: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub workflow_name: Option<String>,
+}
+
+/// Projection of the PR's CI status for a single head commit.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PrChecks {
+    pub pr_number: i32,
+    pub head_sha: String,
+    pub check_runs: Vec<PrCheckRun>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawStatusCheckRollupEntry {
+    #[serde(rename = "__typename", default)]
+    typename: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    conclusion: String,
+    #[serde(rename = "detailsUrl", default)]
+    details_url: String,
+    #[serde(rename = "startedAt", default)]
+    started_at: String,
+    #[serde(rename = "completedAt", default)]
+    completed_at: String,
+    #[serde(rename = "workflowName", default)]
+    workflow_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawPrChecks {
+    #[serde(default)]
+    head_ref_oid: String,
+    #[serde(default)]
+    status_check_rollup: Vec<RawStatusCheckRollupEntry>,
+}
+
+fn parse_check_status(raw: &str) -> PrCheckStatus {
+    match raw.to_ascii_uppercase().as_str() {
+        "QUEUED" => PrCheckStatus::Queued,
+        "IN_PROGRESS" => PrCheckStatus::InProgress,
+        "COMPLETED" => PrCheckStatus::Completed,
+        "" => PrCheckStatus::Unknown,
+        _ => PrCheckStatus::Unknown,
+    }
+}
+
+fn parse_check_conclusion(raw: &str) -> Option<PrCheckConclusion> {
+    match raw.to_ascii_uppercase().as_str() {
+        "" => None,
+        "SUCCESS" => Some(PrCheckConclusion::Success),
+        "FAILURE" => Some(PrCheckConclusion::Failure),
+        "NEUTRAL" => Some(PrCheckConclusion::Neutral),
+        "CANCELLED" => Some(PrCheckConclusion::Cancelled),
+        "SKIPPED" => Some(PrCheckConclusion::Skipped),
+        "TIMED_OUT" => Some(PrCheckConclusion::TimedOut),
+        "ACTION_REQUIRED" => Some(PrCheckConclusion::ActionRequired),
+        "STALE" => Some(PrCheckConclusion::Stale),
+        "STARTUP_FAILURE" => Some(PrCheckConclusion::StartupFailure),
+        _ => Some(PrCheckConclusion::Unknown),
+    }
+}
+
+fn non_empty(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+fn parse_pr_checks(output: &str, pr_number: i32) -> Result<PrChecks, String> {
+    let raw = serde_json::from_str::<RawPrChecks>(output)
+        .map_err(|e| format!("Failed to parse gh pr view checks: {}", e))?;
+
+    // Filter to CheckRun entries only — GitHub Checks API, not legacy status contexts.
+    let check_runs = raw
+        .status_check_rollup
+        .into_iter()
+        .filter(|entry| entry.typename == "CheckRun")
+        .map(|entry| PrCheckRun {
+            name: entry.name,
+            status: parse_check_status(&entry.status),
+            conclusion: parse_check_conclusion(&entry.conclusion),
+            details_url: non_empty(entry.details_url),
+            started_at: non_empty(entry.started_at),
+            completed_at: non_empty(entry.completed_at),
+            workflow_name: non_empty(entry.workflow_name),
+        })
+        .collect();
+
+    Ok(PrChecks {
+        pr_number,
+        head_sha: raw.head_ref_oid,
+        check_runs,
+    })
+}
+
+/// Fetch PR CI check runs by PR number using `gh pr view --json`.
+pub async fn get_pr_checks(project_path: &Path, pr_number: i32) -> Result<PrChecks, String> {
+    if pr_number <= 0 {
+        return Err(format!("Invalid PR number: {}", pr_number));
+    }
+    let number_str = pr_number.to_string();
+    let out = run_gh_command(
+        project_path,
+        &[
+            "pr",
+            "view",
+            &number_str,
+            "--json",
+            "headRefOid,statusCheckRollup",
+        ],
+    )
+    .await?;
+    parse_pr_checks(&out, pr_number)
+}
+
+/// Tauri command: fetch CI check runs for a PR head commit.
+#[tauri::command]
+#[specta::specta]
+pub async fn git_pr_checks(project_path: String, pr_number: i32) -> CommandResult<PrChecks> {
+    unexpected_command_result(
+        "git_pr_checks",
+        "Failed to fetch PR checks",
+        async {
+            let path = crate::path_safety::validate_project_directory_from_str(&project_path)
+                .map_err(|e| e.message_for(Path::new(project_path.trim())))?;
+            get_pr_checks(&path, pr_number).await
+        }
+        .await,
+    )
+}
+
 /// Tauri command: fetch PR details by number.
 #[tauri::command]
 #[specta::specta]
@@ -554,7 +730,7 @@ mod tests {
 
     #[cfg(unix)]
     use super::{merge_pull_request, MergeStrategy};
-    use super::{parse_pr_details, PrState};
+    use super::{parse_pr_details, parse_pr_checks, PrCheckConclusion, PrCheckStatus, PrState};
 
     #[cfg(unix)]
     fn env_lock() -> &'static Mutex<()> {
@@ -647,6 +823,72 @@ mod tests {
         let details = parse_pr_details(json).expect("expected closed PR payload to parse");
 
         assert!(matches!(details.state, PrState::Closed));
+    }
+
+    #[test]
+    fn parse_pr_checks_filters_to_check_runs_and_maps_status() {
+        let json = r#"{
+            "headRefOid": "abc123",
+            "statusCheckRollup": [
+                {
+                    "__typename": "CheckRun",
+                    "name": "build",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "detailsUrl": "https://github.com/acme/repo/actions/runs/1",
+                    "startedAt": "2026-04-23T10:00:00Z",
+                    "completedAt": "2026-04-23T10:05:00Z",
+                    "workflowName": "CI"
+                },
+                {
+                    "__typename": "CheckRun",
+                    "name": "lint",
+                    "status": "IN_PROGRESS",
+                    "conclusion": "",
+                    "detailsUrl": "",
+                    "startedAt": "",
+                    "completedAt": "",
+                    "workflowName": ""
+                },
+                {
+                    "__typename": "StatusContext",
+                    "name": "legacy-status",
+                    "status": "SUCCESS",
+                    "conclusion": ""
+                }
+            ]
+        }"#;
+
+        let checks = parse_pr_checks(json, 42).expect("expected checks to parse");
+
+        assert_eq!(checks.pr_number, 42);
+        assert_eq!(checks.head_sha, "abc123");
+        assert_eq!(checks.check_runs.len(), 2, "legacy statuses must be filtered out");
+
+        let build = &checks.check_runs[0];
+        assert_eq!(build.name, "build");
+        assert_eq!(build.status, PrCheckStatus::Completed);
+        assert_eq!(build.conclusion, Some(PrCheckConclusion::Success));
+        assert_eq!(
+            build.details_url.as_deref(),
+            Some("https://github.com/acme/repo/actions/runs/1")
+        );
+        assert_eq!(build.workflow_name.as_deref(), Some("CI"));
+
+        let lint = &checks.check_runs[1];
+        assert_eq!(lint.name, "lint");
+        assert_eq!(lint.status, PrCheckStatus::InProgress);
+        assert_eq!(lint.conclusion, None);
+        assert_eq!(lint.details_url, None);
+        assert_eq!(lint.workflow_name, None);
+    }
+
+    #[test]
+    fn parse_pr_checks_handles_missing_rollup() {
+        let json = r#"{ "headRefOid": "def456" }"#;
+        let checks = parse_pr_checks(json, 7).expect("expected empty rollup to parse");
+        assert_eq!(checks.head_sha, "def456");
+        assert!(checks.check_runs.is_empty());
     }
 
     #[cfg(unix)]
