@@ -4,7 +4,7 @@ use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
-    SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
+    SessionCompatibilityInput, SessionReplayContext,
 };
 use crate::acp::session_open_snapshot::{
     resolve_canonical_session_title, session_open_result_for_new_session, SessionOpenFound,
