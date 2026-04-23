@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Bug, HardDrives, SlidersHorizontal } from "phosphor-svelte";
-  import type { Snippet } from "svelte";
+import { Bug, HardDrives, SlidersHorizontal } from "phosphor-svelte";
+import type { Snippet } from "svelte";
 
-  import { AppTopBar } from "@acepe/ui/app-layout";
+import { AppTopBar } from "@acepe/ui/app-layout";
 
 interface Props {
 	children?: Snippet;
