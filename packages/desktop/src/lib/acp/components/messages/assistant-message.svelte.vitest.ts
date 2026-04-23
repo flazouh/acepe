@@ -48,10 +48,13 @@ vi.mock("svelte", async () => {
 });
 
 vi.mock("@acepe/ui/agent-panel", async () => {
+	const actual =
+		await vi.importActual<typeof import("@acepe/ui/agent-panel")>("@acepe/ui/agent-panel");
 	const AgentToolThinking = (await import("./__tests__/fixtures/agent-tool-thinking-stub.svelte"))
 		.default;
 
 	return {
+		...actual,
 		AgentToolThinking,
 	};
 });

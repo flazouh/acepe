@@ -50,7 +50,9 @@
 		badges={header.badges}
 		{controls}
 	>
-		{#snippet statusIndicator()}
+		{#snippet statusIndicator()}{/snippet}
+
+		{#snippet statusAction()}
 			<AgentPanelStatusIcon status={header.status} />
 		{/snippet}
 
