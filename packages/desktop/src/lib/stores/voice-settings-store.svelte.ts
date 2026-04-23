@@ -130,7 +130,6 @@ export class VoiceSettingsStore {
 			return;
 		}
 
-		const t0 = performance.now();
 		const loadResult = await tauriClient.voice.loadModel(modelId);
 		if (loadResult.isErr()) {
 			logger.error("Failed to load selected voice model", {
@@ -184,7 +183,6 @@ export class VoiceSettingsStore {
 		this.downloadProgressModelId = modelId;
 		this.downloadPercent = 0;
 
-		const t0 = performance.now();
 		const result = await tauriClient.voice.downloadModel(modelId);
 		if (result.isErr()) {
 			logger.error("Failed to download voice model", {

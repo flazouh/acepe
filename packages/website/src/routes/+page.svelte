@@ -856,9 +856,6 @@ const features = [
 <DevShaderSwitcher />
 
 <style>
-	.hero-demo-stage {
-		/* natural size — no grayscale, no scale-down default */
-	}
 	@media (min-width: 1024px) {
 		.hero-demo-stage {
 			width: 1220px;
