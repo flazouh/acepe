@@ -362,6 +362,14 @@ const groups = $derived.by((): readonly KanbanSceneColumnGroup[] => {
 
 <LandingDemoFrame>
 	{#snippet children()}
-		<KanbanSceneBoard {groups} emptyHint="No agents" />
+		<div class="landing-kanban-demo h-full w-full">
+			<KanbanSceneBoard {groups} emptyHint="No agents" />
+		</div>
 	{/snippet}
 </LandingDemoFrame>
+
+<style>
+	.landing-kanban-demo :global([data-kanban-column-scroll]) {
+		gap: 0.375rem;
+	}
+</style>
