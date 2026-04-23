@@ -338,8 +338,72 @@ describe("openPersistedSession", () => {
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
 			"session-1",
-			"This session can't be reopened because no canonical session state is available."
+			"This session can't be reopened yet because provider history isn't available. Retry once the provider has flushed the session history."
 		);
+		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("surfaces provider parse failures explicitly instead of silently settling to idle", async () => {
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				okAsync({
+					outcome: "error",
+					requestedSessionId: "session-1",
+					message: "Claude provider history parse failed: invalid JSON",
+					reason: "parseFailure",
+					retryable: false,
+				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This session can't be reopened because the provider history could not be parsed."
+		);
+		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("surfaces a safe retryable internal-error message instead of raw backend text", async () => {
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				okAsync({
+					outcome: "error",
+					requestedSessionId: "session-1",
+					message: "database is locked while loading session-1",
+					reason: "internal",
+					retryable: true,
+				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This session couldn't be reopened because Acepe hit an internal error while loading it. Try again in a moment."
+		);
+		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connectSession).not.toHaveBeenCalled();
 	});
 

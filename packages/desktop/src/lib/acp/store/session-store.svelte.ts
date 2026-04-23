@@ -669,7 +669,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Check if a session exists and has been preloaded (entries loaded from disk).
+	 * Check if a session exists and has been preloaded from persisted provider history.
 	 * Returns the cold session data if preloaded, null otherwise.
 	 */
 	getSessionDetail(sessionId: string): SessionCold | null {
@@ -977,7 +977,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Mark session as loaded (entries fetched from disk).
+	 * Mark session as loaded after persisted history entries have been fetched.
 	 */
 	setSessionLoaded(sessionId: string): void {
 		const hotState = this.getHotState(sessionId);
@@ -1032,7 +1032,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	/**
 	 * Clear cached entries/runtime for a session without removing session metadata.
-	 * Used to force a fresh reload from disk for historical sessions.
+	 * Used to force a fresh reload from persisted provider history for historical sessions.
 	 */
 	clearSessionEntries(sessionId: string): void {
 		this.entryStore.clearEntries(sessionId);
@@ -1196,7 +1196,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Preload full session details from disk.
+	 * Preload full session details from persisted provider history.
 	 */
 	preloadSessions(
 		sessionIds: string[]
@@ -1207,7 +1207,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Register a minimal cold-shell so that openPersistedSession can find session
 	 * metadata when the session is only present in the backend registry (not yet in the
-	 * local store). The canonical snapshot is applied by the subsequent
+	 * local store). The canonical provider-open snapshot is applied by the subsequent
 	 * openPersistedSession call; this method only seeds the lookup.
 	 *
 	 * No-op when the session is already registered.
@@ -1241,7 +1241,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Load a historical session from disk.
+	 * Load a historical session from persisted provider history metadata.
 	 */
 	loadHistoricalSession(
 		id: string,

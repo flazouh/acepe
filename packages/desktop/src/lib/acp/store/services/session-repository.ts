@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  * - Session CRUD operations (add, update, remove)
- * - History loading from disk
+ * - History loading from persisted provider-owned session files
  * - Session preloading and scanning
  * - Converting history entries to Session format
  *
@@ -345,7 +345,7 @@ export class SessionRepository {
 	}
 
 	/**
-	 * Preload full session details from disk.
+	 * Preload full session details from the provider-owned persisted history.
 	 */
 	preloadSessions(
 		sessionIds: string[]
@@ -399,7 +399,7 @@ export class SessionRepository {
 	}
 
 	/**
-	 * Load a historical session from disk.
+	 * Load a historical session from persisted provider history metadata.
 	 */
 	loadHistoricalSession(
 		id: string,

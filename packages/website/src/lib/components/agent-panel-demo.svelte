@@ -1,7 +1,7 @@
 <script lang="ts">
-	import {
-		AgentInputAutonomousToggle,
-		AgentInputConfigOptionSelector,
+import {
+	AgentInputAutonomousToggle,
+	AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
 	AgentInputMetricsChip,
@@ -11,11 +11,11 @@
 	AgentInputToolbar,
 	AgentPanelDeck,
 	AgentPanelComposer,
-		AgentPanelComposerFrame,
-		AgentPanelFooter,
-		AgentPanelStatusIcon,
-		AgentPanelModifiedFileRow,
-		AgentPanelModifiedFilesHeader,
+	AgentPanelComposerFrame,
+	AgentPanelFooter,
+	AgentPanelStatusIcon,
+	AgentPanelModifiedFileRow,
+	AgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls,
 	AgentPanelPlanHeader,
 	AgentPanelPrCard,
@@ -293,7 +293,7 @@ function createKeyboardNavConversation(): DemoConversationEntry[] {
 		},
 		createAssistantEntry(
 			"composer-verify-assistant",
-			"Added `⌘[` / `⌘]` to `panel-keyboard-handler.ts`:\n\n```ts\ncase \"[\":\n  if (meta) { focusPrev(); return true; }\n  break;\ncase \"]\":\n  if (meta) { focusNext(); return true; }\n  break;\n```\n\nBoth shortcuts respect the existing `keyboardDisabled` guard and are no-ops when a text input is focused."
+			'Added `⌘[` / `⌘]` to `panel-keyboard-handler.ts`:\n\n```ts\ncase "[":\n  if (meta) { focusPrev(); return true; }\n  break;\ncase "]":\n  if (meta) { focusNext(); return true; }\n  break;\n```\n\nBoth shortcuts respect the existing `keyboardDisabled` guard and are no-ops when a text input is focused.'
 		),
 	];
 }
@@ -332,7 +332,7 @@ function createNarrowStatusConversation(): DemoConversationEntry[] {
 		},
 		createAssistantEntry(
 			"composer-polish-assistant",
-			"Replaced `string` with the `AgentStatus` union in `types.ts`:\n\n```ts\nexport type AgentStatus =\n  | \"empty\"\n  | \"connected\"\n  | \"running\"\n  | \"idle\"\n  | \"done\"\n  | \"error\";\n```\n\nAll 4 call sites already pass a valid member — the type check now proves it."
+			'Replaced `string` with the `AgentStatus` union in `types.ts`:\n\n```ts\nexport type AgentStatus =\n  | "empty"\n  | "connected"\n  | "running"\n  | "idle"\n  | "done"\n  | "error";\n```\n\nAll 4 call sites already pass a valid member — the type check now proves it.'
 		),
 	];
 }

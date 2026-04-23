@@ -676,7 +676,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("refreshes from a canonical snapshot when a delta frontier mismatches the loaded transcript", async () => {
+	it("refreshes from the canonical provider-open snapshot when a delta frontier mismatches the loaded transcript", async () => {
 		const store = new SessionStore();
 		const initialGraph = createSessionStateGraph();
 		const refreshedGraph = createSessionStateGraph({

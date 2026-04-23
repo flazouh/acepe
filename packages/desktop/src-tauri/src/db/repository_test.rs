@@ -5,23 +5,17 @@
 #[cfg(test)]
 mod session_metadata_tests {
     use crate::acp::projections::{
-        InteractionResponse, InteractionSnapshot, InteractionState, SessionProjectionSnapshot,
-        SessionSnapshot, SessionTurnState,
+        InteractionResponse, InteractionState,
     };
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionDescriptorMissingFact,
         SessionDescriptorResolutionError, SessionReplayContext,
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
-    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
-    use crate::acp::transcript_projection::TranscriptSnapshot;
-    use crate::acp::types::CanonicalAgentId;
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
-        SessionTranscriptSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -156,155 +150,6 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_session_projection_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-projection".to_string(),
-            "Projection session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-projection.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionProjectionSnapshot {
-            session: Some(SessionSnapshot {
-                session_id: "session-projection".to_string(),
-                agent_id: Some(crate::acp::types::CanonicalAgentId::ClaudeCode),
-                last_event_seq: 3,
-                turn_state: SessionTurnState::Completed,
-                message_count: 1,
-                last_agent_message_id: Some("msg-1".to_string()),
-                active_tool_call_ids: vec![],
-                completed_tool_call_ids: vec!["tool-1".to_string()],
-                active_turn_failure: None,
-                last_terminal_turn_id: None,
-            }),
-            operations: vec![],
-            interactions: vec![InteractionSnapshot {
-                id: "interaction-1".to_string(),
-                session_id: "session-projection".to_string(),
-                kind: crate::acp::projections::InteractionKind::Question,
-                state: crate::acp::projections::InteractionState::Answered,
-                json_rpc_request_id: Some(7),
-                reply_handler: Some(
-                    crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                ),
-                tool_reference: None,
-                responded_at_event_seq: Some(3),
-                response: Some(crate::acp::projections::InteractionResponse::Question {
-                    answers: json!({ "Proceed?": ["Yes"] }),
-                }),
-                payload: crate::acp::projections::InteractionPayload::Question(
-                    crate::acp::session_update::QuestionData {
-                        id: "interaction-1".to_string(),
-                        session_id: "session-projection".to_string(),
-                        json_rpc_request_id: Some(7),
-                        reply_handler: Some(
-                            crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
-                        ),
-                        questions: vec![],
-                        tool: None,
-                    },
-                ),
-            }],
-            runtime: None,
-        };
-
-        SessionProjectionSnapshotRepository::set(&db, "session-projection", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionProjectionSnapshotRepository::get(&db, "session-projection")
-            .await
-            .unwrap()
-            .expect("expected persisted projection snapshot");
-
-        assert_eq!(loaded.session.expect("session").last_event_seq, 3);
-        assert_eq!(loaded.interactions.len(), 1);
-        assert_eq!(loaded.interactions[0].id, "interaction-1");
-    }
-
-    #[tokio::test]
-    async fn test_session_transcript_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-transcript".to_string(),
-            "Transcript session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-transcript.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = TranscriptSnapshot {
-            revision: 5,
-            entries: vec![],
-        };
-
-        SessionTranscriptSnapshotRepository::set(&db, "session-transcript", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionTranscriptSnapshotRepository::get(&db, "session-transcript")
-            .await
-            .unwrap()
-            .expect("expected persisted transcript snapshot");
-
-        assert_eq!(loaded.revision, 5);
-        assert!(loaded.entries.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_session_thread_snapshot_round_trips() {
-        let db = setup_test_db().await;
-        SessionMetadataRepository::upsert(
-            &db,
-            "session-thread".to_string(),
-            "Thread session".to_string(),
-            1704067200000,
-            "/Users/test/project".to_string(),
-            "claude-code".to_string(),
-            "-Users-test-project/session-thread.jsonl".to_string(),
-            1704067200,
-            1024,
-        )
-        .await
-        .unwrap();
-
-        let snapshot = SessionThreadSnapshot {
-            entries: vec![],
-            title: "Thread session".to_string(),
-            created_at: "2026-04-23T00:00:00Z".to_string(),
-            current_mode_id: Some("build".to_string()),
-        };
-
-        SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
-            .await
-            .unwrap();
-        let loaded = SessionThreadSnapshotRepository::get(
-            &db,
-            "session-thread",
-            &CanonicalAgentId::ClaudeCode,
-        )
-        .await
-        .unwrap()
-        .expect("expected persisted thread snapshot");
-
-        assert_eq!(loaded.title, "Thread session");
-        assert_eq!(loaded.current_mode_id.as_deref(), Some("build"));
-        assert!(loaded.entries.is_empty());
-    }
-
-    #[tokio::test]
     async fn test_session_journal_replays_projection_state() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
@@ -414,7 +259,7 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_session_journal_list_with_replay_context_deserializes_serialized_tool_calls() {
+    async fn test_session_journal_skips_tool_call_payload_persistence() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -455,33 +300,22 @@ mod session_metadata_tests {
             },
             session_id: Some("session-tool-call".to_string()),
         };
-        SessionJournalEventRepository::append_session_update(&db, "session-tool-call", &tool_call)
-            .await
-            .unwrap();
+        let appended = SessionJournalEventRepository::append_session_update(
+            &db,
+            "session-tool-call",
+            &tool_call,
+        )
+        .await
+        .expect("tool call append should succeed");
 
-        let replay_context = replay_context_for_session(&db, "session-tool-call").await;
+        assert!(
+            appended.is_none(),
+            "tool call payloads should no longer be journaled"
+        );
         let serialized = SessionJournalEventRepository::list_serialized(&db, "session-tool-call")
             .await
             .expect("journal rows should load without replay parsing");
-        assert_eq!(serialized.len(), 1);
-        assert!(serialized[0].event_json.contains("tooluse_read_1"));
-        let journal = decode_serialized_events(&replay_context, serialized)
-            .expect("journal should deserialize with explicit replay context");
-        let replayed = rebuild_session_projection(&replay_context, &journal);
-
-        assert_eq!(journal.len(), 1);
-        let session = replayed
-            .session
-            .expect("expected replayed session snapshot");
-        assert_eq!(
-            session.agent_id,
-            Some(crate::acp::types::CanonicalAgentId::ClaudeCode)
-        );
-        assert_eq!(replayed.operations.len(), 1);
-        assert_eq!(
-            replayed.operations[0].kind,
-            Some(crate::acp::session_update::ToolKind::Read)
-        );
+        assert!(serialized.is_empty());
     }
 
     // -----------------------------------------------------------------------
@@ -515,40 +349,13 @@ mod session_metadata_tests {
         .await
         .expect("ensure exists");
 
-        let tool_call = crate::acp::session_update::SessionUpdate::ToolCall {
-            tool_call: crate::acp::session_update::ToolCallData {
-                id: "tc-1".to_string(),
-                name: "Read".to_string(),
-                arguments: crate::acp::session_update::ToolArguments::Read {
-                    file_path: Some("/repo/README.md".to_string()),
-                    source_context: None,
-                },
-                raw_input: None,
-                status: crate::acp::session_update::ToolCallStatus::Completed,
-                result: None,
-                kind: Some(crate::acp::session_update::ToolKind::Read),
-                title: None,
-                locations: None,
-                skill_meta: None,
-                normalized_questions: None,
-                normalized_todos: None,
-                normalized_todo_update: None,
-                parent_tool_use_id: None,
-                task_children: None,
-                question_answer: None,
-                awaiting_plan_approval: false,
-                plan_approval_request_id: None,
-            },
-            session_id: Some(session_id.to_string()),
-        };
-
-        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+        SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
             .await
             .expect("append first");
-        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+        SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
             .await
             .expect("append second");
-        SessionJournalEventRepository::append_session_update(&db, session_id, &tool_call)
+        SessionJournalEventRepository::append_materialization_barrier(&db, session_id)
             .await
             .expect("append third");
 

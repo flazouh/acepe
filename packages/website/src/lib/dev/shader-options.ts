@@ -143,7 +143,7 @@ const grainGradient: ShaderDefinition = {
 			kind: "enum",
 			id: "shape",
 			label: "Shape",
-			default: GrainGradientShapes.ripple,
+			default: GrainGradientShapes.wave,
 			options: SHAPE_ENUM_GRAIN,
 		},
 		{ kind: "number", id: "softness", label: "Softness", default: 0.6, min: 0, max: 1, step: 0.01 },

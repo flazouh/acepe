@@ -8,6 +8,9 @@ use crate::acp::client::{
 use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
+use crate::acp::lifecycle::{
+    DetachedReason, FailureReason, LifecycleCheckpoint, LifecycleState, LifecycleStatus,
+};
 use crate::acp::model_display::{
     DisplayModelGroup, DisplayableModel, ModelDisplayFamily, ModelPresentationMetadata,
     ModelsForDisplay, UsageMetricsPresentation,
@@ -18,12 +21,13 @@ use crate::acp::projections::{
     SessionSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_open_snapshot::{
-    SessionOpenError, SessionOpenFound, SessionOpenMissing, SessionOpenResult,
+    SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
+    SessionOpenResult,
 };
 use crate::acp::session_state_engine::{
-    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
-    SessionGraphRevision, SessionStateDelta, SessionStateEnvelope, SessionStateGraph,
-    SessionStatePayload, SessionStateSnapshotMaterialization,
+    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateDelta, SessionStateEnvelope,
+    SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -400,7 +404,13 @@ pub fn export_all_types() {
     export_acp_type!(TurnErrorKind);
     export_acp_type!(TurnErrorSource);
     export_acp_type!(TurnFailureSnapshot);
+    export_acp_type!(LifecycleStatus);
+    export_acp_type!(DetachedReason);
+    export_acp_type!(FailureReason);
+    export_acp_type!(LifecycleState);
+    export_acp_type!(LifecycleCheckpoint);
     export_acp_type!(SessionProjectionSnapshot);
+    export_acp_type!(SessionOpenErrorReason);
     export_acp_type!(SessionOpenError);
     export_acp_type!(SessionOpenFound);
     export_acp_type!(SessionOpenMissing);
@@ -409,6 +419,7 @@ pub fn export_all_types() {
     export_acp_type!(SessionGraphLifecycleStatus);
     export_acp_type!(SessionGraphLifecycle);
     export_acp_type!(SessionGraphCapabilities);
+    export_acp_type!(CapabilityPreviewState);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);
