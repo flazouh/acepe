@@ -56,7 +56,11 @@ where
         .unwrap_or(0);
     let transcript_revision = transcript_projection_registry
         .as_ref()
-        .and_then(|registry| registry.snapshot_for_session(session_id).map(|snapshot| snapshot.revision))
+        .and_then(|registry| {
+            registry
+                .snapshot_for_session(session_id)
+                .map(|snapshot| snapshot.revision)
+        })
         .unwrap_or(last_event_seq);
     let original_capabilities = runtime_snapshot.capabilities;
     let pending_capabilities = mutate_capabilities(original_capabilities.clone());
@@ -98,11 +102,13 @@ fn finalize_capability_mutation(
     capabilities: crate::acp::session_state_engine::selectors::SessionGraphCapabilities,
     preview_state: CapabilityPreviewState,
 ) {
-    let graph_revision = context.runtime_registry.replace_capabilities_with_graph_seed(
-        session_id,
-        context.pending_revision.graph_revision,
-        capabilities.clone(),
-    );
+    let graph_revision = context
+        .runtime_registry
+        .replace_capabilities_with_graph_seed(
+            session_id,
+            context.pending_revision.graph_revision,
+            capabilities.clone(),
+        );
     let revision = SessionGraphRevision::new(
         graph_revision,
         context.transcript_revision,
@@ -462,7 +468,8 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
     })?;
 
     let mut client_guard = lock_session_client(&client_mutex, "acp_send_prompt: lock").await?;
-    if let (Some(supervisor), Some(permit)) = (supervisor.as_ref(), ready_dispatch_permit.as_ref()) {
+    if let (Some(supervisor), Some(permit)) = (supervisor.as_ref(), ready_dispatch_permit.as_ref())
+    {
         supervisor
             .inner()
             .validate_ready_dispatch_permit(permit)

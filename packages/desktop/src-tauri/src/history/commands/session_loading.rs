@@ -5,16 +5,12 @@ use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::{SessionJournalEvent, SessionJournalEventPayload};
-use crate::acp::session_open_snapshot::{
-    SessionOpenMissing, SessionOpenResult,
-};
+use crate::acp::session_open_snapshot::{SessionOpenMissing, SessionOpenResult};
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::commands::observability::{
     unexpected_command_result, CommandResult, SerializableCommandError,
 };
-use crate::db::repository::{
-    SessionMetadataRepository,
-};
+use crate::db::repository::SessionMetadataRepository;
 use crate::opencode_history::commands::fetch_opencode_session;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set, TransactionTrait,
@@ -364,14 +360,15 @@ pub async fn ensure_canonical_session_materialized(
     let Some(db) = app.try_state::<DbConn>().map(|s| s.inner().clone()) else {
         return Err("Database unavailable for provider-owned session load".to_string());
     };
-    let session_metadata = SessionMetadataRepository::get_by_id(&db, &replay_context.local_session_id)
-        .await
-        .map_err(|error| {
-            format!(
-                "Failed to load session metadata for {}: {error}",
-                replay_context.local_session_id
-            )
-        })?;
+    let session_metadata =
+        SessionMetadataRepository::get_by_id(&db, &replay_context.local_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Failed to load session metadata for {}: {error}",
+                    replay_context.local_session_id
+                )
+            })?;
 
     let context = crate::history::session_context::SessionContext {
         local_session_id: replay_context.local_session_id.clone(),
@@ -413,17 +410,18 @@ pub async fn get_session_open_result(
     )
     .await;
     let replay_context = context.replay_context();
-    let thread_content = match ensure_canonical_session_materialized(app_clone, &replay_context).await {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            return Ok(SessionOpenResult::Error(
-                crate::acp::session_open_snapshot::SessionOpenError {
-                    requested_session_id: session_id,
-                    message: error,
-                },
-            ));
-        }
-    };
+    let thread_content =
+        match ensure_canonical_session_materialized(app_clone, &replay_context).await {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                return Ok(SessionOpenResult::Error(
+                    crate::acp::session_open_snapshot::SessionOpenError {
+                        requested_session_id: session_id,
+                        message: error,
+                    },
+                ));
+            }
+        };
 
     let Some(thread_content) = thread_content else {
         return Ok(SessionOpenResult::Missing(SessionOpenMissing {

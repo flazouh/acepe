@@ -4,6 +4,7 @@ import {
 	shouldRouteWindowVoiceHold,
 	shouldStartVoiceHold,
 	shouldStopVoiceHold,
+	shouldSyncPanelFocusOnEditorFocus,
 } from "../voice-keyboard.js";
 
 function createKeyboardEventLike(
@@ -85,5 +86,31 @@ describe("voice-keyboard", () => {
 				focusedPanelId: null,
 			})
 		).toBe(true);
+	});
+
+	it("syncs panel focus when editor focus moves to another panel", () => {
+		expect(
+			shouldSyncPanelFocusOnEditorFocus({
+				focusedPanelId: "panel-a",
+				panelId: "panel-b",
+			})
+		).toBe(true);
+		expect(
+			shouldSyncPanelFocusOnEditorFocus({
+				focusedPanelId: "panel-a",
+				panelId: "panel-a",
+			})
+		).toBe(false);
+		expect(
+			shouldSyncPanelFocusOnEditorFocus({
+				focusedPanelId: null,
+				panelId: "panel-a",
+			})
+		).toBe(true);
+		expect(
+			shouldSyncPanelFocusOnEditorFocus({
+				focusedPanelId: "panel-a",
+			})
+		).toBe(false);
 	});
 });

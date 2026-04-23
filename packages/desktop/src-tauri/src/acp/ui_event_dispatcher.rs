@@ -11,9 +11,7 @@ use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::db::repository::SessionJournalEventRepository;
-use crate::db::repository::{
-    SessionProjectionSnapshotRepository,
-};
+use crate::db::repository::SessionProjectionSnapshotRepository;
 use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};

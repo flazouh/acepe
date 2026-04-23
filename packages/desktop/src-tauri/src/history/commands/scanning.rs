@@ -56,6 +56,18 @@ fn derive_indexed_session_title(session_id: &str, display: &str, title_overridde
     resolve_indexed_session_title(session_id, display, title_overridden, None)
 }
 
+fn filter_hidden_external_file_scan_entries(
+    mut entries: Vec<HistoryEntry>,
+    external_hidden_paths: &std::collections::HashSet<String>,
+) -> Vec<HistoryEntry> {
+    if external_hidden_paths.is_empty() {
+        return entries;
+    }
+
+    entries.retain(|entry| !external_hidden_paths.contains(&entry.project));
+    entries
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn scan_project_sessions(
@@ -179,18 +191,22 @@ async fn scan_project_sessions_inner(
     db: Option<DbConn>,
 ) -> Result<Vec<HistoryEntry>, String> {
     let scan_start = Instant::now();
+    let external_hidden_paths = match &db {
+        Some(db) => {
+            crate::history::visibility::load_external_hidden_paths_or_empty(
+                db,
+                &project_paths,
+                "scan_project_sessions",
+            )
+            .await
+        }
+        None => std::collections::HashSet::new(),
+    };
 
     // Try SQLite index for ALL agents (fast path: ~10-50ms)
     let from_index = match &db {
         Some(db) => {
             let idx_start = Instant::now();
-            let external_hidden_paths =
-                crate::history::visibility::load_external_hidden_paths_or_empty(
-                    db,
-                    &project_paths,
-                    "scan_project_sessions",
-                )
-                .await;
             let result = SessionMetadataRepository::get_for_projects(
                 db,
                 &project_paths,
@@ -323,6 +339,8 @@ async fn scan_project_sessions_inner(
         }
     };
 
+    entries = filter_hidden_external_file_scan_entries(entries, &external_hidden_paths);
+
     tracing::info!(
         claude_count,
         cursor_count,
@@ -343,11 +361,14 @@ async fn scan_project_sessions_inner(
 #[cfg(test)]
 mod tests {
     use super::{
-        derive_indexed_session_title, derive_title_from_converted_session, indexed_source_path,
+        derive_indexed_session_title, derive_title_from_converted_session,
+        filter_hidden_external_file_scan_entries, indexed_source_path,
         resolve_indexed_session_title,
     };
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-    use crate::db::repository::SessionMetadataRow;
+    use crate::acp::types::CanonicalAgentId;
+    use crate::db::repository::{SessionLifecycleState, SessionMetadataRow};
+    use crate::session_jsonl::types::HistoryEntry;
     use crate::session_jsonl::types::{StoredContentBlock, StoredEntry, StoredUserMessage};
 
     fn make_session(title: &str, user_text: &str) -> SessionThreadSnapshot {
@@ -370,6 +391,26 @@ mod tests {
             title: title.to_string(),
             created_at: "2026-04-06T00:00:00Z".to_string(),
             current_mode_id: None,
+        }
+    }
+
+    fn make_history_entry(id: &str, project: &str, agent_id: &str) -> HistoryEntry {
+        HistoryEntry {
+            id: id.to_string(),
+            display: id.to_string(),
+            timestamp: 0,
+            project: project.to_string(),
+            session_id: id.to_string(),
+            pasted_contents: serde_json::json!({}),
+            agent_id: CanonicalAgentId::parse(agent_id),
+            updated_at: 0,
+            source_path: Some(format!("/tmp/{id}.jsonl")),
+            parent_id: None,
+            worktree_path: None,
+            pr_number: None,
+            worktree_deleted: None,
+            session_lifecycle_state: Some(SessionLifecycleState::Persisted),
+            sequence_id: None,
         }
     }
 
@@ -428,6 +469,22 @@ mod tests {
             derive_indexed_session_title("session-1", "Ship sidebar instantly", false),
             "Ship sidebar instantly"
         );
+    }
+
+    #[test]
+    fn file_scan_visibility_hides_external_entries_for_hidden_projects() {
+        let entries = vec![
+            make_history_entry("cursor-hidden", "/hidden", "cursor"),
+            make_history_entry("codex-hidden", "/hidden", "codex"),
+            make_history_entry("claude-visible", "/visible", "claude-code"),
+        ];
+        let hidden_projects = std::collections::HashSet::from([String::from("/hidden")]);
+
+        let filtered = filter_hidden_external_file_scan_entries(entries, &hidden_projects);
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, "claude-visible");
+        assert_eq!(filtered[0].project, "/visible");
     }
 }
 

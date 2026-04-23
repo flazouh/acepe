@@ -368,6 +368,9 @@ export class VoiceInputState {
 			},
 			(err: AppError) => {
 				log("stopRecording: FAILED", { error: err.message });
+				if (!this.shouldContinueFromPhase("transcribing", "stopRecording.error")) {
+					return;
+				}
 				this.clearWatchdog();
 				this.setError(err.message ?? "Failed to stop recording");
 			}

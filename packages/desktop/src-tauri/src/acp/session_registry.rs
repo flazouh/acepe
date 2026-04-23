@@ -1,3 +1,4 @@
+use crate::acp::client::ResumeSessionResponse;
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::error::{AcpError, AcpResult};
@@ -27,6 +28,7 @@ impl LiveSessionDescriptor {
 struct SessionEntry {
     client: Arc<TokioMutex<Box<dyn AgentClient + Send + Sync + 'static>>>,
     descriptor: LiveSessionDescriptor,
+    ready_snapshot: Option<ResumeSessionResponse>,
 }
 
 /// Thread-safe registry of active session clients.
@@ -71,6 +73,7 @@ impl SessionRegistry {
         let entry = SessionEntry {
             client: client_arc,
             descriptor: descriptor.clone(),
+            ready_snapshot: None,
         };
 
         // Check for existing entry and log appropriately
@@ -115,6 +118,25 @@ impl SessionRegistry {
 
     pub fn get_descriptor(&self, session_id: &str) -> Option<LiveSessionDescriptor> {
         self.sessions.get(session_id).map(|r| r.descriptor.clone())
+    }
+
+    pub fn get_ready_snapshot(&self, session_id: &str) -> Option<ResumeSessionResponse> {
+        self.sessions
+            .get(session_id)
+            .and_then(|r| r.ready_snapshot.clone())
+    }
+
+    pub fn cache_ready_snapshot(
+        &self,
+        session_id: &str,
+        snapshot: ResumeSessionResponse,
+    ) -> AcpResult<()> {
+        let Some(mut entry) = self.sessions.get_mut(session_id) else {
+            return Err(AcpError::SessionNotFound(redact_session_id(session_id)));
+        };
+
+        entry.ready_snapshot = Some(snapshot);
+        Ok(())
     }
 
     pub fn bind_provider_session_id(

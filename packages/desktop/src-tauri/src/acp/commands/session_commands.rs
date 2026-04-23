@@ -3,8 +3,8 @@ use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
 use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
-    ResolvedForkSession, ResolvedResumeSession, SessionCompatibilityInput,
-    SessionDescriptorCompatibility, SessionReplayContext,
+    resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
+    SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
 };
 use crate::acp::session_journal::{load_stored_projection, load_transcript_from_journal};
 use crate::acp::session_open_snapshot::{
@@ -12,7 +12,7 @@ use crate::acp::session_open_snapshot::{
     SessionOpenResult,
 };
 use crate::acp::session_policy::SessionPolicyRegistry;
-use crate::acp::session_registry::redact_session_id;
+use crate::acp::session_registry::{redact_session_id, SessionRegistry};
 use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
@@ -98,6 +98,7 @@ async fn ensure_session_anchor_snapshots(
 
 async fn resolve_resume_session_target(
     db: &DbConn,
+    session_registry: Option<&SessionRegistry>,
     session_id: &str,
     requested_cwd: &str,
     explicit_agent_id: Option<&str>,
@@ -108,11 +109,29 @@ async fn resolve_resume_session_target(
             message: format!("Failed to load session metadata for resume: {error}"),
         })?;
 
+    let explicit_agent_override = explicit_agent_id.map(CanonicalAgentId::parse);
+
+    if metadata
+        .as_ref()
+        .is_some_and(|row| row.is_transcript_pending())
+        && session_registry.is_some_and(|registry| registry.contains(session_id))
+    {
+        return resolve_live_pending_session_resume(
+            metadata
+                .as_ref()
+                .expect("checked metadata presence above")
+                .descriptor_facts(),
+            requested_cwd,
+            explicit_agent_override.clone(),
+        )
+        .map_err(SerializableAcpError::from);
+    }
+
     SessionMetadataRepository::resolve_existing_session_resume_from_metadata(
         session_id,
         metadata.as_ref(),
         requested_cwd,
-        explicit_agent_id.map(CanonicalAgentId::parse),
+        explicit_agent_override,
     )
     .map_err(SerializableAcpError::from)
 }
@@ -515,9 +534,11 @@ async fn load_session_projection_lookup(
     } else {
         None
     };
-    let stored_runtime = stored_projection.as_ref().and_then(|snapshot| snapshot.runtime.clone());
-    if let Some(stored_projection) = stored_projection
-        .filter(projection_contains_restorable_content)
+    let stored_runtime = stored_projection
+        .as_ref()
+        .and_then(|snapshot| snapshot.runtime.clone());
+    if let Some(stored_projection) =
+        stored_projection.filter(projection_contains_restorable_content)
     {
         return Ok(SessionProjectionLookup {
             projection: stored_projection,
@@ -691,6 +712,18 @@ pub async fn acp_new_session(
             tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
         }
 
+        session_registry
+            .cache_ready_snapshot(
+                &result.session_id,
+                ResumeSessionResponse {
+                    models: result.models.clone(),
+                    modes: result.modes.clone(),
+                    available_commands: result.available_commands.clone(),
+                    config_options: result.config_options.clone(),
+                },
+            )
+            .map_err(SerializableAcpError::from)?;
+
         let session_open =
             build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
 
@@ -780,8 +813,16 @@ where
 
         // --- Synchronous validation (fast, fails the invoke if invalid) ---
         let db = app.state::<DbConn>();
+        let session_registry = app.state::<SessionRegistry>();
         let resume_target =
-            resolve_resume_session_target(db.inner(), &session_id, &cwd, agent_id.as_deref()).await?;
+            resolve_resume_session_target(
+                db.inner(),
+                Some(session_registry.inner()),
+                &session_id,
+                &cwd,
+                agent_id.as_deref(),
+            )
+            .await?;
         let cwd = validate_session_cwd(
             &resume_target.launch_cwd,
             ProjectAccessReason::SessionResume,
@@ -1441,18 +1482,22 @@ async fn async_resume_session_work(
         if projection_contains_restorable_content(&stored_projection) {
             projection_registry.restore_session_projection(stored_projection);
         } else if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-            projection_registry.restore_session_projection(ProjectionRegistry::project_thread_snapshot(
+            projection_registry.restore_session_projection(
+                ProjectionRegistry::project_thread_snapshot(
+                    session_id,
+                    Some(replay_context.agent_id.clone()),
+                    snapshot,
+                ),
+            );
+        }
+    } else if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+        projection_registry.restore_session_projection(
+            ProjectionRegistry::project_thread_snapshot(
                 session_id,
                 Some(replay_context.agent_id.clone()),
                 snapshot,
-            ));
-        }
-    } else if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-        projection_registry.restore_session_projection(ProjectionRegistry::project_thread_snapshot(
-            session_id,
-            Some(replay_context.agent_id.clone()),
-            snapshot,
-        ));
+            ),
+        );
     }
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
@@ -1566,80 +1611,91 @@ pub async fn acp_fork_session(
     cwd: String,
     agent_id: Option<String>,
 ) -> CommandResult<NewSessionResponse> {
-    expected_acp_command_result("acp_fork_session", async {
-        let (fork_target, cwd, ready_dispatch_permit) =
-            fork_preflight_with_app_handle(&app, &session_id, &cwd, agent_id.as_deref()).await?;
-        let registry = app.state::<Arc<AgentRegistry>>();
-        let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
-        let session_registry = app.state::<SessionRegistry>();
-        let projection_registry = app.state::<Arc<ProjectionRegistry>>();
-        let db = app.state::<DbConn>();
-        let supervisor = app.try_state::<Arc<SessionSupervisor>>();
-        let agent_id_enum = fork_target.launch_agent_id.clone();
+    expected_acp_command_result(
+        "acp_fork_session",
+        async {
+            let (fork_target, cwd, ready_dispatch_permit) =
+                fork_preflight_with_app_handle(&app, &session_id, &cwd, agent_id.as_deref())
+                    .await?;
+            let registry = app.state::<Arc<AgentRegistry>>();
+            let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+            let session_registry = app.state::<SessionRegistry>();
+            let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+            let db = app.state::<DbConn>();
+            let supervisor = app.try_state::<Arc<SessionSupervisor>>();
+            let agent_id_enum = fork_target.launch_agent_id.clone();
 
-        let mut client = create_and_initialize_client(
-            &registry,
-            &opencode_manager,
-            agent_id_enum.clone(),
-            app.clone(),
-            cwd.clone(),
-            "fork session",
-        )
-        .await?;
-
-        if let (Some(supervisor), Some(permit)) = (supervisor.as_ref(), ready_dispatch_permit.as_ref()) {
-            supervisor
-                .inner()
-                .validate_ready_dispatch_permit(permit)
-                .map_err(|error| SerializableAcpError::ProtocolError {
-                    message: error.to_string(),
-                })?;
-        }
-
-        tracing::debug!("Forking session");
-        let result = client
-            .fork_session(
-                fork_target.fork_parent_session_id.clone(),
-                cwd.to_string_lossy().to_string(),
+            let mut client = create_and_initialize_client(
+                &registry,
+                &opencode_manager,
+                agent_id_enum.clone(),
+                app.clone(),
+                cwd.clone(),
+                "fork session",
             )
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Fork session failed");
-                SerializableAcpError::from(e)
-            })?;
+            .await?;
 
-        if let Some(old_client) =
-            session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
-        {
-            tracing::warn!(
-                session_id = %redact_session_id(&result.session_id),
-                agent_id = %agent_id_enum.as_str(),
-                reason = "acp_fork_session replaced existing registry entry",
-                "Stopping replaced session client"
+            if let (Some(supervisor), Some(permit)) =
+                (supervisor.as_ref(), ready_dispatch_permit.as_ref())
+            {
+                supervisor
+                    .inner()
+                    .validate_ready_dispatch_permit(permit)
+                    .map_err(|error| SerializableAcpError::ProtocolError {
+                        message: error.to_string(),
+                    })?;
+            }
+
+            tracing::debug!("Forking session");
+            let result = client
+                .fork_session(
+                    fork_target.fork_parent_session_id.clone(),
+                    cwd.to_string_lossy().to_string(),
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Fork session failed");
+                    SerializableAcpError::from(e)
+                })?;
+
+            if let Some(old_client) =
+                session_registry.store(result.session_id.clone(), client, agent_id_enum.clone())
+            {
+                tracing::warn!(
+                    session_id = %redact_session_id(&result.session_id),
+                    agent_id = %agent_id_enum.as_str(),
+                    reason = "acp_fork_session replaced existing registry entry",
+                    "Stopping replaced session client"
+                );
+                let mut old =
+                    lock_session_client(&old_client, "acp_fork_session: replace lock").await?;
+                old.stop();
+                tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+            }
+
+            tracing::info!(
+                original_session_id = %session_id,
+                new_session_id = %result.session_id,
+                "Session forked with dedicated client"
             );
-            let mut old = lock_session_client(&old_client, "acp_fork_session: replace lock").await?;
-            old.stop();
-            tracing::warn!(session_id = %result.session_id, "Replaced existing session client");
+            projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+            let sequence_id = persist_session_metadata_for_cwd(
+                db.inner(),
+                &result.session_id,
+                &agent_id_enum,
+                &cwd,
+            )
+            .await?;
+            let session_open =
+                build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
+            Ok(NewSessionResponse {
+                sequence_id,
+                session_open: Some(session_open),
+                ..result
+            })
         }
-
-        tracing::info!(
-            original_session_id = %session_id,
-            new_session_id = %result.session_id,
-            "Session forked with dedicated client"
-        );
-        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
-        let sequence_id =
-            persist_session_metadata_for_cwd(db.inner(), &result.session_id, &agent_id_enum, &cwd)
-                .await?;
-        let session_open =
-            build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
-        Ok(NewSessionResponse {
-            sequence_id,
-            session_open: Some(session_open),
-            ..result
-        })
-    }
-    .await)
+        .await,
+    )
 }
 
 pub(crate) async fn fork_preflight_with_app_handle<R: tauri::Runtime>(
@@ -1657,8 +1713,7 @@ pub(crate) async fn fork_preflight_with_app_handle<R: tauri::Runtime>(
 > {
     tracing::info!(session_id = %session_id, cwd = %cwd, agent_id = ?agent_id, "acp_fork_session called");
     let db = app.state::<DbConn>();
-    let fork_target =
-        resolve_fork_session_target(db.inner(), session_id, cwd, agent_id).await?;
+    let fork_target = resolve_fork_session_target(db.inner(), session_id, cwd, agent_id).await?;
     let cwd = validate_session_cwd(&fork_target.launch_cwd, ProjectAccessReason::Other)?;
     let ready_dispatch_permit = app
         .try_state::<Arc<SessionSupervisor>>()
@@ -2194,7 +2249,7 @@ mod tests {
         .unwrap();
 
         let resolved =
-            resolve_resume_session_target(&db, "session-copilot", "/fallback-project", None)
+            resolve_resume_session_target(&db, None, "session-copilot", "/fallback-project", None)
                 .await
                 .expect("resume target");
 
@@ -2223,9 +2278,10 @@ mod tests {
         .await
         .unwrap();
 
-        let error = resolve_resume_session_target(&db, "session-claude", "/fallback-project", None)
-            .await
-            .expect_err("resume should fail");
+        let error =
+            resolve_resume_session_target(&db, None, "session-claude", "/fallback-project", None)
+                .await
+                .expect_err("resume should fail");
 
         match error {
             SerializableAcpError::ProtocolError { message } => {
@@ -2254,6 +2310,7 @@ mod tests {
 
         let error = resolve_resume_session_target(
             &db,
+            None,
             "session-copilot",
             "/fallback-project",
             Some("claude-code"),

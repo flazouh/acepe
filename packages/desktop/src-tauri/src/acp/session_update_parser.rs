@@ -242,12 +242,14 @@ pub fn session_update_to_domain_event(
             tool_call,
             session_id,
         } if tool_call.awaiting_plan_approval => {
-            let interaction_id =
-                if let (Some(sid), Some(rid)) = (session_id.as_deref().filter(|s| !s.is_empty()), tool_call.plan_approval_request_id) {
-                    build_plan_approval_interaction_id(sid, &tool_call.id, rid)
-                } else {
-                    tool_call.id.clone()
-                };
+            let interaction_id = if let (Some(sid), Some(rid)) = (
+                session_id.as_deref().filter(|s| !s.is_empty()),
+                tool_call.plan_approval_request_id,
+            ) {
+                build_plan_approval_interaction_id(sid, &tool_call.id, rid)
+            } else {
+                tool_call.id.clone()
+            };
             Some((
                 SessionDomainEventKind::InteractionUpserted,
                 Some(SessionDomainEventPayload::InteractionUpserted {
@@ -255,7 +257,7 @@ pub fn session_update_to_domain_event(
                     interaction_kind: InteractionKind::PlanApproval,
                 }),
             ))
-        },
+        }
         SessionUpdate::ToolCall { tool_call, .. } => {
             let status = tool_call.status.clone();
             Some((

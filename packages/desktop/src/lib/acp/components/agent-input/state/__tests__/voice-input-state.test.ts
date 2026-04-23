@@ -232,6 +232,55 @@ describe("VoiceInputState", () => {
 		await Promise.resolve();
 	});
 
+	it("ignores late stopRecording failures after transcription already completed", async () => {
+		const pendingStop = createPendingResult<void>();
+		stopRecordingMock.mockReturnValue(
+			ResultAsync.fromPromise(pendingStop.promise, (error) => error as Error)
+		);
+
+		const state = new VoiceInputState({ sessionId: "session-late-stop-error" });
+		await state.registerListeners();
+		state.phase = "recording";
+
+		state.stopRecording();
+		expect(state.phase).toBe("transcribing");
+
+		const transcriptionListener = listenMock.mock.calls.find(
+			([eventName]) => eventName === "voice://transcription_complete"
+		)?.[1] as
+			| ((event: {
+					payload: {
+						session_id: string;
+						text: string;
+						language: string | null;
+						duration_ms: number;
+					};
+			  }) => void)
+			| undefined;
+
+		if (!transcriptionListener) {
+			throw new Error("expected transcription_complete listener");
+		}
+
+		transcriptionListener({
+			payload: {
+				session_id: "session-late-stop-error",
+				text: "hello world",
+				language: null,
+				duration_ms: 1000,
+			},
+		});
+
+		expect(state.phase).toBe("idle");
+		expect(state.errorMessage).toBeNull();
+
+		pendingStop.reject(new Error("Agent operation failed: voice_stop_recording"));
+		await flushAsync();
+
+		expect(state.phase).toBe("idle");
+		expect(state.errorMessage).toBeNull();
+	});
+
 	it("does not allow cancelling while transcribing", async () => {
 		const state = new VoiceInputState({ sessionId: "session-transcribing" });
 		state.phase = "transcribing";

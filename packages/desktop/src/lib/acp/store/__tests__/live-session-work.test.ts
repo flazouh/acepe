@@ -47,7 +47,7 @@ describe("deriveLiveSessionState", () => {
 		expect(state.activity.kind).toBe("thinking");
 	});
 
-	it("lets active tool work dominate awaiting-model fallback when graph authority is absent", () => {
+	it("prefers streaming when a task child tool call is still in progress", () => {
 		const state = deriveLiveSessionState({
 			runtimeState: {
 				connectionPhase: "connected",
@@ -66,7 +66,24 @@ describe("deriveLiveSessionState", () => {
 				currentMode: null,
 				connectionError: null,
 			},
-			currentStreamingToolCall: makeToolCall(),
+			currentStreamingToolCall: {
+				id: "task-child-1",
+				name: "Read",
+				kind: "read",
+				arguments: { kind: "read", file_path: "/repo/src/task.ts" },
+				status: "in_progress",
+				result: null,
+				title: "Read file",
+				locations: null,
+				skillMeta: null,
+				normalizedQuestions: null,
+				normalizedTodos: null,
+				parentToolUseId: "task-parent-1",
+				taskChildren: [],
+				questionAnswer: null,
+				awaitingPlanApproval: false,
+				planApprovalRequestId: null,
+			},
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPlanApproval: null,

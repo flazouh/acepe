@@ -27,7 +27,9 @@ impl ReadyDispatchPermit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadyDispatchError {
-    SessionNotFound { session_id: String },
+    SessionNotFound {
+        session_id: String,
+    },
     SessionNotReady {
         session_id: String,
         status: LifecycleStatus,
