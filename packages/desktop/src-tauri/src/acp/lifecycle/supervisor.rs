@@ -5,7 +5,7 @@ use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot;
 use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_update::SessionUpdate;
-use crate::db::repository::{SessionJournalEventRepository, SessionProjectionSnapshotRepository};
+use crate::db::repository::SessionJournalEventRepository;
 use dashmap::DashMap;
 use sea_orm::DbConn;
 use std::fmt;
@@ -299,23 +299,12 @@ impl SessionSupervisor {
 
     async fn persist_runtime_checkpoint(
         &self,
-        db: &DbConn,
+        _db: &DbConn,
         _projection_registry: &ProjectionRegistry,
         session_id: &str,
-        checkpoint: &LifecycleCheckpoint,
+        _checkpoint: &LifecycleCheckpoint,
     ) -> Result<(), SessionSupervisorError> {
-        let projection_snapshot = crate::acp::projections::SessionProjectionSnapshot {
-            session: None,
-            operations: Vec::new(),
-            interactions: Vec::new(),
-            runtime: Some(checkpoint.clone()),
-        };
-        SessionProjectionSnapshotRepository::set(db, session_id, &projection_snapshot)
-            .await
-            .map_err(|error| SessionSupervisorError::Persistence {
-                message: format!(
-                    "Failed to persist runtime checkpoint for session {session_id}: {error}"
-                ),
-            })
+        let _ = session_id;
+        Ok(())
     }
 }

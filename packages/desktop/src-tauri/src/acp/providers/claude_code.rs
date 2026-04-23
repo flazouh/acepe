@@ -22,6 +22,10 @@ const CLAUDE_HAIKU_MODEL_ID: &str = "claude-haiku-4-5-20251001";
 /// Claude Code Agent Provider — uses cc-sdk for direct Rust ↔ Claude CLI communication
 pub struct ClaudeCodeProvider;
 
+fn is_missing_claude_history_error(error: &anyhow::Error) -> bool {
+    error.to_string().contains("Session file not found")
+}
+
 impl AgentProvider for ClaudeCodeProvider {
     fn id(&self) -> &str {
         "claude-code"
@@ -182,7 +186,11 @@ impl AgentProvider for ClaudeCodeProvider {
                                 error = %error,
                                 "Claude session parse failed (both worktree and project paths)"
                             );
-                            Ok(None)
+                            if is_missing_claude_history_error(&error) {
+                                Ok(None)
+                            } else {
+                                Err(format!("Claude provider history parse failed: {error}"))
+                            }
                         }
                     }
                 }
@@ -192,7 +200,11 @@ impl AgentProvider for ClaudeCodeProvider {
                         error = %error,
                         "Claude session parse failed"
                     );
-                    Ok(None)
+                    if is_missing_claude_history_error(&error) {
+                        Ok(None)
+                    } else {
+                        Err(format!("Claude provider history parse failed: {error}"))
+                    }
                 }
             }
         })

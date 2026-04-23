@@ -3930,35 +3930,6 @@ mod tests {
 
         let path =
             "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
-        let tool_call = SessionUpdate::ToolCall {
-            tool_call: ToolCallData {
-                id: "tooluse_read_1".to_string(),
-                name: "unknown".to_string(),
-                arguments: ToolArguments::Other {
-                    raw: serde_json::json!({ "path": path }),
-                },
-                raw_input: None,
-                status: ToolCallStatus::Pending,
-                result: None,
-                kind: Some(ToolKind::Other),
-                title: Some(format!("Viewing {path}")),
-                locations: None,
-                skill_meta: None,
-                normalized_questions: None,
-                normalized_todos: None,
-                normalized_todo_update: None,
-                parent_tool_use_id: None,
-                task_children: None,
-                question_answer: None,
-                awaiting_plan_approval: false,
-                plan_approval_request_id: None,
-            },
-            session_id: Some("session-restore".to_string()),
-        };
-        SessionJournalEventRepository::append_session_update(&db, "session-restore", &tool_call)
-            .await
-            .expect("append tool call update");
-
         let permission_update = SessionUpdate::PermissionRequest {
             permission: PermissionData {
                 id: "permission-restore".to_string(),

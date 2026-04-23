@@ -210,7 +210,7 @@ impl AgentProvider for CopilotProvider {
                         error = %error,
                         "Copilot session replay load failed"
                     );
-                    Ok(None)
+                    Err(format!("Copilot provider history load failed: {error}"))
                 }
             }
         })
