@@ -254,10 +254,11 @@ streamingAnimationMode,
 })}
 {:else if group.type === "text"}
 <MarkdownDisplay
-content={group.text}
-textSize="text-sm"
-class="agent-assistant-markdown"
-{iconBasePath}
+	content={group.text}
+	textSize="text-sm"
+	class="agent-assistant-markdown"
+	contentPaddingClass="p-0"
+	{iconBasePath}
 />
 {/if}
 {/each}
@@ -292,10 +293,11 @@ isMessageTextRevealActive = active;
 </div>
 {:else}
 <MarkdownDisplay
-content={group.text}
-textSize="text-sm"
-class="agent-assistant-markdown"
-{iconBasePath}
+	content={group.text}
+	textSize="text-sm"
+	class="agent-assistant-markdown"
+	contentPaddingClass="p-0"
+	{iconBasePath}
 />
 {/if}
 {/if}

@@ -12,6 +12,7 @@
 		AgentInputModelSelector,
 		AgentInputMetricsChip,
 		AgentInputMicButton,
+		AgentPanelStatusIcon,
 		type AgentPanelSceneModel,
 	} from "@acepe/ui";
 	import {
@@ -46,6 +47,8 @@
 		{ name: "fluentai", color: "#8B5CF6", sessions: [] },
 	]);
 
+	let activeTabId = $state("single-tab-3");
+
 	const tabs = $derived<AppTab[]>([
 		{
 			id: "single-tab-1",
@@ -55,7 +58,7 @@
 			agentIconSrc: agentIcon("claude", theme),
 			mode: "build",
 			status: "idle",
-			isFocused: false,
+			isFocused: activeTabId === "single-tab-1",
 		},
 		{
 			id: "single-tab-2",
@@ -65,7 +68,7 @@
 			agentIconSrc: agentIcon("claude", theme),
 			mode: "build",
 			status: "idle",
-			isFocused: false,
+			isFocused: activeTabId === "single-tab-2",
 		},
 		{
 			id: "single-tab-3",
@@ -75,7 +78,7 @@
 			agentIconSrc: agentIcon("claude", theme),
 			mode: "build",
 			status: "done",
-			isFocused: true,
+			isFocused: activeTabId === "single-tab-3",
 		},
 	]);
 
@@ -85,7 +88,7 @@
 		header: {
 			title: "The composer placeholder on the website doesn't match desktop — still shows the old copy.",
 			subtitle: null,
-			status: "empty",
+			status: "connected",
 			agentLabel: null,
 			agentIconSrc: agentIcon("claude", theme),
 			projectLabel: "VC",
@@ -182,43 +185,45 @@
 					{#snippet sessionList()}
 						<div class="relative flex flex-col flex-1 min-h-0 gap-0.5 overflow-y-auto outline-none">
 							{#each sidebarGroups as group (group.name)}
-								<AppSidebarProjectGroup {group}>
-									{#snippet header()}
-										<div class="group shrink-0 flex items-center rounded-md bg-card px-1">
-											<div class="inline-flex items-center justify-center h-7 shrink-0">
-												<ProjectLetterBadge
-													name={group.name}
-													color={group.color ?? '#6B7280'}
-													iconSrc={null}
-													size={16}
-												/>
-											</div>
-											<div class="flex items-center flex-1 min-w-0 h-7 pl-2">
-												<span class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70">{group.name}</span>
-											</div>
-											<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-												<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-													<Terminal class="h-3 w-3" weight="fill" />
+								<div class="px-1 py-px">
+									<AppSidebarProjectGroup {group}>
+										{#snippet header()}
+											<div class="group shrink-0 flex items-center rounded-md bg-card px-2">
+												<div class="inline-flex items-center justify-center h-7 shrink-0">
+													<ProjectLetterBadge
+														name={group.name}
+														color={group.color ?? '#6B7280'}
+														iconSrc={null}
+														size={16}
+													/>
+												</div>
+												<div class="flex items-center flex-1 min-w-0 h-7 pl-2">
+													<span class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70">{group.name}</span>
+												</div>
+												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+													<button type="button" aria-label="Open terminal" class="flex items-center justify-center size-5 rounded text-muted-foreground">
+														<Terminal class="h-3 w-3" weight="fill" />
+													</button>
+													<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
+														<Browser class="h-3 w-3" weight="fill" />
+													</button>
+												</div>
+												<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
+													<CaretDown class="h-3 w-3" weight="bold" />
 												</button>
-												<button type="button" aria-label="Open browser" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-													<Browser class="h-3 w-3" weight="fill" />
-												</button>
+												<div class="flex items-center gap-0.5">
+													<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
+														<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
+													</button>
+													<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
+														<Plus class="h-3 w-3" weight="bold" />
+													</button>
+												</div>
 											</div>
-											<button type="button" aria-label="Collapse project" class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground">
-												<CaretDown class="h-3 w-3" weight="bold" />
-											</button>
-											<div class="flex items-center gap-0.5">
-												<button type="button" aria-label="Project menu" class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground">
-													<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
-												</button>
-												<button type="button" aria-label="New session" class="flex items-center justify-center size-5 rounded text-muted-foreground">
-													<Plus class="h-3 w-3" weight="bold" />
-												</button>
-											</div>
-										</div>
-									{/snippet}
-									{#snippet children()}{/snippet}
-								</AppSidebarProjectGroup>
+										{/snippet}
+										{#snippet children()}{/snippet}
+									</AppSidebarProjectGroup>
+								</div>
 							{/each}
 						</div>
 					{/snippet}
@@ -237,7 +242,7 @@
 					<div class="shrink-0 overflow-hidden rounded-lg border border-border bg-card/50">
 						<div class="flex items-center gap-1 overflow-x-auto px-1 py-0.5" role="tablist">
 							{#each tabs as tab (tab.id)}
-								<AppTabBarTab {tab} onclose={() => {}} />
+								<AppTabBarTab {tab} onclick={() => { activeTabId = tab.id; }} onclose={() => {}} />
 							{/each}
 						</div>
 					</div>
@@ -248,6 +253,7 @@
 							widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 						>
 							{#snippet headerControls()}
+								<AgentPanelStatusIcon status={scene.header.status} />
 								<OverflowMenuTriggerAction title="More actions" />
 								<FullscreenAction isFullscreen={false} onToggle={() => {}} />
 								<CloseAction onClose={() => {}} />
@@ -258,7 +264,7 @@
 										<AgentPanelComposer
 											class="border-t-0 p-0"
 											inputClass="flex-shrink-0 border border-border bg-input/30"
-											contentClass="p-3 py-4"
+											contentClass="p-4 py-4"
 										>
 											{#snippet content()}
 												<AgentInputEditor

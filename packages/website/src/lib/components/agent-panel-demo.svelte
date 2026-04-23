@@ -1,7 +1,7 @@
 <script lang="ts">
-import {
-	AgentInputAutonomousToggle,
-	AgentInputConfigOptionSelector,
+	import {
+		AgentInputAutonomousToggle,
+		AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
 	AgentInputMetricsChip,
@@ -11,10 +11,11 @@ import {
 	AgentInputToolbar,
 	AgentPanelDeck,
 	AgentPanelComposer,
-	AgentPanelComposerFrame,
-	AgentPanelFooter,
-	AgentPanelModifiedFileRow,
-	AgentPanelModifiedFilesHeader,
+		AgentPanelComposerFrame,
+		AgentPanelFooter,
+		AgentPanelStatusIcon,
+		AgentPanelModifiedFileRow,
+		AgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls,
 	AgentPanelPlanHeader,
 	AgentPanelPrCard,
@@ -728,7 +729,7 @@ function handleSubmit(panel: DemoPanel): void {
 					<AgentPanelComposer
 						class="border-t-0 p-0"
 						inputClass="flex-shrink-0 border border-border bg-input/30"
-						contentClass="p-3"
+						contentClass="p-4 py-4"
 					>
 						{#snippet content()}
 							<AgentInputEditor
@@ -816,6 +817,7 @@ function handleSubmit(panel: DemoPanel): void {
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
 						{#snippet headerControls()}
+							<AgentPanelStatusIcon status={panel.status} />
 							<OverflowMenuTriggerAction title="More actions" />
 							<FullscreenAction isFullscreen={false} onToggle={noop} />
 							<CloseAction onClose={noop} />

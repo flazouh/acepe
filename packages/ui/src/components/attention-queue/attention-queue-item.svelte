@@ -20,18 +20,30 @@
 		$derived(`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} rounded transition-[background-color] duration-75 ease-out`);
 	const withHover = $derived(slidingHighlight ? "" : "hover:bg-accent/50");
 	const selectedClass = $derived(selected ? "bg-accent/20" : "");
+
+	function handleKeydown(event: KeyboardEvent): void {
+		if (!onSelect) return;
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			onSelect();
+		}
+	}
 </script>
 
 {#if onSelect}
-	<button
-		type="button"
+	<div
 		class="{baseClass} {withHover} {selectedClass}"
+		role="button"
+		tabindex={0}
+		aria-pressed={selected}
+		data-selected={selected ? "true" : "false"}
 		onclick={onSelect}
+		onkeydown={handleKeydown}
 	>
 		{#if children}
 			{@render children()}
 		{/if}
-	</button>
+	</div>
 {:else}
 	<div class="{baseClass} {withHover} {selectedClass}">
 		{#if children}

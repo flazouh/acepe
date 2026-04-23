@@ -15,6 +15,8 @@ interface Props {
 	scrollable?: boolean;
 	/** Text size class for the markdown content (e.g. "text-sm", "text-xs"). Defaults to "text-sm". */
 	textSize?: string;
+	/** Padding class applied to the rendered markdown wrapper. Defaults to "p-6". */
+	contentPaddingClass?: string;
 	/** Custom error message. Defaults to "Error rendering markdown" */
 	errorMessage?: (error: string) => string;
 	/**
@@ -29,6 +31,7 @@ let {
 	class: className = "",
 	scrollable = false,
 	textSize = "text-sm",
+	contentPaddingClass = "p-6",
 	errorMessage,
 	iconBasePath = getIconBasePath(),
 }: Props = $props();
@@ -161,16 +164,16 @@ let {
 			<p class="whitespace-pre-wrap mt-2">{content}</p>
 		</div>
 	{:else if html}
-		<div bind:this={containerRef} class="markdown-content min-w-0 max-w-full p-6 {textSize} leading-relaxed text-foreground">
+		<div bind:this={containerRef} class="markdown-content min-w-0 max-w-full {contentPaddingClass} {textSize} leading-relaxed text-foreground">
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			{@html html}
 		</div>
 	{:else if isLoading}
-		<div class="markdown-loading {textSize} text-foreground whitespace-pre-wrap leading-relaxed p-6">
+		<div class="markdown-loading {textSize} text-foreground whitespace-pre-wrap leading-relaxed {contentPaddingClass}">
 			{content}
 		</div>
 	{:else}
-		<p class="{textSize} text-foreground whitespace-pre-wrap leading-relaxed p-6">
+		<p class="{textSize} text-foreground whitespace-pre-wrap leading-relaxed {contentPaddingClass}">
 			{content}
 		</p>
 	{/if}

@@ -22,26 +22,29 @@ async function loadLightTheme(): Promise<ThemeRegistration> {
 	return cursorLightTheme;
 }
 
+export const WEBSITE_MARKDOWN_LANGUAGES = [
+	"javascript",
+	"typescript",
+	"jsx",
+	"tsx",
+	"json",
+	"markdown",
+	"html",
+	"css",
+	"bash",
+	"shell",
+	"svelte",
+	"python",
+	"ruby",
+	"rust",
+	"go",
+	"sql",
+] as const;
+
 const api = createMarkdownRenderer({
 	loadDarkTheme,
 	loadLightTheme,
-	languages: [
-		"javascript",
-		"typescript",
-		"jsx",
-		"tsx",
-		"json",
-		"markdown",
-		"html",
-		"css",
-		"bash",
-		"shell",
-		"python",
-		"ruby",
-		"rust",
-		"go",
-		"sql",
-	],
+	languages: WEBSITE_MARKDOWN_LANGUAGES,
 });
 
 export function preInitializeMarkdown(): void {
