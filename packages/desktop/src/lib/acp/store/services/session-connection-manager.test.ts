@@ -371,7 +371,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			"build",
+			undefined,
 			undefined
 		);
 		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
@@ -380,7 +380,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		});
 	});
 
-	it("passes the hydrated launch mode when reconnecting a session", async () => {
+	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: false,
 			isStreaming: false,
@@ -418,7 +418,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			"plan",
+			undefined,
 			undefined
 		);
 	});
@@ -534,7 +534,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			projectPath,
 			expect.any(Number),
 			undefined,
-			"build",
+			undefined,
 			undefined
 		);
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith(

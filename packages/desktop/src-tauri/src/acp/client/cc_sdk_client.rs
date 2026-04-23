@@ -1482,10 +1482,14 @@ impl ClaudeCcSdkClient {
         Vec::new()
     }
 
-    async fn connect_pending_session_with_initial_prompt(&mut self, initial_prompt: String) -> AcpResult<()> {
+    async fn connect_pending_session_with_initial_prompt(
+        &mut self,
+        initial_prompt: String,
+    ) -> AcpResult<()> {
         let session_id = self.session_id.clone().ok_or_else(|| {
             AcpError::InvalidState(
-                "cc-sdk session not initialized; call new_session or resume_session first".to_string(),
+                "cc-sdk session not initialized; call new_session or resume_session first"
+                    .to_string(),
             )
         })?;
         let cwd = self.current_cwd.clone().ok_or_else(|| {
@@ -2566,7 +2570,8 @@ impl AgentClient for ClaudeCcSdkClient {
         let text_len = text.len();
 
         if self.sdk_client.is_none() {
-            self.connect_pending_session_with_initial_prompt(text).await?;
+            self.connect_pending_session_with_initial_prompt(text)
+                .await?;
             tracing::info!(session_id = ?self.session_id, prompt_len = text_len, "cc-sdk: connected with initial prompt");
             return Ok(());
         }
@@ -3272,12 +3277,9 @@ mod tests {
         assert_eq!(response.modes.current_mode_id, "build");
         assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
         assert_eq!(
-            client.build_options(
-                &temp.path().to_string_lossy(),
-                "session-1",
-                None,
-                false
-            ).permission_mode,
+            client
+                .build_options(&temp.path().to_string_lossy(), "session-1", None, false)
+                .permission_mode,
             cc_sdk::PermissionMode::BypassPermissions
         );
     }
@@ -3302,15 +3304,17 @@ mod tests {
 
         assert_eq!(client.pending_mode_id.as_deref(), Some("bypassPermissions"));
         assert_eq!(
-            client.build_options(
-                &temp.path().to_string_lossy(),
-                client
-                    .session_id
-                    .as_deref()
-                    .expect("new_session should preserve session id for first activation"),
-                None,
-                false
-            ).permission_mode,
+            client
+                .build_options(
+                    &temp.path().to_string_lossy(),
+                    client
+                        .session_id
+                        .as_deref()
+                        .expect("new_session should preserve session id for first activation"),
+                    None,
+                    false
+                )
+                .permission_mode,
             cc_sdk::PermissionMode::BypassPermissions
         );
     }
@@ -3349,13 +3353,9 @@ mod tests {
             },
             session_id: Some("session-1".to_string()),
         };
-        SessionJournalEventRepository::append_session_update(
-            &db,
-            "session-1",
-            &permission_update,
-        )
-        .await
-        .expect("persist permission request");
+        SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
+            .await
+            .expect("persist permission request");
         SessionJournalEventRepository::append_interaction_transition(
             &db,
             "session-1",

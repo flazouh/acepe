@@ -27,13 +27,13 @@
 	const isLiveCapture = $derived(phase === "checking_permission" || phase === "recording");
 </script>
 
-<div class="voice-overlay flex flex-col items-center justify-center gap-3 min-h-[72px] py-4">
+<div class="voice-overlay flex min-h-7 items-center justify-center">
 	{#if isLiveCapture}
-		<div class="flex items-center justify-center h-8 motion-reduce:hidden" aria-hidden="true">
+		<div class="flex h-7 items-center justify-center motion-reduce:hidden" aria-hidden="true">
 			<div class="voice-meter flex items-center gap-[1.5px]">
 				{#each meterLevels as level, index (index)}
 					{@const dist = Math.abs(index - Math.floor(barCount / 2))}
-					{@const maxH = 30 - dist * 2.1}
+					{@const maxH = Math.max(8, 22 - dist * 1.5)}
 					<div
 						class="voice-bar rounded-full"
 						style:width="2.5px"
@@ -44,12 +44,8 @@
 			</div>
 		</div>
 	{:else if isError}
-		<div
-			class="voice-error-card flex max-w-[280px] flex-col items-center gap-1.5 text-center"
-			role="alert"
-			aria-live="assertive"
-		>
-			<p class="text-[13px] text-muted-foreground leading-snug">
+		<div class="voice-error-card flex max-w-[280px] items-center justify-center text-center" role="alert" aria-live="assertive">
+			<p class="text-[12px] leading-normal text-muted-foreground">
 				{errorMessage ? errorMessage : defaultErrorMessage}
 			</p>
 		</div>
@@ -59,7 +55,7 @@
 <style>
 	.voice-overlay { animation: voice-fade-in 200ms ease-out; }
 	.voice-error-card { animation: voice-error-appear 250ms ease-out; }
-	.voice-meter { min-height: 30px; align-items: center; }
+	.voice-meter { min-height: 22px; align-items: center; }
 	.voice-bar { transition: height 90ms linear; }
 	@keyframes voice-fade-in { from { opacity: 0; } to { opacity: 1; } }
 	@keyframes voice-error-appear {

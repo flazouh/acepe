@@ -1,7 +1,7 @@
 use super::inbound_commands::respond_inbound_request_with_registry;
 use super::*;
 use crate::acp::client::{AvailableModel, ResumeSessionResponse, SessionModelState, SessionModes};
-use crate::acp::client_session::default_session_model_state;
+use crate::acp::client_session::{default_modes, default_session_model_state};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::InboundRequestResponder;
 use crate::acp::commands::session_commands::{
@@ -13,8 +13,9 @@ use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
 };
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
-    SessionGraphRevision, SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
+    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateEnvelope, SessionStateGraph,
+    SessionStatePayload,
 };
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSnapshot;
@@ -29,8 +30,8 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use tempfile::tempdir;
 use tauri::test::{mock_builder, mock_context, noop_assets};
+use tempfile::tempdir;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -242,7 +243,6 @@ async fn persist_session_metadata_for_cwd_inserts_created_worktree_session() {
     );
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_transcript_pending());
-
 }
 
 #[tokio::test]
@@ -271,7 +271,6 @@ async fn persist_session_metadata_for_cwd_inserts_created_plain_project_session(
     assert_eq!(row.worktree_path, None);
     assert_eq!(row.agent_id, "claude-code");
     assert!(row.is_transcript_pending());
-
 }
 
 #[cfg(target_os = "macos")]
@@ -629,6 +628,83 @@ async fn resume_or_create_uses_provider_owned_load_reconnect_behavior() {
 }
 
 #[tokio::test]
+async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already_loaded() {
+    let session_registry = SessionRegistry::new();
+    let session_id = "live-copilot-session".to_string();
+    let cwd = "/workspace/a".to_string();
+    let agent_id = CanonicalAgentId::Copilot;
+
+    let existing_state = MockClientState::new(false)
+        .with_reconnect_behavior(MockReconnectBehavior::Load)
+        .with_failed_load_message("Session live-copilot-session is already loaded");
+    session_registry.store(
+        session_id.clone(),
+        Box::new(MockAgentClient::new(existing_state.clone())),
+        agent_id.clone(),
+    );
+    session_registry
+        .cache_ready_snapshot(
+            &session_id,
+            ResumeSessionResponse {
+                models: SessionModelState {
+                    available_models: vec![AvailableModel {
+                        model_id: "claude-sonnet-4.6".to_string(),
+                        name: "Claude Sonnet 4.6".to_string(),
+                        description: None,
+                    }],
+                    current_model_id: "claude-sonnet-4.6".to_string(),
+                    models_display: Default::default(),
+                    provider_metadata: None,
+                },
+                modes: SessionModes {
+                    current_mode_id: "plan".to_string(),
+                    available_modes: vec![],
+                },
+                available_commands: vec![],
+                config_options: vec![],
+            },
+        )
+        .expect("cache ready snapshot");
+
+    let existing_client_arc = session_registry
+        .get(&session_id)
+        .expect("existing client should be present");
+    let factory_calls = Arc::new(AtomicUsize::new(0));
+
+    let result = resume_or_create_session_client(
+        &session_registry,
+        session_id.clone(),
+        cwd,
+        agent_id,
+        None,
+        {
+            let factory_calls = Arc::clone(&factory_calls);
+            move || {
+                let factory_calls = Arc::clone(&factory_calls);
+                async move {
+                    factory_calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(Box::new(MockAgentClient::new(MockClientState::new(false)))
+                        as Box<dyn AgentClient + Send + Sync + 'static>)
+                }
+            }
+        },
+    )
+    .await;
+
+    let response = result.expect("cached snapshot should be reused");
+    assert_eq!(factory_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(existing_state.load_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(response.models.current_model_id, "claude-sonnet-4.6");
+    assert_eq!(response.modes.current_mode_id, "plan");
+
+    let stored_client_arc = session_registry
+        .get(&session_id)
+        .expect("stored client should still exist");
+    assert!(Arc::ptr_eq(&existing_client_arc, &stored_client_arc));
+}
+
+#[tokio::test]
 async fn resume_or_create_does_not_store_client_when_new_resume_fails() {
     let session_registry = SessionRegistry::new();
     let session_id = "missing-session".to_string();
@@ -937,7 +1013,10 @@ async fn reserved_send_prompt_emits_connection_complete_before_prompt_echo() {
     assert_eq!(first.event_name, "acp-session-update");
     assert_eq!(first.session_id.as_deref(), Some(session_id));
     assert_eq!(
-        first.payload.get("type").and_then(serde_json::Value::as_str),
+        first
+            .payload
+            .get("type")
+            .and_then(serde_json::Value::as_str),
         Some("connectionComplete"),
         "reserved first-send must publish canonical ready state before prompt echo",
     );
@@ -1191,14 +1270,9 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
     let temp = tempdir().expect("temp dir");
     let session_id = "resume-activating-session";
 
-    persist_session_metadata_for_cwd(
-        &db,
-        session_id,
-        &CanonicalAgentId::ClaudeCode,
-        temp.path(),
-    )
-    .await
-    .expect("persist session metadata");
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
     SessionMetadataRepository::set_provider_session_id(&db, session_id, "provider-session-1")
         .await
         .expect("set provider session id");
@@ -1254,7 +1328,13 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
         None,
         1,
         None,
-        |_app, _session_id, _cwd, _agent_id_enum, _launch_mode_id, _resume_descriptor, _open_token| async move {
+        |_app,
+         _session_id,
+         _cwd,
+         _agent_id_enum,
+         _launch_mode_id,
+         _resume_descriptor,
+         _open_token| async move {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             Ok(ResumeSessionResponse {
                 models: SessionModelState {
@@ -1298,10 +1378,98 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
         serde_json::from_value(first.payload.clone()).expect("session-state envelope");
     match envelope.payload {
         SessionStatePayload::Snapshot { graph } => {
-            assert_eq!(graph.lifecycle.status, SessionGraphLifecycleStatus::Connecting);
+            assert_eq!(
+                graph.lifecycle.status,
+                SessionGraphLifecycleStatus::Connecting
+            );
         }
         payload => panic!("expected snapshot payload, got {:?}", payload),
     }
+}
+
+#[tokio::test]
+async fn resume_session_allows_live_pending_claude_session_without_provider_id() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-pending-claude-session";
+
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(Arc::clone(&event_hub))
+        .manage(Arc::clone(&projection_registry))
+        .manage(Arc::clone(&runtime_registry))
+        .manage(Arc::clone(&transcript_projection_registry))
+        .manage(Arc::clone(&session_policy))
+        .manage(Arc::clone(&supervisor))
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let worker_called = Arc::new(AtomicBool::new(false));
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.to_string(),
+        temp.path().to_string_lossy().into_owned(),
+        None,
+        None,
+        1,
+        None,
+        {
+            let worker_called = Arc::clone(&worker_called);
+            |_app,
+             _session_id,
+             _cwd,
+             _agent_id_enum,
+             _launch_mode_id,
+             _resume_descriptor,
+             _open_token| async move {
+                worker_called.store(true, Ordering::SeqCst);
+                Ok(ResumeSessionResponse {
+                    models: default_session_model_state(),
+                    modes: default_modes(),
+                    available_commands: vec![],
+                    config_options: vec![],
+                })
+            }
+        },
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "live pending Claude session should validate"
+    );
+    tokio::time::timeout(std::time::Duration::from_millis(200), async {
+        while !worker_called.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("resume worker should run");
+    assert!(
+        worker_called.load(Ordering::SeqCst),
+        "resume worker should be invoked for live pending sessions"
+    );
 }
 
 #[tokio::test]
@@ -1420,6 +1588,7 @@ struct MockClientState {
     stop_calls: Arc<AtomicUsize>,
     fail_resume: Arc<AtomicBool>,
     fail_load: Arc<AtomicBool>,
+    load_failure_message: Arc<std::sync::Mutex<Option<String>>>,
     fail_set_model: Arc<AtomicBool>,
     fail_set_mode: Arc<AtomicBool>,
     reconnect_behavior: Arc<std::sync::Mutex<MockReconnectBehavior>>,
@@ -1435,6 +1604,7 @@ impl MockClientState {
             stop_calls: Arc::new(AtomicUsize::new(0)),
             fail_resume: Arc::new(AtomicBool::new(fail_resume)),
             fail_load: Arc::new(AtomicBool::new(false)),
+            load_failure_message: Arc::new(std::sync::Mutex::new(None)),
             fail_set_model: Arc::new(AtomicBool::new(false)),
             fail_set_mode: Arc::new(AtomicBool::new(false)),
             reconnect_behavior: Arc::new(std::sync::Mutex::new(MockReconnectBehavior::Resume)),
@@ -1452,6 +1622,15 @@ impl MockClientState {
 
     fn with_failed_set_mode(self) -> Self {
         self.fail_set_mode.store(true, Ordering::SeqCst);
+        self
+    }
+
+    fn with_failed_load_message(self, message: &str) -> Self {
+        self.fail_load.store(true, Ordering::SeqCst);
+        *self
+            .load_failure_message
+            .lock()
+            .expect("load failure message lock") = Some(message.to_string());
         self
     }
 }
@@ -1527,7 +1706,14 @@ impl AgentClient for MockAgentClient {
     ) -> AcpResult<ResumeSessionResponse> {
         self.state.load_calls.fetch_add(1, Ordering::SeqCst);
         if self.state.fail_load.load(Ordering::SeqCst) {
-            return Err(AcpError::InvalidState("load failed".to_string()));
+            let message = self
+                .state
+                .load_failure_message
+                .lock()
+                .expect("load failure message lock")
+                .clone()
+                .unwrap_or_else(|| "load failed".to_string());
+            return Err(AcpError::InvalidState(message));
         }
 
         Ok(ResumeSessionResponse {
@@ -1718,7 +1904,10 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
         } => {
             assert_eq!(preview_state, CapabilityPreviewState::Pending);
             assert_eq!(revision.graph_revision, 5);
-            assert!(pending_mutation_id.is_some(), "pending envelope should carry mutation id");
+            assert!(
+                pending_mutation_id.is_some(),
+                "pending envelope should carry mutation id"
+            );
             assert_eq!(
                 capabilities.models.expect("models").current_model_id,
                 "gpt-5".to_string()

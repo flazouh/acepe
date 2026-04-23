@@ -13,11 +13,15 @@ mod session_metadata_tests {
         SessionDescriptorResolutionError, SessionReplayContext,
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
+    use crate::acp::transcript_projection::TranscriptSnapshot;
+    use crate::acp::types::CanonicalAgentId;
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
-        SessionProjectionSnapshotRepository,
+        SessionProjectionSnapshotRepository, SessionThreadSnapshotRepository,
+        SessionTranscriptSnapshotRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -223,6 +227,81 @@ mod session_metadata_tests {
         assert_eq!(loaded.session.expect("session").last_event_seq, 3);
         assert_eq!(loaded.interactions.len(), 1);
         assert_eq!(loaded.interactions[0].id, "interaction-1");
+    }
+
+    #[tokio::test]
+    async fn test_session_transcript_snapshot_round_trips() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-transcript".to_string(),
+            "Transcript session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-transcript.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = TranscriptSnapshot {
+            revision: 5,
+            entries: vec![],
+        };
+
+        SessionTranscriptSnapshotRepository::set(&db, "session-transcript", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionTranscriptSnapshotRepository::get(&db, "session-transcript")
+            .await
+            .unwrap()
+            .expect("expected persisted transcript snapshot");
+
+        assert_eq!(loaded.revision, 5);
+        assert!(loaded.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_session_thread_snapshot_round_trips() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::upsert(
+            &db,
+            "session-thread".to_string(),
+            "Thread session".to_string(),
+            1704067200000,
+            "/Users/test/project".to_string(),
+            "claude-code".to_string(),
+            "-Users-test-project/session-thread.jsonl".to_string(),
+            1704067200,
+            1024,
+        )
+        .await
+        .unwrap();
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![],
+            title: "Thread session".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: Some("build".to_string()),
+        };
+
+        SessionThreadSnapshotRepository::set(&db, "session-thread", &snapshot)
+            .await
+            .unwrap();
+        let loaded = SessionThreadSnapshotRepository::get(
+            &db,
+            "session-thread",
+            &CanonicalAgentId::ClaudeCode,
+        )
+        .await
+        .unwrap()
+        .expect("expected persisted thread snapshot");
+
+        assert_eq!(loaded.title, "Thread session");
+        assert_eq!(loaded.current_mode_id.as_deref(), Some("build"));
+        assert!(loaded.entries.is_empty());
     }
 
     #[tokio::test]

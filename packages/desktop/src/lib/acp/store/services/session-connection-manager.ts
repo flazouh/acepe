@@ -607,11 +607,6 @@ export class SessionConnectionManager {
 
 		const resumeCwd = session.projectPath;
 		const attemptId = nextAttemptId++;
-		const reconnectHotState = this.stateReader.getHotState(sessionId);
-		const resumeLaunchModeId = reconnectHotState.currentMode
-			? reconnectHotState.currentMode.id
-			: undefined;
-
 		const lifecycleWaiter = this.eventService.waitForConnectionMaterialization(
 			sessionId,
 			WATCHDOG_TIMEOUT_MS
@@ -634,7 +629,7 @@ export class SessionConnectionManager {
 					resumeCwd,
 					attemptId,
 					options?.agentOverrideId,
-					resumeLaunchModeId ?? undefined,
+					undefined,
 					options?.openToken
 				)
 			)

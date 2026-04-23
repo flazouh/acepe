@@ -158,7 +158,7 @@ impl AgentProvider for CopilotProvider {
         requested_launch_mode_id: Option<&str>,
     ) -> crate::acp::provider::ProviderReconnectPolicy {
         crate::acp::provider::ProviderReconnectPolicy {
-            use_load_semantics: false,
+            use_load_semantics: true,
             outbound_launch_mode_id: requested_launch_mode_id
                 .map(|mode_id| self.map_outbound_mode_id(mode_id)),
         }
@@ -461,7 +461,7 @@ mod tests {
         let provider = CopilotProvider;
         let reconnect_policy = provider.reconnect_policy(Some("build"));
 
-        assert!(!reconnect_policy.use_load_semantics);
+        assert!(reconnect_policy.use_load_semantics);
         assert_eq!(
             reconnect_policy.outbound_launch_mode_id.as_deref(),
             Some("https://agentclientprotocol.com/protocol/session-modes#agent")

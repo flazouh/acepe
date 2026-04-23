@@ -201,8 +201,51 @@ function findLastAssistantIndex(sessionEntries: readonly SessionEntry[]): number
 	return sessionEntries.findLastIndex((e) => e.type === "assistant");
 }
 
-function getKey(entry: VirtualizedDisplayEntry): string {
+function getKey(entry: VirtualizedDisplayEntry | undefined, index?: number): string {
+	if (!entry) {
+		reportMissingVirtualizedEntry(index);
+		return `missing-entry-${String(index ?? "unknown")}`;
+	}
+
 	return getVirtualizedDisplayEntryKey(entry);
+}
+
+let warnedMissingEntryKeys = new Set<string>();
+
+function reportMissingVirtualizedEntry(index: number | undefined): void {
+	if (!import.meta.env.DEV) {
+		return;
+	}
+
+	const warningKey = `${sessionId}:${String(index ?? "unknown")}:${displayEntries.length}`;
+	if (warnedMissingEntryKeys.has(warningKey)) {
+		return;
+	}
+	warnedMissingEntryKeys.add(warningKey);
+
+	const nearbyEntries = displayEntries
+		.slice(Math.max(0, (index ?? 0) - 2), Math.min(displayEntries.length, (index ?? 0) + 3))
+		.map((entry) => {
+			if (!entry) {
+				return { type: "missing" };
+			}
+
+			return {
+				type: entry.type,
+				key: getVirtualizedDisplayEntryKey(entry),
+			};
+		});
+
+	console.warn("[AGENT_PANEL_MISSING_ENTRY]", {
+		panelId,
+		sessionId,
+		index,
+		displayEntriesLength: displayEntries.length,
+		mergedEntriesLength: mergedEntries.length,
+		isWaitingForResponse,
+		turnState,
+		nearbyEntries,
+	});
 }
 
 const activeRootToolCallId = $derived.by(() => {
@@ -315,6 +358,7 @@ $effect(() => {
 	}
 
 	lastRenderedSessionId = sessionId;
+	warnedMissingEntryKeys.clear();
 	autoScroll.reset();
 	followController.reset();
 	useNativeFallback = false;
@@ -575,67 +619,71 @@ export function scrollToTop() {
 	- contain: strict prevents layout recalculation from propagating to parent
 -->
 <div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
-	{#snippet renderEntry(entry: VirtualizedDisplayEntry, index: number)}
-		{@const sharedEntry = mapVirtualizedDisplayEntryToConversationEntry(
-			entry,
-			turnState,
-			isStreaming &&
-				entry.type !== "thinking" &&
-				((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
-					(entry.type === "assistant_merged" &&
-						entry.memberIds.includes(lastAssistantId ?? ""))) &&
-				index === displayEntries.length - 1,
-			activeRootToolCallId,
-			thinkingNowMs
-		)}
-		{@const mergedThoughtDurationMs = resolveDisplayEntryThinkingDurationMs(
-			displayEntries,
-			index,
-			thinkingNowMs
-		)}
-		<MessageWrapper
-			entryIndex={index}
-			entryKey={getKey(entry)}
-			messageId={entry.type === "user" ? entry.id : undefined}
-			observeRevealResize={shouldObserveRevealResize(displayEntries, entry, isStreaming)}
-			revealEntryIndex={revealDisplayIndex}
-			{isFullscreen}
-		>
-			{#if entry.type === "user"}
-				<UserMessage message={entry.message} />
-			{:else if entry.type === "assistant"}
-				<AssistantMessage
-					message={entry.message}
-					isStreaming={isStreaming &&
-						entry.id === (lastAssistantId ?? "") &&
-						index === displayEntries.length - 1}
-					revealMessageKey={getKey(entry)}
-					{projectPath}
-					{streamingAnimationMode}
-				/>
-			{:else if entry.type === "assistant_merged"}
-				<AssistantMessage
-					message={{
-						chunks: entry.message.chunks,
-						model: entry.message.model,
-						displayModel: entry.message.displayModel,
-						receivedAt: entry.message.receivedAt,
-						thinkingDurationMs:
-							mergedThoughtDurationMs ?? entry.message.thinkingDurationMs,
-					}}
-					isStreaming={isStreaming &&
-						entry.memberIds.includes(lastAssistantId ?? "") &&
-						index === displayEntries.length - 1}
-					revealMessageKey={getKey(entry)}
-					{projectPath}
-					{streamingAnimationMode}
-				/>
-			{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
-				<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />
-			{:else}
-				<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
-			{/if}
-		</MessageWrapper>
+	{#snippet renderEntry(entry: VirtualizedDisplayEntry | undefined, index: number)}
+		{#if entry}
+			{@const sharedEntry = mapVirtualizedDisplayEntryToConversationEntry(
+				entry,
+				turnState,
+				isStreaming &&
+					entry.type !== "thinking" &&
+					((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
+						(entry.type === "assistant_merged" &&
+							entry.memberIds.includes(lastAssistantId ?? ""))) &&
+					index === displayEntries.length - 1,
+				activeRootToolCallId,
+				thinkingNowMs
+			)}
+			{@const mergedThoughtDurationMs = resolveDisplayEntryThinkingDurationMs(
+				displayEntries,
+				index,
+				thinkingNowMs
+			)}
+			<MessageWrapper
+				entryIndex={index}
+				entryKey={getKey(entry, index)}
+				messageId={entry.type === "user" ? entry.id : undefined}
+				observeRevealResize={shouldObserveRevealResize(displayEntries, entry, isStreaming)}
+				revealEntryIndex={revealDisplayIndex}
+				{isFullscreen}
+			>
+				{#if entry.type === "user"}
+					<UserMessage message={entry.message} />
+				{:else if entry.type === "assistant"}
+					<AssistantMessage
+						message={entry.message}
+						isStreaming={isStreaming &&
+							entry.id === (lastAssistantId ?? "") &&
+							index === displayEntries.length - 1}
+						revealMessageKey={getKey(entry, index)}
+						{projectPath}
+						{streamingAnimationMode}
+					/>
+				{:else if entry.type === "assistant_merged"}
+					<AssistantMessage
+						message={{
+							chunks: entry.message.chunks,
+							model: entry.message.model,
+							displayModel: entry.message.displayModel,
+							receivedAt: entry.message.receivedAt,
+							thinkingDurationMs:
+								mergedThoughtDurationMs ?? entry.message.thinkingDurationMs,
+						}}
+						isStreaming={isStreaming &&
+							entry.memberIds.includes(lastAssistantId ?? "") &&
+							index === displayEntries.length - 1}
+						revealMessageKey={getKey(entry, index)}
+						{projectPath}
+						{streamingAnimationMode}
+					/>
+				{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
+					<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />
+				{:else}
+					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
+				{/if}
+			</MessageWrapper>
+		{:else}
+			{@const _missingEntryWarning = reportMissingVirtualizedEntry(index)}
+		{/if}
 	{/snippet}
 
 	{#if useNativeFallback}

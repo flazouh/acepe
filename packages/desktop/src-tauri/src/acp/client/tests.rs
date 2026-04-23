@@ -1,6 +1,6 @@
 use super::*;
-use crate::acp::client_session::default_modes;
 use crate::acp::client::session_lifecycle::reconnect_policy_for_provider;
+use crate::acp::client_session::default_modes;
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::{InteractionState, ProjectionRegistry};
@@ -162,7 +162,7 @@ impl AgentProvider for TestProvider {
                 outbound_launch_mode_id: None,
             },
             "copilot" => crate::acp::provider::ProviderReconnectPolicy {
-                use_load_semantics: false,
+                use_load_semantics: true,
                 outbound_launch_mode_id: requested_launch_mode_id
                     .map(|mode_id| self.map_outbound_mode_id(mode_id)),
             },
@@ -282,7 +282,7 @@ fn reconnect_policy_for_provider_maps_launch_mode_without_client_branching() {
     let provider: StdArc<dyn AgentProvider> = StdArc::new(TestProvider { id: "copilot" });
     let reconnect_policy = reconnect_policy_for_provider(Some(provider.as_ref()), Some("build"));
 
-    assert!(!reconnect_policy.use_load_semantics);
+    assert!(reconnect_policy.use_load_semantics);
     assert_eq!(
         reconnect_policy.outbound_launch_mode_id.as_deref(),
         Some("build")

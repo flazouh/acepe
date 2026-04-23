@@ -80,6 +80,7 @@ import {
 	shouldRouteWindowVoiceHold,
 	shouldStartVoiceHold,
 	shouldStopVoiceHold,
+	shouldSyncPanelFocusOnEditorFocus,
 } from "./logic/voice-keyboard.js";
 import { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
 import { resolveVoiceStateLifecycle } from "./logic/voice-state-lifecycle.js";
@@ -114,9 +115,28 @@ let voiceState: VoiceInputState | null = $state(null);
 let voiceStateSessionId: string | null = $state(null);
 let voiceStatePendingSessionId: string | null = $state(null);
 let voiceStateInitGeneration = 0;
+/** Cursor offset captured before voice overlay hides the editor. */
+let voiceCursorSnapshot: number | null = null;
 let autonomousStatusMessage = $state("");
 const voiceEnabled = $derived(voiceSettingsStore.enabled);
-const voiceToolbarBinding = $derived(toVoiceToolbarBinding(voiceState));
+const voiceToolbarBinding = $derived.by(() => {
+	const base = toVoiceToolbarBinding(voiceState);
+	if (!base) return null;
+	return {
+		phase: base.phase,
+		recordingElapsedLabel: base.recordingElapsedLabel,
+		downloadPercent: base.downloadPercent,
+		onMicPointerDown: (e: PointerEvent) => {
+			voiceCursorSnapshot = editorRef
+				? getSerializedCursorOffset(editorRef)
+				: inputState.message.length;
+			base.onMicPointerDown(e);
+		},
+		onMicPointerUp: base.onMicPointerUp,
+		onMicPointerCancel: base.onMicPointerCancel,
+		dismissError: base.dismissError,
+	};
+});
 const voiceMicTooltipLabels = $derived.by(() => ({
 	downloadingModel: "Downloading speech model…",
 	loadingModel: "Loading model...",
@@ -826,13 +846,12 @@ async function initializeVoiceState(): Promise<void> {
 			if (!normalizedText) {
 				return;
 			}
-			const sep = inputState.message.length > 0 ? " " : "";
-			inputState.insertPlainTextAtOffsets(
-				sep + normalizedText,
-				inputState.message.length,
-				inputState.message.length
-			);
-			syncEditorFromMessage(inputState.message.length);
+			const cursorPos = voiceCursorSnapshot ?? inputState.message.length;
+			voiceCursorSnapshot = null;
+			const prevChar = inputState.message[cursorPos - 1];
+			const sep = cursorPos > 0 && prevChar !== " " ? " " : "";
+			inputState.insertPlainTextAtOffsets(sep + normalizedText, cursorPos, cursorPos);
+			syncEditorFromMessage(cursorPos + sep.length + normalizedText.length);
 		},
 	});
 
@@ -900,6 +919,9 @@ onMount(() => {
 			})
 		) {
 			event.preventDefault();
+			voiceCursorSnapshot = editorRef
+				? getSerializedCursorOffset(editorRef)
+				: inputState.message.length;
 			voiceState.onKeyboardHoldStart();
 		}
 	};
@@ -1281,6 +1303,9 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	const currentVoiceState = voiceState;
 	if (currentVoiceState !== null && shouldUseVoiceHoldKey(event)) {
 		event.preventDefault();
+		voiceCursorSnapshot = editorRef
+			? getSerializedCursorOffset(editorRef)
+			: inputState.message.length;
 		currentVoiceState.onKeyboardHoldStart();
 		return;
 	}
@@ -1439,6 +1464,14 @@ function handleEditorCut(event: ClipboardEvent): void {
 }
 
 function handleEditorFocus(): void {
+	if (
+		shouldSyncPanelFocusOnEditorFocus({
+			focusedPanelId: panelStore.focusedPanelId,
+			panelId: props.panelId,
+		})
+	) {
+		panelStore.focusPanel(props.panelId);
+	}
 	kb.setContext("inputFocused", true);
 }
 
@@ -1708,7 +1741,7 @@ $effect(() => {
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative" : "p-1.5"}
+			contentClass={voiceOverlayActive ? "relative p-1.5" : "p-1.5"}
 		>
 			{#snippet content()}
 				<AgentInputComposerBody
@@ -1798,6 +1831,11 @@ $effect(() => {
 						voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
 					onVoiceMicKeyDown={(event, _binding) => {
 						if (voiceState) {
+							if (voiceState.phase === "idle") {
+								voiceCursorSnapshot = editorRef
+									? getSerializedCursorOffset(editorRef)
+									: inputState.message.length;
+							}
 							handleVoiceMicKeyDownFromModule(event, voiceState);
 						}
 					}}

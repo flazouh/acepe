@@ -5,7 +5,7 @@
 //! not cached in the database.
 
 use acepe_lib::db::migrations::Migrator;
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::MigratorTrait;
 
 async fn setup_test_db() -> DatabaseConnection {
@@ -25,6 +25,32 @@ async fn setup_test_db() -> DatabaseConnection {
 async fn test_migrations_run_successfully() {
     // Just verify migrations don't fail
     let _db = setup_test_db().await;
+}
+
+#[tokio::test]
+async fn test_snapshot_tables_exist_after_migrations() {
+    let db = setup_test_db().await;
+
+    for table_name in [
+        "session_projection_snapshot",
+        "session_transcript_snapshot",
+        "session_thread_snapshot",
+    ] {
+        let row = db
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                format!(
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '{table_name}'"
+                ),
+            ))
+            .await
+            .expect("query snapshot table existence");
+
+        assert!(
+            row.is_some(),
+            "expected snapshot table {table_name} to exist after migrations"
+        );
+    }
 }
 
 #[tokio::test]
