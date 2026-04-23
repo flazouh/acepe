@@ -147,13 +147,13 @@ describe("panelToTab", () => {
 	});
 
 	describe("state.activity streaming", () => {
-		it("should be streaming when status is streaming", () => {
+		it("should be thinking when status is streaming without runtime facts", () => {
 			const tab = panelToTab(
 				makeInput({
 					hotState: makeHotState({ status: "streaming" }),
 				})
 			);
-			expect(tab.state.activity.kind).toBe("streaming");
+			expect(tab.state.activity.kind).toBe("thinking");
 		});
 
 		it("should be idle when status is idle", () => {
