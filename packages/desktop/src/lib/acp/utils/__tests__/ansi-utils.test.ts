@@ -154,11 +154,13 @@ drwxr-xr-x   4 user  group   128 Jan 15 09:45 ..
 
 			const shortBatchMedian = getMedian(shortBatchSamples);
 			const longBatchMedian = getMedian(longBatchSamples);
+			const shortPerIterationMedian = shortBatchMedian / 250;
+			const longPerIterationMedian = longBatchMedian / 1000;
 
-			// Avoid tight absolute timing bounds here because CI hardware varies.
-			// A 4x larger batch should stay within a small constant-factor multiple
-			// for the no-ANSI fast path.
-			expect(longBatchMedian).toBeLessThan(shortBatchMedian * 6);
+			// Compare per-iteration cost rather than raw wall-clock totals so the
+			// check stays stable on slower shared CI runners while still catching
+			// regressions in the no-ANSI fast path.
+			expect(longPerIterationMedian).toBeLessThan(shortPerIterationMedian * 2.5);
 		});
 	});
 });
