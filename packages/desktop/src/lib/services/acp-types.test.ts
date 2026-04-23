@@ -124,6 +124,13 @@ describe("session-state protocol graph contract", () => {
 				errorMessage: null,
 				canReconnect: true,
 			},
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
 			capabilities: {
 				models: null,
 				modes: null,
@@ -132,5 +139,70 @@ describe("session-state protocol graph contract", () => {
 				autonomousEnabled: false,
 			},
 		} satisfies SessionStateGraph);
+	});
+
+	it("derives running activity with operation topology from open snapshots", () => {
+		const graph = graphFromSessionOpenFound(
+			{
+				requestedSessionId: "requested-1",
+				canonicalSessionId: "canonical-1",
+				isAlias: false,
+				lastEventSeq: 11,
+				graphRevision: 9,
+				openToken: "open-token-1",
+				agentId: "cursor" satisfies CanonicalAgentId,
+				projectPath: "/repo",
+				worktreePath: null,
+				sourcePath: null,
+				transcriptSnapshot: {
+					revision: 3,
+					entries: [],
+				},
+				sessionTitle: "Session 1",
+				operations: [
+					{
+						id: "op-1",
+						session_id: "canonical-1",
+						tool_call_id: "tool-1",
+						name: "task",
+						kind: "task",
+						status: "in_progress",
+						title: null,
+						arguments: { kind: "other", raw: {} },
+						progressive_arguments: null,
+						result: null,
+						command: null,
+						normalized_todos: null,
+						parent_tool_call_id: null,
+						parent_operation_id: null,
+						child_tool_call_ids: [],
+						child_operation_ids: [],
+					},
+				],
+				interactions: [],
+				turnState: "Running" satisfies SessionTurnState,
+				messageCount: 0,
+			},
+			{
+				status: "ready",
+				errorMessage: null,
+				canReconnect: true,
+			},
+			{
+				models: null,
+				modes: null,
+				availableCommands: [],
+				configOptions: [],
+				autonomousEnabled: false,
+			}
+		);
+
+		expect(graph.activity).toEqual({
+			kind: "running_operation",
+			activeOperationCount: 1,
+			activeSubagentCount: 1,
+			dominantOperationId: "op-1",
+			blockingInteractionId: null,
+		});
 	});
 });

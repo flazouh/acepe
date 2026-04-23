@@ -141,15 +141,49 @@ describe("panelToTab", () => {
 	});
 
 	describe("state derivation — various panel states", () => {
-		it("derives connected streaming state from status=streaming", () => {
+		it("derives connected thinking state from status=streaming when runtime facts are unavailable", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "streaming" }) }));
 			expect(tab.state.connection).toBe("connected");
-			expect(tab.state.activity.kind).toBe("streaming");
+			expect(tab.state.activity.kind).toBe("thinking");
 		});
 
 		it("derives connecting state from status=connecting", () => {
 			const tab = panelToTab(makeInput({ hotState: makeHotState({ status: "connecting" }) }));
 			expect(tab.state.connection).toBe("connecting");
+		});
+
+		it("prefers graph-backed running activity over missing live tool-call truthiness", () => {
+			const tab = panelToTab(
+				makeInput({
+					hotState: makeHotState({
+						status: "ready",
+						currentMode: { id: "build", name: "Build" },
+						activity: {
+							kind: "running_operation",
+							activeOperationCount: 2,
+							activeSubagentCount: 1,
+							dominantOperationId: "op-2",
+							blockingInteractionId: null,
+						},
+					}),
+					runtimeState: {
+						connectionPhase: "connected",
+						contentPhase: "loaded",
+						activityPhase: "idle",
+						canSubmit: true,
+						canCancel: false,
+						showStop: false,
+						showThinking: false,
+						showConnectingOverlay: false,
+						showConversation: true,
+						showReadyPlaceholder: false,
+					},
+					currentStreamingToolCall: null,
+				})
+			);
+
+			expect(tab.workBucket).toBe("working");
+			expect(tab.state.activity.kind).toBe("streaming");
 		});
 
 		it("derives connecting state from status=loading", () => {
@@ -168,7 +202,7 @@ describe("panelToTab", () => {
 					hotState: makeHotState({ status: "ready", connectionError: "Resume failed" }),
 				})
 			);
-			expect(tab.state.connection).toBe("connected");
+			expect(tab.state.connection).toBe("error");
 			expect(tab.workBucket).toBe("error");
 		});
 
@@ -187,7 +221,7 @@ describe("panelToTab", () => {
 					}),
 				})
 			);
-			expect(tab.state.connection).toBe("connected");
+			expect(tab.state.connection).toBe("error");
 			expect(tab.workBucket).toBe("error");
 		});
 

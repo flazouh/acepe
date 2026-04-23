@@ -3,7 +3,7 @@ use crate::acp::projections::{
 };
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
@@ -32,5 +32,6 @@ pub struct SessionStateGraph {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_terminal_turn_id: Option<String>,
     pub lifecycle: SessionGraphLifecycle,
+    pub activity: SessionGraphActivity,
     pub capabilities: SessionGraphCapabilities,
 }

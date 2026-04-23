@@ -13,7 +13,7 @@ use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
 };
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle,
+    CapabilityPreviewState, SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
     SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateEnvelope, SessionStateGraph,
     SessionStatePayload,
 };
@@ -412,6 +412,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
             error_message: None,
             can_reconnect: true,
         },
+        activity: SessionGraphActivity::idle(),
         capabilities: SessionGraphCapabilities::empty(),
     };
 

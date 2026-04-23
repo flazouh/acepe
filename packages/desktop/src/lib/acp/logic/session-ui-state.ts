@@ -5,7 +5,6 @@
  * This is the single source of truth for UI rendering decisions.
  */
 
-import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionMachineSnapshot } from "./session-machine";
 
 import { ConnectionState, ContentState } from "./session-machine";
@@ -114,13 +113,8 @@ export function deriveSessionUIState(state: SessionMachineSnapshot): SessionUISt
  * Derive canonical runtime lifecycle state from machine snapshot.
  *
  * @param state - Machine snapshot from XState
- * @param lastEntry - Optional last session entry, used to detect the between-tool-calls gap
- *   (agent finished a tool but hasn't started generating its next content yet).
  */
-export function deriveSessionRuntimeState(
-	state: SessionMachineSnapshot,
-	lastEntry?: SessionEntry | null
-): SessionRuntimeState {
+export function deriveSessionRuntimeState(state: SessionMachineSnapshot): SessionRuntimeState {
 	const { content, connection } = state;
 
 	const connectionPhase: ConnectionPhase =
@@ -146,13 +140,7 @@ export function deriveSessionRuntimeState(
 				? "running"
 				: "idle";
 
-	const isWaitingBetweenToolCalls =
-		connection === ConnectionState.STREAMING &&
-		lastEntry?.type === "tool_call" &&
-		(lastEntry.message.status === "completed" || lastEntry.message.status === "failed");
-
-	const showThinking =
-		connection === ConnectionState.AWAITING_RESPONSE || isWaitingBetweenToolCalls;
+	const showThinking = connection === ConnectionState.AWAITING_RESPONSE;
 	const isCancellable =
 		connection === ConnectionState.AWAITING_RESPONSE || activityPhase === "running";
 

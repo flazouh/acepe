@@ -1,4 +1,5 @@
 import type { SessionStatus } from "../application/dto/session-status.js";
+import type { CanonicalSessionActivity } from "../logic/session-activity.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
 import type { SessionState } from "./session-state.js";
 
@@ -19,12 +20,14 @@ export interface SessionWorkProjectionInput {
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
+	readonly canonicalActivity?: CanonicalSessionActivity | null;
 }
 
 export interface SessionWorkProjection {
 	readonly state: SessionState;
 	readonly currentModeId: string | null;
 	readonly effectiveModeId: string | null;
+	readonly canonicalActivity: CanonicalSessionActivity | null;
 	readonly intentFamily: SessionIntentFamily;
 	readonly compactActivityKind: SessionCompactActivityKind;
 	readonly hasPendingInput: boolean;
@@ -81,6 +84,24 @@ function resolveCompactActivityKind(state: SessionState): SessionCompactActivity
 	return "idle";
 }
 
+export function compactActivityKindFromCanonicalActivity(
+	canonicalActivity: CanonicalSessionActivity | null
+): SessionCompactActivityKind {
+	if (canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user") {
+		return "thinking";
+	}
+
+	if (canonicalActivity === "running_operation") {
+		return "streaming";
+	}
+
+	if (canonicalActivity === "paused") {
+		return "paused";
+	}
+
+	return "idle";
+}
+
 export function deriveSessionWorkProjection(
 	input: SessionWorkProjectionInput
 ): SessionWorkProjection {
@@ -97,8 +118,12 @@ export function deriveSessionWorkProjection(
 		state: input.state,
 		currentModeId: input.currentModeId,
 		effectiveModeId,
+		canonicalActivity: input.canonicalActivity ?? null,
 		intentFamily: resolveIntentFamily(input.state, effectiveModeId),
-		compactActivityKind: resolveCompactActivityKind(input.state),
+		compactActivityKind:
+			input.canonicalActivity != null
+				? compactActivityKindFromCanonicalActivity(input.canonicalActivity)
+				: resolveCompactActivityKind(input.state),
 		hasPendingInput,
 		hasError,
 		hasSecondaryError: hasPendingInput && hasError,
@@ -157,6 +182,18 @@ export function selectLegacySessionStatus(projection: SessionWorkProjection): Se
 
 	if (state.activity.kind === "paused") {
 		return "paused";
+	}
+
+	if (projection.canonicalActivity === "paused") {
+		return "paused";
+	}
+
+	if (
+		projection.canonicalActivity === "running_operation" ||
+		projection.canonicalActivity === "awaiting_model" ||
+		projection.canonicalActivity === "waiting_for_user"
+	) {
+		return "streaming";
 	}
 
 	if (state.activity.kind === "streaming" || state.activity.kind === "thinking") {

@@ -20,6 +20,10 @@ A transcript row can tell you that a tool appeared in history. It cannot reliabl
 
 Operations solve that by giving runtime work its own canonical node.
 
+Operations are also one of the canonical inputs to the session-level activity summary.
+
+They do not directly own the final answer to "what is this session doing now?" on their own; instead, operation state is combined with lifecycle, interactions, and failure state to produce graph-backed session activity.
+
 ## What an operation owns
 
 An operation should be the place shared code looks for:
@@ -91,6 +95,13 @@ Shared UI should ask selectors questions like:
 - what was the last meaningful tool state?
 
 Shared UI should **not** re-classify provider payloads or rebuild tool semantics from transcript text.
+
+Shared UI should also not collapse operation presence into its own session-level booleans like "planning" vs "working". That summary belongs to the graph-backed activity contract, which may preserve:
+
+- whether any operation is active,
+- how many operations are active,
+- how many active subagents exist,
+- which operation is dominant for rendering.
 
 ## Smells that usually mean operations are being bypassed
 

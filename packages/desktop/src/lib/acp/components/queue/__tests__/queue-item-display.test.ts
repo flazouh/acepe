@@ -266,6 +266,41 @@ describe("getQueueItemTaskDisplay", () => {
 });
 
 describe("getQueueItemToolDisplay", () => {
+	it("suppresses completed tools while graph-backed thinking is active", () => {
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "thinking",
+				lastToolCall: createReadToolCall("finished-read", "completed"),
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toBeNull();
+	});
+
+	it("falls back to the last completed tool while graph-backed running is active without a live pointer", () => {
+		const lastToolCall = createReadToolCall("finished-read", "completed");
+
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "streaming",
+				currentStreamingToolCall: null,
+				currentToolKind: null,
+				lastToolCall,
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toEqual({
+			toolCall: lastToolCall,
+			toolKind: "read",
+			isStreaming: false,
+			turnState: "completed",
+		});
+	});
+});
+
+describe("getQueueItemToolDisplay", () => {
 	it("prefers the live streaming tool over the previous completed tool", () => {
 		const lastToolCall = createReadToolCall("last-tool", "completed");
 		const liveToolCall = createSearchToolCall("live-tool", "in_progress");

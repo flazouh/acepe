@@ -2,7 +2,7 @@ use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::protocol::SessionStateDelta;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::transcript_projection::{
     TranscriptDeltaOperation, TranscriptEntry, TranscriptSnapshot,
@@ -50,6 +50,13 @@ impl SessionStateReducer {
                 revision,
             } => {
                 graph.lifecycle = lifecycle;
+                graph.activity = select_session_graph_activity(
+                    &graph.lifecycle,
+                    &graph.turn_state,
+                    &graph.operations,
+                    &graph.interactions,
+                    graph.active_turn_failure.as_ref(),
+                );
                 graph.revision = revision;
             }
             SessionStateGraphMutation::UpdateCapabilities {
@@ -113,7 +120,7 @@ mod tests {
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::{
-        SessionGraphCapabilities, SessionGraphLifecycle,
+        SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
     };
     use crate::acp::transcript_projection::{
         TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
@@ -149,6 +156,7 @@ mod tests {
             active_turn_failure: None,
             last_terminal_turn_id: None,
             lifecycle: SessionGraphLifecycle::idle(),
+            activity: SessionGraphActivity::idle(),
             capabilities: SessionGraphCapabilities::empty(),
         }
     }
