@@ -1054,15 +1054,15 @@ pub async fn set_session_pr_number(
                 pr_number,
                 pr_link_mode.as_deref(),
             )
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    session_id = %session_id,
-                    error = %e,
-                    "Failed to persist PR number to DB"
-                );
-                format!("Failed to set PR number: {}", e)
-            })
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "Failed to persist PR number to DB"
+                    );
+                    format!("Failed to set PR number: {}", e)
+                })
         }
         .await,
     )
