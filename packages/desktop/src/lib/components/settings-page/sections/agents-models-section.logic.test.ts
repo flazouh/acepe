@@ -65,6 +65,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	};
 
 	const cursorProviderMetadata: ProviderMetadataProjection = {
@@ -76,6 +77,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	};
 
 	const copilotProviderMetadata: ProviderMetadataProjection = {
@@ -87,6 +89,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	};
 
 	const agents: Agent[] = [
@@ -143,6 +146,7 @@ describe("getAgentModelDefaultsEntries", () => {
 					defaultAlias: "auto",
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
+					preconnectionCapabilityMode: "startupGlobal",
 				},
 			},
 		};
@@ -185,6 +189,7 @@ describe("getAgentsByProviderOrder", () => {
 						defaultAlias: "auto",
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
 					},
 				},
 				{
@@ -204,6 +209,7 @@ describe("getAgentsByProviderOrder", () => {
 						defaultAlias: "default",
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
 					},
 				},
 			],
@@ -226,6 +232,7 @@ describe("getProviderDefaultLabel", () => {
 				defaultAlias: "auto",
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
+				preconnectionCapabilityMode: "startupGlobal",
 			})
 		).toBe("Auto");
 	});
@@ -241,6 +248,7 @@ describe("getProviderDefaultLabel", () => {
 				defaultAlias: undefined,
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "projectScoped",
+				preconnectionCapabilityMode: "projectScoped",
 			})
 		).toBe("Agent default");
 	});

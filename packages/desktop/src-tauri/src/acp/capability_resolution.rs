@@ -132,6 +132,17 @@ fn normalize_current_model_id(model_state: &mut SessionModelState) {
     model_state.current_model_id.clear();
 }
 
+fn finalize_status(
+    status: ResolvedCapabilityStatus,
+    models: &SessionModelState,
+) -> ResolvedCapabilityStatus {
+    if matches!(status, ResolvedCapabilityStatus::Partial) && !models.available_models.is_empty() {
+        return ResolvedCapabilityStatus::Resolved;
+    }
+
+    status
+}
+
 fn finalize_capabilities(
     provider: &dyn AgentProvider,
     cwd: &Path,
@@ -148,9 +159,10 @@ fn finalize_capabilities(
     apply_provider_metadata(provider, &mut models);
     models.models_display =
         build_models_for_display(&models.available_models, provider.model_presentation_metadata());
+    let final_status = finalize_status(status, &models);
 
     Ok(ResolvedCapabilities {
-        status,
+        status: final_status,
         available_models: models.available_models,
         current_model_id: models.current_model_id,
         models_display: models.models_display,
@@ -238,5 +250,101 @@ pub fn failed_capabilities(provider: &dyn AgentProvider, error: String) -> Resol
         provider_metadata: provider.frontend_projection(),
         available_modes: default_modes().available_modes,
         current_mode_id: "build".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        default_modes, default_session_model_state, resolve_static_capabilities,
+        ResolvedCapabilityStatus,
+    };
+    use crate::acp::provider::{
+        AgentProvider, FrontendProviderProjection, ModelFallbackCandidate, SpawnConfig,
+    };
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    struct TestProvider;
+
+    impl AgentProvider for TestProvider {
+        fn id(&self) -> &str {
+            "cursor"
+        }
+
+        fn name(&self) -> &str {
+            "Cursor"
+        }
+
+        fn spawn_config(&self) -> SpawnConfig {
+            SpawnConfig {
+                command: "cursor".to_string(),
+                args: Vec::new(),
+                env: HashMap::new(),
+                env_strategy: None,
+            }
+        }
+
+        fn model_fallback_for_empty_list(
+            &self,
+            current_model_id: &str,
+        ) -> Option<ModelFallbackCandidate> {
+            Some(ModelFallbackCandidate {
+                model_id: if current_model_id.is_empty() {
+                    "cursor-auto".to_string()
+                } else {
+                    current_model_id.to_string()
+                },
+                name: "Cursor Auto".to_string(),
+                description: None,
+            })
+        }
+
+        fn frontend_projection(&self) -> FrontendProviderProjection {
+            FrontendProviderProjection {
+                display_name: "Cursor",
+                ..Default::default()
+            }
+        }
+    }
+
+    #[test]
+    fn upgrades_partial_status_when_fallbacks_populate_models() {
+        let provider = TestProvider;
+        let cwd = Path::new(".");
+        let mut models = default_session_model_state();
+        models.current_model_id = "cursor-auto".to_string();
+
+        let resolved = resolve_static_capabilities(
+            &provider,
+            cwd,
+            ResolvedCapabilityStatus::Partial,
+            models,
+            default_modes(),
+        )
+        .expect("capability resolution should succeed");
+
+        assert_eq!(resolved.status, ResolvedCapabilityStatus::Resolved);
+        assert_eq!(resolved.current_model_id, "cursor-auto");
+        assert_eq!(resolved.available_models.len(), 1);
+        assert_eq!(resolved.available_models[0].model_id, "cursor-auto");
+    }
+
+    #[test]
+    fn preserves_failed_status_even_when_fallbacks_exist() {
+        let provider = TestProvider;
+        let cwd = Path::new(".");
+
+        let resolved = resolve_static_capabilities(
+            &provider,
+            cwd,
+            ResolvedCapabilityStatus::Failed,
+            default_session_model_state(),
+            default_modes(),
+        )
+        .expect("capability resolution should succeed");
+
+        assert_eq!(resolved.status, ResolvedCapabilityStatus::Failed);
+        assert_eq!(resolved.available_models.len(), 1);
     }
 }

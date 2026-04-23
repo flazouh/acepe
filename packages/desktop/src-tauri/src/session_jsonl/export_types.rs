@@ -73,6 +73,46 @@ export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupp
 
 export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
 
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale";
+
+export type LifecycleStatus =
+	| "reserved"
+	| "activating"
+	| "ready"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export type DetachedReason =
+	| "restoredRequiresAttach"
+	| "reconnectExhausted"
+	| "abandonedInFlight"
+	| "legacyAmbiguousRestore";
+
+export type FailureReason =
+	| "deterministicRestoreFault"
+	| "activationFailed"
+	| "resumeFailed"
+	| "providerSessionMismatch"
+	| "corruptedPersistedState"
+	| "explicitErrorHandlingRequired"
+	| "legacyIrrecoverable";
+
+export type LifecycleState = {
+	status: LifecycleStatus;
+	detachedReason?: DetachedReason | null;
+	failureReason?: FailureReason | null;
+	errorMessage?: string | null;
+};
+
+export type LifecycleCheckpoint = {
+	schemaVersion: number;
+	graphRevision: number;
+	lifecycle: LifecycleState;
+	capabilities: SessionGraphCapabilities;
+};
+
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
 	displayName: string;
@@ -82,8 +122,10 @@ export type ProviderMetadataProjection = {
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
-	preconnectionCapabilityMode?: PreconnectionCapabilityMode;
+	preconnectionCapabilityMode: PreconnectionCapabilityMode;
 };
+
+export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
 
@@ -507,6 +549,18 @@ mod tests {
         assert!(
             contents.contains("export type SessionDomainEvent"),
             "expected acp-types.ts to export SessionDomainEvent, but it did not"
+        );
+        assert!(
+            contents.contains("export type CapabilityPreviewState ="),
+            "expected acp-types.ts to export CapabilityPreviewState compat helpers, but it did not"
+        );
+        assert!(
+            contents.contains("export type LifecycleCheckpoint ="),
+            "expected acp-types.ts to export LifecycleCheckpoint compat helpers, but it did not"
+        );
+        assert!(
+            contents.contains("export type FrontendProviderProjection = ProviderMetadataProjection;"),
+            "expected acp-types.ts to alias FrontendProviderProjection, but it did not"
         );
     }
 

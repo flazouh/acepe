@@ -277,7 +277,7 @@ const capabilitySource = $derived.by(() =>
 		cachedModes,
 		cachedModels,
 		cachedModelsDisplay,
-		providerMetadata: capabilitiesProviderMetadata,
+		providerMetadata: capabilitiesProviderMetadata ?? null,
 	})
 );
 const effectiveCapabilityProviderMetadata = $derived(

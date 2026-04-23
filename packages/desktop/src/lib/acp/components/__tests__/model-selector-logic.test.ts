@@ -507,6 +507,7 @@ describe("model-selector-logic", () => {
 						defaultAlias: undefined,
 						reasoningEffortSupport: true,
 						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
 					},
 				},
 			};
@@ -530,6 +531,7 @@ describe("model-selector-logic", () => {
 					defaultAlias: "default",
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
+					preconnectionCapabilityMode: "startupGlobal",
 				},
 			},
 		};
@@ -553,6 +555,7 @@ describe("model-selector-logic", () => {
 				defaultAlias: "default",
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
+				preconnectionCapabilityMode: "startupGlobal",
 			});
 		});
 	});
