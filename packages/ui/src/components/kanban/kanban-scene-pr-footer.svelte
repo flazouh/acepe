@@ -37,66 +37,58 @@
 	} = $props();
 
 	let checksExpanded = $state(false);
-
-	function handleKeydown(event: KeyboardEvent): void {
-		if (event.key !== "Enter" && event.key !== " ") {
-			return;
-		}
-
-		event.preventDefault();
-		onOpen();
-	}
 </script>
 
-<div
-	class="flex items-stretch gap-2 px-2 py-2 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80"
-	role="button"
-	tabindex={0}
-	aria-label={`Open PR #${prNumber} in Source Control`}
-	onclick={onOpen}
-	onkeydown={handleKeydown}
->
-	<div class="flex min-w-0 flex-1 items-start gap-2">
-		<div class="mt-0.5 shrink-0 text-muted-foreground">
-			<GitPullRequest size={13} weight="bold" />
-		</div>
-		<div class="min-w-0 flex-1">
-			<div class="flex items-center gap-1 text-[10px] text-muted-foreground">
-				<span>PR #{prNumber}</span>
-				<span>·</span>
-				<span>{state}</span>
-				{#if isLoading}
+<div class="flex items-start gap-2 px-2 py-2">
+	<div class="min-w-0 flex flex-1 flex-col gap-1">
+		<button
+			type="button"
+			class="flex min-w-0 items-start gap-2 rounded text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80"
+			aria-label={`Open PR #${prNumber} in Source Control`}
+			onclick={onOpen}
+		>
+			<div class="mt-0.5 shrink-0 text-muted-foreground">
+				<GitPullRequest size={13} weight="bold" />
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="flex items-center gap-1 text-[10px] text-muted-foreground">
+					<span>PR #{prNumber}</span>
 					<span>·</span>
-					<span>Refreshing…</span>
+					<span>{state}</span>
+					{#if isLoading}
+						<span>·</span>
+						<span>Refreshing…</span>
+					{/if}
+				</div>
+				{#if title}
+					<div class="truncate text-xs font-medium text-foreground">{title}</div>
+				{:else}
+					<div class="mt-1 h-3 w-40 rounded bg-muted" aria-hidden="true"></div>
 				{/if}
 			</div>
-			{#if title}
-				<div class="truncate text-xs font-medium text-foreground">{title}</div>
+		</button>
+		<div class="ml-[21px] flex items-center gap-2">
+			{#if hasResolvedDetails && additions != null && deletions != null}
+				<DiffPill insertions={additions} deletions={deletions} variant="plain" class="text-[10px]" />
 			{:else}
-				<div class="mt-1 h-3 w-40 rounded bg-muted" aria-hidden="true"></div>
+				<div class="h-3 w-20 rounded bg-muted" aria-hidden="true"></div>
 			{/if}
-			<div class="mt-1">
-				<div class="flex items-center gap-2">
-					{#if hasResolvedDetails && additions != null && deletions != null}
-						<DiffPill insertions={additions} deletions={deletions} variant="plain" class="text-[10px]" />
-					{:else}
-						<div class="h-3 w-20 rounded bg-muted" aria-hidden="true"></div>
-					{/if}
-					<button
-						type="button"
-						class="inline-flex h-5 items-center gap-1 rounded px-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-						aria-label={checksExpanded ? "Hide CI checks" : "Show CI checks"}
-						title={checksExpanded ? "Hide CI checks" : "Show CI checks"}
-						onclick={(event) => {
-							event.stopPropagation();
-							checksExpanded = !checksExpanded;
-						}}
-					>
-						<PrChecksSummary checks={checks} isLoading={isChecksLoading} hasResolved={hasResolvedChecks} />
-						<span>CI</span>
-					</button>
-				</div>
-			</div>
+			<button
+				type="button"
+				class="inline-flex h-5 items-center gap-1 rounded px-1.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80"
+				aria-label={checksExpanded ? "Hide CI checks" : "Show CI checks"}
+				title={checksExpanded ? "Hide CI checks" : "Show CI checks"}
+				onkeydown={(event) => {
+					event.stopPropagation();
+				}}
+				onclick={(event) => {
+					event.stopPropagation();
+					checksExpanded = !checksExpanded;
+				}}
+			>
+				<PrChecksSummary checks={checks} isLoading={isChecksLoading} hasResolved={hasResolvedChecks} />
+				<span>CI</span>
+			</button>
 		</div>
 	</div>
 

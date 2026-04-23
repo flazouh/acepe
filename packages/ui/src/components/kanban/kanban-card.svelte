@@ -290,11 +290,5 @@ function handleKeydown(event: KeyboardEvent): void {
 			</div>
 		{/if}
 
-		{#if !isGhost && bottomFooter}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div class="border-t border-border/40" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-				{@render bottomFooter()}
-			</div>
-		{/if}
 	{/if}
 </div>

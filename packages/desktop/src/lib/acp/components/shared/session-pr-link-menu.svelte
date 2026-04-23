@@ -34,6 +34,7 @@
 	let query = $state("");
 	let loadError = $state<string | null>(null);
 	let loading = $state(false);
+	let loadingProjectPath = $state<string | null>(null);
 	let openPullRequests = $state<readonly PrListItem[]>([]);
 	let loadedProjectPath = $state<string | null>(null);
 
@@ -64,23 +65,38 @@
 	}
 
 	function ensureOpenPullRequestsLoaded(): void {
-		if (loading || loadedProjectPath === projectPath) {
+		if (
+			loadedProjectPath === projectPath ||
+			(loading && loadingProjectPath === projectPath)
+		) {
 			return;
 		}
 
+		const requestedProjectPath = projectPath;
 		loading = true;
+		loadingProjectPath = requestedProjectPath;
 		loadError = null;
-		void getRepoContext(projectPath)
+		void getRepoContext(requestedProjectPath)
 			.andThen((repoContext) => listPullRequests(repoContext.owner, repoContext.repo, "open"))
 			.match(
 				(prs) => {
+					if (loadingProjectPath !== requestedProjectPath) {
+						return;
+					}
+
 					openPullRequests = prs;
-					loadedProjectPath = projectPath;
+					loadedProjectPath = requestedProjectPath;
 					loading = false;
+					loadingProjectPath = null;
 				},
 				(error) => {
+					if (loadingProjectPath !== requestedProjectPath) {
+						return;
+					}
+
 					loadError = error.message;
 					loading = false;
+					loadingProjectPath = null;
 				}
 			);
 	}

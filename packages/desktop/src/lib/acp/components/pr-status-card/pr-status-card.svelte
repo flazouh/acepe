@@ -159,7 +159,7 @@ const prCardModel = $derived.by<AgentPanelPrCardModel>(() => {
 </script>
 
 {#if projectPath && linkedPr}
-	{#key `${projectPath}:${linkedPr.prNumber}`}
+	{#key `${projectPath}:${linkedPr.prNumber}:${sessionId ?? "no-session"}`}
 		<PrChecksSurface
 			{projectPath}
 			prNumber={linkedPr.prNumber}

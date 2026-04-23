@@ -553,6 +553,12 @@ export class SessionRepository {
 		for (const session of mergedSessions) {
 			const canonicalAliasSession = aliasMetadataByCanonicalId.get(session.id);
 			if (canonicalAliasSession !== undefined) {
+				const mergedPrNumber = session.prNumber ?? canonicalAliasSession.prNumber;
+				const mergedPrLinkMode = normalizeSessionPrLinkMode(
+					mergedPrNumber,
+					session.prLinkMode ?? canonicalAliasSession.prLinkMode
+				);
+
 				reconciledSessions.push({
 					id: session.id,
 					projectPath: session.projectPath,
@@ -565,9 +571,9 @@ export class SessionRepository {
 					sessionLifecycleState:
 						session.sessionLifecycleState ?? canonicalAliasSession.sessionLifecycleState,
 					parentId: session.parentId,
-					prNumber: session.prNumber ?? canonicalAliasSession.prNumber,
+					prNumber: mergedPrNumber,
 					prState: session.prState ?? canonicalAliasSession.prState,
-					prLinkMode: session.prLinkMode ?? canonicalAliasSession.prLinkMode,
+					prLinkMode: mergedPrLinkMode,
 					linkedPr: session.linkedPr ?? canonicalAliasSession.linkedPr,
 					worktreeDeleted: session.worktreeDeleted ?? canonicalAliasSession.worktreeDeleted,
 					sequenceId: session.sequenceId ?? canonicalAliasSession.sequenceId,

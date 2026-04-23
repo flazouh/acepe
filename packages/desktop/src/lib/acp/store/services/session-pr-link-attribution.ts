@@ -43,6 +43,10 @@ function parseGithubPullRequestUrl(url: string): SessionPrLinkCandidate | null {
 	};
 }
 
+function namesMatchCaseInsensitive(left: string, right: string): boolean {
+	return left.localeCompare(right, undefined, { sensitivity: "accent" }) === 0;
+}
+
 export function resolveAutomaticSessionPrNumberFromShipWorkflow(
 	projectPath: string,
 	pr: GitStackedPrStep
@@ -62,7 +66,10 @@ export function resolveAutomaticSessionPrNumberFromShipWorkflow(
 
 	return getRepoContext(projectPath)
 		.map((repoContext) => {
-			if (repoContext.owner !== parsed.owner || repoContext.repo !== parsed.repo) {
+			if (
+				!namesMatchCaseInsensitive(repoContext.owner, parsed.owner) ||
+				!namesMatchCaseInsensitive(repoContext.repo, parsed.repo)
+			) {
 				return null;
 			}
 

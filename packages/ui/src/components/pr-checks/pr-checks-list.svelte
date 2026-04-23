@@ -63,7 +63,7 @@
 			</div>
 		{/if}
 
-		{#each visibleChecks as check (check.name)}
+		{#each visibleChecks as check (`${check.name}:${check.workflowName ?? ""}:${check.startedAt ?? ""}:${check.detailsUrl ?? ""}`)}
 			<div class="flex min-w-0 items-center gap-2 text-[11px] text-foreground/80">
 				<div class="shrink-0 text-muted-foreground">
 					{#if check.status !== "COMPLETED"}
