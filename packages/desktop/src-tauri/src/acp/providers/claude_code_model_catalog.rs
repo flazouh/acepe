@@ -689,8 +689,7 @@ pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableMod
         // entries always list bedrock/vertex/foundry immediately after firstParty on the
         // same logical object. A backward window would bleed into adjacent lines.
         let match_start = m.get(0).map(|m| m.start()).unwrap_or(0);
-        let window_end = (match_start + 600).min(content.len());
-        let window = &content[match_start..window_end];
+        let window = forward_context_window(&content, match_start, 600);
 
         if !window.contains(r#"bedrock:""#) {
             tracing::debug!(
@@ -734,6 +733,14 @@ pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableMod
     });
 
     Ok(models)
+}
+
+fn forward_context_window<'a>(content: &'a str, start: usize, max_len: usize) -> &'a str {
+    let mut end = start.saturating_add(max_len).min(content.len());
+    while end > start && !content.is_char_boundary(end) {
+        end -= 1;
+    }
+    content.get(start..end).unwrap_or("")
 }
 
 /// Validate that a candidate model ID has a recognized family word AND at least one
@@ -968,6 +975,31 @@ mod tests {
         let filtered = filter_to_picker_defaults(&models);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].model_id, "claude-opus-4-7");
+    }
+
+    #[test]
+    fn extraction_handles_forward_window_that_would_otherwise_split_utf8() {
+        let mut input = Vec::new();
+        for model_id in [
+            "claude-opus-4-7",
+            "claude-sonnet-4-6",
+            "claude-haiku-4-5-20251001",
+        ] {
+            let prefix = format!(
+                r#"firstParty:"{model_id}",bedrock:"bedrock",vertex:"vertex",foundry:"foundry""#
+            );
+            let padding_len = 599usize.saturating_sub(prefix.len());
+            input.extend_from_slice(prefix.as_bytes());
+            input.extend(std::iter::repeat(b'a').take(padding_len));
+            input.extend_from_slice("é".as_bytes());
+        }
+
+        let models = extract_from_binary_bytes(&input).expect("extraction should succeed");
+        let ids: Vec<&str> = models.iter().map(|model| model.model_id.as_str()).collect();
+
+        assert!(ids.contains(&"claude-opus-4-7"));
+        assert!(ids.contains(&"claude-sonnet-4-6"));
+        assert!(ids.contains(&"claude-haiku-4-5-20251001"));
     }
 
     #[test]
