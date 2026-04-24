@@ -1353,6 +1353,7 @@ mod tests {
     use crate::cc_sdk::types::{
         CanUseTool, PermissionResult, PermissionResultAllow, ToolPermissionContext,
     };
+    use std::path::Path;
     use std::sync::Arc;
 
     struct AllowAllTools;
@@ -1392,24 +1393,29 @@ mod tests {
     }
 
     #[cfg(unix)]
+    fn write_test_executable(path: &Path, contents: &str) {
+        let staging_path = path.with_extension("tmp");
+        std::fs::write(&staging_path, contents).expect("write staged cli");
+
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = std::fs::metadata(&staging_path)
+            .expect("metadata")
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&staging_path, perms).expect("chmod");
+
+        std::fs::rename(&staging_path, path).expect("rename staged cli");
+    }
+
+    #[cfg(unix)]
     #[test]
     fn read_claude_cli_version_parses_managed_binary_output() {
         let temp = tempfile::tempdir().expect("temp dir");
         let cli_path = temp.path().join("claude");
-        std::fs::write(
+        write_test_executable(
             &cli_path,
             "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then\n  echo 2.1.104\nelse\n  exit 1\nfi\n",
-        )
-        .expect("write cli");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&cli_path)
-                .expect("metadata")
-                .permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&cli_path, perms).expect("chmod");
-        }
+        );
 
         let version = read_claude_cli_version(&cli_path).expect("version should parse");
         assert_eq!(version.major, 2);
@@ -1422,15 +1428,7 @@ mod tests {
     fn read_claude_cli_version_times_out_for_hung_binary() {
         let temp = tempfile::tempdir().expect("temp dir");
         let cli_path = temp.path().join("claude");
-        std::fs::write(&cli_path, "#!/bin/sh\nsleep 1\n").expect("write cli");
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&cli_path)
-                .expect("metadata")
-                .permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&cli_path, perms).expect("chmod");
-        }
+        write_test_executable(&cli_path, "#!/bin/sh\nsleep 1\n");
 
         let error = read_claude_cli_version_with_timeout(&cli_path, Duration::from_millis(50))
             .expect_err("hung binary should time out");
