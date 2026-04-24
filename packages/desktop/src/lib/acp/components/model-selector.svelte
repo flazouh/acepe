@@ -147,12 +147,13 @@ const selectedReasoningBaseGroup = $derived.by(() => {
 const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName ?? "Model");
 
 const validModels = $derived(availableModels.filter((model) => model.id));
+const displayGroups = $derived.by(() => modelsDisplay?.groups ?? []);
 const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
 const allDisplayableModels = $derived.by(() => {
 	if (!hasDisplayGroups) {
 		return [] as DisplayableModel[];
 	}
-	return modelsDisplay.groups.flatMap((group) => group.models);
+	return displayGroups.flatMap((group) => group.models);
 });
 const totalModelCount = $derived.by(() =>
 	hasDisplayGroups ? allDisplayableModels.length : validModels.length
@@ -236,7 +237,7 @@ const favoriteModels = $derived.by(() => {
 
 const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 	if (hasDisplayGroups) {
-		return modelsDisplay.groups.map((group) => ({
+		return displayGroups.map((group) => ({
 			label: group.label,
 			items: Array.from(group.models)
 				.sort((left, right) =>

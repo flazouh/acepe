@@ -118,7 +118,6 @@
 			bind:this={textareaEl}
 			class="script-editor-textarea absolute inset-0 m-0 h-full w-full resize-none overflow-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-transparent caret-foreground outline-none placeholder:text-muted-foreground/40 placeholder:italic"
 			spellcheck="false"
-			autocorrect="off"
 			autocapitalize="off"
 			autocomplete="off"
 			{placeholder}
