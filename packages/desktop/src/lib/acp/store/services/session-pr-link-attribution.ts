@@ -1,7 +1,6 @@
 import { okAsync, type ResultAsync } from "neverthrow";
-
-import { getRepoContext } from "../../services/github-service.js";
 import type { GitStackedPrStep } from "../../../utils/tauri-client/git.js";
+import { getRepoContext } from "../../services/github-service.js";
 
 type SessionPrLinkCandidate = {
 	readonly owner: string;

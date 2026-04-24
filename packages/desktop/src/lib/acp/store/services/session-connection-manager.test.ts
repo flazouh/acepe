@@ -652,6 +652,7 @@ describe("SessionConnectionManager.connectSession", () => {
 					defaultAlias: "default",
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
+					preconnectionCapabilityMode: "startupGlobal",
 				},
 				modelsDisplay: {
 					groups: [],

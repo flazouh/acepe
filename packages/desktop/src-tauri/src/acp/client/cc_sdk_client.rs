@@ -16,19 +16,16 @@ use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 
+use crate::acp::capability_resolution::{resolve_static_capabilities, ResolvedCapabilityStatus};
 use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
 };
-use crate::acp::client_session::{
-    apply_provider_model_fallback, default_modes, default_session_model_state, AvailableModel,
-    SessionModelState,
-};
+use crate::acp::client_session::{default_modes, default_session_model_state, SessionModelState};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
 };
 use crate::acp::error::{AcpError, AcpResult};
-use crate::acp::model_display::build_models_for_display;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::projections::{
     InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
@@ -36,7 +33,6 @@ use crate::acp::projections::{
 };
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::runtime_resolver::resolve_effective_runtime;
 use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
@@ -1359,17 +1355,7 @@ impl ClaudeCcSdkClient {
 
     async fn hydrated_session_model_state(&self) -> SessionModelState {
         let mut model_state = default_session_model_state();
-        let mut available_models = provider_models(self.provider.as_ref());
-
-        if available_models.is_empty() {
-            available_models = self.discover_models_from_provider_cli().await;
-        } else {
-            tracing::info!(
-                provider = %self.provider.id(),
-                default_model_count = available_models.len(),
-                "cc-sdk using provider default models; skipping synchronous CLI model discovery"
-            );
-        }
+        let available_models = self.discover_models_from_provider_cli().await;
 
         if !available_models.is_empty() {
             model_state.available_models = available_models;
@@ -1383,17 +1369,29 @@ impl ClaudeCcSdkClient {
                 model_state.current_model_id = model.model_id.clone();
             }
         }
-
-        apply_provider_model_fallback(self.provider.as_ref(), &mut model_state);
-        crate::acp::client_session::apply_provider_metadata(
+        let cwd = self
+            .current_cwd
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("."));
+        let status = if model_state.available_models.is_empty() {
+            ResolvedCapabilityStatus::Partial
+        } else {
+            ResolvedCapabilityStatus::Resolved
+        };
+        if let Ok(resolved_capabilities) = resolve_static_capabilities(
             self.provider.as_ref(),
-            &mut model_state,
-        );
-
-        model_state.models_display = build_models_for_display(
-            &model_state.available_models,
-            self.provider.model_presentation_metadata(),
-        );
+            cwd.as_path(),
+            status,
+            model_state.clone(),
+            default_modes(),
+        ) {
+            model_state = SessionModelState {
+                available_models: resolved_capabilities.available_models,
+                current_model_id: resolved_capabilities.current_model_id,
+                models_display: resolved_capabilities.models_display,
+                provider_metadata: Some(resolved_capabilities.provider_metadata),
+            };
+        }
 
         tracing::info!(
             provider = %self.provider.id(),
@@ -1410,75 +1408,22 @@ impl ClaudeCcSdkClient {
     }
 
     async fn discover_models_from_provider_cli(&self) -> Vec<crate::acp::client::AvailableModel> {
-        let attempts = self.provider.model_discovery_commands();
-        if attempts.is_empty() {
-            return Vec::new();
-        }
-
-        for attempt in attempts {
-            let cwd = self
-                .current_cwd
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("."));
-            let runtime = resolve_effective_runtime(self.provider.id(), &cwd, &attempt, None);
-            tracing::info!(
-                provider = %self.provider.id(),
-                command = %runtime.command,
-                args = ?runtime.args,
-                "cc-sdk running provider model discovery command"
-            );
-
-            let mut command = tokio::process::Command::new(&runtime.command);
-            command.args(&runtime.args);
-            command.stdin(std::process::Stdio::null());
-            command.stdout(std::process::Stdio::piped());
-            command.stderr(std::process::Stdio::piped());
-            command.current_dir(&runtime.cwd);
-
-            for (key, value) in &runtime.env {
-                command.env(key, value);
-            }
-
-            let output = match timeout(Duration::from_secs(10), command.output()).await {
-                Ok(Ok(output)) => output,
-                Ok(Err(error)) => {
-                    tracing::debug!(
-                        command = %runtime.command,
-                        args = ?runtime.args,
-                        error = %error,
-                        "Claude model discovery command failed"
-                    );
-                    continue;
-                }
-                Err(_) => {
-                    tracing::debug!(
-                        command = %runtime.command,
-                        args = ?runtime.args,
-                        "Claude model discovery command timed out"
-                    );
-                    continue;
-                }
-            };
-
-            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            let mut models = crate::acp::client::parse_model_discovery_output(&stdout);
-
-            tracing::info!(
-                provider = %self.provider.id(),
-                status = ?output.status.code(),
-                stdout = %crate::acp::client_transport::truncate_for_log(&stdout, 512),
-                stderr = %crate::acp::client_transport::truncate_for_log(&stderr, 512),
-                parsed_model_ids = ?models.iter().map(|model| model.model_id.clone()).collect::<Vec<_>>(),
-                "cc-sdk provider model discovery result"
-            );
-
-            if !models.is_empty() {
-                models.sort_by(|a, b| a.model_id.cmp(&b.model_id));
-                return models;
+        // For Claude Code: read the authoritative catalog snapshot rather than
+        // shelling out to `claude -p "..."` which costs a real API call per hydration.
+        // The catalog is warmed at startup and invalidated on install, so this is a
+        // cheap in-process read.
+        if let Some(app) = self.app_handle.as_ref() {
+            let read =
+                crate::acp::providers::claude_code_model_catalog::read_catalog_snapshot_for_app(
+                    app,
+                )
+                .await;
+            if let Some(snapshot) = read.snapshot {
+                return crate::acp::providers::claude_code_model_catalog::filter_to_picker_defaults(
+                    &snapshot.models,
+                );
             }
         }
-
         Vec::new()
     }
 
@@ -1567,18 +1512,6 @@ impl ClaudeCcSdkClient {
         tracing::info!(session_id = ?self.session_id, "cc-sdk: send_user_message completed");
         Ok(())
     }
-}
-
-fn provider_models(provider: &dyn AgentProvider) -> Vec<AvailableModel> {
-    provider
-        .default_model_candidates()
-        .into_iter()
-        .map(|candidate| AvailableModel {
-            model_id: candidate.model_id,
-            name: candidate.name,
-            description: candidate.description,
-        })
-        .collect()
 }
 
 fn map_to_claude_permission_mode(mode_id: &str) -> cc_sdk::PermissionMode {
@@ -2847,102 +2780,9 @@ mod tests {
     use cc_sdk::{CanUseTool, HookCallback};
     use sea_orm::Database;
     use sea_orm_migration::MigratorTrait;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{LazyLock, Mutex as StdMutex};
 
     static HOME_ENV_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
-
-    struct TestModelDiscoveryProvider {
-        discovery_calls: Arc<AtomicUsize>,
-    }
-
-    struct CwdModelDiscoveryProvider {
-        target_cwd: String,
-    }
-
-    impl AgentProvider for TestModelDiscoveryProvider {
-        fn id(&self) -> &str {
-            "claude-code"
-        }
-
-        fn name(&self) -> &str {
-            "Test Claude Provider"
-        }
-
-        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
-            crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }
-        }
-
-        fn parser_agent_type(&self) -> AgentType {
-            AgentType::ClaudeCode
-        }
-
-        fn model_discovery_commands(&self) -> Vec<crate::acp::provider::SpawnConfig> {
-            self.discovery_calls.fetch_add(1, Ordering::SeqCst);
-            vec![crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }]
-        }
-
-        fn default_model_candidates(&self) -> Vec<crate::acp::provider::ModelFallbackCandidate> {
-            vec![
-                crate::acp::provider::ModelFallbackCandidate {
-                    model_id: "claude-opus-4-6".to_string(),
-                    name: "Claude Opus 4.6".to_string(),
-                    description: Some("Most capable Claude model".to_string()),
-                },
-                crate::acp::provider::ModelFallbackCandidate {
-                    model_id: "claude-sonnet-4-5".to_string(),
-                    name: "Claude Sonnet 4.5".to_string(),
-                    description: Some("Balanced Claude model".to_string()),
-                },
-            ]
-        }
-    }
-
-    impl AgentProvider for CwdModelDiscoveryProvider {
-        fn id(&self) -> &str {
-            "claude-code"
-        }
-
-        fn name(&self) -> &str {
-            "Cwd Discovery Provider"
-        }
-
-        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
-            crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }
-        }
-
-        fn parser_agent_type(&self) -> AgentType {
-            AgentType::ClaudeCode
-        }
-
-        fn model_discovery_commands(&self) -> Vec<crate::acp::provider::SpawnConfig> {
-            vec![crate::acp::provider::SpawnConfig {
-                command: "python3".to_string(),
-                args: vec![
-                    "-c".to_string(),
-                    "import json, os, sys; target = sys.argv[1]; model = 'expected-model' if os.getcwd() == target else 'wrong-model'; print(json.dumps([{\"id\": model, \"name\": model}]))".to_string(),
-                    self.target_cwd.clone(),
-                ],
-                env: HashMap::new(),
-                env_strategy: None,
-            }]
-        }
-    }
 
     fn make_task_tool_call(id: &str) -> SessionUpdate {
         SessionUpdate::ToolCall {
@@ -3435,33 +3275,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hydrated_session_model_state_skips_discovery_when_provider_has_default_models() {
-        let discovery_calls = Arc::new(AtomicUsize::new(0));
-        let client = make_test_client_with_provider(Arc::new(TestModelDiscoveryProvider {
-            discovery_calls: discovery_calls.clone(),
-        }));
-
-        let state = client.hydrated_session_model_state().await;
-
-        assert_eq!(discovery_calls.load(Ordering::SeqCst), 0);
-        assert_eq!(state.available_models.len(), 2);
-        assert_eq!(state.available_models[0].model_id, "claude-opus-4-6");
-        assert_eq!(state.available_models[1].model_id, "claude-sonnet-4-5");
-    }
-
-    #[tokio::test]
-    async fn model_discovery_uses_current_cwd_without_cached_connect_options() {
-        let temp = tempfile::tempdir().expect("temp dir");
-        let canonical_cwd = temp.path().canonicalize().expect("canonical cwd");
-        let mut client = make_test_client_with_provider(Arc::new(CwdModelDiscoveryProvider {
-            target_cwd: canonical_cwd.to_string_lossy().into_owned(),
-        }));
-        client.current_cwd = Some(canonical_cwd);
+    async fn discover_models_from_provider_cli_returns_empty_without_app_handle() {
+        // cc-sdk is Claude-only and now reads from the authoritative model catalog
+        // via AppHandle. When no AppHandle is present (e.g. in pure unit tests),
+        // it must return an empty vec rather than shelling out to the old CLI probe
+        // that cost a real API bill per call. Catalog-backed discovery is exercised
+        // end-to-end in `claude_code_model_catalog::tests`.
+        let client = make_test_client();
+        assert!(client.app_handle.is_none());
 
         let models = client.discover_models_from_provider_cli().await;
-
-        assert_eq!(models.len(), 1);
-        assert_eq!(models[0].model_id, "expected-model");
+        assert!(models.is_empty());
     }
 
     #[test]

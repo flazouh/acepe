@@ -154,6 +154,7 @@ pub async fn get_opencode_sessions_for_project(
                         parent_id: session.parent_id.clone(),
                         worktree_path: None,
                         pr_number: None,
+                        pr_link_mode: None,
                         worktree_deleted: None,
                         session_lifecycle_state: Some(
                             crate::db::repository::SessionLifecycleState::Persisted,

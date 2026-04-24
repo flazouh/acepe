@@ -1,10 +1,13 @@
 {
-  "version": 1,
-  "scripts": {
-    "setup": "bun i",
-    "run": ""
-  },
   "externalCliSessions": {
     "show": false
+  },
+  "scripts": {
+    "run": "",
+    "setup": "bun i"
+  },
+  "version": 1,
+  "worktree": {
+    "setupCommands": []
   }
 }

@@ -46,6 +46,10 @@ export type SessionModelState = { availableModels?: AvailableModel[]; currentMod
 
 export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
+export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | "failed"
+
+export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string }
+
 /**
  * Configuration option value.
  */
@@ -285,20 +289,6 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
-export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
-
-export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore"
-
-export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
-
-export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
-
-export type LifecycleCheckpoint = {
-/**
- * Older persisted checkpoints may omit this field; treat as current version for migration.
- */
-schemaVersion?: number; graphRevision: number; lifecycle: LifecycleState; capabilities: SessionGraphCapabilities }
-
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; runtime?: LifecycleCheckpoint | null }
 
 /**
@@ -386,8 +376,6 @@ export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | 
 
 export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null }
 
-export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
-
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
@@ -405,6 +393,48 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
+export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
+
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale";
+
+export type LifecycleStatus =
+	| "reserved"
+	| "activating"
+	| "ready"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export type DetachedReason =
+	| "restoredRequiresAttach"
+	| "reconnectExhausted"
+	| "abandonedInFlight"
+	| "legacyAmbiguousRestore";
+
+export type FailureReason =
+	| "deterministicRestoreFault"
+	| "activationFailed"
+	| "resumeFailed"
+	| "providerSessionMismatch"
+	| "corruptedPersistedState"
+	| "explicitErrorHandlingRequired"
+	| "legacyIrrecoverable";
+
+export type LifecycleState = {
+	status: LifecycleStatus;
+	detachedReason?: DetachedReason | null;
+	failureReason?: FailureReason | null;
+	errorMessage?: string | null;
+};
+
+export type LifecycleCheckpoint = {
+	schemaVersion: number;
+	graphRevision: number;
+	lifecycle: LifecycleState;
+	capabilities: SessionGraphCapabilities;
+};
+
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
 	displayName: string;
@@ -414,7 +444,10 @@ export type ProviderMetadataProjection = {
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
+	preconnectionCapabilityMode: PreconnectionCapabilityMode;
 };
+
+export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
 
@@ -428,6 +461,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	copilot: {
 		providerBrand: "copilot",
@@ -438,6 +472,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	cursor: {
 		providerBrand: "cursor",
@@ -448,6 +483,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	opencode: {
 		providerBrand: "opencode",
@@ -458,6 +494,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	codex: {
 		providerBrand: "codex",
@@ -468,6 +505,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: true,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 };
 
@@ -483,6 +521,8 @@ function cloneProviderMetadataProjection(
 		defaultAlias: providerMetadata.defaultAlias,
 		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
+		preconnectionCapabilityMode:
+			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
 	};
 }
 
@@ -509,6 +549,7 @@ export function resolveProviderMetadataProjection(
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "unsupported",
+		preconnectionCapabilityMode: "unsupported",
 	};
 }
 

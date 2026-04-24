@@ -18,6 +18,7 @@ function providerMetadata(
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode,
+		preconnectionCapabilityMode: preconnectionSlashMode,
 	};
 }
 

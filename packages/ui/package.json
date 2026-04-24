@@ -153,6 +153,10 @@
       "svelte": "./src/components/selector/index.ts",
       "default": "./src/components/selector/index.ts"
     },
+    "./script-editor": {
+      "svelte": "./src/components/script-editor/index.ts",
+      "default": "./src/components/script-editor/index.ts"
+    },
     "./panel-header": {
       "svelte": "./src/components/panel-header/index.ts",
       "default": "./src/components/panel-header/index.ts"

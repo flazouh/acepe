@@ -1,23 +1,32 @@
 use super::super::provider::{
-    AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness, ProjectPathListing,
-    SpawnConfig,
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
-use super::claude_code_settings::resolve_claude_runtime_mode_id;
+use super::claude_code_settings::{
+    apply_claude_session_defaults, compare_claude_model_ids, is_claude_model_id,
+    resolve_claude_runtime_mode_id,
+};
+use crate::acp::capability_resolution::{
+    failed_capabilities, resolve_static_capabilities, ResolvedCapabilities,
+    ResolvedCapabilityStatus,
+};
+use crate::acp::client::AvailableModel;
+use crate::acp::client_session::{default_modes, default_session_model_state};
 use crate::acp::client_trait::CommunicationMode;
+use crate::acp::error::AcpResult;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
+use crate::session_jsonl::display_names::format_model_display_name;
+use serde_json::Value;
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::time::Duration;
 use tauri::AppHandle;
-
-const CLAUDE_OPUS_MODEL_ID: &str = "claude-opus-4-6";
-const CLAUDE_SONNET_MODEL_ID: &str = "claude-sonnet-4-6";
-const CLAUDE_HAIKU_MODEL_ID: &str = "claude-haiku-4-5-20251001";
 
 /// Claude Code Agent Provider — uses cc-sdk for direct Rust ↔ Claude CLI communication
 pub struct ClaudeCodeProvider;
@@ -69,44 +78,13 @@ impl AgentProvider for ClaudeCodeProvider {
     }
 
     fn model_discovery_commands(&self) -> Vec<SpawnConfig> {
-        let Some(primary) = resolve_claude_spawn_configs().into_iter().next() else {
-            return Vec::new();
-        };
-
-        let mut args = primary.args;
-        args.extend([
-            "--no-session-persistence".to_string(),
-            "-p".to_string(),
-            "Return only the exact current model id. Output the raw model id only, with no markdown or explanation."
-                .to_string(),
-        ]);
-
-        vec![SpawnConfig {
-            command: primary.command,
-            args,
-            env: primary.env,
-            env_strategy: primary.env_strategy,
-        }]
+        // Catalog resolution now owns model discovery; the `-p` probe is no longer used
+        // because it costs a real API call per preconnection and returns only one model.
+        Vec::new()
     }
 
-    fn default_model_candidates(&self) -> Vec<ModelFallbackCandidate> {
-        vec![
-            ModelFallbackCandidate {
-                model_id: CLAUDE_OPUS_MODEL_ID.to_string(),
-                name: "Claude Opus 4.6".to_string(),
-                description: Some("Most capable Claude model".to_string()),
-            },
-            ModelFallbackCandidate {
-                model_id: CLAUDE_SONNET_MODEL_ID.to_string(),
-                name: "Claude Sonnet 4.6".to_string(),
-                description: Some("Balanced Claude model for most tasks".to_string()),
-            },
-            ModelFallbackCandidate {
-                model_id: CLAUDE_HAIKU_MODEL_ID.to_string(),
-                name: "Claude Haiku 4.5".to_string(),
-                description: Some("Fastest and cheapest Claude model".to_string()),
-            },
-        ]
+    fn model_discovery_timeout(&self) -> Duration {
+        Duration::from_secs(15)
     }
 
     fn normalize_mode_id(&self, id: &str) -> String {
@@ -141,6 +119,35 @@ impl AgentProvider for ClaudeCodeProvider {
                 None => Ok(Vec::new()),
             }
         })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            let effective_cwd = cwd
+                .map(PathBuf::from)
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            resolve_claude_preconnection_capabilities(app, self, effective_cwd.as_path()).await
+        })
+    }
+
+    fn apply_session_defaults(
+        &self,
+        cwd: &Path,
+        models: &mut crate::acp::client::SessionModelState,
+        modes: &mut crate::acp::client::SessionModes,
+    ) -> AcpResult<()> {
+        apply_claude_session_defaults(cwd, models, modes)
     }
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
@@ -232,6 +239,145 @@ impl AgentProvider for ClaudeCodeProvider {
     fn supports_project_discovery(&self) -> bool {
         true
     }
+}
+
+fn resolve_claude_preconnection_capabilities<'a>(
+    app: &'a AppHandle,
+    provider: &'a dyn AgentProvider,
+    cwd: &'a Path,
+) -> impl std::future::Future<Output = ResolvedCapabilities> + Send + 'a {
+    use super::claude_code_model_catalog::{self, ClaudeCatalogSnapshotKind};
+    async move {
+        let mut models = default_session_model_state();
+
+        let catalog = claude_code_model_catalog::read_catalog_snapshot_for_app(app).await;
+        tracing::debug!(
+            source = ?catalog.source,
+            freshness = ?catalog.freshness,
+            refresh_reason = ?catalog.refresh_reason,
+            cwd = %cwd.display(),
+            "Resolved Claude catalog snapshot state"
+        );
+
+        let mut status = ResolvedCapabilityStatus::Partial;
+        if let Some(snapshot) = catalog.snapshot {
+            status = match snapshot.catalog_kind {
+                ClaudeCatalogSnapshotKind::Authoritative => ResolvedCapabilityStatus::Resolved,
+                ClaudeCatalogSnapshotKind::HistorySalvage
+                | ClaudeCatalogSnapshotKind::Placeholder => ResolvedCapabilityStatus::Partial,
+            };
+            // Match Claude Code's own `/model` picker: show the latest model per family
+            // (opus / sonnet / haiku) only. Older-generation models remain available via
+            // --model <id> and are re-injected by apply_claude_session_defaults for any
+            // configured model that falls outside this curated set.
+            models.available_models =
+                claude_code_model_catalog::filter_to_picker_defaults(&snapshot.models);
+        }
+
+        if let Some(reason) = catalog.refresh_reason {
+            claude_code_model_catalog::spawn_catalog_refresh(app.clone(), reason);
+        }
+
+        match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
+            Ok(capabilities) => capabilities,
+            Err(error) => failed_capabilities(provider, error.to_string()),
+        }
+    }
+}
+
+pub(crate) fn discover_claude_history_models(
+    home_dir: Option<&Path>,
+    data_local_dir: Option<&Path>,
+) -> Vec<AvailableModel> {
+    let mut model_ids = BTreeSet::new();
+
+    if let Some(home_dir) = home_dir {
+        collect_claude_model_ids_from_stats_cache(
+            &home_dir.join(".claude").join("stats-cache.json"),
+            &mut model_ids,
+        );
+    }
+
+    if let Some(data_local_dir) = data_local_dir {
+        collect_claude_model_ids_from_session_dir(
+            &data_local_dir.join("Claude").join("claude-code-sessions"),
+            &mut model_ids,
+        );
+    }
+
+    let mut models: Vec<AvailableModel> = model_ids
+        .into_iter()
+        .map(|model_id| AvailableModel {
+            name: format_model_display_name(&model_id),
+            model_id,
+            description: None,
+        })
+        .collect();
+    models.sort_by(|left, right| {
+        compare_claude_model_ids(&right.model_id, &left.model_id)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    models
+}
+
+fn collect_claude_model_ids_from_stats_cache(path: &Path, model_ids: &mut BTreeSet<String>) {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return;
+    };
+    let Ok(parsed) = serde_json::from_str::<Value>(&contents) else {
+        return;
+    };
+    let Some(model_usage) = parsed.get("modelUsage").and_then(Value::as_object) else {
+        return;
+    };
+
+    for model_id in model_usage.keys() {
+        maybe_insert_claude_model_id(model_ids, model_id);
+    }
+}
+
+fn collect_claude_model_ids_from_session_dir(path: &Path, model_ids: &mut BTreeSet<String>) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        let entry_path = entry.path();
+
+        if file_type.is_dir() {
+            collect_claude_model_ids_from_session_dir(&entry_path, model_ids);
+            continue;
+        }
+
+        if !file_type.is_file()
+            || entry_path.extension().and_then(|ext| ext.to_str()) != Some("json")
+        {
+            continue;
+        }
+
+        let Ok(contents) = std::fs::read_to_string(&entry_path) else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<Value>(&contents) else {
+            continue;
+        };
+        let Some(model_id) = parsed.get("model").and_then(Value::as_str) else {
+            continue;
+        };
+        maybe_insert_claude_model_id(model_ids, model_id);
+    }
+}
+
+fn maybe_insert_claude_model_id(model_ids: &mut BTreeSet<String>, raw: &str) {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || !is_claude_model_id(trimmed) {
+        return;
+    }
+
+    model_ids.insert(trimmed.to_string());
 }
 
 fn resolve_claude_spawn_configs() -> Vec<SpawnConfig> {
@@ -501,16 +647,14 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn model_discovery_uses_claude_print_mode() {
+    fn model_discovery_commands_are_empty_catalog_owns_discovery() {
         with_temp_home(|| {
-            let cached_path = write_managed_claude("2.1.104");
+            let _cached_path = write_managed_claude("2.1.104");
             let provider = ClaudeCodeProvider;
             let attempts = provider.model_discovery_commands();
 
-            assert_eq!(attempts.len(), 1);
-            assert_eq!(attempts[0].command, cached_path.to_string_lossy());
-            assert_eq!(attempts[0].args[0], "--no-session-persistence");
-            assert_eq!(attempts[0].args[1], "-p");
+            // Catalog resolution now owns model discovery; the `-p` CLI probe is removed.
+            assert_eq!(attempts.len(), 0);
         });
     }
 
@@ -554,20 +698,20 @@ mod tests {
     }
 
     #[test]
-    fn claude_provider_exposes_multiple_model_candidates() {
+    fn claude_provider_has_no_seeded_model_candidates() {
         let provider = ClaudeCodeProvider;
-        let models = provider.default_model_candidates();
 
-        assert!(models.len() >= 3);
-        assert!(models
-            .iter()
-            .any(|model| model.model_id == "claude-opus-4-6"));
-        assert!(models
-            .iter()
-            .any(|model| model.model_id == "claude-sonnet-4-6"));
-        assert!(models
-            .iter()
-            .any(|model| model.model_id == "claude-haiku-4-5-20251001"));
+        let attempts = provider.model_discovery_commands();
+
+        // Catalog resolution now owns model discovery; no CLI probe is seeded.
+        assert_eq!(attempts.len(), 0);
+    }
+
+    #[test]
+    fn claude_provider_uses_extended_model_discovery_timeout() {
+        let provider = ClaudeCodeProvider;
+
+        assert_eq!(provider.model_discovery_timeout(), Duration::from_secs(15));
     }
 
     #[test]
@@ -590,6 +734,50 @@ mod tests {
         assert_eq!(
             provider.resolve_runtime_mode_id(Some("build"), Path::new(".")),
             "build"
+        );
+    }
+
+    #[test]
+    fn discover_claude_history_models_merges_stats_cache_and_session_history() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().join("home");
+        let data_local_dir = temp.path().join("data");
+        let session_dir = data_local_dir
+            .join("Claude")
+            .join("claude-code-sessions")
+            .join("org-1")
+            .join("project-1");
+        std::fs::create_dir_all(home.join(".claude")).expect("create home claude dir");
+        std::fs::create_dir_all(&session_dir).expect("create session dir");
+        std::fs::write(
+            home.join(".claude").join("stats-cache.json"),
+            r#"{
+  "modelUsage": {
+    "claude-opus-4-6": {},
+    "claude-sonnet-4-6": {},
+    "minimax-m2.5:cloud": {}
+  }
+}"#,
+        )
+        .expect("write stats cache");
+        std::fs::write(
+            session_dir.join("session.json"),
+            r#"{
+  "model": "claude-sonnet-4-5-20250929"
+}"#,
+        )
+        .expect("write session file");
+
+        let models = discover_claude_history_models(Some(&home), Some(&data_local_dir));
+        let model_ids: Vec<&str> = models.iter().map(|model| model.model_id.as_str()).collect();
+
+        assert_eq!(
+            model_ids,
+            vec![
+                "claude-sonnet-4-6",
+                "claude-opus-4-6",
+                "claude-sonnet-4-5-20250929"
+            ]
         );
     }
 }

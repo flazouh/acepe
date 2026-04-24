@@ -24,7 +24,7 @@ describe("SettingsSidebar", () => {
 
 		const rail = view.container.querySelector("nav");
 		expect(rail).not.toBeNull();
-		expect(rail?.className).toContain("w-[160px]");
+		expect(rail?.className).toContain("w-[220px]");
 		expect(view.queryByText("Account")).toBeNull();
 		expect(view.queryByText("Workspace")).toBeNull();
 		expect(view.queryByText("AI")).toBeNull();
@@ -36,7 +36,7 @@ describe("SettingsSidebar", () => {
 
 		for (const button of navButtons) {
 			expect(button.className).toContain("gap-2");
-			expect(button.className).toContain("text-[12px]");
+			expect(button.className).toContain("text-[13px]");
 		}
 
 		const activeButton = view.getByRole("button", { name: "General" });

@@ -99,6 +99,7 @@ function createCard(params: {
 	hasUnseenCompletion?: boolean;
 	sequenceId?: number | null;
 	footer?: KanbanSceneCardData["footer"];
+	prFooter?: KanbanSceneCardData["prFooter"];
 	menuActions?: readonly KanbanSceneMenuAction[];
 }): KanbanSceneCardData {
 	return {
@@ -122,6 +123,7 @@ function createCard(params: {
 			params.hasUnseenCompletion === undefined ? false : params.hasUnseenCompletion,
 		sequenceId: params.sequenceId === undefined ? null : params.sequenceId,
 		footer: params.footer === undefined ? null : params.footer,
+		prFooter: params.prFooter === undefined ? null : params.prFooter,
 		menuActions: params.menuActions === undefined ? [] : params.menuActions,
 		showCloseAction: false,
 		hideBody: false,

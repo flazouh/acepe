@@ -1,8 +1,8 @@
-import type { ParsedAttachment } from "$lib/acp/utils/attachment-token-parser.js";
 import type {
 	SessionLinkedPr,
 	SessionPrLinkMode,
 } from "$lib/acp/application/dto/session-linked-pr.js";
+import type { ParsedAttachment } from "$lib/acp/utils/attachment-token-parser.js";
 import type { SessionStatusUI } from "./session-status-ui";
 
 /**

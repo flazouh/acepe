@@ -59,6 +59,12 @@ function findDisplayModel(
 	return null;
 }
 
+export function hasUsableModelsDisplayGroups(
+	modelsDisplay: ModelsForDisplay | null | undefined
+): boolean {
+	return modelsDisplay?.groups.some((group) => group.models.length > 0) ?? false;
+}
+
 export function getModelDisplayName(
 	model: Model,
 	agentId: string | null,
@@ -161,6 +167,10 @@ export function groupModelsByProvider(models: readonly Model[]): ModelGroup[] {
 
 export function isDefaultModel(defaultModelId: string | undefined, modelId: string): boolean {
 	return defaultModelId === modelId;
+}
+
+export function isDefaultChoiceModelId(modelId: string | null | undefined): boolean {
+	return modelId === "default" || modelId === "auto";
 }
 
 export const CODEX_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"] as const;

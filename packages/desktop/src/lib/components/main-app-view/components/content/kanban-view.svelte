@@ -11,6 +11,7 @@ import {
 	type KanbanSceneMenuAction,
 	type KanbanTaskCardData,
 	type KanbanToolData,
+	type PrChecksItem,
 } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
@@ -420,7 +421,7 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 				checks: item.linkedPr.checks,
 				isChecksLoading: item.linkedPr.isChecksLoading,
 				hasResolvedChecks: item.linkedPr.hasResolvedChecks,
-				onOpenCheck: (check) => {
+				onOpenCheck: (check: PrChecksItem) => {
 					if (check.detailsUrl == null) {
 						return;
 					}

@@ -1,4 +1,4 @@
-use crate::acp::client::{AvailableModel, SessionModelState, SessionModes};
+use crate::acp::client::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use serde::Deserialize;
 use std::fs;
@@ -41,21 +41,24 @@ pub fn apply_copilot_session_defaults_from_paths(
         return Ok(());
     }
 
-    models.current_model_id = configured_model_id.clone();
-    if !models
+    if models
         .available_models
         .iter()
         .any(|model| model.model_id == configured_model_id)
     {
-        models.available_models.insert(
-            0,
-            AvailableModel {
-                model_id: configured_model_id.clone(),
-                name: configured_model_id,
-                description: Some("Configured in Copilot config.json".to_string()),
-            },
-        );
+        models.current_model_id = configured_model_id;
+        return Ok(());
     }
+
+    tracing::info!(
+        configured_model_id = %configured_model_id,
+        available_model_ids = ?models
+            .available_models
+            .iter()
+            .map(|model| model.model_id.as_str())
+            .collect::<Vec<_>>(),
+        "Configured Copilot model is unavailable in the authoritative catalog; keeping default selection"
+    );
 
     Ok(())
 }

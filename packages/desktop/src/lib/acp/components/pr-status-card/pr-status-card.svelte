@@ -98,7 +98,10 @@ function handleCommitClick(sha: string) {
 	diffModalOpen = true;
 }
 
-function handleOpenCheck(check: NonNullable<AgentPanelPrCardModel["checks"]>[number], event: MouseEvent) {
+function handleOpenCheck(
+	check: NonNullable<AgentPanelPrCardModel["checks"]>[number],
+	event: MouseEvent
+) {
 	event.stopPropagation();
 	if (check.detailsUrl?.startsWith("https://github.com/")) {
 		void openUrl(check.detailsUrl).catch(() => {});

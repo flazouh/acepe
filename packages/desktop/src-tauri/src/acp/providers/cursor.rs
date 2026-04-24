@@ -7,6 +7,7 @@ use super::super::provider::{
     ProjectPathListing, SpawnConfig,
 };
 use super::cursor_session_update_enrichment::enrich_cursor_session_update;
+use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
 use crate::acp::cursor_extensions::{
     adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
     normalize_cursor_extension,
@@ -132,6 +133,26 @@ impl AgentProvider for CursorProvider {
                 }
                 None => Ok(Vec::new()),
             }
+        })
+    }
+
+    fn list_preconnection_capabilities<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        cwd: Option<&'a Path>,
+    ) -> Pin<
+        Box<
+            dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            let effective_cwd = cwd
+                .map(PathBuf::from)
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            resolve_generic_preconnection_capabilities(self, effective_cwd.as_path()).await
         })
     }
 

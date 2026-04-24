@@ -22,6 +22,8 @@ import {
 	groupModelsByProvider,
 	groupReasoningModelsFromDisplay,
 	groupCodexModelsByBase,
+	hasUsableModelsDisplayGroups,
+	isDefaultChoiceModelId,
 	isDefaultModel,
 	supportsReasoningEffortPicker,
 } from "./model-selector-logic.js";
@@ -145,14 +147,16 @@ const selectedReasoningBaseGroup = $derived.by(() => {
 const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName ?? "Model");
 
 const validModels = $derived(availableModels.filter((model) => model.id));
+const displayGroups = $derived.by(() => modelsDisplay?.groups ?? []);
+const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
 const allDisplayableModels = $derived.by(() => {
-	if (!modelsDisplay?.groups) {
+	if (!hasDisplayGroups) {
 		return [] as DisplayableModel[];
 	}
-	return modelsDisplay.groups.flatMap((group) => group.models);
+	return displayGroups.flatMap((group) => group.models);
 });
 const totalModelCount = $derived.by(() =>
-	modelsDisplay?.groups ? allDisplayableModels.length : validModels.length
+	hasDisplayGroups ? allDisplayableModels.length : validModels.length
 );
 const showFavorites = $derived(totalModelCount >= 5);
 const planDefaultId = $derived(
@@ -211,6 +215,7 @@ function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelecto
 		providerSource: getModelProviderSource(model),
 		description: model.description ?? undefined,
 		searchText: `${name} ${id} ${model.description ?? ""} ${getModelProviderSource(model)}`,
+		hideProviderMark: isDefaultChoiceModelId(id),
 		isFavorite: agentId ? preferencesStore.isFavorite(agentId, id) : false,
 		isPlanDefault: isDefaultModel(planDefaultId, id),
 		isBuildDefault: isDefaultModel(buildDefaultId, id),
@@ -222,7 +227,7 @@ const favoriteModels = $derived.by(() => {
 		return [] as AgentInputModelSelectorItem[];
 	}
 	const favoriteIds = preferencesStore.getFavorites(agentId);
-	if (modelsDisplay?.groups) {
+	if (hasDisplayGroups) {
 		return allDisplayableModels
 			.filter((model) => favoriteIds.includes(model.modelId))
 			.map(toSelectorItem);
@@ -231,8 +236,8 @@ const favoriteModels = $derived.by(() => {
 });
 
 const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
-	if (modelsDisplay?.groups) {
-		return modelsDisplay.groups.map((group) => ({
+	if (hasDisplayGroups) {
+		return displayGroups.map((group) => ({
 			label: group.label,
 			items: Array.from(group.models)
 				.sort((left, right) =>
@@ -308,6 +313,7 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	{ontoggle}
 	{modelGroups}
 	{favoriteModels}
+	hideTriggerProviderMark={isDefaultChoiceModelId(currentModelId)}
 	reasoningGroups={usesVariantSelector ? reasoningGroups : []}
 	selectedReasoningBaseId={selectedReasoningVariant?.baseModelId ?? null}
 	selectedReasoningVariantId={currentModelId}

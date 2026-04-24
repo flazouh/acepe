@@ -7,7 +7,7 @@ use crate::acp::parsers::{
 };
 use crate::acp::provider::{
     BackendIdentityPolicy, FrontendProviderProjection, FrontendVariantGroup, HistoryReplayFamily,
-    HistoryReplayPolicy, PlanAdapterPolicy, PreconnectionSlashMode,
+    HistoryReplayPolicy, PlanAdapterPolicy, PreconnectionCapabilityMode, PreconnectionSlashMode,
 };
 use crate::acp::session_update::PlanSource;
 
@@ -133,6 +133,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             default_alias: Some("default"),
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
+            preconnection_capability_mode: PreconnectionCapabilityMode::StartupGlobal,
         },
         transport_family: TransportFamily::SharedChat,
         tool_vocabulary: ToolVocabulary::ClaudeCode,
@@ -159,6 +160,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             default_alias: None,
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::ProjectScoped,
+            preconnection_capability_mode: PreconnectionCapabilityMode::ProjectScoped,
         },
         transport_family: TransportFamily::SharedChat,
         tool_vocabulary: ToolVocabulary::Copilot,
@@ -185,6 +187,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             default_alias: None,
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::ProjectScoped,
+            preconnection_capability_mode: PreconnectionCapabilityMode::ProjectScoped,
         },
         transport_family: TransportFamily::OpenCodeEvents,
         tool_vocabulary: ToolVocabulary::OpenCode,
@@ -211,6 +214,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             default_alias: Some("auto"),
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
+            preconnection_capability_mode: PreconnectionCapabilityMode::StartupGlobal,
         },
         transport_family: TransportFamily::CursorAcp,
         tool_vocabulary: ToolVocabulary::Cursor,
@@ -237,6 +241,7 @@ static PROVIDER_CAPABILITIES: [ProviderCapabilities; 5] = [
             default_alias: None,
             reasoning_effort_support: true,
             preconnection_slash_mode: PreconnectionSlashMode::StartupGlobal,
+            preconnection_capability_mode: PreconnectionCapabilityMode::StartupGlobal,
         },
         transport_family: TransportFamily::CodexAcp,
         tool_vocabulary: ToolVocabulary::Codex,

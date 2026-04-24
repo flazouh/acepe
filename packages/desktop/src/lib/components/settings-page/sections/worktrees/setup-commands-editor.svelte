@@ -1,8 +1,8 @@
 <script lang="ts">
+import { ScriptEditor } from "@acepe/ui/script-editor";
 import { onMount } from "svelte";
-import { X } from "phosphor-svelte";
-import { Kbd } from "$lib/components/ui/kbd/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 interface Props {
@@ -14,16 +14,29 @@ let { projectPath }: Props = $props();
 type Status = "loading" | "ready" | "error";
 
 let status = $state<Status>("loading");
-let commands = $state<string[]>([]);
-let newCommand = $state("");
-let inputEl = $state<HTMLInputElement | null>(null);
+let script = $state("");
+let remoteScript = $state("");
 let isSaving = $state(false);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function commandsToScript(commands: readonly string[]): string {
+	return commands.join("\n");
+}
+
+function scriptToCommands(value: string): string[] {
+	return value
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+}
 
 async function load() {
 	status = "loading";
 	await tauriClient.git.loadWorktreeConfig(projectPath).match(
 		(config) => {
-			commands = [...(config?.setupCommands ?? [])];
+			const next = commandsToScript(config?.setupCommands ?? []);
+			script = next;
+			remoteScript = next;
 			status = "ready";
 		},
 		() => {
@@ -34,12 +47,18 @@ async function load() {
 
 onMount(() => {
 	void load();
+	return () => {
+		if (saveTimer) clearTimeout(saveTimer);
+	};
 });
 
-async function persistCommands(nextCommands: string[]) {
+async function persist(nextScript: string) {
+	if (nextScript === remoteScript) return;
 	isSaving = true;
+	const nextCommands = scriptToCommands(nextScript);
 	await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
 		() => {
+			remoteScript = commandsToScript(nextCommands);
 			isSaving = false;
 		},
 		() => {
@@ -48,37 +67,26 @@ async function persistCommands(nextCommands: string[]) {
 	);
 }
 
-async function addCommand() {
-	const trimmed = newCommand.trim();
-	if (!trimmed) return;
-	if (commands.includes(trimmed)) {
-		newCommand = "";
-		return;
+function handleChange(next: string) {
+	script = next;
+	if (saveTimer) clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		void persist(script);
+	}, 500);
+}
+
+function handleBlur(next: string) {
+	if (saveTimer) {
+		clearTimeout(saveTimer);
+		saveTimer = null;
 	}
-	const next = [...commands, trimmed];
-	commands = next;
-	newCommand = "";
-	await persistCommands(next);
-	inputEl?.focus();
+	void persist(next);
 }
 
-async function removeCommand(index: number) {
-	const next = commands.filter((_, i) => i !== index);
-	commands = next;
-	await persistCommands(next);
+function shikiHighlight(code: string): string | null {
+	if (!bashHighlighter.ready) return null;
+	return bashHighlighter.highlight(code);
 }
-
-function handleKeydown(event: KeyboardEvent) {
-	if (event.key === "Enter") {
-		event.preventDefault();
-		void addCommand();
-	} else if (event.key === "Escape") {
-		newCommand = "";
-		inputEl?.blur();
-	}
-}
-
-let hasCommands = $derived(commands.length > 0);
 </script>
 
 {#if status === "loading"}
@@ -94,41 +102,20 @@ let hasCommands = $derived(commands.length > 0);
 		{"Could not load setup scripts"} · {"Retry"}
 	</button>
 {:else}
-	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
-		{#each commands as command, index (command + index)}
-			<div
-				class="group flex items-center gap-1.5 px-3 h-8 {index > 0 ? 'border-t border-border/40' : ''}"
-				class:opacity-50={isSaving}
-			>
-				<span class="min-w-0 flex-1 truncate text-[12px] text-foreground">{command}</span>
-				<button
-					type="button"
-					class="shrink-0 size-5 flex items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-foreground hover:bg-accent group-hover:opacity-100 disabled:pointer-events-none"
-					disabled={isSaving}
-					aria-label="Remove command: {command}"
-					onclick={() => void removeCommand(index)}
-				>
-					<X size={10} />
-				</button>
-			</div>
-		{/each}
-
-		<div
-			class="flex items-center gap-1.5 px-3 h-8 {hasCommands ? 'border-t border-border/40' : ''}"
-			class:opacity-50={isSaving}
-		>
-			<input
-				bind:this={inputEl}
-				type="text"
-				bind:value={newCommand}
-				placeholder={hasCommands ? "add a command..." : "Commands run after creating a worktree (e.g., install dependencies)"}
-				disabled={isSaving}
-				class="min-w-0 flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
-				onkeydown={handleKeydown}
-			/>
-			{#if newCommand.trim()}
-				<Kbd class="shrink-0">enter</Kbd>
-			{/if}
+	<div class="flex flex-col gap-1">
+		<ScriptEditor
+			value={script}
+			onChange={handleChange}
+			onBlur={handleBlur}
+			highlight={shikiHighlight}
+			minLines={3}
+			maxLines={12}
+			placeholder={"bun install\nbun run check"}
+			ariaLabel="Worktree setup script"
+			class={isSaving ? "opacity-70" : ""}
+		/>
+		<div class="px-1 text-[10px] text-muted-foreground/50">
+			{isSaving ? "Saving…" : "Runs after creating a worktree. Each line is one command."}
 		</div>
 	</div>
 {/if}

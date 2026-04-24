@@ -762,6 +762,7 @@ fn session_metadata_created_rows_are_detected_as_pending_transcript() {
         provider_session_id: None,
         worktree_path: None,
         pr_number: None,
+        pr_link_mode: None,
         is_acepe_managed: false,
         sequence_id: None,
     };
@@ -784,6 +785,7 @@ fn session_metadata_real_rows_are_resumable() {
         provider_session_id: None,
         worktree_path: None,
         pr_number: None,
+        pr_link_mode: None,
         is_acepe_managed: false,
         sequence_id: None,
     };
@@ -809,6 +811,7 @@ fn session_metadata_created_rows_with_worktree_context_are_resumable() {
         provider_session_id: None,
         worktree_path: Some(worktree_path),
         pr_number: None,
+        pr_link_mode: None,
         is_acepe_managed: true,
         sequence_id: Some(1),
     };

@@ -242,6 +242,23 @@ pub fn get_cached_args(agent_id: &CanonicalAgentId) -> Vec<String> {
     meta.args
 }
 
+/// Get the installed version for a cached agent, if available.
+pub fn get_cached_version(agent_id: &CanonicalAgentId) -> Option<String> {
+    if matches!(agent_id, CanonicalAgentId::ClaudeCode) {
+        return None;
+    }
+
+    let dir = AGENTS_CACHE_DIR.get()?;
+    let meta_path = dir.join(agent_id_str(agent_id)).join("meta.json");
+    let Ok(content) = std::fs::read_to_string(&meta_path) else {
+        return None;
+    };
+    let Ok(meta) = serde_json::from_str::<AgentMeta>(&content) else {
+        return None;
+    };
+    Some(meta.version)
+}
+
 /// Check if an agent is installed in the cache.
 pub fn is_installed(agent_id: &CanonicalAgentId) -> bool {
     get_cached_binary(agent_id).is_some()
@@ -276,6 +293,34 @@ pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpRes
     }
 
     let result = install_agent_inner(&agent_id, &app).await;
+
+    if result.is_ok() && matches!(agent_id, CanonicalAgentId::Copilot) {
+        if let Err(error) =
+            crate::acp::providers::copilot_model_catalog::invalidate_catalog_snapshot_for_app(&app)
+                .await
+        {
+            tracing::warn!(error = %error, "Failed invalidating Copilot catalog snapshot after install");
+        }
+
+        let warmup_cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        crate::acp::providers::copilot_model_catalog::warm_catalog_in_background(
+            app.clone(),
+            warmup_cwd,
+        );
+    }
+
+    if result.is_ok() && matches!(agent_id, CanonicalAgentId::ClaudeCode) {
+        if let Err(error) =
+            crate::acp::providers::claude_code_model_catalog::invalidate_catalog_snapshot_for_app(
+                &app,
+            )
+            .await
+        {
+            tracing::warn!(error = %error, "Failed invalidating Claude catalog snapshot after install");
+        }
+
+        crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(app.clone());
+    }
 
     // Always release the guard
     {

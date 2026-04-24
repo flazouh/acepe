@@ -326,7 +326,7 @@ fn build_collaboration_mode(
     }
 }
 
-fn build_codex_native_session_model_state_with_state(
+pub(crate) fn build_codex_native_session_model_state_with_state(
     state: &CodexNativeConfigState,
 ) -> SessionModelState {
     let current_model_id = normalize_model_id(&state.current_model_id);

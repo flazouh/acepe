@@ -38,10 +38,11 @@ use acp::active_agent::ActiveAgent;
 use acp::commands::{
     acp_cancel, acp_close_session, acp_fork_session, acp_get_event_bridge_info,
     acp_get_session_state, acp_initialize, acp_install_agent, acp_list_agents,
-    acp_list_preconnection_commands, acp_new_session, acp_read_text_file,
-    acp_register_custom_agent, acp_reply_interaction, acp_respond_inbound_request,
-    acp_resume_session, acp_send_prompt, acp_set_config_option, acp_set_mode, acp_set_model,
-    acp_set_session_autonomous, acp_uninstall_agent, acp_write_text_file,
+    acp_list_preconnection_capabilities, acp_list_preconnection_commands, acp_new_session,
+    acp_read_text_file, acp_register_custom_agent, acp_reply_interaction,
+    acp_respond_inbound_request, acp_resume_session, acp_send_prompt, acp_set_config_option,
+    acp_set_mode, acp_set_model, acp_set_session_autonomous, acp_uninstall_agent,
+    acp_write_text_file,
 };
 use acp::event_bridge_server::start_event_bridge_server;
 use acp::event_hub::AcpEventHubState;
@@ -511,25 +512,8 @@ struct ClaudeModelHydrationProbe {
     cli_probe: Option<ClaudeModelDiscoveryCommandProbe>,
 }
 
-fn should_attempt_claude_model_discovery(provider_model_ids: &[String]) -> bool {
-    provider_model_ids.is_empty()
-}
-
-fn merge_claude_model_ids(
-    mut provider_model_ids: Vec<String>,
-    discovered_model_ids: Vec<String>,
-) -> Vec<String> {
-    for model_id in discovered_model_ids {
-        if !provider_model_ids
-            .iter()
-            .any(|existing| existing == &model_id)
-        {
-            provider_model_ids.push(model_id);
-        }
-    }
-
-    provider_model_ids.sort();
-    provider_model_ids
+fn should_attempt_claude_model_discovery() -> bool {
+    true
 }
 
 async fn run_claude_model_discovery_command_probe(
@@ -562,7 +546,8 @@ async fn run_claude_model_discovery_command_probe(
     }
 
     let started_at = std::time::Instant::now();
-    match tokio::time::timeout(std::time::Duration::from_secs(10), command.output()).await {
+    let discovery_timeout = provider.model_discovery_timeout();
+    match tokio::time::timeout(discovery_timeout, command.output()).await {
         Ok(Ok(output)) => ClaudeModelDiscoveryCommandProbe {
             attempted: true,
             command: attempt.command,
@@ -596,7 +581,7 @@ async fn run_claude_model_discovery_command_probe(
             status_code: None,
             timed_out: true,
             parsed_model_ids: Vec::new(),
-            error: Some("Timed out after 10s".to_string()),
+            error: Some(format!("Timed out after {}s", discovery_timeout.as_secs())),
         },
     }
 }
@@ -607,15 +592,8 @@ fn run_claude_model_hydration_probe_cli(
 ) -> Result<ClaudeModelHydrationProbe, String> {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     rt.block_on(async move {
-        let provider = acp::providers::ClaudeCodeProvider;
-        let mut provider_model_ids = provider
-            .default_model_candidates()
-            .into_iter()
-            .map(|candidate| candidate.model_id)
-            .collect::<Vec<_>>();
-        provider_model_ids.sort();
-
-        let discovery_attempted_in_app = should_attempt_claude_model_discovery(&provider_model_ids);
+        let provider_model_ids = Vec::new();
+        let discovery_attempted_in_app = should_attempt_claude_model_discovery();
         let cli_probe = if include_cli_probe {
             Some(run_claude_model_discovery_command_probe(project_path.clone()).await)
         } else {
@@ -623,13 +601,10 @@ fn run_claude_model_hydration_probe_cli(
         };
 
         let hydrated_model_ids = if discovery_attempted_in_app {
-            merge_claude_model_ids(
-                provider_model_ids.clone(),
-                cli_probe
-                    .as_ref()
-                    .map(|probe| probe.parsed_model_ids.clone())
-                    .unwrap_or_default(),
-            )
+            cli_probe
+                .as_ref()
+                .map(|probe| probe.parsed_model_ids.clone())
+                .unwrap_or_default()
         } else {
             provider_model_ids.clone()
         };
@@ -780,6 +755,24 @@ pub fn run() {
             // Pre-warm command availability checks so first ACP session creation/resume
             // never falls back to synchronous PATH scanning on request path.
             tauri::async_runtime::block_on(CommandAvailabilityCache::prewarm());
+
+            if crate::acp::agent_installer::is_installed(&crate::acp::types::CanonicalAgentId::Copilot)
+            {
+                let warmup_cwd = std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                crate::acp::providers::copilot_model_catalog::warm_catalog_in_background(
+                    app.handle().clone(),
+                    warmup_cwd,
+                );
+            }
+
+            if crate::acp::agent_installer::is_installed(
+                &crate::acp::types::CanonicalAgentId::ClaudeCode,
+            ) {
+                crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
+                    app.handle().clone(),
+                );
+            }
 
             // Initialize database
             let app_handle = app.handle().clone();
@@ -1092,21 +1085,12 @@ mod lib_tests {
     use super::format_elapsed_label;
     use super::orphaned_acp_process_patterns;
     use super::should_attempt_claude_model_discovery;
-    use crate::acp::provider::AgentProvider;
     use std::path::Path;
     use std::time::Duration;
 
     #[test]
-    fn claude_defaults_skip_model_discovery_probe() {
-        let provider = crate::acp::providers::ClaudeCodeProvider;
-        let provider_model_ids = provider
-            .default_model_candidates()
-            .into_iter()
-            .map(|candidate| candidate.model_id)
-            .collect::<Vec<_>>();
-
-        assert!(!provider_model_ids.is_empty());
-        assert!(!should_attempt_claude_model_discovery(&provider_model_ids));
+    fn claude_model_discovery_probe_always_attempts_runtime_discovery() {
+        assert!(should_attempt_claude_model_discovery());
     }
 
     #[test]

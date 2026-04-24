@@ -1,6 +1,7 @@
 // Module to export TypeScript types from Rust types using specta
 // Run: cargo test --lib session_jsonl::export_types::tests::export_types
 
+use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
 use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
@@ -70,6 +71,48 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
+export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
+
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale";
+
+export type LifecycleStatus =
+	| "reserved"
+	| "activating"
+	| "ready"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export type DetachedReason =
+	| "restoredRequiresAttach"
+	| "reconnectExhausted"
+	| "abandonedInFlight"
+	| "legacyAmbiguousRestore";
+
+export type FailureReason =
+	| "deterministicRestoreFault"
+	| "activationFailed"
+	| "resumeFailed"
+	| "providerSessionMismatch"
+	| "corruptedPersistedState"
+	| "explicitErrorHandlingRequired"
+	| "legacyIrrecoverable";
+
+export type LifecycleState = {
+	status: LifecycleStatus;
+	detachedReason?: DetachedReason | null;
+	failureReason?: FailureReason | null;
+	errorMessage?: string | null;
+};
+
+export type LifecycleCheckpoint = {
+	schemaVersion: number;
+	graphRevision: number;
+	lifecycle: LifecycleState;
+	capabilities: SessionGraphCapabilities;
+};
+
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
 	displayName: string;
@@ -79,7 +122,10 @@ export type ProviderMetadataProjection = {
 	defaultAlias?: string;
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
+	preconnectionCapabilityMode: PreconnectionCapabilityMode;
 };
+
+export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
 
@@ -93,6 +139,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "default",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	copilot: {
 		providerBrand: "copilot",
@@ -103,6 +150,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	cursor: {
 		providerBrand: "cursor",
@@ -113,6 +161,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: "auto",
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 	opencode: {
 		providerBrand: "opencode",
@@ -123,6 +172,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
+		preconnectionCapabilityMode: "projectScoped",
 	},
 	codex: {
 		providerBrand: "codex",
@@ -133,6 +183,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		defaultAlias: undefined,
 		reasoningEffortSupport: true,
 		preconnectionSlashMode: "startupGlobal",
+		preconnectionCapabilityMode: "startupGlobal",
 	},
 };
 
@@ -148,6 +199,8 @@ function cloneProviderMetadataProjection(
 		defaultAlias: providerMetadata.defaultAlias,
 		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
+		preconnectionCapabilityMode:
+			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
 	};
 }
 
@@ -174,6 +227,7 @@ export function resolveProviderMetadataProjection(
 		defaultAlias: undefined,
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "unsupported",
+		preconnectionCapabilityMode: "unsupported",
 	};
 }
 
@@ -358,6 +412,8 @@ pub fn export_all_types() {
     export_acp_type!(ModelsForDisplay);
     export_acp_type!(SessionModelState);
     export_acp_type!(SessionModes);
+    export_acp_type!(ResolvedCapabilityStatus);
+    export_acp_type!(ResolvedCapabilities);
     export_acp_type!(ConfigOptionValue);
     export_acp_type!(ConfigOptionData);
     export_acp_type!(NewSessionResponse);
@@ -493,6 +549,19 @@ mod tests {
         assert!(
             contents.contains("export type SessionDomainEvent"),
             "expected acp-types.ts to export SessionDomainEvent, but it did not"
+        );
+        assert!(
+            contents.contains("export type CapabilityPreviewState ="),
+            "expected acp-types.ts to export CapabilityPreviewState compat helpers, but it did not"
+        );
+        assert!(
+            contents.contains("export type LifecycleCheckpoint ="),
+            "expected acp-types.ts to export LifecycleCheckpoint compat helpers, but it did not"
+        );
+        assert!(
+            contents
+                .contains("export type FrontendProviderProjection = ProviderMetadataProjection;"),
+            "expected acp-types.ts to alias FrontendProviderProjection, but it did not"
         );
     }
 

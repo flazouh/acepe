@@ -61,6 +61,8 @@ import {
 	resolveSlashCommandSource,
 	shouldShowSlashCommandDropdown,
 } from "./logic/slash-command-source.js";
+import { resolveCapabilitySource } from "./logic/capability-source.js";
+import { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
 import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
 import { type SubmitIntent } from "../../logic/submit-intent.js";
 import {
@@ -88,6 +90,7 @@ import { createAgentInputController } from "./agent-input-controller.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
+import { hasToolbarCapabilityData, resolveSelectorsLoading } from "./logic/toolbar-loading.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -102,6 +105,7 @@ const permissionStore = getPermissionStore();
 const agentStore = getAgentStore();
 const preconnectionAgentSkillsStore = getPreconnectionAgentSkillsStore();
 const voiceSettingsStore = getVoiceSettingsStore();
+const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const preconnectionRemoteCommandsState = new PreconnectionRemoteCommandsState();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 const filePickerProjectPath = $derived(
@@ -219,6 +223,14 @@ const capabilitiesProviderMetadata = $derived.by(() => {
 
 	return null;
 });
+const preconnectionCapabilities = $derived.by(() =>
+	preconnectionCapabilitiesState.getCapabilities({
+		agentId: capabilitiesAgentId,
+		projectPath: filePickerProjectPath,
+		preconnectionCapabilityMode:
+			capabilitiesProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+	})
+);
 
 // Get hot state for current mode/model
 const sessionHotState = $derived(
@@ -259,10 +271,20 @@ const cachedModelsDisplay = $derived(
 	capabilitiesAgentId ? agentModelPrefs.getCachedModelsDisplay(capabilitiesAgentId) : null
 );
 
-// Fallback: session capabilities → persisted cache
-const effectiveAvailableModes = $derived(
-	sessionCapabilities?.availableModes?.length ? sessionCapabilities.availableModes : cachedModes
+const capabilitySource = $derived.by(() =>
+	resolveCapabilitySource({
+		sessionCapabilities,
+		preconnectionCapabilities,
+		cachedModes,
+		cachedModels,
+		cachedModelsDisplay,
+		providerMetadata: capabilitiesProviderMetadata ?? null,
+	})
 );
+const effectiveCapabilityProviderMetadata = $derived(
+	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata
+);
+const effectiveAvailableModes = $derived(capabilitySource.availableModes);
 
 // Filter to only show Build and Plan modes in the UI
 const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
@@ -337,11 +359,8 @@ const selectedModeMenuOptionId = $derived(
 	})
 );
 
-// Fallback: session capabilities → persisted cache
-const effectiveAvailableModels = $derived.by(() => {
-	const sessionModels = sessionCapabilities?.availableModels ?? [];
-	return sessionModels.length > 0 ? sessionModels : cachedModels;
-});
+const effectiveAvailableModels = $derived(capabilitySource.availableModels);
+const effectiveModelsDisplay = $derived(capabilitySource.modelsDisplay);
 
 const preferredDefaultModelId = $derived.by(() => {
 	if (!capabilitiesAgentId || !effectiveCurrentModeId) {
@@ -411,7 +430,8 @@ const preconnectionAvailableCommands = $derived.by(() => {
 	return preconnectionRemoteCommandsState.getCommands({
 		agentId: capabilitiesAgentId,
 		projectPath: filePickerProjectPath,
-		preconnectionSlashMode: capabilitiesProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+		preconnectionSlashMode:
+			effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 		skillCommands: preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId),
 	});
 });
@@ -450,20 +470,48 @@ const isSessionConnecting = $derived(sessionRuntimeState?.connectionPhase === "c
 // Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
 const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
 const hasCachedToolbarData = $derived(
-	visibleModes.length > 0 || effectiveAvailableModels.length > 0
+	hasToolbarCapabilityData({
+		visibleModesCount: visibleModes.length,
+		availableModelsCount: effectiveAvailableModels.length,
+		modelsDisplay: effectiveModelsDisplay,
+	})
 );
-const selectorsLoading = $derived.by(() => {
-	// Case 1: Session is connecting and no cached data yet
-	if (hasSession && isSessionConnecting && !hasCachedToolbarData) return true;
-	// Case 2: No session, agent selected, caches still loading from SQLite
-	if (
-		!hasSession &&
-		capabilitiesAgentId &&
-		!hasCachedToolbarData &&
-		!agentModelPrefs.isCacheLoaded()
-	)
-		return true;
-	return false;
+const selectorsLoading = $derived.by(() =>
+	resolveSelectorsLoading({
+		hasSession,
+		isSessionConnecting,
+		hasSelectedAgent: Boolean(capabilitiesAgentId),
+		visibleModesCount: visibleModes.length,
+		availableModelsCount: effectiveAvailableModels.length,
+		modelsDisplay: effectiveModelsDisplay,
+		isCacheLoaded: agentModelPrefs.isCacheLoaded(),
+		isPreconnectionLoading: preconnectionCapabilitiesState.isLoading({
+			agentId: capabilitiesAgentId,
+			projectPath: filePickerProjectPath,
+			preconnectionCapabilityMode:
+				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+		}),
+	})
+);
+
+$effect(() => {
+	const hasConnectedSession = sessionRuntimeState?.connectionPhase === "connected";
+	preconnectionCapabilitiesState
+		.ensureLoaded({
+			agentId: capabilitiesAgentId,
+			hasConnectedSession,
+			projectPath: filePickerProjectPath,
+			preconnectionCapabilityMode:
+				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+		})
+		.mapErr((error) => {
+			logger.error("Failed to warm preconnection capabilities", {
+				agentId: capabilitiesAgentId,
+				projectPath: filePickerProjectPath,
+				error: error.message,
+			});
+			return undefined;
+		});
 });
 
 $effect(() => {
@@ -767,7 +815,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 			if (
 				capabilitiesAgentId &&
 				!hasConnectedSession &&
-				capabilitiesProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
+				effectiveCapabilityProviderMetadata?.preconnectionSlashMode === "startupGlobal" &&
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
@@ -787,7 +835,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 					hasConnectedSession,
 					projectPath: filePickerProjectPath,
 					preconnectionSlashMode:
-						capabilitiesProviderMetadata?.preconnectionSlashMode ?? "unsupported",
+						effectiveCapabilityProviderMetadata?.preconnectionSlashMode ?? "unsupported",
 				})
 				.mapErr((error) => {
 					logger.error("Failed to warm remote preconnection commands", {
@@ -1865,7 +1913,7 @@ $effect(() => {
 						<ModelSelector
 							availableModels={effectiveAvailableModels}
 							currentModelId={effectiveCurrentModelId}
-							modelsDisplay={sessionCapabilities?.modelsDisplay ?? cachedModelsDisplay}
+							modelsDisplay={effectiveModelsDisplay}
 							onModelChange={handleModelChange}
 							isLoading={selectorsLoading}
 							panelId={props.panelId}

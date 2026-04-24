@@ -51,7 +51,7 @@ const sections: readonly SidebarSection[] = [
 ];
 </script>
 
-<nav class="flex w-[160px] shrink-0 flex-col gap-px rounded-lg bg-muted/20 p-1 shadow-sm">
+<nav class="flex w-[220px] shrink-0 flex-col gap-px border-r border-border/60 bg-muted/20 px-2 py-4">
 	{#each sections as section (section.id)}
 		{@const label = section.label()}
 		{@const Icon = section.icon}
@@ -59,12 +59,12 @@ const sections: readonly SidebarSection[] = [
 			type="button"
 			onclick={() => onSectionChange(section.id)}
 			class={cn(
-				"flex items-center gap-2 rounded-md px-2 py-1 text-[12px] font-medium transition-colors",
+				"flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors",
 				"hover:bg-muted/60 hover:text-foreground",
 				activeSection === section.id ? "bg-muted text-foreground" : "text-muted-foreground"
 			)}
 		>
-			<Icon weight="fill" class="size-3.5 shrink-0" />
+			<Icon weight="fill" class="size-4 shrink-0" />
 			<span class="truncate">{label}</span>
 		</button>
 	{/each}

@@ -415,6 +415,7 @@ mod tests {
             parent_id: None,
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             worktree_deleted: None,
             session_lifecycle_state: Some(crate::db::repository::SessionLifecycleState::Persisted),
             sequence_id: None,

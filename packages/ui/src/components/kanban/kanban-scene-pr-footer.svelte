@@ -6,7 +6,7 @@
 
 	let {
 		prNumber,
-		state,
+		prState,
 		title,
 		url,
 		additions,
@@ -21,7 +21,7 @@
 		onOpenExternal,
 	}: {
 		prNumber: number;
-		state: "OPEN" | "CLOSED" | "MERGED";
+		prState: "OPEN" | "CLOSED" | "MERGED";
 		title: string | null;
 		url: string | null;
 		additions: number | null;
@@ -54,7 +54,7 @@
 				<div class="flex items-center gap-1 text-[10px] text-muted-foreground">
 					<span>PR #{prNumber}</span>
 					<span>·</span>
-					<span>{state}</span>
+					<span>{prState}</span>
 					{#if isLoading}
 						<span>·</span>
 						<span>Refreshing…</span>

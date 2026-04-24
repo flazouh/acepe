@@ -13,6 +13,26 @@ import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { PreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 
 const openPersistedSessionMock = mock(() => {});
+const listPreconnectionCapabilitiesMock = mock(() =>
+	okAsync({
+		status: "resolved",
+		availableModels: [],
+		currentModelId: "",
+		modelsDisplay: { groups: [] },
+		providerMetadata: {
+			providerBrand: "codex",
+			displayName: "Codex",
+			displayOrder: 1,
+			supportsModelDefaults: true,
+			variantGroup: "plain",
+			reasoningEffortSupport: false,
+			preconnectionSlashMode: "startupGlobal",
+			preconnectionCapabilityMode: "startupGlobal",
+		},
+		availableModes: [],
+		currentModeId: "",
+	})
+);
 
 mock.module("../logic/open-persisted-session.js", () => ({
 	openPersistedSession: openPersistedSessionMock,
@@ -28,6 +48,16 @@ mock.module("$lib/services/zoom.svelte.js", () => ({
 		zoomPercentage: "100%",
 	}),
 	resetZoomService: () => {},
+}));
+
+mock.module("$lib/utils/tauri-client.js", () => ({
+	openFileInEditor: mock(() => undefined),
+	revealInFinder: mock(() => undefined),
+	tauriClient: {
+		acp: {
+			listPreconnectionCapabilities: listPreconnectionCapabilitiesMock,
+		},
+	},
 }));
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
@@ -78,6 +108,27 @@ describe("InitializationManager", () => {
 
 	beforeEach(() => {
 		openPersistedSessionMock.mockReset();
+		listPreconnectionCapabilitiesMock.mockReset();
+		listPreconnectionCapabilitiesMock.mockReturnValue(
+			okAsync({
+				status: "resolved",
+				availableModels: [],
+				currentModelId: "",
+				modelsDisplay: { groups: [] },
+				providerMetadata: {
+					providerBrand: "codex",
+					displayName: "Codex",
+					displayOrder: 1,
+					supportsModelDefaults: true,
+					variantGroup: "plain",
+					reasoningEffortSupport: false,
+					preconnectionSlashMode: "startupGlobal",
+					preconnectionCapabilityMode: "startupGlobal",
+				},
+				availableModes: [],
+				currentModeId: "",
+			})
+		);
 		globalThis.window = {
 			addEventListener: mock(() => {}),
 			removeEventListener: mock(() => {}),
@@ -233,6 +284,37 @@ describe("InitializationManager", () => {
 			expect(mockAgentStore.loadAvailableAgents).toHaveBeenCalled();
 			expect(mockProjectManager.loadProjects).toHaveBeenCalled();
 			expect(mockPreconnectionAgentSkillsStore.initialize).toHaveBeenCalled();
+		});
+
+		it("warms startup-global preconnection capabilities for eligible agents", async () => {
+			mockAgentStore.loadAvailableAgents = mock(() =>
+				okAsync([
+					{
+						id: "codex",
+						name: "Codex",
+						provider_metadata: {
+							preconnectionCapabilityMode: "startupGlobal",
+						},
+					},
+				])
+			) as unknown as AgentStore["loadAvailableAgents"];
+
+			manager = new InitializationManager(
+				mockState,
+				mockSessionStore,
+				mockAgentStore,
+				mockPanelStore,
+				mockWorkspaceStore,
+				mockProjectManager,
+				mockAgentPreferencesStore,
+				mockKeybindingsService,
+				mockPreconnectionAgentSkillsStore,
+				mockSessionOpenHydrator
+			);
+
+			await manager.initialize();
+
+			expect(listPreconnectionCapabilitiesMock).toHaveBeenCalledWith("", "codex");
 		});
 
 		it("should initialize agent preferences after loading metadata", async () => {

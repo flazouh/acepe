@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Input } from "../input/index.js";
+	import { LoadingIcon } from "../icons/index.js";
 	import { ProviderMark } from "../provider-mark/index.js";
 	import { Selector } from "../selector/index.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import { Brain } from "phosphor-svelte";
@@ -49,6 +49,7 @@
 		onSetPlanDefault?: (modelId: string) => void;
 		onSetBuildDefault?: (modelId: string) => void;
 		onToggleFavorite?: (modelId: string) => void;
+		hideTriggerProviderMark?: boolean;
 	}
 
 	let {
@@ -75,6 +76,7 @@
 		onSetPlanDefault,
 		onSetBuildDefault,
 		onToggleFavorite,
+		hideTriggerProviderMark = false,
 	}: Props = $props();
 
 	const MODEL_SEARCH_THRESHOLD = 8;
@@ -182,11 +184,11 @@
 		>
 			{#snippet renderButton()}
 				{#if isLoading}
-					<TextShimmer class="text-[11px] font-medium text-muted-foreground">
-						{loadingLabel}
-					</TextShimmer>
+					<LoadingIcon class="size-3.5 text-muted-foreground" aria-label={loadingLabel} />
 				{:else}
-					<ProviderMark provider={primaryTriggerProviderSource} class="size-3.5" />
+					{#if !hideTriggerProviderMark}
+						<ProviderMark provider={primaryTriggerProviderSource} class="size-3.5" />
+					{/if}
 					<span class="truncate text-xs">{primarySelectorLabel}</span>
 				{/if}
 			{/snippet}
@@ -272,11 +274,11 @@
 		>
 			{#snippet renderButton()}
 				{#if isLoading}
-					<TextShimmer class="text-[11px] font-medium text-muted-foreground">
-						{loadingLabel}
-					</TextShimmer>
+					<LoadingIcon class="size-3.5 text-muted-foreground" aria-label={loadingLabel} />
 				{:else}
-					<ProviderMark provider={triggerProviderSource} class="size-3.5" />
+					{#if !hideTriggerProviderMark}
+						<ProviderMark provider={triggerProviderSource} class="size-3.5" />
+					{/if}
 					<span class="truncate text-xs">{triggerLabel}</span>
 				{/if}
 			{/snippet}
@@ -302,54 +304,58 @@
 								}}
 							>
 								{#snippet leading()}
+								{#if !item.hideProviderMark}
 									<ProviderMark provider={item.providerSource} class="size-3.5" />
-								{/snippet}
-								{#snippet actions()}
-									<div class="ml-auto flex items-center gap-1">
-										{#if onSetPlanDefault || onSetBuildDefault}
-											<AgentInputModelModeBar
-												showModeBar={Boolean(item.isPlanDefault || item.isBuildDefault)}
-												isPlanDefault={Boolean(item.isPlanDefault)}
-												isBuildDefault={Boolean(item.isBuildDefault)}
-												{planLabel}
-												{buildLabel}
-												onSetPlan={() => onSetPlanDefault?.(item.id)}
-												onSetBuild={() => onSetBuildDefault?.(item.id)}
-											/>
-										{/if}
-										{#if onToggleFavorite}
-											<AgentInputModelFavoriteStar
-												isFavorite={Boolean(item.isFavorite)}
-												onToggle={() => onToggleFavorite(item.id)}
-											/>
-										{/if}
-									</div>
-								{/snippet}
-							</AgentInputModelRow>
-						{/each}
-					</div>
-				{/if}
+								{/if}
+							{/snippet}
+							{#snippet actions()}
+								<div class="ml-auto flex items-center gap-1">
+									{#if onSetPlanDefault || onSetBuildDefault}
+										<AgentInputModelModeBar
+											showModeBar={Boolean(item.isPlanDefault || item.isBuildDefault)}
+											isPlanDefault={Boolean(item.isPlanDefault)}
+											isBuildDefault={Boolean(item.isBuildDefault)}
+											{planLabel}
+											{buildLabel}
+											onSetPlan={() => onSetPlanDefault?.(item.id)}
+											onSetBuild={() => onSetBuildDefault?.(item.id)}
+										/>
+									{/if}
+									{#if onToggleFavorite}
+										<AgentInputModelFavoriteStar
+											isFavorite={Boolean(item.isFavorite)}
+											onToggle={() => onToggleFavorite(item.id)}
+										/>
+									{/if}
+								</div>
+							{/snippet}
+						</AgentInputModelRow>
+					{/each}
+				</div>
+			{/if}
 
-				<div class="max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-					{#each filteredGroups as group, groupIndex (group.label)}
-						{#if showGroups}
-							<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold">
-								<ProviderMark provider={group.label} class="size-3" />
-								{group.label}
-							</DropdownMenu.Label>
-						{/if}
-						{#each group.items as item (item.id)}
-							<AgentInputModelRow
-								modelId={item.id}
-								modelName={item.name}
-								currentModelId={currentModelId}
-								onSelect={() => {
-									void handleModelSelection(item.id);
-								}}
-							>
-								{#snippet leading()}
+			<div class="max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+				{#each filteredGroups as group, groupIndex (group.label)}
+					{#if showGroups}
+						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold">
+							<ProviderMark provider={group.label} class="size-3" />
+							{group.label}
+						</DropdownMenu.Label>
+					{/if}
+					{#each group.items as item (item.id)}
+						<AgentInputModelRow
+							modelId={item.id}
+							modelName={item.name}
+							currentModelId={currentModelId}
+							onSelect={() => {
+								void handleModelSelection(item.id);
+							}}
+						>
+							{#snippet leading()}
+								{#if !item.hideProviderMark}
 									<ProviderMark provider={item.providerSource} class="size-3.5" />
-								{/snippet}
+								{/if}
+							{/snippet}
 								{#snippet actions()}
 									<div class="ml-auto flex items-center gap-1">
 										{#if onSetPlanDefault || onSetBuildDefault}

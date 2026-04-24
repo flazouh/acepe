@@ -20,13 +20,13 @@ vi.mock("../api.js", () => ({
 vi.mock("../../../utils/tauri-client.js", () => ({
 	openFileInEditor: vi.fn(),
 	revealInFinder: vi.fn(),
-		tauriClient: {
-			git: {
-				prDetails: prDetailsMock,
-				prChecks: prChecksMock,
-			},
+	tauriClient: {
+		git: {
+			prDetails: prDetailsMock,
+			prChecks: prChecksMock,
 		},
-	}));
+	},
+}));
 
 vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	clearSessionModelPerMode: vi.fn(),
@@ -66,19 +66,17 @@ function createPrChecks(overrides: Partial<PrChecks> = {}): PrChecks {
 	return {
 		prNumber: overrides.prNumber ?? 83,
 		headSha: overrides.headSha ?? "abc123",
-		checkRuns:
-			overrides.checkRuns ??
-			[
-				{
-					name: "build",
-					status: "IN_PROGRESS",
-					conclusion: null,
-					detailsUrl: "https://github.com/example/repo/actions/runs/1",
-					startedAt: "2026-04-23T12:00:00Z",
-					completedAt: null,
-					workflowName: "CI",
-				},
-			],
+		checkRuns: overrides.checkRuns ?? [
+			{
+				name: "build",
+				status: "IN_PROGRESS",
+				conclusion: null,
+				detailsUrl: "https://github.com/example/repo/actions/runs/1",
+				startedAt: "2026-04-23T12:00:00Z",
+				completedAt: null,
+				workflowName: "CI",
+			},
+		],
 	};
 }
 

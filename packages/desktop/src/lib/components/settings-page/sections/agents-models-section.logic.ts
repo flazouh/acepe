@@ -1,9 +1,16 @@
 import { SvelteSet } from "svelte/reactivity";
+import type { Mode } from "$lib/acp/application/dto/mode.js";
+import type { Model } from "$lib/acp/application/dto/model.js";
+import {
+	type CapabilitySourceResolution,
+	resolveCapabilitySource,
+} from "$lib/acp/components/agent-input/logic/capability-source.js";
 import type { Agent } from "$lib/acp/store/types.js";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "$lib/services/acp-provider-metadata.js";
+import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
 
 const MIN_SELECTED_AGENTS_ERROR = "At least one agent must remain selected";
 
@@ -87,31 +94,32 @@ function compareProviders(
 	});
 }
 
+function getProjectedProviderMetadata(
+	agent: Agent,
+	getProviderMetadata: (agentId: string) => ProviderMetadataProjection | null
+): ProviderMetadataProjection | null | undefined {
+	return getProviderMetadata(agent.id) ?? agent.providerMetadata ?? undefined;
+}
+
 export function getAgentsByProviderOrder(
 	agents: readonly Agent[],
-	getCachedModelsDisplay: (agentId: string) => ModelsForDisplay | null
+	getProviderMetadata: (agentId: string) => ProviderMetadataProjection | null
 ): Agent[] {
 	return Array.from(agents).sort((left, right) => {
-		const leftProviderMetadata =
-			getCachedModelsDisplay(left.id)?.presentation?.provider ?? left.providerMetadata ?? undefined;
-		const rightProviderMetadata =
-			getCachedModelsDisplay(right.id)?.presentation?.provider ??
-			right.providerMetadata ??
-			undefined;
+		const leftProviderMetadata = getProjectedProviderMetadata(left, getProviderMetadata);
+		const rightProviderMetadata = getProjectedProviderMetadata(right, getProviderMetadata);
 		return compareProviders(leftProviderMetadata, rightProviderMetadata, left.name, right.name);
 	});
 }
 
 export function getAgentModelDefaultsEntries(
 	agents: readonly Agent[],
-	getCachedModelsDisplay: (agentId: string) => ModelsForDisplay | null
+	getProviderMetadata: (agentId: string) => ProviderMetadataProjection | null
 ): AgentModelDefaultsEntry[] {
 	const entries: AgentModelDefaultsEntry[] = [];
 
 	for (const agent of agents) {
-		const cachedModelsDisplay = getCachedModelsDisplay(agent.id);
-		const providerMetadata =
-			cachedModelsDisplay?.presentation?.provider ?? agent.providerMetadata ?? undefined;
+		const providerMetadata = getProjectedProviderMetadata(agent, getProviderMetadata);
 		if (!providerMetadata?.supportsModelDefaults) {
 			continue;
 		}
@@ -130,6 +138,23 @@ export function getAgentModelDefaultsEntries(
 			right.agent.name
 		)
 	);
+}
+
+export function resolveSettingsCapabilitySource(input: {
+	preconnectionCapabilities: ResolvedCapabilities | null;
+	cachedModes: readonly Mode[];
+	cachedModels: readonly Model[];
+	cachedModelsDisplay: ModelsForDisplay | null;
+	providerMetadata: ProviderMetadataProjection | null;
+}): CapabilitySourceResolution {
+	return resolveCapabilitySource({
+		sessionCapabilities: null,
+		preconnectionCapabilities: input.preconnectionCapabilities,
+		cachedModes: input.cachedModes,
+		cachedModels: input.cachedModels,
+		cachedModelsDisplay: input.cachedModelsDisplay,
+		providerMetadata: input.providerMetadata,
+	});
 }
 
 export function getProviderDefaultLabel(

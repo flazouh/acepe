@@ -6,12 +6,12 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "svelte-sonner";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import type { GitStackedPrStep } from "../../../../utils/tauri-client/git.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { createLogger } from "../../../utils/logger.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
-import type { GitStackedPrStep } from "../../../../utils/tauri-client/git.js";
 
 const logger = createLogger({ id: "agent-panel-ship-workflow", name: "AgentPanelShipWorkflow" });
 

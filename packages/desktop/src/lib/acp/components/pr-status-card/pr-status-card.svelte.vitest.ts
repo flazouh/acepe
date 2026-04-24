@@ -78,11 +78,13 @@ describe("PrStatusCard", () => {
 		} satisfies PrDetails;
 
 		const { container } = render(PrStatusCard, {
+			sessionId: "session-1",
 			projectPath: "/repo",
 			prNumber: prDetails.number,
 			isCreating: false,
 			prDetails,
 			fetchError: null,
+			linkedPr: null,
 		});
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
@@ -110,11 +112,13 @@ describe("PrStatusCard", () => {
 		} satisfies PrDetails;
 
 		const { container } = render(PrStatusCard, {
+			sessionId: "session-1",
 			projectPath: "/repo",
 			prNumber: prDetails.number,
 			isCreating: false,
 			prDetails,
 			fetchError: null,
+			linkedPr: null,
 		});
 
 		const header = container.querySelector("div[role='button'][tabindex='0']");
@@ -139,11 +143,13 @@ describe("PrStatusCard", () => {
 		} as const;
 
 		const view = render(PrStatusCard, {
+			sessionId: null,
 			projectPath: "/repo",
 			prNumber: null,
 			isCreating: true,
 			prDetails: null,
 			fetchError: null,
+			linkedPr: null,
 			streamingData,
 		});
 
@@ -155,11 +161,13 @@ describe("PrStatusCard", () => {
 		expect(view.container.querySelector(".markdown-content")).toBeNull();
 
 		await view.rerender({
+			sessionId: null,
 			projectPath: "/repo",
 			prNumber: null,
 			isCreating: true,
 			prDetails: null,
 			fetchError: null,
+			linkedPr: null,
 			streamingData: {
 				commitMessage: null,
 				prTitle: "Streaming title",

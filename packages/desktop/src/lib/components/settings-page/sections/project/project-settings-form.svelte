@@ -1,12 +1,13 @@
 <script lang="ts">
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
+import { ScriptEditor } from "@acepe/ui/script-editor";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { ProjectAcepeConfig } from "$lib/utils/tauri-client/types.js";
+import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import { Textarea } from "$lib/components/ui/textarea/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import SettingRow from "../../setting-row.svelte";
 import SettingsSection from "../../settings-section.svelte";
@@ -110,6 +111,11 @@ async function saveScript(kind: "setup_script" | "run_script") {
 		isSavingRunScript = false;
 	}
 }
+
+function shikiHighlight(code: string): string | null {
+	if (!bashHighlighter.ready) return null;
+	return bashHighlighter.highlight(code);
+}
 </script>
 
 <SettingsSection
@@ -144,12 +150,15 @@ async function saveScript(kind: "setup_script" | "run_script") {
 			stacked={true}
 		>
 			<div class="flex flex-col gap-2">
-				<Textarea
-					rows={7}
-					class="min-h-[140px] font-mono text-[12px] placeholder:text-muted-foreground/40 placeholder:italic"
-					bind:value={setupScriptDraft}
-					placeholder={"bun install\nbun run check"}
+				<ScriptEditor
+					value={setupScriptDraft}
+					onChange={(v) => (setupScriptDraft = v)}
+					highlight={shikiHighlight}
 					disabled={isSavingSetupScript}
+					minLines={7}
+					maxLines={20}
+					placeholder={"bun install\nbun run check"}
+					ariaLabel="Setup script"
 				/>
 				<div class="flex items-center justify-between gap-3">
 					<div class="text-[11px] text-muted-foreground/60">
@@ -175,12 +184,15 @@ async function saveScript(kind: "setup_script" | "run_script") {
 			stacked={true}
 		>
 			<div class="flex flex-col gap-2">
-				<Textarea
-					rows={7}
-					class="min-h-[140px] font-mono text-[12px] placeholder:text-muted-foreground/40 placeholder:italic"
-					bind:value={runScriptDraft}
-					placeholder={"bun run dev"}
+				<ScriptEditor
+					value={runScriptDraft}
+					onChange={(v) => (runScriptDraft = v)}
+					highlight={shikiHighlight}
 					disabled={isSavingRunScript}
+					minLines={7}
+					maxLines={20}
+					placeholder={"bun run dev"}
+					ariaLabel="Run script"
 				/>
 				<div class="flex items-center justify-between gap-3">
 					<div class="text-[11px] text-muted-foreground/60">

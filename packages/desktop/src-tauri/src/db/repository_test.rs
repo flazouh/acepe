@@ -1333,6 +1333,7 @@ mod session_metadata_tests {
             provider_session_id: Some("cursor-provider".to_string()),
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             is_acepe_managed: false,
             sequence_id: None,
         };
