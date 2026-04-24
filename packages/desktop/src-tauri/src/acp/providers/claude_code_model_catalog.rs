@@ -735,7 +735,7 @@ pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableMod
     Ok(models)
 }
 
-fn forward_context_window<'a>(content: &'a str, start: usize, max_len: usize) -> &'a str {
+fn forward_context_window(content: &str, start: usize, max_len: usize) -> &str {
     let mut end = start.saturating_add(max_len).min(content.len());
     while end > start && !content.is_char_boundary(end) {
         end -= 1;
@@ -990,7 +990,7 @@ mod tests {
             );
             let padding_len = 599usize.saturating_sub(prefix.len());
             input.extend_from_slice(prefix.as_bytes());
-            input.extend(std::iter::repeat(b'a').take(padding_len));
+            input.extend(std::iter::repeat_n(b'a', padding_len));
             input.extend_from_slice("é".as_bytes());
         }
 
