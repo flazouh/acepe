@@ -2780,87 +2780,9 @@ mod tests {
     use cc_sdk::{CanUseTool, HookCallback};
     use sea_orm::Database;
     use sea_orm_migration::MigratorTrait;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{LazyLock, Mutex as StdMutex};
 
     static HOME_ENV_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
-
-    struct TestModelDiscoveryProvider {
-        discovery_calls: Arc<AtomicUsize>,
-    }
-
-    struct CwdModelDiscoveryProvider {
-        target_cwd: String,
-    }
-
-    impl AgentProvider for TestModelDiscoveryProvider {
-        fn id(&self) -> &str {
-            "claude-code"
-        }
-
-        fn name(&self) -> &str {
-            "Test Claude Provider"
-        }
-
-        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
-            crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }
-        }
-
-        fn parser_agent_type(&self) -> AgentType {
-            AgentType::ClaudeCode
-        }
-
-        fn model_discovery_commands(&self) -> Vec<crate::acp::provider::SpawnConfig> {
-            self.discovery_calls.fetch_add(1, Ordering::SeqCst);
-            vec![crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }]
-        }
-    }
-
-    impl AgentProvider for CwdModelDiscoveryProvider {
-        fn id(&self) -> &str {
-            "claude-code"
-        }
-
-        fn name(&self) -> &str {
-            "Cwd Discovery Provider"
-        }
-
-        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
-            crate::acp::provider::SpawnConfig {
-                command: "unused".to_string(),
-                args: vec![],
-                env: HashMap::new(),
-                env_strategy: None,
-            }
-        }
-
-        fn parser_agent_type(&self) -> AgentType {
-            AgentType::ClaudeCode
-        }
-
-        fn model_discovery_commands(&self) -> Vec<crate::acp::provider::SpawnConfig> {
-            vec![crate::acp::provider::SpawnConfig {
-                command: "python3".to_string(),
-                args: vec![
-                    "-c".to_string(),
-                    "import json, os, sys; target = sys.argv[1]; model = 'expected-model' if os.getcwd() == target else 'wrong-model'; print(json.dumps([{\"id\": model, \"name\": model}]))".to_string(),
-                    self.target_cwd.clone(),
-                ],
-                env: HashMap::new(),
-                env_strategy: None,
-            }]
-        }
-    }
 
     fn make_task_tool_call(id: &str) -> SessionUpdate {
         SessionUpdate::ToolCall {
@@ -3353,31 +3275,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hydrated_session_model_state_uses_model_discovery_without_seeded_defaults() {
-        let discovery_calls = Arc::new(AtomicUsize::new(0));
-        let client = make_test_client_with_provider(Arc::new(TestModelDiscoveryProvider {
-            discovery_calls: discovery_calls.clone(),
-        }));
-
-        let state = client.hydrated_session_model_state().await;
-
-        assert_eq!(discovery_calls.load(Ordering::SeqCst), 1);
-        assert!(state.available_models.is_empty());
-    }
-
-    #[tokio::test]
-    async fn model_discovery_uses_current_cwd_without_cached_connect_options() {
-        let temp = tempfile::tempdir().expect("temp dir");
-        let canonical_cwd = temp.path().canonicalize().expect("canonical cwd");
-        let mut client = make_test_client_with_provider(Arc::new(CwdModelDiscoveryProvider {
-            target_cwd: canonical_cwd.to_string_lossy().into_owned(),
-        }));
-        client.current_cwd = Some(canonical_cwd);
+    async fn discover_models_from_provider_cli_returns_empty_without_app_handle() {
+        // cc-sdk is Claude-only and now reads from the authoritative model catalog
+        // via AppHandle. When no AppHandle is present (e.g. in pure unit tests),
+        // it must return an empty vec rather than shelling out to the old CLI probe
+        // that cost a real API bill per call. Catalog-backed discovery is exercised
+        // end-to-end in `claude_code_model_catalog::tests`.
+        let client = make_test_client();
+        assert!(client.app_handle.is_none());
 
         let models = client.discover_models_from_provider_cli().await;
-
-        assert_eq!(models.len(), 1);
-        assert_eq!(models[0].model_id, "expected-model");
+        assert!(models.is_empty());
     }
 
     #[test]

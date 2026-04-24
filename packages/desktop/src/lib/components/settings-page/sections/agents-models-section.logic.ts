@@ -2,8 +2,8 @@ import { SvelteSet } from "svelte/reactivity";
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import {
-	resolveCapabilitySource,
 	type CapabilitySourceResolution,
+	resolveCapabilitySource,
 } from "$lib/acp/components/agent-input/logic/capability-source.js";
 import type { Agent } from "$lib/acp/store/types.js";
 import type {
