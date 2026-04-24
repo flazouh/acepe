@@ -1,8 +1,8 @@
-import type { ToolKind } from "../../types/tool-kind.js";
 import type {
 	SessionLinkedPr,
 	SessionPrLinkMode,
 } from "../../application/dto/session-linked-pr.js";
+import type { ToolKind } from "../../types/tool-kind.js";
 
 /**
  * Todo progress for display in session list.

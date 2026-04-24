@@ -73,13 +73,13 @@ import {
 import type {
 	Mode,
 	Model,
-	SessionLinkedPr,
 	SessionCapabilities,
 	SessionCold,
 	SessionContextBudget,
 	SessionEntry,
 	SessionHotState,
 	SessionIdentity,
+	SessionLinkedPr,
 	SessionMetadata,
 	SessionPrLinkMode,
 	SessionUsageTelemetry,
@@ -90,13 +90,13 @@ import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
 import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
 import { SessionNotFoundError } from "../errors/app-error.js";
-import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/session-pr-link-attribution.js";
 import { createLogger } from "../utils/logger.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { SessionConnectionManager } from "./services/session-connection-manager.js";
 import { SessionMessagingService } from "./services/session-messaging-service.js";
+import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/session-pr-link-attribution.js";
 import { SessionRepository } from "./services/session-repository.js";
 import { SessionCapabilitiesStore } from "./session-capabilities-store.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
@@ -257,10 +257,9 @@ function buildResolvedSessionLinkedPr(details: PrDetails): SessionLinkedPr {
 	};
 }
 
-function buildResolvedSessionPrChecks(checks: PrChecks): Pick<
-	SessionLinkedPr,
-	"checksHeadSha" | "checks" | "isChecksLoading" | "hasResolvedChecks"
-> {
+function buildResolvedSessionPrChecks(
+	checks: PrChecks
+): Pick<SessionLinkedPr, "checksHeadSha" | "checks" | "isChecksLoading" | "hasResolvedChecks"> {
 	return {
 		checksHeadSha: checks.headSha,
 		checks: checks.checkRuns.map((checkRun) => ({
@@ -1904,8 +1903,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				hasResolvedDetails: resolvedLinkedPr.hasResolvedDetails,
 				checksHeadSha: session.linkedPr?.checksHeadSha ?? resolvedLinkedPr.checksHeadSha,
 				checks: session.linkedPr?.checks ?? resolvedLinkedPr.checks,
-				isChecksLoading:
-					session.linkedPr?.isChecksLoading ?? resolvedLinkedPr.isChecksLoading,
+				isChecksLoading: session.linkedPr?.isChecksLoading ?? resolvedLinkedPr.isChecksLoading,
 				hasResolvedChecks:
 					session.linkedPr?.hasResolvedChecks ?? resolvedLinkedPr.hasResolvedChecks,
 			};
@@ -2032,7 +2030,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 	}
 
-	private setLinkedPrChecksLoading(projectPath: string, prNumber: number, isChecksLoading: boolean): void {
+	private setLinkedPrChecksLoading(
+		projectPath: string,
+		prNumber: number,
+		isChecksLoading: boolean
+	): void {
 		const matchingSessions = this.sessions.filter(
 			(session) => session.projectPath === projectPath && session.prNumber === prNumber
 		);

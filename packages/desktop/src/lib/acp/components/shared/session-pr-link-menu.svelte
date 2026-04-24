@@ -1,139 +1,131 @@
 <script lang="ts">
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-	import type { PrListItem } from "$lib/acp/types/github-integration.js";
-	import type {
-		SessionLinkedPr,
-		SessionPrLinkMode,
-	} from "$lib/acp/application/dto/session-linked-pr.js";
-	import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
-	import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
-	import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-	import { Input } from "$lib/components/ui/input/index.js";
-	import * as Popover from "$lib/components/ui/popover/index.js";
-	import { LinkSimple } from "phosphor-svelte";
-	import { toast } from "svelte-sonner";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import type { PrListItem } from "$lib/acp/types/github-integration.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+} from "$lib/acp/application/dto/session-linked-pr.js";
+import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
+import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
+import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
+import { Input } from "$lib/components/ui/input/index.js";
+import * as Popover from "$lib/components/ui/popover/index.js";
+import { LinkSimple } from "phosphor-svelte";
+import { toast } from "svelte-sonner";
 
-	interface Props {
-		sessionId: string;
-		projectPath: string;
-		linkedPr?: SessionLinkedPr | null;
-		prLinkMode?: SessionPrLinkMode | null;
+interface Props {
+	sessionId: string;
+	projectPath: string;
+	linkedPr?: SessionLinkedPr | null;
+	prLinkMode?: SessionPrLinkMode | null;
+}
+
+let { sessionId, projectPath, linkedPr = null, prLinkMode = "automatic" }: Props = $props();
+
+const sessionStore = getSessionStore();
+
+let triggerAnchor = $state<HTMLDivElement | null>(null);
+let pickerOpen = $state(false);
+let query = $state("");
+let loadError = $state<string | null>(null);
+let loading = $state(false);
+let loadingProjectPath = $state<string | null>(null);
+let openPullRequests = $state<readonly PrListItem[]>([]);
+let loadedProjectPath = $state<string | null>(null);
+
+const filteredPullRequests = $derived.by(() => {
+	const normalizedQuery = query.trim().toLowerCase();
+	if (normalizedQuery === "") {
+		return openPullRequests;
 	}
 
-	let {
-		sessionId,
-		projectPath,
-		linkedPr = null,
-		prLinkMode = "automatic",
-	}: Props = $props();
-
-	const sessionStore = getSessionStore();
-
-	let triggerAnchor = $state<HTMLDivElement | null>(null);
-	let pickerOpen = $state(false);
-	let query = $state("");
-	let loadError = $state<string | null>(null);
-	let loading = $state(false);
-	let loadingProjectPath = $state<string | null>(null);
-	let openPullRequests = $state<readonly PrListItem[]>([]);
-	let loadedProjectPath = $state<string | null>(null);
-
-	const filteredPullRequests = $derived.by(() => {
-		const normalizedQuery = query.trim().toLowerCase();
-		if (normalizedQuery === "") {
-			return openPullRequests;
-		}
-
-		return openPullRequests.filter((pr) => {
-			return (
-				pr.title.toLowerCase().includes(normalizedQuery) ||
-				pr.author.toLowerCase().includes(normalizedQuery) ||
-				`#${pr.number}`.includes(normalizedQuery)
-			);
-		});
+	return openPullRequests.filter((pr) => {
+		return (
+			pr.title.toLowerCase().includes(normalizedQuery) ||
+			pr.author.toLowerCase().includes(normalizedQuery) ||
+			`#${pr.number}`.includes(normalizedQuery)
+		);
 	});
+});
 
-	function normalizePrState(state: PrListItem["state"]): SessionLinkedPr["state"] {
-		switch (state) {
-			case "merged":
-				return "MERGED";
-			case "closed":
-				return "CLOSED";
-			case "open":
-				return "OPEN";
-		}
+function normalizePrState(state: PrListItem["state"]): SessionLinkedPr["state"] {
+	switch (state) {
+		case "merged":
+			return "MERGED";
+		case "closed":
+			return "CLOSED";
+		case "open":
+			return "OPEN";
+	}
+}
+
+function ensureOpenPullRequestsLoaded(): void {
+	if (loadedProjectPath === projectPath || (loading && loadingProjectPath === projectPath)) {
+		return;
 	}
 
-	function ensureOpenPullRequestsLoaded(): void {
-		if (
-			loadedProjectPath === projectPath ||
-			(loading && loadingProjectPath === projectPath)
-		) {
-			return;
-		}
-
-		const requestedProjectPath = projectPath;
-		loading = true;
-		loadingProjectPath = requestedProjectPath;
-		loadError = null;
-		void getRepoContext(requestedProjectPath)
-			.andThen((repoContext) => listPullRequests(repoContext.owner, repoContext.repo, "open"))
-			.match(
-				(prs) => {
-					if (loadingProjectPath !== requestedProjectPath) {
-						return;
-					}
-
-					openPullRequests = prs;
-					loadedProjectPath = requestedProjectPath;
-					loading = false;
-					loadingProjectPath = null;
-				},
-				(error) => {
-					if (loadingProjectPath !== requestedProjectPath) {
-						return;
-					}
-
-					loadError = error.message;
-					loading = false;
-					loadingProjectPath = null;
+	const requestedProjectPath = projectPath;
+	loading = true;
+	loadingProjectPath = requestedProjectPath;
+	loadError = null;
+	void getRepoContext(requestedProjectPath)
+		.andThen((repoContext) => listPullRequests(repoContext.owner, repoContext.repo, "open"))
+		.match(
+			(prs) => {
+				if (loadingProjectPath !== requestedProjectPath) {
+					return;
 				}
-			);
-	}
 
-	function handleOpenPicker(event: Event): void {
-		event.preventDefault();
-		pickerOpen = true;
-		ensureOpenPullRequestsLoaded();
-	}
-
-	function handleClosePicker(): void {
-		pickerOpen = false;
-		query = "";
-		triggerAnchor?.focus();
-	}
-
-	function handleUseAutomaticLinking(): void {
-		void sessionStore.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
-			() => {
-				handleClosePicker();
+				openPullRequests = prs;
+				loadedProjectPath = requestedProjectPath;
+				loading = false;
+				loadingProjectPath = null;
 			},
 			(error) => {
-				toast.error(`Failed to restore automatic linking: ${error.message}`);
-			}
-		);
-	}
+				if (loadingProjectPath !== requestedProjectPath) {
+					return;
+				}
 
-	function handleSelectPullRequest(pr: PrListItem): void {
-		void sessionStore.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
-			() => {
-				handleClosePicker();
-			},
-			(error) => {
-				toast.error(`Failed to link pull request: ${error.message}`);
+				loadError = error.message;
+				loading = false;
+				loadingProjectPath = null;
 			}
 		);
-	}
+}
+
+function handleOpenPicker(event: Event): void {
+	event.preventDefault();
+	pickerOpen = true;
+	ensureOpenPullRequestsLoaded();
+}
+
+function handleClosePicker(): void {
+	pickerOpen = false;
+	query = "";
+	triggerAnchor?.focus();
+}
+
+function handleUseAutomaticLinking(): void {
+	void sessionStore.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
+		() => {
+			handleClosePicker();
+		},
+		(error) => {
+			toast.error(`Failed to restore automatic linking: ${error.message}`);
+		}
+	);
+}
+
+function handleSelectPullRequest(pr: PrListItem): void {
+	void sessionStore.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
+		() => {
+			handleClosePicker();
+		},
+		(error) => {
+			toast.error(`Failed to link pull request: ${error.message}`);
+		}
+	);
+}
 </script>
 
 <div bind:this={triggerAnchor}>

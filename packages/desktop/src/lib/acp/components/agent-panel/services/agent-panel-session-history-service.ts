@@ -3,8 +3,8 @@
  */
 
 import type { ResultAsync } from "neverthrow";
-import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { SessionPrLinkMode } from "$lib/acp/application/dto/session-linked-pr.js";
+import type { AppError } from "$lib/acp/errors/app-error.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 export function persistSessionPrNumber(

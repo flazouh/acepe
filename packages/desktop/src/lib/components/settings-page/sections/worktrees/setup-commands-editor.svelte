@@ -1,89 +1,92 @@
 <script lang="ts">
-	import { ScriptEditor } from "@acepe/ui/script-editor";
-	import { onMount } from "svelte";
-	import { Spinner } from "$lib/components/ui/spinner/index.js";
-	import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
-	import { tauriClient } from "$lib/utils/tauri-client.js";
+import { ScriptEditor } from "@acepe/ui/script-editor";
+import { onMount } from "svelte";
+import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 
-	interface Props {
-		projectPath: string;
-	}
+interface Props {
+	projectPath: string;
+}
 
-	let { projectPath }: Props = $props();
+let { projectPath }: Props = $props();
 
-	type Status = "loading" | "ready" | "error";
+type Status = "loading" | "ready" | "error";
 
-	let status = $state<Status>("loading");
-	let script = $state("");
-	let remoteScript = $state("");
-	let isSaving = $state(false);
-	let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let status = $state<Status>("loading");
+let script = $state("");
+let remoteScript = $state("");
+let isSaving = $state(false);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	function commandsToScript(commands: readonly string[]): string {
-		return commands.join("\n");
-	}
+function commandsToScript(commands: readonly string[]): string {
+	return commands.join("\n");
+}
 
-	function scriptToCommands(value: string): string[] {
-		return value.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
-	}
+function scriptToCommands(value: string): string[] {
+	return value
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+}
 
-	async function load() {
-		status = "loading";
-		await tauriClient.git.loadWorktreeConfig(projectPath).match(
-			(config) => {
-				const next = commandsToScript(config?.setupCommands ?? []);
-				script = next;
-				remoteScript = next;
-				status = "ready";
-			},
-			() => {
-				status = "error";
-			}
-		);
-	}
-
-	onMount(() => {
-		void load();
-		return () => {
-			if (saveTimer) clearTimeout(saveTimer);
-		};
-	});
-
-	async function persist(nextScript: string) {
-		if (nextScript === remoteScript) return;
-		isSaving = true;
-		const nextCommands = scriptToCommands(nextScript);
-		await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
-			() => {
-				remoteScript = commandsToScript(nextCommands);
-				isSaving = false;
-			},
-			() => {
-				isSaving = false;
-			}
-		);
-	}
-
-	function handleChange(next: string) {
-		script = next;
-		if (saveTimer) clearTimeout(saveTimer);
-		saveTimer = setTimeout(() => {
-			void persist(script);
-		}, 500);
-	}
-
-	function handleBlur(next: string) {
-		if (saveTimer) {
-			clearTimeout(saveTimer);
-			saveTimer = null;
+async function load() {
+	status = "loading";
+	await tauriClient.git.loadWorktreeConfig(projectPath).match(
+		(config) => {
+			const next = commandsToScript(config?.setupCommands ?? []);
+			script = next;
+			remoteScript = next;
+			status = "ready";
+		},
+		() => {
+			status = "error";
 		}
-		void persist(next);
-	}
+	);
+}
 
-	function shikiHighlight(code: string): string | null {
-		if (!bashHighlighter.ready) return null;
-		return bashHighlighter.highlight(code);
+onMount(() => {
+	void load();
+	return () => {
+		if (saveTimer) clearTimeout(saveTimer);
+	};
+});
+
+async function persist(nextScript: string) {
+	if (nextScript === remoteScript) return;
+	isSaving = true;
+	const nextCommands = scriptToCommands(nextScript);
+	await tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).match(
+		() => {
+			remoteScript = commandsToScript(nextCommands);
+			isSaving = false;
+		},
+		() => {
+			isSaving = false;
+		}
+	);
+}
+
+function handleChange(next: string) {
+	script = next;
+	if (saveTimer) clearTimeout(saveTimer);
+	saveTimer = setTimeout(() => {
+		void persist(script);
+	}, 500);
+}
+
+function handleBlur(next: string) {
+	if (saveTimer) {
+		clearTimeout(saveTimer);
+		saveTimer = null;
 	}
+	void persist(next);
+}
+
+function shikiHighlight(code: string): string | null {
+	if (!bashHighlighter.ready) return null;
+	return bashHighlighter.highlight(code);
+}
 </script>
 
 {#if status === "loading"}

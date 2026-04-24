@@ -12,9 +12,12 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import { buildPartialSessionLinkedPr, type SessionPrLinkMode } from "../../application/dto/session-linked-pr.js";
 import type { HistoryEntry } from "../../../services/claude-history-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
+import {
+	buildPartialSessionLinkedPr,
+	type SessionPrLinkMode,
+} from "../../application/dto/session-linked-pr.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
@@ -642,10 +645,7 @@ export class SessionRepository {
 			linkedPr:
 				entry.prNumber === null || entry.prNumber === undefined
 					? undefined
-					: buildPartialSessionLinkedPr(
-							entry.prNumber,
-							undefined
-						),
+					: buildPartialSessionLinkedPr(entry.prNumber, undefined),
 			sequenceId: entry.sequenceId === null ? undefined : entry.sequenceId,
 		};
 	}
