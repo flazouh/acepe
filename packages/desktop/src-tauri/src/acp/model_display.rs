@@ -5,6 +5,7 @@
 //! and renders without parsing model IDs.
 
 use crate::acp::client::AvailableModel;
+use crate::session_jsonl::display_names::format_model_display_name;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -81,10 +82,13 @@ impl ModelsDisplayTransformer for DefaultTransformer {
 
         // Single group when model count < 5
         if valid.len() < 5 {
-            let models: Vec<DisplayableModel> = valid
-                .iter()
-                .map(|m| to_displayable_provider(m, None))
-                .collect();
+            let models = disambiguate_display_names(
+                valid
+                    .iter()
+                    .map(|m| to_displayable_provider(m, None))
+                    .collect(),
+                None,
+            );
             return ModelsForDisplay {
                 groups: vec![DisplayModelGroup {
                     label: String::new(),
@@ -105,7 +109,10 @@ impl ModelsDisplayTransformer for DefaultTransformer {
 
         let groups: Vec<DisplayModelGroup> = by_provider
             .into_iter()
-            .map(|(label, models)| DisplayModelGroup { label, models })
+            .map(|(label, models)| DisplayModelGroup {
+                models: disambiguate_display_names(models, Some(&label)),
+                label,
+            })
             .collect();
 
         ModelsForDisplay {
@@ -211,6 +218,186 @@ fn to_displayable_provider(m: &AvailableModel, _provider: Option<&str>) -> Displ
     }
 }
 
+fn disambiguate_display_names(
+    models: Vec<DisplayableModel>,
+    provider: Option<&str>,
+) -> Vec<DisplayableModel> {
+    let original_counts =
+        count_display_names(models.iter().map(|model| model.display_name.as_str()));
+    let candidate_models: Vec<(DisplayableModel, String)> = models
+        .into_iter()
+        .map(|model| {
+            let key = normalize_display_name_key(&model.display_name);
+            let candidate = if (original_counts.get(&key).copied().unwrap_or(0)) > 1 {
+                preferred_collision_display_name(&model)
+            } else {
+                model.display_name.clone()
+            };
+            (model, candidate)
+        })
+        .collect();
+
+    let candidate_counts = count_display_names(
+        candidate_models
+            .iter()
+            .map(|(_, candidate)| candidate.as_str()),
+    );
+
+    let disambiguated: Vec<(DisplayableModel, String)> = candidate_models
+        .into_iter()
+        .map(|(mut model, candidate)| {
+            let key = normalize_display_name_key(&candidate);
+            if (candidate_counts.get(&key).copied().unwrap_or(0)) > 1 {
+                let suffix = build_disambiguation_suffix(&model.model_id, provider);
+                if suffix.is_empty() || same_display_name(&suffix, &candidate) {
+                    model.display_name = format!("{} · {}", candidate, model.model_id);
+                } else {
+                    model.display_name = format!("{} · {}", candidate, suffix);
+                }
+            } else {
+                model.display_name = candidate.clone();
+            }
+            (model, candidate)
+        })
+        .collect();
+
+    let final_counts = count_display_names(
+        disambiguated
+            .iter()
+            .map(|(model, _)| model.display_name.as_str()),
+    );
+
+    disambiguated
+        .into_iter()
+        .map(|(mut model, candidate)| {
+            let key = normalize_display_name_key(&model.display_name);
+            if (final_counts.get(&key).copied().unwrap_or(0)) > 1 {
+                model.display_name = format!("{} · {}", candidate, model.model_id);
+            }
+            model
+        })
+        .collect()
+}
+
+fn count_display_names<'a>(
+    names: impl Iterator<Item = &'a str>,
+) -> std::collections::BTreeMap<String, usize> {
+    let mut counts = std::collections::BTreeMap::new();
+    for name in names {
+        let key = normalize_display_name_key(name);
+        counts
+            .entry(key)
+            .and_modify(|count| *count += 1)
+            .or_insert(1);
+    }
+    counts
+}
+
+fn normalize_display_name_key(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
+fn same_display_name(left: &str, right: &str) -> bool {
+    normalize_display_name_key(left) == normalize_display_name_key(right)
+}
+
+fn preferred_collision_display_name(model: &DisplayableModel) -> String {
+    if !is_claude_like_model_id(&model.model_id) {
+        return model.display_name.clone();
+    }
+
+    let formatted = format_model_display_name(&model.model_id);
+    if same_display_name(&formatted, &model.display_name) {
+        model.display_name.clone()
+    } else {
+        formatted
+    }
+}
+
+fn is_claude_like_model_id(model_id: &str) -> bool {
+    let tokens: Vec<String> = model_id
+        .split(&['/', ':', '.', '-', '_'][..])
+        .map(|part| part.to_ascii_lowercase())
+        .collect();
+    if tokens.iter().any(|token| token == "claude") {
+        return true;
+    }
+
+    let Some(family_index) = tokens
+        .iter()
+        .position(|token| token == "opus" || token == "sonnet" || token == "haiku")
+    else {
+        return false;
+    };
+
+    tokens[family_index + 1..]
+        .iter()
+        .any(|token| token.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn build_disambiguation_suffix(model_id: &str, provider: Option<&str>) -> String {
+    let stripped = strip_provider_prefix(model_id, provider);
+    let normalized = stripped
+        .replace(['/', ':', '.', '_'], "-")
+        .trim_matches('-')
+        .to_string();
+    if normalized.is_empty() {
+        return model_id.to_string();
+    }
+
+    if let Some(suffix) = extract_claude_variant_suffix(&normalized) {
+        return suffix;
+    }
+
+    normalized
+}
+
+fn strip_provider_prefix<'a>(model_id: &'a str, provider: Option<&str>) -> &'a str {
+    let Some(provider_label) = provider else {
+        return model_id;
+    };
+
+    let provider_key = provider_label.to_ascii_lowercase().replace(' ', "");
+    let lower = model_id.to_ascii_lowercase();
+    for separator in ["/", ":", ".", "-"] {
+        let prefix = format!("{}{}", provider_key, separator);
+        if lower.starts_with(&prefix) {
+            return &model_id[prefix.len()..];
+        }
+    }
+
+    model_id
+}
+
+fn extract_claude_variant_suffix(model_id: &str) -> Option<String> {
+    let tokens: Vec<&str> = model_id
+        .split('-')
+        .filter(|token| !token.is_empty())
+        .collect();
+    let family_index = tokens.iter().position(|token| {
+        matches!(
+            token.to_ascii_lowercase().as_str(),
+            "opus" | "sonnet" | "haiku"
+        )
+    })?;
+
+    let suffix_tokens: Vec<&str> = tokens[family_index + 1..]
+        .iter()
+        .copied()
+        .skip_while(|token| {
+            let lower = token.to_ascii_lowercase();
+            lower.chars().all(|ch| ch.is_ascii_digit())
+                || (lower.len() == 8 && lower.chars().all(|ch| ch.is_ascii_digit()))
+        })
+        .collect();
+
+    if suffix_tokens.is_empty() {
+        return None;
+    }
+
+    Some(suffix_tokens.join("-"))
+}
+
 fn to_displayable_claude(m: &AvailableModel) -> DisplayableModel {
     let display_name = if m.model_id == "default" && m.description.as_ref().is_some() {
         if let Some(desc) = &m.description {
@@ -289,10 +476,50 @@ fn capitalize_effort(effort: &str) -> &str {
 }
 
 fn provider_from_model_id(model_id: &str) -> String {
-    if model_id == "default" {
+    let lower = model_id.to_ascii_lowercase();
+    if lower == "default" {
         return "Default".to_string();
     }
-    let parts: Vec<&str> = model_id.split(&['/', ':', '.'][..]).collect();
+    if lower == "auto" {
+        return "Auto".to_string();
+    }
+
+    // Known model-family prefixes. Matches Cursor-style bare IDs like
+    // `claude-4.6-sonnet-medium`, `gpt-5.4-mini-low`, `grok-4-20`, `kimi-k2.5`.
+    for (needle, label) in [
+        ("anthropic", "Anthropic"),
+        ("claude", "Anthropic"),
+        ("opus", "Anthropic"),
+        ("sonnet", "Anthropic"),
+        ("haiku", "Anthropic"),
+        ("openai", "OpenAI"),
+        ("gpt", "OpenAI"),
+        ("codex", "OpenAI"),
+        ("o1-", "OpenAI"),
+        ("o3-", "OpenAI"),
+        ("o4-", "OpenAI"),
+        ("google", "Google"),
+        ("gemini", "Google"),
+        ("xai", "xAI"),
+        ("grok", "xAI"),
+        ("kimi", "Moonshot"),
+        ("moonshot", "Moonshot"),
+        ("meta", "Meta"),
+        ("llama", "Meta"),
+        ("mistral", "Mistral"),
+        ("deepseek", "DeepSeek"),
+        ("qwen", "Qwen"),
+        ("composer", "Cursor"),
+    ] {
+        if lower.contains(needle) {
+            return label.to_string();
+        }
+    }
+
+    // Fall back to explicit provider/model separators. `.` is intentionally not
+    // treated as a separator: it's a version marker inside IDs like `gpt-5.4`
+    // or `claude-4.6-sonnet`, not a provider boundary.
+    let parts: Vec<&str> = model_id.split(&['/', ':'][..]).collect();
     if parts.len() > 1 && !parts[0].is_empty() {
         capitalize_name(parts[0])
     } else {
@@ -423,7 +650,7 @@ mod tests {
         assert_eq!(out.groups.len(), 3);
         let labels: Vec<&str> = out.groups.iter().map(|g| g.label.as_str()).collect();
         assert!(labels.contains(&"Anthropic"));
-        assert!(labels.contains(&"Openai"));
+        assert!(labels.contains(&"OpenAI"));
         assert!(labels.contains(&"Google"));
     }
 
@@ -442,6 +669,45 @@ mod tests {
         let models = vec![am("openai:gpt-4", "GPT-4", None)];
         let out = t.transform(&models);
         assert_eq!(out.groups.len(), 1);
+    }
+
+    #[test]
+    fn default_transformer_groups_cursor_style_ids_by_family_not_dot_split() {
+        let t = DefaultTransformer;
+        let models = vec![
+            am("claude-4.6-sonnet-medium", "Sonnet 4.6", None),
+            am("claude-4.5-opus-high", "Opus 4.5", None),
+            am("claude-opus-4-7-high", "Opus 4.7 High", None),
+            am("gpt-5.4-high", "GPT-5.4 High", None),
+            am("gpt-5.4-mini-low", "GPT-5.4 Mini Low", None),
+            am("gemini-3-flash", "Gemini 3 Flash", None),
+            am("grok-4-20", "Grok 4.20", None),
+            am("kimi-k2.5", "Kimi K2.5", None),
+            am("composer-2", "Composer 2", None),
+            am("auto", "Auto", None),
+        ];
+        let out = t.transform(&models);
+        let labels: Vec<&str> = out.groups.iter().map(|g| g.label.as_str()).collect();
+
+        // No version-split artifacts like "Claude-4" or "Gpt-5".
+        assert!(
+            !labels
+                .iter()
+                .any(|l| l.starts_with("Claude-") || l.starts_with("Gpt-")),
+            "labels must not contain version-split prefixes, got {labels:?}"
+        );
+        assert!(
+            labels.contains(&"Anthropic"),
+            "expected Anthropic in {labels:?}"
+        );
+        assert!(labels.contains(&"OpenAI"), "expected OpenAI in {labels:?}");
+        assert!(labels.contains(&"Google"), "expected Google in {labels:?}");
+        assert!(labels.contains(&"xAI"), "expected xAI in {labels:?}");
+        assert!(
+            labels.contains(&"Moonshot"),
+            "expected Moonshot in {labels:?}"
+        );
+        assert!(labels.contains(&"Cursor"), "expected Cursor in {labels:?}");
     }
 
     #[test]
@@ -481,6 +747,102 @@ mod tests {
         let out = t.transform(&models);
         let labels: Vec<&str> = out.groups.iter().map(|g| g.label.as_str()).collect();
         assert!(labels.contains(&"Other"));
+    }
+
+    #[test]
+    fn default_transformer_small_list_disambiguates_duplicate_claude_names() {
+        let t = DefaultTransformer;
+        let models = vec![
+            am("anthropic/claude-opus-4-1", "Opus", None),
+            am("anthropic/claude-opus-4-5", "Opus", None),
+            am("openai:gpt-4.1", "GPT 4.1", None),
+        ];
+        let out = t.transform(&models);
+        let display_names: Vec<&str> = out.groups[0]
+            .models
+            .iter()
+            .map(|model| model.display_name.as_str())
+            .collect();
+        assert!(display_names.contains(&"Opus 4.1"));
+        assert!(display_names.contains(&"Opus 4.5"));
+        assert_eq!(display_names.len(), 3);
+    }
+
+    #[test]
+    fn default_transformer_grouped_provider_models_use_unique_display_names() {
+        let t = DefaultTransformer;
+        let models = vec![
+            am("anthropic/claude-sonnet-4-1", "Sonnet", None),
+            am("anthropic/claude-sonnet-4-5", "Sonnet", None),
+            am("openai:gpt-4.1", "GPT 4.1", None),
+            am("google/gemini-2.5-pro", "Gemini 2.5 Pro", None),
+            am("meta/llama-3.1", "Llama 3.1", None),
+        ];
+        let out = t.transform(&models);
+        let anthropic_group = out
+            .groups
+            .iter()
+            .find(|group| group.label == "Anthropic")
+            .expect("anthropic group");
+        let display_names: Vec<&str> = anthropic_group
+            .models
+            .iter()
+            .map(|model| model.display_name.as_str())
+            .collect();
+        assert_eq!(display_names, vec!["Sonnet 4.1", "Sonnet 4.5"]);
+    }
+
+    #[test]
+    fn default_transformer_does_not_disambiguate_across_provider_groups() {
+        let t = DefaultTransformer;
+        let models = vec![
+            am("anthropic/assistant-a", "Assistant", None),
+            am("openai:assistant-b", "Assistant", None),
+            am("google/gemini-2.5-pro", "Gemini 2.5 Pro", None),
+            am("meta/llama-3.1", "Llama 3.1", None),
+            am("xai/grok-3", "Grok 3", None),
+        ];
+        let out = t.transform(&models);
+        let anthropic_model = out
+            .groups
+            .iter()
+            .find(|group| group.label == "Anthropic")
+            .and_then(|group| group.models.first())
+            .expect("anthropic model");
+        let openai_model = out
+            .groups
+            .iter()
+            .find(|group| group.label == "OpenAI")
+            .and_then(|group| group.models.first())
+            .expect("openai model");
+        assert_eq!(anthropic_model.display_name, "Assistant");
+        assert_eq!(openai_model.display_name, "Assistant");
+    }
+
+    #[test]
+    fn default_transformer_triple_collisions_get_distinct_suffixes() {
+        let t = DefaultTransformer;
+        let models = vec![
+            am("anthropic/claude-opus-4-1-thinking", "Opus", None),
+            am("anthropic/claude-opus-4-1-max", "Opus", None),
+            am("anthropic/claude-opus-4-1", "Opus", None),
+            am("openai:gpt-4.1", "GPT 4.1", None),
+            am("google/gemini-2.5-pro", "Gemini 2.5 Pro", None),
+        ];
+        let out = t.transform(&models);
+        let anthropic_group = out
+            .groups
+            .iter()
+            .find(|group| group.label == "Anthropic")
+            .expect("anthropic group");
+        let display_names: Vec<&str> = anthropic_group
+            .models
+            .iter()
+            .map(|model| model.display_name.as_str())
+            .collect();
+        assert!(display_names.contains(&"Opus 4.1 · thinking"));
+        assert!(display_names.contains(&"Opus 4.1 · max"));
+        assert!(display_names.contains(&"Opus 4.1 · claude-opus-4-1"));
     }
 
     #[test]

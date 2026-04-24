@@ -3,7 +3,8 @@ import { BuildIcon, PlanIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { CaretDown, Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
-import type { DisplayableModel, ModelsForDisplay } from "$lib/services/acp-types.js";
+import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
+import { createLogger } from "$lib/acp/utils/logger.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
@@ -16,17 +17,54 @@ import {
 	getAgentsByProviderOrder,
 	getAgentModelDefaultsEntries,
 	getProviderDefaultLabel,
+	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
+import SettingsModelSelector from "./settings-model-selector.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const agentStore = getAgentStore();
 const agentPreferencesStore = getAgentPreferencesStore();
+const logger = createLogger({ id: "settings-agents-models", name: "SettingsAgentsModels" });
+const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
+
+const capabilitySourceByAgentId = $derived.by(() => {
+	const resolutions = new Map();
+
+	for (const agent of agentStore.agents) {
+		const providerMetadata =
+			preferencesStore.getCachedProviderMetadata(agent.id) ?? agent.providerMetadata ?? null;
+		const preconnectionCapabilities = preconnectionCapabilitiesState.getCapabilities({
+			agentId: agent.id,
+			projectPath: null,
+			preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+		});
+
+		resolutions.set(
+			agent.id,
+			resolveSettingsCapabilitySource({
+				preconnectionCapabilities,
+				cachedModes: preferencesStore.getCachedModes(agent.id),
+				cachedModels: preferencesStore.getCachedModels(agent.id),
+				cachedModelsDisplay: preferencesStore.getCachedModelsDisplay(agent.id),
+				providerMetadata,
+			})
+		);
+	}
+
+	return resolutions;
+});
 
 const modelDefaultEntries = $derived.by(() =>
-	getAgentModelDefaultsEntries(agentStore.agents, preferencesStore.getCachedModelsDisplay)
+	getAgentModelDefaultsEntries(
+		agentStore.agents,
+		(agentId) => capabilitySourceByAgentId.get(agentId)?.providerMetadata ?? null
+	)
 );
 const sortedAgents = $derived.by(() =>
-	getAgentsByProviderOrder(agentStore.agents, preferencesStore.getCachedModelsDisplay)
+	getAgentsByProviderOrder(
+		agentStore.agents,
+		(agentId) => capabilitySourceByAgentId.get(agentId)?.providerMetadata ?? null
+	)
 );
 
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
@@ -36,6 +74,26 @@ const defaultAgent = $derived(
 const selectableAgents = $derived(
 	agentStore.agents.filter((a) => agentPreferencesStore.selectedAgentIds.includes(a.id))
 );
+
+$effect(() => {
+	for (const agent of agentStore.agents) {
+		preconnectionCapabilitiesState
+			.ensureLoaded({
+				agentId: agent.id,
+				hasConnectedSession: false,
+				projectPath: null,
+				preconnectionCapabilityMode:
+					agent.providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+			})
+			.mapErr((error) => {
+				logger.error("Failed to warm settings preconnection capabilities", {
+					agentId: agent.id,
+					error: error.message,
+				});
+				return undefined;
+			});
+	}
+});
 
 function setAgentChecked(agentId: string, checked: boolean): void {
 	const result = applyAgentSelectionChange(
@@ -57,48 +115,6 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			toast.error(error.message);
 		}
 	);
-}
-
-function handleDefaultChange(agentId: string, mode: ModeType, modelId: string): void {
-	preferencesStore.setDefaultModel(agentId, mode, modelId);
-}
-
-function handleClearDefault(agentId: string, mode: ModeType): void {
-	preferencesStore.setDefaultModel(agentId, mode, undefined);
-}
-
-function findDisplayModel(
-	modelsDisplay: ModelsForDisplay | null,
-	modelId: string
-): DisplayableModel | null {
-	if (!modelsDisplay?.groups) {
-		return null;
-	}
-
-	for (const group of modelsDisplay.groups) {
-		const match = group.models.find((model) => model.modelId === modelId);
-		if (match) {
-			return match;
-		}
-	}
-
-	return null;
-}
-
-function getModelLabel(
-	modelId: string,
-	fallbackName: string,
-	modelsDisplay: ModelsForDisplay | null
-): string {
-	return findDisplayModel(modelsDisplay, modelId)?.displayName ?? fallbackName;
-}
-
-function getModelDescription(
-	modelId: string,
-	fallbackDescription: string | undefined,
-	modelsDisplay: ModelsForDisplay | null
-): string | undefined {
-	return findDisplayModel(modelsDisplay, modelId)?.description ?? fallbackDescription;
 }
 </script>
 
@@ -178,8 +194,9 @@ function getModelDescription(
 		</div>
 
 		{#each sortedAgents as agent, index (agent.id)}
+			{@const capabilitySource = capabilitySourceByAgentId.get(agent.id) ?? null}
 			{@const entry = modelDefaultEntries.find((candidate) => candidate.agent.id === agent.id) ?? null}
-			{@const providerMetadata = entry?.providerMetadata ?? agent.providerMetadata ?? null}
+			{@const providerMetadata = entry?.providerMetadata ?? capabilitySource?.providerMetadata ?? agent.providerMetadata ?? null}
 			{@const hasModelDefaults = providerMetadata?.supportsModelDefaults ?? false}
 			{@const isCustomAgent = agentPreferencesStore.customAgentConfigs.some((config) => config.id === agent.id)}
 			{@const isEnabled = agentPreferencesStore.selectedAgentIds.includes(agent.id)}
@@ -196,68 +213,28 @@ function getModelDescription(
 				<!-- Plan / Build cells -->
 				{#each [CanonicalModeId.PLAN, CanonicalModeId.BUILD] as mode (mode)}
 					{@const modeType = mode as ModeType}
-					{@const cachedModels = hasModelDefaults ? preferencesStore.getCachedModels(agent.id) : []}
-					{@const cachedModelsDisplay = preferencesStore.getCachedModelsDisplay(agent.id)}
-					{@const currentDefault = preferencesStore.getDefaultModel(agent.id, modeType) ?? ""}
-					{@const selectedModel = cachedModels.find((model) => model.id === currentDefault)}
-					{@const selectedModelLabel = selectedModel
-						? getModelLabel(selectedModel.id, selectedModel.name, cachedModelsDisplay)
-						: null}
-					{@const fallbackLabel = providerMetadata ? getProviderDefaultLabel(providerMetadata) : ""}
+					{@const availableModels = hasModelDefaults ? (capabilitySource?.availableModels ?? []) : []}
+					{@const modelsDisplay = capabilitySource?.modelsDisplay ?? null}
+					{@const fallbackLabel = providerMetadata ? getProviderDefaultLabel(providerMetadata) : "Default"}
+					{@const isModelsLoading = hasModelDefaults &&
+						availableModels.length === 0 &&
+						preconnectionCapabilitiesState.isLoading({
+							agentId: agent.id,
+							projectPath: null,
+							preconnectionCapabilityMode:
+								agent.providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+						})}
 
 					<div class="min-w-0">
 						{#if hasModelDefaults && providerMetadata}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger disabled={cachedModels.length === 0}>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											type="button"
-											disabled={cachedModels.length === 0}
-											class="flex items-center gap-1.5 h-7 w-full px-2 rounded text-muted-foreground transition-colors {cachedModels.length === 0 ? 'cursor-not-allowed opacity-60' : 'hover:bg-accent'}"
-										>
-											<span class="truncate text-[13px] text-foreground">
-												{selectedModelLabel ?? (cachedModels.length > 0 ? fallbackLabel : "No cache")}
-											</span>
-											{#if cachedModels.length > 0}
-												<CaretDown class="size-2.5 shrink-0 opacity-40 ml-auto" weight="bold" />
-											{/if}
-										</button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								{#if cachedModels.length > 0}
-									<DropdownMenu.Content align="start" class="w-[280px]">
-										<DropdownMenu.Item onclick={() => handleClearDefault(agent.id, modeType)}>
-											<div class="flex items-center gap-2">
-												<Check
-													class={currentDefault === "" ? "size-3 text-foreground" : "size-3 text-transparent"}
-													weight="bold"
-												/>
-												<span class="text-[13px]">{fallbackLabel}</span>
-											</div>
-										</DropdownMenu.Item>
-										<DropdownMenu.Separator />
-										{#each cachedModels as model (model.id)}
-											{@const modelLabel = getModelLabel(model.id, model.name, cachedModelsDisplay)}
-											{@const modelDescription = getModelDescription(model.id, model.description, cachedModelsDisplay)}
-											<DropdownMenu.Item onclick={() => handleDefaultChange(agent.id, modeType, model.id)}>
-												<div class="flex min-w-0 items-center gap-2">
-													<Check
-														class={model.id === currentDefault ? "size-3 text-foreground" : "size-3 text-transparent"}
-														weight="bold"
-													/>
-													<div class="min-w-0">
-														<div class="truncate text-[13px]">{modelLabel}</div>
-														{#if modelDescription}
-															<div class="truncate text-[12px] text-muted-foreground">{modelDescription}</div>
-														{/if}
-													</div>
-												</div>
-											</DropdownMenu.Item>
-										{/each}
-									</DropdownMenu.Content>
-								{/if}
-							</DropdownMenu.Root>
+							<SettingsModelSelector
+								agentId={agent.id}
+								{modeType}
+								{availableModels}
+								{modelsDisplay}
+								{fallbackLabel}
+								isLoading={isModelsLoading}
+							/>
 						{:else}
 							<span class="text-[12px] text-muted-foreground">—</span>
 						{/if}

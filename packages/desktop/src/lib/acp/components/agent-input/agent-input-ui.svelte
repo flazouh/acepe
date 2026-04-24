@@ -90,6 +90,7 @@ import { createAgentInputController } from "./agent-input-controller.js";
 import { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { Attachment } from "./types/attachment.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
+import { hasToolbarCapabilityData, resolveSelectorsLoading } from "./logic/toolbar-loading.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
@@ -469,32 +470,29 @@ const isSessionConnecting = $derived(sessionRuntimeState?.connectionPhase === "c
 // Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
 const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
 const hasCachedToolbarData = $derived(
-	visibleModes.length > 0 || effectiveAvailableModels.length > 0
+	hasToolbarCapabilityData({
+		visibleModesCount: visibleModes.length,
+		availableModelsCount: effectiveAvailableModels.length,
+		modelsDisplay: effectiveModelsDisplay,
+	})
 );
-const selectorsLoading = $derived.by(() => {
-	// Case 1: Session is connecting and no cached data yet
-	if (hasSession && isSessionConnecting && !hasCachedToolbarData) return true;
-	// Case 2: No session, agent selected, caches still loading from SQLite
-	if (
-		!hasSession &&
-		capabilitiesAgentId &&
-		!hasCachedToolbarData &&
-		!agentModelPrefs.isCacheLoaded()
-	)
-		return true;
-	if (
-		!hasSession &&
-		capabilitiesAgentId &&
-		preconnectionCapabilitiesState.isLoading({
+const selectorsLoading = $derived.by(() =>
+	resolveSelectorsLoading({
+		hasSession,
+		isSessionConnecting,
+		hasSelectedAgent: Boolean(capabilitiesAgentId),
+		visibleModesCount: visibleModes.length,
+		availableModelsCount: effectiveAvailableModels.length,
+		modelsDisplay: effectiveModelsDisplay,
+		isCacheLoaded: agentModelPrefs.isCacheLoaded(),
+		isPreconnectionLoading: preconnectionCapabilitiesState.isLoading({
 			agentId: capabilitiesAgentId,
 			projectPath: filePickerProjectPath,
 			preconnectionCapabilityMode:
 				effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-		})
-	)
-		return true;
-	return false;
-});
+		}),
+	})
+);
 
 $effect(() => {
 	const hasConnectedSession = sessionRuntimeState?.connectionPhase === "connected";

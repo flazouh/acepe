@@ -10,6 +10,7 @@ import {
 	getAgentModelDefaultsEntries,
 	getAgentsByProviderOrder,
 	getProviderDefaultLabel,
+	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
 
 describe("applyAgentSelectionChange", () => {
@@ -131,28 +132,21 @@ describe("getAgentModelDefaultsEntries", () => {
 		expect(entries.map((entry) => entry.agent.id)).toEqual(["claude-code", "cursor"]);
 	});
 
-	it("prefers cached modelsDisplay provider metadata when ordering providers", () => {
-		const cachedModelsDisplay: ModelsForDisplay = {
-			groups: [],
-			presentation: {
-				displayFamily: "providerGrouped",
-				usageMetrics: "spendAndContext",
-				provider: {
-					providerBrand: "cursor",
-					displayName: "Cursor",
-					displayOrder: 5,
-					supportsModelDefaults: true,
-					variantGroup: "plain",
-					defaultAlias: "auto",
-					reasoningEffortSupport: false,
-					preconnectionSlashMode: "startupGlobal",
-					preconnectionCapabilityMode: "startupGlobal",
-				},
-			},
+	it("prefers projected provider metadata when ordering providers", () => {
+		const projectedProviderMetadata: ProviderMetadataProjection = {
+			providerBrand: "cursor",
+			displayName: "Cursor",
+			displayOrder: 5,
+			supportsModelDefaults: true,
+			variantGroup: "plain",
+			defaultAlias: "auto",
+			reasoningEffortSupport: false,
+			preconnectionSlashMode: "startupGlobal",
+			preconnectionCapabilityMode: "startupGlobal",
 		};
 
 		const entries = getAgentModelDefaultsEntries(agents, (agentId) =>
-			agentId === "cursor" ? cachedModelsDisplay : null
+			agentId === "cursor" ? projectedProviderMetadata : null
 		);
 
 		expect(entries.map((entry) => entry.agent.id)).toEqual(["cursor", "claude-code"]);
@@ -217,6 +211,66 @@ describe("getAgentsByProviderOrder", () => {
 		);
 
 		expect(entries.map((entry) => entry.id)).toEqual(["claude-code", "cursor", "custom"]);
+	});
+});
+
+describe("resolveSettingsCapabilitySource", () => {
+	it("uses resolved preconnection capabilities before empty caches", () => {
+		const resolution = resolveSettingsCapabilitySource({
+			preconnectionCapabilities: {
+				status: "resolved",
+				availableModels: [{ modelId: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" }],
+				currentModelId: "claude-sonnet-4-6",
+				modelsDisplay: {
+					groups: [
+						{
+							label: "Recommended",
+							models: [
+								{
+									modelId: "claude-sonnet-4-6",
+									displayName: "Claude Sonnet 4.6",
+								},
+							],
+						},
+					],
+					presentation: undefined,
+				},
+				providerMetadata: {
+					providerBrand: "claude-code",
+					displayName: "Claude Code",
+					displayOrder: 10,
+					supportsModelDefaults: true,
+					variantGroup: "plain",
+					defaultAlias: "default",
+					reasoningEffortSupport: false,
+					preconnectionSlashMode: "startupGlobal",
+					preconnectionCapabilityMode: "startupGlobal",
+				},
+				availableModes: [
+					{ id: "plan", name: "Plan" },
+					{ id: "build", name: "Build" },
+				],
+				currentModeId: "plan",
+			},
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: {
+				providerBrand: "claude-code",
+				displayName: "Claude Code",
+				displayOrder: 10,
+				supportsModelDefaults: true,
+				variantGroup: "plain",
+				defaultAlias: "default",
+				reasoningEffortSupport: false,
+				preconnectionSlashMode: "startupGlobal",
+				preconnectionCapabilityMode: "startupGlobal",
+			},
+		});
+
+		expect(resolution.source).toBe("preconnectionResolved");
+		expect(resolution.availableModels.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
+		expect(resolution.modelsDisplay?.groups).toHaveLength(1);
 	});
 });
 

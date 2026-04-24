@@ -2,8 +2,13 @@ use super::super::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use super::copilot_settings::apply_copilot_session_defaults;
-use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
-use crate::acp::client_session::{SessionModelState, SessionModes};
+use crate::acp::capability_resolution::{
+    failed_capabilities, resolve_static_capabilities, ResolvedCapabilities,
+    ResolvedCapabilityStatus,
+};
+use crate::acp::client_session::{
+    default_modes, default_session_model_state, SessionModelState, SessionModes,
+};
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
@@ -16,7 +21,7 @@ use crate::db::repository::SessionMetadataRepository;
 use crate::history::session_context::SessionContext;
 use sea_orm::DbConn;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -118,14 +123,19 @@ impl AgentProvider for CopilotProvider {
         &'a self,
         _app: &'a AppHandle,
         cwd: Option<&'a Path>,
-    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
-    {
+    ) -> Pin<
+        Box<
+            dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities>
+                + Send
+                + 'a,
+        >,
+    > {
         Box::pin(async move {
             let effective_cwd = cwd
                 .map(PathBuf::from)
                 .or_else(|| std::env::current_dir().ok())
                 .unwrap_or_else(|| PathBuf::from("."));
-            resolve_generic_preconnection_capabilities(self, effective_cwd.as_path()).await
+            resolve_copilot_preconnection_capabilities(self, effective_cwd.as_path())
         })
     }
 
@@ -256,6 +266,98 @@ impl AgentProvider for CopilotProvider {
     fn supports_project_discovery(&self) -> bool {
         true
     }
+}
+
+fn resolve_copilot_preconnection_capabilities(
+    provider: &dyn AgentProvider,
+    cwd: &Path,
+) -> ResolvedCapabilities {
+    let mut models = default_session_model_state();
+    models.available_models = discover_copilot_history_models(dirs::home_dir().as_deref());
+
+    let status = if models.available_models.is_empty() {
+        ResolvedCapabilityStatus::Partial
+    } else {
+        ResolvedCapabilityStatus::Resolved
+    };
+
+    match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
+        Ok(capabilities) => capabilities,
+        Err(error) => failed_capabilities(provider, error.to_string()),
+    }
+}
+
+fn discover_copilot_history_models(
+    home_dir: Option<&Path>,
+) -> Vec<crate::acp::client_session::AvailableModel> {
+    let Some(home_dir) = home_dir else {
+        return Vec::new();
+    };
+
+    let session_state_dir = home_dir.join(".copilot").join("session-state");
+    let Ok(session_dirs) = std::fs::read_dir(session_state_dir) else {
+        return Vec::new();
+    };
+
+    let mut counts = BTreeMap::new();
+
+    for session_dir in session_dirs.flatten() {
+        let events_path = session_dir.path().join("events.jsonl");
+        collect_copilot_model_counts_from_events(&events_path, &mut counts);
+    }
+
+    let mut models: Vec<(String, usize)> = counts.into_iter().collect();
+    models.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
+
+    models
+        .into_iter()
+        .map(
+            |(model_id, _count)| crate::acp::client_session::AvailableModel {
+                name: model_id.clone(),
+                model_id,
+                description: None,
+            },
+        )
+        .collect()
+}
+
+fn collect_copilot_model_counts_from_events(path: &Path, counts: &mut BTreeMap<String, usize>) {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return;
+    };
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let Ok(event) = serde_json::from_str::<Value>(trimmed) else {
+            continue;
+        };
+        let Some(data) = event.get("data").and_then(Value::as_object) else {
+            continue;
+        };
+
+        for key in ["selectedModel", "newModel", "previousModel", "model"] {
+            let Some(raw_model_id) = data.get(key).and_then(Value::as_str) else {
+                continue;
+            };
+            maybe_increment_copilot_model_count(counts, raw_model_id);
+        }
+    }
+}
+
+fn maybe_increment_copilot_model_count(counts: &mut BTreeMap<String, usize>, raw_model_id: &str) {
+    let trimmed = raw_model_id.trim();
+    if trimmed.is_empty() || trimmed == "auto" || trimmed == "default" {
+        return;
+    }
+
+    counts
+        .entry(trimmed.to_string())
+        .and_modify(|count| *count += 1)
+        .or_insert(1);
 }
 
 fn filtered_env_strategy() -> SpawnEnvStrategy {
@@ -564,6 +666,68 @@ mod tests {
         );
         assert_eq!(commands[1].name, "ce-review");
         assert_eq!(commands[1].description, "Review code changes");
+    }
+
+    #[test]
+    fn discover_copilot_history_models_collects_unique_ids_from_session_state() {
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let session_a = home.join(".copilot/session-state/session-a");
+        let session_b = home.join(".copilot/session-state/session-b");
+        fs::create_dir_all(&session_a).expect("create session a dir");
+        fs::create_dir_all(&session_b).expect("create session b dir");
+
+        fs::write(
+            session_a.join("events.jsonl"),
+            concat!(
+                "{\"type\":\"session.start\",\"data\":{\"selectedModel\":\"gpt-5.4\"}}\n",
+                "{\"type\":\"session.model_change\",\"data\":{\"newModel\":\"claude-opus-4.7\",\"previousModel\":\"gpt-5.4\"}}\n",
+                "{\"type\":\"tool.execution_complete\",\"data\":{\"model\":\"claude-opus-4.7\"}}\n"
+            ),
+        )
+        .expect("write session a events");
+        fs::write(
+            session_b.join("events.jsonl"),
+            concat!(
+                "{\"type\":\"session.start\",\"data\":{\"selectedModel\":\"claude-sonnet-4.6\"}}\n",
+                "{\"type\":\"tool.execution_complete\",\"data\":{\"model\":\"gpt-5.4\"}}\n",
+                "{\"type\":\"session.model_change\",\"data\":{\"newModel\":\"auto\",\"previousModel\":\"default\"}}\n"
+            ),
+        )
+        .expect("write session b events");
+
+        let models = discover_copilot_history_models(Some(&home));
+        let model_ids: Vec<&str> = models.iter().map(|model| model.model_id.as_str()).collect();
+
+        assert_eq!(
+            model_ids,
+            vec!["gpt-5.4", "claude-opus-4.7", "claude-sonnet-4.6"]
+        );
+    }
+
+    #[test]
+    fn discover_copilot_history_models_ignores_missing_and_invalid_event_files() {
+        let temp = tempdir().expect("tempdir");
+        let home = temp.path().join("home");
+        let valid_session = home.join(".copilot/session-state/valid");
+        let invalid_session = home.join(".copilot/session-state/invalid");
+        let empty_session = home.join(".copilot/session-state/empty");
+        fs::create_dir_all(&valid_session).expect("create valid session dir");
+        fs::create_dir_all(&invalid_session).expect("create invalid session dir");
+        fs::create_dir_all(&empty_session).expect("create empty session dir");
+
+        fs::write(
+            valid_session.join("events.jsonl"),
+            "{\"type\":\"tool.execution_complete\",\"data\":{\"model\":\"gpt-4.1\"}}\n",
+        )
+        .expect("write valid events");
+        fs::write(invalid_session.join("events.jsonl"), "{not json}\n")
+            .expect("write invalid events");
+
+        let models = discover_copilot_history_models(Some(&home));
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].model_id, "gpt-4.1");
     }
 
     #[test]

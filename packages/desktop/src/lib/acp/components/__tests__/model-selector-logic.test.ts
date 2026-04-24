@@ -13,6 +13,8 @@ import {
 	getUsageMetricsPresentation,
 	groupCodexModelsByBase,
 	groupModelsByProvider,
+	hasUsableModelsDisplayGroups,
+	isDefaultChoiceModelId,
 	isContextWindowOnlyMetrics,
 	isDefaultModel,
 	isSplitSelectorOpen,
@@ -24,6 +26,44 @@ import {
 } from "../model-selector-logic.js";
 
 describe("model-selector-logic", () => {
+	describe("isDefaultChoiceModelId", () => {
+		it("treats auto and default as special default choices", () => {
+			expect(isDefaultChoiceModelId("auto")).toBe(true);
+			expect(isDefaultChoiceModelId("default")).toBe(true);
+		});
+
+		it("ignores regular model ids", () => {
+			expect(isDefaultChoiceModelId("gpt-5.4")).toBe(false);
+			expect(isDefaultChoiceModelId("claude-4.6-sonnet")).toBe(false);
+			expect(isDefaultChoiceModelId(null)).toBe(false);
+		});
+	});
+
+	describe("hasUsableModelsDisplayGroups", () => {
+		it("returns false for empty groups arrays", () => {
+			expect(
+				hasUsableModelsDisplayGroups({
+					groups: [],
+					presentation: undefined,
+				})
+			).toBe(false);
+		});
+
+		it("returns true when at least one display group has models", () => {
+			expect(
+				hasUsableModelsDisplayGroups({
+					groups: [
+						{
+							label: "OpenAI",
+							models: [{ modelId: "gpt-5.4", displayName: "Gpt-5.4" }],
+						},
+					],
+					presentation: undefined,
+				})
+			).toBe(true);
+		});
+	});
+
 	describe("getModelDisplayName", () => {
 		describe("when agentId is claude-code", () => {
 			const agentId = AGENT_IDS.CLAUDE_CODE;

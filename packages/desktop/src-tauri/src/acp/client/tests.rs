@@ -946,7 +946,17 @@ fn parse_model_discovery_output_strips_claude_formatting_suffix() {
 
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].model_id, "claude-opus-4-6");
-    assert_eq!(models[0].name, "claude-opus-4-6");
+    assert_eq!(models[0].name, "Opus 4.6");
+}
+
+#[test]
+fn parse_model_discovery_output_formats_future_claude_versions_without_hardcoding() {
+    let output = "claude-opus-4-7-20260401";
+    let models = parse_model_discovery_output(output);
+
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].model_id, "claude-opus-4-7-20260401");
+    assert_eq!(models[0].name, "Opus 4.7");
 }
 
 #[test]
@@ -955,6 +965,20 @@ fn parse_model_discovery_output_ignores_claude_login_prompt() {
     let models = parse_model_discovery_output(output);
 
     assert!(models.is_empty());
+}
+
+#[test]
+fn parse_model_discovery_output_ignores_cursor_tip_suffix() {
+    let output = "Available models\n\nauto - Auto (current)\ngpt-5.4 - GPT-5.4\n\nTip: use --model <id> (or /model <id> in interactive mode) to switch.\n";
+    let models = parse_model_discovery_output(output);
+
+    let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
+    assert!(ids.contains(&"auto"), "expected auto, got {ids:?}");
+    assert!(ids.contains(&"gpt-5.4"), "expected gpt-5.4, got {ids:?}");
+    assert!(
+        !ids.iter().any(|id| id.eq_ignore_ascii_case("tip")),
+        "should not include Tip: line, got {ids:?}"
+    );
 }
 
 #[test]

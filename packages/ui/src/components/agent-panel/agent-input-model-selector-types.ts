@@ -7,6 +7,7 @@ export interface AgentInputModelSelectorItem {
 	isFavorite?: boolean;
 	isPlanDefault?: boolean;
 	isBuildDefault?: boolean;
+	hideProviderMark?: boolean;
 }
 
 export interface AgentInputModelSelectorGroup {

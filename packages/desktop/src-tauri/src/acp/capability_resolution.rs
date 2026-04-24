@@ -1,6 +1,6 @@
 use crate::acp::client_session::{
-    apply_provider_metadata, apply_provider_model_fallback, default_modes, default_session_model_state,
-    AvailableMode, AvailableModel, SessionModelState, SessionModes,
+    apply_provider_metadata, apply_provider_model_fallback, default_modes,
+    default_session_model_state, AvailableMode, AvailableModel, SessionModelState, SessionModes,
 };
 use crate::acp::error::AcpResult;
 use crate::acp::model_display::build_models_for_display;
@@ -11,7 +11,7 @@ use specta::Type;
 use std::path::Path;
 use std::process::Stdio;
 use tokio::process::Command;
-use tokio::time::{timeout, Duration};
+use tokio::time::timeout;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -57,7 +57,7 @@ pub async fn discover_models_from_provider_cli(
             command.env(key, value);
         }
 
-        let output = match timeout(Duration::from_secs(10), command.output()).await {
+        let output = match timeout(provider.model_discovery_timeout(), command.output()).await {
             Ok(Ok(output)) => output,
             Ok(Err(error)) => {
                 tracing::debug!(
@@ -89,29 +89,6 @@ pub async fn discover_models_from_provider_cli(
     }
 
     Vec::new()
-}
-
-fn apply_default_model_candidates(
-    provider: &dyn AgentProvider,
-    model_state: &mut SessionModelState,
-) {
-    if !model_state.available_models.is_empty() {
-        return;
-    }
-
-    let candidates = provider.default_model_candidates();
-    if candidates.is_empty() {
-        return;
-    }
-
-    model_state.available_models = candidates
-        .into_iter()
-        .map(|candidate| AvailableModel {
-            model_id: candidate.model_id,
-            name: candidate.name,
-            description: candidate.description,
-        })
-        .collect();
 }
 
 fn normalize_current_model_id(model_state: &mut SessionModelState) {
@@ -152,13 +129,14 @@ fn finalize_capabilities(
 ) -> AcpResult<ResolvedCapabilities> {
     let mut modes = raw_modes.normalize_with_provider(provider);
 
-    apply_default_model_candidates(provider, &mut models);
     provider.apply_session_defaults(cwd, &mut models, &mut modes)?;
     apply_provider_model_fallback(provider, &mut models);
     normalize_current_model_id(&mut models);
     apply_provider_metadata(provider, &mut models);
-    models.models_display =
-        build_models_for_display(&models.available_models, provider.model_presentation_metadata());
+    models.models_display = build_models_for_display(
+        &models.available_models,
+        provider.model_presentation_metadata(),
+    );
     let final_status = finalize_status(status, &models);
 
     Ok(ResolvedCapabilities {
@@ -216,7 +194,7 @@ pub async fn resolve_generic_preconnection_capabilities(
         models.available_models = discovered_models;
     }
 
-    let status = if models.available_models.is_empty() && provider.default_model_candidates().is_empty() {
+    let status = if models.available_models.is_empty() {
         ResolvedCapabilityStatus::Partial
     } else {
         ResolvedCapabilityStatus::Resolved

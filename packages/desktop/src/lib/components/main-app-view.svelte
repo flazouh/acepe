@@ -1275,7 +1275,7 @@ onDestroy(() => {
 			}}
 		>
 			<div
-				class="h-[min(656px,calc(100vh-1rem))] w-full max-w-[944px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:h-[min(656px,calc(100vh-2rem))] md:h-[min(656px,calc(100vh-2.5rem))]"
+				class="h-[min(800px,calc(100vh-1rem))] w-full max-w-[1180px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:h-[min(800px,calc(100vh-2rem))] md:h-[min(800px,calc(100vh-2.5rem))]"
 			>
 				<SettingsPage {projectManager} onClose={() => viewState.closeSettings()} />
 			</div>

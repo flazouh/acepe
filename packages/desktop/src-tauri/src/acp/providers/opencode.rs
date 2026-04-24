@@ -157,22 +157,32 @@ impl AgentProvider for OpenCodeProvider {
         &'a self,
         app: &'a AppHandle,
         cwd: Option<&'a Path>,
-    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
-    {
+    ) -> Pin<
+        Box<
+            dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities>
+                + Send
+                + 'a,
+        >,
+    > {
         Box::pin(async move {
             let Some(cwd) = cwd else {
-                return failed_capabilities(self, "OpenCode preconnection capabilities require cwd".to_string());
+                return failed_capabilities(
+                    self,
+                    "OpenCode preconnection capabilities require cwd".to_string(),
+                );
             };
 
             let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
-            let start_result = timeout(Duration::from_secs(5), opencode_manager.get_or_start(cwd)).await;
+            let start_result =
+                timeout(Duration::from_secs(5), opencode_manager.get_or_start(cwd)).await;
             let (project_key, manager) = match start_result {
                 Ok(Ok(result)) => result,
                 Ok(Err(error)) => return failed_capabilities(self, error.to_string()),
                 Err(_) => {
                     return failed_capabilities(
                         self,
-                        "Timed out while booting OpenCode runtime for capability loading".to_string(),
+                        "Timed out while booting OpenCode runtime for capability loading"
+                            .to_string(),
                     )
                 }
             };
@@ -193,20 +203,15 @@ impl AgentProvider for OpenCodeProvider {
                     };
                     let modes = SessionModes {
                         current_mode_id: "build".to_string(),
-                        available_modes: crate::acp::client_session::default_modes().available_modes,
+                        available_modes: crate::acp::client_session::default_modes()
+                            .available_modes,
                     };
                     let status = if models.available_models.is_empty() {
                         ResolvedCapabilityStatus::Partial
                     } else {
                         ResolvedCapabilityStatus::Resolved
                     };
-                    match resolve_static_capabilities(
-                        self,
-                        cwd,
-                        status,
-                        models,
-                        modes,
-                    ) {
+                    match resolve_static_capabilities(self, cwd, status, models, modes) {
                         Ok(capabilities) => capabilities,
                         Err(error) => failed_capabilities(self, error.to_string()),
                     }

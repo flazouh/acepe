@@ -6,11 +6,12 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::OnceLock;
+use std::time::Duration;
 use tauri::AppHandle;
 
+use crate::acp::capability_resolution::ResolvedCapabilities;
 use crate::acp::client_session::{SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
-use crate::acp::capability_resolution::ResolvedCapabilities;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
 use crate::acp::model_display::ModelPresentationMetadata;
@@ -286,9 +287,9 @@ pub trait AgentProvider: Send + Sync {
         Vec::new()
     }
 
-    /// Provider-owned model catalog for agents that do not expose a list-models API.
-    fn default_model_candidates(&self) -> Vec<ModelFallbackCandidate> {
-        Vec::new()
+    /// Timeout for provider-owned model discovery commands.
+    fn model_discovery_timeout(&self) -> Duration {
+        Duration::from_secs(10)
     }
 
     /// Parser agent type used for ACP session update parsing and model display grouping.
@@ -477,15 +478,17 @@ pub trait AgentProvider: Send + Sync {
         _cwd: Option<&'a Path>,
     ) -> Pin<Box<dyn Future<Output = ResolvedCapabilities> + Send + 'a>> {
         let provider_metadata = self.frontend_projection();
-        Box::pin(async move { ResolvedCapabilities {
-            status: crate::acp::capability_resolution::ResolvedCapabilityStatus::Unsupported,
-            available_models: Vec::new(),
-            current_model_id: String::new(),
-            models_display: Default::default(),
-            provider_metadata,
-            available_modes: Vec::new(),
-            current_mode_id: String::new(),
-        } })
+        Box::pin(async move {
+            ResolvedCapabilities {
+                status: crate::acp::capability_resolution::ResolvedCapabilityStatus::Unsupported,
+                available_models: Vec::new(),
+                current_model_id: String::new(),
+                models_display: Default::default(),
+                provider_metadata,
+                available_modes: Vec::new(),
+                current_mode_id: String::new(),
+            }
+        })
     }
 
     /// Provider-owned hook for enriching parsed session updates before shared processing.

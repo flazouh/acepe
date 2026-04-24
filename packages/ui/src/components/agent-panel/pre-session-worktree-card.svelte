@@ -2,8 +2,8 @@
 	import type { Snippet } from "svelte";
 	import {
 		ArrowCounterClockwise,
+		CaretRight,
 		CheckCircle,
-		Terminal,
 		Tree,
 		WarningCircle,
 		XCircle,
@@ -51,6 +51,8 @@
 	}: Props = $props();
 
 	let isExpanded = $state(false);
+	let headerElement = $state<HTMLDivElement | null>(null);
+	let expandedWidth = $state<number | null>(null);
 
 	const worktreeOn = $derived(pendingWorktreeEnabled || alwaysEnabled);
 	const toggleValue = $derived(worktreeOn ? "yes" : "no");
@@ -67,7 +69,18 @@
 		}
 	}
 
+	function measureHeaderWidth() {
+		if (!headerElement) return;
+		const nextWidth = Math.ceil(headerElement.getBoundingClientRect().width);
+		if (nextWidth > 0) {
+			expandedWidth = nextWidth;
+		}
+	}
+
 	function toggleExpanded() {
+		if (!isExpanded) {
+			measureHeaderWidth();
+		}
 		isExpanded = !isExpanded;
 	}
 
@@ -76,13 +89,38 @@
 	);
 	const hasExpandable = $derived(expandedContent !== undefined);
 	const showExpanded = $derived(isExpanded && hasExpandable);
+	const lockedWidth = $derived(showExpanded && expandedWidth !== null ? `${expandedWidth}px` : null);
+
+	$effect(() => {
+		const header = headerElement;
+		if (!header) return;
+		if (!isExpanded) {
+			measureHeaderWidth();
+		}
+		if (typeof ResizeObserver !== "function") return;
+		const observer = new ResizeObserver(() => {
+			if (!isExpanded) {
+				measureHeaderWidth();
+			}
+		});
+		observer.observe(header);
+		return () => observer.disconnect();
+	});
 </script>
 
 {#if failureMessage}
-	<div class="w-full">
+	<div
+		class="mx-auto w-fit worktree-card-root"
+		class:expanded={showExpanded}
+		style:width={lockedWidth}
+		style:max-width={showExpanded ? "100%" : null}
+	>
 		<div
-			class="flex w-full items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
+			bind:this={headerElement}
+			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
 			class:rounded-b-none={showExpanded}
+			class:w-fit={!showExpanded}
+			class:w-full={showExpanded}
 		>
 			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
 			<span class="shrink-0 text-[0.6875rem] font-medium text-foreground">Worktree failed</span>
@@ -97,7 +135,7 @@
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
-								<Terminal size={12} />
+								<CaretRight size={12} weight="bold" class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
@@ -115,20 +153,29 @@
 			</div>
 		</div>
 
-		{#if showExpanded && expandedContent}
-			<div class="rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
-				{@render expandedContent()}
+		{#if hasExpandable && expandedContent}
+			<div class="worktree-card-expand" aria-hidden={!showExpanded}>
+				<div class="worktree-card-expand-inner">
+					<div class="w-full rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
+						{@render expandedContent()}
+					</div>
+				</div>
 			</div>
 		{/if}
 	</div>
 {:else}
-	<div class={showExpanded ? "w-full" : ""}>
+	<div
+		class="mx-auto w-fit worktree-card-root"
+		class:expanded={showExpanded}
+		style:width={lockedWidth}
+		style:max-width={showExpanded ? "100%" : null}
+	>
 		<div
+			bind:this={headerElement}
 			class="flex items-center gap-1.5 rounded-lg bg-input/30 px-3 py-1"
-			class:w-full={showExpanded}
-			class:w-fit={!showExpanded}
-			class:mx-auto={!showExpanded}
 			class:rounded-b-none={showExpanded}
+			class:w-fit={!showExpanded}
+			class:w-full={showExpanded}
 		>
 			{#if hasExpandable}
 				<Tooltip>
@@ -139,7 +186,7 @@
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
-							<Terminal size={12} />
+							<CaretRight size={12} weight="bold" class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
@@ -177,10 +224,36 @@
 			</div>
 		</div>
 
-		{#if showExpanded && expandedContent}
-			<div class="rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
-				{@render expandedContent()}
+		{#if hasExpandable && expandedContent}
+			<div class="worktree-card-expand" aria-hidden={!showExpanded}>
+				<div class="worktree-card-expand-inner">
+					<div class="w-full rounded-b-lg border-t border-border/30 bg-input/30 px-3 pb-3 pt-2">
+						{@render expandedContent()}
+					</div>
+				</div>
 			</div>
 		{/if}
 	</div>
 {/if}
+
+<style>
+	/* Opening locks the root to the measured collapsed header width,
+	   so the top pill and bottom panel keep identical edges. */
+
+	/* grid-template-rows 0fr → 1fr animates to live content height,
+	   so async-loaded content (spinner → editor) does not jank mid-transition. */
+	.worktree-card-expand {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows 220ms cubic-bezier(0.33, 1, 0.68, 1);
+	}
+
+	.worktree-card-root.expanded .worktree-card-expand {
+		grid-template-rows: 1fr;
+	}
+
+	.worktree-card-expand-inner {
+		min-height: 0;
+		overflow: hidden;
+	}
+</style>

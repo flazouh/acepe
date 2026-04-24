@@ -16,13 +16,11 @@ use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
 
+use crate::acp::capability_resolution::{resolve_static_capabilities, ResolvedCapabilityStatus};
 use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
 };
-use crate::acp::client_session::{
-    default_modes, default_session_model_state, AvailableModel, SessionModelState,
-};
-use crate::acp::capability_resolution::{resolve_static_capabilities, ResolvedCapabilityStatus};
+use crate::acp::client_session::{default_modes, default_session_model_state, SessionModelState};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
@@ -1357,17 +1355,7 @@ impl ClaudeCcSdkClient {
 
     async fn hydrated_session_model_state(&self) -> SessionModelState {
         let mut model_state = default_session_model_state();
-        let mut available_models = provider_models(self.provider.as_ref());
-
-        if available_models.is_empty() {
-            available_models = self.discover_models_from_provider_cli().await;
-        } else {
-            tracing::info!(
-                provider = %self.provider.id(),
-                default_model_count = available_models.len(),
-                "cc-sdk using provider default models; skipping synchronous CLI model discovery"
-            );
-        }
+        let available_models = self.discover_models_from_provider_cli().await;
 
         if !available_models.is_empty() {
             model_state.available_models = available_models;
@@ -1516,18 +1504,6 @@ impl ClaudeCcSdkClient {
         tracing::info!(session_id = ?self.session_id, "cc-sdk: send_user_message completed");
         Ok(())
     }
-}
-
-fn provider_models(provider: &dyn AgentProvider) -> Vec<AvailableModel> {
-    provider
-        .default_model_candidates()
-        .into_iter()
-        .map(|candidate| AvailableModel {
-            model_id: candidate.model_id,
-            name: candidate.name,
-            description: candidate.description,
-        })
-        .collect()
 }
 
 fn map_to_claude_permission_mode(mode_id: &str) -> cc_sdk::PermissionMode {
@@ -2840,21 +2816,6 @@ mod tests {
                 env_strategy: None,
             }]
         }
-
-        fn default_model_candidates(&self) -> Vec<crate::acp::provider::ModelFallbackCandidate> {
-            vec![
-                crate::acp::provider::ModelFallbackCandidate {
-                    model_id: "claude-opus-4-6".to_string(),
-                    name: "Claude Opus 4.6".to_string(),
-                    description: Some("Most capable Claude model".to_string()),
-                },
-                crate::acp::provider::ModelFallbackCandidate {
-                    model_id: "claude-sonnet-4-5".to_string(),
-                    name: "Claude Sonnet 4.5".to_string(),
-                    description: Some("Balanced Claude model".to_string()),
-                },
-            ]
-        }
     }
 
     impl AgentProvider for CwdModelDiscoveryProvider {
@@ -3384,7 +3345,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hydrated_session_model_state_skips_discovery_when_provider_has_default_models() {
+    async fn hydrated_session_model_state_uses_model_discovery_without_seeded_defaults() {
         let discovery_calls = Arc::new(AtomicUsize::new(0));
         let client = make_test_client_with_provider(Arc::new(TestModelDiscoveryProvider {
             discovery_calls: discovery_calls.clone(),
@@ -3392,10 +3353,8 @@ mod tests {
 
         let state = client.hydrated_session_model_state().await;
 
-        assert_eq!(discovery_calls.load(Ordering::SeqCst), 0);
-        assert_eq!(state.available_models.len(), 2);
-        assert_eq!(state.available_models[0].model_id, "claude-opus-4-6");
-        assert_eq!(state.available_models[1].model_id, "claude-sonnet-4-5");
+        assert_eq!(discovery_calls.load(Ordering::SeqCst), 1);
+        assert!(state.available_models.is_empty());
     }
 
     #[tokio::test]

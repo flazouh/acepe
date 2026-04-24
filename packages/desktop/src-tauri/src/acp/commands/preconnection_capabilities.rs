@@ -24,27 +24,34 @@ pub async fn acp_list_preconnection_capabilities(
     cwd: String,
     agent_id: String,
 ) -> CommandResult<ResolvedCapabilities> {
-    expected_acp_command_result("acp_list_preconnection_capabilities", async {
-        let canonical_agent_id = CanonicalAgentId::parse(&agent_id);
-        let registry = app.state::<Arc<AgentRegistry>>();
-        let Some(provider) = registry.get(&canonical_agent_id) else {
-            tracing::warn!(
-                requested_agent = %agent_id,
-                "Unknown agent requested preconnection capabilities"
-            );
-            return Err(SerializableAcpError::InvalidState {
-                message: format!("Unknown agent requested preconnection capabilities: {agent_id}"),
-            });
-        };
+    expected_acp_command_result(
+        "acp_list_preconnection_capabilities",
+        async {
+            let canonical_agent_id = CanonicalAgentId::parse(&agent_id);
+            let registry = app.state::<Arc<AgentRegistry>>();
+            let Some(provider) = registry.get(&canonical_agent_id) else {
+                tracing::warn!(
+                    requested_agent = %agent_id,
+                    "Unknown agent requested preconnection capabilities"
+                );
+                return Err(SerializableAcpError::InvalidState {
+                    message: format!(
+                        "Unknown agent requested preconnection capabilities: {agent_id}"
+                    ),
+                });
+            };
 
-        let provider_metadata = provider.frontend_projection();
-        let cwd = resolve_preconnection_capability_cwd(
-            provider_metadata.preconnection_capability_mode,
-            &cwd,
-        )?;
-        Ok(provider.list_preconnection_capabilities(&app, cwd.as_deref()).await)
-    }
-    .await)
+            let provider_metadata = provider.frontend_projection();
+            let cwd = resolve_preconnection_capability_cwd(
+                provider_metadata.preconnection_capability_mode,
+                &cwd,
+            )?;
+            Ok(provider
+                .list_preconnection_capabilities(&app, cwd.as_deref())
+                .await)
+        }
+        .await,
+    )
 }
 
 #[cfg(test)]

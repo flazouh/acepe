@@ -3,6 +3,7 @@ use crate::acp::provider::{AgentProvider, FrontendProviderProjection};
 use crate::acp::session_open_snapshot::SessionOpenResult;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::ConfigOptionData;
+use crate::session_jsonl::display_names::format_model_display_name;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use specta::Type;
@@ -157,6 +158,26 @@ fn normalize_model_token(raw: &str) -> Option<String> {
     Some(cleaned.to_string())
 }
 
+fn inferred_display_name_for_model_id(model_id: &str) -> String {
+    let lower = model_id.to_ascii_lowercase();
+    if lower.starts_with("claude-")
+        || lower.starts_with("claude_")
+        || lower == "opus"
+        || lower == "sonnet"
+        || lower == "haiku"
+        || lower.starts_with("opus-")
+        || lower.starts_with("opus_")
+        || lower.starts_with("sonnet-")
+        || lower.starts_with("sonnet_")
+        || lower.starts_with("haiku-")
+        || lower.starts_with("haiku_")
+    {
+        return format_model_display_name(model_id);
+    }
+
+    model_id.to_string()
+}
+
 fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
     fn from_array(items: &[Value]) -> Vec<AvailableModel> {
         let mut seen = HashSet::new();
@@ -166,7 +187,7 @@ fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
             let model = if let Some(model_id) = item.as_str() {
                 normalize_model_token(model_id).map(|normalized| AvailableModel {
                     model_id: normalized.clone(),
-                    name: normalized,
+                    name: inferred_display_name_for_model_id(&normalized),
                     description: None,
                 })
             } else if let Some(obj) = item.as_object() {
@@ -183,7 +204,14 @@ fn parse_models_from_json_value(value: &Value) -> Vec<AvailableModel> {
                         .get("name")
                         .and_then(Value::as_str)
                         .and_then(normalize_model_token)
-                        .unwrap_or_else(|| id.clone()),
+                        .map(|name| {
+                            if name == id {
+                                inferred_display_name_for_model_id(&id)
+                            } else {
+                                name
+                            }
+                        })
+                        .unwrap_or_else(|| inferred_display_name_for_model_id(&id)),
                     description: obj
                         .get("description")
                         .and_then(Value::as_str)
@@ -287,11 +315,15 @@ fn parse_models_from_plaintext(stdout: &str) -> Vec<AvailableModel> {
             continue;
         }
 
-        let token = without_bullets
-            .split_whitespace()
-            .next()
-            .map(|t| t.trim_matches(|c: char| c == ',' || c == ';' || c == ':'))
-            .unwrap_or("");
+        let raw_first_token = without_bullets.split_whitespace().next().unwrap_or("");
+
+        // Narrative prefixes like "Tip:", "Note:", "Usage:", "Example:" end with ':' —
+        // real model IDs never do. Filter them before stripping the colon.
+        if raw_first_token.ends_with(':') {
+            continue;
+        }
+
+        let token = raw_first_token.trim_matches(|c: char| c == ',' || c == ';' || c == ':');
 
         let Some(model_id) = normalize_model_token(token) else {
             continue;
@@ -300,7 +332,7 @@ fn parse_models_from_plaintext(stdout: &str) -> Vec<AvailableModel> {
         if seen.insert(model_id.clone()) {
             models.push(AvailableModel {
                 model_id: model_id.clone(),
-                name: model_id,
+                name: inferred_display_name_for_model_id(&model_id),
                 description: None,
             });
         }

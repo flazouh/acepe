@@ -3,6 +3,7 @@ export const PROVIDER_BRANDS = [
 	"openai",
 	"google",
 	"opencode",
+	"cursor",
 	"default",
 	"other",
 ] as const;
@@ -14,6 +15,7 @@ const PROVIDER_DISPLAY_NAMES: Record<ProviderBrand, string> = {
 	openai: "OpenAI",
 	google: "Google",
 	opencode: "OpenCode",
+	cursor: "Cursor",
 	default: "Default",
 	other: "Other",
 };
@@ -55,7 +57,11 @@ export function resolveProviderBrand(source: string | null | undefined): Provide
 		return "opencode";
 	}
 
-	if (normalized === "default") {
+	if (normalized.includes("cursor") || normalized.includes("composer")) {
+		return "cursor";
+	}
+
+	if (normalized === "default" || normalized === "auto") {
 		return "default";
 	}
 

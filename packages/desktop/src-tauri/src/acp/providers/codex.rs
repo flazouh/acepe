@@ -4,8 +4,8 @@ use super::super::provider::{
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilityStatus,
 };
-use crate::acp::client_trait::CommunicationMode;
 use crate::acp::client::codex_native_config::load_codex_native_config_state;
+use crate::acp::client_trait::CommunicationMode;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
@@ -90,8 +90,13 @@ impl AgentProvider for CodexProvider {
         &'a self,
         _app: &'a AppHandle,
         cwd: Option<&'a Path>,
-    ) -> Pin<Box<dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities> + Send + 'a>>
-    {
+    ) -> Pin<
+        Box<
+            dyn Future<Output = crate::acp::capability_resolution::ResolvedCapabilities>
+                + Send
+                + 'a,
+        >,
+    > {
         Box::pin(async move {
             let effective_cwd = cwd
                 .map(PathBuf::from)

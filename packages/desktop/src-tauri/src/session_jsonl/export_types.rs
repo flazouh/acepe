@@ -1,11 +1,11 @@
 // Module to export TypeScript types from Rust types using specta
 // Run: cargo test --lib session_jsonl::export_types::tests::export_types
 
+use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
 use crate::acp::client::{
     AvailableMode, AvailableModel, NewSessionResponse, ResumeSessionResponse, SessionModelState,
     SessionModes,
 };
-use crate::acp::capability_resolution::{ResolvedCapabilities, ResolvedCapabilityStatus};
 use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
@@ -559,7 +559,8 @@ mod tests {
             "expected acp-types.ts to export LifecycleCheckpoint compat helpers, but it did not"
         );
         assert!(
-            contents.contains("export type FrontendProviderProjection = ProviderMetadataProjection;"),
+            contents
+                .contains("export type FrontendProviderProjection = ProviderMetadataProjection;"),
             "expected acp-types.ts to alias FrontendProviderProjection, but it did not"
         );
     }

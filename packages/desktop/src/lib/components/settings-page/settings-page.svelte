@@ -39,24 +39,24 @@ function handleSectionChange(section: SettingsSectionId) {
 }
 </script>
 
-<div class="relative h-full w-full flex bg-background overflow-hidden gap-1 p-1">
-	<!-- Floating sidebar (full height) -->
+<div class="relative h-full w-full flex bg-background overflow-hidden">
+	<!-- Flush sidebar (full height) -->
 	<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
 
 	<!-- Floating close button -->
 	<button
 		type="button"
-		class="absolute right-1 top-1 z-10 flex items-center justify-center size-5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
+		class="absolute right-3 top-3 z-10 flex items-center justify-center size-6 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
 		title={"Close"}
 		aria-label={"Close"}
 		onclick={() => onClose?.()}
 	>
-		<X class="size-3.5" weight="bold" />
+		<X class="size-4" weight="bold" />
 	</button>
 
 	<div class="flex flex-1 min-w-0 min-h-0 flex-col">
 		<!-- Main content -->
-		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-14 pt-8 pb-14 text-[13px] lg:px-16 lg:pt-10 lg:pb-16 xl:px-20 xl:pt-12 xl:pb-20">
+		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-16 pt-10 pb-16 text-[13px] lg:px-20 lg:pt-12 lg:pb-20 xl:px-24 xl:pt-14 xl:pb-24">
 			{#if activeSection === "general"}
 				<GeneralSection />
 			{:else if activeSection === "appearance"}
