@@ -318,6 +318,7 @@ mod tests {
             provider_session_id: None,
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             is_acepe_managed: false,
             sequence_id: Some(1),
         };
@@ -343,6 +344,7 @@ mod tests {
             provider_session_id: None,
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             is_acepe_managed: false,
             sequence_id: Some(1),
         };

@@ -27,6 +27,7 @@ function createCard(id: string, title: string): KanbanSceneCardData {
 		hasUnseenCompletion: false,
 		sequenceId: null,
 		footer: null,
+		prFooter: null,
 		menuActions: [],
 		showCloseAction: false,
 		hideBody: false,

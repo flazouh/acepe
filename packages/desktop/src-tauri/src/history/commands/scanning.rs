@@ -410,6 +410,7 @@ mod tests {
             parent_id: None,
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             worktree_deleted: None,
             session_lifecycle_state: Some(SessionLifecycleState::Persisted),
             sequence_id: None,
@@ -448,6 +449,7 @@ mod tests {
             provider_session_id: None,
             worktree_path: None,
             pr_number: None,
+            pr_link_mode: None,
             is_acepe_managed: false,
             sequence_id: Some(2),
         };

@@ -194,13 +194,17 @@ function resolvePrFooter(card: KanbanSceneCardData): KanbanScenePrFooterData | n
 				{#if prFooterData}
 					<KanbanScenePrFooter
 						prNumber={prFooterData.prNumber}
-						state={prFooterData.state}
+						prState={prFooterData.state}
 						title={prFooterData.title}
 						url={prFooterData.url}
 						additions={prFooterData.additions}
 						deletions={prFooterData.deletions}
 						isLoading={prFooterData.isLoading}
 						hasResolvedDetails={prFooterData.hasResolvedDetails}
+						checks={prFooterData.checks}
+						isChecksLoading={prFooterData.isChecksLoading}
+						hasResolvedChecks={prFooterData.hasResolvedChecks}
+						onOpenCheck={prFooterData.onOpenCheck}
 						onOpen={() => onPrFooterOpen(sceneCard.id)}
 						onOpenExternal={() => onPrFooterOpenExternal(sceneCard.id)}
 					/>
