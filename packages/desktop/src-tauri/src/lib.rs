@@ -756,6 +756,16 @@ pub fn run() {
             // never falls back to synchronous PATH scanning on request path.
             tauri::async_runtime::block_on(CommandAvailabilityCache::prewarm());
 
+            if crate::acp::agent_installer::is_installed(&crate::acp::types::CanonicalAgentId::Copilot)
+            {
+                let warmup_cwd = std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                crate::acp::providers::copilot_model_catalog::warm_catalog_in_background(
+                    app.handle().clone(),
+                    warmup_cwd,
+                );
+            }
+
             // Initialize database
             let app_handle = app.handle().clone();
             let identifier = app.config().identifier.clone();

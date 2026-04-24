@@ -3,7 +3,7 @@ use crate::acp::client_transport::apply_interaction_response_for_request;
 
 impl AcpClient {
     /// Send a JSON-RPC request and wait for response
-    pub(super) async fn send_request(&mut self, method: &str, params: Value) -> AcpResult<Value> {
+    pub(crate) async fn send_request(&mut self, method: &str, params: Value) -> AcpResult<Value> {
         client_rpc::send_request(
             &self.request_id,
             &self.pending_requests,

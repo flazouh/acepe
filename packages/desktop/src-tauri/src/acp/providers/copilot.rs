@@ -1,6 +1,7 @@
 use super::super::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
+use super::copilot_model_catalog;
 use super::copilot_settings::apply_copilot_session_defaults;
 use crate::acp::capability_resolution::{
     failed_capabilities, resolve_static_capabilities, ResolvedCapabilities,
@@ -121,7 +122,7 @@ impl AgentProvider for CopilotProvider {
 
     fn list_preconnection_capabilities<'a>(
         &'a self,
-        _app: &'a AppHandle,
+        app: &'a AppHandle,
         cwd: Option<&'a Path>,
     ) -> Pin<
         Box<
@@ -135,7 +136,7 @@ impl AgentProvider for CopilotProvider {
                 .map(PathBuf::from)
                 .or_else(|| std::env::current_dir().ok())
                 .unwrap_or_else(|| PathBuf::from("."));
-            resolve_copilot_preconnection_capabilities(self, effective_cwd.as_path())
+            resolve_copilot_preconnection_capabilities(app, self, effective_cwd.as_path()).await
         })
     }
 
@@ -268,18 +269,37 @@ impl AgentProvider for CopilotProvider {
     }
 }
 
-fn resolve_copilot_preconnection_capabilities(
+async fn resolve_copilot_preconnection_capabilities(
+    app: &AppHandle,
     provider: &dyn AgentProvider,
     cwd: &Path,
 ) -> ResolvedCapabilities {
     let mut models = default_session_model_state();
-    models.available_models = discover_copilot_history_models(dirs::home_dir().as_deref());
 
-    let status = if models.available_models.is_empty() {
-        ResolvedCapabilityStatus::Partial
-    } else {
-        ResolvedCapabilityStatus::Resolved
-    };
+    let catalog = copilot_model_catalog::read_catalog_snapshot_for_app(app).await;
+    tracing::debug!(
+        source = ?catalog.source,
+        freshness = ?catalog.freshness,
+        refresh_reason = ?catalog.refresh_reason,
+        cwd = %cwd.display(),
+        "Resolved Copilot catalog snapshot state"
+    );
+    let mut status = ResolvedCapabilityStatus::Partial;
+    if let Some(snapshot) = catalog.snapshot {
+        status = match snapshot.catalog_kind {
+            copilot_model_catalog::CopilotCatalogSnapshotKind::Authoritative => {
+                ResolvedCapabilityStatus::Resolved
+            }
+            copilot_model_catalog::CopilotCatalogSnapshotKind::HistorySalvage => {
+                ResolvedCapabilityStatus::Partial
+            }
+        };
+        models.available_models = snapshot.models;
+    }
+
+    if let Some(reason) = catalog.refresh_reason {
+        copilot_model_catalog::spawn_catalog_refresh(app.clone(), cwd.to_path_buf(), reason);
+    }
 
     match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
         Ok(capabilities) => capabilities,
@@ -287,7 +307,7 @@ fn resolve_copilot_preconnection_capabilities(
     }
 }
 
-fn discover_copilot_history_models(
+pub(crate) fn discover_copilot_history_models(
     home_dir: Option<&Path>,
 ) -> Vec<crate::acp::client_session::AvailableModel> {
     let Some(home_dir) = home_dir else {
@@ -321,6 +341,7 @@ fn discover_copilot_history_models(
         .collect()
 }
 
+#[allow(dead_code)]
 fn collect_copilot_model_counts_from_events(path: &Path, counts: &mut BTreeMap<String, usize>) {
     let Ok(contents) = std::fs::read_to_string(path) else {
         return;
@@ -348,6 +369,7 @@ fn collect_copilot_model_counts_from_events(path: &Path, counts: &mut BTreeMap<S
     }
 }
 
+#[allow(dead_code)]
 fn maybe_increment_copilot_model_count(counts: &mut BTreeMap<String, usize>, raw_model_id: &str) {
     let trimmed = raw_model_id.trim();
     if trimmed.is_empty() || trimmed == "auto" || trimmed == "default" {
@@ -788,7 +810,7 @@ mod tests {
     }
 
     #[test]
-    fn configured_copilot_model_is_inserted_when_provider_returns_no_catalog() {
+    fn configured_copilot_model_does_not_fabricate_catalog_entries_when_catalog_is_empty() {
         let temp = tempfile::tempdir().expect("tempdir");
         let home = temp.path().join("home");
         let project = temp.path().join("project");
@@ -822,9 +844,8 @@ mod tests {
         )
         .expect("copilot session defaults should apply");
 
-        assert_eq!(models.current_model_id, "gpt-5.4");
-        assert_eq!(models.available_models.len(), 1);
-        assert_eq!(models.available_models[0].model_id, "gpt-5.4");
+        assert_eq!(models.current_model_id, "auto");
+        assert!(models.available_models.is_empty());
     }
 
     #[test]
