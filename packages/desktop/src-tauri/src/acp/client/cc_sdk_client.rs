@@ -1408,15 +1408,23 @@ impl ClaudeCcSdkClient {
     }
 
     async fn discover_models_from_provider_cli(&self) -> Vec<crate::acp::client::AvailableModel> {
-        let cwd = self
-            .current_cwd
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("."));
-        crate::acp::capability_resolution::discover_models_from_provider_cli(
-            self.provider.as_ref(),
-            cwd.as_path(),
-        )
-        .await
+        // For Claude Code: read the authoritative catalog snapshot rather than
+        // shelling out to `claude -p "..."` which costs a real API call per hydration.
+        // The catalog is warmed at startup and invalidated on install, so this is a
+        // cheap in-process read.
+        if let Some(app) = self.app_handle.as_ref() {
+            let read =
+                crate::acp::providers::claude_code_model_catalog::read_catalog_snapshot_for_app(
+                    app,
+                )
+                .await;
+            if let Some(snapshot) = read.snapshot {
+                return crate::acp::providers::claude_code_model_catalog::filter_to_picker_defaults(
+                    &snapshot.models,
+                );
+            }
+        }
+        Vec::new()
     }
 
     async fn connect_pending_session_with_initial_prompt(

@@ -1,4 +1,5 @@
 pub mod claude_code;
+pub(crate) mod claude_code_model_catalog;
 pub(crate) mod claude_code_settings;
 pub mod codex;
 pub mod copilot;

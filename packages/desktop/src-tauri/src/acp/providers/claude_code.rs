@@ -78,24 +78,9 @@ impl AgentProvider for ClaudeCodeProvider {
     }
 
     fn model_discovery_commands(&self) -> Vec<SpawnConfig> {
-        let Some(primary) = resolve_claude_spawn_configs().into_iter().next() else {
-            return Vec::new();
-        };
-
-        let mut args = primary.args;
-        args.extend([
-            "--no-session-persistence".to_string(),
-            "-p".to_string(),
-            "Return only the exact current model id. Output the raw model id only, with no markdown or explanation."
-                .to_string(),
-        ]);
-
-        vec![SpawnConfig {
-            command: primary.command,
-            args,
-            env: primary.env,
-            env_strategy: primary.env_strategy,
-        }]
+        // Catalog resolution now owns model discovery; the `-p` probe is no longer used
+        // because it costs a real API call per preconnection and returns only one model.
+        Vec::new()
     }
 
     fn model_discovery_timeout(&self) -> Duration {
@@ -138,7 +123,7 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn list_preconnection_capabilities<'a>(
         &'a self,
-        _app: &'a AppHandle,
+        app: &'a AppHandle,
         cwd: Option<&'a Path>,
     ) -> Pin<
         Box<
@@ -152,7 +137,7 @@ impl AgentProvider for ClaudeCodeProvider {
                 .map(PathBuf::from)
                 .or_else(|| std::env::current_dir().ok())
                 .unwrap_or_else(|| PathBuf::from("."));
-            resolve_claude_preconnection_capabilities(self, effective_cwd.as_path())
+            resolve_claude_preconnection_capabilities(app, self, effective_cwd.as_path()).await
         })
     }
 
@@ -256,29 +241,51 @@ impl AgentProvider for ClaudeCodeProvider {
     }
 }
 
-fn resolve_claude_preconnection_capabilities(
-    provider: &dyn AgentProvider,
-    cwd: &Path,
-) -> ResolvedCapabilities {
-    let mut models = default_session_model_state();
-    models.available_models = discover_claude_history_models(
-        dirs::home_dir().as_deref(),
-        dirs::data_local_dir().as_deref(),
-    );
+fn resolve_claude_preconnection_capabilities<'a>(
+    app: &'a AppHandle,
+    provider: &'a dyn AgentProvider,
+    cwd: &'a Path,
+) -> impl std::future::Future<Output = ResolvedCapabilities> + Send + 'a {
+    use super::claude_code_model_catalog::{self, ClaudeCatalogSnapshotKind};
+    async move {
+        let mut models = default_session_model_state();
 
-    let status = if models.available_models.is_empty() {
-        ResolvedCapabilityStatus::Partial
-    } else {
-        ResolvedCapabilityStatus::Resolved
-    };
+        let catalog = claude_code_model_catalog::read_catalog_snapshot_for_app(app).await;
+        tracing::debug!(
+            source = ?catalog.source,
+            freshness = ?catalog.freshness,
+            refresh_reason = ?catalog.refresh_reason,
+            cwd = %cwd.display(),
+            "Resolved Claude catalog snapshot state"
+        );
 
-    match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
-        Ok(capabilities) => capabilities,
-        Err(error) => failed_capabilities(provider, error.to_string()),
+        let mut status = ResolvedCapabilityStatus::Partial;
+        if let Some(snapshot) = catalog.snapshot {
+            status = match snapshot.catalog_kind {
+                ClaudeCatalogSnapshotKind::Authoritative => ResolvedCapabilityStatus::Resolved,
+                ClaudeCatalogSnapshotKind::HistorySalvage
+                | ClaudeCatalogSnapshotKind::Placeholder => ResolvedCapabilityStatus::Partial,
+            };
+            // Match Claude Code's own `/model` picker: show the latest model per family
+            // (opus / sonnet / haiku) only. Older-generation models remain available via
+            // --model <id> and are re-injected by apply_claude_session_defaults for any
+            // configured model that falls outside this curated set.
+            models.available_models =
+                claude_code_model_catalog::filter_to_picker_defaults(&snapshot.models);
+        }
+
+        if let Some(reason) = catalog.refresh_reason {
+            claude_code_model_catalog::spawn_catalog_refresh(app.clone(), reason);
+        }
+
+        match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
+            Ok(capabilities) => capabilities,
+            Err(error) => failed_capabilities(provider, error.to_string()),
+        }
     }
 }
 
-fn discover_claude_history_models(
+pub(crate) fn discover_claude_history_models(
     home_dir: Option<&Path>,
     data_local_dir: Option<&Path>,
 ) -> Vec<AvailableModel> {
@@ -640,16 +647,14 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn model_discovery_uses_claude_print_mode() {
+    fn model_discovery_commands_are_empty_catalog_owns_discovery() {
         with_temp_home(|| {
-            let cached_path = write_managed_claude("2.1.104");
+            let _cached_path = write_managed_claude("2.1.104");
             let provider = ClaudeCodeProvider;
             let attempts = provider.model_discovery_commands();
 
-            assert_eq!(attempts.len(), 1);
-            assert_eq!(attempts[0].command, cached_path.to_string_lossy());
-            assert_eq!(attempts[0].args[0], "--no-session-persistence");
-            assert_eq!(attempts[0].args[1], "-p");
+            // Catalog resolution now owns model discovery; the `-p` CLI probe is removed.
+            assert_eq!(attempts.len(), 0);
         });
     }
 
@@ -698,7 +703,8 @@ mod tests {
 
         let attempts = provider.model_discovery_commands();
 
-        assert_eq!(attempts.len(), 1);
+        // Catalog resolution now owns model discovery; no CLI probe is seeded.
+        assert_eq!(attempts.len(), 0);
     }
 
     #[test]

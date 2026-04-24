@@ -309,6 +309,19 @@ pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpRes
         );
     }
 
+    if result.is_ok() && matches!(agent_id, CanonicalAgentId::ClaudeCode) {
+        if let Err(error) =
+            crate::acp::providers::claude_code_model_catalog::invalidate_catalog_snapshot_for_app(
+                &app,
+            )
+            .await
+        {
+            tracing::warn!(error = %error, "Failed invalidating Claude catalog snapshot after install");
+        }
+
+        crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(app.clone());
+    }
+
     // Always release the guard
     {
         let mut guard = install_guard().lock().await;

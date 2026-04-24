@@ -766,6 +766,14 @@ pub fn run() {
                 );
             }
 
+            if crate::acp::agent_installer::is_installed(
+                &crate::acp::types::CanonicalAgentId::ClaudeCode,
+            ) {
+                crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(
+                    app.handle().clone(),
+                );
+            }
+
             // Initialize database
             let app_handle = app.handle().clone();
             let identifier = app.config().identifier.clone();

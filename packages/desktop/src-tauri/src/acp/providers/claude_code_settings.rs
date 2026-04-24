@@ -1,9 +1,47 @@
 use crate::acp::client::{AvailableModel, SessionModelState, SessionModes};
 use crate::acp::error::AcpResult;
 use crate::session_jsonl::display_names::format_model_display_name;
+use regex::Regex;
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::path::Path;
+use std::sync::OnceLock;
+
+static RE_VERSION_SUFFIX: OnceLock<Regex> = OnceLock::new();
+
+fn version_suffix_regex() -> &'static Regex {
+    RE_VERSION_SUFFIX.get_or_init(|| {
+        Regex::new(r"-v\d+(:\d+)?$").expect("version suffix regex must compile")
+    })
+}
+
+/// Normalizes a model ID from any provider representation to its first-party canonical form.
+///
+/// Handles:
+/// - Bedrock: `us.anthropic.claude-opus-4-7` → `claude-opus-4-7`
+/// - Bedrock versioned: `us.anthropic.claude-opus-4-7-v1:0` → `claude-opus-4-7`
+/// - Date-tagged: `claude-opus-4-7@20250514` → `claude-opus-4-7`
+/// - Versioned suffix: `claude-opus-4-7-v1` → `claude-opus-4-7`
+/// - First-party passthrough: `claude-opus-4-7` → `claude-opus-4-7`
+pub(crate) fn normalize_model_id_from_any_provider(raw_id: &str) -> String {
+    // Strip `@date` suffix.
+    let without_at = if let Some(at_pos) = raw_id.find('@') {
+        &raw_id[..at_pos]
+    } else {
+        raw_id
+    };
+
+    // Find the first `claude-` substring to handle Bedrock/Vertex prefixes.
+    let claude_start = without_at
+        .to_ascii_lowercase()
+        .find("claude-")
+        .unwrap_or(0);
+    let from_claude = &without_at[claude_start..];
+
+    // Strip trailing `-v\d+(:\d+)?` version suffix.
+    let normalized = version_suffix_regex().replace(from_claude, "");
+    normalized.to_string()
+}
 
 pub(crate) fn resolve_claude_runtime_mode_id(
     requested_mode_id: Option<&str>,
@@ -195,6 +233,17 @@ fn normalize_claude_model_id(raw: &str, available_model_ids: &[String]) -> Optio
     let lower = trimmed.to_ascii_lowercase();
     if matches!(lower.as_str(), "sonnet" | "opus" | "haiku") {
         return newest_model_for_family(lower.as_str(), available_model_ids).or(Some(lower));
+    }
+
+    // Normalize cross-provider IDs (Bedrock/Vertex/Foundry) to first-party canonical form.
+    let normalized = normalize_model_id_from_any_provider(trimmed);
+    if normalized != trimmed && available_model_ids.iter().any(|id| id == &normalized) {
+        tracing::debug!(
+            original = %trimmed,
+            normalized = %normalized,
+            "Normalized cross-provider model ID to first-party form"
+        );
+        return Some(normalized);
     }
 
     Some(trimmed.to_string())
@@ -442,5 +491,28 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn normalize_model_id_from_any_provider_table() {
+        let cases = [
+            // Bedrock prefix
+            ("us.anthropic.claude-opus-4-7", "claude-opus-4-7"),
+            // Bedrock with versioned suffix
+            ("us.anthropic.claude-opus-4-7-v1:0", "claude-opus-4-7"),
+            // Date-tagged
+            ("claude-opus-4-7@20250514", "claude-opus-4-7"),
+            // Versioned suffix only
+            ("claude-opus-4-7-v1", "claude-opus-4-7"),
+            // First-party passthrough
+            ("claude-opus-4-7", "claude-opus-4-7"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_model_id_from_any_provider(input),
+                expected,
+                "normalize_model_id_from_any_provider({input:?})"
+            );
+        }
     }
 }
