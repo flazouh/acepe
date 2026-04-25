@@ -380,7 +380,10 @@ function applyLiveInteractionPatches(patches: readonly InteractionSnapshot[]): v
 	interactionStore.applySessionInteractionPatches(patches);
 
 	for (const [id, permission] of interactionStore.permissionsPending) {
-		if (!previousPermissionIds.has(id) && patches.some((p) => p.session_id === permission.sessionId)) {
+		if (
+			!previousPermissionIds.has(id) &&
+			patches.some((p) => p.session_id === permission.sessionId)
+		) {
 			showPermissionNotification(permission);
 		}
 	}
