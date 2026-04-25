@@ -457,7 +457,7 @@ function replaceTextNodeWithFadedSuffix(textNode: Text, animateFromOffset: numbe
 	parent.replaceChild(fragment, textNode);
 }
 
-function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number): void {
+function collectWordFadeTextNodes(node: HTMLElement): Text[] {
 	const textNodes: Text[] = [];
 	const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
 		acceptNode(textNode) {
@@ -475,6 +475,18 @@ function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number
 		currentNode = walker.nextNode();
 	}
 
+	return textNodes;
+}
+
+function getWordFadeTextContent(node: HTMLElement): string {
+	return collectWordFadeTextNodes(node)
+		.map((textNode) => textNode.nodeValue ?? "")
+		.join("");
+}
+
+function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number): void {
+	const textNodes = collectWordFadeTextNodes(node);
+
 	let textOffset = 0;
 	for (const textNode of textNodes) {
 		const textValue = textNode.nodeValue ?? "";
@@ -488,7 +500,7 @@ function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number
 
 function canonicalStreamingWordFade(node: HTMLElement, initialParams: StreamingWordFadeParams) {
 	let params = initialParams;
-	let lastTextContent = "";
+	let lastWordFadeTextContent = "";
 	let lastResetKey = initialParams.resetKey;
 	let scheduledVersion = 0;
 
@@ -501,21 +513,23 @@ function canonicalStreamingWordFade(node: HTMLElement, initialParams: StreamingW
 			}
 
 			if (params.resetKey !== lastResetKey) {
-				lastTextContent = "";
+				lastWordFadeTextContent = "";
 				lastResetKey = params.resetKey;
 			}
 
 			if (!params.active || params.marker.length === 0) {
-				lastTextContent = "";
+				lastWordFadeTextContent = "";
 				return;
 			}
 
-			const currentTextContent = node.textContent ?? "";
-			const animateFromTextOffset = currentTextContent.startsWith(lastTextContent)
-				? lastTextContent.length
+			const currentWordFadeTextContent = getWordFadeTextContent(node);
+			const animateFromTextOffset = currentWordFadeTextContent.startsWith(
+				lastWordFadeTextContent
+			)
+				? lastWordFadeTextContent.length
 				: 0;
 			applyStreamingWordFade(node, animateFromTextOffset);
-			lastTextContent = currentTextContent;
+			lastWordFadeTextContent = currentWordFadeTextContent;
 		});
 	}
 

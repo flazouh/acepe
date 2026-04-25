@@ -155,6 +155,11 @@ function renderCanonicalTestMarkdown(text: string): string {
 		return `<pre class="streaming-code"><code>${code}</code></pre>`;
 	}
 
+	if (text.startsWith("before skip after")) {
+		const suffix = text.includes(" after new") ? " new" : "";
+		return `<p>before <span data-reveal-skip>skip</span> after${suffix}</p>`;
+	}
+
 	return `<p>${text
 		.replace("**bold**", "<strong>bold</strong>")
 		.replace("[Acepe](https://acepe.dev)", '<a href="https://acepe.dev">Acepe</a>')}</p>`;
@@ -835,6 +840,38 @@ describe("MarkdownText", () => {
 				expect(section.textContent).toContain("hello");
 				expect(section.textContent).toContain("world");
 				expect(section.textContent).toContain("foo");
+			});
+		});
+
+		it("keeps word-fade offsets aligned when skipped reveal content precedes new text", async () => {
+			const view = render(MarkdownText, {
+				text: "before skip after",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				expect(view.container.querySelector('[data-reveal-skip]')?.textContent).toBe("skip");
+				expect(view.container.textContent).toContain("before skip after");
+			});
+
+			await view.rerender({
+				text: "before skip after new",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const section = view.container.querySelector(".markdown-content");
+				expect(section).not.toBeNull();
+				if (!section) {
+					throw new Error("Expected markdown content");
+				}
+
+				const html = section.innerHTML;
+				expect(html).not.toContain('<span class="sd-word-fade">before</span>');
+				expect(html).not.toContain('<span class="sd-word-fade">after</span>');
+				expect(html).toContain('<span class="sd-word-fade">new</span>');
 			});
 		});
 
