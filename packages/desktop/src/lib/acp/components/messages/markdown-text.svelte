@@ -33,12 +33,6 @@ import {
 	type StreamingRevealController,
 } from "./logic/create-streaming-reveal-controller.svelte.js";
 import {
-	parseStreamingTailIncremental,
-	type StreamingTailParseResult,
-} from "./logic/parse-streaming-tail.js";
-import StreamingLiveSection from "./streaming-live-section.svelte";
-import { streamingTailRefresh } from "./logic/streaming-tail-refresh.js";
-import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
 	type StreamingAnimationMode,
 } from "../../types/streaming-animation-mode.js";
@@ -50,7 +44,6 @@ const STREAMING_SYNC_RESULT = {
 	needsAsync: false,
 } satisfies SyncRenderResult;
 
-const EMPTY_STREAMING_TAIL = { sections: [] } satisfies StreamingTailParseResult;
 const revealedMessageTexts = new Map<string, string>();
 
 // Get session context (set by VirtualizedEntryList)
@@ -108,10 +101,6 @@ let hasStreamingSession = $state(false);
 let wasStreaming = false;
 let seedRevealFromSource = $state(false);
 let lastRevealKey = "";
-let streamingTail = $state<StreamingTailParseResult>(EMPTY_STREAMING_TAIL);
-let lastStreamingTailText = "";
-let lastStreamingTailResult: StreamingTailParseResult = EMPTY_STREAMING_TAIL;
-const shouldAnimateStreaming = true;
 
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
@@ -178,9 +167,7 @@ $effect(() => {
 	if (wasStreaming) {
 		wasStreaming = false;
 		// Once the source has finished streaming, switch straight to the settled
-		// markdown renderer. Keeping the temporary streaming-tail parser alive
-		// after completion can fragment finished markdown across transient
-		// sections, which shows up as broken lists/paragraphs in the final UI.
+		// markdown pass so the final DOM is exactly what settled messages use.
 		hasStreamingSession = false;
 		reveal.reset();
 		return;
@@ -341,18 +328,32 @@ const isLoading = $derived(syncResult.needsAsync && asyncPending);
 // File badge placeholders stay as inline <span>s — mounted as Svelte components below.
 const contentBlocks = $derived(visibleHtml ? parseContentBlocks(visibleHtml) : []);
 const hasSpecialBlocks = $derived(contentBlocks.some((block) => block.type !== "html"));
+const streamingText = $derived(isRenderingReveal ? reveal.displayedText : "");
+const streamingSyncResult = $derived.by(() => {
+	if (!isRenderingReveal || streamingText.length === 0) {
+		return STREAMING_SYNC_RESULT;
+	}
+
+	return renderMarkdownSync(streamingText, repoContext ?? undefined);
+});
+const streamingHtml = $derived(streamingSyncResult.html);
+const streamingContentBlocks = $derived(streamingHtml ? parseContentBlocks(streamingHtml) : []);
+const streamingHasSpecialBlocks = $derived(
+	streamingContentBlocks.some((block) => block.type !== "html")
+);
+const renderedHtmlForBadges = $derived(visibleHtml ?? streamingHtml);
 
 // Mount FilePathBadge and GitHubBadge Svelte components into inline placeholder <span>s after DOM render.
 // Placeholders stay inside their parent elements (li, p, etc.) so structure is preserved.
 $effect(() => {
 	const container = markdownContainerRef;
 	// Track these so the effect re-runs when html or diff stats change
-	void visibleHtml;
+	void renderedHtmlForBadges;
 	const currentGitStatus = gitStatusByPath;
 	const currentModifiedFiles = mergedModifiedFilesState;
 	const currentRepoContext = repoContext;
 
-	if (!container || !visibleHtml) return;
+	if (!container || !renderedHtmlForBadges) return;
 
 	const cleanupFile = mountFileBadges(container, (filePath) =>
 		resolveDiffStatsForFilePath(filePath, {
@@ -370,25 +371,6 @@ $effect(() => {
 		cleanupFile();
 		cleanupGitHub();
 	};
-});
-
-$effect(() => {
-	if (!isRenderingReveal) {
-		streamingTail = EMPTY_STREAMING_TAIL;
-		lastStreamingTailText = "";
-		lastStreamingTailResult = EMPTY_STREAMING_TAIL;
-		return;
-	}
-
-	const nextStreamingText = reveal.displayedText;
-	const nextStreamingTail = parseStreamingTailIncremental(
-		lastStreamingTailText,
-		lastStreamingTailResult,
-		nextStreamingText
-	);
-	streamingTail = nextStreamingTail;
-	lastStreamingTailText = nextStreamingText;
-	lastStreamingTailResult = nextStreamingTail;
 });
 
 /**
@@ -516,40 +498,28 @@ function handleKeydown(event: KeyboardEvent) {
 		</div>
 	{/if}
 {:else if isRenderingReveal}
-	<!-- Streaming markdown: keep settled blocks stable and only update the live tail in place -->
 	<div
+		bind:this={markdownContainerRef}
 		class="markdown-content text-sm text-foreground"
 		role="button"
 		tabindex="0"
 		onclick={handleClick}
 		onkeydown={handleKeydown}
 	>
-		{#each streamingTail.sections as section (section.key)}
-			<div
-				class="streaming-section"
-				data-streaming-section-key={section.key}
-				data-streaming-live={section.kind === "settled" ? undefined : "true"}
-				use:streamingTailRefresh={{
-					active: section.kind !== "settled",
-					value:
-						section.kind === "settled"
-							? ""
-							: section.kind === "live-code"
-								? section.code
-								: section.text,
-				}}
-			>
-				{#if section.kind === "settled"}
-					<StreamingLiveSection section={section} animate={false} />
-				{:else if section.kind === "live-code"}
-					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
-				{:else if section.kind === "live-markdown"}
-					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
-				{:else}
-					<StreamingLiveSection section={section} animate={shouldAnimateStreaming} />
-				{/if}
+		{#if streamingHtml}
+			{#if streamingHasSpecialBlocks}
+				<ContentBlockRenderer
+					blocks={streamingContentBlocks}
+					repoContext={repoContext ?? undefined}
+				/>
+			{:else}
+				{@html streamingHtml}
+			{/if}
+		{:else}
+			<div class="markdown-loading text-sm text-foreground whitespace-pre-wrap">
+				{streamingText}
 			</div>
-		{/each}
+		{/if}
 	</div>
 {:else if isLoading}
 	<!-- Show plain text with min-height while async rendering (rare: large messages only) -->
@@ -567,13 +537,5 @@ function handleKeydown(event: KeyboardEvent) {
 	.markdown-loading {
 		min-height: 1.5em;
 		opacity: 0.7;
-	}
-
-	:global(.streaming-live-link.is-disabled) {
-		color: var(--color-primary);
-		cursor: text;
-		opacity: 0.85;
-		pointer-events: none;
-		text-decoration: underline;
 	}
 </style>

@@ -124,6 +124,37 @@ function getRequestKey(text: string, repoContext?: RepoContext): string {
 	return `${text}::${repoContext.owner}/${repoContext.repo}`;
 }
 
+function renderCanonicalTestMarkdown(text: string): string {
+	if (text.includes("| Name | Status |") && text.includes("| --- | --- |")) {
+		const trailing = text.includes("Trailing live text") ? "<p>Trailing live text</p>" : "";
+		return `<div class="table-wrapper"><table><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody><tr><td>Ada</td><td>Done</td></tr></tbody></table></div>${trailing}`;
+	}
+
+	if (text.startsWith("# Hello streaming")) {
+		const body = text.includes("Body") ? "<p>Body</p>" : "";
+		return `<h1>Hello streaming</h1>${body}`;
+	}
+
+	if (text.startsWith("# Title")) {
+		const body = text.includes("Body")
+			? "<p>Body</p>"
+			: text.includes("Hello")
+				? `<p>${text.includes("Hello world") ? "Hello world" : "Hello"}</p>`
+				: "";
+		const next = text.includes("Next") ? "<p>Next</p>" : "";
+		return `<h1>Title</h1>${body}${next}`;
+	}
+
+	if (text.startsWith("```ts")) {
+		const code = text.replace(/^```ts\n?/, "").replace(/\n```$/, "");
+		return `<pre class="streaming-code"><code>${code}</code></pre>`;
+	}
+
+	return `<p>${text
+		.replace("**bold**", "<strong>bold</strong>")
+		.replace("[Acepe](https://acepe.dev)", '<a href="https://acepe.dev">Acepe</a>')}</p>`;
+}
+
 type QueuedAnimationFrame = {
 	id: number;
 	callback: FrameRequestCallback;
@@ -182,6 +213,11 @@ beforeEach(() => {
 	parseContentBlocksMock.mockReturnValue([]);
 	renderMarkdownMock.mockClear();
 	renderMarkdownSyncMock.mockReset();
+	renderMarkdownSyncMock.mockImplementation((text) => ({
+		html: renderCanonicalTestMarkdown(text),
+		fromCache: false,
+		needsAsync: false,
+	}));
 	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback): number => {
 		const id = nextAnimationFrameId;
 		nextAnimationFrameId += 1;
@@ -410,13 +446,7 @@ describe("MarkdownText", () => {
 		expect(renderMarkdownMock).toHaveBeenCalledTimes(2);
 	});
 
-	it("renders settled blocks once and keeps the trailing streaming text live", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: text === "# Hello streaming" ? "<h1>Hello streaming</h1>" : `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("renders streaming markdown through the canonical renderer", async () => {
 		const view = render(MarkdownText, {
 			text: "# Hello streaming\n\nBody",
 			isStreaming: true,
@@ -427,23 +457,39 @@ describe("MarkdownText", () => {
 			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe(
 				"Hello streaming"
 			);
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent
-			).toContain("Body");
+			expect(view.container.querySelector(".markdown-content p")?.textContent).toContain("Body");
 		});
 
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
-		expect(mountFileBadgesMock).not.toHaveBeenCalled();
-		expect(mountGitHubBadgesMock).not.toHaveBeenCalled();
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith(
+			expect.stringContaining("# Hello streaming"),
+			undefined
+		);
+		expect(mountFileBadgesMock).toHaveBeenCalled();
+		expect(mountGitHubBadgesMock).toHaveBeenCalled();
 	});
 
-	it("renders a live heading and following paragraph as separate reveal-safe blocks", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
+	it("renders streaming table syntax with the canonical markdown renderer before a blank-line boundary", async () => {
+		const tableMarkdown = "| Name | Status |\n| --- | --- |\n| Ada | Done |";
 
+		const view = render(MarkdownText, {
+			text: `${tableMarkdown}\nTrailing live text`,
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await waitFor(() => {
+			expect(view.container.querySelector(".table-wrapper table")).not.toBeNull();
+			expect(view.container.querySelector(".table-wrapper")?.textContent).toContain("Ada");
+			expect(view.container.textContent).toContain("Trailing live text");
+		});
+
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith(
+			expect.stringContaining("| --- | --- |"),
+			undefined
+		);
+	});
+
+	it("renders a streaming heading and following paragraph canonically", async () => {
 		const view = render(MarkdownText, {
 			text: "# Title\nBody",
 			isStreaming: true,
@@ -451,36 +497,21 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:0"] h1')?.textContent
-			).toBe("Title");
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:1"] p')?.textContent
-			).toBe("Body");
+			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe("Title");
+			expect(view.container.querySelector(".markdown-content p")?.textContent).toBe("Body");
 		});
 	});
 
 	it("renders streaming text immediately instead of buffering partial reveal bursts", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
 		const view = render(MarkdownText, {
 			text: "Hello",
 			isStreaming: true,
 			streamingAnimationMode: "smooth",
 		});
 
-		const firstLiveSection = await waitFor(() => {
-			const section = view.container.querySelector('[data-streaming-section-key="LIVE:0"]');
-			expect(section).not.toBeNull();
-			expect(section?.textContent).toContain("Hello");
-			return section;
+		await waitFor(() => {
+			expect(view.container.querySelector(".markdown-content")?.textContent).toContain("Hello");
 		});
-
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
 
 		await view.rerender({
 			text: "Hello world",
@@ -489,34 +520,23 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(firstLiveSection?.textContent).toContain("Hello world");
+			expect(view.container.querySelector(".markdown-content")?.textContent).toContain(
+				"Hello world"
+			);
 		});
 
-		expect(view.container.querySelector('[data-streaming-section-key="LIVE:0"]')).toBe(
-			firstLiveSection
-		);
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith("Hello world", undefined);
 	});
 
-	it("keeps previously revealed live word nodes stable while streaming text grows", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("updates canonical streaming markdown as text grows", async () => {
 		const view = render(MarkdownText, {
 			text: "Hello world",
 			isStreaming: true,
 			streamingAnimationMode: "smooth",
 		});
 
-		const firstWord = await waitFor(() => {
-			const word = Array.from(view.container.querySelectorAll(".sd-word-fade")).find(
-				(node) => node.textContent === "Hello"
-			);
-			expect(word).not.toBeNull();
-			return word as HTMLSpanElement;
+		await waitFor(() => {
+			expect(view.container.textContent).toContain("Hello world");
 		});
 
 		await view.rerender({
@@ -528,20 +548,9 @@ describe("MarkdownText", () => {
 		await waitFor(() => {
 			expect(view.container.textContent).toContain("again");
 		});
-
-		const persistedWord = Array.from(view.container.querySelectorAll(".sd-word-fade")).find(
-			(node) => node.textContent === "Hello"
-		);
-		expect(persistedWord).toBe(firstWord);
 	});
 
-	it("keeps partial markdown confined to the live tail while settled sections stay stable", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("keeps rendering canonical markdown as streamed markdown grows", async () => {
 		const view = render(MarkdownText, {
 			text: "# Title\n\nHello",
 			isStreaming: true,
@@ -550,15 +559,9 @@ describe("MarkdownText", () => {
 		await flushAnimationFrames(12);
 
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')
-			).not.toBeNull();
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
-			).toContain("Hello");
+			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe("Title");
+			expect(view.container.textContent).toContain("Hello");
 		});
-
-		const settledSection = view.container.querySelector('[data-streaming-section-key="SETTLED:0"]');
 
 		await view.rerender({
 			text: "# Title\n\nHello\n\nNext",
@@ -567,27 +570,13 @@ describe("MarkdownText", () => {
 		await flushAnimationFrames(12, 112);
 
 		await waitFor(() => {
-			expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).toBe(
-				settledSection
-			);
-			expect(
-				view.container.querySelector('[data-streaming-section-key="SETTLED:1"]')?.textContent
-			).toContain("Hello");
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:2"]')?.textContent
-			).toContain("Next");
+			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe("Title");
+			expect(view.container.textContent).toContain("Hello");
+			expect(view.container.textContent).toContain("Next");
 		});
 	});
 
-	it("renders an open fenced code block as a live code tail during reveal", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => {
-			return {
-				html: `<p>${text}</p>`,
-				fromCache: false,
-				needsAsync: false,
-			};
-		});
-
+	it("renders an open fenced code block through the canonical renderer during reveal", async () => {
 		const view = render(MarkdownText, {
 			text: "```ts\nconst a = 1;",
 			isStreaming: true,
@@ -595,15 +584,13 @@ describe("MarkdownText", () => {
 		await flushAnimationFrames(8);
 
 		await waitFor(() => {
-			expect(view.container.querySelector(".streaming-live-code code")?.textContent).toContain(
-				"const a = 1;"
-			);
+			expect(view.container.querySelector("pre code")?.textContent).toContain("const a = 1;");
 		});
 
-		expect(view.container.querySelector(".streaming-live-code-shell.sd-word-fade")).not.toBeNull();
-		expect(view.container.querySelector(".streaming-live-code.sd-word-fade")).toBeNull();
-
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith(
+			expect.stringContaining("```ts"),
+			undefined
+		);
 		expect(renderMarkdownMock).not.toHaveBeenCalled();
 	});
 
@@ -623,24 +610,15 @@ describe("MarkdownText", () => {
 		expect(view.container.querySelector('[aria-hidden="true"]')).toBeNull();
 	});
 
-	it("keeps stable streaming sections while append-only revealed markdown grows", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("re-renders canonical streaming markdown while append-only text grows", async () => {
 		const view = render(MarkdownText, {
 			text: "# Title\n\nHello",
 			isStreaming: true,
 		});
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
-			).toContain("Hello");
+			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe("Title");
+			expect(view.container.textContent).toContain("Hello");
 		});
-
-		const settledSection = view.container.querySelector('[data-streaming-section-key="SETTLED:0"]');
 
 		await view.rerender({
 			text: "# Title\n\nHello world",
@@ -649,24 +627,14 @@ describe("MarkdownText", () => {
 		await flushAnimationFrames(12, 112);
 
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:1"]')?.textContent
-			).toContain("Hello world");
+			expect(view.container.querySelector(".markdown-content h1")?.textContent).toBe("Title");
+			expect(view.container.textContent).toContain("Hello world");
 		});
 
-		expect(view.container.querySelector('[data-streaming-section-key="SETTLED:0"]')).toBe(
-			settledSection
-		);
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith("# Title\n\nHello world", undefined);
 	});
 
-	it("renders reveal-time links as disabled text instead of interactive anchors", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("renders reveal-time links as interactive canonical anchors", async () => {
 		const view = render(MarkdownText, {
 			text: "[Acepe](https://acepe.dev)",
 			isStreaming: true,
@@ -674,23 +642,19 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			const disabledLink = view.container.querySelector(".streaming-live-link.is-disabled");
-			expect(disabledLink).toBeTruthy();
-			expect(disabledLink?.textContent).toBe("Acepe");
+			expect(view.container.querySelector('a[href="https://acepe.dev"]')?.textContent).toBe(
+				"Acepe"
+			);
 		});
 
-		expect(view.container.querySelector("a")).toBeNull();
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		const anchor = view.container.querySelector('a[href="https://acepe.dev"]');
+		anchor?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(openUrlMock).toHaveBeenCalledWith("https://acepe.dev");
 		expect(renderMarkdownMock).not.toHaveBeenCalled();
 	});
 
-	it("re-renders live markdown directly without fallback-tail freeze behavior", async () => {
-		renderMarkdownSyncMock.mockImplementation((text) => ({
-			html: `<p>${text}</p>`,
-			fromCache: false,
-			needsAsync: false,
-		}));
-
+	it("re-renders canonical markdown directly without fallback-tail freeze behavior", async () => {
 		const view = render(MarkdownText, {
 			text: "Hello",
 			isStreaming: true,
@@ -698,9 +662,7 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:0"] p')?.textContent
-			).toBe("Hello");
+			expect(view.container.querySelector(".markdown-content p")?.textContent).toBe("Hello");
 		});
 
 		await view.rerender({
@@ -710,15 +672,13 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(
-				view.container.querySelector('[data-streaming-section-key="LIVE:0"] p')?.textContent
-			).toBe("Hello world");
+			expect(view.container.querySelector(".markdown-content p")?.textContent).toBe("Hello world");
 		});
 
-		expect(view.container.querySelector(".streaming-live-fallback-tail")).toBeNull();
+		expect(view.container.querySelector(".markdown-loading")).toBeNull();
 	});
 
-	it("keeps final-only settled blocks on plain fallback during reveal and upgrades them after settle", async () => {
+	it("renders final-only settled blocks with the canonical renderer during reveal", async () => {
 		renderMarkdownSyncMock.mockImplementation((text) => ({
 			html:
 				text === "```mermaid\ngraph TD;\n```"
@@ -736,10 +696,9 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.textContent).toContain(text);
+			expect(view.container.querySelector(".mermaid")?.textContent).toContain("graph TD;");
 		});
-		expect(view.container.querySelector(".mermaid")).toBeNull();
-		expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+		expect(renderMarkdownSyncMock).toHaveBeenCalledWith(text, undefined);
 
 		await view.rerender({
 			text,
@@ -752,7 +711,7 @@ describe("MarkdownText", () => {
 		});
 	});
 
-	it("upgrades reveal-time disabled links into interactive anchors after settle", async () => {
+	it("keeps reveal-time canonical anchors interactive after settle", async () => {
 		renderMarkdownSyncMock.mockReturnValue({
 			html: '<p><a href="https://acepe.dev">Acepe</a></p>',
 			fromCache: false,
@@ -767,11 +726,10 @@ describe("MarkdownText", () => {
 		});
 
 		await waitFor(() => {
-			expect(view.container.querySelector(".streaming-live-link.is-disabled")?.textContent).toBe(
+			expect(view.container.querySelector('a[href="https://acepe.dev"]')?.textContent).toBe(
 				"Acepe"
 			);
 		});
-		expect(view.container.querySelector("a")).toBeNull();
 
 		await view.rerender({
 			text,
@@ -792,13 +750,7 @@ describe("MarkdownText", () => {
 	});
 
 	describe("streaming reveal behavior", () => {
-		it("does not re-animate existing words when streaming text grows", async () => {
-			renderMarkdownSyncMock.mockImplementation((text) => ({
-				html: `<p>${text}</p>`,
-				fromCache: false,
-				needsAsync: false,
-			}));
-
+		it("updates streamed text without reintroducing live-word animation spans", async () => {
 			const view = render(MarkdownText, {
 				text: "hello world",
 				isStreaming: true,
@@ -806,11 +758,9 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				const fades = view.container.querySelectorAll(".sd-word-fade");
-				expect(fades.length).toBeGreaterThan(0);
+				expect(view.container.textContent).toContain("hello world");
 			});
 
-			// Rerender with appended text (simulates streaming growth)
 			await view.rerender({
 				text: "hello world foo",
 				isStreaming: true,
@@ -818,25 +768,15 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				const section = view.container.querySelector('[data-streaming-live="true"]');
-				expect(section).not.toBeNull();
-				if (!section) {
-					throw new Error("Expected streaming section");
-				}
-				const html = section.innerHTML;
-				// "hello" and "world" should NOT have sd-word-fade class (they were in previous render)
-				expect(html).not.toContain('<span class="sd-word-fade">hello</span>');
-				expect(html).not.toContain('<span class="sd-word-fade">world</span>');
-				// "foo" should have sd-word-fade class (it's new)
-				expect(html).toContain('<span class="sd-word-fade">foo</span>');
-				// All text should still be present
-				expect(section.textContent).toContain("hello");
-				expect(section.textContent).toContain("world");
-				expect(section.textContent).toContain("foo");
+				expect(view.container.textContent).toContain("hello");
+				expect(view.container.textContent).toContain("world");
+				expect(view.container.textContent).toContain("foo");
 			});
+
+			expect(view.container.querySelector(".markdown-content")).not.toBeNull();
 		});
 
-		it("renders word-fade spans while streaming is active", async () => {
+		it("renders canonical inline markdown while streaming is active", async () => {
 			renderMarkdownSyncMock.mockImplementation((text) => ({
 				html: `<p>${text.replace("**bold**", "<strong>bold</strong>")}</p>`,
 				fromCache: false,
@@ -852,11 +792,11 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				expect(view.container.querySelector(".streaming-section strong")?.textContent).toBe("bold");
+				expect(view.container.querySelector(".markdown-content strong")?.textContent).toBe("bold");
 			});
 		});
 
-		it("paces reveal-time markdown while deferring final markdown until streaming ends", async () => {
+		it("renders canonical markdown during streaming and after settle", async () => {
 			renderMarkdownSyncMock.mockImplementation((text) => ({
 				html: `<p>${text.replace("**bold**", "<strong>bold</strong>")}</p>`,
 				fromCache: false,
@@ -871,14 +811,11 @@ describe("MarkdownText", () => {
 				streamingAnimationMode: "instant",
 			});
 
-			expect(view.container.textContent).not.toContain("bold text");
-
 			await waitFor(() => {
 				expect(view.container.textContent).toContain("bold text");
-				expect(view.container.querySelector(".streaming-section")).toBeTruthy();
-				expect(view.container.querySelector(".streaming-section strong")?.textContent).toBe("bold");
+				expect(view.container.querySelector(".markdown-content strong")?.textContent).toBe("bold");
 			});
-			expect(renderMarkdownSyncMock).not.toHaveBeenCalled();
+			expect(renderMarkdownSyncMock).toHaveBeenCalledWith(text, undefined);
 
 			await view.rerender({
 				text,
@@ -894,7 +831,7 @@ describe("MarkdownText", () => {
 			});
 		});
 
-		it("replaces animated streaming html with clean settled html after drain", async () => {
+		it("keeps clean canonical html after the stream drains", async () => {
 			renderMarkdownSyncMock.mockImplementation((mdText) => ({
 				html: `<p>${mdText.replace("**bold**", "<strong>bold</strong>")}</p>`,
 				fromCache: false,
@@ -910,7 +847,7 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				expect(view.container.querySelector(".sd-word-fade")).not.toBeNull();
+				expect(view.container.querySelector(".markdown-content strong")?.textContent).toBe("bold");
 			});
 
 			await view.rerender({
@@ -921,12 +858,11 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				expect(view.container.querySelector(".streaming-section")).toBeNull();
 				const rendered = view.container.querySelector(".markdown-content strong");
 				expect(rendered?.textContent).toBe("bold");
 			});
 
-			expect(view.container.querySelector(".sd-word-fade")).toBeNull();
+			expect(view.container.querySelector(".markdown-content")).not.toBeNull();
 		});
 
 		it("does not restart reveal from the beginning after a remount with the same reveal key", async () => {
