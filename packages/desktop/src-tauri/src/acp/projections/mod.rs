@@ -121,6 +121,11 @@ pub fn build_validated_canonical_operation_id(
     Ok(build_canonical_operation_id(session_id, provenance_key))
 }
 
+/// Provider-layer provenance status carried by an Operation snapshot.
+/// This is the raw status from the tool-call stream, captured as provenance evidence.
+/// Do NOT use for canonical state decisions — use [`OperationState`] instead.
+pub type OperationProviderStatus = ToolCallStatus;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct OperationSnapshot {
     pub id: String,
@@ -128,7 +133,8 @@ pub struct OperationSnapshot {
     pub tool_call_id: String,
     pub name: String,
     pub kind: Option<crate::acp::session_update::ToolKind>,
-    pub status: ToolCallStatus,
+    /// Provider-layer provenance status. Use `operation_state` for canonical state decisions.
+    pub provider_status: OperationProviderStatus,
     pub title: Option<String>,
     pub arguments: crate::acp::session_update::ToolArguments,
     pub progressive_arguments: Option<crate::acp::session_update::ToolArguments>,
@@ -801,7 +807,7 @@ impl ProjectionRegistry {
             tool_call_id: tool_call.id.clone(),
             name: tool_call.name.clone(),
             kind: tool_call.kind,
-            status: tool_call.status.clone(),
+            provider_status: tool_call.status.clone(),
             title: tool_call.title.clone(),
             arguments: tool_call.arguments.clone(),
             progressive_arguments: existing
@@ -881,7 +887,7 @@ impl ProjectionRegistry {
             return;
         };
 
-        let next_status = update.status.clone().unwrap_or(existing.status.clone());
+        let next_status = update.status.clone().unwrap_or(existing.provider_status.clone());
         let next_arguments = update
             .arguments
             .clone()
@@ -920,7 +926,7 @@ impl ProjectionRegistry {
                 tool_call_id: existing.tool_call_id,
                 name: existing.name,
                 kind: existing.kind,
-                status: next_status,
+                provider_status: next_status,
                 title: next_title.clone(),
                 arguments: next_arguments.clone(),
                 progressive_arguments: next_progressive_arguments.clone(),
@@ -1215,7 +1221,7 @@ fn rejected_operation_snapshot(
         tool_call_id: tool_call.id.clone(),
         name: tool_call.name.clone(),
         kind: tool_call.kind,
-        status: tool_call.status.clone(),
+        provider_status: tool_call.status.clone(),
         title: tool_call.title.clone(),
         arguments: tool_call.arguments.clone(),
         progressive_arguments: None,
@@ -1568,7 +1574,7 @@ mod tests {
             .operation_for_tool_call("session-1", "tool-1")
             .expect("expected created operation");
         assert_eq!(created.command.as_deref(), Some("mkdir demo"));
-        assert_eq!(created.status, ToolCallStatus::Pending);
+        assert_eq!(created.provider_status, ToolCallStatus::Pending);
 
         registry.apply_session_update(
             "session-1",
@@ -1615,7 +1621,7 @@ mod tests {
             .operation_for_tool_call("session-1", "tool-1")
             .expect("expected completed operation");
         assert_eq!(completed.id, created.id);
-        assert_eq!(completed.status, ToolCallStatus::Completed);
+        assert_eq!(completed.provider_status, ToolCallStatus::Completed);
         assert_eq!(completed.result, Some(json!("done")));
         assert!(completed.progressive_arguments.is_none());
     }

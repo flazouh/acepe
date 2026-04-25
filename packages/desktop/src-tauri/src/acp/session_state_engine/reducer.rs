@@ -130,7 +130,7 @@ fn is_terminal_operation_snapshot(operation: &crate::acp::projections::Operation
     }
 
     matches!(
-        operation.status,
+        operation.provider_status,
         crate::acp::session_update::ToolCallStatus::Completed
             | crate::acp::session_update::ToolCallStatus::Failed
     )

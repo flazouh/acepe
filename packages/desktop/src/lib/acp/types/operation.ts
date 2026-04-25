@@ -6,13 +6,22 @@ import type {
 	TodoItem,
 	ToolArguments,
 	ToolCallLocation,
-	ToolCallStatus,
-	ToolKind,
 } from "../../services/converted-session-types.js";
 import type { OperationDegradationReason } from "../../services/acp-types.js";
 
-export type OperationKind = ToolKind | null | undefined;
-export type OperationStatus = ToolCallStatus;
+/** Provider-layer provenance status carried by the Operation for observability. Not used for product decisions — use operationState for all canonical state logic. */
+export type OperationProviderStatus = "pending" | "in_progress" | "completed" | "failed";
+
+/** Provider-layer tool classification carried by the Operation as provenance evidence. Not used for canonical state decisions. */
+export type OperationKind =
+	| "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search"
+	| "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move"
+	| "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search"
+	| "browser" | "sql" | "unclassified" | "other"
+	| null | undefined;
+
+/** @deprecated Use OperationProviderStatus. This alias exists for migration only. */
+export type OperationStatus = OperationProviderStatus;
 
 export type OperationState =
 	| "pending"
@@ -30,7 +39,8 @@ export interface Operation {
 	readonly sourceEntryId: string | null;
 	readonly name: string;
 	readonly kind: OperationKind;
-	readonly status: OperationStatus;
+	/** Provider-layer provenance status. Use operationState for all canonical state decisions. */
+	readonly status: OperationProviderStatus;
 	readonly operationState: OperationState;
 	readonly operationProvenanceKey?: string | null;
 	readonly title: string | null | undefined;

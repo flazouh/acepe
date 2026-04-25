@@ -57,7 +57,7 @@ export type { ModelId } from "./model-id.js";
 export type { ModifiedFileEntry } from "./modified-file-entry.js";
 export type { ModifiedFilesState } from "./modified-files-state.js";
 export type { NewSessionResponse } from "./new-session-response.js";
-export type { Operation, OperationKind, OperationStatus } from "./operation.js";
+export type { Operation, OperationKind, OperationProviderStatus, OperationStatus } from "./operation.js";
 export type { PermissionReply, PermissionRequest } from "./permission.js";
 export type { Plan, PlanStep } from "./plan.js";
 export type { PromptRequest } from "./prompt-request.js";
