@@ -10,28 +10,6 @@ use super::shared::get_db;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_api_key(app: AppHandle, provider_id: String) -> CommandResult<Option<String>> {
-    unexpected_command_result(
-        "get_api_key",
-        "Failed to get API key",
-        async {
-            tracing::debug!(provider_id = %provider_id, "Getting API key");
-
-            let db = get_db(&app);
-
-            SettingsRepository::get_api_key(&db, &provider_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = e.root_cause(), "Failed to get API key");
-                    e.to_string()
-                })
-        }
-        .await,
-    )
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn save_api_key(
     app: AppHandle,
     provider_id: String,

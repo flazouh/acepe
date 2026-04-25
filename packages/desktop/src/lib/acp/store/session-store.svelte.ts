@@ -3,14 +3,14 @@
  *
  * Single source of truth for all session state:
  * - sessions: SessionCold[] (cold data)
- * - hotState: Map<id, SessionHotState> (all transient state)
+ * - hotState: Map<id, SessionTransientProjection> (all transient state)
  * - entriesById: Map<id, SessionEntry[]> (messages)
  * - Event subscription handling (via SessionEventService)
  */
 
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
-import { SvelteSet } from "svelte/reactivity";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -20,6 +20,7 @@ import {
 	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
+	InteractionSnapshot,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -59,6 +60,7 @@ import type {
 	TurnCompleteUpdate,
 	TurnErrorUpdate,
 } from "../types/turn-error.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import {
@@ -77,7 +79,7 @@ import type {
 	SessionCold,
 	SessionContextBudget,
 	SessionEntry,
-	SessionHotState,
+	SessionTransientProjection,
 	SessionIdentity,
 	SessionLinkedPr,
 	SessionMetadata,
@@ -100,7 +102,7 @@ import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/sess
 import { SessionRepository } from "./services/session-repository.js";
 import { SessionCapabilitiesStore } from "./session-capabilities-store.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
-import { SessionHotStateStore } from "./session-hot-state-store.svelte.js";
+import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
 
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
@@ -122,6 +124,7 @@ type CreatedSessionHydrator = {
 
 type LiveSessionStateGraphConsumer = {
 	replaceSessionStateGraph(graph: SessionStateGraph): void;
+	applySessionInteractionPatches?(snapshots: ReadonlyArray<InteractionSnapshot>): void;
 };
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
@@ -195,7 +198,7 @@ function mapTurnStateToHotState(
 }
 
 function mapHotTurnStateToGraphTurnState(
-	turnState: SessionHotState["turnState"]
+	turnState: SessionTransientProjection["turnState"]
 ): SessionTurnState {
 	switch (turnState) {
 		case "idle":
@@ -286,15 +289,18 @@ function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string
 
 function toSessionStatusFromGraphLifecycle(
 	lifecycle: SessionGraphLifecycle
-): SessionHotState["status"] {
+): SessionTransientProjection["status"] {
 	switch (lifecycle.status) {
-		case "idle":
+		case "reserved":
+		case "detached":
+		case "archived":
 			return "idle";
-		case "connecting":
+		case "activating":
+		case "reconnecting":
 			return "connecting";
 		case "ready":
 			return "ready";
-		case "error":
+		case "failed":
 			return "error";
 	}
 }
@@ -328,7 +334,7 @@ function projectGraphCapabilities(
 	currentMode: Mode | null;
 	modelsDisplay: ModelsForDisplay | undefined;
 	providerMetadata: ProviderMetadataProjection;
-	configOptions: SessionHotState["configOptions"];
+	configOptions: SessionTransientProjection["configOptions"];
 	autonomousEnabled: boolean;
 } {
 	const availableModels = mapGraphAvailableModels(capabilities);
@@ -401,7 +407,7 @@ function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
 	activeTurnFailure: ActiveTurnFailure | null
 ): string | null {
-	if (lifecycle.status === "error") {
+	if (lifecycle.status === "failed" || lifecycle.status === "detached") {
 		return lifecycle.errorMessage ?? null;
 	}
 
@@ -424,7 +430,7 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 
 function deriveRecoveredActivityKind(
 	activity: SessionGraphActivity,
-	turnState: SessionHotState["turnState"]
+	turnState: SessionTransientProjection["turnState"]
 ): SessionGraphActivity["kind"] {
 	if (activity.blockingInteractionId != null) {
 		return "waiting_for_user";
@@ -444,12 +450,12 @@ function deriveRecoveredActivityKind(
 function reconcileStoredGraphActivity(
 	activity: SessionGraphActivity | null | undefined,
 	lifecycle: SessionGraphLifecycle,
-	turnState: SessionHotState["turnState"],
+	turnState: SessionTransientProjection["turnState"],
 	activeTurnFailure: ActiveTurnFailure | null
 ): SessionGraphActivity | null {
 	const previousActivity = activity ?? null;
 
-	if (lifecycle.status === "error" || activeTurnFailure !== null) {
+	if (lifecycle.status === "failed" || activeTurnFailure !== null) {
 		if (previousActivity === null) {
 			return {
 				kind: "error",
@@ -509,10 +515,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private readonly onRemoveCallbacks: Array<(sessionId: string) => void> = [];
 
 	// Hot state store (batched transient state)
-	private readonly hotStateStore = new SessionHotStateStore();
+	private readonly hotStateStore = new SessionTransientProjectionStore();
 
 	// Capabilities store (ACP configuration - models, modes, commands)
 	private readonly capabilitiesStore = new SessionCapabilitiesStore();
+
+	// Canonical graph selector state for lifecycle/activity/actionability consumers.
+	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 
 	// Canonical tool execution domain state
 	private readonly operationStore = new OperationStore();
@@ -664,8 +673,19 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Get hot state for a session.
 	 */
-	getHotState(sessionId: string): SessionHotState {
+	getHotState(sessionId: string): SessionTransientProjection {
 		return this.hotStateStore.getHotState(sessionId);
+	}
+
+	/**
+	 * Get canonical graph projection for lifecycle/activity UI selectors.
+	 */
+	getCanonicalSessionProjection(sessionId: string): CanonicalSessionProjection | null {
+		return this.canonicalProjections.get(sessionId) ?? null;
+	}
+
+	getSessionCanSend(sessionId: string): boolean | null {
+		return this.canonicalProjections.get(sessionId)?.lifecycle.actionability.canSend ?? null;
 	}
 
 	/**
@@ -850,6 +870,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const projectedCapabilities = projectGraphCapabilities(normalizedAgentId, graph.capabilities);
 		const activeTurnFailure = mapProjectionTurnFailure(graph.activeTurnFailure ?? null);
 		const nextLastTerminalTurnId = graph.lastTerminalTurnId ?? null;
+		this.canonicalProjections.set(graph.canonicalSessionId, {
+			lifecycle: graph.lifecycle,
+			activity: graph.activity,
+			turnState: graph.turnState,
+			activeTurnFailure,
+			lastTerminalTurnId: nextLastTerminalTurnId,
+			revision: graph.revision,
+		});
 		const isNewCompletedTurn =
 			graph.turnState === "Completed" &&
 			(previousHotState.turnState !== "completed" ||
@@ -900,9 +928,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			modelsDisplay: projectedCapabilities.modelsDisplay,
 			providerMetadata: projectedCapabilities.providerMetadata,
 		});
-		const updates: Partial<import("./types.js").SessionHotState> = {
+		const updates: Partial<import("./types.js").SessionTransientProjection> = {
 			status: toSessionStatusFromGraphLifecycle(graph.lifecycle),
-			isConnected: graph.lifecycle.status === "ready",
+			isConnected: graph.lifecycle.actionability.canSend,
 			acpSessionId: graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
 			turnState: mapTurnStateToHotState(graph.turnState),
 			activity: cloneSessionGraphActivity(graph.activity),
@@ -933,21 +961,25 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	): void {
 		let machineState = this.connectionService.getState(sessionId);
 
-		if (lifecycle.status === "idle") {
+		if (
+			lifecycle.status === "reserved" ||
+			lifecycle.status === "detached" ||
+			lifecycle.status === "archived"
+		) {
 			if (machineState !== null && machineState.connection !== "disconnected") {
 				this.connectionService.sendDisconnect(sessionId);
 			}
 			return;
 		}
 
-		if (lifecycle.status === "connecting") {
+		if (lifecycle.status === "activating" || lifecycle.status === "reconnecting") {
 			if (machineState === null || machineState.connection === "disconnected") {
 				this.connectionService.sendConnectionConnect(sessionId);
 			}
 			return;
 		}
 
-		if (lifecycle.status === "error") {
+		if (lifecycle.status === "failed") {
 			if (machineState === null || machineState.connection === "disconnected") {
 				this.connectionService.sendConnectionConnect(sessionId);
 			}
@@ -1012,16 +1044,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 	}
 
-	clearSessionProjection(sessionId: string): void {
-		if (!this.hotStateStore.hasHotState(sessionId)) {
-			return;
-		}
-		this.hotStateStore.updateHotState(sessionId, {
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
-	}
-
 	// ============================================
 	// SESSION LOADING STATUS
 	// ============================================
@@ -1078,6 +1100,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	removeSession(sessionId: string): void {
 		this.repository.removeSession(sessionId);
 		this.hotStateStore.removeHotState(sessionId);
+		this.canonicalProjections.delete(sessionId);
 		this.capabilitiesStore.removeCapabilities(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.composerMachineService.removeMachine(sessionId);
@@ -1380,9 +1403,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Used for cleanup when the app window closes.
 	 */
 	disconnectAllSessions(): void {
-		// Read connection status from hot state, not cold state
 		const connectedSessions = this.sessions.filter(
-			(s) => this.hotStateStore.getHotState(s.id).isConnected
+			(s) => this.getSessionCanSend(s.id) ?? this.hotStateStore.getHotState(s.id).isConnected
 		);
 		for (const session of connectedSessions) {
 			this.disconnectSession(session.id);
@@ -1443,7 +1465,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 		logger.info("sendMessage: store entrypoint", {
 			sessionId,
-			isConnected: this.hotStateStore.getHotState(sessionId).isConnected,
+			canSend:
+				this.getSessionCanSend(sessionId) ?? this.hotStateStore.getHotState(sessionId).isConnected,
 			entryCountBeforeSend: this.entryStore.getEntries(sessionId).length,
 			preview: content.trim().slice(0, 120),
 		});
@@ -1475,7 +1498,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		if (hotState.isConnected) {
+		if (this.getSessionCanSend(sessionId) ?? hotState.isConnected) {
 			return send();
 		}
 
@@ -2116,26 +2139,50 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 			if (command.kind === "applyLifecycle") {
 				const hotState = this.getHotState(sessionId);
-				this.hotStateStore.updateHotState(sessionId, {
-					status: toSessionStatusFromGraphLifecycle(command.lifecycle),
-					isConnected: command.lifecycle.status === "ready",
-					activity: reconcileStoredGraphActivity(
-						hotState.activity ?? null,
+				const activeTurnFailure = hotState.activeTurnFailure ?? null;
+				const turnState = mapHotTurnStateToGraphTurnState(hotState.turnState);
+				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				const reconciledActivity =
+					reconcileStoredGraphActivity(
+						previousProjection?.activity ?? hotState.activity ?? null,
 						command.lifecycle,
 						hotState.turnState,
-						hotState.activeTurnFailure ?? null
-					),
+						activeTurnFailure
+					) ?? {
+						kind: "idle",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					};
+				this.canonicalProjections.set(sessionId, {
+					lifecycle: command.lifecycle,
+					activity: reconciledActivity,
+					turnState,
+					activeTurnFailure,
+					lastTerminalTurnId:
+						previousProjection?.lastTerminalTurnId ?? hotState.lastTerminalTurnId ?? null,
+					revision: previousProjection?.revision ?? {
+						graphRevision: envelope.graphRevision,
+						transcriptRevision: this.entryStore.getTranscriptRevision(sessionId) ?? 0,
+						lastEventSeq: envelope.lastEventSeq,
+					},
+				});
+				this.hotStateStore.updateHotState(sessionId, {
+					status: toSessionStatusFromGraphLifecycle(command.lifecycle),
+					isConnected: command.lifecycle.actionability.canSend,
+					activity: reconciledActivity,
 					acpSessionId: command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
 					connectionError: connectionErrorFromGraphState(
 						command.lifecycle,
-						hotState.activeTurnFailure ?? null
+						activeTurnFailure
 					),
 				});
 				this.reconcileConnectionMachineFromCanonicalState(
 					sessionId,
 					command.lifecycle,
-					mapHotTurnStateToGraphTurnState(hotState.turnState),
-					hotState.activeTurnFailure ?? null
+					turnState,
+					activeTurnFailure
 				);
 				continue;
 			}
@@ -2185,6 +2232,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				if (nextTelemetry !== null) {
 					this.updateUsageTelemetry(sessionId, nextTelemetry);
 				}
+				continue;
+			}
+
+			if (command.kind === "applyGraphPatches") {
+				this.operationStore.applySessionOperationPatches(sessionId, command.operationPatches);
+				this.liveSessionStateGraphConsumer?.applySessionInteractionPatches?.(
+					command.interactionPatches
+				);
 				continue;
 			}
 

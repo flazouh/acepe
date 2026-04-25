@@ -39,7 +39,7 @@ let {
 
 const sessionStore = getSessionStore();
 const interactionStore = getInteractionStore();
-const operationStore = sessionStore.getOperationStore();
+const operationStore = sessionStore?.getOperationStore?.() ?? null;
 const logger = createLogger({
 	id: "agent-panel-content-trace",
 	name: "AgentPanelContentTrace",
@@ -54,19 +54,24 @@ const runtimeState = $derived(
 	isWaitingProp !== undefined
 		? null
 		: sessionId
-			? sessionStore.getSessionRuntimeState(sessionId)
+			? (sessionStore?.getSessionRuntimeState(sessionId) ?? null)
 			: null
 );
 const hotState = $derived(
-	turnStateProp !== undefined ? null : sessionId ? sessionStore.getHotState(sessionId) : null
+	turnStateProp !== undefined ? null : sessionId ? (sessionStore?.getHotState(sessionId) ?? null) : null
+);
+const canonicalProjection = $derived(
+	turnStateProp !== undefined || !sessionId
+		? null
+		: (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null)
 );
 const currentStreamingToolCall = $derived(
-	isWaitingProp !== undefined || !sessionId
+	isWaitingProp !== undefined || !sessionId || operationStore === null
 		? null
 		: operationStore.getCurrentStreamingToolCall(sessionId)
 );
 const interactionSnapshot = $derived.by(() =>
-	isWaitingProp !== undefined || !sessionId
+	isWaitingProp !== undefined || !sessionId || operationStore === null || interactionStore == null
 		? {
 				pendingQuestion: null,
 				pendingQuestionOperation: null,
@@ -91,6 +96,7 @@ const sessionWorkProjection = $derived.by(() => {
 			activeTurnFailure: hotState?.activeTurnFailure ?? null,
 			activity: hotState?.activity ?? null,
 		},
+		canonicalProjection,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,

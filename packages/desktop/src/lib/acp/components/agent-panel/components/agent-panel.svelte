@@ -19,7 +19,7 @@ import { deriveLiveSessionWorkProjection } from "../../../store/live-session-wor
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
 import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
 import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
-import { selectLegacySessionStatus } from "../../../store/session-work-projection.js";
+import { selectSessionStatusForPresentation } from "../../../store/session-work-projection.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
@@ -29,6 +29,7 @@ import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
+import AgentSelector from "../../agent-selector.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
@@ -361,6 +362,9 @@ const browserSidebarUrl = $derived(
 );
 // Canonical runtime state from session machine.
 const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
+const canonicalProjection = $derived(
+	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
+);
 const sessionWorkProjection = $derived.by(() => {
 	if (!sessionId) {
 		return null;
@@ -375,6 +379,7 @@ const sessionWorkProjection = $derived.by(() => {
 			activeTurnFailure: sessionHotState?.activeTurnFailure ?? null,
 			activity: sessionHotState?.activity ?? null,
 		},
+		canonicalProjection,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
@@ -412,7 +417,7 @@ const agentName = $derived(effectivePanelAgentId);
 const sessionStatus = $derived.by(() => {
 	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
 		return "connecting";
-	return sessionWorkProjection ? selectLegacySessionStatus(sessionWorkProjection) : null;
+	return sessionWorkProjection ? selectSessionStatusForPresentation(sessionWorkProjection) : null;
 });
 const mappedSessionStatus = $derived(mapSessionStatusToUI(sessionStatus));
 const sessionIsStreaming = $derived(sessionCanonicalActivity === "running_operation");
@@ -1978,6 +1983,13 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					widthClass="max-w-[60%]"
 				>
 					{#key inputRenderKey}
+						{#snippet preSessionAgentPicker()}
+							<AgentSelector
+								{availableAgents}
+								currentAgentId={effectivePanelAgentId}
+								{onAgentChange}
+							/>
+						{/snippet}
 						<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
@@ -2012,6 +2024,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							{selectedAgentId}
 							{availableAgents}
 							{onAgentChange}
+							agentProjectPicker={hasSession ? undefined : preSessionAgentPicker}
 							pendingProjectSelection={pendingProjectSelection && !isWaitingForSession}
 							onSessionCreated={handleSessionCreated}
 							onWillSend={prepareForNextUserReveal}

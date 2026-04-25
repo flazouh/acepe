@@ -9,8 +9,8 @@ import type { IEntryStoreInternal } from "../interfaces/entry-store-internal.js"
 import {
 	extractResultFromContent,
 	isToolCallStreaming,
-	ToolCallManager,
-} from "../tool-call-manager.svelte.js";
+	TranscriptToolCallBuffer,
+} from "../transcript-tool-call-buffer.svelte.js";
 
 // ============================================
 // MOCK FACTORIES
@@ -95,7 +95,7 @@ function createToolCallEntry(id: string): SessionEntry {
 }
 
 function createTrackedManager(initialEntries?: Array<{ sessionId: string; entry: SessionEntry }>): {
-	manager: ToolCallManager;
+	manager: TranscriptToolCallBuffer;
 	entryStore: IEntryStoreInternal;
 	entryIndex: IEntryIndex;
 } {
@@ -131,14 +131,14 @@ function createTrackedManager(initialEntries?: Array<{ sessionId: string; entry:
 	});
 
 	return {
-		manager: new ToolCallManager(entryStore, entryIndex),
+		manager: new TranscriptToolCallBuffer(entryStore, entryIndex),
 		entryStore,
 		entryIndex,
 	};
 }
 
 function applyStreamingArguments(
-	manager: ToolCallManager,
+	manager: TranscriptToolCallBuffer,
 	sessionId: string,
 	toolCallId: string,
 	args: ToolArguments
@@ -231,7 +231,7 @@ describe("extractResultFromContent", () => {
 // TOOL CALL MANAGER
 // ============================================
 
-describe("ToolCallManager", () => {
+describe("TranscriptToolCallBuffer", () => {
 	// ============================================
 	// createEntry
 	// ============================================
@@ -240,7 +240,7 @@ describe("ToolCallManager", () => {
 		it("creates a new tool call entry", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const data = createToolCallData("tc-1", { name: "Read", kind: "read" });
 			const result = manager.createEntry("s1", data);
@@ -264,7 +264,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const data = createToolCallData("tc-1", {
 				name: "Read",
@@ -319,7 +319,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const sparseData = createToolCallData("tc-1", {
 				name: "Edit",
@@ -376,7 +376,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const sparseData = createToolCallData("tc-1", {
 				name: "Search",
@@ -423,7 +423,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const replayedData = createToolCallData("tc-1", {
 				status: "pending",
@@ -464,7 +464,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			// Synthetic tool call from permission arrives with kind: "edit"
 			const syntheticData = createToolCallData("tc-1", {
@@ -506,7 +506,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const replayedData = createToolCallData("tc-1", {
 				status: "completed",
@@ -566,7 +566,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const questionData = createToolCallData("tc-1", {
 				name: "AskUserQuestion",
@@ -619,7 +619,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const resolvedData = createToolCallData("tc-1", {
 				status: "in_progress",
@@ -723,7 +723,7 @@ describe("ToolCallManager", () => {
 		it("does not synthesize a placeholder entry when a canonical tool row is missing", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-new", { status: "pending" });
 			const result = manager.updateEntry("s1", update);
@@ -736,7 +736,7 @@ describe("ToolCallManager", () => {
 		it("ignores streaming-only updates when the tool call does not exist yet", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-streaming-only", {
 				streamingArguments: { kind: "execute", command: "bun test" },
@@ -751,7 +751,7 @@ describe("ToolCallManager", () => {
 		it("ignores raw streaming delta-only updates when the tool call does not exist yet", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-streaming-delta-only", {
 				streamingInputDelta: '{"command":"bun',
@@ -771,7 +771,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-1", {
 				status: "completed",
@@ -810,7 +810,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const replayedUpdate = createToolCallUpdate("tc-1", {
 				status: "in_progress",
@@ -849,7 +849,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			// Update with text content - should not replace structured result
 			const update = createToolCallUpdate("tc-1", {
@@ -892,7 +892,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-1", {
 				status: "completed",
@@ -919,7 +919,7 @@ describe("ToolCallManager", () => {
 		it("uses rawOutput as result when provided", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-1", {
 				rawOutput: "raw output text",
@@ -955,7 +955,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-1", {
 				status: "completed",
@@ -1012,7 +1012,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-1", {
 				status: "completed",
@@ -1075,7 +1075,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-rename", {
 				status: "completed",
@@ -1135,7 +1135,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const update = createToolCallUpdate("tc-rename", {
 				status: "completed",
@@ -1202,7 +1202,7 @@ describe("ToolCallManager", () => {
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn((_, toolCallId) => (toolCallId === "tc-1" ? 0 : undefined)),
 			});
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			const args: ToolArguments = { kind: "read", file_path: "/foo/bar.ts" };
 			applyStreamingArguments(manager, "s1", "tc-1", args);
@@ -1219,7 +1219,7 @@ describe("ToolCallManager", () => {
 		});
 
 		it("returns undefined for unknown tool call", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 
 			expect(manager.getStreamingArguments("unknown")).toBeUndefined();
 		});
@@ -1317,7 +1317,7 @@ describe("ToolCallManager", () => {
 		});
 
 		it("drops streaming-only updates when session limit exceeded", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 
 			// Fill up to MAX_SESSIONS (100)
 			for (let i = 0; i < 100; i++) {
@@ -1360,13 +1360,13 @@ describe("ToolCallManager", () => {
 
 	describe("getToolCallIdsForSession", () => {
 		it("returns empty set for unknown session", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 			const ids = manager.getToolCallIdsForSession("unknown");
 			expect(ids.size).toBe(0);
 		});
 
 		it("returns tool call IDs after canonical tool entries are created", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 			manager.createEntry("s1", createToolCallData("tc-1"));
 			manager.createEntry("s1", createToolCallData("tc-2"));
 
@@ -1377,7 +1377,7 @@ describe("ToolCallManager", () => {
 		});
 
 		it("isolates tool call IDs per session", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 			manager.createEntry("s1", createToolCallData("tc-1"));
 			manager.createEntry("s2", createToolCallData("tc-2"));
 
@@ -1425,7 +1425,7 @@ describe("ToolCallManager", () => {
 		});
 
 		it("is safe to call on unknown session", () => {
-			const manager = new ToolCallManager(createMockEntryStore(), createMockEntryIndex());
+			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
 			// Should not throw
 			manager.clearSession("nonexistent");
 		});
@@ -1433,7 +1433,7 @@ describe("ToolCallManager", () => {
 		it("clears child-to-parent index for session tool calls", () => {
 			const entryStore = createMockEntryStore();
 			const entryIndex = createMockEntryIndex();
-			const manager = new ToolCallManager(entryStore, entryIndex);
+			const manager = new TranscriptToolCallBuffer(entryStore, entryIndex);
 
 			// Create parent with child to populate child-to-parent index
 			const childData = createToolCallData("child-1");

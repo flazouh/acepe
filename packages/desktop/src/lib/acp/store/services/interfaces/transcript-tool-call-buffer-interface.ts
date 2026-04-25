@@ -1,5 +1,5 @@
 /**
- * Tool Call Manager Interface
+ * Transcript Tool Call Buffer Interface
  *
  * Narrow interface for tool call CRUD, child-parent reconciliation,
  * and streaming argument storage. Combines the original tool call
@@ -12,7 +12,7 @@ import type { ToolArguments, ToolCallData } from "../../../../services/converted
 import type { AppError } from "../../../errors/app-error.js";
 import type { ToolCallUpdate } from "../../../types/tool-call.js";
 
-export interface IToolCallManager {
+export interface ITranscriptToolCallBuffer {
 	createEntry(sessionId: string, data: ToolCallData): Result<void, AppError>;
 	updateEntry(sessionId: string, update: ToolCallUpdate): Result<void, AppError>;
 	getToolCallIdsForSession(sessionId: string): ReadonlySet<string>;

@@ -71,7 +71,6 @@ export const COMMANDS = {
     "get_project_acepe_config": "get_project_acepe_config",
     "save_project_acepe_config": "save_project_acepe_config",
     "backfill_project_icons": "backfill_project_icons",
-    "get_api_key": "get_api_key",
     "save_api_key": "save_api_key",
     "delete_api_key": "delete_api_key",
     "get_custom_keybindings": "get_custom_keybindings",
@@ -85,6 +84,7 @@ export const COMMANDS = {
     "delete_session_review_state": "delete_session_review_state",
     "save_thread_list_settings": "save_thread_list_settings",
     "get_thread_list_settings": "get_thread_list_settings",
+    "request_destructive_confirmation_token": "request_destructive_confirmation_token",
     "reset_database": "reset_database",
     "open_in_finder": "open_in_finder",
     "open_streaming_log": "open_streaming_log"

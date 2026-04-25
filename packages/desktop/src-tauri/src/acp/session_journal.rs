@@ -6,9 +6,8 @@ use crate::acp::projections::{
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate, TurnErrorData};
-use crate::db::repository::{SerializedSessionJournalEventRow, SessionJournalEventRepository};
+use crate::db::repository::SerializedSessionJournalEventRow;
 use chrono::Utc;
-use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -229,43 +228,6 @@ pub fn decode_serialized_events(
     rows.into_iter()
         .map(|row| decode_serialized_event(replay_context, row))
         .collect()
-}
-
-pub async fn load_projection_from_journal(
-    db: &DbConn,
-    replay_context: &SessionReplayContext,
-) -> Result<Option<SessionProjectionSnapshot>, anyhow::Error> {
-    let rows = SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
-        .await?;
-    let events = decode_serialized_events(replay_context, rows)?;
-
-    // A `MaterializationBarrier` event alone marks the open-time cutoff but
-    // carries no projection state. Return `None` so the caller can rebuild from
-    // the canonical thread snapshot instead of consulting a second persisted
-    // projection authority.
-    let has_projection_data = events.iter().any(|e| {
-        matches!(
-            e.payload,
-            SessionJournalEventPayload::ProjectionUpdate { .. }
-                | SessionJournalEventPayload::InteractionTransition { .. }
-        )
-    });
-    if !has_projection_data {
-        return Ok(None);
-    }
-
-    Ok(Some(rebuild_session_projection(replay_context, &events)))
-}
-
-pub async fn load_stored_projection(
-    db: &DbConn,
-    replay_context: &SessionReplayContext,
-) -> Result<Option<SessionProjectionSnapshot>, anyhow::Error> {
-    if let Some(journal_projection) = load_projection_from_journal(db, replay_context).await? {
-        return Ok(Some(journal_projection));
-    }
-
-    Ok(None)
 }
 
 #[cfg(test)]

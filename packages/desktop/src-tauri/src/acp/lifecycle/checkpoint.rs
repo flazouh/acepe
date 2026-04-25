@@ -1,8 +1,6 @@
-use crate::acp::lifecycle::state::{
-    DetachedReason, FailureReason, LifecycleState, LifecycleStatus,
-};
+use crate::acp::lifecycle::state::LifecycleState;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphLifecycleStatus,
+    SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -45,56 +43,11 @@ impl LifecycleCheckpoint {
         lifecycle: SessionGraphLifecycle,
         capabilities: SessionGraphCapabilities,
     ) -> Self {
-        let persisted_lifecycle = match lifecycle.status {
-            SessionGraphLifecycleStatus::Idle => LifecycleState::reserved(),
-            SessionGraphLifecycleStatus::Connecting => LifecycleState::activating(),
-            SessionGraphLifecycleStatus::Ready => LifecycleState::ready(),
-            SessionGraphLifecycleStatus::Error => {
-                if lifecycle.can_reconnect {
-                    LifecycleState::detached_with_message(
-                        DetachedReason::LegacyAmbiguousRestore,
-                        lifecycle.error_message,
-                    )
-                } else {
-                    LifecycleState::failed(
-                        FailureReason::ExplicitErrorHandlingRequired,
-                        lifecycle.error_message,
-                    )
-                }
-            }
-        };
-
-        Self::new(graph_revision, persisted_lifecycle, capabilities)
+        Self::new(graph_revision, lifecycle.lifecycle_state(), capabilities)
     }
 
     #[must_use]
-    pub fn compat_graph_lifecycle(&self) -> SessionGraphLifecycle {
-        match self.lifecycle.status {
-            LifecycleStatus::Reserved => SessionGraphLifecycle {
-                status: SessionGraphLifecycleStatus::Idle,
-                error_message: None,
-                can_reconnect: true,
-            },
-            LifecycleStatus::Activating | LifecycleStatus::Reconnecting => SessionGraphLifecycle {
-                status: SessionGraphLifecycleStatus::Connecting,
-                error_message: None,
-                can_reconnect: true,
-            },
-            LifecycleStatus::Ready => SessionGraphLifecycle {
-                status: SessionGraphLifecycleStatus::Ready,
-                error_message: None,
-                can_reconnect: true,
-            },
-            LifecycleStatus::Detached => SessionGraphLifecycle {
-                status: SessionGraphLifecycleStatus::Error,
-                error_message: self.lifecycle.error_message.clone(),
-                can_reconnect: true,
-            },
-            LifecycleStatus::Failed | LifecycleStatus::Archived => SessionGraphLifecycle {
-                status: SessionGraphLifecycleStatus::Error,
-                error_message: self.lifecycle.error_message.clone(),
-                can_reconnect: false,
-            },
-        }
+    pub fn graph_lifecycle(&self) -> SessionGraphLifecycle {
+        SessionGraphLifecycle::from_lifecycle_state(self.lifecycle.clone())
     }
 }

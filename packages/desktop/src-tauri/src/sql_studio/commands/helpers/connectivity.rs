@@ -1,6 +1,7 @@
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::Row;
+use std::path::{Path, PathBuf};
 
 use crate::db::repository::SqlConnectionRow;
 
@@ -19,9 +20,93 @@ pub(crate) fn get_sqlite_file_path(config: &SqlConnectionRow) -> Result<String, 
         return Err(format!("Database engine '{}' is not SQLite", config.engine));
     }
 
-    parse_sql_stored_config(config)?
+    let file_path = parse_sql_stored_config(config)?
         .file_path
-        .ok_or_else(|| "SQLite connection is missing file path".to_string())
+        .ok_or_else(|| "SQLite connection is missing file path".to_string())?;
+    reject_acepe_app_database_path(&file_path)?;
+    Ok(file_path)
+}
+
+fn sidecar_base_name(file_name: &str) -> Option<&str> {
+    file_name
+        .strip_suffix("-wal")
+        .or_else(|| file_name.strip_suffix("-journal"))
+        .or_else(|| file_name.strip_suffix("-shm"))
+}
+
+fn normalize_existing_or_parent(path: &Path) -> Result<PathBuf, String> {
+    if path.exists() {
+        return path
+            .canonicalize()
+            .map_err(|error| format!("Failed to resolve SQLite path: {}", error));
+    }
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| "SQLite path does not have a parent directory".to_string())?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|error| format!("Failed to resolve SQLite parent path: {}", error))?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| "SQLite path does not have a file name".to_string())?;
+    Ok(canonical_parent.join(file_name))
+}
+
+#[cfg(unix)]
+fn same_file_identity(left: &Path, right: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(left_metadata) = left.metadata() else {
+        return false;
+    };
+    let Ok(right_metadata) = right.metadata() else {
+        return false;
+    };
+    left_metadata.dev() == right_metadata.dev() && left_metadata.ino() == right_metadata.ino()
+}
+
+#[cfg(not(unix))]
+fn same_file_identity(_left: &Path, _right: &Path) -> bool {
+    false
+}
+
+pub(crate) fn sqlite_path_targets_app_database(
+    candidate_path: &Path,
+    app_db_path: &Path,
+) -> Result<bool, String> {
+    let candidate = normalize_existing_or_parent(candidate_path)?;
+    let app_db = normalize_existing_or_parent(app_db_path)?;
+
+    if candidate == app_db || same_file_identity(&candidate, &app_db) {
+        return Ok(true);
+    }
+
+    let Some(candidate_name) = candidate.file_name().and_then(|name| name.to_str()) else {
+        return Ok(false);
+    };
+    let Some(app_db_name) = app_db.file_name().and_then(|name| name.to_str()) else {
+        return Ok(false);
+    };
+
+    let candidate_base = sidecar_base_name(candidate_name);
+    if candidate_base == Some(app_db_name) {
+        let candidate_parent = candidate.parent();
+        let app_parent = app_db.parent();
+        return Ok(candidate_parent.is_some() && candidate_parent == app_parent);
+    }
+
+    Ok(false)
+}
+
+pub(crate) fn reject_acepe_app_database_path(file_path: &str) -> Result<(), String> {
+    let app_db_path = crate::db::get_db_path(None)
+        .map_err(|error| format!("Failed to resolve Acepe app database path: {}", error))?;
+    if sqlite_path_targets_app_database(Path::new(file_path), &app_db_path)? {
+        return Err("SQL Studio cannot open Acepe's own application database".to_string());
+    }
+
+    Ok(())
 }
 
 pub(crate) fn build_postgres_url(config: &SqlConnectionRow) -> Result<String, String> {
@@ -247,5 +332,58 @@ pub(crate) async fn test_connection_row(
             })
         }
         engine => Err(format!("Unsupported database engine: {}", engine)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sqlite_path_targets_app_database;
+
+    #[test]
+    fn rejects_direct_app_db_and_sidecar_paths() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let app_db = dir.path().join("acepe_dev.db");
+        std::fs::write(&app_db, "").expect("write app db");
+
+        assert!(sqlite_path_targets_app_database(&app_db, &app_db).expect("direct db path check"));
+        assert!(
+            sqlite_path_targets_app_database(&dir.path().join("acepe_dev.db-wal"), &app_db)
+                .expect("wal sidecar path check")
+        );
+        assert!(sqlite_path_targets_app_database(
+            &dir.path().join("acepe_dev.db-journal"),
+            &app_db
+        )
+        .expect("journal sidecar path check"));
+        assert!(
+            sqlite_path_targets_app_database(&dir.path().join("acepe_dev.db-shm"), &app_db)
+                .expect("shm sidecar path check")
+        );
+    }
+
+    #[test]
+    fn allows_unrelated_sqlite_paths() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let app_db = dir.path().join("acepe_dev.db");
+        std::fs::write(&app_db, "").expect("write app db");
+
+        assert!(
+            !sqlite_path_targets_app_database(&dir.path().join("scratch.db"), &app_db)
+                .expect("unrelated path check")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_symlink_alias_to_app_database() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let app_db = dir.path().join("acepe_dev.db");
+        let alias = dir.path().join("alias.db");
+        std::fs::write(&app_db, "").expect("write app db");
+        symlink(&app_db, &alias).expect("create symlink");
+
+        assert!(sqlite_path_targets_app_database(&alias, &app_db).expect("symlink path check"));
     }
 }

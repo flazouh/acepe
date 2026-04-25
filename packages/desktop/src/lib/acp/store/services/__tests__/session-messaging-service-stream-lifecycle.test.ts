@@ -11,7 +11,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionEntryStore } from "../../session-entry-store.svelte.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
-import type { IHotStateManager } from "../interfaces/hot-state-manager.js";
+import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
 
 const createCheckpoint = vi.fn();
@@ -36,7 +36,7 @@ function createMockDeps() {
 		getAllSessions: vi.fn(),
 	};
 
-	const hotStateManager: IHotStateManager = {
+	const hotStateManager: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),
@@ -538,7 +538,7 @@ describe("SessionMessagingService replay regression", () => {
 			getAllSessions: vi.fn(),
 		};
 
-		const hotStateManager: IHotStateManager = {
+		const hotStateManager: ITransientProjectionManager = {
 			getHotState: vi.fn().mockReturnValue({ turnState: "streaming" }),
 			hasHotState: vi.fn(),
 			updateHotState: vi.fn(),

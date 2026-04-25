@@ -1,7 +1,3 @@
-import {
-	extractPermissionCommand,
-	extractPermissionToolKind,
-} from "../components/tool-calls/permission-display.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { Operation } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
@@ -11,56 +7,44 @@ import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { OperationStore } from "./operation-store.svelte.js";
 import { extractToolOperationCommand } from "./operation-store.svelte.js";
 
-function normalizeCommand(value: string | null | undefined): string | null {
-	if (value == null) {
-		return null;
-	}
-
-	const trimmed = value.trim();
-	if (trimmed.length === 0) {
-		return null;
-	}
-
-	return trimmed.replace(/\s+/g, " ");
-}
-
 export function permissionMatchesOperation(
 	permission: PermissionRequest,
 	operation: Operation
 ): boolean {
-	if (permission.tool?.callID === operation.toolCallId) {
-		return true;
-	}
-
-	if (operation.kind !== "execute") {
+	if (permission.tool?.callID == null) {
 		return false;
 	}
 
-	if (extractPermissionToolKind(permission) !== "execute") {
-		return false;
-	}
-
-	const permissionCommand = normalizeCommand(extractPermissionCommand(permission));
-	if (permissionCommand == null || operation.command == null) {
-		return false;
-	}
-
-	return permissionCommand === operation.command;
+	return (
+		permission.tool.callID === operation.operationProvenanceKey ||
+		permission.tool.callID === operation.toolCallId
+	);
 }
 
 export function questionMatchesOperation(question: QuestionRequest, operation: Operation): boolean {
-	if (question.tool?.callID === operation.toolCallId) {
-		return true;
+	if (question.tool?.callID == null) {
+		return false;
 	}
 
-	return question.id === operation.toolCallId;
+	return (
+		question.tool.callID === operation.operationProvenanceKey ||
+		question.tool.callID === operation.toolCallId
+	);
 }
 
 export function planApprovalMatchesOperation(
 	approval: PlanApprovalInteraction,
 	operation: Operation
 ): boolean {
-	return approval.tool.callID === operation.toolCallId;
+	if (approval.tool.callID === operation.toolCallId) {
+		return true;
+	}
+
+	if (approval.tool.callID === operation.operationProvenanceKey) {
+		return true;
+	}
+
+	return false;
 }
 
 export function createCompatibilityOperation(toolCall: ToolCall): Operation {
@@ -68,10 +52,19 @@ export function createCompatibilityOperation(toolCall: ToolCall): Operation {
 		id: toolCall.id,
 		sessionId: "",
 		toolCallId: toolCall.id,
+		operationProvenanceKey: toolCall.id,
 		sourceEntryId: null,
 		name: toolCall.name,
 		kind: toolCall.kind,
 		status: toolCall.status,
+		operationState:
+			toolCall.status === "pending"
+				? "pending"
+				: toolCall.status === "in_progress"
+					? "running"
+					: toolCall.status === "completed"
+						? "completed"
+						: "failed",
 		title: toolCall.title,
 		arguments: toolCall.arguments,
 		progressiveArguments: toolCall.progressiveArguments,
@@ -93,68 +86,47 @@ export function createCompatibilityOperation(toolCall: ToolCall): Operation {
 	};
 }
 
-function findUniqueExecuteCommandMatch(
-	operationStore: OperationStore,
-	sessionId: string,
-	command: string
-): Operation | null {
-	let matched: Operation | null = null;
-	for (const operation of operationStore.getSessionOperations(sessionId)) {
-		if (operation.kind !== "execute") {
-			continue;
-		}
-
-		if (operation.command !== command) {
-			continue;
-		}
-
-		if (matched != null) {
-			return null;
-		}
-
-		matched = operation;
-	}
-
-	return matched;
-}
-
 export function findOperationForPermission(
 	operationStore: OperationStore,
 	permission: PermissionRequest
 ): Operation | null {
 	const toolCallId = permission.tool?.callID;
-	if (toolCallId != null) {
-		const directOperation = operationStore.getByToolCallId(permission.sessionId, toolCallId);
-		if (directOperation != null) {
-			return directOperation;
-		}
-	}
-
-	if (extractPermissionToolKind(permission) !== "execute") {
+	if (toolCallId == null) {
 		return null;
 	}
 
-	const permissionCommand = normalizeCommand(extractPermissionCommand(permission));
-	if (permissionCommand == null) {
-		return null;
-	}
-
-	return findUniqueExecuteCommandMatch(operationStore, permission.sessionId, permissionCommand);
+	return (
+		operationStore.getByProvenanceKey(permission.sessionId, toolCallId) ??
+		operationStore.getByToolCallId(permission.sessionId, toolCallId) ??
+		null
+	);
 }
 
 export function findOperationForQuestion(
 	operationStore: OperationStore,
 	question: QuestionRequest
 ): Operation | null {
-	const toolCallId = question.tool?.callID ?? question.id;
-	return operationStore.getByToolCallId(question.sessionId, toolCallId) ?? null;
+	const toolCallId = question.tool?.callID;
+	if (toolCallId == null) {
+		return null;
+	}
+
+	return (
+		operationStore.getByProvenanceKey(question.sessionId, toolCallId) ??
+		operationStore.getByToolCallId(question.sessionId, toolCallId) ??
+		null
+	);
 }
 
 export function findOperationForPlanApproval(
 	operationStore: OperationStore,
 	approval: PlanApprovalInteraction
 ): Operation | null {
-	return operationStore.getByToolCallId(approval.sessionId, approval.tool.callID) ?? null;
+	return (
+		operationStore.getByProvenanceKey(approval.sessionId, approval.tool.callID) ??
+		operationStore.getByToolCallId(approval.sessionId, approval.tool.callID) ??
+		null
+	);
 }
 
 export interface SessionOperationInteractionSnapshot {

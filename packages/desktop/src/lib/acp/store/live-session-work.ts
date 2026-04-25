@@ -5,6 +5,7 @@ import {
 } from "../logic/session-activity.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
 import type { ToolCall } from "../types/tool-call.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";
 import {
@@ -12,14 +13,15 @@ import {
 	type SessionCompactActivityKind,
 	type SessionWorkProjection,
 } from "./session-work-projection.js";
-import type { SessionHotState } from "./types.js";
+import type { SessionTransientProjection } from "./types.js";
 
 export interface LiveSessionWorkInput {
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly hotState: Pick<
-		SessionHotState,
+		SessionTransientProjection,
 		"status" | "currentMode" | "connectionError" | "activeTurnFailure" | "activity"
 	>;
+	readonly canonicalProjection?: Pick<CanonicalSessionProjection, "lifecycle" | "activity"> | null;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
@@ -41,6 +43,34 @@ function normalizeLifecycle(input: LiveSessionWorkInput): {
 	connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
 	activityPhase: "idle" | "awaiting_model" | "running" | "paused";
 } {
+	if (input.canonicalProjection != null) {
+		const lifecycle = input.canonicalProjection.lifecycle;
+		const connectionPhase =
+			lifecycle.status === "failed"
+				? "failed"
+				: lifecycle.status === "reserved" ||
+					  lifecycle.status === "detached" ||
+					  lifecycle.status === "archived"
+					? "disconnected"
+					: lifecycle.status === "activating" || lifecycle.status === "reconnecting"
+						? "connecting"
+						: "connected";
+		const activityPhase =
+			input.canonicalProjection.activity.kind === "paused"
+				? "paused"
+				: input.canonicalProjection.activity.kind === "awaiting_model" ||
+					  input.canonicalProjection.activity.kind === "waiting_for_user"
+					? "awaiting_model"
+					: input.canonicalProjection.activity.kind === "running_operation"
+						? "running"
+						: "idle";
+
+		return {
+			connectionPhase,
+			activityPhase,
+		};
+	}
+
 	if (input.runtimeState === null) {
 		const hotStatus = input.hotState.status;
 		if (hotStatus === "idle") {
@@ -150,7 +180,9 @@ function fallbackCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessio
 }
 
 export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
-	const graphBackedActivity = canonicalActivityFromGraphActivity(input.hotState.activity ?? null);
+	const graphBackedActivity = canonicalActivityFromGraphActivity(
+		input.canonicalProjection?.activity ?? input.hotState.activity ?? null
+	);
 	if (graphBackedActivity !== null) {
 		return graphBackedActivity;
 	}

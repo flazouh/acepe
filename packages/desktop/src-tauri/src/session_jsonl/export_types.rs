@@ -18,17 +18,20 @@ use crate::acp::model_display::{
 };
 use crate::acp::projections::{
     InteractionKind, InteractionPayload, InteractionResponse, InteractionSnapshot,
-    InteractionState, OperationSnapshot, PlanApprovalSource, SessionProjectionSnapshot,
-    SessionSnapshot, SessionTurnState, TurnFailureSnapshot,
+    InteractionState, OperationDegradationCode, OperationDegradationReason, OperationSnapshot,
+    OperationState, PlanApprovalSource, SessionProjectionSnapshot, SessionSnapshot,
+    SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
     SessionOpenResult,
 };
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphCapabilities, SessionGraphLifecycle,
-    SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateDelta, SessionStateEnvelope,
-    SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
+    CapabilityPreviewState, SessionGraphActionability, SessionGraphActivity,
+    SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphRevision, SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta,
+    SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
+    SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -72,46 +75,6 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
 export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
-
-export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale";
-
-export type LifecycleStatus =
-	| "reserved"
-	| "activating"
-	| "ready"
-	| "reconnecting"
-	| "detached"
-	| "failed"
-	| "archived";
-
-export type DetachedReason =
-	| "restoredRequiresAttach"
-	| "reconnectExhausted"
-	| "abandonedInFlight"
-	| "legacyAmbiguousRestore";
-
-export type FailureReason =
-	| "deterministicRestoreFault"
-	| "activationFailed"
-	| "resumeFailed"
-	| "providerSessionMismatch"
-	| "corruptedPersistedState"
-	| "explicitErrorHandlingRequired"
-	| "legacyIrrecoverable";
-
-export type LifecycleState = {
-	status: LifecycleStatus;
-	detachedReason?: DetachedReason | null;
-	failureReason?: FailureReason | null;
-	errorMessage?: string | null;
-};
-
-export type LifecycleCheckpoint = {
-	schemaVersion: number;
-	graphRevision: number;
-	lifecycle: LifecycleState;
-	capabilities: SessionGraphCapabilities;
-};
 
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
@@ -448,8 +411,14 @@ pub fn export_all_types() {
     export_acp_type!(SessionDomainEventKind);
     export_acp_type!(SessionDomainEventPayload);
     export_acp_type!(SessionDomainEvent);
+    export_acp_type!(ToolCallLocation);
+    export_acp_type!(SkillMeta);
+    export_acp_type!(QuestionAnswer);
     export_acp_type!(SessionTurnState);
     export_acp_type!(SessionSnapshot);
+    export_acp_type!(OperationState);
+    export_acp_type!(OperationDegradationCode);
+    export_acp_type!(OperationDegradationReason);
     export_acp_type!(OperationSnapshot);
     export_acp_type!(InteractionKind);
     export_acp_type!(InteractionState);
@@ -472,10 +441,14 @@ pub fn export_all_types() {
     export_acp_type!(SessionOpenMissing);
     export_acp_type!(SessionOpenResult);
     export_acp_type!(SessionGraphRevision);
-    export_acp_type!(SessionGraphLifecycleStatus);
+    export_acp_type!(SessionRecommendedAction);
+    export_acp_type!(SessionRecoveryPhase);
+    export_acp_type!(SessionGraphActionability);
     export_acp_type!(SessionGraphLifecycle);
     export_acp_type!(SessionGraphCapabilities);
     export_acp_type!(CapabilityPreviewState);
+    export_acp_type!(SessionGraphActivityKind);
+    export_acp_type!(SessionGraphActivity);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);

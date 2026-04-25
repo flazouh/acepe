@@ -14,8 +14,7 @@ use crate::acp::session_state_engine::runtime_registry::{
 };
 use crate::acp::session_state_engine::{
     CapabilityPreviewState, SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
-    SessionGraphLifecycleStatus, SessionGraphRevision, SessionStateEnvelope, SessionStateGraph,
-    SessionStatePayload,
+    SessionGraphRevision, SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
 };
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSnapshot;
@@ -407,11 +406,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         message_count: 0,
         active_turn_failure: None,
         last_terminal_turn_id: None,
-        lifecycle: SessionGraphLifecycle {
-            status: SessionGraphLifecycleStatus::Ready,
-            error_message: None,
-            can_reconnect: true,
-        },
+        lifecycle: SessionGraphLifecycle::ready(),
         activity: SessionGraphActivity::idle(),
         capabilities: SessionGraphCapabilities::empty(),
     };
@@ -520,7 +515,10 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
     match envelope.payload {
         SessionStatePayload::Snapshot { graph } => {
             assert_eq!(graph.revision, SessionGraphRevision::new(7, 5, 7));
-            assert_eq!(graph.lifecycle.status, SessionGraphLifecycleStatus::Ready);
+            assert_eq!(
+                graph.lifecycle.status,
+                crate::acp::lifecycle::LifecycleStatus::Ready
+            );
             assert_eq!(graph.lifecycle.error_message, None);
             assert_eq!(
                 graph
@@ -582,12 +580,15 @@ async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
     match envelope.payload {
         SessionStatePayload::Snapshot { graph } => {
             assert_eq!(graph.revision, SessionGraphRevision::new(9, 4, 9));
-            assert_eq!(graph.lifecycle.status, SessionGraphLifecycleStatus::Error);
+            assert_eq!(
+                graph.lifecycle.status,
+                crate::acp::lifecycle::LifecycleStatus::Failed
+            );
             assert_eq!(
                 graph.lifecycle.error_message.as_deref(),
                 Some("connection dropped")
             );
-            assert!(graph.lifecycle.can_reconnect);
+            assert!(graph.lifecycle.actionability.can_retry);
         }
         payload => panic!("expected snapshot payload, got {payload:?}"),
     }
@@ -1384,7 +1385,7 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
         SessionStatePayload::Snapshot { graph } => {
             assert_eq!(
                 graph.lifecycle.status,
-                SessionGraphLifecycleStatus::Connecting
+                crate::acp::lifecycle::LifecycleStatus::Activating
             );
         }
         payload => panic!("expected snapshot payload, got {:?}", payload),
@@ -1834,11 +1835,7 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
     runtime_registry.restore_session_state(
         session_id.to_string(),
         4,
-        SessionGraphLifecycle {
-            status: SessionGraphLifecycleStatus::Ready,
-            error_message: None,
-            can_reconnect: true,
-        },
+        SessionGraphLifecycle::ready(),
         SessionGraphCapabilities {
             models: Some(SessionModelState {
                 available_models: vec![AvailableModel {
@@ -1949,11 +1946,7 @@ async fn set_mode_failure_emits_corrective_failed_capabilities_envelope() {
     runtime_registry.restore_session_state(
         session_id.to_string(),
         2,
-        SessionGraphLifecycle {
-            status: SessionGraphLifecycleStatus::Ready,
-            error_message: None,
-            can_reconnect: true,
-        },
+        SessionGraphLifecycle::ready(),
         SessionGraphCapabilities {
             models: None,
             modes: Some(SessionModes {

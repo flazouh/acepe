@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { OperationSnapshot } from "../../../services/acp-types.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
-import { OperationStore } from "../operation-store.svelte.js";
+import {
+	buildCanonicalOperationId,
+	buildOperationId,
+	OperationStore,
+} from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function createExecuteToolCall(
@@ -52,6 +56,8 @@ describe("OperationStore", () => {
 		expect(createdOperation?.toolCallId).toBe("tool-1");
 		expect(createdOperation?.kind).toBe("execute");
 		expect(createdOperation?.status).toBe("pending");
+		expect(createdOperation?.operationState).toBe("pending");
+		expect(createdOperation?.operationProvenanceKey).toBe("tool-1");
 		expect(createdOperation?.command).toBe("mkdir demo");
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 
@@ -89,6 +95,7 @@ describe("OperationStore", () => {
 		const completedOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(completedOperation?.id).toBe(createdOperation?.id);
 		expect(completedOperation?.status).toBe("completed");
+		expect(completedOperation?.operationState).toBe("completed");
 		expect(completedOperation?.result).toBe("done");
 		expect(completedOperation?.progressiveArguments).toBeUndefined();
 		expect(operationStore.getByEntryId("session-1", "tool-1")?.id).toBe(createdOperation?.id);
@@ -284,5 +291,141 @@ describe("OperationStore", () => {
 				activeForm: "Migrating queue summaries",
 			},
 		]);
+	});
+
+	it("maps operation_state and operation_provenance_key from snapshot", () => {
+		const operationStore = new OperationStore();
+		const snapshots: ReadonlyArray<OperationSnapshot> = [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "completed",
+				operation_state: "completed",
+				operation_provenance_key: "tool-1",
+				title: "First",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: null,
+				command: "pwd",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		];
+		operationStore.replaceSessionOperations("session-1", snapshots);
+		const op = operationStore.getByToolCallId("session-1", "tool-1");
+		expect(op?.operationState).toBe("completed");
+		expect(op?.operationProvenanceKey).toBe("tool-1");
+	});
+
+	it("ignores stale operation patches that would regress terminal state", () => {
+		const operationStore = new OperationStore();
+		operationStore.applySessionOperationPatches("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "completed",
+				operation_state: "completed",
+				operation_provenance_key: "tool-1",
+				title: "Run command",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: "done",
+				command: "pwd",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "in_progress",
+				operation_state: "running",
+				operation_provenance_key: "tool-1",
+				title: "Run command",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: null,
+				command: "pwd",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
+
+		const operation = operationStore.getByToolCallId("session-1", "tool-1");
+		expect(operation?.operationState).toBe("completed");
+		expect(operation?.status).toBe("completed");
+		expect(operation?.result).toBe("done");
+	});
+
+	it("buildCanonicalOperationId produces stable id matching buildOperationId", () => {
+		expect(buildCanonicalOperationId("session-1", "tool-abc")).toBe(
+			"op:9:session-1:8:tool-abc"
+		);
+		expect(buildOperationId("session-1", "tool-abc")).toBe("op:9:session-1:8:tool-abc");
+		expect(buildCanonicalOperationId("a:b", "c")).not.toBe(buildCanonicalOperationId("a", "b:c"));
+	});
+
+	it("upsertFromToolCall does not overwrite canonical blocked state when ToolCall lane fires", () => {
+		const operationStore = new OperationStore();
+		const entryStore = new SessionEntryStore(operationStore);
+
+		// Canonical patch sets operation to "blocked"
+		operationStore.applySessionOperationPatches("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "in_progress",
+				operation_state: "blocked",
+				operation_provenance_key: "tool-1",
+				title: "Run command",
+				arguments: { kind: "execute", command: "pwd" },
+				progressive_arguments: null,
+				result: null,
+				command: "pwd",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
+
+		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
+
+		// ToolCall lane upsert fires with "in_progress" — must not overwrite blocked
+		entryStore.updateToolCallEntry("session-1", {
+			toolCallId: "tool-1",
+			status: "in_progress",
+			result: null,
+			content: null,
+			rawOutput: null,
+			title: null,
+			locations: null,
+			normalizedTodos: null,
+			normalizedQuestions: null,
+		});
+
+		const operation = operationStore.getByToolCallId("session-1", "tool-1");
+		expect(operation?.operationState).toBe("blocked");
 	});
 });

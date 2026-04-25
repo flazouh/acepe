@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { ComposerMachineService } from "../composer-machine-service.svelte.js";
-import type { SessionHotState } from "../types.js";
-import { DEFAULT_HOT_STATE } from "../types.js";
+import type { SessionTransientProjection } from "../types.js";
+import { DEFAULT_TRANSIENT_PROJECTION } from "../types.js";
 
-function makeHot(overrides: Partial<SessionHotState> = {}): SessionHotState {
-	return { ...DEFAULT_HOT_STATE, ...overrides };
+function makeHot(overrides: Partial<SessionTransientProjection> = {}): SessionTransientProjection {
+	return { ...DEFAULT_TRANSIENT_PROJECTION, ...overrides };
 }
 
 describe("ComposerMachineService", () => {

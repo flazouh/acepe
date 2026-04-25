@@ -47,6 +47,13 @@ export const settings = {
 	},
 
 	resetDatabase: (): ResultAsync<void, AppError> => {
-		return storageCommands.reset_database.invoke<void>();
+		return storageCommands.request_destructive_confirmation_token
+			.invoke<string>({
+				operation: "reset_database",
+				target: "all-data",
+			})
+			.andThen((confirmationToken) =>
+				storageCommands.reset_database.invoke<void>({ confirmationToken })
+			);
 	},
 };

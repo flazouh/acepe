@@ -10,7 +10,7 @@ import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
 	Panel,
-	SessionHotState,
+	SessionTransientProjection,
 	TerminalWorkspacePanel,
 } from "../types.js";
 
@@ -34,7 +34,7 @@ function makePanel(overrides: Partial<Panel> = {}): Panel {
 	};
 }
 
-function makeHotState(overrides: Partial<SessionHotState> = {}): SessionHotState {
+function makeHotState(overrides: Partial<SessionTransientProjection> = {}): SessionTransientProjection {
 	return {
 		status: "idle",
 		isConnected: true,

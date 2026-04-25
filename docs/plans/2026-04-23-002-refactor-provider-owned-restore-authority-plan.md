@@ -1,13 +1,16 @@
 ---
 title: refactor: Make provider-owned history the sole restore authority
 type: refactor
-status: active
+status: superseded
 date: 2026-04-23
 origin: docs/brainstorms/2026-04-22-provider-authoritative-session-restore-requirements.md
 deepened: 2026-04-23
+superseded-by: docs/plans/2026-04-25-002-refactor-final-god-architecture-stack-plan.md
 ---
 
 # refactor: Make provider-owned history the sole restore authority
+
+> Superseded by `docs/plans/2026-04-25-002-refactor-final-god-architecture-stack-plan.md`. This plan remains as historical provider-restore research; the final GOD stack is the active endpoint.
 
 ## Overview
 

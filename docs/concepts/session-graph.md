@@ -43,9 +43,21 @@ But raw events are not allowed to become a second durable database.
 
 Acepe should have **one durable authority path** for session truth:
 
-`provider facts -> SessionSupervisor -> canonical session graph -> desktop stores/selectors -> UI`
+`provider facts/history/live events -> provider adapter edge -> SessionSupervisor / canonical reducer -> canonical session graph -> revisioned materializations -> desktop stores/selectors -> UI`
 
 If a feature needs to answer "what is the current tool?", "can this session send?", "should the primary CTA be resume or retry?", or "what runtime state should survive reopen?", it should answer from the session graph or a store materialized from it.
+
+## Final GOD endpoint
+
+The final GOD architecture is not a convergence target with long-lived compatibility bridges. It is the settled authority model:
+
+- provider-specific quirks stop at the adapter edge,
+- the backend-owned graph owns product truth,
+- graph/transcript frontiers are internal continuity markers, not peer authorities,
+- desktop stores/selectors project canonical materializations,
+- raw provider traffic and raw ACP updates may remain only as redacted diagnostics or coordination, never as product truth.
+
+Old authorities such as `ToolCallManager` operation truth, frontend hot-state lifecycle truth, raw session-update semantic truth, and local journal/snapshot restore truth are deletion targets unless they are structurally demoted behind an observability boundary.
 
 ## Main graph nodes
 

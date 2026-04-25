@@ -16,7 +16,7 @@ import type { AppError } from "../errors/app-error.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
-import type { SessionCold, SessionEntry, SessionHotState } from "./types.js";
+import type { SessionCold, SessionEntry, SessionTransientProjection } from "./types.js";
 
 /**
  * Interface for handling session events.
@@ -43,7 +43,8 @@ export interface SessionEventHandler {
 	/**
 	 * Get hot state for a session.
 	 */
-	getHotState(sessionId: string): SessionHotState;
+	getHotState(sessionId: string): SessionTransientProjection;
+	getSessionCanSend?(sessionId: string): boolean | null;
 
 	/**
 	 * Aggregate an assistant message chunk into the appropriate entry.

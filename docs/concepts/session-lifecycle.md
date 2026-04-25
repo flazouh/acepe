@@ -145,9 +145,11 @@ flowchart LR
 
 If preview-selected options are invalid at activation time, the supervisor rejects the activation before prompt dispatch and leaves the session correctable.
 
-## Relationship to the current plan stack
+## Relationship to the final GOD stack
 
-- The proving slice establishes this lifecycle model end to end on the root provider path.
-- The follow-on convergence work removes the remaining compatibility bridge, hot-state, and non-canonical desktop derivations.
+- The final GOD stack promotes this seven-state lifecycle into graph materializations.
+- Provider adapters emit facts; only the supervisor/graph reducer emits canonical lifecycle conclusions.
+- Desktop lifecycle, actionability, compact copy, send enablement, retry/resume/archive affordances, and recovery UI derive from canonical selectors.
+- Four-state compatibility projection, hot-state lifecycle authority, and frontend-local send/retry/resume gates are not lifecycle authorities. Any remaining transient projection exists only for non-authoritative compatibility/config/telemetry reactivity while canonical selectors own product behavior.
 
-Conceptually: **prove the authority model first, then converge the rest of the app onto it.**
+Conceptually: **one lifecycle authority, many projections.**

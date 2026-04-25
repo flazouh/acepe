@@ -57,6 +57,7 @@ const queueInputs = $derived.by(() => {
 
 		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
 		const hotState = sessionStore.getHotState(sessionId);
+		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
 		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
 			identity.id,
 			operationStore,
@@ -75,6 +76,7 @@ const queueInputs = $derived.by(() => {
 			updatedAt: metadata.updatedAt,
 			runtimeState,
 			hotState,
+			canonicalProjection,
 			interactionSnapshot,
 			hasUnseenCompletion: unseenStore.isUnseen(panelId),
 		});

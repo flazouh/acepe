@@ -18,6 +18,8 @@ They must not depend on Acepe persisting a second local restore authority or on 
 
 In the settled lifecycle model, the public recovery action is `resume`. `reconnect` is an internal supervisor repair path, not a long-term public verb.
 
+In the final GOD architecture, local journal/snapshot paths may retain Acepe-owned metadata and redacted diagnostics, but they do not reconstruct provider transcript/tool content when provider history is missing.
+
 ## What should survive
 
 Across reopen, reconnect, and refresh, Acepe should preserve:
@@ -81,6 +83,8 @@ Reconnect/resume should not require:
 - provider-specific policy hidden in presentation metadata,
 - raw transport events finalizing durable state independently,
 - reopening a previously live session as if it were already `Ready`.
+
+It should also not silently return an empty-success restore when provider history is missing, unparseable, unavailable, validation-failed, or stale. Those cases become explicit canonical restore states with safe retry/diagnostic affordances.
 
 ## Agent-agnostic rule
 

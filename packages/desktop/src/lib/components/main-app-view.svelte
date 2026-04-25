@@ -68,6 +68,7 @@ import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
+import type { InteractionSnapshot } from "$lib/services/acp-types.js";
 import { ChangelogModal } from "./changelog-modal/index.js";
 import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index.js";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
@@ -354,9 +355,54 @@ function applyLiveInteractionGraph(
 	}
 }
 
+function applyLiveInteractionPatches(patches: readonly InteractionSnapshot[]): void {
+	const previousPermissionIds = new Set<string>();
+	const previousQuestionIds = new Set<string>();
+	const previousPlanApprovalIds = new Set<string>();
+
+	for (const interaction of patches) {
+		for (const [id, permission] of interactionStore.permissionsPending) {
+			if (permission.sessionId === interaction.session_id) {
+				previousPermissionIds.add(id);
+			}
+		}
+		for (const [id, question] of interactionStore.questionsPending) {
+			if (question.sessionId === interaction.session_id) {
+				previousQuestionIds.add(id);
+			}
+		}
+		for (const [id, approval] of interactionStore.planApprovalsPending) {
+			if (approval.sessionId === interaction.session_id && approval.status === "pending") {
+				previousPlanApprovalIds.add(id);
+			}
+		}
+	}
+
+	interactionStore.applySessionInteractionPatches(patches);
+
+	for (const [id, permission] of interactionStore.permissionsPending) {
+		if (!previousPermissionIds.has(id)) {
+			showPermissionNotification(permission);
+		}
+	}
+	for (const [id, question] of interactionStore.questionsPending) {
+		if (!previousQuestionIds.has(id)) {
+			showQuestionNotification(question);
+		}
+	}
+	for (const [id, approval] of interactionStore.planApprovalsPending) {
+		if (approval.status === "pending" && !previousPlanApprovalIds.has(id)) {
+			showPlanApprovalNotification(approval);
+		}
+	}
+}
+
 sessionStore.setLiveSessionStateGraphConsumer({
 	replaceSessionStateGraph(graph) {
 		applyLiveInteractionGraph(graph);
+	},
+	applySessionInteractionPatches(patches) {
+		applyLiveInteractionPatches(patches);
 	},
 });
 
@@ -869,14 +915,18 @@ onMount(async () => {
 	// Initialize inbound request handler for ACP permission and question requests
 	const handlerResult = await inboundRequestHandler.start(
 		(permission) => {
-			logger.debug("Permission callback invoked", { permissionId: permission.id });
-			permissionStore.add(permission);
-			showPermissionNotification(permission);
+			logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
+				permissionId: permission.id,
+				sessionId: permission.sessionId,
+				jsonRpcRequestId: permission.jsonRpcRequestId,
+			});
 		},
 		(question) => {
-			logger.debug("Question callback invoked", { questionId: question.id });
-			questionStore.add(question);
-			showQuestionNotification(question);
+			logger.error("Legacy inbound question request ignored; expected canonical graph patch", {
+				questionId: question.id,
+				sessionId: question.sessionId,
+				jsonRpcRequestId: question.jsonRpcRequestId,
+			});
 		}
 	);
 	if (handlerResult.isErr()) {

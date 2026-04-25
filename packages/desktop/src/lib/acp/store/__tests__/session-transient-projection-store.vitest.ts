@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { SessionHotStateStore } from "../session-hot-state-store.svelte.js";
-import { DEFAULT_HOT_STATE } from "../types.js";
+import { SessionTransientProjectionStore } from "../session-transient-projection-store.svelte.js";
+import { DEFAULT_TRANSIENT_PROJECTION } from "../types.js";
 
-describe("SessionHotStateStore", () => {
-	let store: SessionHotStateStore;
+describe("SessionTransientProjectionStore", () => {
+	let store: SessionTransientProjectionStore;
 
 	beforeEach(() => {
-		store = new SessionHotStateStore();
+		store = new SessionTransientProjectionStore();
 	});
 
 	describe("getHotState", () => {
-		it("should return default hot state for unknown session", () => {
+		it("should return default transient projection for unknown session", () => {
 			const state = store.getHotState("unknown");
-			expect(state).toEqual(DEFAULT_HOT_STATE);
+			expect(state).toEqual(DEFAULT_TRANSIENT_PROJECTION);
 			expect(state.autonomousEnabled).toBe(false);
 			expect(state.autonomousTransition).toBe("idle");
 		});
@@ -80,7 +80,7 @@ describe("SessionHotStateStore", () => {
 			store.initializeHotState("session1");
 
 			expect(store.hasHotState("session1")).toBe(true);
-			expect(store.getHotState("session1")).toEqual(DEFAULT_HOT_STATE);
+			expect(store.getHotState("session1")).toEqual(DEFAULT_TRANSIENT_PROJECTION);
 		});
 
 		it("should initialize with partial overrides", () => {
@@ -100,7 +100,7 @@ describe("SessionHotStateStore", () => {
 	});
 
 	describe("removeHotState", () => {
-		it("should remove hot state", () => {
+		it("should remove transient projection", () => {
 			store.initializeHotState("session1");
 			expect(store.hasHotState("session1")).toBe(true);
 
@@ -116,13 +116,46 @@ describe("SessionHotStateStore", () => {
 			store.removeHotState("session1");
 
 			expect(store.hasHotState("session1")).toBe(false);
-			expect(store.getHotState("session1")).toEqual(DEFAULT_HOT_STATE);
+			expect(store.getHotState("session1")).toEqual(DEFAULT_TRANSIENT_PROJECTION);
 		});
 
 		it("should handle removing non-existent session gracefully", () => {
 			// Should not throw
 			store.removeHotState("non-existent");
 			expect(store.hasHotState("non-existent")).toBe(false);
+		});
+	});
+
+	describe("statusChangedAt tracking", () => {
+		it("should update statusChangedAt when status changes", () => {
+			store.initializeHotState("session1", { status: "idle" });
+			const before = store.getHotState("session1").statusChangedAt;
+
+			store.updateHotState("session1", { status: "ready" });
+
+			const after = store.getHotState("session1").statusChangedAt;
+			expect(after).toBeGreaterThan(before ?? 0);
+		});
+
+		it("should not update statusChangedAt when status does not change", () => {
+			store.initializeHotState("session1", { status: "ready" });
+			store.updateHotState("session1", { status: "ready" }); // warm statusChangedAt
+			const before = store.getHotState("session1").statusChangedAt;
+
+			store.updateHotState("session1", { isConnected: true }); // unrelated update
+
+			expect(store.getHotState("session1").statusChangedAt).toBe(before);
+		});
+
+		it("should not update statusChangedAt when same status is written again", () => {
+			store.initializeHotState("session1", { status: "connecting" });
+			store.updateHotState("session1", { status: "connecting" }); // no-op status change
+			const ts1 = store.getHotState("session1").statusChangedAt;
+
+			store.updateHotState("session1", { status: "connecting" });
+			const ts2 = store.getHotState("session1").statusChangedAt;
+
+			expect(ts2).toBe(ts1);
 		});
 	});
 });

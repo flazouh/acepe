@@ -66,6 +66,11 @@ pub struct SessionOpenMissing {
 #[serde(rename_all = "camelCase")]
 pub enum SessionOpenErrorReason {
     ParseFailure,
+    ProviderUnavailable,
+    ProviderHistoryMissing,
+    ProviderUnparseable,
+    ProviderValidationFailed,
+    StaleLineageRecovery,
     Internal,
 }
 
@@ -91,6 +96,71 @@ impl SessionOpenError {
             message: message.into(),
             reason: SessionOpenErrorReason::ParseFailure,
             retryable: false,
+        }
+    }
+
+    #[must_use]
+    pub fn provider_unavailable(
+        requested_session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_session_id: requested_session_id.into(),
+            message: message.into(),
+            reason: SessionOpenErrorReason::ProviderUnavailable,
+            retryable: true,
+        }
+    }
+
+    #[must_use]
+    pub fn provider_history_missing(
+        requested_session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_session_id: requested_session_id.into(),
+            message: message.into(),
+            reason: SessionOpenErrorReason::ProviderHistoryMissing,
+            retryable: false,
+        }
+    }
+
+    #[must_use]
+    pub fn provider_unparseable(
+        requested_session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_session_id: requested_session_id.into(),
+            message: message.into(),
+            reason: SessionOpenErrorReason::ProviderUnparseable,
+            retryable: false,
+        }
+    }
+
+    #[must_use]
+    pub fn provider_validation_failed(
+        requested_session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_session_id: requested_session_id.into(),
+            message: message.into(),
+            reason: SessionOpenErrorReason::ProviderValidationFailed,
+            retryable: false,
+        }
+    }
+
+    #[must_use]
+    pub fn stale_lineage_recovery(
+        requested_session_id: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_session_id: requested_session_id.into(),
+            message: message.into(),
+            reason: SessionOpenErrorReason::StaleLineageRecovery,
+            retryable: true,
         }
     }
 

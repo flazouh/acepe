@@ -328,7 +328,7 @@ type XStateConnectionState =
 	| "error";
 
 /**
- * Map SessionStatus (from SessionHotState) to XState connection state.
+ * Map SessionStatus (from SessionTransientProjection) to XState connection state.
  *
  * This bridges the gap between the simple status enum and the
  * more detailed XState machine states.

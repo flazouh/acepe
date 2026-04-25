@@ -223,6 +223,8 @@ export class UrgencyTabsStore {
 				: null;
 		const runtimeState =
 			sessionId !== null ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
+		const canonicalProjection =
+			sessionId !== null ? this.sessionStore.getCanonicalSessionProjection(sessionId) : null;
 
 		// Derive project path from session or panel
 		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
@@ -231,6 +233,7 @@ export class UrgencyTabsStore {
 		const workProjection = deriveLiveSessionWorkProjection({
 			runtimeState,
 			hotState,
+			canonicalProjection,
 			currentStreamingToolCall,
 			interactionSnapshot: {
 				pendingQuestion,

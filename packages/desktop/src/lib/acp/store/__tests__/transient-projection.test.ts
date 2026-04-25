@@ -1,49 +1,49 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
 import {
-	DEFAULT_HOT_STATE,
+	DEFAULT_TRANSIENT_PROJECTION,
 	type Session,
-	type SessionHotState,
+	type SessionTransientProjection,
 	type SessionStatus,
 	type TurnState,
 } from "../types.js";
 
 /**
- * Unit tests for the hot state optimization.
+ * Unit tests for the transient projection optimization.
  *
  * These tests verify that:
- * 1. Hot state merging works correctly with cold state
- * 2. DEFAULT_HOT_STATE has correct initial values
- * 3. Partial updates to hot state work as expected
+ * 1. transient projection merging works correctly with cold state
+ * 2. DEFAULT_TRANSIENT_PROJECTION has correct initial values
+ * 3. Partial updates to transient projection work as expected
  */
-describe("SessionHotState", () => {
-	describe("DEFAULT_HOT_STATE", () => {
+describe("SessionTransientProjection", () => {
+	describe("DEFAULT_TRANSIENT_PROJECTION", () => {
 		it("should have idle status", () => {
-			expect(DEFAULT_HOT_STATE.status).toBe("idle");
+			expect(DEFAULT_TRANSIENT_PROJECTION.status).toBe("idle");
 		});
 
 		it("should have isConnected as false", () => {
-			expect(DEFAULT_HOT_STATE.isConnected).toBe(false);
+			expect(DEFAULT_TRANSIENT_PROJECTION.isConnected).toBe(false);
 		});
 
 		it("should have turnState as idle", () => {
-			expect(DEFAULT_HOT_STATE.turnState).toBe("idle");
+			expect(DEFAULT_TRANSIENT_PROJECTION.turnState).toBe("idle");
 		});
 
 		it("should have acpSessionId as null", () => {
-			expect(DEFAULT_HOT_STATE.acpSessionId).toBe(null);
+			expect(DEFAULT_TRANSIENT_PROJECTION.acpSessionId).toBe(null);
 		});
 
 		it("should have currentModel as null", () => {
-			expect(DEFAULT_HOT_STATE.currentModel).toBe(null);
+			expect(DEFAULT_TRANSIENT_PROJECTION.currentModel).toBe(null);
 		});
 
 		it("should have currentMode as null", () => {
-			expect(DEFAULT_HOT_STATE.currentMode).toBe(null);
+			expect(DEFAULT_TRANSIENT_PROJECTION.currentMode).toBe(null);
 		});
 	});
 
-	describe("Hot + Cold State Merging", () => {
+	describe("Transient + Cold State Merging", () => {
 		const createColdSession = (overrides?: Partial<Session>): Session => ({
 			id: "session-1",
 			projectPath: "/test/project",
@@ -67,9 +67,9 @@ describe("SessionHotState", () => {
 			...overrides,
 		});
 
-		it("should override cold state properties with hot state", () => {
+		it("should override cold state properties with transient projection", () => {
 			const cold = createColdSession({ status: "idle", isConnected: false });
-			const hot: SessionHotState = {
+			const hot: SessionTransientProjection = {
 				status: "ready",
 				isConnected: true,
 				turnState: "idle",
@@ -90,13 +90,13 @@ describe("SessionHotState", () => {
 			expect(merged.acpSessionId).toBe("acp-123");
 		});
 
-		it("should preserve cold state properties not in hot state", () => {
+		it("should preserve cold state properties not in transient projection", () => {
 			const cold = createColdSession({
 				title: "My Session",
 				projectPath: "/my/project",
 				entryCount: 5,
 			});
-			const hot: SessionHotState = {
+			const hot: SessionTransientProjection = {
 				status: "streaming",
 				isConnected: true,
 				turnState: "streaming",
@@ -118,21 +118,21 @@ describe("SessionHotState", () => {
 			expect(merged.entries).toEqual([]);
 		});
 
-		it("should use DEFAULT_HOT_STATE when no hot state exists", () => {
+		it("should use DEFAULT_TRANSIENT_PROJECTION when no transient projection exists", () => {
 			const cold = createColdSession({ status: "connecting" });
-			const hot = DEFAULT_HOT_STATE;
+			const hot = DEFAULT_TRANSIENT_PROJECTION;
 
 			const merged = { ...cold, ...hot };
 
-			// Hot state overrides cold state
+			// transient projection overrides cold state
 			expect(merged.status).toBe("idle");
 			expect(merged.isConnected).toBe(false);
 		});
 	});
 
-	describe("Partial Hot State Updates", () => {
-		it("should merge partial updates into existing hot state", () => {
-			const current: SessionHotState = {
+	describe("Partial transient projection Updates", () => {
+		it("should merge partial updates into existing transient projection", () => {
+			const current: SessionTransientProjection = {
 				status: "idle",
 				isConnected: false,
 				turnState: "idle",
@@ -146,7 +146,7 @@ describe("SessionHotState", () => {
 				statusChangedAt: Date.now(),
 			};
 
-			const updates: Partial<SessionHotState> = {
+			const updates: Partial<SessionTransientProjection> = {
 				status: "connecting",
 			};
 
@@ -159,7 +159,7 @@ describe("SessionHotState", () => {
 		});
 
 		it("should update multiple properties at once", () => {
-			const current: SessionHotState = {
+			const current: SessionTransientProjection = {
 				status: "connecting",
 				isConnected: false,
 				turnState: "idle",
@@ -173,7 +173,7 @@ describe("SessionHotState", () => {
 				statusChangedAt: Date.now(),
 			};
 
-			const updates: Partial<SessionHotState> = {
+			const updates: Partial<SessionTransientProjection> = {
 				status: "ready",
 				isConnected: true,
 				acpSessionId: "acp-789",
@@ -189,19 +189,19 @@ describe("SessionHotState", () => {
 	});
 });
 
-describe("Hot State Map Operations", () => {
-	let hotStateMap: Map<string, SessionHotState>;
+describe("transient projection Map Operations", () => {
+	let hotStateMap: Map<string, SessionTransientProjection>;
 
 	beforeEach(() => {
 		hotStateMap = new Map();
 	});
 
-	describe("updateSessionHotState behavior", () => {
-		const updateSessionHotState = (
+	describe("updateSessionTransientProjection behavior", () => {
+		const updateSessionTransientProjection = (
 			id: string,
-			updates: Partial<SessionHotState>
-		): Map<string, SessionHotState> => {
-			const current = hotStateMap.get(id) ?? DEFAULT_HOT_STATE;
+			updates: Partial<SessionTransientProjection>
+		): Map<string, SessionTransientProjection> => {
+			const current = hotStateMap.get(id) ?? DEFAULT_TRANSIENT_PROJECTION;
 			const updated = { ...current, ...updates };
 			const newMap = new Map(hotStateMap);
 			newMap.set(id, updated);
@@ -209,7 +209,7 @@ describe("Hot State Map Operations", () => {
 		};
 
 		it("should create new entry for unknown session", () => {
-			hotStateMap = updateSessionHotState("new-session", {
+			hotStateMap = updateSessionTransientProjection("new-session", {
 				status: "connecting",
 			});
 
@@ -234,7 +234,7 @@ describe("Hot State Map Operations", () => {
 				statusChangedAt: Date.now(),
 			});
 
-			hotStateMap = updateSessionHotState("existing-session", {
+			hotStateMap = updateSessionTransientProjection("existing-session", {
 				status: "ready",
 				isConnected: true,
 				acpSessionId: "acp-123",
@@ -248,7 +248,7 @@ describe("Hot State Map Operations", () => {
 
 		it("should create new Map reference on each update", () => {
 			const originalMap = hotStateMap;
-			hotStateMap = updateSessionHotState("session-1", { status: "connecting" });
+			hotStateMap = updateSessionTransientProjection("session-1", { status: "connecting" });
 
 			expect(hotStateMap).not.toBe(originalMap);
 		});
@@ -281,7 +281,7 @@ describe("Hot State Map Operations", () => {
 				statusChangedAt: Date.now(),
 			});
 
-			hotStateMap = updateSessionHotState("session-1", {
+			hotStateMap = updateSessionTransientProjection("session-1", {
 				status: "streaming",
 				turnState: "streaming",
 			});
@@ -296,18 +296,18 @@ describe("Hot State Map Operations", () => {
 		});
 	});
 
-	describe("getHotState behavior", () => {
-		const getHotState = (sessionId: string): SessionHotState => {
-			return hotStateMap.get(sessionId) ?? DEFAULT_HOT_STATE;
+	describe("getTransientState behavior", () => {
+		const getTransientState = (sessionId: string): SessionTransientProjection => {
+			return hotStateMap.get(sessionId) ?? DEFAULT_TRANSIENT_PROJECTION;
 		};
 
-		it("should return DEFAULT_HOT_STATE for unknown session", () => {
-			const state = getHotState("unknown-session");
-			expect(state).toEqual(DEFAULT_HOT_STATE);
+		it("should return DEFAULT_TRANSIENT_PROJECTION for unknown session", () => {
+			const state = getTransientState("unknown-session");
+			expect(state).toEqual(DEFAULT_TRANSIENT_PROJECTION);
 		});
 
 		it("should return stored state for known session", () => {
-			const storedState: SessionHotState = {
+			const storedState: SessionTransientProjection = {
 				status: "streaming",
 				isConnected: true,
 				turnState: "streaming",
@@ -322,7 +322,7 @@ describe("Hot State Map Operations", () => {
 			};
 			hotStateMap.set("known-session", storedState);
 
-			const state = getHotState("known-session");
+			const state = getTransientState("known-session");
 			expect(state).toEqual(storedState);
 		});
 	});
@@ -331,9 +331,9 @@ describe("Hot State Map Operations", () => {
 describe("Sessions Array Independence", () => {
 	/**
 	 * This test verifies the core optimization:
-	 * Hot state updates should NOT require recreating the sessions array.
+	 * transient projection updates should NOT require recreating the sessions array.
 	 */
-	it("should not require sessions array modification for hot state updates", () => {
+	it("should not require sessions array modification for transient projection updates", () => {
 		// Simulate the sessions array
 		const sessions: Session[] = [
 			{
@@ -383,33 +383,33 @@ describe("Sessions Array Independence", () => {
 		// Store original array reference
 		const originalArrayRef = sessions;
 
-		// Simulate hot state map
-		let hotStateMap = new Map<string, SessionHotState>();
+		// Simulate transient projection map
+		let hotStateMap = new Map<string, SessionTransientProjection>();
 
-		// Update hot state (this should NOT modify sessions array)
-		const updateHotState = (id: string, updates: Partial<SessionHotState>) => {
-			const current = hotStateMap.get(id) ?? DEFAULT_HOT_STATE;
+		// Update transient projection (this should NOT modify sessions array)
+		const updateTransientState = (id: string, updates: Partial<SessionTransientProjection>) => {
+			const current = hotStateMap.get(id) ?? DEFAULT_TRANSIENT_PROJECTION;
 			const newMap = new Map(hotStateMap);
 			newMap.set(id, { ...current, ...updates });
 			hotStateMap = newMap;
 		};
 
-		// Perform hot state update
-		updateHotState("session-1", { status: "connecting" });
-		updateHotState("session-1", { status: "ready", isConnected: true });
+		// Perform transient projection update
+		updateTransientState("session-1", { status: "connecting" });
+		updateTransientState("session-1", { status: "ready", isConnected: true });
 
 		// Verify sessions array was NOT modified
 		expect(sessions).toBe(originalArrayRef);
 		expect(sessions.length).toBe(2);
 
-		// Verify hot state was updated
+		// Verify transient projection was updated
 		expect(hotStateMap.get("session-1")?.status).toBe("ready");
 		expect(hotStateMap.get("session-1")?.isConnected).toBe(true);
 
 		// Verify we can merge to get correct session state
 		const sessionById = new Map(sessions.map((s) => [s.id, s]));
 		const cold = sessionById.get("session-1")!;
-		const hot = hotStateMap.get("session-1") ?? DEFAULT_HOT_STATE;
+		const hot = hotStateMap.get("session-1") ?? DEFAULT_TRANSIENT_PROJECTION;
 		const merged = { ...cold, ...hot };
 
 		expect(merged.status).toBe("ready");
@@ -419,10 +419,10 @@ describe("Sessions Array Independence", () => {
 });
 
 describe("Status Transition Scenarios", () => {
-	const createHotState = (
+	const createTransientState = (
 		status: SessionStatus,
 		turnState: TurnState = "idle"
-	): SessionHotState => ({
+	): SessionTransientProjection => ({
 		status,
 		isConnected: status === "ready" || status === "streaming",
 		turnState,
@@ -438,7 +438,7 @@ describe("Status Transition Scenarios", () => {
 
 	describe("Session Connection Flow", () => {
 		it("should transition from idle -> connecting -> ready", () => {
-			let state = DEFAULT_HOT_STATE;
+			let state = DEFAULT_TRANSIENT_PROJECTION;
 
 			// Click session -> connecting
 			state = { ...state, status: "connecting" };
@@ -458,7 +458,7 @@ describe("Status Transition Scenarios", () => {
 		});
 
 		it("should transition from idle -> connecting -> error on failure", () => {
-			let state = DEFAULT_HOT_STATE;
+			let state = DEFAULT_TRANSIENT_PROJECTION;
 
 			// Click session -> connecting
 			state = { ...state, status: "connecting" };
@@ -473,7 +473,7 @@ describe("Status Transition Scenarios", () => {
 
 	describe("Message Streaming Flow", () => {
 		it("should transition from ready -> streaming -> ready", () => {
-			let state = createHotState("ready");
+			let state = createTransientState("ready");
 
 			// Send message -> streaming
 			state = { ...state, status: "streaming", turnState: "streaming" };
@@ -487,7 +487,7 @@ describe("Status Transition Scenarios", () => {
 		});
 
 		it("should transition from streaming -> error on stream failure", () => {
-			let state = createHotState("streaming", "streaming");
+			let state = createTransientState("streaming", "streaming");
 			expect(state.turnState).toBe("streaming");
 
 			// Stream error
@@ -499,11 +499,11 @@ describe("Status Transition Scenarios", () => {
 
 	describe("Disconnect Flow", () => {
 		it("should transition from ready -> idle on disconnect", () => {
-			let state = createHotState("ready");
+			let state = createTransientState("ready");
 			expect(state.isConnected).toBe(true);
 
-			// Disconnect - reset to DEFAULT_HOT_STATE (using spread)
-			state = { ...DEFAULT_HOT_STATE };
+			// Disconnect - reset to DEFAULT_TRANSIENT_PROJECTION (using spread)
+			state = { ...DEFAULT_TRANSIENT_PROJECTION };
 			expect(state.status).toBe("idle");
 			expect(state.isConnected).toBe(false);
 		});

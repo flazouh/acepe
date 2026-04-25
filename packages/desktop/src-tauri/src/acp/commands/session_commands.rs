@@ -1407,6 +1407,8 @@ mod transcript_buffer_tests {
                                 from_revision: SessionGraphRevision::new(6, 6, 6),
                                 to_revision: SessionGraphRevision::new(7, 7, 7),
                                 transcript_operations: vec![],
+                                operation_patches: vec![],
+                                interaction_patches: vec![],
                                 changed_fields: vec!["transcriptSnapshot".to_string()],
                             },
                         },
@@ -1429,6 +1431,8 @@ mod transcript_buffer_tests {
                                 from_revision: SessionGraphRevision::new(7, 7, 7),
                                 to_revision: SessionGraphRevision::new(8, 8, 8),
                                 transcript_operations: vec![],
+                                operation_patches: vec![],
+                                interaction_patches: vec![],
                                 changed_fields: vec!["transcriptSnapshot".to_string()],
                             },
                         },
@@ -1667,10 +1671,7 @@ mod tests {
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
     };
-    use crate::acp::session_journal::load_stored_projection;
-    use crate::acp::session_state_engine::{
-        SessionGraphLifecycleStatus, SessionGraphRuntimeRegistry,
-    };
+    use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
     use crate::acp::session_update::{PermissionData, SessionUpdate};
     use crate::acp::transcript_projection::TranscriptProjectionRegistry;
     use crate::acp::types::CanonicalAgentId;
@@ -1704,7 +1705,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_stored_projection_rebuilds_from_journal_events() {
+    async fn journal_events_do_not_rebuild_product_restore_projection() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -1758,25 +1759,13 @@ mod tests {
         .await
         .unwrap();
 
-        let replay_context = replay_context_for_session(&db, "session-priority").await;
-        let stored_projection = load_stored_projection(&db, &replay_context)
+        let events = SessionJournalEventRepository::list_serialized(&db, "session-priority")
             .await
-            .unwrap()
-            .expect("expected stored projection");
-
-        let permission = stored_projection
-            .interactions
+            .expect("list journal events");
+        assert_eq!(events.len(), 2);
+        assert!(events
             .iter()
-            .find(|interaction| interaction.id == "permission-1")
-            .expect("expected permission interaction");
-        assert_eq!(permission.state, InteractionState::Approved);
-        assert_eq!(
-            stored_projection
-                .session
-                .expect("expected session projection")
-                .last_event_seq,
-            2
-        );
+            .any(|event| event.event_kind == "interaction_transition"));
     }
 
     #[tokio::test]
@@ -1952,7 +1941,7 @@ mod tests {
 
         assert_eq!(
             snapshot.lifecycle.status,
-            SessionGraphLifecycleStatus::Ready
+            crate::acp::lifecycle::LifecycleStatus::Ready
         );
         assert_eq!(snapshot.capabilities.available_commands.len(), 1);
     }

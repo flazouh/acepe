@@ -1,9 +1,9 @@
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_HOT_STATE } from "../../types.js";
+import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
-import type { IHotStateManager } from "../interfaces/hot-state-manager.js";
+import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
 
 const sendPrompt = vi.fn();
@@ -25,7 +25,7 @@ let SessionMessagingService: typeof import("../session-messaging-service.js").Se
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn().mockReturnValue({
-			...DEFAULT_HOT_STATE,
+			...DEFAULT_TRANSIENT_PROJECTION,
 			isConnected: true,
 		}),
 		getEntries: vi.fn().mockReturnValue([]),
@@ -43,7 +43,7 @@ function createMockDeps() {
 		getAllSessions: vi.fn(),
 	};
 
-	const hotStateManager: IHotStateManager = {
+	const hotStateManager: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),

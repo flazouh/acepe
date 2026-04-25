@@ -28,7 +28,7 @@ pub async fn init_db(identifier_hint: Option<&str>) -> Result<DbConn> {
     Ok(db)
 }
 
-fn get_db_path(identifier_hint: Option<&str>) -> Result<PathBuf> {
+pub(crate) fn get_db_path(identifier_hint: Option<&str>) -> Result<PathBuf> {
     let data_dir =
         dirs::data_local_dir().ok_or_else(|| anyhow::anyhow!("Cannot determine data directory"))?;
 

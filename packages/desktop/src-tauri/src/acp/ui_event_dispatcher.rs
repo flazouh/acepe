@@ -1214,7 +1214,7 @@ mod tests {
                 assert_eq!(graph.interactions.len(), 1);
                 assert_eq!(
                     graph.lifecycle.status,
-                    crate::acp::session_state_engine::SessionGraphLifecycleStatus::Idle
+                    crate::acp::lifecycle::LifecycleStatus::Reserved
                 );
             }
             other => panic!("expected snapshot payload, got {:?}", other),

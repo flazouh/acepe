@@ -99,7 +99,7 @@ export interface SessionUsageTelemetry {
  * Used to restore user's previous model choice when switching between modes.
  * Format: { modeId → modelId }
  */
-export interface SessionHotState {
+export interface SessionTransientProjection {
 	readonly status: SessionStatus;
 	readonly isConnected: boolean;
 	readonly turnState: TurnState;
@@ -125,7 +125,7 @@ export interface SessionHotState {
 /**
  * Default hot state for new sessions.
  */
-export const DEFAULT_HOT_STATE: SessionHotState = {
+export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
 	status: "idle",
 	isConnected: false,
 	turnState: "idle",
@@ -152,7 +152,7 @@ export type { StoreComposerState } from "../logic/composer-ui-state.js";
 /**
  * Panel hot state - transient properties that change frequently.
  * Separated from Panel to avoid array recomputation on status changes.
- * Follows SessionHotState pattern.
+ * Follows SessionTransientProjection pattern.
  */
 export interface PanelHotState {
 	/** True when the panel is in review mode (showing diff review UI) */

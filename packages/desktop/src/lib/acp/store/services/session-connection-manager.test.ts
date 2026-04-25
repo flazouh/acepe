@@ -9,11 +9,11 @@ import { AgentError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import type { ConnectionCompleteData } from "../session-event-service.svelte.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
-import type { SessionCold, SessionHotState } from "../types.js";
+import type { SessionCold, SessionTransientProjection } from "../types.js";
 import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
 import type { IConnectionManager } from "./interfaces/connection-manager.js";
 import type { IEntryManager } from "./interfaces/entry-manager.js";
-import type { IHotStateManager } from "./interfaces/hot-state-manager.js";
+import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
 
@@ -104,7 +104,7 @@ beforeAll(async () => {
 function createManager(deps: {
 	stateReader: ISessionStateReader;
 	stateWriter: ISessionStateWriter;
-	hotState: IHotStateManager;
+	hotState: ITransientProjectionManager;
 	capabilities: ICapabilitiesManager;
 	entryManager: IEntryManager;
 	connectionManager: IConnectionManager;
@@ -185,7 +185,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: IHotStateManager = {
+	const hotState: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),
@@ -1061,7 +1061,7 @@ describe("SessionConnectionManager.createSession", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: IHotStateManager = {
+	const hotState: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),
@@ -1690,7 +1690,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: IHotStateManager = {
+	const hotState: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),
@@ -2196,7 +2196,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: IHotStateManager = {
+	const hotState: ITransientProjectionManager = {
 		getHotState: vi.fn(),
 		hasHotState: vi.fn(),
 		updateHotState: vi.fn(),
@@ -2308,7 +2308,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
 			getHotState: vi.fn(
-				(): SessionHotState => ({
+				(): SessionTransientProjection => ({
 					isConnected: true,
 					status: "ready" as const,
 					turnState: "idle" as const,
@@ -2349,7 +2349,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			removeScanningProjects: vi.fn(),
 		};
 
-		const hotState: IHotStateManager = {
+		const hotState: ITransientProjectionManager = {
 			getHotState: vi.fn(),
 			hasHotState: vi.fn(),
 			updateHotState: vi.fn(),

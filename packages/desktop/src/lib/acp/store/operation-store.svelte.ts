@@ -2,7 +2,7 @@ import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { OperationSnapshot } from "../../services/acp-types.js";
 import type { ToolArguments } from "../../services/converted-session-types.js";
-import type { Operation } from "../types/operation.js";
+import type { Operation, OperationState } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 
@@ -34,7 +34,11 @@ function extractCommandFromArguments(argumentsValue: ToolArguments | undefined):
 }
 
 export function buildOperationId(sessionId: string, toolCallId: string): string {
-	return `${sessionId}:${toolCallId}`;
+	return buildCanonicalOperationId(sessionId, toolCallId);
+}
+
+export function buildCanonicalOperationId(sessionId: string, provenanceKey: string): string {
+	return `op:${sessionId.length}:${sessionId}:${provenanceKey.length}:${provenanceKey}`;
 }
 
 export function extractToolOperationCommand(toolCall: ToolCall): string | null {
@@ -60,21 +64,48 @@ export function extractToolOperationCommand(toolCall: ToolCall): string | null {
 	return normalizeCommand(titleMatch[1]);
 }
 
-function isStreamingOperationStatus(status: Operation["status"]): boolean {
-	return status === "pending" || status === "in_progress";
+function deriveOperationState(status: Operation["status"], kind: Operation["kind"]): OperationState {
+	if (kind === "unclassified") {
+		return "degraded";
+	}
+	if (status === "pending") {
+		return "pending";
+	}
+	if (status === "in_progress") {
+		return "running";
+	}
+	if (status === "completed") {
+		return "completed";
+	}
+	return "failed";
+}
+
+function isTerminalOperationState(state: OperationState | undefined): boolean {
+	return (
+		state === "completed" ||
+		state === "failed" ||
+		state === "cancelled" ||
+		state === "degraded" ||
+		state === "blocked"
+	);
+}
+
+function isStreamingOperationState(state: OperationState): boolean {
+	return state === "pending" || state === "running";
 }
 
 export class OperationStore {
 	/**
 	 * Canonical runtime owner for resolved tool execution state.
 	 *
-	 * `ToolCallManager` remains the mutation/reconciliation adapter that updates
+	 * `TranscriptToolCallBuffer` remains the mutation/reconciliation adapter that updates
 	 * transcript entries. `OperationStore` is the canonical read/query layer
 	 * those mutations feed so projection consumers stop reconstructing semantics
 	 * from raw transport artifacts.
 	 */
 	private readonly operationsById = new SvelteMap<string, Operation>();
 	private readonly operationIdByToolCallKey = new SvelteMap<string, string>();
+	private readonly operationIdByProvenanceKey = new SvelteMap<string, string>();
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
 
@@ -99,6 +130,17 @@ export class OperationStore {
 	getByToolCallId(sessionId: string, toolCallId: string): Operation | undefined {
 		const operationId = this.operationIdByToolCallKey.get(
 			createSessionToolKey(sessionId, toolCallId)
+		);
+		if (operationId == null) {
+			return undefined;
+		}
+
+		return this.operationsById.get(operationId);
+	}
+
+	getByProvenanceKey(sessionId: string, provenanceKey: string): Operation | undefined {
+		const operationId = this.operationIdByProvenanceKey.get(
+			createSessionToolKey(sessionId, provenanceKey)
 		);
 		if (operationId == null) {
 			return undefined;
@@ -138,16 +180,23 @@ export class OperationStore {
 	}
 
 	getCurrentStreamingToolCall(sessionId: string): ToolCall | null {
-		const operations = this.getSessionOperations(sessionId);
-		for (let index = operations.length - 1; index >= 0; index -= 1) {
-			const operation = operations[index];
-			if (!isStreamingOperationStatus(operation.status)) {
-				continue;
-			}
-
+		const operation = this.getCurrentStreamingOperation(sessionId);
+		if (operation !== null) {
 			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
 			if (toolCall !== null) {
 				return toolCall;
+			}
+		}
+
+		return null;
+	}
+
+	getCurrentStreamingOperation(sessionId: string): Operation | null {
+		const operations = this.getSessionOperations(sessionId);
+		for (let index = operations.length - 1; index >= 0; index -= 1) {
+			const operation = operations[index];
+			if (isStreamingOperationState(operation.operationState)) {
+				return operation;
 			}
 		}
 
@@ -179,12 +228,12 @@ export class OperationStore {
 	}
 
 	getCurrentToolKind(sessionId: string): ToolKind | null {
-		const currentToolCall = this.getCurrentStreamingToolCall(sessionId);
-		if (currentToolCall == null) {
+		const currentOperation = this.getCurrentStreamingOperation(sessionId);
+		if (currentOperation == null) {
 			return null;
 		}
 
-		return currentToolCall.kind ?? "other";
+		return currentOperation.kind ?? "other";
 	}
 
 	clearSession(sessionId: string): void {
@@ -197,6 +246,9 @@ export class OperationStore {
 
 			this.operationsById.delete(operationId);
 			this.operationIdByToolCallKey.delete(createSessionToolKey(sessionId, operation.toolCallId));
+			this.operationIdByProvenanceKey.delete(
+				createSessionToolKey(sessionId, operation.operationProvenanceKey ?? operation.toolCallId)
+			);
 			if (operation.sourceEntryId != null) {
 				this.operationIdByEntryKey.delete(createSessionToolKey(sessionId, operation.sourceEntryId));
 			}
@@ -209,41 +261,91 @@ export class OperationStore {
 		this.clearSession(sessionId);
 		const nextSessionOperationIds: Array<string> = [];
 		for (const snapshot of snapshots) {
-			const operation: Operation = {
-				id: snapshot.id,
-				sessionId: snapshot.session_id,
-				toolCallId: snapshot.tool_call_id,
-				sourceEntryId: null,
-				name: snapshot.name,
-				kind: snapshot.kind,
-				status: snapshot.status,
-				title: snapshot.title,
-				arguments: snapshot.arguments,
-				progressiveArguments: snapshot.progressive_arguments ?? undefined,
-				result: snapshot.result,
-				locations: undefined,
-				skillMeta: undefined,
-				normalizedQuestions: undefined,
-				normalizedTodos: snapshot.normalized_todos ?? undefined,
-				questionAnswer: undefined,
-				awaitingPlanApproval: false,
-				planApprovalRequestId: undefined,
-				startedAtMs: undefined,
-				completedAtMs: undefined,
-				command: snapshot.command,
-				parentToolCallId: snapshot.parent_tool_call_id,
-				parentOperationId: snapshot.parent_operation_id,
-				childToolCallIds: snapshot.child_tool_call_ids,
-				childOperationIds: snapshot.child_operation_ids,
-			};
+			const operation = this.operationFromSnapshot(snapshot);
 			this.operationsById.set(operation.id, operation);
-			this.operationIdByToolCallKey.set(
-				createSessionToolKey(sessionId, operation.toolCallId),
-				operation.id
-			);
+			this.indexOperation(operation);
 			nextSessionOperationIds.push(operation.id);
 		}
 		this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
+	}
+
+	applySessionOperationPatches(
+		sessionId: string,
+		snapshots: ReadonlyArray<OperationSnapshot>
+	): void {
+		for (const snapshot of snapshots) {
+			const operation = this.operationFromSnapshot(snapshot);
+			const existingOperation = this.operationsById.get(operation.id);
+			if (
+				existingOperation !== undefined &&
+				isTerminalOperationState(existingOperation.operationState) &&
+				!isTerminalOperationState(operation.operationState)
+			) {
+				continue;
+			}
+			this.operationsById.set(operation.id, operation);
+			this.indexOperation(operation);
+			const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
+			if (!sessionOperationIds.includes(operation.id)) {
+				const nextSessionOperationIds = sessionOperationIds.slice();
+				nextSessionOperationIds.push(operation.id);
+				this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
+			}
+		}
+	}
+
+	private operationFromSnapshot(snapshot: OperationSnapshot): Operation {
+		return {
+			id: snapshot.id,
+			sessionId: snapshot.session_id,
+			toolCallId: snapshot.tool_call_id,
+			sourceEntryId: snapshot.source_entry_id ?? null,
+			name: snapshot.name,
+			kind: snapshot.kind,
+			status: snapshot.status,
+			operationState:
+				snapshot.operation_state ?? deriveOperationState(snapshot.status, snapshot.kind ?? undefined),
+			operationProvenanceKey: snapshot.operation_provenance_key ?? snapshot.tool_call_id,
+			title: snapshot.title,
+			arguments: snapshot.arguments,
+			progressiveArguments: snapshot.progressive_arguments ?? undefined,
+			result: snapshot.result,
+			locations: snapshot.locations ?? undefined,
+			skillMeta: snapshot.skill_meta ?? undefined,
+			normalizedQuestions: snapshot.normalized_questions ?? undefined,
+			normalizedTodos: snapshot.normalized_todos ?? undefined,
+			questionAnswer: snapshot.question_answer ?? undefined,
+			awaitingPlanApproval: snapshot.awaiting_plan_approval ?? false,
+			planApprovalRequestId: snapshot.plan_approval_request_id ?? undefined,
+			startedAtMs: snapshot.started_at_ms ?? undefined,
+			completedAtMs: snapshot.completed_at_ms ?? undefined,
+			command: snapshot.command,
+			parentToolCallId: snapshot.parent_tool_call_id,
+			parentOperationId: snapshot.parent_operation_id,
+			childToolCallIds: snapshot.child_tool_call_ids,
+			childOperationIds: snapshot.child_operation_ids,
+			degradationReason: snapshot.degradation_reason ?? null,
+		};
+	}
+
+	private indexOperation(operation: Operation): void {
+		this.operationIdByToolCallKey.set(
+			createSessionToolKey(operation.sessionId, operation.toolCallId),
+			operation.id
+		);
+		this.operationIdByProvenanceKey.set(
+			createSessionToolKey(
+				operation.sessionId,
+				operation.operationProvenanceKey ?? operation.toolCallId
+			),
+			operation.id
+		);
+		if (operation.sourceEntryId != null) {
+			this.operationIdByEntryKey.set(
+				createSessionToolKey(operation.sessionId, operation.sourceEntryId),
+				operation.id
+			);
+		}
 	}
 
 	private upsertToolCall(
@@ -257,6 +359,12 @@ export class OperationStore {
 		const existingOperation = this.operationsById.get(operationId);
 		const nextSourceEntryId = sourceEntryId ?? existingOperation?.sourceEntryId ?? null;
 		const nextParentToolCallId = toolCall.parentToolUseId ?? parentToolCallId ?? null;
+		const derivedOperationState = deriveOperationState(toolCall.status, toolCall.kind);
+		const existingOperationState = existingOperation?.operationState;
+		const nextOperationState =
+			existingOperationState !== undefined && isTerminalOperationState(existingOperationState)
+				? existingOperationState
+				: derivedOperationState;
 		const childToolCallIds: Array<string> = [];
 		const childOperationIds: Array<string> = [];
 
@@ -280,6 +388,8 @@ export class OperationStore {
 			name: toolCall.name,
 			kind: toolCall.kind,
 			status: toolCall.status,
+			operationState: nextOperationState,
+			operationProvenanceKey: toolCall.id,
 			title: toolCall.title,
 			arguments: toolCall.arguments,
 			progressiveArguments: toolCall.progressiveArguments,
@@ -298,10 +408,18 @@ export class OperationStore {
 			parentOperationId,
 			childToolCallIds,
 			childOperationIds,
+			degradationReason:
+				derivedOperationState === "degraded"
+					? {
+							code: "classification_failure",
+							detail: "Tool kind could not be classified into a canonical operation.",
+						}
+					: null,
 		};
 
 		this.operationsById.set(operationId, nextOperation);
 		this.operationIdByToolCallKey.set(createSessionToolKey(sessionId, toolCall.id), operationId);
+		this.operationIdByProvenanceKey.set(createSessionToolKey(sessionId, toolCall.id), operationId);
 		if (nextSourceEntryId != null) {
 			this.operationIdByEntryKey.set(
 				createSessionToolKey(sessionId, nextSourceEntryId),

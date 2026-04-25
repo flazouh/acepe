@@ -1,6 +1,6 @@
 /**
- * Tool Call Manager - Manages tool call CRUD, child-parent reconciliation,
- * and canonical progressive tool state.
+ * Transcript Tool Call Buffer - maintains transcript tool rows and progressive
+ * argument text while OperationStore owns canonical product operation state.
  *
  * Extracted from SessionEntryStore to isolate tool call concerns.
  * All dependencies are injected via interfaces for testability.
@@ -30,10 +30,10 @@ import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
 import type { IEntryStoreInternal } from "./interfaces/entry-store-internal.js";
-import type { IToolCallManager } from "./interfaces/tool-call-manager-interface.js";
+import type { ITranscriptToolCallBuffer } from "./interfaces/transcript-tool-call-buffer-interface.js";
 import { normalizeToolResult } from "./tool-result-normalizer.js";
 
-const logger = createLogger({ id: "tool-call-manager", name: "ToolCallManager" });
+const logger = createLogger({ id: "transcript-tool-call-buffer", name: "TranscriptToolCallBuffer" });
 
 /**
  * Determine if a tool call entry should be marked as streaming based on its status.
@@ -102,7 +102,7 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 
 function reportMissingCanonicalToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
 	captureContractViolation("tool_call_update_without_canonical_entry", {
-		source: "tool-call-manager.updateEntry",
+		source: "transcript-tool-call-buffer.updateEntry",
 		sessionId,
 		toolCallId: update.toolCallId,
 		status: update.status ?? "none",
@@ -116,7 +116,7 @@ function reportMissingCanonicalToolCallUpdate(sessionId: string, update: ToolCal
 	});
 }
 
-export class ToolCallManager implements IToolCallManager {
+export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	// Track which tool call IDs belong to which session (for cleanup on clearSession)
 	private sessionToolCallIds = new Map<string, Set<string>>();
 
@@ -144,12 +144,12 @@ export class ToolCallManager implements IToolCallManager {
 		if (!toolCallIds) {
 			if (
 				options?.enforceSessionLimit === true &&
-				this.sessionToolCallIds.size >= ToolCallManager.MAX_SESSIONS
+				this.sessionToolCallIds.size >= TranscriptToolCallBuffer.MAX_SESSIONS
 			) {
 				logger.warn("Session limit exceeded, dropping streaming arguments", {
 					sessionId,
 					toolCallId,
-					maxSessions: ToolCallManager.MAX_SESSIONS,
+					maxSessions: TranscriptToolCallBuffer.MAX_SESSIONS,
 				});
 				return false;
 			}
