@@ -155,6 +155,11 @@ function renderCanonicalTestMarkdown(text: string): string {
 		return `<pre class="streaming-code"><code>${code}</code></pre>`;
 	}
 
+	if (text.startsWith("before skip after")) {
+		const suffix = text.includes(" after new") ? " new" : "";
+		return `<p>before <span data-reveal-skip>skip</span> after${suffix}</p>`;
+	}
+
 	return `<p>${text
 		.replace("**bold**", "<strong>bold</strong>")
 		.replace("[Acepe](https://acepe.dev)", '<a href="https://acepe.dev">Acepe</a>')}</p>`;
@@ -803,17 +808,28 @@ describe("MarkdownText", () => {
 	});
 
 	describe("streaming reveal behavior", () => {
-		it("does not re-animate existing words when streaming text grows", async () => {
+		it("drops words out of the fade window once their animation has fully played", async () => {
+			// Drive performance.now so the first reveal records "hello world" at t=0,
+			// then advance past the 300ms fade window before the rerender. Older words
+			// must render as plain text (animation already complete) while the freshly
+			// revealed word stays wrapped with .sd-word-fade.
+			let mockedNow = 0;
+			vi.spyOn(performance, "now").mockImplementation(() => mockedNow);
+
 			const view = render(MarkdownText, {
 				text: "hello world",
 				isStreaming: true,
 				streamingAnimationMode: "smooth",
 			});
 
+			// Wait until the reveal controller has surfaced the full text so all words
+			// have been recorded at t=0 in the appearance history.
 			await waitFor(() => {
-				const fades = view.container.querySelectorAll(".sd-word-fade");
-				expect(fades.length).toBeGreaterThan(0);
+				const section = view.container.querySelector(".markdown-content");
+				expect(section?.textContent).toBe("hello world");
 			});
+
+			mockedNow = 1000;
 
 			await view.rerender({
 				text: "hello world foo",
@@ -823,18 +839,99 @@ describe("MarkdownText", () => {
 
 			await waitFor(() => {
 				const section = view.container.querySelector(".markdown-content");
-				expect(section).not.toBeNull();
-				if (!section) {
-					throw new Error("Expected markdown content");
-				}
+				expect(section?.textContent).toBe("hello world foo");
+				const fadeSpans = Array.from(
+					section?.querySelectorAll(".sd-word-fade") ?? []
+				).map((s) => s.textContent);
+				expect(fadeSpans).not.toContain("hello");
+				expect(fadeSpans).not.toContain("world");
+				expect(fadeSpans).toContain("foo");
+			});
+		});
 
-				const html = section.innerHTML;
-				expect(html).not.toContain('<span class="sd-word-fade">hello</span>');
-				expect(html).not.toContain('<span class="sd-word-fade">world</span>');
-				expect(html).toContain('<span class="sd-word-fade">foo</span>');
-				expect(section.textContent).toContain("hello");
-				expect(section.textContent).toContain("world");
-				expect(section.textContent).toContain("foo");
+		it("applies a fast-forward animation-delay to recently revealed words", async () => {
+			// Two reveal updates 100ms apart: prior words must remain wrapped (still in
+			// the 300ms fade window) but with an inline animation-delay that picks up
+			// where their previous span left off, so the canonical {@html} re-render
+			// does not visually restart their fade.
+			let mockedNow = 0;
+			vi.spyOn(performance, "now").mockImplementation(() => mockedNow);
+
+			const view = render(MarkdownText, {
+				text: "hello",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const section = view.container.querySelector(".markdown-content");
+				expect(section?.textContent).toBe("hello");
+			});
+
+			mockedNow = 100;
+
+			await view.rerender({
+				text: "hello world",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const section = view.container.querySelector(".markdown-content");
+				expect(section?.textContent).toBe("hello world");
+				const helloSpan = Array.from(
+					section?.querySelectorAll(".sd-word-fade") ?? []
+				).find((s) => s.textContent === "hello") as HTMLElement | undefined;
+				const worldSpan = Array.from(
+					section?.querySelectorAll(".sd-word-fade") ?? []
+				).find((s) => s.textContent === "world") as HTMLElement | undefined;
+
+				expect(helloSpan).toBeDefined();
+				expect(worldSpan).toBeDefined();
+				// "hello" was first seen at t=0 and is now 100ms into its 300ms fade.
+				expect(helloSpan?.style.animationDelay).toBe("-100ms");
+				// "world" first appeared at t=100 → no delay yet.
+				expect(worldSpan?.style.animationDelay).toBe("");
+			});
+		});
+
+		it("keeps word-fade offsets aligned when skipped reveal content precedes new text", async () => {
+			// Skipped (`[data-reveal-skip]`) regions must not shift the offset baseline used
+			// by the appearance history. Words around the skip region drop out of the fade
+			// window normally; only the freshly revealed word retains `.sd-word-fade`.
+			let mockedNow = 0;
+			vi.spyOn(performance, "now").mockImplementation(() => mockedNow);
+
+			const view = render(MarkdownText, {
+				text: "before skip after",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				expect(view.container.querySelector("[data-reveal-skip]")?.textContent).toBe("skip");
+				expect(view.container.textContent).toContain("before skip after");
+			});
+
+			mockedNow = 1000;
+
+			await view.rerender({
+				text: "before skip after new",
+				isStreaming: true,
+				streamingAnimationMode: "smooth",
+			});
+
+			await waitFor(() => {
+				const section = view.container.querySelector(".markdown-content");
+				expect(section?.textContent).toContain("before skip after new");
+				const fadeSpans = Array.from(
+					section?.querySelectorAll(".sd-word-fade") ?? []
+				).map((s) => s.textContent);
+				expect(fadeSpans).not.toContain("before");
+				expect(fadeSpans).not.toContain("after");
+				expect(fadeSpans).toContain("new");
+				// Skipped content stays untouched.
+				expect(section?.querySelector("[data-reveal-skip]")?.textContent).toBe("skip");
 			});
 		});
 
