@@ -1404,7 +1404,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	disconnectAllSessions(): void {
 		const connectedSessions = this.sessions.filter(
-			(s) => this.getSessionCanSend(s.id) ?? this.hotStateStore.getHotState(s.id).isConnected
+			(s) => this.getSessionCanSend(s.id) ?? false
 		);
 		for (const session of connectedSessions) {
 			this.disconnectSession(session.id);
@@ -1465,8 +1465,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 		logger.info("sendMessage: store entrypoint", {
 			sessionId,
-			canSend:
-				this.getSessionCanSend(sessionId) ?? this.hotStateStore.getHotState(sessionId).isConnected,
+			canSend: this.getSessionCanSend(sessionId) ?? false,
 			entryCountBeforeSend: this.entryStore.getEntries(sessionId).length,
 			preview: content.trim().slice(0, 120),
 		});
@@ -1498,7 +1497,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		if (this.getSessionCanSend(sessionId) ?? hotState.isConnected) {
+		if (this.getSessionCanSend(sessionId) ?? false) {
 			return send();
 		}
 
@@ -2143,8 +2142,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				const turnState = mapHotTurnStateToGraphTurnState(hotState.turnState);
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
 				const reconciledActivity =
-					reconcileStoredGraphActivity(
-						previousProjection?.activity ?? hotState.activity ?? null,
+				reconcileStoredGraphActivity(
+						previousProjection?.activity ?? null,
 						command.lifecycle,
 						hotState.turnState,
 						activeTurnFailure
@@ -2161,7 +2160,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					turnState,
 					activeTurnFailure,
 					lastTerminalTurnId:
-						previousProjection?.lastTerminalTurnId ?? hotState.lastTerminalTurnId ?? null,
+						previousProjection?.lastTerminalTurnId ?? null,
 					revision: previousProjection?.revision ?? {
 						graphRevision: envelope.graphRevision,
 						transcriptRevision: this.entryStore.getTranscriptRevision(sessionId) ?? 0,

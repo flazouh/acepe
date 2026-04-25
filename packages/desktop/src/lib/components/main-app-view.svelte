@@ -157,7 +157,6 @@ sessionStore.onSessionRemoved((id) => {
 	planStore.clear(id);
 	messageQueueStore.removeForSession(id);
 	interactionStore.clearSession(id);
-	sessionStore.clearSessionProjection(id);
 });
 // UnseenStore tracks panels with unseen agent completions (yellow dot indicator)
 const unseenStore = createUnseenStore();
