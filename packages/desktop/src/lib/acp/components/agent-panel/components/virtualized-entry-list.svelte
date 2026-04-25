@@ -278,7 +278,7 @@ function getSharedEntry(
 			((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
 				(entry.type === "assistant_merged" && entry.memberIds.includes(lastAssistantId ?? ""))),
 		activeRootToolCallId,
-		thinkingDurationMs
+		thinkingDurationMs ?? undefined
 	);
 }
 

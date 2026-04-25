@@ -70,6 +70,7 @@ pub(crate) fn issue_confirmation_token(
     token
 }
 
+#[allow(clippy::result_large_err)]
 pub(crate) fn consume_confirmation_token(
     token: &str,
     operation: DestructiveOperationScope,

@@ -109,6 +109,7 @@ pub(crate) struct ProviderRestoreAuditCase {
     pub(crate) provenance_key_stability: ProvenanceKeyStability,
 }
 
+#[cfg(test)]
 impl ProviderRestoreAuditCase {
     pub(crate) fn happy_path(
         provider_id: impl Into<String>,
@@ -169,17 +170,20 @@ impl ProviderRestoreAuditCase {
     }
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProviderRestoreAuditGateStatus {
     pub(crate) ready: bool,
     pub(crate) blocking_reasons: Vec<String>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProviderRestoreAuditReport {
     pub(crate) cases: Vec<ProviderRestoreAuditCase>,
 }
 
+#[cfg(test)]
 impl ProviderRestoreAuditReport {
     pub(crate) fn new(cases: Vec<ProviderRestoreAuditCase>) -> Self {
         Self { cases }
