@@ -803,7 +803,7 @@ describe("MarkdownText", () => {
 	});
 
 	describe("streaming reveal behavior", () => {
-		it("updates streamed text without reintroducing live-word animation spans", async () => {
+		it("does not re-animate existing words when streaming text grows", async () => {
 			const view = render(MarkdownText, {
 				text: "hello world",
 				isStreaming: true,
@@ -811,7 +811,8 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				expect(view.container.textContent).toContain("hello world");
+				const fades = view.container.querySelectorAll(".sd-word-fade");
+				expect(fades.length).toBeGreaterThan(0);
 			});
 
 			await view.rerender({
@@ -821,12 +822,20 @@ describe("MarkdownText", () => {
 			});
 
 			await waitFor(() => {
-				expect(view.container.textContent).toContain("hello");
-				expect(view.container.textContent).toContain("world");
-				expect(view.container.textContent).toContain("foo");
-			});
+				const section = view.container.querySelector(".markdown-content");
+				expect(section).not.toBeNull();
+				if (!section) {
+					throw new Error("Expected markdown content");
+				}
 
-			expect(view.container.querySelector(".markdown-content")).not.toBeNull();
+				const html = section.innerHTML;
+				expect(html).not.toContain('<span class="sd-word-fade">hello</span>');
+				expect(html).not.toContain('<span class="sd-word-fade">world</span>');
+				expect(html).toContain('<span class="sd-word-fade">foo</span>');
+				expect(section.textContent).toContain("hello");
+				expect(section.textContent).toContain("world");
+				expect(section.textContent).toContain("foo");
+			});
 		});
 
 		it("renders canonical inline markdown while streaming is active", async () => {
@@ -846,6 +855,7 @@ describe("MarkdownText", () => {
 
 			await waitFor(() => {
 				expect(view.container.querySelector(".markdown-content strong")?.textContent).toBe("bold");
+				expect(view.container.querySelector(".sd-word-fade")?.textContent).toBe("bold");
 			});
 		});
 
@@ -915,7 +925,7 @@ describe("MarkdownText", () => {
 				expect(rendered?.textContent).toBe("bold");
 			});
 
-			expect(view.container.querySelector(".markdown-content")).not.toBeNull();
+			expect(view.container.querySelector(".sd-word-fade")).toBeNull();
 		});
 
 		it("does not restart reveal from the beginning after a remount with the same reveal key", async () => {

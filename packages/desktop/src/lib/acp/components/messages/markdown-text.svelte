@@ -73,6 +73,17 @@ interface Props {
 	onRevealActivityChange?: (active: boolean) => void;
 }
 
+type StreamingWordFadeParams = {
+	active: boolean;
+	marker: string;
+	resetKey: string;
+};
+
+type TextSegment = {
+	text: string;
+	isWordLike: boolean;
+};
+
 let {
 	text,
 	isStreaming = false,
@@ -100,7 +111,7 @@ const reveal: StreamingRevealController = createStreamingRevealController(
 let hasStreamingSession = $state(false);
 let wasStreaming = false;
 let seedRevealFromSource = $state(false);
-let lastRevealKey = "";
+let lastRevealKey = $state("");
 
 // Fetch and cache repo context for enhancing commit badges
 let repoContext = $state<RepoContext | null>(null);
@@ -387,6 +398,140 @@ function openExternalLink(url: string) {
 	openUrl(url);
 }
 
+function shouldSkipWordFade(textNode: Text): boolean {
+	const parent = textNode.parentElement;
+	if (!parent) {
+		return true;
+	}
+
+	return (
+		parent.closest(
+			"[data-reveal-skip], pre, code, button, .file-path-badge, .file-path-badge-placeholder, .github-badge-placeholder"
+		) !== null
+	);
+}
+
+function segmentTextForFade(textValue: string): TextSegment[] {
+	const segments: TextSegment[] = [];
+	const parts = textValue.split(/(\s+)/);
+
+	for (const part of parts) {
+		if (part.length === 0) {
+			continue;
+		}
+
+		segments.push({
+			text: part,
+			isWordLike: /^\s+$/.test(part) === false,
+		});
+	}
+
+	return segments;
+}
+
+function replaceTextNodeWithFadedSuffix(textNode: Text, animateFromOffset: number): void {
+	const textValue = textNode.nodeValue ?? "";
+	const parent = textNode.parentNode;
+	if (!parent || textValue.length === 0 || animateFromOffset >= textValue.length) {
+		return;
+	}
+
+	const fragment = document.createDocumentFragment();
+	const stablePrefix = textValue.slice(0, animateFromOffset);
+	if (stablePrefix.length > 0) {
+		fragment.append(document.createTextNode(stablePrefix));
+	}
+
+	for (const segment of segmentTextForFade(textValue.slice(animateFromOffset))) {
+		if (!segment.isWordLike) {
+			fragment.append(document.createTextNode(segment.text));
+			continue;
+		}
+
+		const span = document.createElement("span");
+		span.className = "sd-word-fade";
+		span.textContent = segment.text;
+		fragment.append(span);
+	}
+
+	parent.replaceChild(fragment, textNode);
+}
+
+function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number): void {
+	const textNodes: Text[] = [];
+	const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+		acceptNode(textNode) {
+			return textNode instanceof Text && !shouldSkipWordFade(textNode)
+				? NodeFilter.FILTER_ACCEPT
+				: NodeFilter.FILTER_REJECT;
+		},
+	});
+
+	let currentNode = walker.nextNode();
+	while (currentNode !== null) {
+		if (currentNode instanceof Text) {
+			textNodes.push(currentNode);
+		}
+		currentNode = walker.nextNode();
+	}
+
+	let textOffset = 0;
+	for (const textNode of textNodes) {
+		const textValue = textNode.nodeValue ?? "";
+		const nextOffset = textOffset + textValue.length;
+		if (nextOffset > animateFromTextOffset) {
+			replaceTextNodeWithFadedSuffix(textNode, Math.max(0, animateFromTextOffset - textOffset));
+		}
+		textOffset = nextOffset;
+	}
+}
+
+function canonicalStreamingWordFade(node: HTMLElement, initialParams: StreamingWordFadeParams) {
+	let params = initialParams;
+	let lastTextContent = "";
+	let lastResetKey = initialParams.resetKey;
+	let scheduledVersion = 0;
+
+	function schedule(): void {
+		scheduledVersion += 1;
+		const version = scheduledVersion;
+		queueMicrotask(() => {
+			if (version !== scheduledVersion) {
+				return;
+			}
+
+			if (params.resetKey !== lastResetKey) {
+				lastTextContent = "";
+				lastResetKey = params.resetKey;
+			}
+
+			if (!params.active || params.marker.length === 0) {
+				lastTextContent = "";
+				return;
+			}
+
+			const currentTextContent = node.textContent ?? "";
+			const animateFromTextOffset = currentTextContent.startsWith(lastTextContent)
+				? lastTextContent.length
+				: 0;
+			applyStreamingWordFade(node, animateFromTextOffset);
+			lastTextContent = currentTextContent;
+		});
+	}
+
+	schedule();
+
+	return {
+		update(nextParams: StreamingWordFadeParams) {
+			params = nextParams;
+			schedule();
+		},
+		destroy() {
+			scheduledVersion += 1;
+		},
+	};
+}
+
 /**
  * Handle click events on interactive elements within rendered markdown.
  * - External links: opens in system browser
@@ -505,6 +650,11 @@ function handleKeydown(event: KeyboardEvent) {
 		tabindex="0"
 		onclick={handleClick}
 		onkeydown={handleKeydown}
+		use:canonicalStreamingWordFade={{
+			active: isRenderingReveal && streamingHtml !== null && !streamingHasSpecialBlocks,
+			marker: streamingHtml ?? "",
+			resetKey: lastRevealKey,
+		}}
 	>
 		{#if streamingHtml}
 			{#if streamingHasSpecialBlocks}
