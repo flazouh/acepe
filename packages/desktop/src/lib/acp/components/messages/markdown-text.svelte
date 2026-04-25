@@ -284,9 +284,9 @@ $effect(() => {
 // affect git status, and the gitStatusCache handles its own TTL-based refresh.
 $effect(() => {
 	const currentProjectPath = projectPath;
-	const currentVisibleHtml = visibleHtml;
+	const currentRenderedHtmlForBadges = renderedHtmlForBadges;
 
-	if (!currentProjectPath || !htmlNeedsGitStatus(currentVisibleHtml)) {
+	if (!currentProjectPath || !htmlNeedsGitStatus(currentRenderedHtmlForBadges)) {
 		gitStatusByPath = null;
 		lastGitStatusRequestKey = "";
 		return;

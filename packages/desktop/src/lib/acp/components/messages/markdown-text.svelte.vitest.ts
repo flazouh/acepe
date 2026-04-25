@@ -1,6 +1,8 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { FileGitStatus } from "../../../services/converted-session-types.js";
+
 type RepoContext = { owner: string; repo: string };
 
 vi.mock("svelte", async () => {
@@ -27,7 +29,10 @@ vi.mock("../../hooks/use-session-context.js", () => ({
 
 const getProjectGitStatusMapMock = vi.fn<
 	(projectPath: string) => {
-		match: () => Promise<void>;
+		match: (
+			onOk?: (statusMap: ReadonlyMap<string, FileGitStatus>) => void,
+			onErr?: (error: string) => void
+		) => Promise<void>;
 	}
 >(() => ({
 	match: () => Promise.resolve(),
@@ -275,6 +280,54 @@ describe("MarkdownText", () => {
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 		expect(getProjectGitStatusMapMock).not.toHaveBeenCalled();
+	});
+
+	it("loads git status for streaming file badges and resolves reveal-time diff stats", async () => {
+		const fileRef = encodeURIComponent(
+			JSON.stringify({ filePath: "src/example.ts", locationSuffix: "" })
+		);
+		const gitStatusByPath = new Map<string, FileGitStatus>([
+			[
+				"src/example.ts",
+				{
+					path: "src/example.ts",
+					status: "M",
+					insertions: 7,
+					deletions: 2,
+				},
+			],
+		]);
+
+		getProjectGitStatusMapMock.mockReturnValue({
+			match: (onOk) => {
+				onOk?.(gitStatusByPath);
+				return Promise.resolve();
+			},
+		});
+
+		renderMarkdownSyncMock.mockImplementation(() => ({
+			html: `<p><span class="file-path-badge-placeholder" data-file-ref="${fileRef}"></span></p>`,
+			fromCache: false,
+			needsAsync: false,
+		}));
+
+		render(MarkdownText, {
+			text: "`src/example.ts`",
+			projectPath: "/repo",
+			isStreaming: true,
+			streamingAnimationMode: "instant",
+		});
+
+		await waitFor(() => {
+			expect(getProjectGitStatusMapMock).toHaveBeenCalledWith("/repo");
+			expect(mountFileBadgesMock).toHaveBeenCalled();
+			const latestResolver = mountFileBadgesMock.mock.lastCall?.[1];
+			expect(latestResolver).toBeTruthy();
+			expect(latestResolver?.("src/example.ts")).toEqual({
+				insertions: 7,
+				deletions: 2,
+			});
+		});
 	});
 
 	it("requests repo context when markdown contains bare commit refs", async () => {
