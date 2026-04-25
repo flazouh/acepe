@@ -13,9 +13,9 @@ import type { SessionCold, SessionTransientProjection } from "../types.js";
 import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
 import type { IConnectionManager } from "./interfaces/connection-manager.js";
 import type { IEntryManager } from "./interfaces/entry-manager.js";
-import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
+import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
 
 let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 

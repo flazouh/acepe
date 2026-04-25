@@ -64,7 +64,10 @@ export function extractToolOperationCommand(toolCall: ToolCall): string | null {
 	return normalizeCommand(titleMatch[1]);
 }
 
-function deriveOperationState(status: Operation["status"], kind: Operation["kind"]): OperationState {
+function deriveOperationState(
+	status: Operation["status"],
+	kind: Operation["kind"]
+): OperationState {
 	if (kind === "unclassified") {
 		return "degraded";
 	}
@@ -304,7 +307,8 @@ export class OperationStore {
 			kind: snapshot.kind,
 			status: snapshot.status,
 			operationState:
-				snapshot.operation_state ?? deriveOperationState(snapshot.status, snapshot.kind ?? undefined),
+				snapshot.operation_state ??
+				deriveOperationState(snapshot.status, snapshot.kind ?? undefined),
 			operationProvenanceKey: snapshot.operation_provenance_key ?? snapshot.tool_call_id,
 			title: snapshot.title,
 			arguments: snapshot.arguments,

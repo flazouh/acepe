@@ -1,5 +1,5 @@
-import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { okAsync } from "neverthrow";
 
 const requestDestructiveConfirmationTokenInvoke = mock(() => okAsync("confirmation-token-1"));
 const resetDatabaseInvoke = mock(() => okAsync(undefined));
@@ -22,7 +22,9 @@ const { settings } = await import("./settings.js");
 describe("settings tauri client", () => {
 	beforeEach(() => {
 		requestDestructiveConfirmationTokenInvoke.mockReset();
-		requestDestructiveConfirmationTokenInvoke.mockImplementation(() => okAsync("confirmation-token-1"));
+		requestDestructiveConfirmationTokenInvoke.mockImplementation(() =>
+			okAsync("confirmation-token-1")
+		);
 		resetDatabaseInvoke.mockReset();
 		resetDatabaseInvoke.mockImplementation(() => okAsync(undefined));
 	});

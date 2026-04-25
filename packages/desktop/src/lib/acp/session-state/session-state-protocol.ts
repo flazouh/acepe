@@ -2,9 +2,9 @@ import type {
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
+	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
-	SessionGraphActionability,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -18,9 +18,9 @@ import type {
 
 export type {
 	CapabilityPreviewState,
+	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
-	SessionGraphActionability,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,

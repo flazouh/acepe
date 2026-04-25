@@ -1,3 +1,4 @@
+import type { OperationDegradationReason } from "../../services/acp-types.js";
 import type {
 	JsonValue,
 	QuestionAnswer,
@@ -7,18 +8,37 @@ import type {
 	ToolArguments,
 	ToolCallLocation,
 } from "../../services/converted-session-types.js";
-import type { OperationDegradationReason } from "../../services/acp-types.js";
 
 /** Provider-layer provenance status carried by the Operation for observability. Not used for product decisions — use operationState for all canonical state logic. */
 export type OperationProviderStatus = "pending" | "in_progress" | "completed" | "failed";
 
 /** Provider-layer tool classification carried by the Operation as provenance evidence. Not used for canonical state decisions. */
 export type OperationKind =
-	| "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search"
-	| "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move"
-	| "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search"
-	| "browser" | "sql" | "unclassified" | "other"
-	| null | undefined;
+	| "read"
+	| "edit"
+	| "execute"
+	| "search"
+	| "glob"
+	| "fetch"
+	| "web_search"
+	| "think"
+	| "todo"
+	| "question"
+	| "task"
+	| "task_output"
+	| "skill"
+	| "move"
+	| "delete"
+	| "enter_plan_mode"
+	| "exit_plan_mode"
+	| "create_plan"
+	| "tool_search"
+	| "browser"
+	| "sql"
+	| "unclassified"
+	| "other"
+	| null
+	| undefined;
 
 /** @deprecated Use OperationProviderStatus. This alias exists for migration only. */
 export type OperationStatus = OperationProviderStatus;

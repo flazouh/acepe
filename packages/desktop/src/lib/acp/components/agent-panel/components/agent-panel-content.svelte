@@ -58,7 +58,11 @@ const runtimeState = $derived(
 			: null
 );
 const hotState = $derived(
-	turnStateProp !== undefined ? null : sessionId ? (sessionStore?.getHotState(sessionId) ?? null) : null
+	turnStateProp !== undefined
+		? null
+		: sessionId
+			? (sessionStore?.getHotState(sessionId) ?? null)
+			: null
 );
 const canonicalProjection = $derived(
 	turnStateProp !== undefined || !sessionId

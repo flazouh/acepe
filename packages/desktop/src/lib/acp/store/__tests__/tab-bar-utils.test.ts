@@ -34,7 +34,9 @@ function makePanel(overrides: Partial<Panel> = {}): Panel {
 	};
 }
 
-function makeHotState(overrides: Partial<SessionTransientProjection> = {}): SessionTransientProjection {
+function makeHotState(
+	overrides: Partial<SessionTransientProjection> = {}
+): SessionTransientProjection {
 	return {
 		status: "idle",
 		isConnected: true,

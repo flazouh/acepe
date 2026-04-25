@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import {
 	DEFAULT_TRANSIENT_PROJECTION,
 	type Session,
-	type SessionTransientProjection,
 	type SessionStatus,
+	type SessionTransientProjection,
 	type TurnState,
 } from "../types.js";
 

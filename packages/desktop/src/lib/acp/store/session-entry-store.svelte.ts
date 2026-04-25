@@ -30,13 +30,13 @@ import { ChunkAggregator } from "./services/chunk-aggregator.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
 import type { IEntryStoreInternal } from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
-import { TranscriptToolCallBuffer } from "./services/transcript-tool-call-buffer.svelte.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import {
 	appendTranscriptSegmentToSessionEntry,
 	convertTranscriptEntryToSessionEntry,
 	convertTranscriptSnapshotToSessionEntries,
 } from "./services/transcript-snapshot-entry-adapter.js";
+import { TranscriptToolCallBuffer } from "./services/transcript-tool-call-buffer.svelte.js";
 import type { SessionEntry } from "./types.js";
 import { isToolCallEntry } from "./types.js";
 

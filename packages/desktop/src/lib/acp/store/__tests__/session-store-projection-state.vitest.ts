@@ -18,9 +18,8 @@ import type {
 	SessionStateGraph,
 	TurnFailureSnapshot,
 } from "$lib/services/acp-types.js";
-
-import { SessionStore } from "../session-store.svelte.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
+import { SessionStore } from "../session-store.svelte.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 

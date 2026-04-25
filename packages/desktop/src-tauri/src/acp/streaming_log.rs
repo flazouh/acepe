@@ -43,10 +43,10 @@ fn log_dir() -> PathBuf {
         .get_or_init(|| {
             #[cfg(test)]
             {
-                return std::env::temp_dir()
+                std::env::temp_dir()
                     .join("Acepe")
                     .join("logs")
-                    .join("streaming");
+                    .join("streaming")
             }
             #[cfg(not(test))]
             {
@@ -59,12 +59,12 @@ fn log_dir() -> PathBuf {
         .clone()
 }
 
-#[cfg(debug_assertions)]
+#[cfg(test)]
 fn project_manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-#[cfg(debug_assertions)]
+#[cfg(test)]
 fn is_inside_path(path: &Path, ancestor: &Path) -> bool {
     let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let canonical_ancestor = ancestor
@@ -73,7 +73,7 @@ fn is_inside_path(path: &Path, ancestor: &Path) -> bool {
     canonical_path.starts_with(canonical_ancestor)
 }
 
-#[cfg(debug_assertions)]
+#[cfg(test)]
 pub(crate) fn streaming_log_dir_is_outside_project() -> bool {
     !is_inside_path(&log_dir(), &project_manifest_dir())
 }

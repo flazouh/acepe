@@ -1935,7 +1935,7 @@ mod tests {
                 tool_call_id: "tool-1".to_string(),
                 name: "bash".to_string(),
                 kind: Some(ToolKind::Execute),
-                status: ToolCallStatus::Completed,
+                provider_status: ToolCallStatus::Completed,
                 title: Some("Run command".to_string()),
                 arguments: ToolArguments::Execute {
                     command: Some("bun test".to_string()),

@@ -49,8 +49,8 @@ function normalizeLifecycle(input: LiveSessionWorkInput): {
 			lifecycle.status === "failed"
 				? "failed"
 				: lifecycle.status === "reserved" ||
-					  lifecycle.status === "detached" ||
-					  lifecycle.status === "archived"
+						lifecycle.status === "detached" ||
+						lifecycle.status === "archived"
 					? "disconnected"
 					: lifecycle.status === "activating" || lifecycle.status === "reconnecting"
 						? "connecting"
@@ -59,7 +59,7 @@ function normalizeLifecycle(input: LiveSessionWorkInput): {
 			input.canonicalProjection.activity.kind === "paused"
 				? "paused"
 				: input.canonicalProjection.activity.kind === "awaiting_model" ||
-					  input.canonicalProjection.activity.kind === "waiting_for_user"
+						input.canonicalProjection.activity.kind === "waiting_for_user"
 					? "awaiting_model"
 					: input.canonicalProjection.activity.kind === "running_operation"
 						? "running"

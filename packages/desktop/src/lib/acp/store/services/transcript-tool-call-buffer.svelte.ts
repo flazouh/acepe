@@ -33,7 +33,10 @@ import type { IEntryStoreInternal } from "./interfaces/entry-store-internal.js";
 import type { ITranscriptToolCallBuffer } from "./interfaces/transcript-tool-call-buffer-interface.js";
 import { normalizeToolResult } from "./tool-result-normalizer.js";
 
-const logger = createLogger({ id: "transcript-tool-call-buffer", name: "TranscriptToolCallBuffer" });
+const logger = createLogger({
+	id: "transcript-tool-call-buffer",
+	name: "TranscriptToolCallBuffer",
+});
 
 /**
  * Determine if a tool call entry should be marked as streaming based on its status.

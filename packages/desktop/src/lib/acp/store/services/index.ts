@@ -11,9 +11,9 @@
 export type {
 	IConnectionManager,
 	IEntryManager,
-	ITransientProjectionManager,
 	ISessionStateReader,
 	ISessionStateWriter,
+	ITransientProjectionManager,
 } from "./interfaces/index.js";
 
 export { SessionConnectionManager } from "./session-connection-manager.js";

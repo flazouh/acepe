@@ -343,7 +343,7 @@ mod tests {
             tool_call_id: format!("tool-{id}"),
             name: "task".to_string(),
             kind,
-            status: status.clone(),
+            provider_status: status.clone(),
             title: None,
             arguments: ToolArguments::Other { raw: json!({}) },
             progressive_arguments: None,

@@ -84,6 +84,7 @@ fn apply_derived_current_mode_metadata(
     session
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProviderRestoreAuditOutcome {
     RestoredNonEmpty,
@@ -92,6 +93,7 @@ pub(crate) enum ProviderRestoreAuditOutcome {
     ProviderUnavailable,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProvenanceKeyStability {
     Stable,
@@ -99,6 +101,7 @@ pub(crate) enum ProvenanceKeyStability {
     Unknown,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProviderRestoreAuditCase {
     pub(crate) provider_id: String,

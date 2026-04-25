@@ -143,7 +143,9 @@ describe("operation association", () => {
 		]);
 
 		const permission = createExecutePermission("session-1", "provider-tool-1", "different command");
-		expect(findOperationForPermission(operationStore, permission)?.toolCallId).toBe("stored-tool-1");
+		expect(findOperationForPermission(operationStore, permission)?.toolCallId).toBe(
+			"stored-tool-1"
+		);
 	});
 
 	it("returns null for permission with no matching operation", () => {

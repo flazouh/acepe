@@ -3,8 +3,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
-import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
+import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 
 const sendPrompt = vi.fn();
 

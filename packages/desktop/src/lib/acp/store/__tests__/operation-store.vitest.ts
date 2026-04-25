@@ -375,9 +375,7 @@ describe("OperationStore", () => {
 	});
 
 	it("buildCanonicalOperationId produces stable id matching buildOperationId", () => {
-		expect(buildCanonicalOperationId("session-1", "tool-abc")).toBe(
-			"op:9:session-1:8:tool-abc"
-		);
+		expect(buildCanonicalOperationId("session-1", "tool-abc")).toBe("op:9:session-1:8:tool-abc");
 		expect(buildOperationId("session-1", "tool-abc")).toBe("op:9:session-1:8:tool-abc");
 		expect(buildCanonicalOperationId("a:b", "c")).not.toBe(buildCanonicalOperationId("a", "b:c"));
 	});

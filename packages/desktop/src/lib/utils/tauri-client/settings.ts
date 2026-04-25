@@ -11,10 +11,12 @@ export const settings = {
 	},
 
 	get: <T>(key: UserSettingKey): ResultAsync<T | null, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.get_user_setting.invoke<string | null>({ key }).map((stored) => {
-			if (stored === null) return null;
-			return JSON.parse(stored) as T;
-		});
+		return TAURI_COMMAND_CLIENT.storage.get_user_setting
+			.invoke<string | null>({ key })
+			.map((stored) => {
+				if (stored === null) return null;
+				return JSON.parse(stored) as T;
+			});
 	},
 
 	set: <T>(key: UserSettingKey, value: T): ResultAsync<void, AppError> => {

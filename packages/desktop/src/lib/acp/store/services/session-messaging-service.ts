@@ -36,8 +36,8 @@ import type { SessionEntry } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
-	ITransientProjectionManager,
 	ISessionStateReader,
+	ITransientProjectionManager,
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });

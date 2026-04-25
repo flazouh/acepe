@@ -11,8 +11,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionEntryStore } from "../../session-entry-store.svelte.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
-import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
+import type { ITransientProjectionManager } from "../interfaces/transient-projection-manager.js";
 
 const createCheckpoint = vi.fn();
 

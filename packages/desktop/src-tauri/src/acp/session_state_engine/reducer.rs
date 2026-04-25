@@ -267,7 +267,7 @@ mod tests {
             tool_call_id: tool_call_id.to_string(),
             name: "bash".to_string(),
             kind: Some(ToolKind::Execute),
-            status,
+            provider_status: status,
             title: None,
             arguments: ToolArguments::Other { raw: json!({}) },
             progressive_arguments: None,
@@ -390,7 +390,7 @@ mod tests {
             tool_call_id: "op-1".to_string(),
             name: "bash".to_string(),
             kind: Some(ToolKind::Execute),
-            status: ToolCallStatus::Completed,
+            provider_status: ToolCallStatus::Completed,
             title: None,
             arguments: ToolArguments::Other { raw: json!({}) },
             progressive_arguments: None,
@@ -436,7 +436,7 @@ mod tests {
             tool_call_id: "op-2".to_string(),
             name: "bash".to_string(),
             kind: Some(ToolKind::Execute),
-            status: ToolCallStatus::InProgress,
+            provider_status: ToolCallStatus::InProgress,
             title: None,
             arguments: ToolArguments::Other { raw: json!({}) },
             progressive_arguments: None,
@@ -510,6 +510,6 @@ mod tests {
             graph.operations[0].operation_state,
             Some(OperationState::Completed)
         );
-        assert_eq!(graph.operations[0].status, ToolCallStatus::Completed);
+        assert_eq!(graph.operations[0].provider_status, ToolCallStatus::Completed);
     }
 }

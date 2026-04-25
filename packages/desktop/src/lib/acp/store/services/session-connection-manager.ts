@@ -40,9 +40,9 @@ import type {
 	ICapabilitiesManager,
 	IConnectionManager,
 	IEntryManager,
-	ITransientProjectionManager,
 	ISessionStateReader,
 	ISessionStateWriter,
+	ITransientProjectionManager,
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-connection-manager", name: "SessionConnectionManager" });
