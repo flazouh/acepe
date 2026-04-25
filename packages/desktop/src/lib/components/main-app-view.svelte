@@ -380,17 +380,21 @@ function applyLiveInteractionPatches(patches: readonly InteractionSnapshot[]): v
 	interactionStore.applySessionInteractionPatches(patches);
 
 	for (const [id, permission] of interactionStore.permissionsPending) {
-		if (!previousPermissionIds.has(id)) {
+		if (!previousPermissionIds.has(id) && patches.some((p) => p.session_id === permission.sessionId)) {
 			showPermissionNotification(permission);
 		}
 	}
 	for (const [id, question] of interactionStore.questionsPending) {
-		if (!previousQuestionIds.has(id)) {
+		if (!previousQuestionIds.has(id) && patches.some((p) => p.session_id === question.sessionId)) {
 			showQuestionNotification(question);
 		}
 	}
 	for (const [id, approval] of interactionStore.planApprovalsPending) {
-		if (approval.status === "pending" && !previousPlanApprovalIds.has(id)) {
+		if (
+			approval.status === "pending" &&
+			!previousPlanApprovalIds.has(id) &&
+			patches.some((p) => p.session_id === approval.sessionId)
+		) {
 			showPlanApprovalNotification(approval);
 		}
 	}

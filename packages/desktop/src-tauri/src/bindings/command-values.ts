@@ -60,6 +60,7 @@ export const STORAGE_COMMANDS = {
 	save_user_keybinding: "save_user_keybinding",
 	delete_user_keybinding: "delete_user_keybinding",
 	reset_keybindings_to_defaults: "reset_keybindings_to_defaults",
+	request_destructive_confirmation_token: "request_destructive_confirmation_token",
 } as const;
 
 export const CURSOR_HISTORY_COMMANDS = {

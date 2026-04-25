@@ -1019,7 +1019,9 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (!canSendFromCanonicalOrCompatibility(this.stateReader, sessionId, hotState.isConnected)) {
+		// Cancellation only requires an active WebSocket connection — canSend is false
+		// while streaming (lifecycle is not Ready), so we must not gate on it here.
+		if (!hotState.isConnected) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 

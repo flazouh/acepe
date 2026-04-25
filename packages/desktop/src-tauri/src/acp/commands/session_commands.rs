@@ -1705,7 +1705,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn journal_events_do_not_rebuild_product_restore_projection() {
+    async fn session_update_and_interaction_transition_are_persisted_to_journal() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,

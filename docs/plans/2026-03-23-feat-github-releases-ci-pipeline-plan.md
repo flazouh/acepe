@@ -18,7 +18,7 @@ deepened: 2026-03-24
 2. Discovered Tauri CLI auto-handles keychain import — but we still need manual setup for vendor binary pre-signing
 3. Added `.p12` re-encryption step for OpenSSL 3.x compatibility on CI runners
 4. Identified `latest.json` merge behavior across matrix jobs (safe for single-arch)
-5. Added concrete workflow YAML based on existing `release-claude-acp.yml` pattern
+5. Added concrete workflow YAML based on existing release workflow patterns
 6. Clarified notarization adds 2-15 min to CI build time
 
 ### Gotchas Discovered
@@ -97,10 +97,10 @@ New file: `.github/workflows/release.yml`
 **Jobs:**
 
 #### Job 1: `build-acps`
-- Reuse pattern from existing `release-claude-acp.yml`
+- Reuse signing/artifact pattern from existing release workflows (e.g., `.github/workflows/release.yml`)
 - Build Claude ACP binary (`packages/acps/claude`)
 - Build on `macos-latest` (= `macos-15` arm64)
-- Sign with Developer ID (requires keychain import — same pattern as `release-claude-acp.yml`)
+- Sign with Developer ID (requires keychain import — see existing release workflow for the pattern)
 - Upload as workflow artifact for the next job
 
 #### Job 2: `build-and-release` (depends on `build-acps`)
@@ -332,5 +332,5 @@ After transition period (~2-4 weeks):
 - [Ship Your Tauri v2 App: Code Signing (Part 1)](https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-code-signing-for-macos-and-windows-part-12-3o9n)
 - [Ship Your Tauri v2 App: GitHub Actions (Part 2)](https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-github-actions-and-release-automation-part-22-2ef7)
 - [Installing Apple cert on macOS runners — GitHub Docs](https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development)
-- Existing pattern: `.github/workflows/release-claude-acp.yml` (Apple signing in CI)
+- Existing pattern: `.github/workflows/release.yml` (Apple signing in CI)
 - Brainstorm: `docs/brainstorms/2026-03-23-github-releases-migration-brainstorm.md`

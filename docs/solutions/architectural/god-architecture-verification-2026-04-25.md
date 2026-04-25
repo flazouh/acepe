@@ -7,7 +7,7 @@ Commit: fafc8e023 ("refactor: implement final GOD architecture (canonical sessio
 
 ## Summary
 
-The core GOD architecture is substantively delivered: the canonical session graph is the single authority path, raw ACP update lanes are diagnostic-only, `ToolCallManager` and `SessionHotState` have been renamed/demoted, the seven-state lifecycle is the only runtime shape, `load_stored_projection` is gone, and all three UI teardown crash guards are in place. Two gaps prevent a full PASS: (1) a dangling call to `clearSessionProjection` in `main-app-view.svelte` that points to a method removed from `SessionStore` — this is a TypeScript compile error and runtime crash path for any session-removed event; (2) `OperationStatus` in the TypeScript `Operation` type is still a `ToolCallStatus` alias, meaning R5a (operations independent of ToolCall DTO types) is partially satisfied but not complete.
+The core GOD architecture is substantively delivered: the canonical session graph is the single authority path, raw ACP update lanes are diagnostic-only, `ToolCallManager` and `SessionHotState` have been renamed/demoted, the seven-state lifecycle is the only runtime shape, `load_stored_projection` is gone, and all three UI teardown crash guards are in place. Two previously-blocking gaps were subsequently resolved: (1) the dangling `clearSessionProjection` call in `main-app-view.svelte` was removed; (2) the `OperationStatus = ToolCallStatus` coupling was resolved by deprecating the alias and introducing `OperationProviderStatus`. Three advisory warnings remain open (R3, R5a, R13) but are not blockers — canonical state is the product authority in all three cases, with legacy paths demoted to fallback/carry-along roles.
 
 ---
 

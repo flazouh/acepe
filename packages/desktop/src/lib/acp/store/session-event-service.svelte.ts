@@ -449,6 +449,7 @@ export class SessionEventService {
 				break;
 
 			case "plan":
+				this.callbacks.onPlanUpdate?.(sessionId, update.plan);
 				logger.debug("plan received on diagnostic raw lane", {
 					sessionId,
 					stepCount: update.plan.steps.length,

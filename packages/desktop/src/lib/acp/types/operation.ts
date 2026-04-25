@@ -43,14 +43,7 @@ export type OperationKind =
 /** @deprecated Use OperationProviderStatus. This alias exists for migration only. */
 export type OperationStatus = OperationProviderStatus;
 
-export type OperationState =
-	| "pending"
-	| "running"
-	| "blocked"
-	| "completed"
-	| "failed"
-	| "cancelled"
-	| "degraded";
+export type OperationState = import("../../services/acp-types.js").OperationState;
 
 export interface Operation {
 	readonly id: string;
