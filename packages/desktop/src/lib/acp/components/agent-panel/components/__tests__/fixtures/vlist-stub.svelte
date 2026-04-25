@@ -8,6 +8,7 @@ import {
 	getRenderedItemAt,
 	scrollToIndexCalls,
 	shouldSuppressRenderedChildren,
+	shouldUseIndexKeys,
 } from "./vlist-stub-state.js";
 
 type VListStubProps = {
@@ -98,6 +99,10 @@ function getRenderedItem(index: number): unknown {
 }
 
 function getRenderedKey(index: number): string | number {
+	if (shouldUseIndexKeys()) {
+		return index;
+	}
+
 	const item = getRenderedItem(index);
 	return getKey ? getKey(item, index) : index;
 }

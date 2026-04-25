@@ -4,9 +4,7 @@
 
 #[cfg(test)]
 mod session_metadata_tests {
-    use crate::acp::projections::{
-        InteractionResponse, InteractionState,
-    };
+    use crate::acp::projections::{InteractionResponse, InteractionState};
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionDescriptorMissingFact,
         SessionDescriptorResolutionError, SessionReplayContext,

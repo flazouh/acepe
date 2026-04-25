@@ -38,15 +38,15 @@ worktreePath?: string | null;
 /**
  * Associated pull request number when session references a PR (e.g. from OpenCode).
  */
-prNumber?: number | null;
+prNumber?: number | null; 
 /**
  * Ownership mode for the session-linked PR.
  */
-prLinkMode?: string | null;
+prLinkMode?: string | null; 
 /**
  * Whether the worktree path stored for this session no longer exists on disk.
  */
-worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null;
+worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null; 
 /**
  * Per-project sequence ID for Acepe-native sessions (None for scanned sessions).
  */

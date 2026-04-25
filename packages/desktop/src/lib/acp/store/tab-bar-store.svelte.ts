@@ -106,6 +106,9 @@ export class TabBarStore {
 		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
 		const hotState = sessionId ? this.sessionStore.getHotState(sessionId) : null;
+		const canonicalProjection = sessionId
+			? this.sessionStore.getCanonicalSessionProjection(sessionId)
+			: null;
 		const runtimeState = sessionId ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 		const entries = sessionId ? this.sessionStore.getEntries(sessionId) : [];
 		const operationStore = this.sessionStore.getOperationStore();
@@ -136,6 +139,7 @@ export class TabBarStore {
 			agentId,
 			title,
 			hotState,
+			canonicalProjection,
 			runtimeState,
 			entries,
 			currentStreamingToolCall,

@@ -6,7 +6,7 @@ import type { TurnState } from "../../store/types.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { formatToolElapsedLabel, getToolStatus } from "../../utils/tool-state-utils.js";
-import { createRenderableToolCall, resolveToolOperation } from "./resolve-tool-operation.js";
+import { resolveToolOperation } from "./resolve-tool-operation.js";
 import { getToolDefinition } from "./tool-definition-registry.js";
 
 interface Props {
@@ -39,8 +39,7 @@ const pendingPermission = $derived.by(() => {
 
 	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
 });
-const renderableToolCall = $derived(createRenderableToolCall(toolCall, operation, operationStore));
-const resolvedOperation = $derived(resolveToolOperation(renderableToolCall, pendingPermission));
+const resolvedOperation = $derived(resolveToolOperation(toolCall, pendingPermission));
 const toolDefinition = $derived(
 	getToolDefinition(resolvedOperation.toolCall, resolvedOperation.resolvedKind)
 );

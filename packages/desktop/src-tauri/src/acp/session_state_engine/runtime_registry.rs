@@ -1,13 +1,12 @@
 use crate::acp::client_session::SessionModes;
-use crate::acp::lifecycle::LifecycleCheckpoint;
 use crate::acp::lifecycle::SessionSupervisor;
+use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState};
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
-    SessionGraphLifecycleStatus,
 };
 use crate::acp::session_state_engine::{
     build_delta_envelope, CapabilityPreviewState, SessionGraphRevision, SessionStateEnvelope,
@@ -92,7 +91,7 @@ impl SessionGraphRuntimeRegistry {
         }
         .into_checkpoint();
         self.supervisor
-            .replace_checkpoint_for_compat(session_id, checkpoint);
+            .replace_checkpoint(session_id, checkpoint);
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -101,7 +100,7 @@ impl SessionGraphRuntimeRegistry {
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
         self.supervisor
-            .replace_checkpoint_for_compat(session_id, checkpoint);
+            .replace_checkpoint(session_id, checkpoint);
     }
 
     pub fn apply_session_update_with_graph_seed(
@@ -114,7 +113,7 @@ impl SessionGraphRuntimeRegistry {
         state.apply_update_with_graph_seed(graph_revision_seed, update);
         let graph_revision = state.graph_revision;
         self.supervisor
-            .replace_checkpoint_for_compat(session_id.to_string(), state.into_checkpoint());
+            .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
         graph_revision
     }
 
@@ -136,7 +135,7 @@ impl SessionGraphRuntimeRegistry {
         state.capabilities = capabilities;
         let graph_revision = state.graph_revision;
         self.supervisor
-            .replace_checkpoint_for_compat(session_id.to_string(), state.into_checkpoint());
+            .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
         graph_revision
     }
 
@@ -339,11 +338,7 @@ impl SessionGraphRuntimeSnapshot {
                 autonomous_enabled,
                 ..
             } => {
-                self.lifecycle = SessionGraphLifecycle {
-                    status: SessionGraphLifecycleStatus::Ready,
-                    error_message: None,
-                    can_reconnect: true,
-                };
+                self.lifecycle = SessionGraphLifecycle::ready();
                 self.capabilities = SessionGraphCapabilities {
                     models: Some(models.clone()),
                     modes: Some(modes.clone()),
@@ -353,11 +348,9 @@ impl SessionGraphRuntimeSnapshot {
                 };
             }
             SessionUpdate::ConnectionFailed { error, .. } => {
-                self.lifecycle = SessionGraphLifecycle {
-                    status: SessionGraphLifecycleStatus::Error,
-                    error_message: Some(error.clone()),
-                    can_reconnect: true,
-                };
+                self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
+                    LifecycleState::failed(FailureReason::ResumeFailed, Some(error.clone())),
+                );
             }
             SessionUpdate::AvailableCommandsUpdate { update, .. } => {
                 self.capabilities.available_commands = update.available_commands.clone();
@@ -392,7 +385,7 @@ impl SessionGraphRuntimeSnapshot {
     pub fn from_checkpoint(checkpoint: &LifecycleCheckpoint) -> Self {
         Self {
             graph_revision: checkpoint.graph_revision,
-            lifecycle: checkpoint.compat_graph_lifecycle(),
+            lifecycle: checkpoint.graph_lifecycle(),
             capabilities: checkpoint.capabilities.clone(),
         }
     }
@@ -414,6 +407,8 @@ fn build_live_session_state_delta_envelope(
         from_revision,
         to_revision,
         delta.operations.clone(),
+        Vec::new(),
+        Vec::new(),
         vec!["transcriptSnapshot".to_string()],
     )
 }
@@ -485,8 +480,8 @@ mod tests {
         SessionGraphRuntimeRegistry,
     };
     use crate::acp::client_session::{default_modes, default_session_model_state};
+    use crate::acp::lifecycle::LifecycleStatus;
     use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
-    use crate::acp::session_state_engine::selectors::SessionGraphLifecycleStatus;
     use crate::acp::session_state_engine::SessionGraphRevision;
     use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_update::{
@@ -556,10 +551,7 @@ mod tests {
 
         let snapshot = registry.snapshot_for_session(session_id);
         assert_eq!(snapshot.graph_revision, 4);
-        assert_eq!(
-            snapshot.lifecycle.status,
-            SessionGraphLifecycleStatus::Ready
-        );
+        assert_eq!(snapshot.lifecycle.status, LifecycleStatus::Ready);
         assert_eq!(
             snapshot
                 .capabilities

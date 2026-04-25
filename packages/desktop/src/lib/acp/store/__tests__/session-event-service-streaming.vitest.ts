@@ -19,7 +19,11 @@ vi.mock("../utils/logger.js", () => ({
 	}),
 }));
 
-import type { SessionStateEnvelope, TranscriptDelta } from "../../../services/acp-types.js";
+import type {
+	SessionGraphLifecycle,
+	SessionStateEnvelope,
+	TranscriptDelta,
+} from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
@@ -47,6 +51,48 @@ function createMockHandler(): SessionEventHandler {
 		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
+	};
+}
+
+function createGraphLifecycle(
+	status: SessionGraphLifecycle["status"] = "reserved",
+	errorMessage: string | null = null
+): SessionGraphLifecycle {
+	return {
+		status,
+		detachedReason: status === "detached" ? "reconnectExhausted" : null,
+		failureReason: status === "failed" ? "resumeFailed" : null,
+		errorMessage,
+		actionability: {
+			canSend: status === "ready",
+			canResume: status === "detached",
+			canRetry: status === "failed",
+			canArchive: status !== "archived",
+			canConfigure: status === "ready",
+			recommendedAction:
+				status === "ready"
+					? "send"
+					: status === "detached"
+						? "resume"
+						: status === "failed"
+							? "retry"
+							: status === "archived"
+								? "none"
+								: "wait",
+			recoveryPhase:
+				status === "activating"
+					? "activating"
+					: status === "reconnecting"
+						? "reconnecting"
+						: status === "detached"
+							? "detached"
+							: status === "failed"
+								? "failed"
+								: status === "archived"
+									? "archived"
+									: "none",
+			compactStatus: status,
+		},
 	};
 }
 
@@ -251,6 +297,8 @@ describe("SessionEventService streaming delta handling", () => {
 					fromRevision: { graphRevision: 6, transcriptRevision: 6, lastEventSeq: 6 },
 					toRevision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
 					transcriptOperations: delta.operations,
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -305,6 +353,8 @@ describe("SessionEventService streaming delta handling", () => {
 					fromRevision: { graphRevision: 6, transcriptRevision: 6, lastEventSeq: 6 },
 					toRevision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
 					transcriptOperations: delta.operations,
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -324,11 +374,7 @@ describe("SessionEventService streaming delta handling", () => {
 			lastEventSeq: 7,
 			payload: {
 				kind: "lifecycle",
-				lifecycle: {
-					status: "ready",
-					errorMessage: null,
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("ready"),
 				revision: {
 					graphRevision: 7,
 					transcriptRevision: 4,
@@ -490,6 +536,8 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not synthesize turn completion from a plan payload", () => {
+		const onPlanUpdate = vi.fn();
+		service.setCallbacks({ onPlanUpdate });
 		markHandlerTurnAsStreaming(handler);
 		const update: SessionUpdate = {
 			type: "plan",
@@ -506,6 +554,7 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, handler);
 
 		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
+		expect(onPlanUpdate).not.toHaveBeenCalled();
 	});
 
 	it("still ignores plan payloads when the turn is already completed", () => {
@@ -877,7 +926,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(assistantEntries).toHaveLength(0);
 	});
 
-	it("clears assistant streaming state when userMessageChunk arrives", () => {
+	it("treats raw userMessageChunk as diagnostic without clearing assistant streaming state", () => {
 		const update: SessionUpdate = {
 			type: "userMessageChunk",
 			session_id: "session-123",
@@ -888,7 +937,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.clearStreamingAssistantEntry).toHaveBeenCalledWith("session-123");
+		expect(handler.clearStreamingAssistantEntry).not.toHaveBeenCalled();
 		expect(handler.aggregateUserChunk).not.toHaveBeenCalled();
 	});
 
@@ -1151,6 +1200,8 @@ describe("SessionEventService streaming delta handling", () => {
 					fromRevision: { graphRevision: 41, transcriptRevision: 41, lastEventSeq: 41 },
 					toRevision: { graphRevision: 42, transcriptRevision: 42, lastEventSeq: 42 },
 					transcriptOperations: delta.operations,
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -1412,11 +1463,7 @@ describe("SessionEventService streaming delta handling", () => {
 				lastEventSeq: 4,
 				payload: {
 					kind: "lifecycle",
-					lifecycle: {
-						status: "error",
-						errorMessage: "Provider disconnected",
-						canReconnect: true,
-					},
+					lifecycle: createGraphLifecycle("failed", "Provider disconnected"),
 					revision: {
 						graphRevision: 4,
 						transcriptRevision: 2,
@@ -1472,11 +1519,7 @@ describe("SessionEventService streaming delta handling", () => {
 				lastEventSeq: 8,
 				payload: {
 					kind: "lifecycle",
-					lifecycle: {
-						status: "ready",
-						errorMessage: null,
-						canReconnect: true,
-					},
+					lifecycle: createGraphLifecycle("ready"),
 					revision: {
 						graphRevision: 8,
 						transcriptRevision: 3,

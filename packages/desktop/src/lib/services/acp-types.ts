@@ -259,15 +259,45 @@ export type SessionDomainEventPayload = { kind: "session_identity_resolved"; res
  */
 export type SessionDomainEvent = { event_id: string; seq: number; session_id: string; provider_session_id: string | null; occurred_at_ms: number; causation_id: string | null; kind: SessionDomainEventKind; payload?: SessionDomainEventPayload | null }
 
+/**
+ * Tool call location.
+ */
+export type ToolCallLocation = { path: string }
+
+/**
+ * Skill metadata for skill tool calls.
+ */
+export type SkillMeta = { description?: string | null; filePath?: string | null }
+
+/**
+ * Answered question data from toolUseResult field in JSONL.
+ * Stores both the questions and the user's answers.
+ */
+export type QuestionAnswer = { 
+/**
+ * The questions that were asked
+ */
+questions: QuestionItem[]; 
+/**
+ * Map of question text to answer(s) - value is string for single-select, array for multi-select
+ */
+answers: Partial<{ [key in string]: JsonValue }> }
+
 export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
 
 export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[] }
+export type OperationState = "pending" | "running" | "blocked" | "completed" | "failed" | "cancelled" | "degraded"
+
+export type OperationDegradationCode = "impossible_transition" | "missing_evidence" | "absent_from_history" | "classification_failure" | "invalid_provenance_key"
+
+export type OperationDegradationReason = { code: OperationDegradationCode; detail?: string | null }
+
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state?: OperationState | null; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval?: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_entry_id?: string | null; degradation_reason?: OperationDegradationReason | null }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 
-export type InteractionState = "Pending" | "Approved" | "Rejected" | "Answered"
+export type InteractionState = "Pending" | "Approved" | "Rejected" | "Answered" | "Unresolved"
 
 export type PlanApprovalSource = "CreatePlan" | "ExitPlanMode"
 
@@ -275,7 +305,7 @@ export type InteractionPayload = { Permission: PermissionData } | { Question: Qu
 
 export type InteractionResponse = { kind: "permission"; accepted: boolean; option_id?: string | null; reply?: string | null } | { kind: "question"; answers: JsonValue } | { kind: "plan_approval"; approved: boolean }
 
-export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload }
+export type InteractionSnapshot = { id: string; session_id: string; kind: InteractionKind; state: InteractionState; json_rpc_request_id: number | null; reply_handler: InteractionReplyHandler | null; tool_reference: ToolReference | null; responded_at_event_seq: number | null; response: InteractionResponse | null; payload: InteractionPayload; canonical_operation_id?: string | null }
 
 /**
  * Turn error severity.
@@ -289,13 +319,27 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 
 export type TurnFailureSnapshot = { turn_id: string | null; message: string; code?: string | null; kind: TurnErrorKind; source: TurnErrorSource }
 
+export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
+
+export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore"
+
+export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
+
+export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
+
+export type LifecycleCheckpoint = { 
+/**
+ * Older persisted checkpoints may omit this field; treat as current version for migration.
+ */
+schemaVersion?: number; graphRevision: number; lifecycle: LifecycleState; capabilities: SessionGraphCapabilities }
+
 export type SessionProjectionSnapshot = { session: SessionSnapshot | null; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; runtime?: LifecycleCheckpoint | null }
 
 /**
  * Payload for the `error` outcome — persisted state was found but could not
  * be loaded or proven consistent.
  */
-export type SessionOpenErrorReason = "parseFailure" | "internal"
+export type SessionOpenErrorReason = "parseFailure" | "providerUnavailable" | "providerHistoryMissing" | "providerUnparseable" | "providerValidationFailed" | "staleLineageRecovery" | "internal"
 
 /**
  * Payload for the `error` outcome — persisted state was found but could not
@@ -366,11 +410,17 @@ export type SessionOpenResult =
 
 export type SessionGraphRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
-export type SessionGraphLifecycleStatus = "idle" | "connecting" | "ready" | "error"
+export type SessionRecommendedAction = "none" | "wait" | "send" | "resume" | "retry" | "archive"
 
-export type SessionGraphLifecycle = { status: SessionGraphLifecycleStatus; errorMessage?: string | null; canReconnect: boolean }
+export type SessionRecoveryPhase = "none" | "activating" | "reconnecting" | "detached" | "failed" | "archived"
+
+export type SessionGraphActionability = { canSend: boolean; canResume: boolean; canRetry: boolean; canArchive: boolean; canConfigure: boolean; recommendedAction: SessionRecommendedAction; recoveryPhase: SessionRecoveryPhase; compactStatus: LifecycleStatus }
+
+export type SessionGraphLifecycle = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null; actionability: SessionGraphActionability }
 
 export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
+
+export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
 
 export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | "waiting_for_user" | "paused" | "error" | "idle"
 
@@ -380,7 +430,7 @@ export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
-export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations: TranscriptDeltaOperation[]; changedFields?: string[] }
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
 
 export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision }
 
@@ -394,46 +444,6 @@ export type ProviderVariantGroup = "plain" | "reasoningEffort";
 export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupported";
 
 export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
-
-export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale";
-
-export type LifecycleStatus =
-	| "reserved"
-	| "activating"
-	| "ready"
-	| "reconnecting"
-	| "detached"
-	| "failed"
-	| "archived";
-
-export type DetachedReason =
-	| "restoredRequiresAttach"
-	| "reconnectExhausted"
-	| "abandonedInFlight"
-	| "legacyAmbiguousRestore";
-
-export type FailureReason =
-	| "deterministicRestoreFault"
-	| "activationFailed"
-	| "resumeFailed"
-	| "providerSessionMismatch"
-	| "corruptedPersistedState"
-	| "explicitErrorHandlingRequired"
-	| "legacyIrrecoverable";
-
-export type LifecycleState = {
-	status: LifecycleStatus;
-	detachedReason?: DetachedReason | null;
-	failureReason?: FailureReason | null;
-	errorMessage?: string | null;
-};
-
-export type LifecycleCheckpoint = {
-	schemaVersion: number;
-	graphRevision: number;
-	lifecycle: LifecycleState;
-	capabilities: SessionGraphCapabilities;
-};
 
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
@@ -590,3 +600,4 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
+

@@ -214,13 +214,7 @@ pub(crate) async fn read_catalog_snapshot_from_path(
     let key = snapshot_key(snapshot_path);
 
     if let Some(snapshot) = catalog_cache().get(&key).await {
-        return classify_snapshot(
-            snapshot_path,
-            &key,
-            snapshot,
-            ClaudeCatalogSource::Memory,
-        )
-        .await;
+        return classify_snapshot(snapshot_path, &key, snapshot, ClaudeCatalogSource::Memory).await;
     }
 
     match load_snapshot(snapshot_path) {
@@ -300,10 +294,7 @@ pub(crate) async fn invalidate_catalog_snapshot(snapshot_path: &Path) -> Result<
     Ok(())
 }
 
-pub(crate) fn spawn_catalog_refresh(
-    app: AppHandle,
-    reason: ClaudeCatalogRefreshReason,
-) {
+pub(crate) fn spawn_catalog_refresh(app: AppHandle, reason: ClaudeCatalogRefreshReason) {
     tracing::info!(?reason, "Refreshing Claude catalog in background");
     tauri::async_runtime::spawn(async move {
         if let Err(error) = refresh_catalog_for_app(&app).await {
@@ -488,13 +479,12 @@ fn load_snapshot(snapshot_path: &Path) -> Result<Option<ClaudeCatalogSnapshot>, 
             snapshot_path.display()
         )
     })?;
-    let snapshot =
-        serde_json::from_str::<ClaudeCatalogSnapshot>(&raw).map_err(|error| {
-            format!(
-                "Failed parsing Claude catalog snapshot at {}: {error}",
-                snapshot_path.display()
-            )
-        })?;
+    let snapshot = serde_json::from_str::<ClaudeCatalogSnapshot>(&raw).map_err(|error| {
+        format!(
+            "Failed parsing Claude catalog snapshot at {}: {error}",
+            snapshot_path.display()
+        )
+    })?;
     Ok(Some(snapshot))
 }
 
@@ -617,10 +607,8 @@ fn placeholder_models() -> Vec<AvailableModel> {
 }
 
 async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, String> {
-    let binary_path_raw =
-        crate::cc_sdk::transport::subprocess::find_claude_cli().map_err(|error| {
-            format!("Claude CLI not found for catalog scan: {error}")
-        })?;
+    let binary_path_raw = crate::cc_sdk::transport::subprocess::find_claude_cli()
+        .map_err(|error| format!("Claude CLI not found for catalog scan: {error}"))?;
 
     let canonical = binary_path_raw
         .canonicalize()
@@ -639,10 +627,9 @@ async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, St
 
     let canonical_for_read = canonical.clone();
     let models = tokio::time::timeout(CATALOG_SCAN_TIMEOUT, async move {
-        let bytes =
-            tokio::fs::read(&canonical_for_read)
-                .await
-                .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
+        let bytes = tokio::fs::read(&canonical_for_read)
+            .await
+            .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
         extract_from_binary_bytes(&bytes)
     })
     .await
@@ -762,9 +749,7 @@ fn is_valid_claude_model_shape(id: &str) -> bool {
 /// Returns the Claude model family ("opus" | "sonnet" | "haiku") for a canonical id,
 /// or None if the id doesn't belong to one of the known families.
 pub(crate) fn claude_model_family(canonical_id: &str) -> Option<&'static str> {
-    let without_prefix = canonical_id
-        .strip_prefix("claude-")
-        .unwrap_or(canonical_id);
+    let without_prefix = canonical_id.strip_prefix("claude-").unwrap_or(canonical_id);
     for token in without_prefix.split('-') {
         match token.to_ascii_lowercase().as_str() {
             "opus" => return Some("opus"),
@@ -811,9 +796,7 @@ pub(crate) fn filter_to_picker_defaults(models: &[AvailableModel]) -> Vec<Availa
 }
 
 pub(crate) fn derive_display_name(canonical_id: &str) -> String {
-    let without_prefix = canonical_id
-        .strip_prefix("claude-")
-        .unwrap_or(canonical_id);
+    let without_prefix = canonical_id.strip_prefix("claude-").unwrap_or(canonical_id);
 
     let mut parts: Vec<&str> = without_prefix.split('-').collect();
 
@@ -930,7 +913,11 @@ mod tests {
 
         assert_eq!(
             ids,
-            vec!["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            vec![
+                "claude-opus-4-7",
+                "claude-sonnet-4-6",
+                "claude-haiku-4-5-20251001"
+            ],
             "expected latest opus, sonnet, haiku in that order; got {ids:?}"
         );
     }
@@ -1097,7 +1084,8 @@ mod tests {
         // Stray firstParty without bedrock — simulates an error-message template.
         let stray = r#"error: unknown model firstParty:"claude-opus-4-7" not found in registry"#;
         let input = format!("{valid}\n{stray}");
-        let models = extract_from_binary_bytes(input.as_bytes()).expect("should succeed (quorum met)");
+        let models =
+            extract_from_binary_bytes(input.as_bytes()).expect("should succeed (quorum met)");
         let ids: Vec<&str> = models.iter().map(|m| m.model_id.as_str()).collect();
         assert!(
             !ids.contains(&"claude-opus-4-7"),
@@ -1232,38 +1220,30 @@ mod tests {
         let cache = ClaudeCatalogCache::default();
         let fetch_count = Arc::new(AtomicU32::new(0));
 
-        let first = cache.refresh_with(
-            "test-key".to_string(),
-            snapshot_path.clone(),
-            {
-                let fetch_count = fetch_count.clone();
-                move || async move {
-                    tokio::time::sleep(Duration::from_millis(20)).await;
-                    fetch_count.fetch_add(1, Ordering::SeqCst);
-                    Ok(authoritative_payload_with_dummy_fingerprint().await)
-                }
-            },
-        );
-        let second = cache.refresh_with(
-            "test-key".to_string(),
-            snapshot_path.clone(),
-            {
-                let fetch_count = fetch_count.clone();
-                move || async move {
-                    fetch_count.fetch_add(1, Ordering::SeqCst);
-                    Ok(AuthoritativeCatalogPayload {
-                        models: vec![AvailableModel {
-                            model_id: "claude-sonnet-4-6".to_string(),
-                            name: "Sonnet 4.6".to_string(),
-                            description: None,
-                        }],
-                        binary_path: "/dummy/claude".to_string(),
-                        binary_size: 999,
-                        binary_mtime_ms: 1234567890,
-                    })
-                }
-            },
-        );
+        let first = cache.refresh_with("test-key".to_string(), snapshot_path.clone(), {
+            let fetch_count = fetch_count.clone();
+            move || async move {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                fetch_count.fetch_add(1, Ordering::SeqCst);
+                Ok(authoritative_payload_with_dummy_fingerprint().await)
+            }
+        });
+        let second = cache.refresh_with("test-key".to_string(), snapshot_path.clone(), {
+            let fetch_count = fetch_count.clone();
+            move || async move {
+                fetch_count.fetch_add(1, Ordering::SeqCst);
+                Ok(AuthoritativeCatalogPayload {
+                    models: vec![AvailableModel {
+                        model_id: "claude-sonnet-4-6".to_string(),
+                        name: "Sonnet 4.6".to_string(),
+                        description: None,
+                    }],
+                    binary_path: "/dummy/claude".to_string(),
+                    binary_size: 999,
+                    binary_mtime_ms: 1234567890,
+                })
+            }
+        });
 
         let (first, second) = tokio::join!(first, second);
         let first = first.expect("first refresh");

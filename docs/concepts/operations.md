@@ -62,17 +62,21 @@ That boundary matters because transcript replacement can legally degrade tool ro
 
 ## Lifecycle
 
-Operations may pass through phases like:
+Operations use an explicit canonical state machine:
 
 - pending,
-- running/in progress,
-- blocked,
+- running,
+- blocked on interaction,
 - completed,
-- failed.
+- failed,
+- cancelled/abandoned,
+- degraded/partial.
 
-The exact enum is less important than the rule:
+The enum is independent of transcript-layer `ToolCall` DTOs. Provider `toolCallId` may remain provenance evidence, but UI and product stores use canonical `operationId`.
 
 **lifecycle must be canonical and monotonic enough that reconnect/resume does not need to guess.**
+
+Terminal states are completed, failed, cancelled/abandoned, and degraded/partial. Later sparse or stale evidence may add diagnostics, but it must not regress a terminal operation back to active state.
 
 ## Blocking
 
@@ -110,3 +114,7 @@ Shared UI should also not collapse operation presence into its own session-level
 - reconnect needs special-case repair code in components
 - the frontend tries to infer lifecycle from scattered raw events
 - different surfaces disagree about which tool is current
+
+## Final GOD endpoint
+
+In the final architecture, operations are first-class graph nodes. Live provider events, provider-history restore, permissions, questions, todos, and plan approvals merge into canonical operation/interaction patches before desktop product code sees them. `ToolCallManager` is not operation truth; any remaining transport helper must be transport-only and must not mutate operation state, write operation stores, or create operation identity.

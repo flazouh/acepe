@@ -144,7 +144,7 @@ describe("PermissionStore", () => {
 			]);
 		});
 
-		it("matches execute permissions by command when the permission anchor id differs", () => {
+		it("does not guess execute permissions by command when the permission anchor id differs", () => {
 			const permission = createExecutePermissionWithCommand(
 				"session-1",
 				"shell-permission",
@@ -173,11 +173,10 @@ describe("PermissionStore", () => {
 				planApprovalRequestId: null,
 			});
 
-			expect(matched?.id).toBe(permission.id);
-			expect(matched?.tool?.callID).toBe("shell-permission");
+			expect(matched).toBeUndefined();
 		});
 
-		it("returns the grouped permission for a canonical operation", () => {
+		it("returns the grouped permission for a canonical operation with an explicit anchor", () => {
 			const operationStore = new OperationStore();
 			const entryStore = new SessionEntryStore(operationStore);
 			entryStore.createToolCallEntry("session-1", {
@@ -193,19 +192,15 @@ describe("PermissionStore", () => {
 				awaitingPlanApproval: false,
 			});
 			const operation = operationStore.getByToolCallId("session-1", "tool-1");
-			store.add(
-				createExecutePermissionWithCommand("session-1", "shell-permission", 100, "git status")
-			);
-			store.add(
-				createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status")
-			);
+			store.add(createExecutePermissionWithCommand("session-1", "tool-1", 100, "git status"));
+			store.add(createExecutePermissionWithCommand("session-1", "tool-1", 101, "git status"));
 
 			const matched = operation ? store.getForOperation(operation, operationStore) : undefined;
 
 			expect(matched?.jsonRpcRequestId).toBe(100);
 			expect(matched?.members?.map((member) => member.id)).toEqual([
-				buildAcpPermissionId("session-1", "shell-permission", 100),
-				buildAcpPermissionId("session-1", "shell-permission", 101),
+				buildAcpPermissionId("session-1", "tool-1", 100),
+				buildAcpPermissionId("session-1", "tool-1", 101),
 			]);
 		});
 

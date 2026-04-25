@@ -56,7 +56,10 @@ async fn reserve_sets_reserved_checkpoint_and_advances_frontier() {
     let supervisor_checkpoint = supervisor
         .snapshot_for_session("session-1")
         .expect("supervisor checkpoint");
-    assert_eq!(supervisor_checkpoint.graph_revision, checkpoint.graph_revision);
+    assert_eq!(
+        supervisor_checkpoint.graph_revision,
+        checkpoint.graph_revision
+    );
     assert_eq!(supervisor_checkpoint.lifecycle, checkpoint.lifecycle);
 }
 

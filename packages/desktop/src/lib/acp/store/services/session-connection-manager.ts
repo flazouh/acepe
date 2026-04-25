@@ -40,9 +40,9 @@ import type {
 	ICapabilitiesManager,
 	IConnectionManager,
 	IEntryManager,
-	IHotStateManager,
 	ISessionStateReader,
 	ISessionStateWriter,
+	ITransientProjectionManager,
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-connection-manager", name: "SessionConnectionManager" });
@@ -82,6 +82,14 @@ function getProviderAwareSessionModelState(
 	return modelState as ProviderAwareSessionModelState;
 }
 
+function canSendFromCanonicalOrCompatibility(
+	reader: ISessionStateReader,
+	sessionId: string,
+	compatibilityCanSend: boolean
+): boolean {
+	return reader.getSessionCanSend?.(sessionId) ?? compatibilityCanSend;
+}
+
 /**
  * Manager for session connection lifecycle operations.
  */
@@ -93,7 +101,7 @@ export class SessionConnectionManager {
 	constructor(
 		private readonly stateReader: ISessionStateReader,
 		private readonly stateWriter: ISessionStateWriter,
-		private readonly hotStateManager: IHotStateManager,
+		private readonly hotStateManager: ITransientProjectionManager,
 		private readonly capabilitiesManager: ICapabilitiesManager,
 		private readonly entryManager: IEntryManager,
 		private readonly connectionManager: IConnectionManager,
@@ -583,11 +591,15 @@ export class SessionConnectionManager {
 		const effectiveAgentId = options?.agentOverrideId ?? session.agentId;
 
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (hotState.isConnected) {
+		const canSend = canSendFromCanonicalOrCompatibility(
+			this.stateReader,
+			sessionId,
+			hotState.isConnected
+		);
+		if (canSend) {
 			logger.info("Session already connected, skipping", {
 				sessionId,
-				status: hotState.status,
-				isConnected: hotState.isConnected,
+				canSend,
 			});
 			return okAsync(session);
 		}
@@ -793,7 +805,7 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (!hotState.isConnected) {
+		if (!canSendFromCanonicalOrCompatibility(this.stateReader, sessionId, hotState.isConnected)) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
@@ -833,7 +845,7 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (!hotState.isConnected) {
+		if (!canSendFromCanonicalOrCompatibility(this.stateReader, sessionId, hotState.isConnected)) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
@@ -942,7 +954,7 @@ export class SessionConnectionManager {
 			return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
 		};
 
-		if (!hotState.isConnected) {
+		if (!canSendFromCanonicalOrCompatibility(this.stateReader, sessionId, hotState.isConnected)) {
 			this.hotStateManager.updateHotState(sessionId, {
 				autonomousEnabled: targetEnabled,
 				autonomousTransition: "idle",
@@ -977,7 +989,7 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (!hotState.isConnected) {
+		if (!canSendFromCanonicalOrCompatibility(this.stateReader, sessionId, hotState.isConnected)) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
@@ -1007,6 +1019,8 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
+		// Cancellation only requires an active WebSocket connection — canSend is false
+		// while streaming (lifecycle is not Ready), so we must not gate on it here.
 		if (!hotState.isConnected) {
 			return errAsync(new ConnectionError(sessionId));
 		}

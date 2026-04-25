@@ -17,6 +17,8 @@ describe("resolveSessionStateDelta", () => {
 				lastEventSeq: 7,
 			},
 			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [],
 			changedFields: ["capabilities"],
 		};
 
@@ -38,6 +40,8 @@ describe("resolveSessionStateDelta", () => {
 				lastEventSeq: 8,
 			},
 			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [],
 			changedFields: ["transcriptSnapshot"],
 		};
 
@@ -74,6 +78,8 @@ describe("resolveSessionStateDelta", () => {
 					},
 				},
 			],
+			operationPatches: [],
+			interactionPatches: [],
 			changedFields: ["transcriptSnapshot"],
 		};
 

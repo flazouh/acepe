@@ -9,6 +9,7 @@ import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
@@ -24,7 +25,7 @@ import type {
 	GitWorkspacePanel,
 	Panel,
 	ReviewWorkspacePanel,
-	SessionHotState,
+	SessionTransientProjection,
 	TerminalWorkspacePanel,
 } from "./types.js";
 
@@ -44,7 +45,8 @@ export interface PanelToTabInput {
 	readonly focusedPanelId: string | null;
 	readonly agentId: string | null;
 	readonly title: string | null;
-	readonly hotState: SessionHotState | null;
+	readonly hotState: SessionTransientProjection | null;
+	readonly canonicalProjection?: CanonicalSessionProjection | null;
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly currentStreamingToolCall: ToolCall | null;
@@ -220,6 +222,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		agentId,
 		title,
 		hotState,
+		canonicalProjection,
 		runtimeState,
 		entries,
 		currentStreamingToolCall: providedCurrentStreamingToolCall,
@@ -233,15 +236,18 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectIconSrc,
 		projectPath,
 	} = input;
-	const currentStreamingToolCall = providedCurrentStreamingToolCall;
 	const currentToolKind = providedCurrentToolKind;
+	const currentStreamingToolCall = providedCurrentStreamingToolCall;
 	const liveSessionInput: LiveSessionWorkInput = {
 		runtimeState,
 		hotState: hotState ?? {
 			status: "idle",
 			currentMode: null,
 			connectionError: null,
+			activeTurnFailure: null,
+			activity: null,
 		},
+		canonicalProjection,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion,

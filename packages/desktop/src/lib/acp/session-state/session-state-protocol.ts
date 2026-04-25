@@ -2,11 +2,11 @@ import type {
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
+	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
-	SessionGraphLifecycleStatus,
 	SessionGraphRevision,
 	SessionOpenFound,
 	SessionStateDelta,
@@ -18,11 +18,11 @@ import type {
 
 export type {
 	CapabilityPreviewState,
+	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
-	SessionGraphLifecycleStatus,
 	SessionGraphRevision,
 	SessionStateDelta,
 	SessionStateEnvelope,
@@ -32,7 +32,46 @@ export type {
 };
 
 function isActiveOperation(operation: OperationSnapshot): boolean {
-	return operation.status === "pending" || operation.status === "in_progress";
+	return (
+		operation.operation_state === "pending" ||
+		operation.operation_state === "running" ||
+		operation.operation_state === "blocked"
+	);
+}
+
+function defaultLifecycleActionability(
+	status: SessionGraphLifecycle["status"]
+): SessionGraphActionability {
+	return {
+		canSend: status === "ready",
+		canResume: status === "detached",
+		canRetry: status === "failed",
+		canArchive: status !== "archived",
+		canConfigure: status === "ready",
+		recommendedAction:
+			status === "ready"
+				? "send"
+				: status === "detached"
+					? "resume"
+					: status === "failed"
+						? "retry"
+						: status === "archived"
+							? "none"
+							: "wait",
+		recoveryPhase:
+			status === "activating"
+				? "activating"
+				: status === "reconnecting"
+					? "reconnecting"
+					: status === "detached"
+						? "detached"
+						: status === "failed"
+							? "failed"
+							: status === "archived"
+								? "archived"
+								: "none",
+		compactStatus: status,
+	};
 }
 
 function selectSessionGraphActivity(input: {
@@ -47,9 +86,19 @@ function selectSessionGraphActivity(input: {
 		input.interactions.find((interaction) => interaction.state === "Pending") ?? null;
 	const dominantOperationId = activeOperations[0]?.id ?? null;
 
-	if (input.lifecycle.status === "error" || input.activeTurnFailure != null) {
+	if (input.lifecycle.status === "failed" || input.activeTurnFailure != null) {
 		return {
 			kind: "error",
+			activeOperationCount: activeOperations.length,
+			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
+			dominantOperationId,
+			blockingInteractionId: blockingInteraction?.id ?? null,
+		};
+	}
+
+	if (input.lifecycle.status === "detached" || input.lifecycle.status === "archived") {
+		return {
+			kind: "paused",
 			activeOperationCount: activeOperations.length,
 			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
 			dominantOperationId,
@@ -147,9 +196,11 @@ export function createSnapshotEnvelope(graph: SessionStateGraph): SessionStateEn
 
 export function defaultSnapshotLifecycle(): SessionGraphLifecycle {
 	return {
-		status: "idle",
+		status: "reserved",
+		detachedReason: null,
+		failureReason: null,
 		errorMessage: null,
-		canReconnect: true,
+		actionability: defaultLifecycleActionability("reserved"),
 	};
 }
 

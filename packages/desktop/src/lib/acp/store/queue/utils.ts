@@ -15,12 +15,13 @@ import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
+import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
 import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
-import { selectLegacySessionStatus } from "../session-work-projection.js";
-import type { SessionHotState } from "../types.js";
+import { selectSessionStatusForPresentation } from "../session-work-projection.js";
+import type { SessionTransientProjection } from "../types.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
@@ -68,9 +69,10 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly updatedAt: Date;
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly hotState: Pick<
-		SessionHotState,
+		SessionTransientProjection,
 		"status" | "currentMode" | "connectionError" | "activeTurnFailure" | "activity"
 	>;
+	readonly canonicalProjection?: CanonicalSessionProjection | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
@@ -134,6 +136,7 @@ export function buildQueueSessionSnapshot(
 	const state = deriveLiveSessionState({
 		runtimeState: input.runtimeState,
 		hotState: input.hotState,
+		canonicalProjection: input.canonicalProjection ?? null,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
@@ -141,6 +144,7 @@ export function buildQueueSessionSnapshot(
 	const workProjection = deriveLiveSessionWorkProjection({
 		runtimeState: input.runtimeState,
 		hotState: input.hotState,
+		canonicalProjection: input.canonicalProjection ?? null,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
@@ -159,7 +163,7 @@ export function buildQueueSessionSnapshot(
 		state,
 		isStreaming: workProjection.compactActivityKind === "streaming",
 		isThinking: workProjection.compactActivityKind === "thinking",
-		status: selectLegacySessionStatus(workProjection),
+		status: selectSessionStatusForPresentation(workProjection),
 		updatedAt: input.updatedAt,
 		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
 		connectionError: input.hotState.connectionError,

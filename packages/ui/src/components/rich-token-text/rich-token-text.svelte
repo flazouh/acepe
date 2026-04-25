@@ -1,24 +1,39 @@
 <script lang="ts">
-	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
-	import { tokenizeInlineArtefacts } from "../../lib/inline-artefact/index.js";
-	import { cn } from "../../lib/utils.js";
-	import { InlineArtefactBadge } from "../inline-artefact-badge/index.js";
+import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
+import { tokenizeInlineArtefacts } from "../../lib/inline-artefact/index.js";
+import { InlineArtefactBadge } from "../inline-artefact-badge/index.js";
+import {
+	buildRichTokenTextClassName,
+	buildRichTokenTextSegmentClassName,
+} from "./rich-token-text.classes.js";
 
-	interface Props {
-		text: string;
-		onTokenClick?: (tokenType: InlineArtefactTokenType, value: string) => void;
-		class?: string;
-	}
+interface Props {
+	text: string;
+	onTokenClick?: (tokenType: InlineArtefactTokenType, value: string) => void;
+	class?: string;
+	singleLine?: boolean;
+}
 
-	let { text, onTokenClick, class: className = "" }: Props = $props();
+const {
+	text,
+	onTokenClick,
+	class: className = "",
+	singleLine = false,
+}: Props = $props();
 
-	const segments = $derived(tokenizeInlineArtefacts(text));
+const segments = $derived(tokenizeInlineArtefacts(text));
+const rootClassName = $derived(
+	buildRichTokenTextClassName({ singleLine, className }),
+);
+const textSegmentClassName = $derived(
+	buildRichTokenTextSegmentClassName({ singleLine }),
+);
 </script>
 
-<span class={cn("text-sm leading-relaxed break-words", className)}>
+<span class={rootClassName}>
 	{#each segments as segment, i (i)}
 		{#if segment.kind === "text"}
-			<span class="whitespace-pre-wrap">{segment.text}</span>
+			<span class={textSegmentClassName}>{segment.text}</span>
 		{:else}
 			<InlineArtefactBadge
 				tokenType={segment.tokenType}

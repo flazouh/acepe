@@ -87,6 +87,12 @@ export class InteractionStore {
 		}
 	}
 
+	applySessionInteractionPatches(snapshots: ReadonlyArray<InteractionSnapshot>): void {
+		for (const interaction of snapshots) {
+			this.applyProjectionInteraction(interaction);
+		}
+	}
+
 	private applyProjectionInteraction(interaction: InteractionSnapshot): void {
 		if ("Permission" in interaction.payload) {
 			this.applyPermissionInteraction(interaction, interaction.payload.Permission);
@@ -108,6 +114,7 @@ export class InteractionStore {
 		payload: PermissionData
 	): void {
 		if (interaction.state !== "Pending") {
+			this.permissionsPending.delete(interaction.id);
 			return;
 		}
 		this.upsertPendingPermission(
@@ -156,6 +163,7 @@ export class InteractionStore {
 			return;
 		}
 
+		this.questionsPending.delete(request.id);
 		const toolCallId = request.tool?.callID ?? request.id;
 		const answeredQuestion: AnsweredQuestion = {
 			questions: request.questions,
@@ -178,6 +186,12 @@ export class InteractionStore {
 			createLegacyInteractionReplyHandler(interaction.id, jsonRpcRequestId);
 		const status = mapPlanApprovalStatus(interaction.state);
 		if (tool === undefined || status === null) {
+			this.planApprovalsPending.delete(interaction.id);
+			return;
+		}
+
+		if (status !== "pending") {
+			this.planApprovalsPending.delete(interaction.id);
 			return;
 		}
 

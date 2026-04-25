@@ -54,13 +54,13 @@ export const STORAGE_COMMANDS = {
 	save_user_setting: "save_user_setting",
 	get_thread_list_settings: "get_thread_list_settings",
 	save_thread_list_settings: "save_thread_list_settings",
-	get_api_key: "get_api_key",
 	save_api_key: "save_api_key",
 	delete_api_key: "delete_api_key",
 	get_user_keybindings: "get_user_keybindings",
 	save_user_keybinding: "save_user_keybinding",
 	delete_user_keybinding: "delete_user_keybinding",
 	reset_keybindings_to_defaults: "reset_keybindings_to_defaults",
+	request_destructive_confirmation_token: "request_destructive_confirmation_token",
 } as const;
 
 export const CURSOR_HISTORY_COMMANDS = {
@@ -120,13 +120,13 @@ export const COMMANDS = {
 		save_user_setting: "save_user_setting",
 		get_thread_list_settings: "get_thread_list_settings",
 		save_thread_list_settings: "save_thread_list_settings",
-		get_api_key: "get_api_key",
 		save_api_key: "save_api_key",
 		delete_api_key: "delete_api_key",
 		get_user_keybindings: "get_user_keybindings",
 		save_user_keybinding: "save_user_keybinding",
 		delete_user_keybinding: "delete_user_keybinding",
 		reset_keybindings_to_defaults: "reset_keybindings_to_defaults",
+		request_destructive_confirmation_token: "request_destructive_confirmation_token",
 	},
 	cursor_history: {
 		get_cursor_history: "get_cursor_history",

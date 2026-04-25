@@ -8,6 +8,7 @@ export const scrollToIndexCalls: Array<{
 let defaultViewportSize = 100;
 let suppressRenderedChildren = false;
 let undefinedRenderedIndexes = new Set<number>();
+let useIndexKeys = false;
 
 export function clearHistory(): void {
 	dataLengthHistory.length = 0;
@@ -15,6 +16,7 @@ export function clearHistory(): void {
 	defaultViewportSize = 100;
 	suppressRenderedChildren = false;
 	undefinedRenderedIndexes = new Set<number>();
+	useIndexKeys = false;
 }
 
 export function getDefaultViewportSize(): number {
@@ -35,6 +37,14 @@ export function setSuppressRenderedChildren(value: boolean): void {
 
 export function setUndefinedRenderedIndexes(indexes: readonly number[]): void {
 	undefinedRenderedIndexes = new Set<number>(indexes);
+}
+
+export function shouldUseIndexKeys(): boolean {
+	return useIndexKeys;
+}
+
+export function setUseIndexKeys(value: boolean): void {
+	useIndexKeys = value;
 }
 
 export function getRenderedItemAt<T>(data: readonly T[], index: number): T | undefined {

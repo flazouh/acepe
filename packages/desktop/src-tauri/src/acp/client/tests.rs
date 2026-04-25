@@ -7,14 +7,10 @@ use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
 use crate::acp::projections::{InteractionState, ProjectionRegistry};
 use crate::acp::provider::SpawnConfig;
-use crate::acp::session_descriptor::{SessionCompatibilityInput, SessionReplayContext};
-use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_update::PlanSource;
 use crate::acp::session_update::{PermissionData, SessionUpdate};
 use crate::db::migrations::Migrator;
-use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository,
-};
+use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use std::collections::HashMap;
@@ -378,18 +374,6 @@ async fn setup_test_db() -> DbConn {
         .await
         .expect("Failed to run migrations");
     db
-}
-
-async fn replay_context_for_session(db: &DbConn, session_id: &str) -> SessionReplayContext {
-    let metadata = SessionMetadataRepository::get_by_id(db, session_id)
-        .await
-        .expect("load metadata");
-    SessionMetadataRepository::resolve_existing_session_replay_context_from_metadata(
-        session_id,
-        metadata.as_ref(),
-        SessionCompatibilityInput::default(),
-    )
-    .expect("replay context")
 }
 
 #[test]
@@ -1176,20 +1160,16 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
         .expect("interaction should exist");
     assert_eq!(interaction.state, InteractionState::Approved);
 
-    let replay_context = replay_context_for_session(&db, "session-1").await;
-    let stored_projection = load_stored_projection(&db, &replay_context)
+    let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
-        .expect("load stored projection")
-        .expect("stored projection should exist");
-    assert!(stored_projection
-        .interactions
-        .into_iter()
-        .any(|interaction| interaction.id == "permission-1"
-            && interaction.state == InteractionState::Approved));
+        .expect("list persisted interaction events");
+    assert!(stored_events
+        .iter()
+        .any(|event| event.event_kind == "interaction_transition"));
 }
 
 #[tokio::test]
-async fn load_stored_projection_is_none_without_journal() {
+async fn empty_journal_does_not_rebuild_product_projection() {
     let db = setup_test_db().await;
     SessionMetadataRepository::upsert(
         &db,
@@ -1205,15 +1185,9 @@ async fn load_stored_projection_is_none_without_journal() {
     .await
     .expect("persist session metadata");
 
-    let registry = ProjectionRegistry::new();
-    registry.register_session(
-        "session-legacy".to_string(),
-        crate::acp::types::CanonicalAgentId::Codex,
-    );
-    let replay_context = replay_context_for_session(&db, "session-legacy").await;
-    let stored_projection = load_stored_projection(&db, &replay_context)
+    let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-legacy")
         .await
-        .expect("load stored projection");
+        .expect("list stored journal events");
 
-    assert!(stored_projection.is_none());
+    assert!(stored_events.is_empty());
 }

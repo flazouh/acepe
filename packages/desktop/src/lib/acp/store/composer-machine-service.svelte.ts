@@ -9,7 +9,7 @@ import { createActor } from "xstate";
 import { type ComposerMachineEvent, composerMachine } from "../logic/composer-machine.js";
 import type { ComposerMachineSnapshot } from "../logic/composer-ui-state.js";
 import { createLogger } from "../utils/logger.js";
-import type { SessionHotState } from "./types.js";
+import type { SessionTransientProjection } from "./types.js";
 
 const logger = createLogger({ id: "composer-machine-service", name: "ComposerMachineService" });
 
@@ -20,7 +20,7 @@ export class ComposerMachineService {
 	private readonly snapshotCache = new SvelteMap<string, ComposerMachineSnapshot>();
 	private readonly actorSubscriptions = new SvelteMap<string, () => void>();
 
-	constructor(private readonly getHotState: (sessionId: string) => SessionHotState) {}
+	constructor(private readonly getHotState: (sessionId: string) => SessionTransientProjection) {}
 
 	createOrGetActor(sessionId: string): ComposerActor {
 		let actor = this.actors.get(sessionId);

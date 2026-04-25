@@ -166,7 +166,9 @@ export function selectQueueWorkBucket(
 	return bucket;
 }
 
-export function selectLegacySessionStatus(projection: SessionWorkProjection): SessionStatus {
+export function selectSessionStatusForPresentation(
+	projection: SessionWorkProjection
+): SessionStatus {
 	const { state } = projection;
 	if (projection.hasError) {
 		return "error";
@@ -201,4 +203,8 @@ export function selectLegacySessionStatus(projection: SessionWorkProjection): Se
 	}
 
 	return "ready";
+}
+
+export function selectLegacySessionStatus(projection: SessionWorkProjection): SessionStatus {
+	return selectSessionStatusForPresentation(projection);
 }

@@ -65,7 +65,7 @@ import {
 	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
 } from "$lib/acp/store/queue/utils.js";
-import { selectLegacySessionStatus } from "$lib/acp/store/session-work-projection.js";
+import { selectSessionStatusForPresentation } from "$lib/acp/store/session-work-projection.js";
 import { deriveSessionWorkProjection } from "$lib/acp/store/session-work-projection.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
@@ -251,6 +251,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 		const identity = sessionStore.getSessionIdentity(sessionId);
 		const metadata = sessionStore.getSessionMetadata(sessionId);
 		const hotState = sessionStore.getHotState(sessionId);
+		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
 		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
 		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
 			sessionId,
@@ -283,6 +284,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
 			runtimeState,
 			hotState,
+			canonicalProjection,
 			interactionSnapshot,
 			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
 		});
@@ -1482,7 +1484,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 						sessionId={item.sessionId}
 						entries={sessionStore.getEntries(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
-						status={selectLegacySessionStatus(
+						status={selectSessionStatusForPresentation(
 							deriveSessionWorkProjection({
 								state: item.state,
 								currentModeId: item.currentModeId,

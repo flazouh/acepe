@@ -2,7 +2,7 @@
  * Boundary Manager Interface
  *
  * Narrow interface for tool call boundary splitting.
- * ChunkAggregator implements this; ToolCallManager consumes it
+ * ChunkAggregator implements this; TranscriptToolCallBuffer consumes it
  * to split assistant aggregation at tool call boundaries.
  */
 

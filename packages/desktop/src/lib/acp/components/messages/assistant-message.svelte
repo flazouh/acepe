@@ -239,7 +239,7 @@ $effect(() => {
 
 {#if hasAnyContent}
 	<!-- Assistant message - full width -->
-	<div class="w-full mb-2 group/assistant-message">
+	<div class="relative w-full mb-2 group/assistant-message">
 		<div class="space-y-1.5">
 			{#if showThinkingBlock}
 				<AgentToolThinking
@@ -308,7 +308,7 @@ $effect(() => {
 
 			{#if hasMessageContent}
 				<div
-					class="pt-1 opacity-0 transition-opacity duration-150 group-hover/assistant-message:opacity-100 group-focus-within/assistant-message:opacity-100"
+					class="absolute bottom-0 right-0 opacity-0 transition-opacity duration-150 group-hover/assistant-message:opacity-100 group-focus-within/assistant-message:opacity-100"
 				>
 					<CopyButton text={textContent} size={14} variant="inline" />
 				</div>

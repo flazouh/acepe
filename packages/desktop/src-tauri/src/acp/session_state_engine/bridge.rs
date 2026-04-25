@@ -29,6 +29,8 @@ pub fn build_delta_envelope(
     from_revision: SessionGraphRevision,
     to_revision: SessionGraphRevision,
     transcript_operations: Vec<TranscriptDeltaOperation>,
+    operation_patches: Vec<crate::acp::projections::OperationSnapshot>,
+    interaction_patches: Vec<crate::acp::projections::InteractionSnapshot>,
     changed_fields: Vec<String>,
 ) -> SessionStateEnvelope {
     SessionStateEnvelope {
@@ -40,6 +42,8 @@ pub fn build_delta_envelope(
                 from_revision,
                 to_revision,
                 transcript_operations,
+                operation_patches,
+                interaction_patches,
                 changed_fields,
             },
         },
@@ -116,6 +120,8 @@ mod tests {
                     entries: Vec::new(),
                 },
             }],
+            Vec::new(),
+            Vec::new(),
             vec!["transcriptSnapshot".to_string()],
         );
 

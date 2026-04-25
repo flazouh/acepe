@@ -43,7 +43,7 @@ fn ready_dispatch_permit_rejects_runtime_epoch_changes() {
     let permit = supervisor
         .issue_ready_dispatch_permit(session_id)
         .expect("ready session should get dispatch permit");
-    supervisor.replace_checkpoint_for_compat(
+    supervisor.replace_checkpoint(
         session_id.to_string(),
         LifecycleCheckpoint::new(
             2,

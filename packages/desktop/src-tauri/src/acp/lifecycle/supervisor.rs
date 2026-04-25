@@ -90,7 +90,7 @@ impl SessionSupervisor {
         true
     }
 
-    pub(crate) fn replace_checkpoint_for_compat(
+    pub(crate) fn replace_checkpoint(
         &self,
         session_id: String,
         checkpoint: LifecycleCheckpoint,

@@ -74,11 +74,11 @@ describe("permission visibility", () => {
 		expect(visiblePermissionsForSessionBar([permission], operationStore)).toEqual([permission]);
 	});
 
-	it("treats execute permissions with matching commands as represented even when the anchor id differs", () => {
+	it("keeps execute permissions visible when only the command matches and the canonical anchor differs", () => {
 		const permission = createPermission("shell-permission");
 		const { operationStore } = createEntriesWithOperations("tool-1");
 
-		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(true);
+		expect(isPermissionRepresentedByToolCall(permission, "session-1", operationStore)).toBe(false);
 	});
 
 	it("keeps anchored permissions visible in the session-level permission bar", () => {

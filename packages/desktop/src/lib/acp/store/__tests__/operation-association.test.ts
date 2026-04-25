@@ -70,7 +70,7 @@ describe("operation association", () => {
 		expect(operation?.toolCallId).toBe("tool-1");
 	});
 
-	it("resolves execute permissions by command when the transport anchor differs", () => {
+	it("does not guess execute permissions by command when the transport anchor differs", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "mkdir demo"));
@@ -78,8 +78,7 @@ describe("operation association", () => {
 		const permission = createExecutePermission("session-1", "shell-permission", "mkdir demo");
 		const operation = findOperationForPermission(operationStore, permission);
 
-		expect(operation?.toolCallId).toBe("tool-1");
-		expect(operation?.command).toBe("mkdir demo");
+		expect(operation).toBeNull();
 	});
 
 	it("fails closed when no operation command matches a fallback permission", () => {
@@ -116,5 +115,43 @@ describe("operation association", () => {
 
 		expect(findOperationForQuestion(operationStore, question)?.toolCallId).toBe("tool-1");
 		expect(findOperationForPlanApproval(operationStore, approval)?.toolCallId).toBe("tool-1");
+	});
+
+	it("resolves interactions by operation provenance key when tool-call storage id differs", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "stored-tool-1",
+				operation_provenance_key: "provider-tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "pending",
+				operation_state: "pending",
+				title: "Run command",
+				arguments: { kind: "execute", command: "mkdir demo" },
+				progressive_arguments: null,
+				result: null,
+				command: "mkdir demo",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
+
+		const permission = createExecutePermission("session-1", "provider-tool-1", "different command");
+		expect(findOperationForPermission(operationStore, permission)?.toolCallId).toBe(
+			"stored-tool-1"
+		);
+	});
+
+	it("returns null for permission with no matching operation", () => {
+		const operationStore = new OperationStore();
+		const permission = createExecutePermission("session-1", "tool-nonexistent", "some command");
+		const result = findOperationForPermission(operationStore, permission);
+		expect(result).toBeNull();
 	});
 });

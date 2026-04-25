@@ -54,6 +54,28 @@ type VirtualizedEntryListProps = {
 	onNearTopChange?: (isNearTop: boolean) => void;
 };
 
+type AssistantDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "assistant" }>;
+type ToolCallDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "tool_call" }>;
+type UserDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "user" }>;
+
+const EMPTY_ASSISTANT_MESSAGE: AssistantDisplayEntry["message"] = {
+	chunks: [],
+};
+const EMPTY_USER_MESSAGE: UserDisplayEntry["message"] = {
+	content: { type: "text", text: "" },
+	chunks: [],
+};
+const EMPTY_TOOL_CALL_MESSAGE: ToolCallDisplayEntry["message"] = {
+	id: "missing-tool-call",
+	name: "missing-tool-call",
+	arguments: { kind: "execute", command: "" },
+	status: "completed",
+	result: "",
+	kind: "execute",
+	title: "Missing tool call",
+	awaitingPlanApproval: false,
+};
+
 let {
 	panelId,
 	entries,
@@ -208,6 +230,80 @@ function getKey(entry: VirtualizedDisplayEntry | undefined, index?: number): str
 	}
 
 	return getVirtualizedDisplayEntryKey(entry);
+}
+
+function getUserMessage(entry: VirtualizedDisplayEntry | undefined): UserDisplayEntry["message"] {
+	return entry?.type === "user" ? entry.message : EMPTY_USER_MESSAGE;
+}
+
+function getAssistantMessage(
+	entry: VirtualizedDisplayEntry | undefined
+): AssistantDisplayEntry["message"] {
+	return entry?.type === "assistant" ? entry.message : EMPTY_ASSISTANT_MESSAGE;
+}
+
+function getMergedAssistantMessage(
+	entry: VirtualizedDisplayEntry | undefined,
+	thinkingDurationMs: number | null
+): AssistantDisplayEntry["message"] {
+	if (entry?.type !== "assistant_merged") {
+		return EMPTY_ASSISTANT_MESSAGE;
+	}
+
+	return {
+		chunks: entry.message.chunks,
+		model: entry.message.model,
+		displayModel: entry.message.displayModel,
+		receivedAt: entry.message.receivedAt,
+		thinkingDurationMs: thinkingDurationMs ?? entry.message.thinkingDurationMs,
+	};
+}
+
+function getToolCallMessage(
+	entry: VirtualizedDisplayEntry | undefined
+): ToolCallDisplayEntry["message"] {
+	return entry?.type === "tool_call" ? entry.message : EMPTY_TOOL_CALL_MESSAGE;
+}
+
+function getSharedEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	thinkingDurationMs: number | null
+) {
+	return mapVirtualizedDisplayEntryToConversationEntry(
+		entry ?? THINKING_DISPLAY_ENTRY,
+		turnState,
+		isStreaming &&
+			entry !== undefined &&
+			entry.type !== "thinking" &&
+			((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
+				(entry.type === "assistant_merged" && entry.memberIds.includes(lastAssistantId ?? ""))),
+		activeRootToolCallId,
+		thinkingDurationMs ?? undefined
+	);
+}
+
+function isStreamingAssistantEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	index: number
+): boolean {
+	return (
+		isStreaming &&
+		entry?.type === "assistant" &&
+		entry.id === (lastAssistantId ?? "") &&
+		index === displayEntries.length - 1
+	);
+}
+
+function isStreamingMergedAssistantEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	index: number
+): boolean {
+	return (
+		isStreaming &&
+		entry?.type === "assistant_merged" &&
+		entry.memberIds.includes(lastAssistantId ?? "") &&
+		index === displayEntries.length - 1
+	);
 }
 
 let warnedMissingEntryKeys = new Set<string>();
@@ -621,62 +717,42 @@ export function scrollToTop() {
 <div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
 	{#snippet renderEntry(entry: VirtualizedDisplayEntry | undefined, index: number)}
 		{#if entry}
-			{@const sharedEntry = mapVirtualizedDisplayEntryToConversationEntry(
-				entry,
-				turnState,
-				isStreaming &&
-					entry.type !== "thinking" &&
-					((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
-						(entry.type === "assistant_merged" &&
-							entry.memberIds.includes(lastAssistantId ?? ""))) &&
-					index === displayEntries.length - 1,
-				activeRootToolCallId,
-				thinkingNowMs
-			)}
 			{@const mergedThoughtDurationMs = resolveDisplayEntryThinkingDurationMs(
 				displayEntries,
 				index,
 				thinkingNowMs
 			)}
+			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs)}
 			<MessageWrapper
 				entryIndex={index}
 				entryKey={getKey(entry, index)}
 				messageId={entry.type === "user" ? entry.id : undefined}
-				observeRevealResize={shouldObserveRevealResize(displayEntries, entry, isStreaming)}
+				observeRevealResize={entry
+					? shouldObserveRevealResize(displayEntries, entry, isStreaming)
+					: false}
 				revealEntryIndex={revealDisplayIndex}
 				{isFullscreen}
 			>
 				{#if entry.type === "user"}
-					<UserMessage message={entry.message} />
+					<UserMessage message={getUserMessage(entry)} />
 				{:else if entry.type === "assistant"}
 					<AssistantMessage
-						message={entry.message}
-						isStreaming={isStreaming &&
-							entry.id === (lastAssistantId ?? "") &&
-							index === displayEntries.length - 1}
+						message={getAssistantMessage(entry)}
+						isStreaming={isStreamingAssistantEntry(entry, index)}
 						revealMessageKey={getKey(entry, index)}
 						{projectPath}
 						{streamingAnimationMode}
 					/>
 				{:else if entry.type === "assistant_merged"}
 					<AssistantMessage
-						message={{
-							chunks: entry.message.chunks,
-							model: entry.message.model,
-							displayModel: entry.message.displayModel,
-							receivedAt: entry.message.receivedAt,
-							thinkingDurationMs:
-								mergedThoughtDurationMs ?? entry.message.thinkingDurationMs,
-						}}
-						isStreaming={isStreaming &&
-							entry.memberIds.includes(lastAssistantId ?? "") &&
-							index === displayEntries.length - 1}
+						message={getMergedAssistantMessage(entry, mergedThoughtDurationMs)}
+						isStreaming={isStreamingMergedAssistantEntry(entry, index)}
 						revealMessageKey={getKey(entry, index)}
 						{projectPath}
 						{streamingAnimationMode}
 					/>
 				{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
-					<ToolCallRouter toolCall={entry.message} {turnState} {projectPath} />
+					<ToolCallRouter toolCall={getToolCallMessage(entry)} {turnState} {projectPath} />
 				{:else}
 					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
 				{/if}

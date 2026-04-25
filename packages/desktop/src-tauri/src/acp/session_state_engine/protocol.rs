@@ -1,3 +1,4 @@
+use crate::acp::projections::{InteractionSnapshot, OperationSnapshot};
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
@@ -30,6 +31,10 @@ pub struct SessionStateDelta {
     pub to_revision: SessionGraphRevision,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transcript_operations: Vec<TranscriptDeltaOperation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operation_patches: Vec<OperationSnapshot>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interaction_patches: Vec<InteractionSnapshot>,
     #[serde(default)]
     pub changed_fields: Vec<String>,
 }

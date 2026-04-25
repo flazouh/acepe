@@ -27,13 +27,9 @@ use crate::acp::client_transport::{
 };
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::projections::{
-    InteractionPayload, InteractionResponse, InteractionState, ProjectionRegistry,
-    SessionProjectionSnapshot,
-};
+use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::session_journal::load_stored_projection;
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_update::{
@@ -1030,64 +1026,13 @@ impl ClaudeCcSdkClient {
     async fn restore_session_permission_approvals(&self, session_id: &str) {
         let _ = self.permission_bridge.drain_all_as_denied().await;
 
-        let approvals = match &self.db {
-            Some(db) => {
-                let metadata = match crate::db::repository::SessionMetadataRepository::get_by_id(
-                    db, session_id,
-                )
-                .await
-                {
-                    Ok(metadata) => metadata,
-                    Err(error) => {
-                        tracing::warn!(
-                            error = %error,
-                            session_id = %session_id,
-                            "Failed to load session metadata for permission rehydration"
-                        );
-                        None
-                    }
-                };
-                let replay_context = match crate::db::repository::SessionMetadataRepository::resolve_existing_session_replay_context_from_metadata(
-                    session_id,
-                    metadata.as_ref(),
-                    crate::acp::session_descriptor::SessionCompatibilityInput::default(),
-                ) {
-                    Ok(replay_context) => Some(replay_context),
-                    Err(error) => {
-                        tracing::warn!(
-                            error = %error,
-                            session_id = %session_id,
-                            "Failed to resolve replay context for permission rehydration"
-                        );
-                        None
-                    }
-                };
-
-                match replay_context {
-                    Some(replay_context) => match load_stored_projection(db, &replay_context).await
-                    {
-                        Ok(Some(projection)) => {
-                            build_reusable_permission_approval_entries(&projection)
-                        }
-                        Ok(None) => Vec::new(),
-                        Err(error) => {
-                            tracing::warn!(
-                                error = %error,
-                                session_id = %session_id,
-                                "Failed to load stored projection for permission rehydration"
-                            );
-                            Vec::new()
-                        }
-                    },
-                    None => Vec::new(),
-                }
-            }
-            None => Vec::new(),
-        };
-
         self.permission_bridge
-            .replace_reusable_approval_results(approvals)
+            .replace_reusable_approval_results(Vec::new())
             .await;
+        tracing::debug!(
+            session_id = %session_id,
+            "Skipped journal-backed permission approval rehydration"
+        );
     }
 
     async fn update_interaction_projection(&self, request_id: u64, result: &Value) {
@@ -1965,49 +1910,6 @@ fn build_reusable_permission_key(tool_name: &str, raw_input: &Value) -> Option<S
     build_reusable_permission_key_from_patterns(tool_name, &build_permission_patterns(raw_input))
 }
 
-fn reusable_permission_result_from_response(response: &InteractionResponse) -> Option<Value> {
-    let InteractionResponse::Permission {
-        accepted: true,
-        option_id,
-        ..
-    } = response
-    else {
-        return None;
-    };
-
-    Some(serde_json::json!({
-        "outcome": {
-            "outcome": "selected",
-            "optionId": option_id.clone().unwrap_or_else(|| "allow".to_string())
-        }
-    }))
-}
-
-fn build_reusable_permission_approval_entries(
-    projection: &SessionProjectionSnapshot,
-) -> Vec<(String, Value)> {
-    projection
-        .interactions
-        .iter()
-        .filter_map(|interaction| {
-            if interaction.state != InteractionState::Approved {
-                return None;
-            }
-
-            let InteractionPayload::Permission(permission) = &interaction.payload else {
-                return None;
-            };
-            let response = interaction.response.as_ref()?;
-            let reusable_key = build_reusable_permission_key_from_patterns(
-                &permission.permission,
-                &permission.patterns,
-            )?;
-            let reusable_result = reusable_permission_result_from_response(response)?;
-            Some((reusable_key, reusable_result))
-        })
-        .collect()
-}
-
 fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: AgentType) -> Value {
     let parser = get_parser(agent_type);
     let parsed_arguments = serde_json::to_value(
@@ -2770,7 +2672,6 @@ impl AgentClient for ClaudeCcSdkClient {
 mod tests {
     use super::permissions::PendingPermissionKind;
     use super::*;
-    use crate::acp::session_descriptor::{SessionCompatibilityInput, SessionReplayContext};
     use crate::acp::session_update::ContentChunk;
     use crate::acp::session_update::{
         PermissionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
@@ -2983,18 +2884,6 @@ mod tests {
         db
     }
 
-    async fn replay_context_for_session(db: &DbConn, session_id: &str) -> SessionReplayContext {
-        let metadata = SessionMetadataRepository::get_by_id(db, session_id)
-            .await
-            .expect("load metadata");
-        SessionMetadataRepository::resolve_existing_session_replay_context_from_metadata(
-            session_id,
-            metadata.as_ref(),
-            SessionCompatibilityInput::default(),
-        )
-        .expect("replay context")
-    }
-
     fn make_test_client() -> ClaudeCcSdkClient {
         make_test_client_with_provider(Arc::new(
             crate::acp::providers::claude_code::ClaudeCodeProvider,
@@ -3160,7 +3049,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn restore_session_permission_approvals_rehydrates_restart_safe_cache() {
+    async fn restore_session_permission_approvals_does_not_rehydrate_from_journal() {
         let db = setup_test_db().await;
         let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
         SessionMetadataRepository::upsert(
@@ -3232,17 +3121,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(
-            registration.ui_dispatch,
-            PermissionUiDispatch::ResolvedFromCache
-        );
-        assert!(matches!(
-            registration
-                .receiver
-                .await
-                .expect("cached approval should resolve immediately"),
-            cc_sdk::PermissionResult::Allow(_)
-        ));
+        assert_eq!(registration.ui_dispatch, PermissionUiDispatch::Emit);
     }
 
     #[tokio::test]
@@ -3717,26 +3596,16 @@ mod tests {
             Some(InteractionResponse::Permission { accepted: true, .. })
         ));
 
-        let replay_context = replay_context_for_session(&db, "session-1").await;
-        let stored_projection = load_stored_projection(&db, &replay_context)
+        let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
             .await
-            .expect("load stored projection")
-            .expect("stored projection should exist");
-        let stored_interaction = stored_projection
-            .interactions
-            .into_iter()
-            .find(|interaction| interaction.id == "permission-1")
-            .expect("stored interaction should be persisted");
-        assert_eq!(stored_interaction.state, InteractionState::Approved);
-        assert!(matches!(
-            stored_interaction.response,
-            Some(InteractionResponse::Permission { accepted: true, .. })
-        ));
+            .expect("list persisted interaction events");
+        assert!(stored_events
+            .iter()
+            .any(|event| event.event_kind == "interaction_transition"));
     }
 
     #[tokio::test]
-    async fn restore_session_permission_approvals_rehydrates_reusable_cache_from_descriptor_context(
-    ) {
+    async fn restore_session_permission_approvals_does_not_replay_journal_as_product_authority() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -3816,12 +3685,8 @@ mod tests {
 
         assert_eq!(
             registration.ui_dispatch,
-            super::permissions::PermissionUiDispatch::ResolvedFromCache
+            super::permissions::PermissionUiDispatch::Emit
         );
-        assert!(matches!(
-            registration.receiver.await.expect("channel closed"),
-            cc_sdk::PermissionResult::Allow(_)
-        ));
     }
 
     #[tokio::test]
@@ -3880,17 +3745,12 @@ mod tests {
             .expect("interaction should remain addressable");
         assert_eq!(interaction.state, InteractionState::Rejected);
 
-        let replay_context = replay_context_for_session(&db, "session-1").await;
-        let stored_projection = load_stored_projection(&db, &replay_context)
+        let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
             .await
-            .expect("load stored projection")
-            .expect("stored projection should exist");
-        assert!(stored_projection
-            .interactions
-            .into_iter()
-            .any(|interaction| {
-                interaction.id == "permission-1" && interaction.state == InteractionState::Rejected
-            }));
+            .expect("list persisted interaction events");
+        assert!(stored_events
+            .iter()
+            .any(|event| event.event_kind == "interaction_transition"));
     }
 
     #[tokio::test]
@@ -3963,18 +3823,12 @@ mod tests {
             .expect("interaction should exist");
         assert_eq!(interaction.state, InteractionState::Answered);
 
-        let replay_context = replay_context_for_session(&db, "session-stream").await;
-        let stored_projection = load_stored_projection(&db, &replay_context)
+        let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-stream")
             .await
-            .expect("load stored projection")
-            .expect("stored projection should exist");
-        assert!(stored_projection
-            .interactions
-            .into_iter()
-            .any(|interaction| {
-                interaction.id == "toolu_stream_only"
-                    && interaction.state == InteractionState::Answered
-            }));
+            .expect("list persisted interaction events");
+        assert!(stored_events
+            .iter()
+            .any(|event| event.event_kind == "interaction_transition"));
     }
 
     #[tokio::test]

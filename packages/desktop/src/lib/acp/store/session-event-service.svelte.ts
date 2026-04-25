@@ -450,13 +450,14 @@ export class SessionEventService {
 
 			case "plan":
 				this.callbacks.onPlanUpdate?.(sessionId, update.plan);
+				logger.debug("plan received on diagnostic raw lane", {
+					sessionId,
+					stepCount: update.plan.steps.length,
+				});
 				break;
 
 			case "userMessageChunk":
-				// User chunks are turn boundaries for assistant aggregation.
-				// Clear stale assistant message tracking so a subsequent assistant
-				// chunk starts a new entry instead of appending to the previous turn.
-				handler.clearStreamingAssistantEntry(sessionId);
+				logger.debug("userMessageChunk received on diagnostic raw lane", { sessionId });
 				break;
 
 			case "currentModeUpdate":
@@ -661,7 +662,7 @@ export class SessionEventService {
 			waiter.capabilities = envelope.payload.capabilities;
 		}
 
-		if (waiter.lifecycle?.status === "error") {
+		if (waiter.lifecycle?.status === "failed") {
 			this.takeConnectionMaterializationWaiter(envelope.sessionId)?.reject(
 				new Error(waiter.lifecycle.errorMessage ?? "Connection failed")
 			);

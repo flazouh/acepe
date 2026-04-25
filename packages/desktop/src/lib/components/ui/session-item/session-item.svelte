@@ -230,6 +230,7 @@ const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
 const hotState = $derived(sessionStore.getHotState(session.id));
+const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
 const currentStreamingToolCall = $derived(operationStore.getCurrentStreamingToolCall(session.id));
 const lastToolCall = $derived(operationStore.getLastToolCall(session.id));
 const lastTodoToolCall = $derived(operationStore.getLastTodoToolCall(session.id));
@@ -244,6 +245,7 @@ const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({
 		runtimeState,
 		hotState,
+		canonicalProjection,
 		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -253,6 +255,7 @@ const sessionWorkProjection = $derived.by(() =>
 	deriveLiveSessionWorkProjection({
 		runtimeState,
 		hotState,
+		canonicalProjection,
 		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -581,7 +584,7 @@ function handleNextQuestion() {
 		<div
 			{...props}
 			bind:this={rowElement}
-			class="group relative z-10 flex items-stretch gap-1 py-0"
+			class="group relative z-10 flex h-8 items-stretch gap-1 overflow-hidden py-0"
 			style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
 			data-session-id={session.id}
 			onpointerenter={(e) => {
@@ -609,25 +612,25 @@ function handleNextQuestion() {
 			{/if}
 
 			<div class="flex-1 min-w-0">
-			{#snippet agentBadge()}
-				<img
-					src={getThemedAgentIcon(session.agentId)}
-					alt={"Agent"}
-					class="{getAgentIconClass()} shrink-0 m-0.5"
-					width="12"
-					height="12"
-				/>
-				{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
-					<ProjectLetterBadge
-						name={session.projectName}
-						color={session.projectColor}
-						iconSrc={session.projectIconSrc}
-						size={12}
-						sequenceId={session.sequenceId}
-						showLetter={false}
-						class="font-mono"
+				{#snippet agentBadge()}
+					<img
+						src={getThemedAgentIcon(session.agentId)}
+						alt={"Agent"}
+						class="{getAgentIconClass()} shrink-0 m-0.5"
+						width="12"
+						height="12"
 					/>
-				{/if}
+					{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
+						<ProjectLetterBadge
+							name={session.projectName}
+							color={session.projectColor}
+							iconSrc={session.projectIconSrc}
+							size={12}
+							sequenceId={session.sequenceId}
+							showLetter={false}
+							class="font-mono"
+						/>
+					{/if}
 					{#if session.worktreePath}
 						<Tree
 							size={12}
@@ -761,8 +764,11 @@ function handleNextQuestion() {
 							aria-label="Rename session"
 						/>
 					{:else if richTitle}
-						<div class="truncate" title={displayTitle}>
-							<RichTokenText text={richTitle} class="text-xs font-medium" />
+						<div
+							class="min-w-0 max-w-full overflow-hidden whitespace-nowrap"
+							title={displayTitle}
+						>
+							<RichTokenText text={richTitle} class="text-xs font-medium" singleLine />
 						</div>
 					{:else}
 						<div class="text-xs font-medium truncate" title={displayTitle}>

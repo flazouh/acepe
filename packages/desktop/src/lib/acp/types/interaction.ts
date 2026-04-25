@@ -31,6 +31,7 @@ export interface PlanApprovalInteraction {
 	jsonRpcRequestId?: number;
 	replyHandler: InteractionReplyHandler;
 	status: "pending" | "approved" | "rejected";
+	canonicalOperationId?: string | null;
 }
 
 export type Interaction = PermissionInteraction | QuestionInteraction | PlanApprovalInteraction;

@@ -134,6 +134,58 @@ describe("deriveLiveSessionState", () => {
 		expect(canonicalActivity).toBe("running_operation");
 	});
 
+	it("prefers canonical projection activity over stale hot state activity", () => {
+		const canonicalActivity = deriveLiveCanonicalActivity({
+			runtimeState: null,
+			hotState: {
+				status: "streaming",
+				currentMode: null,
+				connectionError: null,
+				activity: {
+					kind: "running_operation",
+					activeOperationCount: 1,
+					activeSubagentCount: 0,
+					dominantOperationId: "op-stale",
+					blockingInteractionId: null,
+				},
+			},
+			canonicalProjection: {
+				lifecycle: {
+					status: "ready",
+					errorMessage: null,
+					detachedReason: null,
+					failureReason: null,
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "send",
+						recoveryPhase: "none",
+						compactStatus: "ready",
+					},
+				},
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+			},
+			currentStreamingToolCall: null,
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPlanApproval: null,
+				pendingPermission: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(canonicalActivity).toBe("idle");
+	});
+
 	it("keeps pending interaction dominant when graph-backed activity is absent", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity({
 			runtimeState: {

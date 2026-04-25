@@ -13,6 +13,9 @@ export const TAURI_COMMAND_CLIENT = {
 		initialize: createGeneratedCommand(COMMANDS.acp.initialize),
 		install_agent: createGeneratedCommand(COMMANDS.acp.install_agent),
 		list_agents: createGeneratedCommand(COMMANDS.acp.list_agents),
+		list_preconnection_capabilities: createGeneratedCommand(
+			COMMANDS.acp.list_preconnection_capabilities
+		),
 		list_preconnection_commands: createGeneratedCommand(COMMANDS.acp.list_preconnection_commands),
 		new_session: createGeneratedCommand(COMMANDS.acp.new_session),
 		register_custom_agent: createGeneratedCommand(COMMANDS.acp.register_custom_agent),
@@ -107,8 +110,8 @@ export const TAURI_COMMAND_CLIENT = {
 		log: createGeneratedCommand(COMMANDS.git.log),
 		merge_pr: createGeneratedCommand(COMMANDS.git.merge_pr),
 		panel_status: createGeneratedCommand(COMMANDS.git.panel_status),
-		pr_details: createGeneratedCommand(COMMANDS.git.pr_details),
 		pr_checks: createGeneratedCommand(COMMANDS.git.pr_checks),
+		pr_details: createGeneratedCommand(COMMANDS.git.pr_details),
 		prepare_worktree_session_launch: createGeneratedCommand(
 			COMMANDS.git.prepare_worktree_session_launch
 		),
@@ -232,7 +235,6 @@ export const TAURI_COMMAND_CLIENT = {
 		delete_session_review_state: createGeneratedCommand(
 			COMMANDS.storage.delete_session_review_state
 		),
-		get_api_key: createGeneratedCommand(COMMANDS.storage.get_api_key),
 		get_custom_keybindings: createGeneratedCommand(COMMANDS.storage.get_custom_keybindings),
 		get_missing_project_paths: createGeneratedCommand(COMMANDS.storage.get_missing_project_paths),
 		get_project_acepe_config: createGeneratedCommand(COMMANDS.storage.get_project_acepe_config),
@@ -249,6 +251,9 @@ export const TAURI_COMMAND_CLIENT = {
 		open_in_finder: createGeneratedCommand(COMMANDS.storage.open_in_finder),
 		open_streaming_log: createGeneratedCommand(COMMANDS.storage.open_streaming_log),
 		remove_project: createGeneratedCommand(COMMANDS.storage.remove_project),
+		request_destructive_confirmation_token: createGeneratedCommand(
+			COMMANDS.storage.request_destructive_confirmation_token
+		),
 		reset_database: createGeneratedCommand(COMMANDS.storage.reset_database),
 		save_api_key: createGeneratedCommand(COMMANDS.storage.save_api_key),
 		save_custom_keybindings: createGeneratedCommand(COMMANDS.storage.save_custom_keybindings),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../application/dto/session-entry.js";
 import { type PanelToTabInput, panelToTab } from "../tab-bar-utils.js";
-import type { Panel, SessionHotState } from "../types.js";
+import type { Panel, SessionTransientProjection } from "../types.js";
 
 function makePanel(overrides: Partial<Panel> = {}): Panel {
 	return {
@@ -20,7 +20,9 @@ function makePanel(overrides: Partial<Panel> = {}): Panel {
 	};
 }
 
-function makeHotState(overrides: Partial<SessionHotState> = {}): SessionHotState {
+function makeHotState(
+	overrides: Partial<SessionTransientProjection> = {}
+): SessionTransientProjection {
 	return {
 		status: "idle",
 		isConnected: true,

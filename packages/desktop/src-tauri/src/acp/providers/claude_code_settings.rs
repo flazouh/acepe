@@ -10,9 +10,8 @@ use std::sync::OnceLock;
 static RE_VERSION_SUFFIX: OnceLock<Regex> = OnceLock::new();
 
 fn version_suffix_regex() -> &'static Regex {
-    RE_VERSION_SUFFIX.get_or_init(|| {
-        Regex::new(r"-v\d+(:\d+)?$").expect("version suffix regex must compile")
-    })
+    RE_VERSION_SUFFIX
+        .get_or_init(|| Regex::new(r"-v\d+(:\d+)?$").expect("version suffix regex must compile"))
 }
 
 /// Normalizes a model ID from any provider representation to its first-party canonical form.
@@ -32,10 +31,7 @@ pub(crate) fn normalize_model_id_from_any_provider(raw_id: &str) -> String {
     };
 
     // Find the first `claude-` substring to handle Bedrock/Vertex prefixes.
-    let claude_start = without_at
-        .to_ascii_lowercase()
-        .find("claude-")
-        .unwrap_or(0);
+    let claude_start = without_at.to_ascii_lowercase().find("claude-").unwrap_or(0);
     let from_claude = &without_at[claude_start..];
 
     // Strip trailing `-v\d+(:\d+)?` version suffix.

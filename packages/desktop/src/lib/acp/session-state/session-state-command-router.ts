@@ -1,5 +1,7 @@
 import type {
 	CapabilityPreviewState,
+	InteractionSnapshot,
+	OperationSnapshot,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -41,6 +43,11 @@ export type SessionStateCommand =
 	| {
 			kind: "applyTranscriptDelta";
 			delta: TranscriptDelta;
+	  }
+	| {
+			kind: "applyGraphPatches";
+			operationPatches: OperationSnapshot[];
+			interactionPatches: InteractionSnapshot[];
 	  };
 
 function commandFromDeltaResolution(
@@ -104,9 +111,20 @@ export function routeSessionStateEnvelope(
 					telemetry: envelope.payload.telemetry,
 				},
 			];
-		case "delta":
-			return commandFromDeltaResolution(
+		case "delta": {
+			const commands = commandFromDeltaResolution(
 				resolveSessionStateDelta(sessionId, currentTranscriptRevision, envelope.payload.delta)
 			);
+			const operationPatches = envelope.payload.delta.operationPatches ?? [];
+			const interactionPatches = envelope.payload.delta.interactionPatches ?? [];
+			if (operationPatches.length > 0 || interactionPatches.length > 0) {
+				commands.push({
+					kind: "applyGraphPatches",
+					operationPatches,
+					interactionPatches,
+				});
+			}
+			return commands;
+		}
 	}
 }

@@ -64,7 +64,7 @@ Interaction association must be deterministic.
 That means shared code should prefer:
 
 - canonical operation linkage,
-- stable session + tool-call identity,
+- stable session + operation provenance key during migration,
 - provider-projected request identity,
 
 over:
@@ -85,3 +85,7 @@ If interactions are canonical:
 And because the blocking interaction is linked into session activity, UI surfaces can explain why a session is waiting without inventing a second authority path from local modal state.
 
 If interactions are not canonical, reconnect becomes a race between UI timing and transport timing.
+
+## Final GOD endpoint
+
+Interactions own permission/question/approval decision lifecycle and link to canonical `operationId` when they block or enrich an operation. Legacy records keyed by provider tool-call IDs must rebind through the operation provenance key while journal data still exists. If a decision cannot safely rebind, it becomes an explicit unresolved interaction rather than disappearing or attaching by transcript timing.

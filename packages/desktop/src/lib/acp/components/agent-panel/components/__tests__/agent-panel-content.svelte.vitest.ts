@@ -66,27 +66,29 @@ vi.mock(
 
 vi.mock("@acepe/ui", async () => ({
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
+	setIconConfig: () => undefined,
 }));
 
 vi.mock("mode-watcher", () => ({
 	mode: { current: "dark" },
 }));
 
-vi.mock("../../../store/session-store.svelte.js", () => ({
+vi.mock("../../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
 		getSessionRuntimeState: () => sessionStoreState.runtimeState,
 		getHotState: () => sessionStoreState.hotState,
+		getCanonicalSessionProjection: () => null,
 		getOperationStore: () => ({
 			getCurrentStreamingToolCall: () => null,
 		}),
 	}),
 }));
 
-vi.mock("../../../store/interaction-store.svelte.js", () => ({
+vi.mock("../../../../store/interaction-store.svelte.js", () => ({
 	getInteractionStore: () => ({}),
 }));
 
-vi.mock("../../../store/operation-association.js", () => ({
+vi.mock("../../../../store/operation-association.js", () => ({
 	buildSessionOperationInteractionSnapshot: () => ({
 		pendingQuestion: null,
 		pendingQuestionOperation: null,
@@ -117,7 +119,7 @@ vi.mock("../../ready-to-assist-placeholder.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
-vi.mock("./virtualized-entry-list.svelte", async () => ({
+vi.mock("../virtualized-entry-list.svelte", async () => ({
 	default: (await import("./fixtures/virtualized-entry-list-stub.svelte")).default,
 }));
 

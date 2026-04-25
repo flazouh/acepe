@@ -1,9 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import type { OperationStore } from "../../../store/operation-store.svelte.js";
-import type { Operation } from "../../../types/operation.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
-import { createRenderableToolCall, resolveToolOperation } from "../resolve-tool-operation.js";
+import { resolveToolOperation } from "../resolve-tool-operation.js";
 
 function createToolCall(overrides?: Partial<ToolCall>): ToolCall {
 	const base: ToolCall = {
@@ -59,55 +57,6 @@ function createPermission(overrides?: Partial<PermissionRequest>): PermissionReq
 	return Object.assign({}, base, overrides);
 }
 
-function createOperation(overrides?: Partial<Operation>): Operation {
-	return {
-		id: "op-1",
-		sessionId: "session-1",
-		toolCallId: "tool-1",
-		sourceEntryId: "entry-1",
-		name: "Task",
-		kind: "task",
-		status: "completed",
-		title: "Task",
-		arguments: { kind: "other", raw: { description: "Investigate" } },
-		progressiveArguments: undefined,
-		result: null,
-		locations: null,
-		skillMeta: null,
-		normalizedQuestions: null,
-		normalizedTodos: null,
-		questionAnswer: null,
-		awaitingPlanApproval: false,
-		planApprovalRequestId: null,
-		startedAtMs: 10,
-		completedAtMs: 20,
-		command: null,
-		parentToolCallId: null,
-		parentOperationId: null,
-		childToolCallIds: [],
-		childOperationIds: [],
-		...overrides,
-	};
-}
-
-function createOperationLookup(
-	operations: Operation[]
-): Pick<OperationStore, "getById" | "getByToolCallId"> {
-	const operationsById = new Map(operations.map((operation) => [operation.id, operation]));
-	const operationsByToolCallId = new Map(
-		operations.map((operation) => [`${operation.sessionId}:${operation.toolCallId}`, operation])
-	);
-
-	return {
-		getById(id: string) {
-			return operationsById.get(id);
-		},
-		getByToolCallId(sessionId: string, toolCallId: string) {
-			return operationsByToolCallId.get(`${sessionId}:${toolCallId}`);
-		},
-	};
-}
-
 describe("resolveToolOperation", () => {
 	it("keeps canonical tool arguments and shows inline approval", () => {
 		const resolved = resolveToolOperation(createToolCall(), createPermission());
@@ -153,39 +102,17 @@ describe("resolveToolOperation", () => {
 		expect(resolved.shouldShowInlinePermissionActionBar).toBe(false);
 	});
 
-	it("prefers canonical operation data over transcript fallback rows", () => {
-		const childOperation = createOperation({
-			id: "op-2",
-			toolCallId: "child-tool",
-			name: "Bash",
-			kind: "execute",
-			title: "Bash",
-			arguments: { kind: "execute", command: "git status" },
-			result: "ok",
+	it("keeps transcript tool rows instead of rebuilding ToolCall fallback data", () => {
+		const toolCall = createToolCall({
+			name: "apply_patch",
+			kind: "other",
+			title: "apply_patch",
+			arguments: { kind: "other", raw: "raw transcript tool row" },
 		});
-		const parentOperation = createOperation({
-			childOperationIds: ["op-2"],
-			childToolCallIds: ["child-tool"],
-		});
-		const renderable = createRenderableToolCall(
-			createToolCall({
-				name: "apply_patch",
-				kind: "other",
-				title: "apply_patch",
-				arguments: { kind: "other", raw: "raw transcript tool row" },
-			}),
-			parentOperation,
-			createOperationLookup([parentOperation, childOperation])
-		);
+		const resolved = resolveToolOperation(toolCall, null);
 
-		expect(renderable.name).toBe("Task");
-		expect(renderable.kind).toBe("task");
-		expect(renderable.title).toBe("Task");
-		expect(renderable.taskChildren).toHaveLength(1);
-		expect(renderable.taskChildren?.[0]?.name).toBe("Bash");
-		expect(renderable.taskChildren?.[0]?.arguments).toEqual({
-			kind: "execute",
-			command: "git status",
-		});
+		expect(resolved.toolCall).toBe(toolCall);
+		expect(resolved.toolCall.name).toBe("apply_patch");
+		expect(resolved.toolCall.arguments).toEqual({ kind: "other", raw: "raw transcript tool row" });
 	});
 });

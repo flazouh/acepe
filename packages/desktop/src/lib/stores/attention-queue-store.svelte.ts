@@ -2,7 +2,7 @@
  * Attention Queue Store - Controls whether the attention queue panel is visible.
  *
  * The attention queue shows sessions needing user attention (questions, permissions, errors).
- * It is disabled by default — users opt in via Settings → General.
+ * It is enabled by default — users opt out via Settings → General.
  */
 
 import { getContext, setContext } from "svelte";
@@ -18,7 +18,7 @@ const logger = createLogger({
 });
 
 export class AttentionQueueStore {
-	enabled = $state(false);
+	enabled = $state(true);
 
 	private initialized = false;
 

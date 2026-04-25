@@ -13,6 +13,7 @@ import {
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
 	setUndefinedRenderedIndexes,
+	setUseIndexKeys,
 } from "./fixtures/vlist-stub-state.js";
 
 type ResizeObserverCallback = () => void;
@@ -151,7 +152,7 @@ vi.mock("../../../messages/user-message.svelte", async () => ({
 }));
 
 vi.mock("../../../messages/assistant-message.svelte", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
+	default: (await import("./fixtures/assistant-message-prop-reader.svelte")).default,
 }));
 
 vi.mock("../../../messages/error-message.svelte", async () => ({
@@ -163,6 +164,7 @@ vi.mock("../../../tool-calls/index.js", async () => ({
 }));
 
 vi.mock("@acepe/ui", async () => ({
+	AgentPanelConversationEntry: (await import("./fixtures/user-message-stub.svelte")).default,
 	AgentPanelSceneEntry: (await import("./fixtures/user-message-stub.svelte")).default,
 	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
@@ -325,6 +327,35 @@ describe("VirtualizedEntryList auto-scroll", () => {
 
 		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
 		expect(stubs.length).toBe(0);
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+	});
+
+	it("keeps mounted assistant rows stable when Virtua clears their item during teardown", async () => {
+		setUseIndexKeys(true);
+
+		const view = renderList({
+			entries: [createAssistantEntry("assistant-1", "first")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(view.queryByTestId("assistant-message-stub")).not.toBeNull();
+
+		setUndefinedRenderedIndexes([0]);
+
+		await view.rerender({
+			panelId: "panel-1",
+			entries: [createAssistantEntry("assistant-1", "first")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+
 		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
 	});
 

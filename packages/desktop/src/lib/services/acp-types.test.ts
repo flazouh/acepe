@@ -14,13 +14,51 @@ import type {
 	SessionTurnState,
 } from "./acp-types.js";
 
+function createGraphLifecycle(
+	status: SessionGraphLifecycle["status"] = "reserved",
+	errorMessage: string | null = null
+): SessionGraphLifecycle {
+	return {
+		status,
+		detachedReason: status === "detached" ? "reconnectExhausted" : null,
+		failureReason: status === "failed" ? "resumeFailed" : null,
+		errorMessage,
+		actionability: {
+			canSend: status === "ready",
+			canResume: status === "detached",
+			canRetry: status === "failed",
+			canArchive: status !== "archived",
+			canConfigure: status === "ready",
+			recommendedAction:
+				status === "ready"
+					? "send"
+					: status === "detached"
+						? "resume"
+						: status === "failed"
+							? "retry"
+							: status === "archived"
+								? "none"
+								: "wait",
+			recoveryPhase:
+				status === "activating"
+					? "activating"
+					: status === "reconnecting"
+						? "reconnecting"
+						: status === "detached"
+							? "detached"
+							: status === "failed"
+								? "failed"
+								: status === "archived"
+									? "archived"
+									: "none",
+			compactStatus: status,
+		},
+	};
+}
+
 describe("session-state protocol graph contract", () => {
 	it("builds a graph-backed snapshot envelope from a canonical open result", () => {
-		const lifecycle: SessionGraphLifecycle = {
-			status: "ready",
-			errorMessage: null,
-			canReconnect: true,
-		};
+		const lifecycle = createGraphLifecycle("ready");
 		const capabilities: SessionGraphCapabilities = {
 			models: {
 				currentModelId: "model-a",
@@ -119,11 +157,7 @@ describe("session-state protocol graph contract", () => {
 			messageCount: 0,
 			activeTurnFailure: undefined,
 			lastTerminalTurnId: undefined,
-			lifecycle: {
-				status: "idle",
-				errorMessage: null,
-				canReconnect: true,
-			},
+			lifecycle: createGraphLifecycle(),
 			activity: {
 				kind: "idle",
 				activeOperationCount: 0,
@@ -177,17 +211,14 @@ describe("session-state protocol graph contract", () => {
 						parent_operation_id: null,
 						child_tool_call_ids: [],
 						child_operation_ids: [],
+						operation_state: "running",
 					},
 				],
 				interactions: [],
 				turnState: "Running" satisfies SessionTurnState,
 				messageCount: 0,
 			},
-			{
-				status: "ready",
-				errorMessage: null,
-				canReconnect: true,
-			},
+			createGraphLifecycle("ready"),
 			{
 				models: null,
 				modes: null,

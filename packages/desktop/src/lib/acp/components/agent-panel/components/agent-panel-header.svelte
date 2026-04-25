@@ -8,7 +8,6 @@ import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe
 import { DownloadSimple } from "phosphor-svelte";
 import CopyButton from "../../messages/copy-button.svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import AgentSelector from "../../agent-selector.svelte";
 import SessionPrLinkMenu from "../../shared/session-pr-link-menu.svelte";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 
@@ -22,8 +21,6 @@ let {
 	sessionId,
 	sessionTitle,
 	sessionAgentId,
-	currentAgentId,
-	availableAgents,
 	agentIconSrc,
 	agentName: _agentName,
 	isFullscreen,
@@ -43,7 +40,6 @@ let {
 	displayTitle = null,
 	onExportMarkdown,
 	onExportJson,
-	onAgentChange,
 	onScrollToTop,
 	firstMessageAttachments = [],
 	// Debug props
@@ -59,7 +55,7 @@ const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 		showTrailingBorder={!isFullscreen}
 		sessionTitle={sessionTitle ? sessionTitle : undefined}
 		displayTitle={displayTitle ? displayTitle : undefined}
-		{agentIconSrc}
+		agentIconSrc={sessionId ? agentIconSrc : undefined}
 		{isFullscreen}
 		{isConnecting}
 		{pendingProjectSelection}
@@ -73,18 +69,6 @@ const hasAttachments = $derived((firstMessageAttachments?.length ?? 0) > 0);
 	>
 		{#snippet statusIndicator()}
 			<!-- Status is shown via the controls snippet in the action cell -->
-		{/snippet}
-
-		{#snippet leadingControl()}
-			<AgentSelector
-				{availableAgents}
-				{currentAgentId}
-				onAgentChange={(agentId) => onAgentChange?.(agentId)}
-				variant="ghost"
-				buttonClass="size-5 rounded p-0 text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors data-[state=open]:bg-accent"
-				contentClass="min-w-[220px]"
-				showChevron={false}
-			/>
 		{/snippet}
 
 		{#snippet controls()}

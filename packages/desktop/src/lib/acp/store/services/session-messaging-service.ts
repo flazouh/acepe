@@ -36,8 +36,8 @@ import type { SessionEntry } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
-	IHotStateManager,
 	ISessionStateReader,
+	ITransientProjectionManager,
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });
@@ -65,7 +65,7 @@ export class SessionMessagingService {
 
 	constructor(
 		private readonly stateReader: ISessionStateReader,
-		private readonly hotStateManager: IHotStateManager,
+		private readonly hotStateManager: ITransientProjectionManager,
 		private readonly entryManager: IEntryManager,
 		private readonly connectionManager: IConnectionManager
 	) {}
@@ -92,7 +92,8 @@ export class SessionMessagingService {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
-		if (!hotState.isConnected) {
+		const canSend = this.stateReader.getSessionCanSend?.(sessionId) ?? hotState.isConnected;
+		if (!canSend) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 

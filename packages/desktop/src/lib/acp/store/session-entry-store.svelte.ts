@@ -6,13 +6,13 @@
  * - Synchronous entry mutations for immediate UI updates
  *
  * Delegates to extracted managers:
- * - ToolCallManager: tool call CRUD, child-parent reconciliation, streaming args
+ * - TranscriptToolCallBuffer: tool call CRUD, child-parent reconciliation, streaming args
  * - ChunkAggregator: assistant/user chunk aggregation and boundary management
  * - EntryIndexManager: O(1) messageId, toolCallId, and partId lookups
  *
  * Note: This file uses native Map/Set/Date for internal indexes and timestamps
  * that are NOT meant to be reactive. Only entriesById uses SvelteMap for
- * fine-grained reactivity. Streaming arguments reactivity is in ToolCallManager.
+ * fine-grained reactivity. Streaming arguments reactivity is in TranscriptToolCallBuffer.
  */
 
 import { SvelteMap } from "svelte/reactivity";
@@ -30,13 +30,13 @@ import { ChunkAggregator } from "./services/chunk-aggregator.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
 import type { IEntryStoreInternal } from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
-import { ToolCallManager } from "./services/tool-call-manager.svelte.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import {
 	appendTranscriptSegmentToSessionEntry,
 	convertTranscriptEntryToSessionEntry,
 	convertTranscriptSnapshotToSessionEntries,
 } from "./services/transcript-snapshot-entry-adapter.js";
+import { TranscriptToolCallBuffer } from "./services/transcript-tool-call-buffer.svelte.js";
 import type { SessionEntry } from "./types.js";
 import { isToolCallEntry } from "./types.js";
 
@@ -45,7 +45,7 @@ const logger = createLogger({ id: "session-entry-store", name: "SessionEntryStor
 /**
  * Store for managing session entries with O(1) chunk aggregation.
  * Implements IEntryManager for external consumers and IEntryStoreInternal
- * for extracted services (ToolCallManager) to read/write entries.
+ * for extracted services (TranscriptToolCallBuffer) to read/write entries.
  *
  * Uses SvelteMap for fine-grained reactivity: when session A's entries change,
  * only components reading session A re-render, not components reading session B.
@@ -60,8 +60,8 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// Extracted index manager for O(1) messageId, toolCallId, and partId lookups
 	private readonly entryIndex = new EntryIndexManager();
 
-	// Extracted tool call manager for CRUD, child-parent reconciliation, and streaming args
-	private readonly toolCallManager: ToolCallManager;
+	// Transcript-only tool row buffer; product operation state lives in OperationStore.
+	private readonly transcriptToolCallBuffer: TranscriptToolCallBuffer;
 
 	// Extracted chunk aggregator for assistant/user chunk aggregation and boundary management
 	private readonly chunkAggregator = new ChunkAggregator(this, this.entryIndex);
@@ -72,11 +72,15 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
-		this.toolCallManager = new ToolCallManager(this, this.entryIndex, this.operationStore);
+		this.transcriptToolCallBuffer = new TranscriptToolCallBuffer(
+			this,
+			this.entryIndex,
+			this.operationStore
+		);
 	}
 
 	// ============================================
-	// IEntryStoreInternal (consumed by ToolCallManager, ChunkAggregator)
+	// IEntryStoreInternal (consumed by TranscriptToolCallBuffer, ChunkAggregator)
 	// ============================================
 
 	/** Check if a session exists in committed or preloaded state. */
@@ -418,7 +422,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 		// Delegate cleanup to extracted managers
 		this.chunkAggregator.clearSession(sessionId);
-		this.toolCallManager.clearSession(sessionId);
+		this.transcriptToolCallBuffer.clearSession(sessionId);
 		this.operationStore.clearSession(sessionId);
 	}
 
@@ -539,16 +543,16 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	// ============================================
-	// TOOL CALLS (delegated to ToolCallManager)
+	// TOOL CALLS (delegated to TranscriptToolCallBuffer)
 	// ============================================
 
 	/**
 	 * Create a new tool call entry from full ToolCallData.
-	 * Splits assistant aggregation boundary before delegating to ToolCallManager.
+	 * Splits assistant aggregation boundary before delegating to TranscriptToolCallBuffer.
 	 */
 	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
 		this.chunkAggregator.splitAssistantAggregationBoundary(sessionId);
-		this.toolCallManager.createEntry(sessionId, toolCallData).match(
+		this.transcriptToolCallBuffer.createEntry(sessionId, toolCallData).match(
 			() => {},
 			(e) =>
 				logger.warn("Failed to create tool call entry", {
@@ -565,7 +569,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * mutation-only and must not create synthetic placeholders.
 	 */
 	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
-		this.toolCallManager.updateEntry(sessionId, update).match(
+		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>
 				logger.warn("Failed to update tool call entry", {
@@ -580,14 +584,14 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Get the streaming arguments for a tool call.
 	 */
 	getStreamingArguments(toolCallId: string): ToolArguments | undefined {
-		return this.toolCallManager.getStreamingArguments(toolCallId);
+		return this.transcriptToolCallBuffer.getStreamingArguments(toolCallId);
 	}
 
 	/**
 	 * Clear streaming arguments for a tool call.
 	 */
 	clearStreamingArguments(toolCallId: string): void {
-		this.toolCallManager.clearStreamingArguments(toolCallId);
+		this.transcriptToolCallBuffer.clearStreamingArguments(toolCallId);
 	}
 
 	// ============================================

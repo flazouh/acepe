@@ -1,5 +1,6 @@
 <script lang="ts">
 import { Warning } from "phosphor-svelte";
+import { toast } from "svelte-sonner";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
@@ -21,7 +22,9 @@ async function handleResetDatabase() {
 		() => {
 			showResetConfirm = false;
 		},
-		() => undefined
+		(error) => {
+			toast.error(`Failed to reset database: ${error.message}`);
+		}
 	);
 }
 </script>

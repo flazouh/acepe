@@ -11,11 +11,14 @@ vi.mock("../api.js", () => ({
 }));
 
 import type {
+	InteractionSnapshot,
+	OperationSnapshot,
+	SessionGraphLifecycle,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TurnFailureSnapshot,
 } from "$lib/services/acp-types.js";
-
+import { InteractionStore } from "../interaction-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
@@ -23,6 +26,110 @@ type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
+
+function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): OperationSnapshot {
+	return {
+		id: overrides.id ?? "op-1",
+		session_id: overrides.session_id ?? "session-1",
+		tool_call_id: overrides.tool_call_id ?? "tool-1",
+		name: overrides.name ?? "bash",
+		kind: overrides.kind ?? "execute",
+		status: overrides.status ?? "in_progress",
+		title: overrides.title ?? "Run command",
+		arguments: overrides.arguments ?? {
+			kind: "execute",
+			command: "pwd",
+		},
+		progressive_arguments: overrides.progressive_arguments ?? null,
+		result: overrides.result ?? null,
+		command: overrides.command ?? "pwd",
+		normalized_todos: overrides.normalized_todos ?? null,
+		parent_tool_call_id: overrides.parent_tool_call_id ?? null,
+		parent_operation_id: overrides.parent_operation_id ?? null,
+		child_tool_call_ids: overrides.child_tool_call_ids ?? [],
+		child_operation_ids: overrides.child_operation_ids ?? [],
+		operation_state: overrides.operation_state ?? "running",
+	};
+}
+
+function createPermissionInteractionSnapshot(
+	overrides: Partial<InteractionSnapshot> = {}
+): InteractionSnapshot {
+	return {
+		id: overrides.id ?? "permission-1",
+		session_id: overrides.session_id ?? "session-1",
+		kind: overrides.kind ?? "Permission",
+		state: overrides.state ?? "Pending",
+		json_rpc_request_id: overrides.json_rpc_request_id ?? 7,
+		reply_handler: overrides.reply_handler ?? null,
+		tool_reference: overrides.tool_reference ?? {
+			messageId: "tool-1",
+			callId: "tool-1",
+		},
+		responded_at_event_seq: overrides.responded_at_event_seq ?? null,
+		response: overrides.response ?? null,
+		canonical_operation_id: overrides.canonical_operation_id ?? "op-1",
+		payload: overrides.payload ?? {
+			Permission: {
+				id: "permission-1",
+				sessionId: "session-1",
+				jsonRpcRequestId: 7,
+				replyHandler: null,
+				permission: "Read",
+				patterns: ["/repo/README.md"],
+				metadata: {},
+				always: [],
+				autoAccepted: false,
+				tool: {
+					messageId: "tool-1",
+					callId: "tool-1",
+				},
+			},
+		},
+	};
+}
+
+function createGraphLifecycle(
+	status: SessionGraphLifecycle["status"] = "reserved",
+	errorMessage: string | null = null
+): SessionGraphLifecycle {
+	return {
+		status,
+		detachedReason: status === "detached" ? "reconnectExhausted" : null,
+		failureReason: status === "failed" ? "resumeFailed" : null,
+		errorMessage,
+		actionability: {
+			canSend: status === "ready",
+			canResume: status === "detached",
+			canRetry: status === "failed",
+			canArchive: status !== "archived",
+			canConfigure: status === "ready",
+			recommendedAction:
+				status === "ready"
+					? "send"
+					: status === "detached"
+						? "resume"
+						: status === "failed"
+							? "retry"
+							: status === "archived"
+								? "none"
+								: "wait",
+			recoveryPhase:
+				status === "activating"
+					? "activating"
+					: status === "reconnecting"
+						? "reconnecting"
+						: status === "detached"
+							? "detached"
+							: status === "failed"
+								? "failed"
+								: status === "archived"
+									? "archived"
+									: "none",
+			compactStatus: status,
+		},
+	};
+}
 
 function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGraph {
 	const activeTurnFailureOverride = overrides.activeTurnFailure;
@@ -68,11 +175,7 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 		messageCount: overrides.messageCount ?? 1,
 		activeTurnFailure,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? "turn-1",
-		lifecycle: overrides.lifecycle ?? {
-			status: "idle",
-			errorMessage: null,
-			canReconnect: true,
-		},
+		lifecycle: overrides.lifecycle ?? createGraphLifecycle(),
 		activity: overrides.activity ?? {
 			kind: activeTurnFailure === null ? "idle" : "error",
 			activeOperationCount: 0,
@@ -127,6 +230,19 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateGraph(createSessionStateGraph());
 
+		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
+			lifecycle: {
+				status: "reserved",
+			},
+			activity: {
+				kind: "error",
+			},
+			turnState: "Failed",
+			activeTurnFailure: {
+				turnId: "turn-1",
+				message: "Usage limit reached",
+			},
+		});
 		expect(store.getHotState("session-1")).toMatchObject({
 			turnState: "error",
 			connectionError: null,
@@ -182,11 +298,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		store.applySessionStateGraph(
 			createSessionStateGraph({
 				turnState: "Running",
-				lifecycle: {
-					status: "ready",
-					errorMessage: null,
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("ready"),
 				capabilities: {
 					models: {
 						availableModels: [
@@ -282,11 +394,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		store.applySessionStateGraph(
 			createSessionStateGraph({
 				turnState: "Running",
-				lifecycle: {
-					status: "ready",
-					errorMessage: null,
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
 
@@ -299,11 +407,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
-				lifecycle: {
-					status: "ready",
-					errorMessage: null,
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
 
@@ -323,11 +427,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			payload: {
 				kind: "snapshot",
 				graph: createSessionStateGraph({
-					lifecycle: {
-						status: "ready",
-						errorMessage: null,
-						canReconnect: true,
-					},
+					lifecycle: createGraphLifecycle("ready"),
 					operations: [
 						{
 							id: "op-1",
@@ -365,6 +465,55 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("applies canonical operation and interaction patches from delta envelopes", () => {
+		const store = new SessionStore();
+		const interactions = new InteractionStore();
+		store.setLiveSessionStateGraphConsumer(interactions);
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					transcriptOperations: [],
+					operationPatches: [createOperationSnapshot()],
+					interactionPatches: [createPermissionInteractionSnapshot()],
+					changedFields: ["operations", "interactions"],
+				},
+			},
+		});
+
+		expect(store.getOperationStore().getSessionOperations("session-1")).toHaveLength(1);
+		expect(interactions.permissionsPending.get("permission-1")).toMatchObject({
+			id: "permission-1",
+			sessionId: "session-1",
+			permission: "Read",
+		});
+	});
+
 	it("forwards snapshot graphs to the live graph consumer", () => {
 		const store = new SessionStore();
 		const replaceSessionStateGraph = vi.fn();
@@ -393,11 +542,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			lastEventSeq: 8,
 			payload: {
 				kind: "lifecycle",
-				lifecycle: {
-					status: "error",
-					errorMessage: "Connection dropped",
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("failed", "Connection dropped"),
 				revision: {
 					graphRevision: 8,
 					transcriptRevision: 7,
@@ -420,11 +565,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({
 			turnState: "Running",
-			lifecycle: {
-				status: "ready",
-				errorMessage: null,
-				canReconnect: true,
-			},
+			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
 				activeOperationCount: 2,
@@ -451,11 +592,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({
 			turnState: "Running",
-			lifecycle: {
-				status: "ready",
-				errorMessage: null,
-				canReconnect: true,
-			},
+			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
 				activeOperationCount: 2,
@@ -472,11 +609,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			lastEventSeq: 8,
 			payload: {
 				kind: "lifecycle",
-				lifecycle: {
-					status: "error",
-					errorMessage: "Connection dropped",
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("failed", "Connection dropped"),
 				revision: {
 					graphRevision: 8,
 					transcriptRevision: 7,
@@ -701,11 +834,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				],
 			},
-			lifecycle: {
-				status: "ready",
-				errorMessage: null,
-				canReconnect: true,
-			},
+			lifecycle: createGraphLifecycle("ready"),
 		});
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
@@ -744,6 +873,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						},
 					],
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -792,6 +923,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						},
 					],
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -835,11 +968,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						],
 					},
-					lifecycle: {
-						status: "ready",
-						errorMessage: null,
-						canReconnect: true,
-					},
+					lifecycle: createGraphLifecycle("ready"),
 				})
 			)
 		);
@@ -883,6 +1012,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						},
 					],
+					operationPatches: [],
+					interactionPatches: [],
 					changedFields: ["transcriptSnapshot"],
 				},
 			},
@@ -950,11 +1081,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							},
 						],
 					},
-					lifecycle: {
-						status: "ready",
-						errorMessage: null,
-						canReconnect: true,
-					},
+					lifecycle: createGraphLifecycle("ready"),
 				})
 			)
 		);
@@ -965,11 +1092,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			lastEventSeq: 8,
 			payload: {
 				kind: "lifecycle",
-				lifecycle: {
-					status: "error",
-					errorMessage: "Provider disconnected",
-					canReconnect: true,
-				},
+				lifecycle: createGraphLifecycle("failed", "Provider disconnected"),
 				revision: {
 					graphRevision: 8,
 					transcriptRevision: 7,
