@@ -81,3 +81,9 @@ Automated coverage exercised the final authority chain across Rust reducer/super
 - focused Vitest tests for session-state envelopes, operation store, raw session-event handling, agent-panel content, and virtualized entry teardown
 
 Tauri MCP live-app verification was attempted during closure, but no MCP Bridge app was reachable on the local driver port. The automated component tests cover the known stale-row/teardown crash class; a human live-app smoke pass should still be run before merge if the PR gate requires fresh Tauri evidence.
+
+
+## Post-land learnings
+
+- `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — After the GOD stack landed, a regression was found where `isTerminalOperationState` in `operation-store.svelte.ts` lacked `"blocked"` in its terminal-state set. ToolCall `in_progress` events could overwrite a canonical blocked patch. The guard is the enforcement mechanism for the GOD rule that raw event lanes cannot regress settled canonical state.
+- `docs/solutions/test-failures/bun-module-mock-cache-leakage-2026-04-25.md` — `analytics.test.ts` was deleted after its partial `mock.module` stub for `settings.js` leaked into `settings.test.ts` via Bun's per-process module cache.

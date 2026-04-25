@@ -79,3 +79,4 @@ The core fix is ownership, not matching cleverness.
 ## Related Issues
 - `docs/solutions/logic-errors/kanban-live-session-panel-sync-2026-04-02.md` covers the earlier form of the same smell: one runtime owner, many projections.
 - `docs/plans/2026-04-07-003-refactor-canonical-operation-association-plan.md` contains the implementation plan for this phase.
+- `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — regression in `isTerminalOperationState` where `"blocked"` was absent from the terminal-state set, allowing ToolCall events to overwrite a canonical blocked patch. Same file (`operation-store.svelte.ts`), same class of write-path bypass.
