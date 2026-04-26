@@ -84,6 +84,11 @@ type TextSegment = {
 	isWordLike: boolean;
 };
 
+type AppearanceRecord = {
+	length: number;
+	time: number;
+};
+
 let {
 	text,
 	isStreaming = false,
@@ -398,6 +403,8 @@ function openExternalLink(url: string) {
 	openUrl(url);
 }
 
+const STREAMING_WORD_FADE_DURATION_MS = 300;
+
 function shouldSkipWordFade(textNode: Text): boolean {
 	const parent = textNode.parentElement;
 	if (!parent) {
@@ -429,35 +436,62 @@ function segmentTextForFade(textValue: string): TextSegment[] {
 	return segments;
 }
 
-function replaceTextNodeWithFadedSuffix(textNode: Text, animateFromOffset: number): void {
-	const textValue = textNode.nodeValue ?? "";
-	const parent = textNode.parentNode;
-	if (!parent || textValue.length === 0 || animateFromOffset >= textValue.length) {
-		return;
-	}
-
-	const fragment = document.createDocumentFragment();
-	const stablePrefix = textValue.slice(0, animateFromOffset);
-	if (stablePrefix.length > 0) {
-		fragment.append(document.createTextNode(stablePrefix));
-	}
-
-	for (const segment of segmentTextForFade(textValue.slice(animateFromOffset))) {
-		if (!segment.isWordLike) {
-			fragment.append(document.createTextNode(segment.text));
-			continue;
+/**
+ * Find the time at which the character at `offset` was first revealed.
+ * History entries map cumulative text length to the timestamp at which that length
+ * was first observed; the smallest entry whose length > offset owns that character.
+ * Returns null when no entry covers the offset (i.e., it predates all retained history).
+ */
+function findFirstSeenTime(history: AppearanceRecord[], offset: number): number | null {
+	let lo = 0;
+	let hi = history.length;
+	while (lo < hi) {
+		const mid = (lo + hi) >>> 1;
+		if (history[mid].length > offset) {
+			hi = mid;
+		} else {
+			lo = mid + 1;
 		}
-
-		const span = document.createElement("span");
-		span.className = "sd-word-fade";
-		span.textContent = segment.text;
-		fragment.append(span);
 	}
-
-	parent.replaceChild(fragment, textNode);
+	return lo < history.length ? history[lo].time : null;
 }
 
-function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number): void {
+/**
+ * Drop history entries that can no longer influence the visible fade window.
+ * When pruning, retain a "fence" entry whose time is just past the cutoff so
+ * offsets owned by pruned entries still resolve to "past the fade window"
+ * instead of being inherited by the next active entry.
+ */
+function pruneAppearanceHistory(history: AppearanceRecord[], now: number): AppearanceRecord[] {
+	if (history.length === 0) {
+		return history;
+	}
+
+	const cutoff = now - STREAMING_WORD_FADE_DURATION_MS;
+	let firstActive = -1;
+	for (let i = 0; i < history.length; i += 1) {
+		if (history[i].time >= cutoff) {
+			firstActive = i;
+			break;
+		}
+	}
+
+	const fenceTime = cutoff - 1;
+
+	if (firstActive === -1) {
+		const last = history[history.length - 1];
+		return [{ length: last.length, time: fenceTime }];
+	}
+
+	if (firstActive === 0) {
+		return history;
+	}
+
+	const fence = history[firstActive - 1];
+	return [{ length: fence.length, time: fenceTime }, ...history.slice(firstActive)];
+}
+
+function collectWordFadeTextNodes(node: HTMLElement): Text[] {
 	const textNodes: Text[] = [];
 	const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
 		acceptNode(textNode) {
@@ -475,22 +509,104 @@ function applyStreamingWordFade(node: HTMLElement, animateFromTextOffset: number
 		currentNode = walker.nextNode();
 	}
 
-	let textOffset = 0;
+	return textNodes;
+}
+
+function getWordFadeTextContent(node: HTMLElement): string {
+	let combined = "";
+	for (const textNode of collectWordFadeTextNodes(node)) {
+		combined += textNode.nodeValue ?? "";
+	}
+	return combined;
+}
+
+/**
+ * Wrap a single text node's contents with `.sd-word-fade` spans for words whose
+ * first-appearance-time is within the current fade window. Each span carries an
+ * inline `animation-delay: -Xms` so its CSS animation picks up where the prior
+ * span (wiped by the canonical `{@html}` re-render) left off — making the fade
+ * appear continuous across re-renders.
+ */
+function wrapTextNodeWithContinuousFade(
+	textNode: Text,
+	baseOffset: number,
+	history: AppearanceRecord[],
+	now: number
+): void {
+	const textValue = textNode.nodeValue ?? "";
+	const parent = textNode.parentNode;
+	if (!parent || textValue.length === 0) {
+		return;
+	}
+
+	const segments = segmentTextForFade(textValue);
+	if (segments.length === 0) {
+		return;
+	}
+
+	const fragment = document.createDocumentFragment();
+	let offset = baseOffset;
+	let wrappedAny = false;
+
+	for (const segment of segments) {
+		if (!segment.isWordLike) {
+			fragment.append(document.createTextNode(segment.text));
+			offset += segment.text.length;
+			continue;
+		}
+
+		const firstSeen = findFirstSeenTime(history, offset);
+		const elapsed = firstSeen === null ? Number.POSITIVE_INFINITY : now - firstSeen;
+
+		if (elapsed >= STREAMING_WORD_FADE_DURATION_MS) {
+			fragment.append(document.createTextNode(segment.text));
+		} else {
+			const span = document.createElement("span");
+			span.className = "sd-word-fade";
+			// Negative delay fast-forwards the CSS animation by `elapsed` ms.
+			// Round to whole ms so identical re-renders produce identical inline styles.
+			const delayMs = Math.max(0, Math.floor(elapsed));
+			if (delayMs > 0) {
+				span.style.animationDelay = `-${delayMs}ms`;
+			}
+			span.textContent = segment.text;
+			fragment.append(span);
+			wrappedAny = true;
+		}
+
+		offset += segment.text.length;
+	}
+
+	if (wrappedAny || segments.some((s) => !s.isWordLike)) {
+		parent.replaceChild(fragment, textNode);
+	}
+}
+
+function applyStreamingWordFade(node: HTMLElement, history: AppearanceRecord[], now: number): void {
+	if (history.length === 0) {
+		return;
+	}
+
+	const textNodes = collectWordFadeTextNodes(node);
+	let cumulativeOffset = 0;
 	for (const textNode of textNodes) {
 		const textValue = textNode.nodeValue ?? "";
-		const nextOffset = textOffset + textValue.length;
-		if (nextOffset > animateFromTextOffset) {
-			replaceTextNodeWithFadedSuffix(textNode, Math.max(0, animateFromTextOffset - textOffset));
-		}
-		textOffset = nextOffset;
+		wrapTextNodeWithContinuousFade(textNode, cumulativeOffset, history, now);
+		cumulativeOffset += textValue.length;
 	}
 }
 
 function canonicalStreamingWordFade(node: HTMLElement, initialParams: StreamingWordFadeParams) {
 	let params = initialParams;
-	let lastTextContent = "";
+	let lastFadeTextContent = "";
 	let lastResetKey = initialParams.resetKey;
 	let scheduledVersion = 0;
+	let history: AppearanceRecord[] = [];
+
+	function reset(): void {
+		history = [];
+		lastFadeTextContent = "";
+	}
 
 	function schedule(): void {
 		scheduledVersion += 1;
@@ -501,21 +617,43 @@ function canonicalStreamingWordFade(node: HTMLElement, initialParams: StreamingW
 			}
 
 			if (params.resetKey !== lastResetKey) {
-				lastTextContent = "";
+				reset();
 				lastResetKey = params.resetKey;
 			}
 
 			if (!params.active || params.marker.length === 0) {
-				lastTextContent = "";
+				reset();
 				return;
 			}
 
-			const currentTextContent = node.textContent ?? "";
-			const animateFromTextOffset = currentTextContent.startsWith(lastTextContent)
-				? lastTextContent.length
-				: 0;
-			applyStreamingWordFade(node, animateFromTextOffset);
-			lastTextContent = currentTextContent;
+			const currentFadeTextContent = getWordFadeTextContent(node);
+			const isPrefixGrowth = currentFadeTextContent.startsWith(lastFadeTextContent);
+
+			if (!isPrefixGrowth) {
+				history = [];
+			}
+
+			const now =
+				typeof performance !== "undefined" && typeof performance.now === "function"
+					? performance.now()
+					: Date.now();
+
+			if (currentFadeTextContent.length === 0) {
+				lastFadeTextContent = "";
+				return;
+			}
+
+			if (
+				history.length === 0 ||
+				currentFadeTextContent.length > lastFadeTextContent.length ||
+				!isPrefixGrowth
+			) {
+				history.push({ length: currentFadeTextContent.length, time: now });
+			}
+
+			history = pruneAppearanceHistory(history, now);
+			applyStreamingWordFade(node, history, now);
+			lastFadeTextContent = currentFadeTextContent;
 		});
 	}
 
