@@ -840,9 +840,9 @@ describe("MarkdownText", () => {
 			await waitFor(() => {
 				const section = view.container.querySelector(".markdown-content");
 				expect(section?.textContent).toBe("hello world foo");
-				const fadeSpans = Array.from(
-					section?.querySelectorAll(".sd-word-fade") ?? []
-				).map((s) => s.textContent);
+				const fadeSpans = Array.from(section?.querySelectorAll(".sd-word-fade") ?? []).map(
+					(s) => s.textContent
+				);
 				expect(fadeSpans).not.toContain("hello");
 				expect(fadeSpans).not.toContain("world");
 				expect(fadeSpans).toContain("foo");
@@ -879,12 +879,12 @@ describe("MarkdownText", () => {
 			await waitFor(() => {
 				const section = view.container.querySelector(".markdown-content");
 				expect(section?.textContent).toBe("hello world");
-				const helloSpan = Array.from(
-					section?.querySelectorAll(".sd-word-fade") ?? []
-				).find((s) => s.textContent === "hello") as HTMLElement | undefined;
-				const worldSpan = Array.from(
-					section?.querySelectorAll(".sd-word-fade") ?? []
-				).find((s) => s.textContent === "world") as HTMLElement | undefined;
+				const helloSpan = Array.from(section?.querySelectorAll(".sd-word-fade") ?? []).find(
+					(s) => s.textContent === "hello"
+				) as HTMLElement | undefined;
+				const worldSpan = Array.from(section?.querySelectorAll(".sd-word-fade") ?? []).find(
+					(s) => s.textContent === "world"
+				) as HTMLElement | undefined;
 
 				expect(helloSpan).toBeDefined();
 				expect(worldSpan).toBeDefined();
@@ -924,9 +924,9 @@ describe("MarkdownText", () => {
 			await waitFor(() => {
 				const section = view.container.querySelector(".markdown-content");
 				expect(section?.textContent).toContain("before skip after new");
-				const fadeSpans = Array.from(
-					section?.querySelectorAll(".sd-word-fade") ?? []
-				).map((s) => s.textContent);
+				const fadeSpans = Array.from(section?.querySelectorAll(".sd-word-fade") ?? []).map(
+					(s) => s.textContent
+				);
 				expect(fadeSpans).not.toContain("before");
 				expect(fadeSpans).not.toContain("after");
 				expect(fadeSpans).toContain("new");
