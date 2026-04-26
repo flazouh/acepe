@@ -2,7 +2,7 @@
 import { ArrowRightIcon, BrandLockup, PillButton } from "@acepe/ui";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
-import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
+import { AgentPanelPrCard } from "@acepe/ui/agent-panel";
 import type { AgentGridItem } from "@acepe/ui/agent-panel";
 import { AppTabBar, AppSessionItem as AppSessionItemComponent } from "@acepe/ui/app-layout";
 import type { AppTab, AppSessionItemType } from "@acepe/ui/app-layout";
@@ -22,6 +22,7 @@ import Header from "$lib/components/header.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
 import DevShaderSwitcher from "$lib/components/dev-shader-switcher.svelte";
+import Card from "$lib/components/ui/card/card.svelte";
 import {
 	Stack,
 	ArrowsOutSimple,
@@ -31,7 +32,6 @@ import {
 	Command,
 	ClockCounterClockwise,
 	Lightning,
-	Check,
 	MagnifyingGlass,
 	GithubLogo,
 } from "phosphor-svelte";
@@ -289,6 +289,82 @@ const sqlGetCellValue = (rowIndex: number, columnName: string) => {
 const sqlNoOp = () => {};
 const sqlNoOpCell = (_row: number, _col: string) => {};
 
+const mockPrCardModel = {
+	mode: "pr" as const,
+	number: 184,
+	title: "PR Management: full review surface for agent-generated changes",
+	state: "OPEN" as const,
+	additions: 241,
+	deletions: 87,
+	descriptionHtml:
+		"<h3>Summary</h3><p>Introduces a dedicated PR management surface so reviewers can inspect generated pull requests without context switching.</p><ul><li>Unified PR status header with linked metadata</li><li>Compact checks summary with expandable CI details</li><li>Commit list with diff-aware commit badges</li></ul>",
+	commits: [
+		{
+			sha: "9f2c7a1",
+			message: "feat(ui): add PR management card shell and status header",
+			insertions: 104,
+			deletions: 21,
+			onClick: () => {},
+		},
+		{
+			sha: "1bc88e4",
+			message: "feat(ui): render CI checks table with timing bars and tooltips",
+			insertions: 79,
+			deletions: 31,
+			onClick: () => {},
+		},
+		{
+			sha: "4ed90ab",
+			message: "refactor(ui): polish PR card expansion and header treatment",
+			insertions: 58,
+			deletions: 35,
+			onClick: () => {},
+		},
+	],
+	checks: [
+		{
+			name: "typecheck",
+			workflowName: "CI",
+			status: "COMPLETED" as const,
+			conclusion: "SUCCESS" as const,
+			startedAt: "2026-04-26T00:00:00Z",
+			completedAt: "2026-04-26T00:00:24Z",
+			detailsUrl: "https://github.com/flazouh/acepe/actions/runs/1",
+		},
+		{
+			name: "ui-tests",
+			workflowName: "CI",
+			status: "COMPLETED" as const,
+			conclusion: "FAILURE" as const,
+			startedAt: "2026-04-26T00:00:00Z",
+			completedAt: "2026-04-26T00:01:02Z",
+			detailsUrl: "https://github.com/flazouh/acepe/actions/runs/2",
+		},
+		{
+			name: "e2e-smoke",
+			workflowName: "CI",
+			status: "COMPLETED" as const,
+			conclusion: "SUCCESS" as const,
+			startedAt: "2026-04-26T00:00:00Z",
+			completedAt: "2026-04-26T00:00:42Z",
+			detailsUrl: "https://github.com/flazouh/acepe/actions/runs/3",
+		},
+		{
+			name: "lint",
+			workflowName: "CI",
+			status: "COMPLETED" as const,
+			conclusion: "SUCCESS" as const,
+			startedAt: "2026-04-26T00:00:00Z",
+			completedAt: "2026-04-26T00:00:18Z",
+			detailsUrl: "https://github.com/flazouh/acepe/actions/runs/4",
+		},
+	],
+	isChecksLoading: false,
+	hasResolvedChecks: true,
+	onOpenCheck: () => {},
+	onOpen: () => {},
+};
+
 const features = [
 	{
 		id: "multi-agent",
@@ -301,32 +377,6 @@ const features = [
 			"Use different agents for different tasks without context switching",
 			"Run multiple agents in parallel for faster development",
 			"Switch agents instantly with keyboard shortcuts",
-		],
-	},
-	{
-		id: "parallel",
-		icon: ArrowsOutSimple,
-		label: "Parallel Sessions & Focus",
-		tag: "workflow",
-		description:
-			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
-		usecases: [
-			"Run agents on separate tasks and see all of them making progress at once",
-			"Work across multiple repos at the same time without losing track",
-			"Have 10 agents working across different projects with full visibility into each",
-		],
-	},
-	{
-		id: "plan-mode",
-		icon: Lightning,
-		label: "Plan Mode",
-		tag: "planning",
-		description:
-			"Agent plan mode outputs a wall of text in your terminal. Acepe renders it as clean markdown with one-click copy, download, and preview toggle.",
-		usecases: [
-			"Built-in review and deepen skills refine plans before execution",
-			"Plans render as clean markdown you can copy or download",
-			"Read through the plan, adjust if needed, then run",
 		],
 	},
 	{
@@ -343,29 +393,16 @@ const features = [
 		],
 	},
 	{
-		id: "sessions",
-		icon: ClockCounterClockwise,
-		label: "Session Management",
-		tag: "history",
+		id: "pr-badge",
+		icon: GithubLogo,
+		label: "PR Management",
+		tag: "review",
 		description:
-			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
+			"Review PR status, description, commits, and CI in one place. The card gives you a full shipping view before you merge.",
 		usecases: [
-			"Search and filter across all your agent interactions",
-			"Recover context from previous sessions instantly",
-			"Organize sessions by project for easy reference",
-		],
-	},
-	{
-		id: "keyboard",
-		icon: Command,
-		label: "Keyboard-First",
-		tag: "input",
-		description:
-			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
-		usecases: [
-			"Navigate entirely with keyboard shortcuts for flow state",
-			"Customize shortcuts to match your muscle memory",
-			"Discover new shortcuts with the searchable command palette",
+			"Show PR status and number in a compact visual token",
+			"Surface commit refs with insertions/deletions at a glance",
+			"Open linked PR or commit context directly from the badge",
 		],
 	},
 	{
@@ -532,47 +569,54 @@ const features = [
 				</div>
 
 				<!-- Feature cards -->
-				<div class="flex flex-col gap-4 md:gap-6">
-					{#each features as feature, i}
-						<div class="feature-card overflow-hidden rounded-xl border border-border/50 bg-card/20">
-							<div
-								class="flex flex-col md:flex-row"
-								class:md:flex-row-reverse={i % 2 === 1}
-							>
-								<div class="flex flex-1 flex-col justify-center p-6 md:p-8">
+				<div class="flex flex-col gap-6 md:gap-8">
+					{#each features as feature}
+						<Card class="feature-card feature-section-card flex h-auto flex-col gap-6 overflow-hidden rounded-xl border-0 bg-card p-6 shadow-none md:min-h-[560px] md:gap-8 md:p-10">
+								<div class="mb-6 flex flex-col items-start text-left">
 									<h3 class="mb-3 text-2xl font-semibold tracking-[-0.02em] md:text-4xl">
 										{feature.label}
 									</h3>
-									<p class="mb-5 text-[13px] leading-relaxed text-muted-foreground md:text-sm">
+									<p class="max-w-[760px] text-[13px] leading-relaxed text-muted-foreground md:text-sm">
 										{feature.description}
 									</p>
-									<div class="overflow-hidden rounded-md border border-border bg-[color-mix(in_srgb,var(--input)_30%,transparent)]">
-										<table class="w-full border-collapse text-[13px] leading-[1.4]">
-											<tbody>
-												{#each feature.usecases as usecase, ui}
-													<tr class="hover:bg-[color-mix(in_srgb,var(--muted)_15%,transparent)]">
-														<td class="w-8 py-[0.4rem] pl-3 pr-0 {ui < feature.usecases.length - 1 ? 'border-b border-[color-mix(in_srgb,var(--border)_50%,transparent)]' : ''}">
-															<Check size={12} class="shrink-0 text-foreground/50" />
-														</td>
-														<td class="py-[0.4rem] pr-3 font-mono text-xs text-foreground {ui < feature.usecases.length - 1 ? 'border-b border-[color-mix(in_srgb,var(--border)_50%,transparent)]' : ''}">
-															{usecase}
-														</td>
-													</tr>
-												{/each}
-											</tbody>
-										</table>
-									</div>
 								</div>
 
-								<div
-									class="flex flex-1 items-center justify-center overflow-hidden border-t border-border/30 bg-background/50 p-6 md:border-t-0 md:p-8"
-									class:md:border-r={i % 2 === 1}
-									class:md:border-l={i % 2 === 0}
-									style="border-color: var(--border-color-half, rgba(255,255,255,0.05));"
-								>
-									<div class="showcase w-full max-w-lg">
+								<div class="showcase flex flex-1 items-center justify-center w-full max-w-3xl self-center">
 										{#if feature.id === "multi-agent"}
-											<AgentSelectionGrid agents={mockGridAgents} selectedAgentId="claude-code" />
+											<div class="overflow-hidden rounded-xl border border-border/60 bg-muted/35">
+												<div class="grid grid-cols-3">
+													{#each mockGridAgents as agent, agentIndex}
+														<div
+															class="flex min-h-[78px] items-center justify-start gap-2 px-3 py-3 {agentIndex % 3 !== 2
+																? 'border-r border-border/50'
+																: ''} {agentIndex < 3 ? 'border-b border-border/50' : ''}"
+														>
+															<img
+																src={agent.iconSrc ?? ""}
+																alt={agent.name}
+																class="h-5 w-5 shrink-0 object-contain"
+																loading="lazy"
+															/>
+															<span class="text-base font-semibold text-foreground leading-tight">
+																{agent.name}
+															</span>
+														</div>
+													{/each}
+													<a
+														href="/zeus"
+														class="zeus-cell group relative flex min-h-[78px] items-center justify-start gap-2 px-3 py-3 border-border/50 transition-colors hover:bg-card/60 focus-visible:bg-card/60 focus-visible:outline-none"
+														aria-label="Zeus — coming soon"
+													>
+														<Lightning size={18} weight="fill" class="shrink-0 text-success transition-transform duration-300 group-hover:scale-110" />
+														<span class="text-base font-semibold text-foreground leading-tight">
+															Zeus <span class="text-muted-foreground/80">(soon™)</span>
+														</span>
+														<span class="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-full text-success/70 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+															<ArrowRightIcon size="sm" />
+														</span>
+													</a>
+												</div>
+											</div>
 										{:else if feature.id === "parallel"}
 											<div class="space-y-2">
 												<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
@@ -620,7 +664,7 @@ const features = [
 												</div>
 											</div>
 										{:else if feature.id === "keyboard"}
-											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30 shadow-lg">
+											<div class="overflow-hidden rounded-lg border border-border/50 bg-card/30">
 												<div class="flex items-center gap-2 border-b border-border/50 px-3 py-2">
 													<MagnifyingGlass size={12} class="text-muted-foreground/50" />
 													<span class="font-mono text-[11px] text-muted-foreground/50">Type a command...</span>
@@ -704,11 +748,18 @@ const features = [
 												{/snippet}
 											</SectionedFeed>
 											</div>
+										{:else if feature.id === "pr-badge"}
+											<div class="w-full max-w-[720px]">
+												<AgentPanelPrCard
+													visible={true}
+													model={mockPrCardModel}
+													initiallyExpanded={true}
+													initiallyExpandedChecks={true}
+												/>
+											</div>
 										{/if}
-									</div>
 								</div>
-							</div>
-						</div>
+						</Card>
 					{/each}
 				</div>
 			</div>
@@ -882,9 +933,8 @@ const features = [
 		backdrop-filter: blur(12px);
 	}
 
-	.showcase {
-		pointer-events: none;
-		user-select: none;
+	:global(.feature-section-card) {
+		backdrop-filter: none;
 	}
 
 	.plan-showcase,
@@ -915,11 +965,4 @@ const features = [
 		margin-bottom: 4px;
 	}
 
-	.showcase :global(button),
-	.showcase :global(a),
-	.showcase :global(input),
-	.showcase :global(textarea) {
-		pointer-events: none !important;
-		cursor: default !important;
-	}
 </style>

@@ -245,6 +245,37 @@ describe("OperationStore", () => {
 		expect(operationStore.getCurrentToolKind("session-1")).toBe("other");
 	});
 
+	it("materializes normalized results from canonical operations", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			{
+				id: "op-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				name: "bash",
+				kind: "execute",
+				status: "completed",
+				title: "Run command",
+				arguments: { kind: "execute", command: "printf hello" },
+				progressive_arguments: null,
+				result: "hello",
+				command: "printf hello",
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			},
+		]);
+
+		expect(operationStore.getToolCallById("session-1", "tool-1")?.normalizedResult).toEqual({
+			kind: "execute",
+			stdout: "hello",
+			stderr: null,
+			exitCode: undefined,
+		});
+	});
+
 	it("hydrates canonical normalized todos from operation snapshots", () => {
 		const operationStore = new OperationStore();
 		operationStore.replaceSessionOperations("session-1", [

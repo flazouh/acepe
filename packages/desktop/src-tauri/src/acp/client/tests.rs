@@ -26,6 +26,7 @@ const CLIENT_UPDATES_MOD_SOURCE: &str = include_str!("../client_updates/mod.rs")
 const INBOUND_ROUTER_HELPERS_SOURCE: &str = include_str!("../inbound_request_router/helpers.rs");
 const CLIENT_UPDATES_PLAN_SOURCE: &str = include_str!("../client_updates/plan.rs");
 const MODEL_DISPLAY_SOURCE: &str = include_str!("../model_display.rs");
+const CLIENT_MESSAGE_IDS_SOURCE: &str = include_str!("../client_message_ids.rs");
 
 fn production_source(source: &str) -> &str {
     source.split("#[cfg(test)]").next().unwrap_or(source)
@@ -562,6 +563,44 @@ fn model_display_uses_presentation_metadata_not_agent_type_branching() {
     assert!(
         source.contains("ModelPresentationMetadata"),
         "model display should expose presentation metadata for frontend consumers"
+    );
+}
+
+#[test]
+fn message_id_normalization_does_not_branch_on_agent_type() {
+    // Shared chunk-id normalization must remain provider-agnostic.
+    // Provider-specific replay/dedupe behavior (e.g. Codex turn replay)
+    // belongs at the provider edge — never in shared core. This regression
+    // guard exists because a previous implementation gated dedupe behind an
+    // unused `_agent_type` parameter, which silently dropped legitimate
+    // repeated assistant text for Cursor and Copilot.
+    let source = production_source(CLIENT_MESSAGE_IDS_SOURCE);
+
+    assert!(
+        !source.contains("AgentType"),
+        "client_message_ids.rs must not branch on AgentType — provider quirks belong at the edge"
+    );
+    assert!(
+        !source.contains("assistant_text_tracker"),
+        "assistant text dedupe is a provider-specific quirk and must not live in shared id normalization"
+    );
+}
+
+#[test]
+fn shared_session_update_flow_does_not_carry_assistant_text_tracker() {
+    // Companion guard for `message_id_normalization_does_not_branch_on_agent_type`:
+    // the upstream call sites that own message-id state must not reintroduce
+    // the dropped text-equality dedupe by name.
+    let mod_source = production_source(CLIENT_UPDATES_MOD_SOURCE);
+    let loop_source = production_source(CLIENT_LOOP_SOURCE);
+
+    assert!(
+        !mod_source.contains("assistant_text_tracker"),
+        "client_updates/mod.rs must not plumb assistant_text_tracker — shared core is provider-agnostic"
+    );
+    assert!(
+        !loop_source.contains("assistant_text_tracker"),
+        "client_loop.rs must not plumb assistant_text_tracker — shared core is provider-agnostic"
     );
 }
 

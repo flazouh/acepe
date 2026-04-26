@@ -33,6 +33,7 @@ import { api } from "../api.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
 import { serializeWithAttachments } from "../message-queue/message-queue-store.svelte.js";
 import type { SessionEntry } from "../types.js";
+import { canActivateCreatedSessionWithFirstPrompt } from "./first-send-activation.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -93,7 +94,12 @@ export class SessionMessagingService {
 		}
 		const hotState = this.stateReader.getHotState(sessionId);
 		const canSend = this.stateReader.getSessionCanSend?.(sessionId) ?? hotState.isConnected;
-		if (!canSend) {
+		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
+			session,
+			hotState,
+			lifecycleStatus: this.stateReader.getSessionLifecycleStatus?.(sessionId) ?? null,
+		});
+		if (!canSend && !canActivateFirstPrompt) {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
@@ -109,9 +115,9 @@ export class SessionMessagingService {
 			return errAsync(new AgentError("sendMessage: cannot send empty message"));
 		}
 
-		// Clear streaming state from previous response to prevent messageId tracker
-		// from returning stale IDs when new response starts (fixes garbled text bug)
-		this.entryManager.clearStreamingAssistantEntry(sessionId);
+		// Providers like Cursor can reuse/omit message IDs across prompts. Force the
+		// next assistant chunks into a new entry so the new answer stays after this prompt.
+		this.entryManager.startNewAssistantTurn(sessionId);
 
 		const textBlock = { type: "text" as const, text: textContent };
 		const imageBlocks = imageAttachments

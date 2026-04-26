@@ -25,7 +25,6 @@ pub(crate) async fn handle_session_update_notification(
     agent_type: AgentType,
     provider: Option<&dyn AgentProvider>,
     message_id_tracker: &StdArc<std::sync::Mutex<HashMap<String, String>>>,
-    assistant_text_tracker: &StdArc<std::sync::Mutex<HashMap<String, String>>>,
     task_reconciler: &StdArc<std::sync::Mutex<TaskReconciler>>,
     streaming_batcher: &mut BatcherWithGuard,
     non_streaming_batcher: &mut NonStreamingEventBatcher,
@@ -69,22 +68,13 @@ pub(crate) async fn handle_session_update_notification(
                     continue;
                 }
 
-                // Normalize message IDs and dedup replayed assistant messages
-                let normalized_update =
-                    match (message_id_tracker.lock(), assistant_text_tracker.lock()) {
-                        (Ok(mut tracker), Ok(mut assistant_tracker)) => {
-                            match normalize_message_id(
-                                agent_type,
-                                normalized_update,
-                                &mut tracker,
-                                &mut assistant_tracker,
-                            ) {
-                                Some(u) => u,
-                                None => continue, // Replayed chunk — drop it
-                            }
-                        }
-                        _ => normalized_update,
-                    };
+                // Assign a stable per-turn message id. Provider-specific
+                // replay handling (if ever needed) lives at the provider edge,
+                // not here — see client_message_ids.rs.
+                let normalized_update = match message_id_tracker.lock() {
+                    Ok(mut tracker) => normalize_message_id(normalized_update, &mut tracker),
+                    Err(_) => normalized_update,
+                };
 
                 // Use batcher for streaming deltas
                 for batched_update in streaming_batcher.process(normalized_update) {
@@ -147,7 +137,6 @@ mod tests {
     async fn malformed_session_update_does_not_emit_raw_transport_payload() {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -172,7 +161,6 @@ mod tests {
             AgentType::ClaudeCode,
             None,
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -189,7 +177,6 @@ mod tests {
         let session_id = "turn-complete-session";
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -213,7 +200,6 @@ mod tests {
             AgentType::ClaudeCode,
             None,
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -257,7 +243,6 @@ mod tests {
         let session_id = "turn-error-session";
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -287,7 +272,6 @@ mod tests {
             AgentType::ClaudeCode,
             None,
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -343,7 +327,6 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -372,7 +355,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -432,7 +414,6 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -461,7 +442,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -524,7 +504,6 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -569,7 +548,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -582,7 +560,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -671,7 +648,6 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
         let mut streaming_batcher = BatcherWithGuard::new_for_tests(
             dispatcher.clone(),
@@ -718,7 +694,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -731,7 +706,6 @@ mod tests {
             AgentType::Cursor,
             Some(&provider),
             &message_id_tracker,
-            &assistant_text_tracker,
             &task_reconciler,
             &mut streaming_batcher,
             &mut non_streaming_batcher,
@@ -798,5 +772,117 @@ mod tests {
 
         drop(captured);
         cursor_session_update_enrichment::clear_test_tool_use_cache(expected_session_id);
+    }
+
+    /// Regression: when the assistant emits the **same text** in two
+    /// consecutive turns, both chunks must be dispatched. The previous
+    /// implementation deduped on text equality inside shared id
+    /// normalization, which silently dropped legitimate replies for
+    /// Cursor and Copilot whenever the assistant repeated itself
+    /// (e.g. answering "ok" twice). Provider-specific replay handling, if
+    /// ever needed, must live at the provider edge — never in shared core.
+    ///
+    /// This test mirrors the production flow used by subprocess-backed
+    /// providers: `session/update` notifications carry the chunks, and the
+    /// turn boundary is signalled by a JSON-RPC response that drives
+    /// `streaming_batcher.process_turn_complete` directly (see
+    /// `client_loop.rs`).
+    async fn assert_repeated_assistant_text_passes_through(agent_type: AgentType) {
+        let session_id = "repeat-text-session";
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
+        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+
+        let agent_message_chunk = |text: &str| {
+            json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "sessionId": session_id,
+                    "update": {
+                        "sessionUpdate": "agentMessageChunk",
+                        "content": { "type": "text", "text": text }
+                    }
+                }
+            })
+        };
+
+        let dispatch_turn_complete =
+            |dispatcher: &AcpUiEventDispatcher, batcher: &mut BatcherWithGuard| {
+                let updates = batcher.process_turn_complete(session_id, None);
+                for update in updates {
+                    dispatcher.enqueue(AcpUiEvent::session_update(update));
+                }
+            };
+
+        // Turn 1: assistant says "ok"
+        handle_session_update_notification(
+            &dispatcher,
+            agent_type,
+            None,
+            &message_id_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &agent_message_chunk("ok"),
+        )
+        .await;
+        dispatch_turn_complete(&dispatcher, &mut streaming_batcher);
+
+        // Turn 2: assistant says "ok" again — must NOT be dropped.
+        handle_session_update_notification(
+            &dispatcher,
+            agent_type,
+            None,
+            &message_id_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &agent_message_chunk("ok"),
+        )
+        .await;
+        dispatch_turn_complete(&dispatcher, &mut streaming_batcher);
+
+        let captured = captured_events.lock().expect("captured events lock");
+        let assistant_chunks = captured
+            .iter()
+            .filter_map(|event| match &event.payload {
+                AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                    SessionUpdate::AgentMessageChunk { chunk, .. } => match &chunk.content {
+                        crate::acp::types::ContentBlock::Text { text } => Some(text.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            assistant_chunks,
+            vec!["ok".to_string(), "ok".to_string()],
+            "{:?}: shared id normalization must not drop repeated assistant text across turns",
+            agent_type
+        );
+    }
+
+    #[tokio::test]
+    async fn claude_code_repeated_assistant_text_across_turns_is_not_dropped() {
+        assert_repeated_assistant_text_passes_through(AgentType::ClaudeCode).await;
+    }
+
+    #[tokio::test]
+    async fn cursor_repeated_assistant_text_across_turns_is_not_dropped() {
+        assert_repeated_assistant_text_passes_through(AgentType::Cursor).await;
+    }
+
+    #[tokio::test]
+    async fn copilot_repeated_assistant_text_across_turns_is_not_dropped() {
+        assert_repeated_assistant_text_passes_through(AgentType::Copilot).await;
     }
 }

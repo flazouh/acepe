@@ -16,7 +16,11 @@
  */
 
 import { SvelteMap } from "svelte/reactivity";
-import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
+import type {
+	TranscriptDelta,
+	TranscriptEntry,
+	TranscriptSnapshot,
+} from "../../services/acp-types.js";
 import type {
 	ContentBlock,
 	ContentChunk,
@@ -69,6 +73,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// Track which sessions have been preloaded
 	private preloadedIds = new Set<string>();
 	private readonly transcriptRevisionBySession = new Map<string, number>();
+	private readonly canonicalAssistantEntryRemaps = new Map<string, Map<string, string>>();
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
@@ -155,6 +160,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	private setEntriesAndBuildIndices(sessionId: string, entries: SessionEntry[]): void {
+		this.canonicalAssistantEntryRemaps.delete(sessionId);
 		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
 		this.entriesById.set(sessionId, entries);
 
@@ -191,8 +197,13 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			}
 
 			if (operation.kind === "appendEntry") {
-				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
-				const convertedEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
+				const appendTarget = this.resolveCanonicalAppendEntryTarget(
+					sessionId,
+					operation.entry,
+					delta.eventSeq
+				);
+				const existingIndex = appendTarget.existingIndex;
+				const convertedEntry = convertTranscriptEntryToSessionEntry(appendTarget.entry, timestamp);
 				const reconciledIndex =
 					existingIndex ?? this.findMirroredOptimisticUserEntryIndex(sessionId, convertedEntry);
 				const nextEntry = this.preserveTranscriptEntry(
@@ -207,11 +218,17 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				continue;
 			}
 
-			const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entryId);
+			const segmentTarget = this.resolveCanonicalAppendSegmentTarget(
+				sessionId,
+				operation.entryId,
+				operation.role,
+				delta.eventSeq
+			);
+			const existingIndex = segmentTarget.existingIndex;
 			if (existingIndex === undefined) {
 				const nextEntry = convertTranscriptEntryToSessionEntry(
 					{
-						entryId: operation.entryId,
+						entryId: segmentTarget.entryId,
 						role: operation.role,
 						segments: [operation.segment],
 					},
@@ -268,6 +285,92 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			timestamp: entry.timestamp,
 			isStreaming: entry.isStreaming,
 		};
+	}
+
+	private resolveCanonicalAppendEntryTarget(
+		sessionId: string,
+		entry: TranscriptEntry,
+		eventSeq: number
+	): { entry: TranscriptEntry; existingIndex: number | undefined } {
+		if (entry.role !== "assistant") {
+			return {
+				entry,
+				existingIndex: this.entryIndex.getEntryIdIndex(sessionId, entry.entryId),
+			};
+		}
+
+		const target = this.resolveCanonicalAssistantTarget(sessionId, entry.entryId, eventSeq);
+		if (target.entryId === entry.entryId) {
+			return {
+				entry,
+				existingIndex: target.existingIndex,
+			};
+		}
+
+		return {
+			entry: {
+				entryId: target.entryId,
+				role: entry.role,
+				segments: entry.segments,
+			},
+			existingIndex: target.existingIndex,
+		};
+	}
+
+	private resolveCanonicalAppendSegmentTarget(
+		sessionId: string,
+		entryId: string,
+		role: TranscriptEntry["role"],
+		eventSeq: number
+	): { entryId: string; existingIndex: number | undefined } {
+		if (role !== "assistant") {
+			return {
+				entryId,
+				existingIndex: this.entryIndex.getEntryIdIndex(sessionId, entryId),
+			};
+		}
+
+		return this.resolveCanonicalAssistantTarget(sessionId, entryId, eventSeq);
+	}
+
+	private resolveCanonicalAssistantTarget(
+		sessionId: string,
+		entryId: string,
+		eventSeq: number
+	): { entryId: string; existingIndex: number | undefined } {
+		const entries = this.getEntries(sessionId);
+		const lastUserIndex = this.findLastUserEntryIndex(entries);
+		const remaps = this.canonicalAssistantEntryRemaps.get(sessionId);
+		const remappedEntryId = remaps?.get(entryId);
+		if (remappedEntryId) {
+			const remappedIndex = this.entryIndex.getEntryIdIndex(sessionId, remappedEntryId);
+			if (remappedIndex !== undefined && remappedIndex > lastUserIndex) {
+				return { entryId: remappedEntryId, existingIndex: remappedIndex };
+			}
+		}
+
+		const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, entryId);
+		if (existingIndex === undefined || existingIndex > lastUserIndex) {
+			return { entryId, existingIndex };
+		}
+
+		const nextEntryId = `${entryId}:turn:${eventSeq}`;
+		let nextRemaps = remaps;
+		if (!nextRemaps) {
+			nextRemaps = new Map<string, string>();
+			this.canonicalAssistantEntryRemaps.set(sessionId, nextRemaps);
+		}
+		nextRemaps.set(entryId, nextEntryId);
+		return { entryId: nextEntryId, existingIndex: undefined };
+	}
+
+	private findLastUserEntryIndex(entries: readonly SessionEntry[]): number {
+		for (let index = entries.length - 1; index >= 0; index -= 1) {
+			if (entries[index]?.type === "user") {
+				return index;
+			}
+		}
+		return -1;
 	}
 
 	private syncOperationStoreForEntry(sessionId: string, entry: SessionEntry): void {
@@ -419,6 +522,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.entryIndex.clearSession(sessionId);
 		this.preloadedIds.delete(sessionId);
 		this.transcriptRevisionBySession.delete(sessionId);
+		this.canonicalAssistantEntryRemaps.delete(sessionId);
 
 		// Delegate cleanup to extracted managers
 		this.chunkAggregator.clearSession(sessionId);
@@ -613,6 +717,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 
 	clearStreamingAssistantEntry(sessionId: string): void {
 		this.chunkAggregator.clearStreamingAssistantEntry(sessionId);
+	}
+
+	startNewAssistantTurn(sessionId: string): void {
+		this.chunkAggregator.startNewAssistantTurn(sessionId);
 	}
 
 	/**

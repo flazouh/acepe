@@ -179,10 +179,57 @@ function fallbackCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessio
 	});
 }
 
+function liveActivityOverride(input: LiveSessionWorkInput): CanonicalSessionActivity | null {
+	if (
+		input.hotState.status === "error" ||
+		input.hotState.connectionError !== null ||
+		input.hotState.activeTurnFailure != null
+	) {
+		return "error";
+	}
+
+	if (input.hotState.status === "paused") {
+		return "paused";
+	}
+
+	if (
+		input.interactionSnapshot.pendingPlanApproval !== null ||
+		input.interactionSnapshot.pendingPermission !== null ||
+		input.interactionSnapshot.pendingQuestion !== null
+	) {
+		return "waiting_for_user";
+	}
+
+	if (input.currentStreamingToolCall !== null) {
+		return "running_operation";
+	}
+
+	if (input.hotState.status === "streaming") {
+		return "awaiting_model";
+	}
+
+	if (input.runtimeState?.activityPhase === "running") {
+		return input.runtimeState.showThinking ? "awaiting_model" : "running_operation";
+	}
+
+	if (input.runtimeState?.activityPhase === "waiting_for_user") {
+		return "awaiting_model";
+	}
+
+	return null;
+}
+
 export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
 	const graphBackedActivity = canonicalActivityFromGraphActivity(
 		input.canonicalProjection?.activity ?? input.hotState.activity ?? null
 	);
+	if (graphBackedActivity === "idle") {
+		const overrideActivity = liveActivityOverride(input);
+		if (overrideActivity !== null) {
+			return overrideActivity;
+		}
+	}
+
 	if (graphBackedActivity !== null) {
 		return graphBackedActivity;
 	}

@@ -32,6 +32,13 @@ const operation = $derived.by(() => {
 
 	return operationStore.getByToolCallId(sessionContext.sessionId, toolCall.id) ?? null;
 });
+const renderableToolCall = $derived.by(() => {
+	if (!sessionContext?.sessionId) {
+		return toolCall;
+	}
+
+	return operationStore.getToolCallById(sessionContext.sessionId, toolCall.id) ?? toolCall;
+});
 const pendingPermission = $derived.by(() => {
 	if (operation) {
 		return permissionStore.getForOperation(operation, operationStore) ?? null;
@@ -39,7 +46,7 @@ const pendingPermission = $derived.by(() => {
 
 	return permissionStore.getForToolCall(sessionContext?.sessionId, toolCall) ?? null;
 });
-const resolvedOperation = $derived(resolveToolOperation(toolCall, pendingPermission));
+const resolvedOperation = $derived(resolveToolOperation(renderableToolCall, pendingPermission));
 const toolDefinition = $derived(
 	getToolDefinition(resolvedOperation.toolCall, resolvedOperation.resolvedKind)
 );
@@ -56,7 +63,7 @@ const elapsedLabel = $derived(
 );
 
 $effect(() => {
-	if (!toolStatus.isPending || toolCall.startedAtMs === undefined) {
+	if (!toolStatus.isPending || resolvedOperation.toolCall.startedAtMs === undefined) {
 		return;
 	}
 

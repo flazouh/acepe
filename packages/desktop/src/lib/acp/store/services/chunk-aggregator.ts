@@ -148,6 +148,21 @@ export class ChunkAggregator implements IChunkAggregator {
 		this.aggregationStates.delete(sessionId);
 	}
 
+	startNewAssistantTurn(sessionId: string): void {
+		const pendingBoundaries = new Set<string>();
+		for (const entry of this.entryStore.getEntries(sessionId)) {
+			if (entry.type === "assistant") {
+				pendingBoundaries.add(entry.id);
+			}
+		}
+
+		this.setState(sessionId, {
+			lastKnownMessageId: null,
+			pendingBoundaries,
+			postBoundaryMap: new Map(),
+		});
+	}
+
 	/**
 	 * Clear all state for a session.
 	 */

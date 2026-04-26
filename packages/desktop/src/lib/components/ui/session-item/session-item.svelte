@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ActivityEntryQuestion } from "@acepe/ui";
-import { ActivityEntry, PrChecksSummary, ProjectLetterBadge, RichTokenText } from "@acepe/ui";
+import { ActivityEntry, PrChecksSummary, ProjectLetterBadge } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconChevronDown } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
@@ -38,7 +38,6 @@ import {
 	deriveLiveSessionWorkProjection,
 } from "$lib/acp/store/live-session-work.js";
 import {
-	formatRichSessionTitle,
 	formatSessionTitleForDisplay,
 } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -55,7 +54,6 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
-import SessionPrLinkMenu from "$lib/acp/components/shared/session-pr-link-menu.svelte";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
 
 const logger = createLogger({ id: "session-item", name: "Session Item" });
@@ -435,9 +433,7 @@ const activityEntryToolContent = $derived(
 const activityEntryShowToolShimmer = $derived(
 	suppressPlanApprovalToolPreview ? false : (activityProjection?.showToolShimmer ?? false)
 );
-const richTitleResult = $derived(formatRichSessionTitle(session.title, session.projectName));
-const displayTitle = $derived(richTitleResult.plainText);
-const richTitle = $derived(richTitleResult.richText);
+const displayTitle = $derived(formatSessionTitleForDisplay(session.title, session.projectName));
 
 const queueTimeAgo = $derived(formatTimeAgoSafe(session.updatedAt ?? session.createdAt));
 const sessionBoardStatus = $derived(selectSessionWorkBucket(sessionWorkProjection));
@@ -584,7 +580,7 @@ function handleNextQuestion() {
 		<div
 			{...props}
 			bind:this={rowElement}
-			class="group relative z-10 flex h-8 items-stretch gap-1 overflow-hidden py-0"
+			class="group relative z-10 flex items-stretch gap-1 overflow-hidden py-0"
 			style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
 			data-session-id={session.id}
 			onpointerenter={(e) => {
@@ -714,12 +710,6 @@ function handleNextQuestion() {
 										{"Rename"}
 									</DropdownMenu.Item>
 								{/if}
-								<SessionPrLinkMenu
-									sessionId={session.id}
-									projectPath={session.projectPath}
-									linkedPr={session.linkedPr ?? null}
-									prLinkMode={session.prLinkMode ?? "automatic"}
-								/>
 								{#if onExportMarkdown || onExportJson}
 									<DropdownMenu.Separator />
 									<DropdownMenu.Sub>
@@ -763,13 +753,6 @@ function handleNextQuestion() {
 							onclick={(event: MouseEvent) => event.stopPropagation()}
 							aria-label="Rename session"
 						/>
-					{:else if richTitle}
-						<div
-							class="min-w-0 max-w-full overflow-hidden whitespace-nowrap"
-							title={displayTitle}
-						>
-							<RichTokenText text={richTitle} class="text-xs font-medium" singleLine />
-						</div>
 					{:else}
 						<div class="text-xs font-medium truncate" title={displayTitle}>
 							{displayTitle}

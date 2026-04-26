@@ -72,38 +72,13 @@ function hasCachedCapabilities(input: ResolveCapabilitySourceInput): boolean {
 	);
 }
 
-function buildResolution(
-	source: CapabilitySourceKind,
-	status: CapabilitySourceResolution["status"],
-	availableModes: readonly Mode[],
-	availableModels: readonly Model[],
-	modelsDisplay: ModelsForDisplay | null,
-	providerMetadata: ProviderMetadataProjection | null
-): CapabilitySourceResolution {
-	return {
-		source,
-		status,
-		availableModes,
-		availableModels,
-		modelsDisplay,
-		providerMetadata,
-	};
+function hasUsableModels(capabilities: SessionCapabilities): boolean {
+	return capabilities.availableModels.length > 0 || hasUsableModelsDisplay(capabilities.modelsDisplay);
 }
 
-export function resolveCapabilitySource(
+function resolveFallbackCapabilitySource(
 	input: ResolveCapabilitySourceInput
 ): CapabilitySourceResolution {
-	if (hasLiveCapabilities(input.sessionCapabilities)) {
-		return buildResolution(
-			"liveSession",
-			"liveSession",
-			input.sessionCapabilities?.availableModes ?? [],
-			input.sessionCapabilities?.availableModels ?? [],
-			input.sessionCapabilities?.modelsDisplay ?? null,
-			input.sessionCapabilities?.providerMetadata ?? input.providerMetadata
-		);
-	}
-
 	if (input.preconnectionCapabilities?.status === "resolved") {
 		return buildResolution(
 			"preconnectionResolved",
@@ -152,4 +127,44 @@ export function resolveCapabilitySource(
 	}
 
 	return buildResolution("persistedCache", "persistedCache", [], [], null, input.providerMetadata);
+}
+
+function buildResolution(
+	source: CapabilitySourceKind,
+	status: CapabilitySourceResolution["status"],
+	availableModes: readonly Mode[],
+	availableModels: readonly Model[],
+	modelsDisplay: ModelsForDisplay | null,
+	providerMetadata: ProviderMetadataProjection | null
+): CapabilitySourceResolution {
+	return {
+		source,
+		status,
+		availableModes,
+		availableModels,
+		modelsDisplay,
+		providerMetadata,
+	};
+}
+
+export function resolveCapabilitySource(
+	input: ResolveCapabilitySourceInput
+): CapabilitySourceResolution {
+	const liveCapabilities = input.sessionCapabilities;
+	if (liveCapabilities && hasLiveCapabilities(liveCapabilities)) {
+		const fallback = resolveFallbackCapabilitySource(input);
+		const liveHasModels = hasUsableModels(liveCapabilities);
+		const liveHasModes = liveCapabilities.availableModes.length > 0;
+
+		return buildResolution(
+			"liveSession",
+			"liveSession",
+			liveHasModes ? liveCapabilities.availableModes : fallback.availableModes,
+			liveHasModels ? liveCapabilities.availableModels : fallback.availableModels,
+			liveHasModels ? (liveCapabilities.modelsDisplay ?? null) : fallback.modelsDisplay,
+			liveCapabilities.providerMetadata ?? fallback.providerMetadata ?? input.providerMetadata
+		);
+	}
+
+	return resolveFallbackCapabilitySource(input);
 }

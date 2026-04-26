@@ -47,7 +47,7 @@
 	const label = $derived(getGitHubLabel(ref));
 	const iconColor = $derived(
 		ref.type === "commit"
-			? Colors.orange
+		? "var(--foreground)"
 			: prState === "merged"
 				? Colors.purple
 				: prState === "closed"

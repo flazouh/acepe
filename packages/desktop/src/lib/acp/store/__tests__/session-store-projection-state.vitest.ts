@@ -2,11 +2,13 @@ import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionStateMock = vi.fn();
+const sendPromptMock = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
 		getSessionState: (...args: Parameters<typeof getSessionStateMock>) =>
 			getSessionStateMock(...args),
+		sendPrompt: (...args: Parameters<typeof sendPromptMock>) => sendPromptMock(...args),
 	},
 }));
 
@@ -222,6 +224,8 @@ function createSnapshotEnvelope(
 beforeEach(() => {
 	getSessionStateMock.mockReset();
 	getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope()));
+	sendPromptMock.mockReset();
+	sendPromptMock.mockReturnValue(okAsync(undefined));
 });
 
 describe("SessionStore.applySessionStateGraph", () => {
@@ -385,6 +389,72 @@ describe("SessionStore.applySessionStateGraph", () => {
 					description: "Run a command",
 				},
 			],
+		});
+	});
+
+	it("preserves seeded model capabilities when a lifecycle-only graph omits capabilities", () => {
+		const store = new SessionStore();
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				activeTurnFailure: null,
+				turnState: "Running",
+				lifecycle: createGraphLifecycle("ready"),
+				capabilities: {
+					models: {
+						currentModelId: "cursor-model",
+						availableModels: [
+							{
+								modelId: "cursor-model",
+								name: "Cursor Model",
+							},
+						],
+					},
+					modes: {
+						currentModeId: "build",
+						availableModes: [
+							{
+								id: "build",
+								name: "Build",
+							},
+						],
+					},
+					availableCommands: [],
+					configOptions: [],
+				},
+			})
+		);
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				activeTurnFailure: null,
+				turnState: "Running",
+				lifecycle: createGraphLifecycle("ready"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 8,
+					lastEventSeq: 8,
+				},
+				capabilities: {
+					models: null,
+					modes: null,
+					availableCommands: [],
+					configOptions: [],
+				},
+			})
+		);
+
+		expect(store.getCapabilities("session-1").availableModels).toEqual([
+			{
+				id: "cursor-model",
+				name: "Cursor Model",
+				description: undefined,
+			},
+		]);
+		expect(store.getHotState("session-1").currentModel).toEqual({
+			id: "cursor-model",
+			name: "Cursor Model",
+			description: undefined,
 		});
 	});
 
@@ -1056,6 +1126,119 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
+	});
+
+	it("sends the first prompt for a created reserved session without forcing resume first", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "cursor UI diagnostic ping - reply ok" },
+		]);
+	});
+
+	it("sends the first prompt for a just-created session before canonical lifecycle hydration arrives", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+
+		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "cursor UI diagnostic ping - reply ok" },
+		]);
+	});
+
+	it("marks restored local created sessions as loaded so the composer can submit", () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "Restored Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+
+		store.setLocalCreatedSessionLoaded("session-1");
+
+		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+			connectionPhase: "disconnected",
+			contentPhase: "loaded",
+			canSubmit: true,
+		});
+	});
+
+	it("sends follow-up prompts for restored local created sessions without forcing resume first", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "Restored Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		await store.aggregateUserChunk("session-1", {
+			content: {
+				type: "text",
+				text: "existing prompt",
+			},
+		});
+
+		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "cursor restored follow-up - reply ok" },
+		]);
 	});
 
 	it("keeps transcript entries intact when lifecycle transitions to error", () => {

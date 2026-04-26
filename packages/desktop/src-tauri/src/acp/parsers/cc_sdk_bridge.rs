@@ -35,6 +35,16 @@ pub struct PendingToolCallState {
     pub tool_name: String,
 }
 
+const MISSING_TOOL_RESULT_MESSAGE: &str =
+    "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe.";
+
+fn tool_requires_observable_result(tool_name: &str) -> bool {
+    matches!(
+        tool_name,
+        "Bash" | "Edit" | "MultiEdit" | "Write" | "NotebookEdit" | "NotebookWrite"
+    )
+}
+
 fn note_pending_tool_call(stream_state: &mut CcSdkTurnStreamState, tool_call: &ToolCallData) {
     if matches!(tool_call.kind, Some(ToolKind::Question)) {
         return;
@@ -74,14 +84,21 @@ fn take_synthetic_tool_completions_for_resumed_tool_turn(
     let mut synthetic_updates = Vec::new();
 
     while let Some(pending_tool_call) = stream_state.pending_tool_calls.pop_front() {
-        // When the next message_start arrives with pending tool calls still unresolved,
-        // it means the CLI handled the tool without going through can_use_tool (e.g.
-        // auto-approved Bash commands). Mark as Completed — if Claude is continuing,
-        // the CLI resolved the tool one way or another.
+        let missing_result = tool_requires_observable_result(&pending_tool_call.tool_name);
         synthetic_updates.push(SessionUpdate::ToolCallUpdate {
             update: ToolCallUpdateData {
                 tool_call_id: pending_tool_call.tool_call_id,
-                status: Some(ToolCallStatus::Completed),
+                status: Some(if missing_result {
+                    ToolCallStatus::Failed
+                } else {
+                    ToolCallStatus::Completed
+                }),
+                result: missing_result.then(|| {
+                    serde_json::json!({
+                        "stderr": MISSING_TOOL_RESULT_MESSAGE
+                    })
+                }),
+                failure_reason: missing_result.then(|| MISSING_TOOL_RESULT_MESSAGE.to_string()),
                 ..Default::default()
             },
             session_id: session_id.clone(),
@@ -800,6 +817,7 @@ fn build_result_telemetry(
 mod tests {
     use super::{
         translate_cc_sdk_message, translate_cc_sdk_message_with_turn_state, CcSdkTurnStreamState,
+        MISSING_TOOL_RESULT_MESSAGE,
     };
     use crate::acp::agent_context::with_agent;
     use crate::acp::parsers::AgentType;
@@ -1285,10 +1303,11 @@ mod tests {
     }
 
     #[test]
-    fn next_message_start_completes_unresolved_tool_without_callback() {
+    fn next_message_start_fails_resultless_bash_without_callback() {
         // When a tool_use is pending and the next message_start arrives without
-        // a can_use_tool callback, the CLI handled the tool on its own (e.g.
-        // auto-approved). The bridge should mark it Completed, not Failed.
+        // a can_use_tool callback, Copilot has resumed without giving Acepe a
+        // tool-result payload. Bash/edit/write tools require observable output,
+        // so the bridge must not publish a success-shaped empty completion.
         let mut stream_state = CcSdkTurnStreamState::default();
 
         let _ = super::translate_cc_sdk_message_with_mut_turn_state(
@@ -1354,10 +1373,11 @@ mod tests {
                 update,
                 SessionUpdate::ToolCallUpdate { update, .. }
                     if update.tool_call_id == "toolu_resume_me"
-                        && update.status == Some(ToolCallStatus::Completed)
-                        && update.failure_reason.is_none()
+                        && update.status == Some(ToolCallStatus::Failed)
+                        && update.failure_reason.as_deref() == Some(MISSING_TOOL_RESULT_MESSAGE)
+                        && update.result.as_ref().and_then(|result| result.get("stderr")).and_then(|value| value.as_str()) == Some(MISSING_TOOL_RESULT_MESSAGE)
             )),
-            "bridge should synthesize a completed terminal update for unresolved tool_use turns when the CLI handles them without can_use_tool"
+            "bridge should surface missing Bash output instead of synthesizing an empty success"
         );
     }
 
@@ -1777,11 +1797,11 @@ mod tests {
     }
 
     #[test]
-    fn auto_approved_bash_without_callback_completes_not_fails() {
+    fn auto_approved_bash_without_callback_surfaces_missing_result() {
         // When the CLI auto-approves a Bash command (e.g. read-only commands),
         // it executes without sending a can_use_tool control message.
-        // The bridge should mark such tools as Completed, not Failed,
-        // because the CLI handled the tool successfully.
+        // If no ToolResult block arrives before the next assistant turn, Acepe
+        // has no stdout/stderr to render and should surface that explicitly.
         let mut stream_state = CcSdkTurnStreamState::default();
 
         // Step 1: Bash tool_use starts on the stream
@@ -1847,8 +1867,8 @@ mod tests {
             &mut stream_state,
         );
 
-        // The bridge should synthesize a Completed update, not Failed.
-        // The CLI handled the tool — the bridge should not second-guess it.
+        // The bridge should not synthesize an empty success for Bash. If the
+        // provider resumes without a result block, Acepe cannot render stdout.
         let synthetic_update = updates.iter().find(|update| {
             matches!(
                 update,
@@ -1865,13 +1885,12 @@ mod tests {
         if let Some(SessionUpdate::ToolCallUpdate { update, .. }) = synthetic_update {
             assert_eq!(
                 update.status,
-                Some(ToolCallStatus::Completed),
-                "auto-approved Bash tool should be marked Completed, not Failed"
+                Some(ToolCallStatus::Failed),
+                "resultless Bash should be surfaced as a provider-output failure"
             );
-            assert!(
-                update.failure_reason.is_none(),
-                "auto-approved Bash tool should have no failure_reason, got: {:?}",
-                update.failure_reason
+            assert_eq!(
+                update.failure_reason.as_deref(),
+                Some(MISSING_TOOL_RESULT_MESSAGE)
             );
         }
     }

@@ -18,7 +18,6 @@ import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
 import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
-import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
 import { selectSessionStatusForPresentation } from "../../../store/session-work-projection.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
@@ -38,7 +37,6 @@ import type { PrGenerationConfig } from "../../modified-files/types/pr-generatio
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
-	AgentPanelWorktreeStatusDisplay as SharedWorktreeStatusDisplay,
 	AgentPanelPlanHeader as SharedPlanHeader,
 } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
@@ -69,10 +67,14 @@ import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
+import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
+import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
+import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
+import PrLinkFooterButton from "../../shared/pr-link-footer-button.svelte";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
@@ -392,6 +394,7 @@ const sessionWorkProjection = $derived.by(() => {
 const sessionCanonicalActivity = $derived(sessionWorkProjection?.canonicalActivity ?? null);
 const entriesCount = $derived(sessionEntries.length);
 const hasSession = $derived(sessionId !== null);
+const hasOptimisticPendingEntry = $derived((panelHotState?.pendingUserEntry ?? null) !== null);
 // Prefer active worktree path, then session worktree, then project paths.
 // NOTE: Must be defined before panelVisibility which uses effectiveProjectPath
 // When the worktree has been deleted, skip worktree paths so git commands
@@ -522,12 +525,15 @@ const worktreePending = $derived(
 );
 let worktreeSetupState = $state<WorktreeSetupState | null>(null);
 const pendingWorktreeSetup = $derived(panelHotState ? panelHotState.pendingWorktreeSetup : null);
-const showPreSessionWorktreeCard = $derived(
-	sessionId === null &&
-		!pendingProjectSelection &&
-		worktreeToggleProjectPath !== null &&
-		pendingWorktreeSetup === null &&
-		!worktreeSetupState?.isVisible
+const showPreSessionWorktreeCard = $derived.by(() =>
+	shouldShowPreSessionWorktreeCard({
+		sessionId,
+		pendingProjectSelection,
+		worktreeToggleProjectPath,
+		hasPendingWorktreeSetup: pendingWorktreeSetup !== null,
+		worktreeSetupVisible: worktreeSetupState?.isVisible === true,
+		hasMessages,
+	})
 );
 
 $effect(() => {
@@ -676,8 +682,11 @@ const displayProjectName = $derived.by(() => {
 const sequenceId = $derived(sessionMetadata ? (sessionMetadata.sequenceId ?? null) : null);
 
 const displayTitle = $derived.by(() => {
-	if (!sessionTitle && !displayProjectName) return null;
-	return formatSessionTitleForDisplay(sessionTitle, displayProjectName, "Project");
+	return deriveAgentPanelHeaderDisplayTitle({
+		sessionTitle,
+		projectName: displayProjectName,
+		sessionEntries,
+	});
 });
 const sessionDiffStats = $derived.by(() => {
 	if (!sessionId) return { insertions: 0, deletions: 0 };
@@ -719,6 +728,18 @@ const footerWorktreeStatus = $derived.by(() => {
 	}
 
 	return null;
+});
+
+/** All sessions in the session-panel's current project, used by the footer PR picker. */
+const projectSessionsForPr = $derived.by(() => {
+	if (!sessionProjectPath) return [];
+	return sessionStore.getSessionsForProject(sessionProjectPath);
+});
+
+/** Project matching the current session, used to render project-letter badges in the PR picker. */
+const projectForFooterPr = $derived.by(() => {
+	if (!sessionProjectPath) return null;
+	return allProjects.find((p) => p.path === sessionProjectPath) ?? null;
 });
 
 const hasPlan = $derived(planState.plan !== null);
@@ -1876,7 +1897,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{effectiveTheme}
 						{modifiedFilesState}
 						turnState={sessionHotState?.turnState ?? "idle"}
-						isWaitingForResponse={sessionCanonicalActivity === "awaiting_model"}
+						isWaitingForResponse={hasOptimisticPendingEntry ||
+							isWaitingForSession ||
+							sessionCanonicalActivity === "awaiting_model"}
 					/>
 				</div>
 				{#if viewState.kind === "conversation" && !contentIsAtTop}
@@ -2081,13 +2104,25 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					}}
 				>
 					{#snippet left()}
-						{#if footerWorktreeStatus}
-							<SharedWorktreeStatusDisplay
-								mode={footerWorktreeStatus.mode}
-								primaryLabel={footerWorktreeStatus.primaryLabel}
-								secondaryLabel={footerWorktreeStatus.secondaryLabel}
-							/>
-						{/if}
+						<div class="flex items-center divide-x divide-border/50">
+							{#if footerWorktreeStatus}
+								<WorktreeFooterButton
+									worktreePath={effectiveActiveWorktreePath}
+									label={footerWorktreeStatus.primaryLabel}
+									mode={footerWorktreeStatus.mode}
+								/>
+							{/if}
+							{#if sessionId && sessionProjectPath}
+								<PrLinkFooterButton
+									sessionId={sessionId}
+									projectPath={sessionProjectPath}
+									linkedPr={sessionMetadata?.linkedPr ?? null}
+									prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
+									projectSessions={projectSessionsForPr}
+									project={projectForFooterPr}
+								/>
+							{/if}
+						</div>
 					{/snippet}
 				</SharedFooter>
 			{/if}

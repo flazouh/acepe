@@ -789,6 +789,138 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			});
 		}
 	});
+
+	it("starts a new assistant entry for a new user turn even when the provider reuses messageId", async () => {
+		await store.aggregateAssistantChunk(
+			"session1",
+			{ content: { type: "text", text: "first answer" } },
+			"provider-message",
+			false
+		);
+
+		store.startNewAssistantTurn("session1");
+		store.addEntry("session1", {
+			id: "user-2",
+			type: "user",
+			message: createUserMessage("second prompt"),
+			timestamp: new Date("2026-04-26T00:00:00.000Z"),
+		});
+
+		await store.aggregateAssistantChunk(
+			"session1",
+			{ content: { type: "text", text: "second " } },
+			"provider-message",
+			false
+		);
+		await store.aggregateAssistantChunk(
+			"session1",
+			{ content: { type: "text", text: "answer" } },
+			"provider-message",
+			false
+		);
+
+		const entries = store.getEntries("session1");
+		expect(entries).toHaveLength(3);
+		expect(entries[0].type).toBe("assistant");
+		expect(entries[1].type).toBe("user");
+		expect(entries[2].type).toBe("assistant");
+		expect(entries[2].id).not.toBe("provider-message");
+
+		const firstAssistant = entries[0];
+		const secondAssistant = entries[2];
+		if (firstAssistant.type === "assistant") {
+			expect(firstAssistant.message.chunks).toHaveLength(1);
+			expect(firstAssistant.message.chunks[0].block).toEqual({
+				type: "text",
+				text: "first answer",
+			});
+		}
+		if (secondAssistant.type === "assistant") {
+			expect(secondAssistant.message.chunks).toHaveLength(2);
+			expect(secondAssistant.message.chunks[0].block).toEqual({
+				type: "text",
+				text: "second ",
+			});
+			expect(secondAssistant.message.chunks[1].block).toEqual({
+				type: "text",
+				text: "answer",
+			});
+		}
+	});
+
+	it("keeps canonical assistant deltas after a new user turn when the provider reuses entryId", () => {
+		store.applyTranscriptDelta(
+			"session1",
+			{
+				eventSeq: 1,
+				sessionId: "session1",
+				snapshotRevision: 1,
+				operations: [
+					{
+						kind: "appendEntry",
+						entry: {
+							entryId: "provider-message",
+							role: "assistant",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "provider-message:segment:1",
+									text: "first answer",
+								},
+							],
+						},
+					},
+				],
+			},
+			new Date("2026-04-26T00:00:00.000Z")
+		);
+		store.addEntry("session1", {
+			id: "user-2",
+			type: "user",
+			message: createUserMessage("second prompt"),
+			timestamp: new Date("2026-04-26T00:00:01.000Z"),
+		});
+		store.applyTranscriptDelta(
+			"session1",
+			{
+				eventSeq: 2,
+				sessionId: "session1",
+				snapshotRevision: 2,
+				operations: [
+					{
+						kind: "appendSegment",
+						entryId: "provider-message",
+						role: "assistant",
+						segment: {
+							kind: "text",
+							segmentId: "provider-message:segment:2",
+							text: "second answer",
+						},
+					},
+				],
+			},
+			new Date("2026-04-26T00:00:02.000Z")
+		);
+
+		const entries = store.getEntries("session1");
+		expect(entries).toHaveLength(3);
+		expect(entries[0].type).toBe("assistant");
+		expect(entries[1].type).toBe("user");
+		expect(entries[2].type).toBe("assistant");
+		expect(entries[2].id).not.toBe("provider-message");
+		if (entries[0].type === "assistant") {
+			expect(entries[0].message.chunks[0].block).toEqual({
+				type: "text",
+				text: "first answer",
+			});
+		}
+		if (entries[2].type === "assistant") {
+			expect(entries[2].message.chunks[0].block).toEqual({
+				type: "text",
+				text: "second answer",
+			});
+		}
+	});
 });
 
 describe("SessionEntryStore - Synchronous Entry Writes", () => {

@@ -13,6 +13,7 @@ type SessionOpenStore = Pick<
 	SessionStore,
 	| "setSessionLoading"
 	| "setSessionLoaded"
+	| "setLocalCreatedSessionLoaded"
 	| "setSessionOpenMissing"
 	| "getSessionCold"
 	| "connectSession"
@@ -39,6 +40,7 @@ describe("openPersistedSession", () => {
 		sessionStore = {
 			setSessionLoading: mock(() => {}),
 			setSessionLoaded: mock(() => {}),
+			setLocalCreatedSessionLoaded: mock(() => {}),
 			setSessionOpenMissing: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
 			getSessionCold: mock(() => ({
@@ -341,6 +343,38 @@ describe("openPersistedSession", () => {
 			"This session can't be reopened yet because provider history isn't available. Retry once the provider has flushed the session history."
 		);
 		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("does not ask provider history to reopen local created sessions without a source path", async () => {
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "cursor",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created" as const,
+			parentId: null,
+		}));
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
+		expect(sessionOpenHydrator.beginAttempt).not.toHaveBeenCalled();
+		expect(sessionStore.setSessionLoading).not.toHaveBeenCalled();
+		expect(sessionStore.setSessionOpenMissing).not.toHaveBeenCalled();
+		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
 	});
 
 	it("surfaces provider parse failures explicitly instead of silently settling to idle", async () => {

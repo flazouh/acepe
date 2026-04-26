@@ -5,6 +5,7 @@ import type { ToolArguments } from "../../services/converted-session-types.js";
 import type { Operation, OperationState } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 
 const OPERATION_STORE_KEY = Symbol("operation-store");
 
@@ -466,6 +467,11 @@ export class OperationStore {
 			arguments: operation.arguments,
 			status: operation.status,
 			result: operation.result,
+			normalizedResult: normalizeToolResult({
+				kind: operation.kind,
+				arguments: operation.arguments,
+				result: operation.result,
+			}),
 			kind: operation.kind,
 			title: operation.title ?? null,
 			locations: operation.locations ?? null,

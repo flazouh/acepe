@@ -96,6 +96,7 @@ import { createLogger } from "../utils/logger.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
+import { canActivateCreatedSessionWithFirstPrompt } from "./services/first-send-activation.js";
 import { SessionConnectionManager } from "./services/session-connection-manager.js";
 import { SessionMessagingService } from "./services/session-messaging-service.js";
 import { resolveAutomaticSessionPrNumberFromShipWorkflow } from "./services/session-pr-link-attribution.js";
@@ -428,6 +429,58 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 	};
 }
 
+type ProjectedGraphCapabilities = ReturnType<typeof projectGraphCapabilities>;
+
+function mergeProjectedCapabilities(
+	capabilities: SessionGraphCapabilities,
+	projectedCapabilities: ProjectedGraphCapabilities,
+	currentCapabilities: SessionCapabilities,
+	hotState: SessionTransientProjection
+): ProjectedGraphCapabilities {
+	const shouldPreserveModels =
+		capabilities.models == null && currentCapabilities.availableModels.length > 0;
+	const shouldPreserveModes =
+		capabilities.modes == null && currentCapabilities.availableModes.length > 0;
+
+	return {
+		availableModels: shouldPreserveModels
+			? currentCapabilities.availableModels.map((model) => ({
+					id: model.id,
+					name: model.name,
+					description: model.description,
+				}))
+			: projectedCapabilities.availableModels,
+		availableModes: shouldPreserveModes
+			? currentCapabilities.availableModes.map((mode) => ({
+					id: mode.id,
+					name: mode.name,
+					description: mode.description,
+				}))
+			: projectedCapabilities.availableModes,
+		availableCommands: projectedCapabilities.availableCommands,
+		currentModel: shouldPreserveModels ? hotState.currentModel : projectedCapabilities.currentModel,
+		currentMode: shouldPreserveModes ? hotState.currentMode : projectedCapabilities.currentMode,
+		modelsDisplay: shouldPreserveModels
+			? currentCapabilities.modelsDisplay
+			: projectedCapabilities.modelsDisplay,
+		providerMetadata: shouldPreserveModels
+			? (currentCapabilities.providerMetadata ?? projectedCapabilities.providerMetadata)
+			: projectedCapabilities.providerMetadata,
+		configOptions: projectedCapabilities.configOptions,
+		autonomousEnabled: projectedCapabilities.autonomousEnabled,
+	};
+}
+
+function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionGraphActivity {
+	return {
+		kind,
+		activeOperationCount: 0,
+		activeSubagentCount: 0,
+		dominantOperationId: null,
+		blockingInteractionId: null,
+	};
+}
+
 function deriveRecoveredActivityKind(
 	activity: SessionGraphActivity,
 	turnState: SessionTransientProjection["turnState"]
@@ -476,7 +529,18 @@ function reconcileStoredGraphActivity(
 	}
 
 	if (previousActivity === null) {
+		if (turnState === "streaming") {
+			return emptySessionGraphActivity("awaiting_model");
+		}
 		return null;
+	}
+
+	if (previousActivity.kind === "idle" && turnState === "streaming") {
+		return emptySessionGraphActivity("awaiting_model");
+	}
+
+	if (previousActivity.kind === "awaiting_model" && turnState !== "streaming") {
+		return emptySessionGraphActivity("idle");
 	}
 
 	if (previousActivity.kind !== "error") {
@@ -688,6 +752,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.canonicalProjections.get(sessionId)?.lifecycle.actionability.canSend ?? null;
 	}
 
+	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null {
+		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
+	}
+
 	/**
 	 * Get capabilities for a session.
 	 * Returns default (empty) capabilities if not connected to ACP.
@@ -867,7 +935,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	applySessionStateGraph(graph: SessionStateGraph): void {
 		const previousHotState = this.getHotState(graph.canonicalSessionId);
 		const normalizedAgentId = normalizeCanonicalAgentId(graph.agentId);
-		const projectedCapabilities = projectGraphCapabilities(normalizedAgentId, graph.capabilities);
+		const projectedCapabilities = mergeProjectedCapabilities(
+			graph.capabilities,
+			projectGraphCapabilities(normalizedAgentId, graph.capabilities),
+			this.capabilitiesStore.getCapabilities(graph.canonicalSessionId),
+			previousHotState
+		);
 		const activeTurnFailure = mapProjectionTurnFailure(graph.activeTurnFailure ?? null);
 		const nextLastTerminalTurnId = graph.lastTerminalTurnId ?? null;
 		this.canonicalProjections.set(graph.canonicalSessionId, {
@@ -1064,6 +1137,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (hotState.status === "loading") {
 			this.hotStateStore.updateHotState(sessionId, { status: "idle" });
 		}
+	}
+
+	setLocalCreatedSessionLoaded(sessionId: string): void {
+		this.connectionService.sendContentLoad(sessionId);
+		this.connectionService.sendContentLoaded(sessionId);
+		this.setSessionLoaded(sessionId);
 	}
 
 	/**
@@ -1494,7 +1573,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		if (this.getSessionCanSend(sessionId) ?? false) {
+		const canSend = this.getSessionCanSend(sessionId) ?? false;
+		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
+			session,
+			hotState: this.getHotState(sessionId),
+			lifecycleStatus: this.getSessionLifecycleStatus(sessionId),
+		});
+
+		if (canSend || canActivateFirstPrompt) {
 			return send();
 		}
 
@@ -2187,9 +2273,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				if (!isNewerGraphRevision(currentCapabilities.revision ?? null, command.revision)) {
 					continue;
 				}
-				const projectedCapabilities = projectGraphCapabilities(
-					session.agentId,
-					command.capabilities
+				const projectedCapabilities = mergeProjectedCapabilities(
+					command.capabilities,
+					projectGraphCapabilities(session.agentId, command.capabilities),
+					currentCapabilities,
+					this.getHotState(sessionId)
 				);
 				this.capabilitiesStore.updateCapabilities(sessionId, {
 					availableModes: projectedCapabilities.availableModes,

@@ -66,6 +66,7 @@ function createMockDeps() {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -123,6 +124,86 @@ describe("SessionMessagingService.sendMessage", () => {
 		// Tokens pass through unchanged — ACP provider handles decoding
 		expect(sendPrompt).toHaveBeenCalledWith("session-1", [
 			{ type: "text", text: "@[text:aGVsbG8gd29ybGQ=]\nPlease summarize this" },
+		]);
+	});
+
+	it("allows a reserved created session to activate with its first prompt", async () => {
+		const deps = createMockDeps();
+		(deps.stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			...DEFAULT_TRANSIENT_PROJECTION,
+			isConnected: false,
+		});
+		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
+		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue("reserved");
+		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-1",
+			projectPath: "/tmp/project",
+			agentId: "cursor",
+			title: "New Thread",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		const service = new SessionMessagingService(
+			deps.stateReader,
+			deps.hotStateManager,
+			deps.entryManager,
+			deps.connectionManager
+		);
+
+		const result = await service.sendMessage("session-1", "diagnostic ping - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(sendPrompt).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "diagnostic ping - reply ok" },
+		]);
+	});
+
+	it("allows a restored local created session with entries to send without resume", async () => {
+		const deps = createMockDeps();
+		(deps.stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			...DEFAULT_TRANSIENT_PROJECTION,
+			isConnected: false,
+		});
+		(deps.stateReader.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+			{
+				id: "assistant-1",
+				type: "assistant",
+				message: {
+					content: {
+						type: "text",
+						text: "existing response",
+					},
+					chunks: [],
+				},
+				timestamp: new Date(),
+			},
+		]);
+		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
+		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue(null);
+		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-1",
+			projectPath: "/tmp/project",
+			agentId: "cursor",
+			title: "Restored Thread",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		const service = new SessionMessagingService(
+			deps.stateReader,
+			deps.hotStateManager,
+			deps.entryManager,
+			deps.connectionManager
+		);
+
+		const result = await service.sendMessage("session-1", "diagnostic follow-up - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(sendPrompt).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "diagnostic follow-up - reply ok" },
 		]);
 	});
 });

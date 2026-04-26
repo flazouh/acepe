@@ -182,7 +182,7 @@ impl BatcherWithGuard {
         self.batcher.process(update)
     }
 
-    fn process_turn_complete(
+    pub(crate) fn process_turn_complete(
         &mut self,
         session_id: &str,
         turn_id: Option<String>,
@@ -359,8 +359,6 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let message_id_tracker: StdArc<std::sync::Mutex<HashMap<String, String>>> =
-            StdArc::new(std::sync::Mutex::new(HashMap::new()));
-        let assistant_text_tracker: StdArc<std::sync::Mutex<HashMap<String, String>>> =
             StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler: StdArc<std::sync::Mutex<TaskReconciler>> =
             StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
@@ -750,7 +748,6 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 ctx.agent_type,
                                 ctx.provider.as_deref(),
                                 &message_id_tracker,
-                                &assistant_text_tracker,
                                 &task_reconciler,
                                 &mut streaming_batcher,
                                 &mut non_streaming_batcher,

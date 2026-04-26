@@ -6288,9 +6288,23 @@ mod tests {
         });
 
         let completion = failure.expect("expected a terminal bash tool update");
-        // CLI auto-approved and executed the tool - bridge marks as Completed
-        assert_eq!(completion.status, Some(ToolCallStatus::Completed));
-        assert!(completion.failure_reason.is_none());
+        assert_eq!(completion.status, Some(ToolCallStatus::Failed));
+        assert_eq!(
+            completion.failure_reason.as_deref(),
+            Some(
+                "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe."
+            )
+        );
+        assert_eq!(
+            completion
+                .result
+                .as_ref()
+                .and_then(|result| result.get("stderr"))
+                .and_then(|value| value.as_str()),
+            Some(
+                "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe."
+            )
+        );
     }
 
     #[tokio::test]

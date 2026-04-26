@@ -5,6 +5,7 @@
  * Extracted services use this to access session data without circular dependencies.
  */
 
+import type { SessionGraphLifecycle } from "../../../../services/acp-types.js";
 import type { SessionCold, SessionEntry, SessionTransientProjection } from "../../types.js";
 
 /**
@@ -21,6 +22,12 @@ export interface ISessionStateReader {
 	 * materialized yet and callers must use their compatibility fallback.
 	 */
 	getSessionCanSend?(sessionId: string): boolean | null;
+
+	/**
+	 * Canonical lifecycle status. Used when a caller needs to distinguish
+	 * reserved first-send activation from a detached historical reconnect.
+	 */
+	getSessionLifecycleStatus?(sessionId: string): SessionGraphLifecycle["status"] | null;
 
 	/**
 	 * Get entries for a session.

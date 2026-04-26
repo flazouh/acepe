@@ -59,6 +59,43 @@ describe("resolveCapabilitySource", () => {
 		expect(resolution.availableModels.map((model) => model.id)).toEqual(["live-model"]);
 	});
 
+	it("fills missing live session models from the cached model catalog", () => {
+		const resolution = resolveCapabilitySource({
+			sessionCapabilities: {
+				availableModels: [],
+				availableModes: [{ id: "build", name: "Build" }],
+				availableCommands: [],
+				modelsDisplay: undefined,
+				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			},
+			preconnectionCapabilities: null,
+			cachedModes: [{ id: "plan", name: "Plan" }],
+			cachedModels: [{ id: "cached-cursor-model", name: "Cached Cursor Model" }],
+			cachedModelsDisplay: {
+				groups: [
+					{
+						label: "Cursor",
+						models: [
+							{
+								modelId: "cached-cursor-model",
+								displayName: "Cached Cursor Model",
+							},
+						],
+					},
+				],
+				presentation: undefined,
+			},
+			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+		});
+
+		expect(resolution.source).toBe("liveSession");
+		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build"]);
+		expect(resolution.availableModels.map((model) => model.id)).toEqual(["cached-cursor-model"]);
+		expect(resolution.modelsDisplay?.groups[0]?.models.map((model) => model.modelId)).toEqual([
+			"cached-cursor-model",
+		]);
+	});
+
 	it("ignores empty live modelsDisplay placeholders when selecting fallback capabilities", () => {
 		const resolution = resolveCapabilitySource({
 			sessionCapabilities: {

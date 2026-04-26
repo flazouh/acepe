@@ -93,6 +93,12 @@ export interface IEntryManager {
 	clearStreamingAssistantEntry(sessionId: string): void;
 
 	/**
+	 * Start a fresh assistant turn. The next assistant chunks must not merge into
+	 * a prior assistant entry, even when a provider reuses or omits message IDs.
+	 */
+	startNewAssistantTurn(sessionId: string): void;
+
+	/**
 	 * Mark all still-streaming tool call entries as not streaming.
 	 * Called on turn completion so pending tools stop shimmering.
 	 */

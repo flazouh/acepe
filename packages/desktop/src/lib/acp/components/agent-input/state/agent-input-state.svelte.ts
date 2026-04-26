@@ -656,12 +656,10 @@ export class AgentInputState {
 				});
 				// Notify parent with the canonical session ID
 				onSessionCreated?.(newSessionId, panelId ?? null);
-				// Clear pending entry BEFORE sendMessage adds the real one.
-				// Both are synchronous SvelteMap.set() calls — batched into one render.
-				if (panelId) this.panelStore.clearPendingUserEntry(panelId);
 				return sendMessage(this.store, newSessionId, content, imageAttachments);
 			})
 			.map(() => {
+				if (panelId) this.panelStore.clearPendingUserEntry(panelId);
 				this.logger.info("[PERF] sendMessage: slow-path resolved", {
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});

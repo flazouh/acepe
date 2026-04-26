@@ -153,8 +153,48 @@ describe("AgentPanelHeader project-header style", () => {
 			debugPanelState: null,
 		});
 
-		expect(screen.getByText("Fix login redirect race")).not.toBeNull();
+		expect(screen.getAllByText("Fix login redirect race").length).toBeGreaterThan(0);
 		expect(screen.queryByText("New thread")).toBeNull();
+	});
+
+	it("shows the selected agent icon before a session is attached", () => {
+		const { container } = render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: true,
+			sessionId: null,
+			sessionTitle: null,
+			sessionAgentId: null,
+			currentAgentId: "claude-code",
+			availableAgents: [],
+			agentIconSrc: "/agent.svg",
+			agentName: "Claude",
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: false,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: "Diagnostic ping - reply with ok",
+			entriesCount: 1,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+			debugPanelState: null,
+		});
+
+		expect(container.querySelector('img[src="/agent.svg"]')).not.toBeNull();
 	});
 
 	it("keeps the overflow menu limited to copy and export actions", async () => {

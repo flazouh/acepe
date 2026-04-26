@@ -13,6 +13,7 @@ type SessionOpenStore = Pick<
 	SessionStore,
 	| "setSessionLoading"
 	| "setSessionLoaded"
+	| "setLocalCreatedSessionLoaded"
 	| "setSessionOpenMissing"
 	| "getSessionCold"
 	| "connectSession"
@@ -53,6 +54,10 @@ function errorSessionMessage(result: Extract<SessionOpenResult, { outcome: "erro
 	return "This session couldn't be reopened because Acepe hit an internal error while loading it.";
 }
 
+function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
+	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
+}
+
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
 	const {
 		panelId,
@@ -78,6 +83,36 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			source,
 			panelId,
 			sessionId,
+		});
+		return;
+	}
+
+	if (!isProviderHistoryBackedSession(session)) {
+		sessionStore.setLocalCreatedSessionLoaded(sessionId);
+		void sessionStore.connectSession(sessionId).match(
+			() => {
+				logger.debug("Reattached local created session", {
+					source,
+					panelId,
+					sessionId,
+					agentId: session.agentId,
+				});
+			},
+			(error: AppError) => {
+				logger.warn("Failed to reattach local created session", {
+					source,
+					panelId,
+					sessionId,
+					agentId: session.agentId,
+					error,
+				});
+			}
+		);
+		logger.debug("Skipping provider-history open for local created session", {
+			source,
+			panelId,
+			sessionId,
+			agentId: session.agentId,
 		});
 		return;
 	}

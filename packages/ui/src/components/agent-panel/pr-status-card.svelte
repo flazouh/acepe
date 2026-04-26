@@ -4,20 +4,24 @@
 	interface Props {
 		visible: boolean;
 		hasExpandedContent: boolean;
+		hasBelowHeader?: boolean;
 		fetchError?: string | null;
 		initiallyExpanded?: boolean;
 		headerMain: Snippet;
 		headerActions?: Snippet<[boolean]>;
+		belowHeader?: Snippet;
 		expandedContent?: Snippet;
 	}
 
 	let {
 		visible,
 		hasExpandedContent,
+		hasBelowHeader = false,
 		fetchError = null,
 		initiallyExpanded = false,
 		headerMain,
 		headerActions,
+		belowHeader,
 		expandedContent,
 	}: Props = $props();
 
@@ -35,7 +39,7 @@
 {#if visible}
 	<div class="w-full">
 		{#if isExpanded && hasExpandedContent && expandedContent}
-			<div class="rounded-t-md bg-input/30 overflow-hidden border border-b-0 border-border">
+			<div class="bg-input/30 overflow-hidden border-x border-t border-border rounded-t-md">
 				{@render expandedContent()}
 			</div>
 		{/if}
@@ -50,9 +54,9 @@
 					toggleExpand();
 				}
 			}}
-			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-input/30 {hasExpandedContent
+			class="w-full flex items-center justify-between px-3 py-1 rounded-md border border-border bg-muted/60 {hasExpandedContent
 				? 'cursor-pointer'
-				: 'cursor-default'} {isExpanded ? 'rounded-t-none border-t-0' : ''}"
+				: 'cursor-default'} {isExpanded ? 'rounded-t-none border-t-0' : ''} {hasBelowHeader ? 'rounded-b-none border-b border-border/70' : ''}"
 		>
 			<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">
 				{@render headerMain()}
@@ -64,6 +68,10 @@
 				</div>
 			{/if}
 		</div>
+
+		{#if hasBelowHeader && belowHeader}
+			{@render belowHeader()}
+		{/if}
 
 		{#if fetchError}
 			<div class="px-3 py-1.5 text-xs text-destructive/70 bg-input/30 rounded-b-lg border border-t-0 border-border">

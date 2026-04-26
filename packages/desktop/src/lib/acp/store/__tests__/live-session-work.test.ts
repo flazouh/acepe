@@ -134,7 +134,7 @@ describe("deriveLiveSessionState", () => {
 		expect(canonicalActivity).toBe("running_operation");
 	});
 
-	it("prefers canonical projection activity over stale hot state activity", () => {
+	it("prefers non-idle canonical projection activity over stale hot state activity", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity({
 			runtimeState: null,
 			hotState: {
@@ -148,6 +148,63 @@ describe("deriveLiveSessionState", () => {
 					dominantOperationId: "op-stale",
 					blockingInteractionId: null,
 				},
+			},
+			canonicalProjection: {
+				lifecycle: {
+					status: "ready",
+					errorMessage: null,
+					detachedReason: null,
+					failureReason: null,
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "send",
+						recoveryPhase: "none",
+						compactStatus: "ready",
+					},
+				},
+				activity: {
+					kind: "running_operation",
+					activeOperationCount: 2,
+					activeSubagentCount: 1,
+					dominantOperationId: "op-canonical",
+					blockingInteractionId: null,
+				},
+			},
+			currentStreamingToolCall: null,
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPlanApproval: null,
+				pendingPermission: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(canonicalActivity).toBe("running_operation");
+	});
+
+	it("lets live streaming work override stale idle canonical projection activity", () => {
+		const canonicalActivity = deriveLiveCanonicalActivity({
+			runtimeState: {
+				connectionPhase: "connected",
+				contentPhase: "loaded",
+				activityPhase: "running",
+				canSubmit: false,
+				canCancel: true,
+				showStop: true,
+				showThinking: true,
+				showConnectingOverlay: false,
+				showConversation: true,
+				showReadyPlaceholder: false,
+			},
+			hotState: {
+				status: "streaming",
+				currentMode: null,
+				connectionError: null,
+				activity: null,
 			},
 			canonicalProjection: {
 				lifecycle: {
@@ -183,7 +240,7 @@ describe("deriveLiveSessionState", () => {
 			hasUnseenCompletion: false,
 		});
 
-		expect(canonicalActivity).toBe("idle");
+		expect(canonicalActivity).toBe("awaiting_model");
 	});
 
 	it("keeps pending interaction dominant when graph-backed activity is absent", () => {

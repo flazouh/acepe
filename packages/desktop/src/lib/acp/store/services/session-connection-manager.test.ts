@@ -215,6 +215,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1091,6 +1092,7 @@ describe("SessionConnectionManager.createSession", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1720,6 +1722,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -2226,6 +2229,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
+		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -2379,6 +2383,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			updateToolCallEntry: vi.fn(),
 			aggregateAssistantChunk: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
+			startNewAssistantTurn: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
 		};
 

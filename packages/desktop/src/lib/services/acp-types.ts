@@ -293,7 +293,11 @@ export type OperationDegradationCode = "impossible_transition" | "missing_eviden
 
 export type OperationDegradationReason = { code: OperationDegradationCode; detail?: string | null }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state?: OperationState | null; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval?: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_entry_id?: string | null; degradation_reason?: OperationDegradationReason | null }
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; 
+/**
+ * Provider-layer provenance status. Use `operation_state` for canonical state decisions.
+ */
+provider_status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state?: OperationState | null; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval?: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_entry_id?: string | null; degradation_reason?: OperationDegradationReason | null }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 

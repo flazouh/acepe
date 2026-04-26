@@ -119,6 +119,7 @@ function createEntryManager(preloadedSessionIds: Set<string>): IEntryManager {
 			throw new Error("Not implemented for test");
 		},
 		clearStreamingAssistantEntry: () => {},
+		startNewAssistantTurn: () => {},
 		finalizeStreamingEntries: () => {},
 	};
 }
