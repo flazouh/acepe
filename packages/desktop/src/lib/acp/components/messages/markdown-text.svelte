@@ -582,11 +582,7 @@ function wrapTextNodeWithContinuousFade(
 	}
 }
 
-function applyStreamingWordFade(
-	node: HTMLElement,
-	history: AppearanceRecord[],
-	now: number
-): void {
+function applyStreamingWordFade(node: HTMLElement, history: AppearanceRecord[], now: number): void {
 	if (history.length === 0) {
 		return;
 	}
