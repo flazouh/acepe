@@ -10,11 +10,9 @@ import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp
 import type {
 	ConfigOptionData,
 	ContentBlock,
-	ToolCallData,
 } from "../../services/converted-session-types.js";
 import type { AppError } from "../errors/app-error.js";
 import type { AvailableCommand } from "../types/available-command.js";
-import type { ToolCallUpdate } from "../types/tool-call.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionEntry, SessionTransientProjection } from "./types.js";
 
@@ -66,16 +64,6 @@ export interface SessionEventHandler {
 		sessionId: string,
 		chunk: { content: ContentBlock }
 	): ResultAsync<void, AppError>;
-
-	/**
-	 * Create a new tool call entry.
-	 */
-	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void;
-
-	/**
-	 * Update an existing tool call entry.
-	 */
-	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void;
 
 	/**
 	 * Update available commands for a session.

@@ -78,8 +78,6 @@ function createMockEventHandler(): SessionEventHandler {
 		getHotState: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		aggregateUserChunk: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		updateAvailableCommands: vi.fn(),
 		ensureStreamingState: vi.fn(),
 		handleStreamEntry: vi.fn(),

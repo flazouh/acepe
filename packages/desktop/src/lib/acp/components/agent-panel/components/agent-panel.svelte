@@ -6,6 +6,8 @@ import { Clock } from "phosphor-svelte";
 import { tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { createLocalReferenceDetails } from "$lib/errors/error-reference.js";
+import type { SessionTurnState } from "../../../../services/acp-types.js";
+import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
 import type { Project } from "../../../logic/project-manager.svelte";
@@ -125,6 +127,15 @@ import {
 	scheduleCheckpointReloadAfterRevert,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
+
+function mapCanonicalTurnStateToHotTurnState(turnState: SessionTurnState): TurnState {
+	switch (turnState) {
+		case "Idle": return "idle";
+		case "Running": return "streaming";
+		case "Completed": return "completed";
+		case "Failed": return "error";
+	}
+}
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -367,6 +378,16 @@ const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(se
 const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
+// Canonical-first lifecycle reads: prefer graph projection over hotState.
+const sessionTurnState = $derived(
+	canonicalProjection !== null
+		? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState)
+		: (sessionHotState?.turnState ?? "idle")
+);
+const sessionIsConnected = $derived(
+	canonicalProjection?.lifecycle?.actionability?.canSend ??
+		(sessionHotState?.isConnected ?? false)
+);
 const sessionWorkProjection = $derived.by(() => {
 	if (!sessionId) {
 		return null;
@@ -453,7 +474,7 @@ const errorInfo = $derived.by(() =>
 		panelConnectionState,
 		panelConnectionError,
 		sessionConnectionError,
-		sessionTurnState: sessionHotState?.turnState,
+		sessionTurnState: sessionTurnState,
 		activeTurnError,
 	})
 );
@@ -1578,7 +1599,7 @@ const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 	const threadData: ThreadWithEntries = {
 		entries: sessionEntries,
-		isConnected: sessionHotState?.isConnected ?? false,
+		isConnected: sessionIsConnected,
 		status: sessionStatus ?? "idle",
 		isStreaming: sessionIsStreaming,
 	};
@@ -1896,7 +1917,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
-						turnState={sessionHotState?.turnState ?? "idle"}
+						turnState={sessionTurnState}
 						isWaitingForResponse={hasOptimisticPendingEntry ||
 							isWaitingForSession ||
 							sessionCanonicalActivity === "awaiting_model"}
@@ -1966,7 +1987,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			effectiveProjectPath={effectiveProjectPath ?? null}
 			sessionProjectPath={sessionProjectPath ?? null}
 			sessionEntries={sessionEntries}
-			sessionTurnState={sessionHotState?.turnState ?? "idle"}
+			sessionTurnState={sessionTurnState}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}
@@ -2017,7 +2038,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
 							{sessionStatus}
-							sessionIsConnected={sessionHotState?.isConnected ?? false}
+							sessionIsConnected={sessionIsConnected}
 							{sessionIsStreaming}
 							{sessionCanSubmit}
 							{sessionShowStop}

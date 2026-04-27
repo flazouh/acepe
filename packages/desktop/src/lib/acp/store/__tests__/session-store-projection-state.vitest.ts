@@ -699,6 +699,85 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("carries canonical turnState from previous projection on lifecycle-only envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			activeTurnFailure: null,
+			lifecycle: createGraphLifecycle("ready"),
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+
+		// Apply a lifecycle-only envelope — does NOT carry a full graph turnState
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		// Canonical projection should carry "Running" from the previous full-graph projection,
+		// not "Idle" from an uninitialised hotState, proving no authority inversion.
+		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
+			turnState: "Running",
+		});
+	});
+
+	it("carries canonical activeTurnFailure from previous projection on lifecycle-only envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Failed",
+			activeTurnFailure: {
+				turn_id: "turn-2",
+				message: "rate limit",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			},
+			lifecycle: createGraphLifecycle("ready"),
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 9,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 9,
+					transcriptRevision: 7,
+					lastEventSeq: 9,
+				},
+			},
+		});
+
+		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
+			activeTurnFailure: {
+				turnId: "turn-2",
+				message: "rate limit",
+			},
+		});
+	});
+
 	it("hydrates capabilities envelopes into capability and hot-state selectors", () => {
 		const store = new SessionStore();
 		addColdSession(store);

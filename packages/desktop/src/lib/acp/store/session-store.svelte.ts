@@ -38,7 +38,6 @@ import type {
 	ContentBlock,
 	ContentChunk,
 	PlanData,
-	ToolCallData,
 } from "../../services/converted-session-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
@@ -54,7 +53,6 @@ import {
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { SessionUpdate } from "../types/session-update";
-import type { ToolCallUpdate } from "../types/tool-call";
 import type {
 	ActiveTurnFailure,
 	TurnCompleteUpdate,
@@ -202,23 +200,6 @@ function mapTurnStateToHotState(
 			return "completed";
 		case "Failed":
 			return "error";
-	}
-}
-
-function mapHotTurnStateToGraphTurnState(
-	turnState: SessionTransientProjection["turnState"]
-): SessionTurnState {
-	switch (turnState) {
-		case "idle":
-			return "Idle";
-		case "streaming":
-			return "Running";
-		case "completed":
-			return "Completed";
-		case "interrupted":
-			return "Completed";
-		case "error":
-			return "Failed";
 	}
 }
 
@@ -490,7 +471,7 @@ function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionG
 
 function deriveRecoveredActivityKind(
 	activity: SessionGraphActivity,
-	turnState: SessionTransientProjection["turnState"]
+	turnState: SessionTurnState
 ): SessionGraphActivity["kind"] {
 	if (activity.blockingInteractionId != null) {
 		return "waiting_for_user";
@@ -500,7 +481,7 @@ function deriveRecoveredActivityKind(
 		return "running_operation";
 	}
 
-	if (turnState === "streaming") {
+	if (turnState === "Running") {
 		return "awaiting_model";
 	}
 
@@ -510,7 +491,7 @@ function deriveRecoveredActivityKind(
 function reconcileStoredGraphActivity(
 	activity: SessionGraphActivity | null | undefined,
 	lifecycle: SessionGraphLifecycle,
-	turnState: SessionTransientProjection["turnState"],
+	turnState: SessionTurnState,
 	activeTurnFailure: ActiveTurnFailure | null
 ): SessionGraphActivity | null {
 	const previousActivity = activity ?? null;
@@ -536,17 +517,17 @@ function reconcileStoredGraphActivity(
 	}
 
 	if (previousActivity === null) {
-		if (turnState === "streaming") {
+		if (turnState === "Running") {
 			return emptySessionGraphActivity("awaiting_model");
 		}
 		return null;
 	}
 
-	if (previousActivity.kind === "idle" && turnState === "streaming") {
+	if (previousActivity.kind === "idle" && turnState === "Running") {
 		return emptySessionGraphActivity("awaiting_model");
 	}
 
-	if (previousActivity.kind === "awaiting_model" && turnState !== "streaming") {
+	if (previousActivity.kind === "awaiting_model" && turnState !== "Running") {
 		return emptySessionGraphActivity("idle");
 	}
 
@@ -2298,13 +2279,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 			if (command.kind === "applyLifecycle") {
 				const hotState = this.getHotState(sessionId);
-				const activeTurnFailure = hotState.activeTurnFailure ?? null;
-				const turnState = mapHotTurnStateToGraphTurnState(hotState.turnState);
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				// Carry forward canonical turnState and activeTurnFailure from the previous full-graph
+				// projection. Reading these from hotState would feed optimistic messaging-service writes
+				// back into the canonical projection (authority inversion).
+				const turnState = previousProjection?.turnState ?? "Idle";
+				const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
 				const reconciledActivity = reconcileStoredGraphActivity(
 					previousProjection?.activity ?? null,
 					command.lifecycle,
-					hotState.turnState,
+					turnState,
 					activeTurnFailure
 				) ?? {
 					kind: "idle",
@@ -2454,20 +2438,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 	// TOOL CALLS (delegated to messaging service)
 	// ============================================
-
-	/**
-	 * Create a new tool call entry from full ToolCallData.
-	 */
-	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
-		this.messagingSvc.createToolCallEntry(sessionId, toolCallData);
-	}
-
-	/**
-	 * Update tool call entry.
-	 */
-	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
-		this.messagingSvc.updateToolCallEntry(sessionId, update);
-	}
 
 	/**
 	 * Get the streaming arguments for a tool call.
