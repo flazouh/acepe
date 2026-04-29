@@ -193,6 +193,7 @@ fn tool_update_needs_enrichment(update: &ToolCallUpdateData) -> bool {
 fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
     match arguments {
         ToolArguments::Read { file_path, .. } => file_path.is_none(),
+        ToolArguments::ReadLints { .. } => false,
         ToolArguments::Delete {
             file_path,
             file_paths,
@@ -376,6 +377,7 @@ fn parse_persisted_tool_arguments(persisted: &PersistedToolUse) -> Option<ToolAr
 fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
     match arguments {
         ToolArguments::Read { file_path, .. } => usize::from(file_path.is_some()),
+        ToolArguments::ReadLints { raw } => usize::from(!raw.is_null()),
         ToolArguments::Edit { edits } => edits.first().map_or(0, |e| {
             usize::from(e.file_path.is_some())
                 + usize::from(e.move_from.is_some())

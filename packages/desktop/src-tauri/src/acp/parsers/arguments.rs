@@ -281,6 +281,9 @@ pub(crate) fn parse_tool_kind_arguments(
                 source_context,
             }
         }
+        ToolKind::ReadLints => ToolArguments::ReadLints {
+            raw: raw_arguments.clone(),
+        },
         ToolKind::Edit => parse_generic_edit_arguments(raw_arguments),
         ToolKind::Execute => ToolArguments::Execute {
             command: parse_parser_command_string(raw_arguments, &["command", "cmd"]),

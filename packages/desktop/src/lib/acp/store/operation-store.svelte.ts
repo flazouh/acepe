@@ -4,6 +4,7 @@ import type { OperationSnapshot, OperationSourceLink } from "../../services/acp-
 import type { Operation, OperationState } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 
 const OPERATION_STORE_KEY = Symbol("operation-store");
@@ -396,6 +397,7 @@ export class OperationStore {
 			progressiveArguments: operation.progressiveArguments,
 			startedAtMs: operation.startedAtMs,
 			completedAtMs: operation.completedAtMs,
+			presentationStatus: mapOperationStateToToolPresentationStatus(operation.operationState),
 		};
 	}
 }

@@ -35,7 +35,6 @@ import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
 import { resolveToolCallEditDiffs } from "../../tool-calls/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
-import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
 export interface DesktopAgentPanelHeaderInput {
@@ -136,6 +135,10 @@ function mapToolStatus(
 	parentCompleted: boolean,
 	isActiveToolCall: boolean
 ): AgentToolStatus {
+	if (toolCall.presentationStatus !== undefined) {
+		return toolCall.presentationStatus;
+	}
+
 	if (toolCall.status === "failed") {
 		return "error";
 	}
@@ -233,6 +236,7 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 
 	if (
 		kind === "read" ||
+		kind === "read_lints" ||
 		kind === "edit" ||
 		kind === "delete" ||
 		kind === "execute" ||
@@ -253,6 +257,7 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): string {
 	if (kind === "execute") return "Run";
 	if (kind === "read") return "Read";
+	if (kind === "read_lints") return "Read lints";
 	if (kind === "edit") return "Edit";
 	if (kind === "delete") return "Delete";
 	if (kind === "search" || kind === "glob") return "Search";
@@ -671,8 +676,7 @@ function mapLintDiagnostics(toolCall: ToolCall):
 			severity?: string | null;
 	  }[]
 	| undefined {
-	const resolvedKind = toolCall.kind ?? "other";
-	if (resolveToolRouteKey(toolCall, resolvedKind) !== "read_lints") {
+	if (toolCall.kind !== "read_lints") {
 		return undefined;
 	}
 

@@ -5,11 +5,11 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 
 /**
  * Canonical agent identifier enum.
- * 
+ *
  * This enum represents all valid agent types in the system.
  * Parsers set the enum directly based on their context (no normalization needed).
  */
-export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | 
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" |
 /**
  * Custom agent registered by user
  */
@@ -17,36 +17,36 @@ export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode"
 
 export type SessionLifecycleState = "created" | "persisted"
 
-export type HistoryEntry = { 
+export type HistoryEntry = {
 /**
  * Database ID (UUID)
  */
-id: string; display: string; timestamp: number; project: string; sessionId: string; pastedContents?: JsonValue; agentId: CanonicalAgentId; updatedAt: number; 
+id: string; display: string; timestamp: number; project: string; sessionId: string; pastedContents?: JsonValue; agentId: CanonicalAgentId; updatedAt: number;
 /**
  * Source file path for direct retrieval (JSON transcript, store.db, or state.vscdb)
  */
-sourcePath?: string | null; 
+sourcePath?: string | null;
 /**
  * Parent session ID for subsessions (OpenCode only).
  */
-parentId?: string | null; 
+parentId?: string | null;
 /**
  * Optional worktree path when session operates in a git worktree.
  * Used for correct path conversion when creating checkpoints.
  */
-worktreePath?: string | null; 
+worktreePath?: string | null;
 /**
  * Associated pull request number when session references a PR (e.g. from OpenCode).
  */
-prNumber?: number | null; 
+prNumber?: number | null;
 /**
  * Ownership mode for the session-linked PR.
  */
-prLinkMode?: string | null; 
+prLinkMode?: string | null;
 /**
  * Whether the worktree path stored for this session no longer exists on disk.
  */
-worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null; 
+worktreeDeleted?: boolean | null; sessionLifecycleState?: SessionLifecycleState | null;
 /**
  * Per-project sequence ID for Acepe-native sessions (None for scanned sessions).
  */
@@ -54,12 +54,12 @@ sequenceId?: number | null }
 
 /**
  * Response wrapper for get_startup_sessions.
- * 
+ *
  * Carries the hydrated session entries plus a mapping from any requested
  * alias IDs (provider_session_id values) to their canonical Acepe session IDs.
  * This allows the frontend to remap panel session references before validation.
  */
-export type StartupSessionsResponse = { entries: HistoryEntry[]; 
+export type StartupSessionsResponse = { entries: HistoryEntry[];
 /**
  * Maps requested alias ID -> canonical session ID for sessions that were
  * matched by `provider_session_id` rather than the primary `id`.

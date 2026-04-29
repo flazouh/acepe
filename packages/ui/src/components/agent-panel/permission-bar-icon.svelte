@@ -22,7 +22,7 @@
 
 {#if kind === "edit"}
 	<PencilSimple weight="fill" {size} class="shrink-0" style="color: {color}" />
-{:else if kind === "read"}
+{:else if kind === "read" || kind === "read_lints"}
 	<File weight="fill" {size} class="shrink-0" style="color: {color}" />
 {:else if kind === "execute"}
 	<Terminal weight="fill" {size} class="shrink-0" style="color: {color}" />

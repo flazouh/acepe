@@ -10,7 +10,7 @@ import {
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 import { toAgentToolKind } from "./tool-kind-to-agent-tool-kind.js";
 
 interface Props {
@@ -35,11 +35,7 @@ const filePath = $derived(getToolKindFilePath(resolvedKind, toolCall));
 const agentKind = $derived<AgentToolKind>(toAgentToolKind(resolvedKind));
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 </script>
 
 <AgentToolRow

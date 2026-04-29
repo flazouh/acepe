@@ -32,6 +32,12 @@ impl OpenCodeAdapter {
         }
         if any_eq(
             name,
+            &["read_lints", "readlints", "read-lints", "read lints"],
+        ) {
+            return ToolKind::ReadLints;
+        }
+        if any_eq(
+            name,
             &[
                 "edit",
                 "editfile",
@@ -308,6 +314,10 @@ mod tests {
         assert_eq!(OpenCodeAdapter::normalize("read_file"), ToolKind::Read);
         assert_eq!(OpenCodeAdapter::normalize("cat"), ToolKind::Read);
         assert_eq!(OpenCodeAdapter::normalize("view"), ToolKind::Read);
+        assert_eq!(
+            OpenCodeAdapter::normalize("read_lints"),
+            ToolKind::ReadLints
+        );
     }
 
     #[test]

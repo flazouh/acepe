@@ -10,14 +10,12 @@ import type {
 	AgentPanelSidebarModel,
 	AgentPanelStripModel,
 	AgentToolEntry,
-	AgentToolStatus,
 	AnyAgentEntry,
 } from "@acepe/ui/agent-panel";
 import { AGENT_PANEL_ACTION_IDS } from "@acepe/ui/agent-panel";
 import type {
 	OperationDegradationReason,
 	OperationSnapshot,
-	OperationState,
 	SessionStateGraph,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
@@ -25,6 +23,7 @@ import { mapToolCallToSceneEntry } from "../components/agent-panel/scene/desktop
 import { mapCanonicalTurnStateToHotTurnState } from "../store/canonical-turn-state-mapping.js";
 import { normalizeToolResult } from "../store/services/tool-result-normalizer.js";
 import type { ToolCall } from "../types/tool-call.js";
+import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
 
@@ -107,28 +106,6 @@ function findOperationForTranscriptSourceEntry(
 	index: OperationIndex
 ): OperationSnapshot | null {
 	return index.byTranscriptSourceEntryId.get(entryId) ?? null;
-}
-
-function mapOperationStateToToolStatus(state: OperationState): AgentToolStatus {
-	if (state === "pending") {
-		return "pending";
-	}
-	if (state === "running") {
-		return "running";
-	}
-	if (state === "blocked") {
-		return "blocked";
-	}
-	if (state === "completed") {
-		return "done";
-	}
-	if (state === "cancelled") {
-		return "cancelled";
-	}
-	if (state === "degraded") {
-		return "degraded";
-	}
-	return "error";
 }
 
 function mapGraphStatus(graph: SessionStateGraph): AgentPanelSessionStatus {
@@ -266,6 +243,7 @@ function operationSnapshotToToolCall(operation: OperationSnapshot): ToolCall {
 		progressiveArguments: operation.progressive_arguments ?? undefined,
 		startedAtMs: operation.started_at_ms ?? undefined,
 		completedAtMs: operation.completed_at_ms ?? undefined,
+		presentationStatus: mapOperationStateToToolPresentationStatus(operation.operation_state),
 	};
 }
 
@@ -392,7 +370,7 @@ function materializeOperationEntry(
 		false,
 		null,
 		{
-			canonicalStatus: mapOperationStateToToolStatus(state),
+			canonicalStatus: mapOperationStateToToolPresentationStatus(state),
 			presentationState,
 			degradedReason:
 				state === "degraded" ? displaySafeDegradationReason(operation.degradation_reason) : null,

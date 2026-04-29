@@ -3,7 +3,7 @@ import { AgentToolRow } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 
 interface Props {
 	toolCall: ToolCall;
@@ -25,11 +25,7 @@ const description = $derived.by(() => {
 });
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 
 const title = $derived(toolCall.title ?? "Thinking");
 </script>

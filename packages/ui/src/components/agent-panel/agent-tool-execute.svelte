@@ -71,7 +71,19 @@
 		if (isPending) {
 			return durationLabel ? `Executing for ${durationLabel}` : runningLabel;
 		}
+		if (status === "blocked") return "Blocked";
+		if (status === "degraded") return "Degraded";
+		if (status === "cancelled") return "Cancelled";
+		if (status === "error") return "Command failed";
 		return durationLabel ? `Executed in ${durationLabel}` : finishedLabel;
+	});
+
+	const headerTextClass = $derived.by(() => {
+		if (status === "blocked") return "text-amber-600 dark:text-amber-400";
+		if (status === "degraded") return "text-orange-600 dark:text-orange-400";
+		if (status === "cancelled") return "text-muted-foreground/70";
+		if (status === "error") return "text-destructive";
+		return "text-muted-foreground";
 	});
 
 	const stderrColor = $derived(
@@ -108,7 +120,7 @@
 				{headerText}
 			</TextShimmer>
 		{:else}
-			<span class="flex-1 text-xs text-muted-foreground">
+			<span class="flex-1 text-xs {headerTextClass}">
 				{headerText}
 			</span>
 		{/if}

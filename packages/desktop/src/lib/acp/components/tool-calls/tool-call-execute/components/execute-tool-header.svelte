@@ -44,6 +44,9 @@ const effectiveToolStatus = $derived<ToolStatusResult>(
 		isInterrupted: false,
 		isSuccess: status === "completed",
 		isError: status === "failed",
+		isBlocked: false,
+		isCancelled: false,
+		isDegraded: false,
 	}
 );
 

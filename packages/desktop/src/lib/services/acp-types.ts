@@ -10,7 +10,7 @@ export type AvailableMode = { id: string; name: string; description?: string | n
 /**
  * Command input hint.
  */
-export type CommandInput = { 
+export type CommandInput = {
 /**
  * The hint can be a string or array in the protocol; we normalize to string.
  */
@@ -66,11 +66,11 @@ export type ResumeSessionResponse = { models?: SessionModelState; modes?: Sessio
 
 /**
  * Canonical agent identifier enum.
- * 
+ *
  * This enum represents all valid agent types in the system.
  * Parsers set the enum directly based on their context (no normalization needed).
  */
-export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | 
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" |
 /**
  * Custom agent registered by user
  */
@@ -79,7 +79,7 @@ export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
+export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.
@@ -90,27 +90,27 @@ export type ChunkAggregationHint = "boundaryCarryover"
 
 /**
  * A single file edit entry within an Edit tool call.
- * 
+ *
  * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
  * or Codex's multi-entry `changes` map). Each entry represents one file's change.
  */
-export type EditEntry = { 
+export type EditEntry = {
 /**
  * Path of the file being edited.
  */
-filePath?: string | null; 
+filePath?: string | null;
 /**
  * Original path when the edit entry represents a rename/move inside a multi-file edit patch.
  */
-moveFrom?: string | null; 
+moveFrom?: string | null;
 /**
  * Text being replaced (None = new file or full-file write).
  */
-oldString?: string | null; 
+oldString?: string | null;
 /**
  * Replacement text (standard edit).
  */
-newString?: string | null; 
+newString?: string | null;
 /**
  * Full file content (create/overwrite variant).
  */
@@ -123,11 +123,11 @@ export type ToolSourceRange = { startLine?: number | null; endLine?: number | nu
 
 /**
  * Structured provider-supplied read context (path excerpts, ranges, metadata).
- * 
+ *
  * Kept separate from [`ToolCallLocation`] (session routing) so read tools can carry
  * rich source metadata without overloading generic location lists (R13).
  */
-export type ToolSourceContext = { path?: string | null; viewRange?: ToolSourceRange | null; 
+export type ToolSourceContext = { path?: string | null; viewRange?: ToolSourceRange | null;
 /**
  * Line-numbered or plain excerpt text from the provider (not synthesized UI copy).
  */
@@ -137,10 +137,10 @@ excerpt?: string | null }
  * Tool arguments discriminated by tool kind.
  * Each variant contains exactly the fields needed for that tool type.
  */
-export type ToolArguments = { kind: "read"; file_path?: string | null; source_context?: ToolSourceContext | null } | 
+export type ToolArguments = { kind: "read"; file_path?: string | null; source_context?: ToolSourceContext | null } | { kind: "readLints"; raw: JsonValue } |
 /**
  * Edit tool arguments.
- * 
+ *
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
@@ -184,11 +184,11 @@ export type QuestionData = { id: string; sessionId: string; jsonRpcRequestId?: n
 /**
  * Payload for usage telemetry session update (generic, not provider-specific).
  */
-export type UsageTelemetryData = { sessionId: string; eventId?: string | null; 
+export type UsageTelemetryData = { sessionId: string; eventId?: string | null;
 /**
  * Scope of the telemetry (e.g. "step", later "turn").
  */
-scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceModelId?: string | null; timestampMs?: number | null; 
+scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceModelId?: string | null; timestampMs?: number | null;
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
@@ -223,43 +223,43 @@ export type PlanConfidence = "high" | "medium"
  * Plan data with steps and optional current step index.
  * Also supports streaming plan content from Edit tool writes.
  */
-export type PlanData = { steps: PlanStep[]; currentStep?: number | null; 
+export type PlanData = { steps: PlanStep[]; currentStep?: number | null;
 /**
  * Whether this payload currently represents an active plan.
  */
-hasPlan?: boolean; 
+hasPlan?: boolean;
 /**
  * Whether the plan content is still streaming (true) or complete (false).
  */
-streaming?: boolean; 
+streaming?: boolean;
 /**
  * The raw markdown content of the plan file (partial during streaming).
  */
-content?: string | null; 
+content?: string | null;
 /**
  * Normalized markdown content consumed by the frontend.
  */
-contentMarkdown?: string | null; 
+contentMarkdown?: string | null;
 /**
  * The file path where the plan is being written.
  */
-filePath?: string | null; 
+filePath?: string | null;
 /**
  * The plan title extracted from the first # heading.
  */
-title?: string | null; 
+title?: string | null;
 /**
  * Source quality of the signal.
  */
-source?: PlanSource | null; 
+source?: PlanSource | null;
 /**
  * Confidence of the signal.
  */
-confidence?: PlanConfidence | null; 
+confidence?: PlanConfidence | null;
 /**
  * Agent identifier that produced this plan.
  */
-agentId?: string | null; 
+agentId?: string | null;
 /**
  * Last update timestamp in milliseconds.
  */
@@ -299,7 +299,7 @@ export type TranscriptDelta = { eventSeq: number; sessionId: string; snapshotRev
 
 /**
  * Marker enum identifying the domain event kind.
- * 
+ *
  * Kept as a flat string enum for backward-compatible discrimination
  * in frontend subscribers (`event.kind === "..."` comparisons).
  * Typed payload data is carried in [`SessionDomainEvent::payload`].
@@ -308,7 +308,7 @@ export type SessionDomainEventKind = "session_identity_resolved" | "session_conn
 
 /**
  * Typed payload carried by a canonical domain event.
- * 
+ *
  * Each variant corresponds to a [`SessionDomainEventKind`] and carries the
  * structured data that downstream reducers and projections need.  Consumers
  * can switch on `event.kind` for quick discrimination and access the typed
@@ -318,7 +318,7 @@ export type SessionDomainEventPayload = { kind: "session_identity_resolved"; res
 
 /**
  * Canonical domain event envelope.
- * 
+ *
  * `kind` identifies the event type for quick string-based discrimination.
  * `payload` carries typed structured data — `None` only for events where
  * payloads are not yet wired at the emission site.
@@ -339,11 +339,11 @@ export type SkillMeta = { description?: string | null; filePath?: string | null 
  * Answered question data from toolUseResult field in JSONL.
  * Stores both the questions and the user's answers.
  */
-export type QuestionAnswer = { 
+export type QuestionAnswer = {
 /**
  * The questions that were asked
  */
-questions: QuestionItem[]; 
+questions: QuestionItem[];
 /**
  * Map of question text to answer(s) - value is string for single-select, array for multi-select
  */
@@ -361,7 +361,7 @@ export type OperationDegradationReason = { code: OperationDegradationCode; detai
 
 export type OperationSourceLink = { kind: "transcript_linked"; entry_id: string } | { kind: "synthetic"; reason: string } | { kind: "degraded"; reason: OperationDegradationReason }
 
-export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null; 
+export type OperationSnapshot = { id: string; session_id: string; tool_call_id: string; name: string; kind: ToolKind | null;
 /**
  * Provider-layer provenance status. Use `operation_state` for canonical state decisions.
  */
@@ -399,7 +399,7 @@ export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "
 
 export type LifecycleState = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null }
 
-export type LifecycleCheckpoint = { 
+export type LifecycleCheckpoint = {
 /**
  * Older persisted checkpoints may omit this field; treat as current version for migration.
  */
@@ -422,33 +422,33 @@ export type SessionOpenError = { requestedSessionId: string; message: string; re
 /**
  * Full payload for a `found` outcome.
  */
-export type SessionOpenFound = { 
+export type SessionOpenFound = {
 /**
  * The ID supplied by the caller (may be a provider-side alias).
  */
-requestedSessionId: string; 
+requestedSessionId: string;
 /**
  * The Acepe-local canonical session identifier.
  */
-canonicalSessionId: string; 
+canonicalSessionId: string;
 /**
  * `true` when `requested_session_id` differs from `canonical_session_id`
  * (i.e. the caller supplied a provider-side alias that was resolved to a
  * different canonical ID).
  */
-isAlias: boolean; 
+isAlias: boolean;
 /**
  * Proven journal cutoff.  `0` only when no journal events exist yet.
  */
-lastEventSeq: number; 
+lastEventSeq: number;
 /**
  * Canonical graph frontier at the proven cutoff.
- * 
+ *
  * During the compatibility window this may still be seeded from persisted
  * state that mirrors `last_event_seq`, but open/materialization paths must
  * carry it explicitly instead of re-deriving graph lineage from delivery.
  */
-graphRevision: number; 
+graphRevision: number;
 /**
  * Single-use attach token (UUID string).  All hub events for this session
  * published after this token is armed are buffered in the `event_hub`
@@ -465,15 +465,15 @@ export type SessionOpenMissing = { requestedSessionId: string }
 
 /**
  * The unified outcome of a session-open request.
- * 
+ *
  * Returned by every session entry point (new, resume, history open).  The
  * frontend MUST NOT fetch projection state separately after receiving a
  * `Found` result; everything needed before live connect begins is included.
  */
-export type SessionOpenResult = 
+export type SessionOpenResult =
 /**
  * Session was found; all pre-connect state is fully populated.
- * 
+ *
  * `Box`ed to keep the enum size bounded — `SessionOpenFound` carries
  * the full projection snapshot, which is significantly larger than the
  * `Missing` and `Error` payloads.

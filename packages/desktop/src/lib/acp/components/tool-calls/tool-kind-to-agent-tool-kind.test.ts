@@ -5,6 +5,7 @@ import { toAgentToolKind } from "./tool-kind-to-agent-tool-kind.js";
 describe("toAgentToolKind", () => {
 	it("maps shared-compatible tool kinds directly", () => {
 		expect(toAgentToolKind("read")).toBe("read");
+		expect(toAgentToolKind("read_lints")).toBe("read_lints");
 		expect(toAgentToolKind("task")).toBe("task");
 		expect(toAgentToolKind("task_output")).toBe("task_output");
 		expect(toAgentToolKind("browser")).toBe("browser");

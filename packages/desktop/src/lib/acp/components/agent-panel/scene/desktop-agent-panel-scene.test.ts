@@ -490,7 +490,7 @@ describe("desktop agent panel scene adapter", () => {
 				message: {
 					id: "lint-1",
 					name: "read_lints",
-					arguments: { kind: "other", raw: {} },
+					arguments: { kind: "readLints", raw: {} },
 					rawInput: null,
 					status: "completed",
 					result: {
@@ -500,7 +500,7 @@ describe("desktop agent panel scene adapter", () => {
 							{ filePath: "src/lib/auth.ts", line: 42, message: "Boom", severity: "error" },
 						],
 					},
-					kind: "other",
+					kind: "read_lints",
 					title: "Read lints",
 					locations: null,
 					skillMeta: null,
@@ -640,15 +640,11 @@ describe("desktop agent panel scene adapter", () => {
 		});
 		expect(conversation.entries[5]).toMatchObject({
 			type: "tool_call",
-			lintDiagnostics: [
-				{
-					filePath: "src/routes/+page.svelte",
-					line: 7,
-					message: "Unused export",
-					severity: "warning",
-				},
-			],
+			kind: "read",
 		});
+		expect(conversation.entries[5]?.type === "tool_call" ? conversation.entries[5].lintDiagnostics : null).toBe(
+			undefined
+		);
 		expect(conversation.entries[6]).toMatchObject({
 			type: "tool_call",
 			kind: "task_output",

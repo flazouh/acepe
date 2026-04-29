@@ -101,6 +101,19 @@ mod tests {
     }
 
     #[test]
+    fn detects_read_lints_through_provider_classifiers() {
+        for agent in [
+            AgentType::ClaudeCode,
+            AgentType::Copilot,
+            AgentType::Cursor,
+            AgentType::Codex,
+            AgentType::OpenCode,
+        ] {
+            assert_eq!(detect_tool_kind(agent, "read_lints"), ToolKind::ReadLints);
+        }
+    }
+
+    #[test]
     fn uses_argument_shape_when_provider_lookup_misses() {
         let output = classify(
             AgentType::Copilot,
@@ -121,5 +134,22 @@ mod tests {
             output.arguments,
             ToolArguments::Think { raw: Some(_), .. }
         ));
+    }
+
+    #[test]
+    fn detects_read_lints_from_title_when_provider_name_is_unknown() {
+        let output = classify(
+            AgentType::Copilot,
+            &RawClassificationInput {
+                id: "tool-read-lints",
+                name: Some("unknown"),
+                title: Some("Read Lints"),
+                kind_hint: Some("other"),
+                arguments: &serde_json::json!({ "diagnostics": [] }),
+            },
+        );
+
+        assert_eq!(output.kind, ToolKind::ReadLints);
+        assert!(matches!(output.arguments, ToolArguments::ReadLints { .. }));
     }
 }

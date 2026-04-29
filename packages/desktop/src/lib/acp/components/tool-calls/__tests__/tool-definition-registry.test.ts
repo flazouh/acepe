@@ -66,10 +66,25 @@ describe("tool definition registry", () => {
 		});
 	});
 
-	it("uses the same registry for route aliases like read_lints", () => {
+	it("uses the canonical registry entry for read_lints", () => {
 		const definition = getToolDefinition(
 			createToolCall({
 				id: "tool-2",
+				name: "read_lints",
+				kind: "read_lints",
+				title: "Read Lints",
+				arguments: { kind: "readLints", raw: {} },
+			})
+		);
+
+		expect(definition.rendererKey).toBe("read_lints");
+		expect(definition).toHaveProperty("component");
+	});
+
+	it("does not treat raw read_lints names as routing aliases", () => {
+		const definition = getToolDefinition(
+			createToolCall({
+				id: "tool-3",
 				name: "read_lints",
 				kind: "read",
 				title: "Read Lints",
@@ -77,8 +92,7 @@ describe("tool definition registry", () => {
 			})
 		);
 
-		expect(definition.rendererKey).toBe("read_lints");
-		expect(definition).toHaveProperty("component");
+		expect(definition.rendererKey).toBe("read");
 	});
 
 	it("builds browser entries with script and result details for shared previews", () => {

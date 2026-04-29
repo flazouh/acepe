@@ -2,7 +2,7 @@
 import { AgentToolBrowser } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 import { extractBrowserDetailsText, extractBrowserScriptText } from "./browser-tool-display.js";
 
 interface Props {
@@ -16,11 +16,7 @@ let { toolCall, turnState, elapsedLabel }: Props = $props();
 
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
 
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 
 const title = $derived(formatBrowserToolTitle(toolCall.name));
 const subtitle = $derived(extractBrowserSubtitle(toolCall));

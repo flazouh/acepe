@@ -20,10 +20,20 @@ interface ToolCallTiming {
 	completedAtMs?: number;
 }
 
+export type ToolPresentationStatus =
+	| "pending"
+	| "running"
+	| "done"
+	| "error"
+	| "blocked"
+	| "cancelled"
+	| "degraded";
+
 export interface ToolCall extends _ToolCallData, ToolCallTiming {
 	progressiveArguments?: ToolArguments;
 	normalizedResult?: NormalizedToolResult | null;
 	taskChildren?: ToolCall[] | null;
+	presentationStatus?: ToolPresentationStatus;
 }
 
 // Legacy aliases for backward compatibility

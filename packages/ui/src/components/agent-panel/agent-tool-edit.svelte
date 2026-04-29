@@ -71,6 +71,9 @@ interface Props {
 	awaitingApprovalLabel?: string;
 	interruptedLabel?: string;
 	failedLabel?: string;
+	blockedLabel?: string;
+	cancelledLabel?: string;
+	degradedLabel?: string;
 	pendingLabel?: string;
 	preparingLabel?: string;
 	ariaCollapseDiff?: string;
@@ -104,6 +107,9 @@ let {
 	awaitingApprovalLabel = "Awaiting Approval",
 	interruptedLabel = "Interrupted",
 	failedLabel = "Failed",
+	blockedLabel = "Blocked",
+	cancelledLabel = "Cancelled",
+	degradedLabel = "Degraded",
 	pendingLabel = "Pending",
 	preparingLabel = "Preparing edit…",
 	ariaCollapseDiff = "Collapse diff",
@@ -185,6 +191,12 @@ function expand() {
 							{interruptedLabel}
 						{:else if headerState === "failed"}
 							{failedLabel}
+						{:else if headerState === "blocked"}
+							{blockedLabel}
+						{:else if headerState === "cancelled"}
+							{cancelledLabel}
+						{:else if headerState === "degraded"}
+							{degradedLabel}
 						{:else}
 							{pendingLabel}
 						{/if}
@@ -212,6 +224,12 @@ function expand() {
 							{interruptedLabel}
 						{:else if headerState === "failed"}
 							{failedLabel}
+						{:else if headerState === "blocked"}
+							{blockedLabel}
+						{:else if headerState === "cancelled"}
+							{cancelledLabel}
+						{:else if headerState === "degraded"}
+							{degradedLabel}
 						{:else}
 							{pendingLabel}
 						{/if}

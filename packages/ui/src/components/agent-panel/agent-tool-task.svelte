@@ -43,6 +43,21 @@
 
 	const isPending = $derived(status === "pending" || status === "running");
 	const isDone = $derived(status === "done");
+	const titleText = $derived.by(() => {
+		if (isPending) return description ?? runningFallback;
+		if (status === "blocked") return description ?? "Blocked";
+		if (status === "degraded") return description ?? "Degraded";
+		if (status === "cancelled") return description ?? "Cancelled";
+		if (status === "error") return description ?? "Task failed";
+		return description ?? doneFallback;
+	});
+	const titleToneClass = $derived.by(() => {
+		if (status === "blocked") return "text-amber-600 dark:text-amber-400";
+		if (status === "degraded") return "text-orange-600 dark:text-orange-400";
+		if (status === "cancelled") return "text-muted-foreground/70";
+		if (status === "error") return "text-destructive";
+		return "text-muted-foreground";
+	});
 
 	const taskChildren = $derived(Array.from(children));
 
@@ -103,10 +118,10 @@
 			<span class={titleClass}>
 				{#if isPending}
 					<TextShimmer class="font-medium text-muted-foreground">
-						{description ?? runningFallback}
+						{titleText}
 					</TextShimmer>
 				{:else}
-					<span class="font-medium text-muted-foreground">{description ?? doneFallback}</span>
+					<span class="font-medium {titleToneClass}">{titleText}</span>
 				{/if}
 			</span>
 		</div>

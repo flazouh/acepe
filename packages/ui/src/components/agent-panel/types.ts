@@ -30,6 +30,7 @@ export type AgentToolPresentationState =
  */
 export type AgentToolKind =
 	| "read"
+	| "read_lints"
 	| "edit"
 	| "delete"
 	| "write"

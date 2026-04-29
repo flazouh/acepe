@@ -183,6 +183,8 @@ export function mergeTranscriptToolArguments(
 					nextArgs.source_context ?? null
 				),
 			};
+		case "readLints":
+			return nextArgs;
 		case "edit":
 			if (nextArgs.kind !== "edit") return nextArgs;
 			return {

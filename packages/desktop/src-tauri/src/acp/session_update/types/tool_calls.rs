@@ -14,6 +14,7 @@ use crate::acp::session_update::normalize::derive_normalized_questions_and_todos
 #[serde(rename_all = "snake_case")]
 pub enum ToolKind {
     Read,
+    ReadLints,
     Edit,
     Execute,
     Search,
@@ -43,6 +44,7 @@ impl ToolKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             ToolKind::Read => "read",
+            ToolKind::ReadLints => "read_lints",
             ToolKind::Edit => "edit",
             ToolKind::Execute => "execute",
             ToolKind::Search => "search",
@@ -163,6 +165,9 @@ pub enum ToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         source_context: Option<ToolSourceContext>,
     },
+    ReadLints {
+        raw: serde_json::Value,
+    },
     /// Edit tool arguments.
     ///
     /// `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
@@ -275,6 +280,7 @@ impl ToolArguments {
     pub fn tool_kind(&self) -> ToolKind {
         match self {
             ToolArguments::Read { .. } => ToolKind::Read,
+            ToolArguments::ReadLints { .. } => ToolKind::ReadLints,
             ToolArguments::Edit { .. } => ToolKind::Edit,
             ToolArguments::Execute { .. } => ToolKind::Execute,
             ToolArguments::Search { .. } => ToolKind::Search,

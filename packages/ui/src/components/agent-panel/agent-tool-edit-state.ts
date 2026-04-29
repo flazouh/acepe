@@ -5,7 +5,10 @@ export type AgentToolEditHeaderState =
   | "edited"
   | "awaitingApproval"
   | "interrupted"
-  | "failed";
+  | "failed"
+  | "blocked"
+  | "cancelled"
+  | "degraded";
 
 export function isEditInProgress(status: AgentToolStatus): boolean {
   return status === "pending" || status === "running";
@@ -17,6 +20,9 @@ export function resolveEditHeaderState(
   awaitingApproval: boolean,
 ): AgentToolEditHeaderState {
   if (status === "error") return "failed";
+  if (status === "blocked") return "blocked";
+  if (status === "cancelled") return "cancelled";
+  if (status === "degraded") return "degraded";
   // Permission / plan gates should read above streaming or “applied” transcript hints.
   if (awaitingApproval) return "awaitingApproval";
   if (isEditInProgress(status)) return "editing";

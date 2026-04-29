@@ -14,7 +14,6 @@ import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import { extractBrowserScriptText } from "./browser-tool-display.js";
-import { resolveToolRouteKey, type ToolRouteKey } from "./resolve-tool-operation.js";
 import ToolCallBrowser from "./tool-call-browser.svelte";
 import ToolCallCreatePlan from "./tool-call-create-plan.svelte";
 import ToolCallDelete from "./tool-call-delete.svelte";
@@ -58,7 +57,7 @@ export type CompactToolDisplay = Pick<
 >;
 
 export interface ToolDefinition {
-	rendererKey: ToolRouteKey;
+	rendererKey: ToolKind;
 	component: Component<ToolDetailComponentProps>;
 	buildFullEntry: (options: ToolDisplayOptions) => AgentToolEntry;
 	buildCompactEntry: (options: ToolDisplayOptions) => CompactToolDisplay;
@@ -100,6 +99,10 @@ function mapAgentToolStatus(
 	turnState: TurnState | undefined,
 	parentCompleted: boolean
 ): AgentToolStatus {
+	if (toolCall.presentationStatus !== undefined) {
+		return toolCall.presentationStatus;
+	}
+
 	if (toolCall.status === "failed") {
 		return "error";
 	}
@@ -182,7 +185,7 @@ function buildDefaultFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 }
 
 function createToolDefinition(
-	rendererKey: ToolRouteKey,
+	rendererKey: ToolKind,
 	component: Component<ToolDetailComponentProps>
 ): ToolDefinition {
 	return {
@@ -234,7 +237,7 @@ function buildBrowserFullEntry(options: ToolDisplayOptions): AgentToolEntry {
 	};
 }
 
-const TOOL_DEFINITIONS: Partial<Record<ToolRouteKey, ToolDefinition>> = {
+const TOOL_DEFINITIONS: Partial<Record<ToolKind, ToolDefinition>> = {
 	read: createToolDefinition("read", ToolCallRead),
 	read_lints: createToolDefinition("read_lints", ToolCallReadLints),
 	edit: createToolDefinition("edit", ToolCallEdit),
@@ -272,8 +275,7 @@ const FALLBACK_TOOL_DEFINITION = createToolDefinition("other", ToolCallFallback)
 
 export function getToolDefinition(toolCall: ToolCall, toolKind?: ToolKind | null): ToolDefinition {
 	const resolvedKind = toolKind ?? toolCall.kind ?? "other";
-	const routeKey = resolveToolRouteKey(toolCall, resolvedKind);
-	return TOOL_DEFINITIONS[routeKey] ?? FALLBACK_TOOL_DEFINITION;
+	return TOOL_DEFINITIONS[resolvedKind] ?? FALLBACK_TOOL_DEFINITION;
 }
 
 export function resolveFullToolEntry(options: ToolDisplayOptions): AgentToolEntry {

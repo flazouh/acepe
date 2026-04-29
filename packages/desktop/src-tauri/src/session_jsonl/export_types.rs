@@ -238,6 +238,18 @@ fn ts_config() -> Typescript {
     Typescript::default().bigint(specta_typescript::BigIntExportBehavior::Number)
 }
 
+fn trim_generated_trailing_whitespace(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    for line in input.lines() {
+        output.push_str(line.trim_end());
+        output.push('\n');
+    }
+    if !input.ends_with('\n') {
+        output.pop();
+    }
+    output
+}
+
 /// Exports all TypeScript types for session_jsonl module
 pub fn export_all_types() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
@@ -260,7 +272,11 @@ pub fn export_all_types() {
         canonical_agent_id_type, session_lifecycle_state_type, history_types, startup_sessions_response_type
     );
     let history_path = Path::new(manifest_dir).join(CLAUDE_HISTORY_TYPES_PATH);
-    fs::write(&history_path, history_output).expect("Failed to write claude-history-types.ts");
+    fs::write(
+        &history_path,
+        trim_generated_trailing_whitespace(&history_output),
+    )
+    .expect("Failed to write claude-history-types.ts");
     eprintln!("Exported HistoryEntry to {}", history_path.display());
 
     // Export session update and stored entry types to converted-session-types.ts
@@ -342,8 +358,11 @@ pub fn export_all_types() {
     export_type!(FileExplorerPreviewResponse);
 
     let converted_path = Path::new(manifest_dir).join(CONVERTED_SESSION_TYPES_PATH);
-    fs::write(&converted_path, converted_types)
-        .expect("Failed to write converted-session-types.ts");
+    fs::write(
+        &converted_path,
+        trim_generated_trailing_whitespace(&converted_types),
+    )
+    .expect("Failed to write converted-session-types.ts");
     eprintln!(
         "Exported session update types to {}",
         converted_path.display()
@@ -490,7 +509,8 @@ pub fn export_all_types() {
     acp_types.push('\n');
 
     let acp_path = Path::new(manifest_dir).join(ACP_TYPES_PATH);
-    fs::write(&acp_path, acp_types).expect("Failed to write acp-types.ts");
+    fs::write(&acp_path, trim_generated_trailing_whitespace(&acp_types))
+        .expect("Failed to write acp-types.ts");
     eprintln!("Exported ACP types to {}", acp_path.display());
 
     // Export checkpoint types
@@ -501,7 +521,11 @@ pub fn export_all_types() {
         checkpoint_types
     );
     let checkpoint_path = Path::new(manifest_dir).join(CHECKPOINT_TYPES_PATH);
-    fs::write(&checkpoint_path, checkpoint_output).expect("Failed to write checkpoint-types.ts");
+    fs::write(
+        &checkpoint_path,
+        trim_generated_trailing_whitespace(&checkpoint_output),
+    )
+    .expect("Failed to write checkpoint-types.ts");
     eprintln!("Exported checkpoint types to {}", checkpoint_path.display());
 
     eprintln!("TypeScript types exported successfully");

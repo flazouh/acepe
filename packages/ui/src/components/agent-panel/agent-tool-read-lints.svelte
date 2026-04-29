@@ -46,6 +46,14 @@
 	}: Props = $props();
 
 	const isPending = $derived(status === "pending" || status === "running");
+	const labelText = $derived.by(() => {
+		if (status === "blocked") return "Blocked";
+		if (status === "degraded") return "Degraded";
+		if (status === "cancelled") return "Cancelled";
+		if (status === "error") return "Lint check failed";
+		if (isPending) return runningLabel;
+		return doneLabel;
+	});
 	const hasContent = $derived(
 		!isPending && (totalDiagnostics > 0 || totalFiles > 0 || (diagnostics?.length ?? 0) > 0)
 	);
@@ -77,11 +85,7 @@
 	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-xs">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
 			<ToolLabel {status}>
-				{#if isPending}
-					{runningLabel}
-				{:else}
-					{doneLabel}
-				{/if}
+				{labelText}
 			</ToolLabel>
 			{#if isPending}
 				<TextShimmer class="text-muted-foreground" duration={1.2}>

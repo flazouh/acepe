@@ -60,13 +60,13 @@
 		status={entry.status}
 		isInteractive={entry.status === "running"}
 	/>
-{:else if isToolCall(entry) && entry.lintDiagnostics !== undefined}
+{:else if isToolCall(entry) && (entry.kind === "read_lints" || entry.lintDiagnostics !== undefined)}
 	<AgentToolReadLints
 		status={entry.status}
-		totalDiagnostics={entry.lintDiagnostics.length}
+		totalDiagnostics={entry.lintDiagnostics?.length ?? 0}
 		totalFiles={lintFileCount}
-		diagnostics={entry.lintDiagnostics}
-		summaryLabel={`${entry.lintDiagnostics.length} issues in ${lintFileCount} files`}
+		diagnostics={entry.lintDiagnostics ?? null}
+		summaryLabel={`${entry.lintDiagnostics?.length ?? 0} issues in ${lintFileCount} files`}
 	/>
 {:else if isToolCall(entry) && entry.kind === "read"}
 	<AgentToolRead

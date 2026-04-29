@@ -5,7 +5,7 @@ import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { stripAnsiCodes } from "../../utils/ansi-utils.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 import { bashHighlighter } from "../../utils/bash-highlighter.svelte.js";
 import { resolveExecuteCommand } from "./tool-call-execute/logic/resolve-execute-command.js";
 import { resolveExecuteDisplayResult } from "./tool-result-display.js";
@@ -44,11 +44,7 @@ const extractedCommand = $derived(
 const parsedResult = $derived(resolveExecuteDisplayResult(toolCall));
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 
 // Shiki bash highlighting — bashHighlighter.ready is reactive ($state)
 const commandHtmls = $derived(

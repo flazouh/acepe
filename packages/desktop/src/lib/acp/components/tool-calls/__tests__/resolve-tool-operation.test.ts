@@ -66,7 +66,22 @@ describe("resolveToolOperation", () => {
 		expect(resolved.shouldShowInlinePermissionActionBar).toBe(true);
 	});
 
-	it("routes read lints tool calls to the read-lints component key", () => {
+	it("routes canonical read_lints tool calls to the read-lints component key", () => {
+		const resolved = resolveToolOperation(
+			createToolCall({
+				name: "read_lints",
+				kind: "read_lints",
+				arguments: { kind: "readLints", raw: {} },
+				title: "Read Lints",
+			}),
+			null
+		);
+
+		expect(resolved.routeKey).toBe("read_lints");
+		expect(resolved.resolvedKind).toBe("read_lints");
+	});
+
+	it("does not route raw read_lints names without canonical kind", () => {
 		const resolved = resolveToolOperation(
 			createToolCall({
 				name: "read_lints",
@@ -77,7 +92,7 @@ describe("resolveToolOperation", () => {
 			null
 		);
 
-		expect(resolved.routeKey).toBe("read_lints");
+		expect(resolved.routeKey).toBe("read");
 		expect(resolved.resolvedKind).toBe("read");
 	});
 

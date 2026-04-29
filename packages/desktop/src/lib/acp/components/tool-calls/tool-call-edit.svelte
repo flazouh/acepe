@@ -10,7 +10,11 @@ import {
 	pierreDiffsUnsafeCSS,
 	registerCursorThemeForPierreDiffs,
 } from "../../utils/pierre-diffs-theme.js";
-import { getToolStatus, type ToolStatusTurnState } from "../../utils/tool-state-utils.js";
+import {
+	getToolPresentationStatus,
+	getToolStatus,
+	type ToolStatusTurnState,
+} from "../../utils/tool-state-utils.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 import { extractPermissionFilePath } from "./permission-display.js";
 import { resolveToolCallEditDiffs } from "./tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
@@ -38,7 +42,7 @@ const panelStore = getPanelStore();
 const sessionContext = useSessionContext();
 const ownerPanelId = $derived(sessionContext?.panelId);
 const themeState = useTheme();
-const toolStatus = $derived(getToolStatus(toolCall, turnState));
+const toolStatus = $derived(getToolStatus(toolCall, turnState ?? undefined));
 const locationFilePath = $derived(toolCall.locations?.[0]?.path ?? null);
 const permissionFilePath = $derived(
 	pendingPermission ? extractPermissionFilePath(pendingPermission) : null
@@ -90,11 +94,7 @@ const isStreaming = $derived(
 const isDiffStreaming = $derived(pendingPermission ? false : isStreaming);
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState ?? undefined));
 const isApplied = $derived(toolStatus.isSuccess);
 const isAwaitingApproval = $derived(
 	Boolean(pendingPermission) && !isApplied && !toolStatus.isError

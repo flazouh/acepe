@@ -13,11 +13,11 @@ export type UsageTelemetryTokens = { total?: number | null; input?: number | nul
 /**
  * Payload for usage telemetry session update (generic, not provider-specific).
  */
-export type UsageTelemetryData = { sessionId: string; eventId?: string | null; 
+export type UsageTelemetryData = { sessionId: string; eventId?: string | null;
 /**
  * Scope of the telemetry (e.g. "step", later "turn").
  */
-scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceModelId?: string | null; timestampMs?: number | null; 
+scope?: string; costUsd?: number | null; tokens?: UsageTelemetryTokens; sourceModelId?: string | null; timestampMs?: number | null;
 /**
  * Context window size reported by the agent (e.g. from usage_update `size` field).
  */
@@ -25,34 +25,34 @@ contextWindowSize?: number | null }
 
 /**
  * Session update types from ACP protocol.
- * 
+ *
  * These are notifications sent by the agent during a prompt response.
  * They represent streaming updates to the session state.
- * 
+ *
  * Uses internally tagged representation with `type` field for clean TypeScript discrimination.
  * Example: `{ "type": "toolCall", "tool_call": {...}, "session_id": "..." }`
  */
-export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; session_id?: string | null } | { type: "agentMessageChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null } | { type: "agentThoughtChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null } | { type: "toolCall"; tool_call: ToolCallData; session_id?: string | null } | { type: "toolCallUpdate"; update: ToolCallUpdateData; session_id?: string | null } | { type: "plan"; plan: PlanData; session_id?: string | null } | { type: "availableCommandsUpdate"; update: AvailableCommandsData; session_id?: string | null } | { type: "currentModeUpdate"; update: CurrentModeData; session_id?: string | null } | { type: "configOptionUpdate"; update: ConfigOptionUpdateData; session_id?: string | null } | { type: "permissionRequest"; permission: PermissionData; session_id?: string | null } | { type: "questionRequest"; question: QuestionData; session_id?: string | null } | 
+export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; session_id?: string | null } | { type: "agentMessageChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null } | { type: "agentThoughtChunk"; chunk: ContentChunk; part_id?: string | null; message_id?: string | null; session_id?: string | null } | { type: "toolCall"; tool_call: ToolCallData; session_id?: string | null } | { type: "toolCallUpdate"; update: ToolCallUpdateData; session_id?: string | null } | { type: "plan"; plan: PlanData; session_id?: string | null } | { type: "availableCommandsUpdate"; update: AvailableCommandsData; session_id?: string | null } | { type: "currentModeUpdate"; update: CurrentModeData; session_id?: string | null } | { type: "configOptionUpdate"; update: ConfigOptionUpdateData; session_id?: string | null } | { type: "permissionRequest"; permission: PermissionData; session_id?: string | null } | { type: "questionRequest"; question: QuestionData; session_id?: string | null } |
 /**
  * Indicates that the current turn/prompt has completed.
  * This is emitted when the JSON-RPC response for a prompt request is received.
  */
-{ type: "turnComplete"; session_id?: string | null; turn_id?: string | null } | 
+{ type: "turnComplete"; session_id?: string | null; turn_id?: string | null } |
 /**
  * Indicates that the current turn/prompt failed with an error.
  * This is emitted when the JSON-RPC response contains an error.
  */
-{ type: "turnError"; error: TurnErrorData; session_id?: string | null; turn_id?: string | null } | 
+{ type: "turnError"; error: TurnErrorData; session_id?: string | null; turn_id?: string | null } |
 /**
  * Usage/cost and token telemetry from the agent (adapter-agnostic).
  * Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
  */
-{ type: "usageTelemetryUpdate"; data: UsageTelemetryData } | 
+{ type: "usageTelemetryUpdate"; data: UsageTelemetryData } |
 /**
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } | 
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } |
 /**
  * Emitted by the async resume task when session connection fails.
  */
@@ -62,7 +62,7 @@ export type ChunkAggregationHint = "boundaryCarryover"
 
 /**
  * ContentChunk represents a chunk of content being streamed.
- * 
+ *
  * This handles both direct format `{ content: ContentBlock }`
  * and nested format `{ chunk: { content: ContentBlock } }`.
  */
@@ -71,39 +71,39 @@ export type ContentChunk = { content: ContentBlock; aggregationHint?: ChunkAggre
 /**
  * Tool call data.
  */
-export type ToolCallData = { id: string; name: string; arguments: ToolArguments; rawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null; 
+export type ToolCallData = { id: string; name: string; arguments: ToolArguments; rawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null;
 /**
  * Normalized questions extracted from question tool calls.
  * This provides a unified format for questions across all agents.
  */
-normalizedQuestions?: QuestionItem[] | null; 
+normalizedQuestions?: QuestionItem[] | null;
 /**
  * Normalized todos extracted from TodoWrite tool calls.
  * This provides a unified format for todos across all agents.
  */
-normalizedTodos?: TodoItem[] | null; 
+normalizedTodos?: TodoItem[] | null;
 /**
  * Semantic todo update derived from provider tool calls while preserving transport provenance.
  */
-normalizedTodoUpdate?: TodoUpdate | null; 
+normalizedTodoUpdate?: TodoUpdate | null;
 /**
  * Parent task ID for nested tool calls.
  */
-parentToolUseId?: string | null; 
+parentToolUseId?: string | null;
 /**
  * Child tool calls belonging to this task.
  */
-taskChildren?: ToolCallData[] | null; 
+taskChildren?: ToolCallData[] | null;
 /**
  * Answered question data (questions + user's answers).
  * Present when this is a question tool call that has been answered.
  */
-questionAnswer?: QuestionAnswer | null; 
+questionAnswer?: QuestionAnswer | null;
 /**
  * Whether this tool call is awaiting plan approval from the user.
  * Set on `cursor/create_plan` tool calls; the user must approve or reject before the agent continues.
  */
-awaitingPlanApproval: boolean; 
+awaitingPlanApproval: boolean;
 /**
  * JSON-RPC request ID to use when responding to plan approval.
  * Present when `awaiting_plan_approval` is true.
@@ -112,27 +112,27 @@ planApprovalRequestId?: number | null }
 
 /**
  * A single file edit entry within an Edit tool call.
- * 
+ *
  * A single `Edit` tool call may touch multiple files (e.g., OpenCode's `patch` tool
  * or Codex's multi-entry `changes` map). Each entry represents one file's change.
  */
-export type EditEntry = { 
+export type EditEntry = {
 /**
  * Path of the file being edited.
  */
-filePath?: string | null; 
+filePath?: string | null;
 /**
  * Original path when the edit entry represents a rename/move inside a multi-file edit patch.
  */
-moveFrom?: string | null; 
+moveFrom?: string | null;
 /**
  * Text being replaced (None = new file or full-file write).
  */
-oldString?: string | null; 
+oldString?: string | null;
 /**
  * Replacement text (standard edit).
  */
-newString?: string | null; 
+newString?: string | null;
 /**
  * Full file content (create/overwrite variant).
  */
@@ -145,11 +145,11 @@ export type ToolSourceRange = { startLine?: number | null; endLine?: number | nu
 
 /**
  * Structured provider-supplied read context (path excerpts, ranges, metadata).
- * 
+ *
  * Kept separate from [`ToolCallLocation`] (session routing) so read tools can carry
  * rich source metadata without overloading generic location lists (R13).
  */
-export type ToolSourceContext = { path?: string | null; viewRange?: ToolSourceRange | null; 
+export type ToolSourceContext = { path?: string | null; viewRange?: ToolSourceRange | null;
 /**
  * Line-numbered or plain excerpt text from the provider (not synthesized UI copy).
  */
@@ -159,10 +159,10 @@ excerpt?: string | null }
  * Tool arguments discriminated by tool kind.
  * Each variant contains exactly the fields needed for that tool type.
  */
-export type ToolArguments = { kind: "read"; file_path?: string | null; source_context?: ToolSourceContext | null } | 
+export type ToolArguments = { kind: "read"; file_path?: string | null; source_context?: ToolSourceContext | null } | { kind: "readLints"; raw: JsonValue } |
 /**
  * Edit tool arguments.
- * 
+ *
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
@@ -171,32 +171,32 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
 /**
  * Tool call update data.
  */
-export type ToolCallUpdateData = { toolCallId: string; status?: ToolCallStatus | null; result?: JsonValue | null; content?: ContentBlock[] | null; rawOutput?: JsonValue | null; title?: string | null; locations?: ToolCallLocation[] | null; 
+export type ToolCallUpdateData = { toolCallId: string; status?: ToolCallStatus | null; result?: JsonValue | null; content?: ContentBlock[] | null; rawOutput?: JsonValue | null; title?: string | null; locations?: ToolCallLocation[] | null;
 /**
  * Streaming input delta - partial JSON string for progressive tool input display.
  * Extracted from _meta.claudeCode.streamingInputDelta.
  */
-streamingInputDelta?: string | null; 
+streamingInputDelta?: string | null;
 /**
  * Progressive normalized todos from streaming input.
  * Populated by the streaming accumulator for TodoWrite-like tools.
  */
-normalizedTodos?: TodoItem[] | null; 
+normalizedTodos?: TodoItem[] | null;
 /**
  * Progressive normalized questions from streaming input.
  * Populated by the streaming accumulator for AskUserQuestion-like tools.
  */
-normalizedQuestions?: QuestionItem[] | null; 
+normalizedQuestions?: QuestionItem[] | null;
 /**
  * Pre-parsed streaming arguments for progressive tool input display.
  * Produced by the streaming accumulator when partial JSON parse succeeds.
  */
-streamingArguments?: ToolArguments | null; 
+streamingArguments?: ToolArguments | null;
 /**
  * Typed tool arguments from rawInput in tool_call_update.
  * Upstream v0.18+ sends rawInput in the update, not the initial tool_call.
  */
-arguments?: ToolArguments | null; 
+arguments?: ToolArguments | null;
 /**
  * Human-readable reason when status is `Failed`.
  * Distinguishes user-denied permissions ("Permission denied by user")
@@ -208,43 +208,43 @@ failureReason?: string | null }
  * Plan data with steps and optional current step index.
  * Also supports streaming plan content from Edit tool writes.
  */
-export type PlanData = { steps: PlanStep[]; currentStep?: number | null; 
+export type PlanData = { steps: PlanStep[]; currentStep?: number | null;
 /**
  * Whether this payload currently represents an active plan.
  */
-hasPlan?: boolean; 
+hasPlan?: boolean;
 /**
  * Whether the plan content is still streaming (true) or complete (false).
  */
-streaming?: boolean; 
+streaming?: boolean;
 /**
  * The raw markdown content of the plan file (partial during streaming).
  */
-content?: string | null; 
+content?: string | null;
 /**
  * Normalized markdown content consumed by the frontend.
  */
-contentMarkdown?: string | null; 
+contentMarkdown?: string | null;
 /**
  * The file path where the plan is being written.
  */
-filePath?: string | null; 
+filePath?: string | null;
 /**
  * The plan title extracted from the first # heading.
  */
-title?: string | null; 
+title?: string | null;
 /**
  * Source quality of the signal.
  */
-source?: PlanSource | null; 
+source?: PlanSource | null;
 /**
  * Confidence of the signal.
  */
-confidence?: PlanConfidence | null; 
+confidence?: PlanConfidence | null;
 /**
  * Agent identifier that produced this plan.
  */
-agentId?: string | null; 
+agentId?: string | null;
 /**
  * Last update timestamp in milliseconds.
  */
@@ -318,19 +318,19 @@ export type TurnErrorSource = "json_rpc" | "transport" | "process" | "unknown"
 /**
  * Embedded resource data
  */
-export type EmbeddedResource = { 
+export type EmbeddedResource = {
 /**
  * URI of the resource
  */
-uri: string; 
+uri: string;
 /**
  * Optional text content
  */
-text?: string | null; 
+text?: string | null;
 /**
  * Optional base64-encoded blob content
  */
-blob?: string | null; 
+blob?: string | null;
 /**
  * Optional MIME type
  */
@@ -359,7 +359,7 @@ export type PlanConfidence = "high" | "medium"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
+export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.
@@ -379,7 +379,7 @@ export type AvailableCommand = { name: string; description: string; input?: Comm
 /**
  * Command input hint.
  */
-export type CommandInput = { 
+export type CommandInput = {
 /**
  * The hint can be a string or array in the protocol; we normalize to string.
  */
@@ -412,26 +412,26 @@ export type TodoItem = { content: string; activeForm: string; status: TodoStatus
 
 /**
  * Content block types per ACP protocol specification.
- * 
+ *
  * @see https://agentclientprotocol.com/protocol/schema#contentblock
  */
-export type ContentBlock = 
+export type ContentBlock =
 /**
  * Text content block
  */
-{ type: "text"; text: string } | 
+{ type: "text"; text: string } |
 /**
  * Image content block
  */
-{ type: "image"; data: string; mimeType: string; uri?: string | null } | 
+{ type: "image"; data: string; mimeType: string; uri?: string | null } |
 /**
  * Audio content block
  */
-{ type: "audio"; data: string; mimeType: string } | 
+{ type: "audio"; data: string; mimeType: string } |
 /**
  * Embedded resource content block
  */
-{ type: "resource"; resource: EmbeddedResource } | 
+{ type: "resource"; resource: EmbeddedResource } |
 /**
  * Resource link content block
  */
@@ -446,11 +446,11 @@ export type SkillMeta = { description?: string | null; filePath?: string | null 
  * Answered question data from toolUseResult field in JSONL.
  * Stores both the questions and the user's answers.
  */
-export type QuestionAnswer = { 
+export type QuestionAnswer = {
 /**
  * The questions that were asked
  */
-questions: QuestionItem[]; 
+questions: QuestionItem[];
 /**
  * Map of question text to answer(s) - value is string for single-select, array for multi-select
  */
@@ -465,23 +465,23 @@ export type StoredErrorMessage = { content: string; code?: string | null; kind: 
  * Response for session plan request.
  * Returned by get_session_plan, get_plan_by_slug, list_plans commands.
  */
-export type SessionPlanResponse = { 
+export type SessionPlanResponse = {
 /**
  * Plan slug (filename without .md extension).
  */
-slug: string; 
+slug: string;
 /**
  * Full markdown content of the plan.
  */
-content: string; 
+content: string;
 /**
  * Plan title (extracted from first # heading).
  */
-title: string; 
+title: string;
 /**
  * Plan summary (first paragraph after title, if any).
  */
-summary: string | null; 
+summary: string | null;
 /**
  * Full file path to the plan file (for revealing in file manager).
  */
@@ -491,147 +491,147 @@ filePath: string | null }
  * User setting keys for the app_settings table.
  * These are the allowed keys for save_user_setting/get_user_setting commands.
  */
-export type UserSettingKey = 
+export type UserSettingKey =
 /**
  * User's preferred theme (light, dark, system)
  */
-"user_theme" | 
+"user_theme" |
 /**
  * Workspace panel layout state (JSON)
  */
-"workspace_state" | 
+"workspace_state" |
 /**
  * Custom keybindings (JSON map of command -> key)
  */
-"custom_keybindings" | 
+"custom_keybindings" |
 /**
  * Webview zoom level (stored as float string, e.g., "1.0", "1.2")
  */
-"zoom_level" | 
+"zoom_level" |
 /**
  * Default models per agent per mode (JSON map)
  */
-"agent_default_models" | 
+"agent_default_models" |
 /**
  * Favorite models per agent (JSON map)
  */
-"agent_favorite_models" | 
+"agent_favorite_models" |
 /**
  * Cached available models per agent (JSON map)
  */
-"agent_available_models_cache" | 
+"agent_available_models_cache" |
 /**
  * Cached available models display groups per agent (JSON map)
  */
-"agent_available_models_display_cache" | 
+"agent_available_models_display_cache" |
 /**
  * Cached provider metadata per agent (JSON map)
  */
-"agent_provider_metadata_cache" | 
+"agent_provider_metadata_cache" |
 /**
  * Cached available modes per agent (JSON map)
  */
-"agent_available_modes_cache" | 
+"agent_available_modes_cache" |
 /**
  * Per-session model memory (JSON map)
  */
-"session_model_per_mode" | 
+"session_model_per_mode" |
 /**
  * Global PR generation preferences (JSON object)
  */
-"pr_generation_preferences" | 
+"pr_generation_preferences" |
 /**
  * Command palette recent items (JSON array)
  */
-"command_palette_recent_items" | 
+"command_palette_recent_items" |
 /**
  * OpenCode favorite models (JSON array)
  */
-"favorite_models" | 
+"favorite_models" |
 /**
  * OpenCode recent models (JSON array)
  */
-"recent_models" | 
+"recent_models" |
 /**
  * Whether user has seen the splash screen (boolean string "true"/"false")
  */
-"has_seen_splash" | 
+"has_seen_splash" |
 /**
  * Last app version the user has seen the changelog for
  */
-"last_seen_version" | 
+"last_seen_version" |
 /**
  * Whether user has completed first-run onboarding
  */
-"has_completed_onboarding" | 
+"has_completed_onboarding" |
 /**
  * Selected agent IDs for UI visibility/filtering (JSON array)
  */
-"selected_agent_ids" | 
+"selected_agent_ids" |
 /**
  * Persisted custom agent configurations (JSON array)
  */
-"custom_agent_configs" | 
+"custom_agent_configs" |
 /**
  * Persisted per-agent environment overrides (JSON object)
  */
-"agent_env_overrides" | 
+"agent_env_overrides" |
 /**
  * Use worktrees by default for new sessions (boolean)
  */
-"worktree_global_default_enabled" | 
+"worktree_global_default_enabled" |
 /**
  * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
  */
-"worktree_trust" | 
+"worktree_trust" |
 /**
  * Whether thinking blocks in chat are collapsed by default (boolean)
  */
-"chat_thinking_block_collapsed_by_default" | 
+"chat_thinking_block_collapsed_by_default" |
 /**
  * Whether plans render inline in chat vs sidebar panel (boolean)
  */
-"plan_inline_mode" | 
+"plan_inline_mode" |
 /**
  * Whether review opens fullscreen by default (boolean)
  */
-"review_prefer_fullscreen" | 
+"review_prefer_fullscreen" |
 /**
  * Per-category notification preferences (JSON object)
  */
-"notification-preferences" | 
+"notification-preferences" |
 /**
  * Selected voice model ID (e.g. "small.en")
  */
-"voice_model" | 
+"voice_model" |
 /**
  * Preferred voice transcription language code (e.g. "en" or "auto")
  */
-"voice_language" | 
+"voice_language" |
 /**
  * Whether voice dictation is enabled (boolean)
  */
-"voice_enabled" | 
+"voice_enabled" |
 /**
  * Agent ID used for AI-generated commit messages and PR descriptions
  */
-"git_text_generation_agent" | 
+"git_text_generation_agent" |
 /**
  * Preferred merge strategy for PRs (e.g., "squash", "merge", "rebase")
  */
-"git_merge_strategy_preference" | 
+"git_merge_strategy_preference" |
 /**
  * Set of dismissed tooltip keys (JSON array of string keys)
  */
-"dismissed_tooltips" | 
+"dismissed_tooltips" |
 /**
  * Whether the attention queue panel is shown in the sidebar (boolean)
  */
-"attention_queue_enabled" | 
+"attention_queue_enabled" |
 /**
  * Whether analytics providers should be disabled for this install (boolean)
  */
-"analytics_opt_out" | 
+"analytics_opt_out" |
 /**
  * User's preferred default agent ID for new sessions
  */
@@ -640,19 +640,19 @@ export type UserSettingKey =
 /**
  * Information about a single indexed file.
  */
-export type IndexedFile = { 
+export type IndexedFile = {
 /**
  * Relative path from project root.
  */
-path: string; 
+path: string;
 /**
  * File extension without dot, empty for no extension.
  */
-extension: string; 
+extension: string;
 /**
  * Number of lines in the file.
  */
-lineCount: number; 
+lineCount: number;
 /**
  * Git status info if file is modified/added/deleted, or None.
  */
@@ -661,19 +661,19 @@ gitStatus: FileGitStatus | null }
 /**
  * Git status for a single file.
  */
-export type FileGitStatus = { 
+export type FileGitStatus = {
 /**
  * Relative path from project root.
  */
-path: string; 
+path: string;
 /**
  * Status code: M=Modified, A=Added, D=Deleted, ?=Untracked, R=Renamed.
  */
-status: string; 
+status: string;
 /**
  * Lines added (for modified/added files).
  */
-insertions: number; 
+insertions: number;
 /**
  * Lines deleted (for modified/deleted files).
  */
@@ -682,23 +682,23 @@ deletions: number }
 /**
  * Complete project index result.
  */
-export type ProjectIndex = { 
+export type ProjectIndex = {
 /**
  * Project root path.
  */
-projectPath: string; 
+projectPath: string;
 /**
  * All indexed files.
  */
-files: IndexedFile[]; 
+files: IndexedFile[];
 /**
  * Git-tracked modified files with status.
  */
-gitStatus: FileGitStatus[]; 
+gitStatus: FileGitStatus[];
 /**
  * Total file count.
  */
-totalFiles: number; 
+totalFiles: number;
 /**
  * Total line count across all files.
  */
@@ -707,27 +707,27 @@ totalLines: number }
 /**
  * What kind of preview the frontend should render for a result row.
  */
-export type PreviewKind = 
+export type PreviewKind =
 /**
  * Changed text file — Pierre diff is safe to render.
  */
-"diff" | 
+"diff" |
 /**
  * Unchanged text file — Pierre read-view is safe to render.
  */
-"text" | 
+"text" |
 /**
  * Detected as binary content.
  */
-"binary" | 
+"binary" |
 /**
  * File exceeds safe preview size.
  */
-"large" | 
+"large" |
 /**
  * File has been deleted from the working tree.
  */
-"deleted" | 
+"deleted" |
 /**
  * Unsupported content type for preview.
  */
@@ -736,47 +736,47 @@ export type PreviewKind =
 /**
  * A single row in the file explorer results list.
  */
-export type FileExplorerRow = { 
+export type FileExplorerRow = {
 /**
  * Absolute path to the owning project root.
  */
-projectPath: string; 
+projectPath: string;
 /**
  * Relative path from project root.
  */
-path: string; 
+path: string;
 /**
  * Basename of the file.
  */
-fileName: string; 
+fileName: string;
 /**
  * File extension without dot, empty for no extension.
  */
-extension: string; 
+extension: string;
 /**
  * Path split into segments for breadcrumb display.
  */
-pathSegments: string[]; 
+pathSegments: string[];
 /**
  * Git status if the file has been modified/added/deleted/etc.
  */
-gitStatus: FileGitStatus | null; 
+gitStatus: FileGitStatus | null;
 /**
  * Whether the file is tracked by git.
  */
-isTracked: boolean; 
+isTracked: boolean;
 /**
  * Whether the file appears to be binary content.
  */
-isBinary: boolean; 
+isBinary: boolean;
 /**
  * File last-modified time in milliseconds since Unix epoch, if available.
  */
-lastModifiedMs: number | null; 
+lastModifiedMs: number | null;
 /**
  * File size in bytes, if available.
  */
-sizeBytes: number | null; 
+sizeBytes: number | null;
 /**
  * Classification hint for the preview pane.
  */
@@ -785,19 +785,19 @@ previewKind: PreviewKind }
 /**
  * Response from the explorer search command.
  */
-export type FileExplorerSearchResponse = { 
+export type FileExplorerSearchResponse = {
 /**
  * Project path echoed back.
  */
-projectPath: string; 
+projectPath: string;
 /**
  * Query echoed back.
  */
-query: string; 
+query: string;
 /**
  * Total number of matching rows before limiting/offsetting.
  */
-total: number; 
+total: number;
 /**
  * Ranked result rows for this page.
  */
@@ -806,15 +806,15 @@ rows: FileExplorerRow[] }
 /**
  * Preview payload returned for a selected explorer row.
  */
-export type FileExplorerPreviewResponse = 
+export type FileExplorerPreviewResponse =
 /**
  * Changed text file with diff content.
  */
-{ kind: "diff"; file_path: string; file_name: string; old_content: string | null; new_content: string; git_status: FileGitStatus } | 
+{ kind: "diff"; file_path: string; file_name: string; old_content: string | null; new_content: string; git_status: FileGitStatus } |
 /**
  * Unchanged text file with full content.
  */
-{ kind: "text"; file_path: string; file_name: string; content: string; language_hint: string | null } | 
+{ kind: "text"; file_path: string; file_name: string; content: string; language_hint: string | null } |
 /**
  * Fallback for binary, too-large, deleted, or unsupported files.
  */

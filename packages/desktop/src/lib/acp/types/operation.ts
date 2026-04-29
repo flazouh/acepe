@@ -18,6 +18,7 @@ export type OperationProviderStatus = "pending" | "in_progress" | "completed" | 
 /** Provider-layer tool classification carried by the Operation as provenance evidence. Not used for canonical state decisions. */
 export type OperationKind =
 	| "read"
+	| "read_lints"
 	| "edit"
 	| "execute"
 	| "search"

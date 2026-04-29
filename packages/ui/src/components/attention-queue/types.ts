@@ -30,7 +30,7 @@ export interface ActivityEntryToolDisplay {
   readonly detailsText?: string | null;
   readonly scriptText?: string | null;
   readonly filePath?: string;
-  readonly status: "pending" | "running" | "done" | "error";
+  readonly status: import("../agent-panel/types.js").AgentToolStatus;
 }
 
 export interface ActivityEntryQuestion {

@@ -1,6 +1,6 @@
-import type { SessionTurnState } from "../../services/acp-types.js";
+import type { OperationState, SessionTurnState } from "../../services/acp-types.js";
 import type { TurnState } from "../store/types.js";
-import type { ToolCall } from "../types/tool-call.js";
+import type { ToolCall, ToolPresentationStatus } from "../types/tool-call.js";
 
 export type ToolStatusTurnState = TurnState | SessionTurnState;
 
@@ -13,6 +13,9 @@ export interface ToolStatusResult {
 	isSuccess: boolean;
 	isInterrupted: boolean;
 	isInputStreaming: boolean;
+	isBlocked: boolean;
+	isCancelled: boolean;
+	isDegraded: boolean;
 }
 
 /**
@@ -28,10 +31,50 @@ function isStreamingTurnState(turnState: ToolStatusTurnState | undefined): boole
 	return turnState === "streaming" || turnState === "Running";
 }
 
+export function mapOperationStateToToolPresentationStatus(
+	state: OperationState
+): ToolPresentationStatus {
+	switch (state) {
+		case "pending":
+			return "pending";
+		case "running":
+			return "running";
+		case "blocked":
+			return "blocked";
+		case "completed":
+			return "done";
+		case "failed":
+			return "error";
+		case "cancelled":
+			return "cancelled";
+		case "degraded":
+			return "degraded";
+	}
+}
+
+export function getToolStatusFromPresentationStatus(
+	status: ToolPresentationStatus
+): ToolStatusResult {
+	return {
+		isPending: status === "pending" || status === "running",
+		isError: status === "error",
+		isSuccess: status === "done",
+		isInterrupted: status === "cancelled",
+		isInputStreaming: status === "pending",
+		isBlocked: status === "blocked",
+		isCancelled: status === "cancelled",
+		isDegraded: status === "degraded",
+	};
+}
+
 export function getToolStatus(
 	toolCall: ToolCall,
 	turnState?: ToolStatusTurnState
 ): ToolStatusResult {
+	if (toolCall.presentationStatus !== undefined) {
+		return getToolStatusFromPresentationStatus(toolCall.presentationStatus);
+	}
+
 	const status = toolCall.status;
 
 	// Error state: explicitly failed
@@ -64,7 +107,40 @@ export function getToolStatus(
 		isSuccess,
 		isInterrupted,
 		isInputStreaming,
+		isBlocked: false,
+		isCancelled: isInterrupted,
+		isDegraded: false,
 	};
+}
+
+export function getToolPresentationStatus(
+	toolCall: ToolCall,
+	turnState?: ToolStatusTurnState
+): ToolPresentationStatus {
+	if (toolCall.presentationStatus !== undefined) {
+		return toolCall.presentationStatus;
+	}
+
+	const status = getToolStatus(toolCall, turnState);
+	if (status.isBlocked) {
+		return "blocked";
+	}
+	if (status.isDegraded) {
+		return "degraded";
+	}
+	if (status.isInterrupted || status.isCancelled) {
+		return "cancelled";
+	}
+	if (status.isPending) {
+		return "running";
+	}
+	if (status.isError) {
+		return "error";
+	}
+	if (status.isSuccess) {
+		return "done";
+	}
+	return "pending";
 }
 
 /**

@@ -30,6 +30,9 @@ describe("agent-tool-edit-state", () => {
     expect(resolveEditHeaderState("done", true, true)).toBe("awaitingApproval");
     expect(resolveEditHeaderState("done", false, false)).toBe("interrupted");
     expect(resolveEditHeaderState("error", false, false)).toBe("failed");
+    expect(resolveEditHeaderState("blocked", false, false)).toBe("blocked");
+    expect(resolveEditHeaderState("cancelled", false, false)).toBe("cancelled");
+    expect(resolveEditHeaderState("degraded", false, false)).toBe("degraded");
   });
 
   it("shows diff pill for applied, in-progress, or awaiting approval edits", () => {

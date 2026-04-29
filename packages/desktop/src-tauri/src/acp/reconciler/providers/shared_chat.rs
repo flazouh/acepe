@@ -22,6 +22,12 @@ pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
     if any_eq(clean_name, &["read", "readfile", "read_file", "view"]) {
         return ToolKind::Read;
     }
+    if any_eq(
+        clean_name,
+        &["read_lints", "readlints", "read-lints", "read lints"],
+    ) {
+        return ToolKind::ReadLints;
+    }
     if clean_name.eq_ignore_ascii_case("notebookread") {
         return ToolKind::Read;
     }
@@ -133,6 +139,18 @@ mod tests {
     #[test]
     fn maps_view_to_read() {
         assert_eq!(normalize_shared_chat_tool_name("view"), ToolKind::Read);
+    }
+
+    #[test]
+    fn maps_read_lints_to_canonical_kind() {
+        assert_eq!(
+            normalize_shared_chat_tool_name("read_lints"),
+            ToolKind::ReadLints
+        );
+        assert_eq!(
+            normalize_shared_chat_tool_name("Read Lints"),
+            ToolKind::ReadLints
+        );
     }
 
     #[test]

@@ -519,6 +519,9 @@ describe("OperationStore", () => {
 		const op = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(op?.operationState).toBe("blocked");
 		expect(op?.operationProvenanceKey).toBe("tool-1");
+		expect(operationStore.getToolCallById("session-1", "tool-1")?.presentationStatus).toBe(
+			"blocked"
+		);
 	});
 
 	it("ignores stale operation patches that would regress terminal state", () => {
@@ -587,6 +590,9 @@ describe("OperationStore", () => {
 			}),
 		]);
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("running");
+		expect(operationStore.getToolCallById("session-1", "tool-1")?.presentationStatus).toBe(
+			"running"
+		);
 
 		operationStore.applySessionOperationPatches("session-1", [
 			createOperationSnapshot({

@@ -455,7 +455,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 - `OperationStore` has only canonical snapshot/patch writers.
 - TS argument/status reconciler code is gone or reduced to non-authoritative transcript-only helpers with no operation-store access.
 
-- [ ] **Unit 5: Route tool presentation through canonical operation data**
+- [x] **Unit 5: Route tool presentation through canonical operation data**
 
 **Goal:** Stop tool UI and agent-panel scene presentation from treating provider status, raw name, or display title as product truth.
 

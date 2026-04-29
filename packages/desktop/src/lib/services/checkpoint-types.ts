@@ -3,11 +3,11 @@
 /**
  * Old and new file content for diff display.
  */
-export type FileDiffContent = { 
+export type FileDiffContent = {
 /**
  * Content from previous checkpoint. None if this is a new file in the timeline.
  */
-oldContent: string | null; 
+oldContent: string | null;
 /**
  * Content at the current checkpoint.
  */

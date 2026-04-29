@@ -17,6 +17,7 @@ pub(crate) fn classify_kind_hint(kind_hint: Option<&str>) -> Option<ToolKind> {
     match kind.as_str() {
         "other" => None,
         "read" => Some(ToolKind::Read),
+        "read_lints" | "readlints" | "read-lints" => Some(ToolKind::ReadLints),
         "edit" => Some(ToolKind::Edit),
         "execute" => Some(ToolKind::Execute),
         "search" => Some(ToolKind::Search),
@@ -207,6 +208,10 @@ pub(crate) fn classify_title_heuristic(title: Option<&str>) -> Option<ToolKind> 
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|value| value.to_ascii_lowercase())?;
+
+    if normalized == "read lints" || normalized == "read_lints" || normalized == "read-lints" {
+        return Some(ToolKind::ReadLints);
+    }
 
     if normalized.starts_with("viewing ")
         || normalized.starts_with("view ")

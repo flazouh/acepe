@@ -385,6 +385,34 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("renders blocked from canonical operation state even when provider status is stale", () => {
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([createTranscriptEntry("tool-1", "tool", "Run")]),
+			operations: [
+				createOperationSnapshot({
+					provider_status: "completed",
+					operation_state: "blocked",
+				}),
+			],
+			turnState: "Running",
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			status: "blocked",
+			presentationState: "resolved",
+		});
+	});
+
 	it("keeps live transcript-before-operation races pending until canonical operation data arrives", () => {
 		const graph = createGraph({
 			transcriptSnapshot: createTranscriptSnapshot([

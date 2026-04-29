@@ -12,6 +12,7 @@
 	import AgentToolFetch from "./agent-tool-fetch.svelte";
 	import AgentToolOther from "./agent-tool-other.svelte";
 	import AgentToolBrowser from "./agent-tool-browser.svelte";
+	import AgentToolReadLints from "./agent-tool-read-lints.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
@@ -80,7 +81,14 @@
 						{iconBasePath}
 					/>
 				{:else if entry.type === "tool_call"}
-					{#if entry.kind === "read"}
+					{#if entry.kind === "read_lints"}
+						<AgentToolReadLints
+							status={entry.status}
+							totalDiagnostics={entry.lintDiagnostics?.length ?? 0}
+							totalFiles={0}
+							diagnostics={entry.lintDiagnostics ?? null}
+						/>
+					{:else if entry.kind === "read"}
 						<AgentToolRead
 							filePath={entry.filePath}
 							status={entry.status}

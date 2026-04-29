@@ -92,6 +92,7 @@ pub fn infer_kind_from_payload_for_agent(
         } else {
             ToolKind::Search
         }),
+        "read_lints" | "readlints" | "read-lints" => Some(ToolKind::ReadLints),
         "glob" => Some(ToolKind::Glob),
         "fetch" => Some(ToolKind::Fetch),
         "web_search" | "websearch" | "web-search" => Some(ToolKind::WebSearch),
@@ -120,6 +121,7 @@ pub fn infer_kind_from_payload_for_agent(
 pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
     match kind {
         ToolKind::Read => "Read",
+        ToolKind::ReadLints => "Read Lints",
         ToolKind::Edit => "Edit",
         ToolKind::Execute => "Run",
         ToolKind::Search => "Search",

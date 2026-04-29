@@ -148,6 +148,14 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		},
 	},
 
+	read_lints: {
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? "Reading lints" : "Read lints";
+		},
+		subtitle: (toolCall) => toolCall.title ?? "",
+	},
+
 	edit: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);

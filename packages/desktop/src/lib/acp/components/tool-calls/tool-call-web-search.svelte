@@ -3,7 +3,7 @@ import { AgentToolWebSearch } from "@acepe/ui/agent-panel";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 import { resolveWebSearchDisplayResult } from "./tool-result-display.js";
 
 interface Props {
@@ -46,11 +46,7 @@ const query = $derived.by(() => {
 const searchResult = $derived(resolveWebSearchDisplayResult(toolCall));
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 </script>
 
 <AgentToolWebSearch

@@ -14,7 +14,7 @@ import {
 import { getQuestionStore } from "../../store/question-store.svelte.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolPresentationStatus, getToolStatus } from "../../utils/tool-state-utils.js";
 import { ToolCallThinkState } from "./tool-call-think/state/tool-call-think-state.svelte.js";
 
 interface Props {
@@ -184,11 +184,7 @@ const hasSelections = $derived.by(() => {
 });
 
 // Map tool status to AgentToolStatus
-const agentStatus = $derived.by(() => {
-	if (toolStatus.isPending) return "running" as const;
-	if (toolStatus.isError) return "error" as const;
-	return "done" as const;
-});
+const agentStatus = $derived(getToolPresentationStatus(toolCall, turnState));
 
 function handleSelect(questionIndex: number, label: string, multiSelect?: boolean) {
 	if (multiSelect) {
