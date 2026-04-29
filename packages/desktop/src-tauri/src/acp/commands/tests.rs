@@ -591,6 +591,7 @@ async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
         session_id: "session-1".to_string(),
         attempt_id: 42,
         error: "connection dropped".to_string(),
+        failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
     };
 
     runtime_registry.apply_session_update_with_graph_seed("session-1", 8, &update);

@@ -528,6 +528,11 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
                 session_id: session_id.clone(),
                 attempt_id: 0,
                 error: error.to_string(),
+                // Activation-path fallback inside `acp_send_prompt`'s
+                // Reserved-lifecycle branch. This is not a resume
+                // boundary — the classifier is intentionally not invoked
+                // here. Treat as a generic transient/transport failure.
+                failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
             },
         };
 

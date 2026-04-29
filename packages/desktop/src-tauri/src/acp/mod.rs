@@ -37,6 +37,7 @@ pub mod provider_extensions;
 pub mod providers;
 pub(crate) mod reconciler;
 pub mod registry;
+pub(crate) mod resume_failure_classifier;
 pub mod runtime_resolver;
 pub mod session_descriptor;
 pub mod session_journal;

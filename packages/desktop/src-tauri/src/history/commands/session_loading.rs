@@ -410,6 +410,11 @@ pub async fn get_session_open_result(
                     session_id: session_id.clone(),
                     attempt_id: 0,
                     error: open_error.message.clone(),
+                    // Provider snapshot load failure — not the same path as
+                    // `session/load` rejection. Treat as transient/transport
+                    // by default; classifier could be invoked here in future
+                    // if `ProviderHistoryLoadError` gains richer cases.
+                    failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
                 };
                 crate::acp::commands::emit_lifecycle_event(
                     &app,
@@ -425,10 +430,14 @@ pub async fn get_session_open_result(
     let Some(thread_content) = thread_content else {
         // GOD: emit a Failed lifecycle envelope so canonical readers see the
         // missing state through the canonical channel — no client-side synthesis.
+        // History-not-available means the provider has no replayable state for
+        // this session — same upstream-permanent semantics as session-not-found
+        // at the resume boundary, so classify as SessionGoneUpstream.
         let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
             session_id: session_id.clone(),
             attempt_id: 0,
             error: "Provider history is not available for this session".to_string(),
+            failure_reason: crate::acp::lifecycle::FailureReason::SessionGoneUpstream,
         };
         crate::acp::commands::emit_lifecycle_event(&app, &Some(hub.clone()), update, &session_id)
             .await;

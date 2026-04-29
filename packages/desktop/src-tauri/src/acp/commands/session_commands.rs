@@ -1204,6 +1204,10 @@ where
         let app_clone = app.clone();
         let resume_descriptor = resume_target.descriptor.clone();
         let work = work;
+        // Cloned for the error branch so the resume-failure classifier can
+        // see the agent identity even after `agent_id_enum` has been moved
+        // into `work(...)`.
+        let agent_id_for_classifier = agent_id_enum.clone();
 
         // --- Spawn the async task for heavy work ---
         // We capture the JoinHandle and spawn a follow-up task to catch panics,
@@ -1251,16 +1255,23 @@ where
                     );
                 }
                 Ok(Err(error)) => {
+                    let classification =
+                        crate::acp::resume_failure_classifier::classify_resume_error(
+                            &agent_id_for_classifier,
+                            &error,
+                        );
                     let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
                         session_id: session_id.clone(),
                         attempt_id,
                         error: error.to_string(),
+                        failure_reason: classification.failure_reason,
                     };
                     emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::error!(
                         session_id = %session_id,
                         attempt_id,
                         error = %error,
+                        failure_reason = ?classification.failure_reason,
                         "Async resume failed"
                     );
                 }
@@ -1272,6 +1283,8 @@ where
                             "Session resume timed out after {}s",
                             RESUME_SESSION_TIMEOUT.as_secs()
                         ),
+                        // Timeout is transient/transport — explicit, not classified.
+                        failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
                     };
                     emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::error!(
@@ -1301,6 +1314,13 @@ where
                     session_id: session_id_panic.clone(),
                     attempt_id,
                     error: format!("Internal error: resume task panicked: {join_error}"),
+                    // Panic is transient by classification (not session-gone),
+                    // but explicitly NOT retryable from the user's perspective —
+                    // the existing `is_retryable_failure` already treats
+                    // `ResumeFailed` as retryable. Keeping the same shape as
+                    // the timeout branch preserves prior behavior; if we ever
+                    // want panics to be terminal, introduce a new variant.
+                    failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
                 };
                 emit_lifecycle_event(&app_panic, &hub, update, &session_id_panic).await;
             }
@@ -2322,6 +2342,7 @@ mod tests {
                 session_id: "live-session".to_string(),
                 attempt_id: 1,
                 error: "disconnected".to_string(),
+                failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
             },
         );
 

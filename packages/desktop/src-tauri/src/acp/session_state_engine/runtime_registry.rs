@@ -1196,6 +1196,7 @@ mod tests {
             session_id: "session-1".to_string(),
             attempt_id: 1,
             error: "connection failed".to_string(),
+            failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
         }
     }
 
@@ -1310,6 +1311,7 @@ mod tests {
                 session_id: session_id.to_string(),
                 attempt_id: 1,
                 error: "disconnected".to_string(),
+                failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
             },
         );
 

@@ -2,6 +2,7 @@ use serde::Serialize;
 use specta::Type;
 
 use crate::acp::client_session::{SessionModelState, SessionModes};
+use crate::acp::lifecycle::FailureReason;
 
 use super::{
     AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
@@ -133,10 +134,17 @@ pub enum SessionUpdate {
     },
 
     /// Emitted by the async resume task when session connection fails.
+    ///
+    /// `failure_reason` carries the canonical classification (e.g.
+    /// `SessionGoneUpstream` for upstream-permanent failures, `ResumeFailed`
+    /// for transient/transport faults). `error` carries the raw provider
+    /// text verbatim for log/debug surfaces; user-facing English copy is
+    /// composed downstream in TS from `(agentId, failure_reason)`.
     ConnectionFailed {
         session_id: String,
         attempt_id: u64,
         error: String,
+        failure_reason: FailureReason,
     },
 }
 

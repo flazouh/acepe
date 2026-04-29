@@ -16,9 +16,17 @@ pub(crate) fn is_session_not_found_error(error: &AcpError) -> bool {
         AcpError::SessionNotFound(_) => true,
         AcpError::JsonRpcError(message) => {
             let lower = message.to_lowercase();
-            lower.contains("\"code\":-32602")
+            let session_not_found_invalid_params = lower.contains("\"code\":-32602")
                 && lower.contains("session")
-                && lower.contains("not found")
+                && lower.contains("not found");
+            // Some providers (e.g. GitHub Copilot) return `-32002 Resource not found`
+            // with the message body referring to the missing session, instead of the
+            // `-32602 Session … not found` form used elsewhere. Both indicate the
+            // upstream session is permanently gone.
+            let resource_not_found_session = lower.contains("\"code\":-32002")
+                && lower.contains("resource not found")
+                && lower.contains("session");
+            session_not_found_invalid_params || resource_not_found_session
         }
         _ => false,
     }
@@ -125,6 +133,25 @@ mod tests {
             "{\"code\":-32602,\"data\":{\"message\":\"Session \\\"abc\\\" not found\"},\"message\":\"Invalid params\"}".to_string(),
         );
         assert!(is_session_not_found_error(&error));
+    }
+
+    #[test]
+    fn detects_copilot_resource_not_found_session_error() {
+        // GitHub Copilot's ACP server returns -32002 + "Resource not found: Session …"
+        // for the same upstream condition. Treat it as the same canonical case.
+        let error = AcpError::JsonRpcError(
+            "{\"code\":-32002,\"message\":\"Resource not found: Session 1ea29f08-a0ba-4356-99ad-0c09814e88cd\"}".to_string(),
+        );
+        assert!(is_session_not_found_error(&error));
+    }
+
+    #[test]
+    fn ignores_non_session_resource_not_found_errors() {
+        // -32002 with a non-session body should not classify as session-not-found.
+        let error = AcpError::JsonRpcError(
+            "{\"code\":-32002,\"message\":\"Resource not found: Project xyz\"}".to_string(),
+        );
+        assert!(!is_session_not_found_error(&error));
     }
 
     #[test]
