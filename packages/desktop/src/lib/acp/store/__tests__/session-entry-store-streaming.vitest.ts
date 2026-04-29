@@ -19,9 +19,9 @@ function applyStreamingArguments(
 	store: SessionEntryStore,
 	sessionId: string,
 	toolCallId: string,
-	streamingArguments: Parameters<SessionEntryStore["updateToolCallEntry"]>[1]["streamingArguments"]
+	streamingArguments: Parameters<SessionEntryStore["updateToolCallTranscriptEntry"]>[1]["streamingArguments"]
 ): void {
-	store.updateToolCallEntry(sessionId, {
+	store.updateToolCallTranscriptEntry(sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -42,9 +42,9 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("updateToolCallEntry / getStreamingArguments", () => {
-		it("should store and retrieve streaming arguments from canonical updates", () => {
-			store.createToolCallEntry("session1", {
+	describe("updateToolCallTranscriptEntry / getStreamingArguments", () => {
+		it("should store and retrieve streaming arguments from transcript-only updates", () => {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -76,7 +76,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should track tool calls per session", () => {
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -88,7 +88,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool2",
 				name: "Search",
 				arguments: { kind: "search", query: null, file_path: null },
@@ -100,7 +100,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.createToolCallEntry("session2", {
+			store.recordToolCallTranscriptEntry("session2", {
 				id: "tool3",
 				name: "Read",
 				arguments: { kind: "read", file_path: null },
@@ -128,7 +128,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should overwrite when setting same tool call again", () => {
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -167,7 +167,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearStreamingArguments", () => {
 		it("should clear streaming arguments", () => {
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -197,7 +197,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearEntries", () => {
 		it("should clear all streaming arguments for session", () => {
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -209,7 +209,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.createToolCallEntry("session1", {
+			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool2",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -221,7 +221,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.createToolCallEntry("session2", {
+			store.recordToolCallTranscriptEntry("session2", {
 				id: "tool3",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -299,7 +299,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		store.createToolCallEntry("session-1", {
+		store.recordToolCallTranscriptEntry("session-1", {
 			id: "tool-1",
 			name: "Edit File",
 			arguments: {
@@ -376,54 +376,45 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			kind: "other",
 			raw: null,
 		});
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
-			toolCallId: "tool-1",
-			kind: "edit",
-		});
-		expect(store.getOperationStore().getLastToolCall("session-1")).toMatchObject({
-			id: "tool-1",
-			kind: "edit",
-		});
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(store.getOperationStore().getLastToolCall("session-1")).toBeNull();
 	});
 
 	it("does not clear canonical tool operations when a delta replaces the transcript snapshot", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		store.createToolCallEntry("session-1", {
-			id: "tool-1",
-			name: "Edit File",
-			arguments: {
+		store.getOperationStore().replaceSessionOperations("session-1", [
+			{
+				id: "op-tool-1",
+				session_id: "session-1",
+				tool_call_id: "tool-1",
+				operation_provenance_key: "tool-1",
+				name: "Edit File",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "/tmp/example.ts",
+							oldString: "before",
+							newString: "after",
+							content: null,
+						},
+					],
+				},
+				provider_status: "completed",
+				operation_state: "completed",
+				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+				result: null,
 				kind: "edit",
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
+				title: "Edit File",
+				progressive_arguments: null,
+				command: null,
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
 			},
-			rawInput: {
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
-			},
-			status: "completed",
-			result: null,
-			kind: "edit",
-			title: "Edit File",
-			locations: null,
-			skillMeta: null,
-			normalizedQuestions: null,
-			normalizedTodos: null,
-			parentToolUseId: null,
-			taskChildren: null,
-			questionAnswer: null,
-			awaitingPlanApproval: false,
-			planApprovalRequestId: null,
-		});
+		]);
 
 		store.applyTranscriptDelta(
 			"session-1",
@@ -683,7 +674,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			true
 		);
 
-		store.createToolCallEntry("session1", {
+		store.recordToolCallTranscriptEntry("session1", {
 			id: "tool-1",
 			name: "Read",
 			arguments: { kind: "read", file_path: "/tmp/file.txt" },
@@ -729,7 +720,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			true
 		);
 
-		store.createToolCallEntry("session1", {
+		store.recordToolCallTranscriptEntry("session1", {
 			id: "tool-2",
 			name: "Read",
 			arguments: { kind: "read", file_path: "/tmp/file.txt" },

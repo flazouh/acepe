@@ -5,7 +5,6 @@ import type { QuestionRequest } from "../../types/question.js";
 
 import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => okAsync(undefined));
 
@@ -69,19 +68,27 @@ describe("QuestionStore", () => {
 
 		it("returns the pending question for a canonical operation", () => {
 			const operationStore = new OperationStore();
-			const entryStore = new SessionEntryStore(operationStore);
-			entryStore.createToolCallEntry("session-1", {
-				id: "tool-question",
+			operationStore.replaceSessionOperations("session-1", [{
+				id: "op-tool-question",
+				session_id: "session-1",
+				tool_call_id: "tool-question",
+				operation_provenance_key: "tool-question",
 				name: "question_tool",
 				arguments: { kind: "other", raw: {} },
-				status: "pending",
+				provider_status: "pending",
+				operation_state: "pending",
+				source_link: { kind: "transcript_linked", entry_id: "tool-question" },
 				result: null,
 				kind: "question",
 				title: null,
-				locations: null,
-				skillMeta: null,
-				awaitingPlanApproval: false,
-			});
+				progressive_arguments: null,
+				command: null,
+				normalized_todos: null,
+				parent_tool_call_id: null,
+				parent_operation_id: null,
+				child_tool_call_ids: [],
+				child_operation_ids: [],
+			}]);
 
 			store.add({
 				id: "q-tool",

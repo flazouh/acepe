@@ -163,7 +163,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("creates new entry after tool call boundary", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 		await sendChunk(store, "s1", "Result: ", "msg-1");
 		await sendChunk(store, "s1", "done", "msg-1");
 
@@ -181,7 +181,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("creates new entry after tool call boundary with post-tool chunks", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 
 		// Post-tool chunks arrive after boundary
 		await sendChunk(store, "s1", "Result: ", "msg-1");
@@ -200,7 +200,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("merges post-tool chunks in a tool boundary sequence", async () => {
 		await sendChunk(store, "s1", "Think", "msg-1", true);
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 		await sendChunk(store, "s1", "Part 1 ", "msg-1");
 		await sendChunk(store, "s1", "Part 2", "msg-1");
 
@@ -218,13 +218,13 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		await sendChunk(store, "s1", "Let me check...", "msg-1", true);
 
 		// Tool 1
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 
 		// Phase 2: response after tool 1
 		await sendChunk(store, "s1", "Found it. ", "msg-1");
 
 		// Tool 2
-		store.createToolCallEntry("s1", toolCall("tool-2"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-2"));
 
 		// Phase 3: response after tool 2
 		await sendChunk(store, "s1", "Updated.", "msg-1");
@@ -243,7 +243,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("handles undefined messageId after tool call boundary", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 
 		// Post-tool chunks with NO messageId — boundary cleared the tracker
 		// First chunk creates new entry, tracker stores its UUID
@@ -273,9 +273,9 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 	it("does not split boundary when updating an existing tool call", async () => {
 		await sendChunk(store, "s1", "Before tool", "msg-1");
 
-		store.createToolCallEntry("s1", toolCall("tool-1"));
+		store.recordToolCallTranscriptEntry("s1", toolCall("tool-1"));
 
-		store.updateToolCallEntry("s1", {
+		store.updateToolCallTranscriptEntry("s1", {
 			toolCallId: "tool-1",
 			status: "completed",
 		});
@@ -291,7 +291,7 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 		await sendChunk(store, "s1", "Before tool", "msg-1");
 
 		// No preceding createToolCallEntry; update-only path is discarded.
-		store.updateToolCallEntry("s1", {
+		store.updateToolCallTranscriptEntry("s1", {
 			toolCallId: "tool-2",
 			status: "completed",
 		});

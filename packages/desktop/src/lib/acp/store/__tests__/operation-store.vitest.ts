@@ -74,9 +74,17 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 describe("OperationStore", () => {
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
 
-		entryStore.createToolCallEntry("session-1", createExecuteToolCall("tool-1", "mkdir demo"));
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: buildCanonicalOperationId("session-1", "tool-1"),
+				tool_call_id: "tool-1",
+				provider_status: "pending",
+				operation_state: "pending",
+				arguments: { kind: "execute", command: "mkdir demo" },
+				command: "mkdir demo",
+			}),
+		]);
 
 		const createdOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(createdOperation).toBeDefined();
@@ -89,36 +97,35 @@ describe("OperationStore", () => {
 		expect(createdOperation?.command).toBe("mkdir demo");
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 
-		entryStore.updateToolCallEntry("session-1", {
-			toolCallId: "tool-1",
-			status: null,
-			result: null,
-			content: null,
-			rawOutput: null,
-			title: null,
-			locations: null,
-			normalizedTodos: null,
-			normalizedQuestions: null,
-			streamingArguments: { kind: "execute", command: "mkdir demo && cd demo" },
-		});
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: buildCanonicalOperationId("session-1", "tool-1"),
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+				arguments: { kind: "execute", command: "mkdir demo" },
+				progressive_arguments: { kind: "execute", command: "mkdir demo && cd demo" },
+				command: "mkdir demo && cd demo",
+			}),
+		]);
 
 		const streamingOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(streamingOperation?.id).toBe(createdOperation?.id);
 		expect(streamingOperation?.command).toBe("mkdir demo && cd demo");
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 
-		entryStore.updateToolCallEntry("session-1", {
-			toolCallId: "tool-1",
-			status: "completed",
-			result: "done",
-			content: null,
-			rawOutput: null,
-			title: null,
-			locations: null,
-			normalizedTodos: null,
-			normalizedQuestions: null,
-			arguments: { kind: "execute", command: "mkdir demo && cd demo" },
-		});
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: buildCanonicalOperationId("session-1", "tool-1"),
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "mkdir demo && cd demo" },
+				progressive_arguments: null,
+				result: "done",
+				command: "mkdir demo && cd demo",
+			}),
+		]);
 
 		const completedOperation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(completedOperation?.id).toBe(createdOperation?.id);
@@ -131,25 +138,34 @@ describe("OperationStore", () => {
 
 	it("preserves parent child relationships for task tool calls", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
+		const parentId = buildCanonicalOperationId("session-1", "task-parent");
+		const childId = buildCanonicalOperationId("session-1", "task-child");
 
-		entryStore.createToolCallEntry("session-1", {
-			id: "task-parent",
-			name: "task",
-			arguments: { kind: "other", raw: {} },
-			status: "pending",
-			result: null,
-			kind: "task",
-			title: "Task",
-			locations: null,
-			skillMeta: null,
-			awaitingPlanApproval: false,
-			taskChildren: [
-				createExecuteToolCall("task-child", "go test ./...", {
-					parentToolUseId: "task-parent",
-				}),
-			],
-		});
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: parentId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childId],
+			}),
+			createOperationSnapshot({
+				id: childId,
+				tool_call_id: "task-child",
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentId,
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
 
 		const parent = operationStore.getByToolCallId("session-1", "task-parent");
 		const child = operationStore.getByToolCallId("session-1", "task-child");
@@ -161,26 +177,39 @@ describe("OperationStore", () => {
 
 	it("materializes root session tool calls with nested children for operation-backed projections", () => {
 		const operationStore = new OperationStore();
-		const entryStore = new SessionEntryStore(operationStore);
+		const parentId = buildCanonicalOperationId("session-1", "task-parent");
+		const childId = buildCanonicalOperationId("session-1", "task-child");
 
-		entryStore.createToolCallEntry("session-1", {
-			id: "task-parent",
-			name: "task",
-			arguments: { kind: "other", raw: {} },
-			status: "completed",
-			result: null,
-			kind: "task",
-			title: "Task",
-			locations: null,
-			skillMeta: null,
-			awaitingPlanApproval: false,
-			taskChildren: [
-				createExecuteToolCall("task-child", "go test ./...", {
-					parentToolUseId: "task-parent",
-					status: "completed",
-				}),
-			],
-		});
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: parentId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "completed",
+				operation_state: "completed",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				result: null,
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childId],
+			}),
+			createOperationSnapshot({
+				id: childId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentId,
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
 
 		const toolCalls = operationStore.getSessionToolCalls("session-1");
 
@@ -685,7 +714,7 @@ describe("OperationStore", () => {
 		expect(buildCanonicalOperationId("a:b", "c")).not.toBe(buildCanonicalOperationId("a", "b:c"));
 	});
 
-	it("upsertFromToolCall does not overwrite canonical blocked state when ToolCall lane fires", () => {
+	it("transcript-only tool updates do not overwrite canonical operation state", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
@@ -716,8 +745,11 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
 
-		// ToolCall lane upsert fires with "in_progress" — must not overwrite blocked
-		entryStore.updateToolCallEntry("session-1", {
+		entryStore.recordToolCallTranscriptEntry(
+			"session-1",
+			createExecuteToolCall("tool-1", "pwd", { status: "in_progress" })
+		);
+		entryStore.updateToolCallTranscriptEntry("session-1", {
 			toolCallId: "tool-1",
 			status: "in_progress",
 			result: null,
@@ -731,5 +763,6 @@ describe("OperationStore", () => {
 
 		const operation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(operation?.operationState).toBe("blocked");
+		expect(operationStore.getSessionOperations("session-1")).toHaveLength(1);
 	});
 });

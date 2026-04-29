@@ -7,9 +7,8 @@
 
 import type { ResultAsync } from "neverthrow";
 
-import type { ContentChunk, ToolCallData } from "../../../../services/converted-session-types.js";
+import type { ContentChunk } from "../../../../services/converted-session-types.js";
 import type { AppError } from "../../../errors/app-error.js";
-import type { ToolCallUpdate } from "../../../types/tool-call.js";
 import type { SessionEntry } from "../../types.js";
 
 /**
@@ -65,16 +64,6 @@ export interface IEntryManager {
 	 * Clear entries for a session.
 	 */
 	clearEntries(sessionId: string): void;
-
-	/**
-	 * Create a new tool call entry from full ToolCallData.
-	 */
-	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void;
-
-	/**
-	 * Update tool call entry.
-	 */
-	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void;
 
 	/**
 	 * Aggregate assistant chunk.

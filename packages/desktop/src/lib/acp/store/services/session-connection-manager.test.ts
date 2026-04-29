@@ -270,8 +270,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		removeEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
@@ -390,8 +388,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(stateWriter.replaceSessionOpenSnapshot).not.toHaveBeenCalled();
 		expect(entryManager.storeEntriesAndBuildIndex).not.toHaveBeenCalled();
 		expect(entryManager.clearEntries).not.toHaveBeenCalled();
-		expect(entryManager.createToolCallEntry).not.toHaveBeenCalled();
-		expect(entryManager.updateToolCallEntry).not.toHaveBeenCalled();
 		expect(connectionManager.sendContentLoad).not.toHaveBeenCalled();
 		expect(connectionManager.sendContentLoaded).not.toHaveBeenCalled();
 	});
@@ -1127,8 +1123,6 @@ describe("SessionConnectionManager.createSession", () => {
 		removeEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
@@ -1845,8 +1839,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 		removeEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
@@ -2296,8 +2288,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		removeEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
@@ -2438,8 +2428,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			removeEntry: vi.fn(),
 			updateEntry: vi.fn(),
 			clearEntries: vi.fn(),
-			createToolCallEntry: vi.fn(),
-			updateToolCallEntry: vi.fn(),
 			aggregateAssistantChunk: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
 			startNewAssistantTurn: vi.fn(),

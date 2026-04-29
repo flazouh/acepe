@@ -149,7 +149,7 @@ function isTerminalToolCallStatus(status: ToolCallStatus | null | undefined): bo
 	return status === "completed" || status === "failed";
 }
 
-export function resolveCanonicalToolCallStatus(
+export function resolveTranscriptToolCallStatus(
 	currentStatus: ToolCallStatus | null | undefined,
 	nextStatus: ToolCallStatus | null | undefined
 ): ToolCallStatus | null | undefined {
@@ -164,7 +164,7 @@ export function resolveCanonicalToolCallStatus(
 	return nextStatus;
 }
 
-export function mergeCanonicalToolArguments(
+export function mergeTranscriptToolArguments(
 	currentArgs: ToolArguments,
 	nextArgs: ToolArguments
 ): ToolArguments {
@@ -297,7 +297,7 @@ function isStreamingToolCallStatus(status: ToolCallStatus | null | undefined): b
 	return status === "pending" || status === "in_progress";
 }
 
-export interface CanonicalToolCallCreateResolution {
+export interface TranscriptToolCallCreateResolution {
 	nextStatus: ToolCallStatus | null | undefined;
 	nextArguments: ToolArguments;
 	nextRawInput: ToolCall["rawInput"];
@@ -311,13 +311,13 @@ export interface CanonicalToolCallCreateResolution {
 	isStreaming: boolean;
 }
 
-export function resolveCanonicalToolCallCreate(
+export function resolveTranscriptToolCallCreate(
 	currentToolCall: ToolCall,
 	data: ToolCallData,
 	startedAtMsHint: number,
 	nowMs: number
-): CanonicalToolCallCreateResolution {
-	const nextStatus = resolveCanonicalToolCallStatus(currentToolCall.status, data.status);
+): TranscriptToolCallCreateResolution {
+	const nextStatus = resolveTranscriptToolCallStatus(currentToolCall.status, data.status);
 	const nextKind =
 		currentToolCall.kind === "task" &&
 		data.kind === "question" &&
@@ -331,7 +331,7 @@ export function resolveCanonicalToolCallCreate(
 	const nextAwaitingPlanApproval = data.awaitingPlanApproval;
 	return {
 		nextStatus,
-		nextArguments: mergeCanonicalToolArguments(currentToolCall.arguments, data.arguments),
+		nextArguments: mergeTranscriptToolArguments(currentToolCall.arguments, data.arguments),
 		nextRawInput: data.rawInput ?? currentToolCall.rawInput,
 		nextResult: data.result ?? currentToolCall.result,
 		nextKind,
@@ -350,7 +350,7 @@ export function resolveCanonicalToolCallCreate(
 	};
 }
 
-export interface CanonicalToolCallUpdateResolution {
+export interface TranscriptToolCallUpdateResolution {
 	nextStatus: ToolCallStatus | null | undefined;
 	nextArguments: ToolArguments;
 	nextProgressiveArguments: ToolCall["progressiveArguments"];
@@ -361,13 +361,13 @@ export interface CanonicalToolCallUpdateResolution {
 	isStreaming: boolean;
 }
 
-export function resolveCanonicalToolCallUpdate(
+export function resolveTranscriptToolCallUpdate(
 	currentToolCall: ToolCall,
 	update: ToolCallUpdate,
 	extractedResult: ToolCall["result"] | null | undefined,
 	startedAtMsHint: number,
 	nowMs: number
-): CanonicalToolCallUpdateResolution {
+): TranscriptToolCallUpdateResolution {
 	const isStructuredResult =
 		currentToolCall.result !== null &&
 		currentToolCall.result !== undefined &&
@@ -376,13 +376,13 @@ export function resolveCanonicalToolCallUpdate(
 	const isTextExtracted = typeof extractedResult === "string";
 	const shouldPreserveStructuredResult = isStructuredResult && isTextExtracted;
 	const incomingStatus = update.status ?? currentToolCall.status;
-	const nextStatus = resolveCanonicalToolCallStatus(currentToolCall.status, incomingStatus);
+	const nextStatus = resolveTranscriptToolCallStatus(currentToolCall.status, incomingStatus);
 	const rawNextArguments =
 		update.arguments ?? update.streamingArguments ?? currentToolCall.arguments;
 	const nextArguments =
 		rawNextArguments === currentToolCall.arguments
 			? currentToolCall.arguments
-			: mergeCanonicalToolArguments(currentToolCall.arguments, rawNextArguments);
+			: mergeTranscriptToolArguments(currentToolCall.arguments, rawNextArguments);
 	const nextProgressiveArguments = isTerminalToolCallStatus(nextStatus)
 		? undefined
 		: (update.arguments ?? null) != null

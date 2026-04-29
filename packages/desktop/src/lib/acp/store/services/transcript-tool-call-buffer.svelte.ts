@@ -20,12 +20,11 @@ import type {
 } from "../../../services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
 import {
-	resolveCanonicalToolCallCreate,
-	resolveCanonicalToolCallUpdate,
+	resolveTranscriptToolCallCreate,
+	resolveTranscriptToolCallUpdate,
 } from "../../session-state/session-state-query-service.js";
 import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
-import { OperationStore } from "../operation-store.svelte.js";
 import type { SessionEntry } from "../types.js";
 import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
@@ -103,7 +102,7 @@ function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
 }
 
-function reportMissingCanonicalToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
+function reportMissingTranscriptToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
 	captureContractViolation("tool_call_update_without_canonical_entry", {
 		source: "transcript-tool-call-buffer.updateEntry",
 		sessionId,
@@ -134,8 +133,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
-		private readonly entryIndex: IEntryIndex,
-		private readonly operationStore: OperationStore = new OperationStore()
+		private readonly entryIndex: IEntryIndex
 	) {}
 
 	private rememberToolCallSession(
@@ -188,7 +186,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 			if (!isToolCallEntry(entry)) return ok(undefined);
 
 			const existingToolCall = entry.message;
-			const createResolution = resolveCanonicalToolCallCreate(
+			const createResolution = resolveTranscriptToolCallCreate(
 				existingToolCall,
 				data,
 				entry.timestamp?.getTime() ?? nowMs(),
@@ -245,8 +243,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 				isStreaming: createResolution.isStreaming,
 			};
 
-			this.updateToolCallEntryRef(sessionId, existingRef, updatedEntry);
-			this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
+			this.writeToolEntryRef(sessionId, existingRef, updatedEntry);
 
 			// Re-index children in case taskChildren was added/updated
 			this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -297,7 +294,6 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		};
 
 		this.entryStore.addEntry(sessionId, newEntry);
-		this.operationStore.upsertFromToolCall(sessionId, newEntry.id, newToolCall);
 
 		// Index children for O(1) lookup during child updates
 		this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -337,7 +333,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 				sessionId,
 				toolCallId: update.toolCallId,
 			});
-			reportMissingCanonicalToolCallUpdate(sessionId, update);
+			reportMissingTranscriptToolCallUpdate(sessionId, update);
 			return ok(undefined);
 		}
 
@@ -354,7 +350,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		// - If toolCall.result is a structured object (e.g., {numFiles: 4}) and extractedResult
 		//   is just a string (text from content), preserve the structured result
 		// - Otherwise, use extractedResult
-		const updateResolution = resolveCanonicalToolCallUpdate(
+		const updateResolution = resolveTranscriptToolCallUpdate(
 			toolCall,
 			update,
 			extractedResult,
@@ -391,8 +387,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 			isStreaming: updateResolution.isStreaming,
 		};
 
-		this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
-		this.operationStore.upsertFromToolCall(sessionId, updatedEntry.id, updatedToolCall);
+		this.writeToolEntryRef(sessionId, entryRef, updatedEntry);
 
 		// Clean up streaming arguments when tool reaches a terminal status.
 		// At this point the entry has authoritative data and streaming args are redundant.
@@ -458,7 +453,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 				},
 			};
 
-			this.updateToolCallEntryRef(sessionId, entryRef, updatedEntry);
+			this.writeToolEntryRef(sessionId, entryRef, updatedEntry);
 			return;
 		}
 
@@ -490,7 +485,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 			message: updatedParent,
 		};
 
-		this.updateToolCallEntryRef(sessionId, parentRef, updatedEntry);
+		this.writeToolEntryRef(sessionId, parentRef, updatedEntry);
 	}
 
 	/**
@@ -552,7 +547,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	/**
 	 * Write an updated entry back to the store.
 	 */
-	private updateToolCallEntryRef(
+	private writeToolEntryRef(
 		sessionId: string,
 		ref: { entry: SessionEntry; index: number },
 		updatedEntry: SessionEntry

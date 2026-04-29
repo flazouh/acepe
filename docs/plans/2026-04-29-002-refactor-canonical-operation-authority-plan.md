@@ -406,7 +406,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 - Four-way fallback joins are deleted from product materialization.
 - Units 3 and 4 are independent after Unit 2 and may be executed in parallel or in either order.
 
-- [ ] **Unit 4: Delete the raw ToolCall operation writer and TS reconciler**
+- [x] **Unit 4: Delete the raw ToolCall operation writer and TS reconciler**
 
 **Goal:** Remove the lower-authority raw `ToolCall` path that can write `OperationStore`, along with the TS reconciliation helpers that only support it.
 

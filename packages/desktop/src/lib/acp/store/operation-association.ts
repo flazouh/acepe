@@ -2,10 +2,8 @@ import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { Operation } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
-import type { ToolCall } from "../types/tool-call.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { OperationStore } from "./operation-store.svelte.js";
-import { extractToolOperationCommand } from "./operation-store.svelte.js";
 
 export function permissionMatchesOperation(
 	permission: PermissionRequest,
@@ -45,48 +43,6 @@ export function planApprovalMatchesOperation(
 	}
 
 	return false;
-}
-
-export function createCompatibilityOperation(toolCall: ToolCall): Operation {
-	return {
-		id: toolCall.id,
-		sessionId: "",
-		toolCallId: toolCall.id,
-		operationProvenanceKey: toolCall.id,
-		sourceLink: {
-			kind: "synthetic",
-			reason: "compatibility_operation",
-		},
-		name: toolCall.name,
-		kind: toolCall.kind,
-		status: toolCall.status,
-		operationState:
-			toolCall.status === "pending"
-				? "pending"
-				: toolCall.status === "in_progress"
-					? "running"
-					: toolCall.status === "completed"
-						? "completed"
-						: "failed",
-		title: toolCall.title,
-		arguments: toolCall.arguments,
-		progressiveArguments: toolCall.progressiveArguments,
-		result: toolCall.result,
-		locations: toolCall.locations,
-		skillMeta: toolCall.skillMeta,
-		normalizedQuestions: toolCall.normalizedQuestions,
-		normalizedTodos: toolCall.normalizedTodos,
-		questionAnswer: toolCall.questionAnswer,
-		awaitingPlanApproval: toolCall.awaitingPlanApproval,
-		planApprovalRequestId: toolCall.planApprovalRequestId,
-		startedAtMs: toolCall.startedAtMs,
-		completedAtMs: toolCall.completedAtMs,
-		command: extractToolOperationCommand(toolCall),
-		parentToolCallId: toolCall.parentToolUseId ?? null,
-		parentOperationId: null,
-		childToolCallIds: (toolCall.taskChildren ?? []).map((child) => child.id),
-		childOperationIds: [],
-	};
 }
 
 export function findOperationForPermission(

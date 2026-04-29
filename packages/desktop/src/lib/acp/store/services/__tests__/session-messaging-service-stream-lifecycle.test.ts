@@ -73,8 +73,6 @@ function createMockDeps() {
 		removeEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		createToolCallEntry: vi.fn(),
-		updateToolCallEntry: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),

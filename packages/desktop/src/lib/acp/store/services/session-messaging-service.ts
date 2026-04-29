@@ -15,7 +15,6 @@ import { errAsync, type ResultAsync } from "neverthrow";
 import type {
 	ContentBlock,
 	ContentChunk,
-	ToolCallData,
 } from "../../../services/converted-session-types.js";
 import { isInlineImageAttachment } from "../../components/agent-input/logic/image-attachment.js";
 import type { Attachment } from "../../components/agent-input/types/attachment.js";
@@ -25,7 +24,6 @@ import { getErrorCauseDetails } from "../../errors/error-cause-details.js";
 import { aggregateFileEdits } from "../../logic/aggregate-file-edits.js";
 import { ConnectionState } from "../../logic/session-machine.js";
 import type { AvailableCommand } from "../../types/available-command.js";
-import type { ToolCallUpdate } from "../../types/tool-call.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../../types/turn-error.js";
 import { normalizeActiveTurnFailure } from "../../types/turn-error.js";
 import { createLogger } from "../../utils/logger.js";
@@ -535,24 +533,6 @@ export class SessionMessagingService {
 				turnId: normalized.turnId,
 			});
 		}
-	}
-
-	// ============================================
-	// TOOL CALLS
-	// ============================================
-
-	/**
-	 * Create a new tool call entry from full ToolCallData.
-	 */
-	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
-		this.entryManager.createToolCallEntry(sessionId, toolCallData);
-	}
-
-	/**
-	 * Update tool call entry.
-	 */
-	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
-		this.entryManager.updateToolCallEntry(sessionId, update);
 	}
 
 	/**

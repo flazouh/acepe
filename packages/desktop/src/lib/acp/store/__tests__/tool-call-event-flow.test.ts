@@ -9,7 +9,7 @@
  * 2. Rust backend parses and emits typed SessionUpdate event
  * 3. Frontend EventSubscriber receives the event
  * 4. SessionEventService.handleSessionUpdate processes it
- * 5. SessionStore.createToolCallEntry creates the entry
+ * 5. SessionEntryStore.recordToolCallTranscriptEntry creates the entry
  * 6. UI receives the entry and renders via ToolCallRouter
  */
 
@@ -24,9 +24,9 @@ function applyStreamingArguments(
 	entryStore: SessionEntryStore,
 	sessionId: string,
 	toolCallId: string,
-	streamingArguments: Parameters<SessionEntryStore["updateToolCallEntry"]>[1]["streamingArguments"]
+	streamingArguments: Parameters<SessionEntryStore["updateToolCallTranscriptEntry"]>[1]["streamingArguments"]
 ): void {
-	entryStore.updateToolCallEntry(sessionId, {
+	entryStore.updateToolCallTranscriptEntry(sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -470,7 +470,7 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: [child],
 			};
 
-			entryStore.createToolCallEntry(sessionId, parentWithChild);
+			entryStore.recordToolCallTranscriptEntry(sessionId, parentWithChild);
 
 			const entries = entryStore.getEntries(sessionId);
 			expect(entries.length).toBe(1);
@@ -483,7 +483,7 @@ describe("Tool Call Event Flow", () => {
 			const sessionId = "sess-123";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -498,7 +498,7 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: null,
 			});
 
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -561,7 +561,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: First tool_call arrives with empty arguments (rawInput: {})
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -595,7 +595,7 @@ describe("Tool Call Event Flow", () => {
 			expect(entryStore.getStreamingArguments(toolCallId)?.kind).toBe("edit");
 
 			// Step 3: Second tool_call arrives with full arguments (re-create path)
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -678,7 +678,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Step 2: Full tool_call arrives (still pending), but update is RAF-batched.
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -702,7 +702,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Step 3: Completion update arrives immediately (same frame).
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -756,7 +756,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -814,7 +814,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -842,7 +842,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Create tool call entry
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Read",
 				arguments: { kind: "read", file_path: "/some/file.ts" },
@@ -862,8 +862,8 @@ describe("Tool Call Event Flow", () => {
 			});
 			expect(entryStore.getStreamingArguments(toolCallId)).toBeDefined();
 
-			// Tool completes via updateToolCallEntry
-			entryStore.updateToolCallEntry(sessionId, {
+			// Tool completes via transcript-only update.
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: "file contents here",
@@ -886,7 +886,7 @@ describe("Tool Call Event Flow", () => {
 			entryStore.storeEntriesAndBuildIndex(sessionId, []);
 
 			// Log replay step 1: initial tool_call arrives without parsed arguments.
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -926,7 +926,7 @@ describe("Tool Call Event Flow", () => {
 			}
 
 			// Log replay step 3: full tool_call arrives with authoritative arguments.
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -950,7 +950,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log replay step 4: terminal update marks completion.
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -991,7 +991,7 @@ describe("Tool Call Event Flow", () => {
 			entryStore.storeEntriesAndBuildIndex(sessionId, []);
 
 			// Log line 356: initial pending Write arrives with empty edit args.
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -1008,7 +1008,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log line 357: update carries parsed arguments from rawInput including content/file_path.
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: null,
 				result: null,
@@ -1042,7 +1042,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: Update arrives first (no tool_call yet) and is discarded.
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "pending",
 				result: null,
@@ -1055,7 +1055,7 @@ describe("Tool Call Event Flow", () => {
 			expect(entryStore.getEntries(sessionId)).toHaveLength(0);
 
 			// Step 2: Full tool call data arrives with completed status.
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Search",
 				arguments: { kind: "search", query: "branch:main", file_path: null },
@@ -1086,7 +1086,7 @@ describe("Tool Call Event Flow", () => {
 			const liveStore = new SessionEntryStore();
 			const preloadStore = new SessionEntryStore();
 
-			liveStore.createToolCallEntry("live-session", {
+			liveStore.recordToolCallTranscriptEntry("live-session", {
 				id: "tool-execute-1",
 				name: "Bash",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1098,7 +1098,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			liveStore.updateToolCallEntry("live-session", {
+			liveStore.updateToolCallTranscriptEntry("live-session", {
 				toolCallId: "tool-execute-1",
 				status: "completed",
 				result: toolCallResult,
@@ -1160,7 +1160,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Replay the tool boundary (lines 509-533).
-			entryStore.createToolCallEntry(sessionId, {
+			entryStore.recordToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Bash",
 				arguments: {
@@ -1175,7 +1175,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			entryStore.updateToolCallEntry(sessionId, {
+			entryStore.updateToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,

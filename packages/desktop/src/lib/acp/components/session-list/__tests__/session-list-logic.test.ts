@@ -112,7 +112,7 @@ describe("createDisplayItems", () => {
 				updatedAt: now,
 				parentId: null,
 				entries: [
-					createToolCallEntry("Edit", "edit", {
+					createMockToolEntry("Edit", "edit", {
 						edits: [
 							{
 								filePath: "/repo/src/file.ts",
@@ -156,7 +156,7 @@ describe("createDisplayItems", () => {
 				updatedAt: now,
 				parentId: null,
 				entries: [
-					createToolCallEntry("Edit", "edit", {
+					createMockToolEntry("Edit", "edit", {
 						edits: [
 							{
 								filePath: "/repo/src/file.ts",
@@ -433,7 +433,7 @@ describe("getSidebarSessions", () => {
 });
 
 // Helper to create mock tool call entries
-function createToolCallEntry(
+function createMockToolEntry(
 	toolName: string,
 	kind: string,
 	args: Record<string, unknown>
@@ -482,7 +482,7 @@ describe("extractCurrentToolInfo", () => {
 
 	it("should return null when no streaming tool calls exist", () => {
 		const entries: SessionEntry[] = [
-			{ ...createToolCallEntry("Read", "read", { file_path: "/file.ts" }), isStreaming: false },
+			{ ...createMockToolEntry("Read", "read", { file_path: "/file.ts" }), isStreaming: false },
 		];
 		const result = extractCurrentToolInfo(entries);
 		expect(result).toBeNull();
@@ -490,10 +490,10 @@ describe("extractCurrentToolInfo", () => {
 
 	it("should find the most recent streaming tool call", () => {
 		const entries: SessionEntry[] = [
-			{ ...createToolCallEntry("Read", "read", { file_path: "/first.ts" }), isStreaming: false },
+			{ ...createMockToolEntry("Read", "read", { file_path: "/first.ts" }), isStreaming: false },
 			createUserEntry("Working..."),
 			{
-				...createToolCallEntry("Edit", "edit", { edits: [{ filePath: "/second.ts" }] }),
+				...createMockToolEntry("Edit", "edit", { edits: [{ filePath: "/second.ts" }] }),
 				isStreaming: true,
 			},
 		];
@@ -504,12 +504,12 @@ describe("extractCurrentToolInfo", () => {
 	it("should skip non-streaming tools even if they are more recent", () => {
 		const entries: SessionEntry[] = [
 			{
-				...createToolCallEntry("Read", "read", { file_path: "/file.ts" }),
+				...createMockToolEntry("Read", "read", { file_path: "/file.ts" }),
 				isStreaming: true,
 			},
 			createUserEntry("Done"),
 			{
-				...createToolCallEntry("Edit", "edit", { edits: [{ filePath: "/file2.ts" }] }),
+				...createMockToolEntry("Edit", "edit", { edits: [{ filePath: "/file2.ts" }] }),
 				isStreaming: false,
 			},
 		];
@@ -532,7 +532,7 @@ describe("extractLastToolInfo", () => {
 
 	it("should extract Read tool with file basename", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Read", "read", { file_path: "/path/to/file.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/path/to/file.ts" }),
 		];
 		const result = extractLastToolInfo(entries);
 		expect(result).toEqual({ name: "Read", target: "file.ts", kind: "read" });
@@ -540,7 +540,7 @@ describe("extractLastToolInfo", () => {
 
 	it("should extract Edit tool with file basename", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Edit", "edit", {
+			createMockToolEntry("Edit", "edit", {
 				edits: [{ filePath: "/src/components/Button.svelte" }],
 			}),
 		];
@@ -550,7 +550,7 @@ describe("extractLastToolInfo", () => {
 
 	it("should extract Bash/execute tool with command from registry", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Bash", "execute", { command: "npm run build && npm test" }),
+			createMockToolEntry("Bash", "execute", { command: "npm run build && npm test" }),
 		];
 		const result = extractLastToolInfo(entries);
 		// Registry uses truncateText(50) - full command fits
@@ -558,16 +558,16 @@ describe("extractLastToolInfo", () => {
 	});
 
 	it("should extract Search tool with query", () => {
-		const entries: SessionEntry[] = [createToolCallEntry("Grep", "search", { query: "TODO" })];
+		const entries: SessionEntry[] = [createMockToolEntry("Grep", "search", { query: "TODO" })];
 		const result = extractLastToolInfo(entries);
 		expect(result).toEqual({ name: "Grep", target: "TODO", kind: "search" });
 	});
 
 	it("should find the most recent tool call (last in array)", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Read", "read", { file_path: "/first.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/first.ts" }),
 			createUserEntry("Thanks"),
-			createToolCallEntry("Edit", "edit", { edits: [{ filePath: "/second.ts" }] }),
+			createMockToolEntry("Edit", "edit", { edits: [{ filePath: "/second.ts" }] }),
 		];
 		const result = extractLastToolInfo(entries);
 		expect(result).toEqual({ name: "Edit", target: "second.ts", kind: "edit" });
@@ -575,7 +575,7 @@ describe("extractLastToolInfo", () => {
 
 	it("should fall back to title when think tool has no description", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("TodoWrite", "think", { raw: { todos: [] } }),
+			createMockToolEntry("TodoWrite", "think", { raw: { todos: [] } }),
 		];
 		const result = extractLastToolInfo(entries);
 		// Registry falls back to title (e.g. "Thinking") when subtitle is empty
@@ -586,7 +586,7 @@ describe("extractLastToolInfo", () => {
 
 	it("should show task description for think tools (matches queue item display)", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Task", "think", {
+			createMockToolEntry("Task", "think", {
 				description: "Explore Acepe codebase structure",
 				subagent_type: "Explore",
 			}),
@@ -605,7 +605,7 @@ describe("extractLastToolInfo", () => {
 			"x"
 		);
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Task", "think", { description: longDescription }),
+			createMockToolEntry("Task", "think", { description: longDescription }),
 		];
 		const result = extractLastToolInfo(entries);
 		expect(result?.target).toHaveLength(50);
@@ -645,7 +645,7 @@ describe("extractTodoProgress", () => {
 
 	it("should return null when no TodoWrite exists", () => {
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Read", "read", { file_path: "/file.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/file.ts" }),
 		];
 		const result = extractTodoProgress(entries);
 		expect(result).toBeNull();
@@ -715,7 +715,7 @@ describe("extractTodoProgress", () => {
 	it("should use the most recent TodoWrite", () => {
 		const entries: SessionEntry[] = [
 			createTodoWriteEntry([{ content: "Old task", activeForm: "Old", status: "in_progress" }]),
-			createToolCallEntry("Read", "read", { file_path: "/file.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/file.ts" }),
 			createTodoWriteEntry([
 				{ content: "New task 1", activeForm: "New 1", status: "completed" },
 				{ content: "New task 2", activeForm: "New 2", status: "in_progress" },
@@ -779,7 +779,7 @@ describe("extractActivityInfo", () => {
 			parentId: null,
 		};
 		const entries: SessionEntry[] = [
-			createToolCallEntry("Read", "read", { file_path: "/test.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/test.ts" }),
 		];
 		const result = extractActivityInfo(session, entries);
 		expect(result).toEqual({
@@ -819,7 +819,7 @@ describe("extractActivityInfo", () => {
 				id: "e1",
 				message: todoMessage,
 			},
-			createToolCallEntry("Read", "read", { file_path: "/file.ts" }),
+			createMockToolEntry("Read", "read", { file_path: "/file.ts" }),
 		];
 		const result = extractActivityInfo(session, entries);
 		expect(result).toEqual({
@@ -846,7 +846,7 @@ describe("extractActivityInfo", () => {
 		};
 		const entries: SessionEntry[] = [
 			// Tool that completed (no longer streaming)
-			{ ...createToolCallEntry("Read", "read", { file_path: "/file.ts" }), isStreaming: false },
+			{ ...createMockToolEntry("Read", "read", { file_path: "/file.ts" }), isStreaming: false },
 			createUserEntry("Thanks"),
 			// Agent thinking/planning (assistant message, no tool)
 			createAssistantEntry("Now I'll check something else"),

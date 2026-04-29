@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { OperationSnapshot } from "../../../../services/acp-types.js";
 import { OperationStore } from "../../../store/operation-store.svelte.js";
-import { SessionEntryStore } from "../../../store/session-entry-store.svelte.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import {
@@ -61,25 +61,28 @@ function createExitPlanPermission(
 
 function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
 	const operationStore = new OperationStore();
-	const entryStore = new SessionEntryStore(operationStore);
-	entryStore.createToolCallEntry("session-1", {
-		id: toolCall.id,
+	const operation: OperationSnapshot = {
+		id: `op-${toolCall.id}`,
+		session_id: "session-1",
+		tool_call_id: toolCall.id,
+		operation_provenance_key: toolCall.id,
 		name: toolCall.name,
 		arguments: toolCall.arguments,
-		status: toolCall.status,
-		kind: toolCall.kind,
+		provider_status: toolCall.status,
+		operation_state: toolCall.status === "completed" ? "completed" : "running",
+		source_link: { kind: "transcript_linked", entry_id: toolCall.id },
+		kind: toolCall.kind ?? null,
 		title: null,
-		locations: null,
-		skillMeta: null,
 		result: null,
-		normalizedQuestions: null,
-		normalizedTodos: null,
-		parentToolUseId: null,
-		taskChildren: null,
-		questionAnswer: null,
-		awaitingPlanApproval: toolCall.awaitingPlanApproval,
-		planApprovalRequestId: null,
-	});
+		progressive_arguments: null,
+		command: null,
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+	};
+	operationStore.replaceSessionOperations("session-1", [operation]);
 	return operationStore;
 }
 

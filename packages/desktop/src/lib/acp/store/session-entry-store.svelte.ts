@@ -79,8 +79,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.operationStore = operationStore ?? new OperationStore();
 		this.transcriptToolCallBuffer = new TranscriptToolCallBuffer(
 			this,
-			this.entryIndex,
-			this.operationStore
+			this.entryIndex
 		);
 	}
 
@@ -392,7 +391,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 					continue;
 				}
 
-				normalizedStore.createToolCallEntry(sessionId, entry.message);
+				normalizedStore.recordToolCallTranscriptEntry(sessionId, entry.message);
 			}
 
 			collapsedEntries = normalizedStore.getEntries(sessionId);
@@ -573,10 +572,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// ============================================
 
 	/**
-	 * Create a new tool call entry from full ToolCallData.
+	 * Record a transcript-only tool call entry from full ToolCallData.
 	 * Splits assistant aggregation boundary before delegating to TranscriptToolCallBuffer.
 	 */
-	createToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
+	recordToolCallTranscriptEntry(sessionId: string, toolCallData: ToolCallData): void {
 		this.chunkAggregator.splitAssistantAggregationBoundary(sessionId);
 		this.transcriptToolCallBuffer.createEntry(sessionId, toolCallData).match(
 			() => {},
@@ -590,11 +589,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	/**
-	 * Update an existing tool call entry.
-	 * Canonical tool rows are created by toolCall events; update events are
-	 * mutation-only and must not create synthetic placeholders.
+	 * Update an existing transcript-only tool call entry.
+	 * Operation truth is not created here; canonical operation data arrives through
+	 * Rust-authored session graph snapshots and patches.
 	 */
-	updateToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
+	updateToolCallTranscriptEntry(sessionId: string, update: ToolCallUpdate): void {
 		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>

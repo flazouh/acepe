@@ -101,8 +101,6 @@ const entryManager: IEntryManager = {
 	removeEntry: () => {},
 	updateEntry: () => {},
 	clearEntries: () => {},
-	createToolCallEntry: () => {},
-	updateToolCallEntry: () => {},
 	aggregateAssistantChunk: () => {
 		throw new Error("Not implemented for test");
 	},

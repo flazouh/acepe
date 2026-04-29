@@ -1,11 +1,11 @@
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { OperationSnapshot } from "../../../services/acp-types.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { PermissionStore } from "../permission-store.svelte.js";
-import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 function createAcpPermission(
 	sessionId: string,
@@ -43,6 +43,30 @@ function createExecutePermissionWithCommand(
 		},
 		always: [],
 		tool: { messageID: "", callID: toolCallId },
+	};
+}
+
+function createExecuteOperation(id: string, command: string): OperationSnapshot {
+	return {
+		id: `op-${id}`,
+		session_id: "session-1",
+		tool_call_id: id,
+		operation_provenance_key: id,
+		name: "bash",
+		kind: "execute",
+		provider_status: "pending",
+		operation_state: "pending",
+		source_link: { kind: "transcript_linked", entry_id: id },
+		title: "Run command",
+		arguments: { kind: "execute", command },
+		progressive_arguments: null,
+		result: null,
+		command,
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
 	};
 }
 
@@ -178,19 +202,9 @@ describe("PermissionStore", () => {
 
 		it("returns the grouped permission for a canonical operation with an explicit anchor", () => {
 			const operationStore = new OperationStore();
-			const entryStore = new SessionEntryStore(operationStore);
-			entryStore.createToolCallEntry("session-1", {
-				id: "tool-1",
-				name: "bash",
-				arguments: { kind: "execute", command: "git status" },
-				status: "pending",
-				result: null,
-				kind: "execute",
-				title: "Run command",
-				locations: null,
-				skillMeta: null,
-				awaitingPlanApproval: false,
-			});
+			operationStore.replaceSessionOperations("session-1", [
+				createExecuteOperation("tool-1", "git status"),
+			]);
 			const operation = operationStore.getByToolCallId("session-1", "tool-1");
 			store.add(createExecutePermissionWithCommand("session-1", "tool-1", 100, "git status"));
 			store.add(createExecutePermissionWithCommand("session-1", "tool-1", 101, "git status"));
@@ -206,31 +220,10 @@ describe("PermissionStore", () => {
 
 		it("fails closed when multiple execute operations share the same command", () => {
 			const operationStore = new OperationStore();
-			const entryStore = new SessionEntryStore(operationStore);
-			entryStore.createToolCallEntry("session-1", {
-				id: "tool-1",
-				name: "bash",
-				arguments: { kind: "execute", command: "git status" },
-				status: "pending",
-				result: null,
-				kind: "execute",
-				title: "Run command",
-				locations: null,
-				skillMeta: null,
-				awaitingPlanApproval: false,
-			});
-			entryStore.createToolCallEntry("session-1", {
-				id: "tool-2",
-				name: "bash",
-				arguments: { kind: "execute", command: "git status" },
-				status: "pending",
-				result: null,
-				kind: "execute",
-				title: "Run command",
-				locations: null,
-				skillMeta: null,
-				awaitingPlanApproval: false,
-			});
+			operationStore.replaceSessionOperations("session-1", [
+				createExecuteOperation("tool-1", "git status"),
+				createExecuteOperation("tool-2", "git status"),
+			]);
 			store.add(
 				createExecutePermissionWithCommand("session-1", "shell-permission", 101, "git status")
 			);

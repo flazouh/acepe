@@ -122,7 +122,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 			);
 
 			// Tool call boundary
-			store.createToolCallEntry("sess-1", {
+			store.recordToolCallTranscriptEntry("sess-1", {
 				id: "tool-edit-1",
 				name: "Edit",
 				arguments: {
