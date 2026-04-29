@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../../application/dto/session.js";
+import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
 import {
 	buildVirtualizedDisplayEntries,
@@ -10,6 +11,7 @@ import {
 	resolveDisplayEntryThinkingDurationMs,
 	shouldObserveRevealResize,
 	THINKING_DISPLAY_ENTRY,
+	type VirtualizedDisplayEntry,
 } from "../virtualized-entry-display.js";
 
 function createThoughtAssistantEntry(id: string, text: string): SessionEntry {
@@ -190,5 +192,55 @@ describe("virtualized-entry-display", () => {
 		expect(
 			resolveDisplayEntryThinkingDurationMs(display, 1, Date.parse("2026-01-01T00:00:08.000Z"))
 		).toBe(8_000);
+	});
+
+	it("does not amplify display entry count for long-session fixture entries", () => {
+		const longFixture = createLongSessionFixture({ scale: "long" });
+		const doubledFixture = createLongSessionFixture({ scale: "doubled" });
+		const longDisplay = buildVirtualizedDisplayEntries(longFixture.entries);
+		const doubledDisplay = buildVirtualizedDisplayEntries(doubledFixture.entries);
+
+		expect(longDisplay.length).toBeLessThanOrEqual(longFixture.entries.length);
+		expect(doubledDisplay.length).toBeLessThanOrEqual(doubledFixture.entries.length);
+		expect(doubledDisplay.length).toBeLessThanOrEqual(longDisplay.length * 2 + 2);
+	});
+
+	it("resolves tail thinking duration without scanning the full long-session display history", () => {
+		const fixture = createLongSessionFixture({ scale: "long" });
+		const display = buildVirtualizedDisplayEntries(
+			fixture.entries.concat([
+				{
+					id: "tail-thought",
+					type: "assistant",
+					message: {
+						chunks: [{ type: "thought", block: { type: "text", text: "still thinking" } }],
+					},
+					timestamp: new Date("2026-01-01T00:00:00.000Z"),
+				},
+			])
+		);
+		display.push({
+			type: "thinking",
+			id: "thinking-indicator",
+			startedAtMs: Date.parse("2026-01-01T00:00:00.000Z"),
+		});
+		let numericReads = 0;
+		const observedDisplay = new Proxy(display, {
+			get(target, property, receiver) {
+				if (typeof property === "string" && /^[0-9]+$/.test(property)) {
+					numericReads += 1;
+				}
+				return Reflect.get(target, property, receiver);
+			},
+		}) satisfies VirtualizedDisplayEntry[];
+
+		const duration = resolveDisplayEntryThinkingDurationMs(
+			observedDisplay,
+			observedDisplay.length - 2,
+			Date.parse("2026-01-01T00:00:08.000Z")
+		);
+
+		expect(duration).toBe(8_000);
+		expect(numericReads).toBeLessThanOrEqual(2);
 	});
 });

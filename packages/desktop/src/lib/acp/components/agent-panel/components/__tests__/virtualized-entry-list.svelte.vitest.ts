@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session.js";
 import type { TurnState } from "../../../../store/types.js";
 import type { ToolCall } from "../../../../types/tool-call.js";
+import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
 import {
 	clearHistory,
@@ -59,6 +60,14 @@ function createAssistantEntry(id: string, text: string): SessionEntry {
 			chunks: [{ type: "message", block: { type: "text", text } }],
 		},
 	};
+}
+
+function createUserEntries(count: number): SessionEntry[] {
+	const entries: SessionEntry[] = [];
+	for (let index = 0; index < count; index += 1) {
+		entries.push(createUserEntry(`user-${index}`, `message ${index}`));
+	}
+	return entries;
 }
 
 function createToolCallEntry(id: string, result: string | null): SessionEntry {
@@ -373,6 +382,44 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
 		// user entry + thinking entry = at least 2 stubs
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("keeps native fallback bounded for very long sessions", async () => {
+		setDefaultViewportSize(0);
+
+		const view = renderList({
+			entries: createUserEntries(250),
+		});
+		await tick();
+
+		for (let i = 0; i < 12; i += 1) {
+			await flushAnimationFrames();
+		}
+
+		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+		const renderedRows = view.container.querySelectorAll("[data-entry-key]");
+		expect(renderedRows.length).toBeLessThanOrEqual(80);
+		expect(renderedRows[0]?.getAttribute("data-entry-key")).toBe("user-170");
+		expect(renderedRows[renderedRows.length - 1]?.getAttribute("data-entry-key")).toBe("user-249");
+	});
+
+	it("keeps native fallback bounded with the shared long-session fixture", async () => {
+		setDefaultViewportSize(0);
+		const fixture = createLongSessionFixture({ scale: "long" });
+
+		const view = renderList({
+			entries: fixture.entries,
+		});
+		await tick();
+
+		for (let i = 0; i < 12; i += 1) {
+			await flushAnimationFrames();
+		}
+
+		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+		const renderedRows = view.container.querySelectorAll("[data-entry-key]");
+		expect(renderedRows.length).toBeLessThan(fixture.entries.length);
+		expect(renderedRows.length).toBeLessThanOrEqual(80);
 	});
 
 	it("does not steal scroll control back when the user has detached", async () => {

@@ -40,6 +40,7 @@ import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
+const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
 
 type VirtualizedEntryListProps = {
 	panelId: string;
@@ -63,6 +64,10 @@ type VirtualizedEntryListProps = {
 type AssistantDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "assistant" }>;
 type ToolCallDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "tool_call" }>;
 type UserDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "user" }>;
+type IndexedDisplayEntry = {
+	entry: VirtualizedDisplayEntry;
+	index: number;
+};
 
 const EMPTY_ASSISTANT_MESSAGE: AssistantDisplayEntry["message"] = {
 	chunks: [],
@@ -444,6 +449,18 @@ let lastRenderedSessionId = $state(untrack(() => sessionId));
 const displayEntries = $derived(
 	initialHydrationComplete ? displayEntriesRaw : ([] as readonly VirtualizedDisplayEntry[])
 );
+const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
+	const startIndex = Math.max(0, displayEntries.length - NATIVE_FALLBACK_ENTRY_LIMIT);
+	const result: IndexedDisplayEntry[] = [];
+	for (let index = startIndex; index < displayEntries.length; index += 1) {
+		const entry = displayEntries[index];
+		if (!entry) {
+			continue;
+		}
+		result.push({ entry, index });
+	}
+	return result;
+});
 const vlistRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
 const wrapperStyle = $derived(
 	viewportNudgeOffsetPx === 0 ? "height: 100%;" : `height: calc(100% - ${viewportNudgeOffsetPx}px);`
@@ -795,9 +812,9 @@ export function scrollToTop() {
 			class="h-full overflow-y-auto"
 			onscroll={handleFallbackScroll}
 		>
-			{#each displayEntries as entry, index (getKey(entry))}
-				<div use:bindFallbackRow={getKey(entry)}>
-					{@render renderEntry(entry, index)}
+			{#each nativeFallbackEntries as item (getKey(item.entry))}
+				<div use:bindFallbackRow={getKey(item.entry)}>
+					{@render renderEntry(item.entry, item.index)}
 				</div>
 			{/each}
 		</div>
