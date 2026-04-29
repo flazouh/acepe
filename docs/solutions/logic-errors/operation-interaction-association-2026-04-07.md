@@ -1,6 +1,7 @@
 ---
 title: Keep operation and interaction association below the UI boundary
 date: 2026-04-07
+last_updated: 2026-04-29
 category: logic-errors
 module: desktop ACP operation association
 problem_type: logic_error
@@ -60,16 +61,21 @@ Introduce a canonical `OperationStore` and make operation/interaction associatio
 - `PermissionStore` and `QuestionStore` expose operation-aware lookups so consumers ask for "the interaction for this operation" instead of reimplementing matching.
 - Transcript/tool surfaces read canonical association through the store layer, and queue/kanban/tab/urgency/live-session projections all share the same session interaction snapshot.
 
+**2026-04-29 update:** This document describes the intermediate operation-association step. The final GOD model supersedes the raw `ToolCallManager` mutation adapter: raw tool lanes are transcript/diagnostic only, Rust-owned `OperationSnapshot` patches own operation lifecycle, and rich transcript-operation rendering joins only through `OperationSnapshot.source_link.kind === "transcript_linked"` plus matching `entry_id`.
+
 ## Why This Works
 The core fix is ownership, not matching cleverness.
 
 `ToolCallManager` still reacts to transport updates, but it is no longer the only place tool semantics exist. `OperationStore` is the canonical read model, and `operation-association.ts` is the only place that knows how explicit references and compatibility fallback interact. Once that exists, transcript, permission bar, queue, kanban, and tab surfaces can all project the same resolved state instead of performing their own reconciliation.
 
+In the final GOD model, that ownership moved one layer further upstream: Rust emits canonical operation snapshots and patches, and TypeScript stores project them instead of reconciling raw tool calls into operation truth.
+
 ## Prevention
 - Treat provider transport IDs as adapter metadata, not frontend domain identity.
 - Keep one canonical owner for tool execution lifecycle (`OperationStore`) and one canonical owner for interaction lifecycle (`InteractionStore`).
 - If a UI surface needs to know whether an interaction belongs to an operation, it should ask the association layer rather than inspect raw transport fields itself.
-- Prefer explicit references first, then narrow semantic fallback, and fail closed when fallback would be ambiguous.
+- Prefer explicit references first, then narrow semantic fallback, and fail closed when fallback would be ambiguous. For transcript-operation rendering, the current explicit reference is `source_link`; do not reintroduce fallback joins by tool-call id, provenance key, title, or position.
+- Do not reintroduce raw `ToolCall` -> operation write APIs. Raw lanes may preserve transcript display evidence, but operation identity and lifecycle arrive through canonical graph envelopes.
 - Regression coverage that guards this boundary:
   - `packages/desktop/src/lib/acp/store/__tests__/operation-store.vitest.ts`
   - `packages/desktop/src/lib/acp/store/__tests__/operation-association.test.ts`
@@ -80,3 +86,4 @@ The core fix is ownership, not matching cleverness.
 - `docs/solutions/logic-errors/kanban-live-session-panel-sync-2026-04-02.md` covers the earlier form of the same smell: one runtime owner, many projections.
 - `docs/plans/2026-04-07-003-refactor-canonical-operation-association-plan.md` contains the implementation plan for this phase.
 - `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — regression in `isTerminalOperationState` where `"blocked"` was absent from the terminal-state set, allowing ToolCall events to overwrite a canonical blocked patch. Same file (`operation-store.svelte.ts`), same class of write-path bypass.
+- `docs/solutions/architectural/final-god-architecture-2026-04-25.md` contains the final canonical operation authority closure that deleted the raw tool operation writer and made `source_link` the sole transcript-operation join authority.
