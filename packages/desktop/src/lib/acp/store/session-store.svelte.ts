@@ -87,7 +87,6 @@ import type {
 	SessionEntry,
 	SessionIdentity,
 	SessionLinkedPr,
-	LocalPersistedSessionProbeStatus,
 	SessionMetadata,
 	SessionPrLinkMode,
 	SessionTransientProjection,
@@ -1263,17 +1262,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.hotStateStore.getHotState(sessionId);
 	}
 
-	getLocalPersistedSessionProbeStatus(sessionId: string): LocalPersistedSessionProbeStatus {
-		return this.getHotState(sessionId).localPersistedSessionProbeStatus ?? "none";
-	}
-
-	setLocalPersistedSessionProbeStatus(
-		sessionId: string,
-		status: LocalPersistedSessionProbeStatus
-	): void {
-		this.hotStateStore.updateHotState(sessionId, { localPersistedSessionProbeStatus: status });
-	}
-
 	/**
 	 * Get canonical graph projection for lifecycle/activity UI selectors.
 	 */
@@ -1803,20 +1791,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.connectionService.sendContentLoad(sessionId);
 		this.connectionService.sendContentLoaded(sessionId);
 		this.setSessionLoaded(sessionId);
-	}
-
-	/**
-	 * Mark a persisted session as non-openable so the panel renders an explicit
-	 * error/read-only state instead of silently falling back to the ready placeholder.
-	 */
-	setSessionOpenMissing(sessionId: string, message: string): void {
-		this.connectionService.setConnecting(sessionId, false);
-		this.connectionService.sendConnectionError(sessionId);
-		void message;
-		// Pure GOD: Rust emits a Failed lifecycle envelope from
-		// `get_session_open_result` (Missing/Error branches) before returning.
-		// The canonical projection updates via the normal envelope handler — no
-		// client-side synthesis required.
 	}
 
 	// ============================================

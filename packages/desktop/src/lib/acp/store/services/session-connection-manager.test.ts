@@ -56,7 +56,6 @@ function createResidualHotState(input: {
 		modelPerMode: input.modelPerMode ?? {},
 		statusChangedAt: Date.now(),
 		pendingSendIntent: null,
-		localPersistedSessionProbeStatus: "none",
 		capabilityMutationState: {
 			pendingMutationId: null,
 			previewState: null,

@@ -48,13 +48,13 @@ describe("SessionTransientProjectionStore", () => {
 				modelPerMode: { build: "gpt-5" },
 			});
 			store.updateHotState("session1", {
-				localPersistedSessionProbeStatus: "permanent-reattach-failure",
+				autonomousTransition: "enabling",
 			});
 
 			expect(store.getHotState("session1")).toMatchObject({
 				acpSessionId: "acp-1",
 				modelPerMode: { build: "gpt-5" },
-				localPersistedSessionProbeStatus: "permanent-reattach-failure",
+				autonomousTransition: "enabling",
 			});
 		});
 

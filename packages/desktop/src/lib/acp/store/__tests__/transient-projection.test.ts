@@ -12,7 +12,6 @@ describe("SessionTransientProjection", () => {
 			autonomousTransition: "idle",
 			modelPerMode: {},
 			pendingSendIntent: null,
-			localPersistedSessionProbeStatus: "none",
 			capabilityMutationState: {
 				pendingMutationId: null,
 				previewState: null,
@@ -25,7 +24,6 @@ describe("SessionTransientProjection", () => {
 			"acpSessionId",
 			"autonomousTransition",
 			"capabilityMutationState",
-			"localPersistedSessionProbeStatus",
 			"modelPerMode",
 			"pendingSendIntent",
 			"statusChangedAt",
@@ -43,7 +41,6 @@ describe("SessionTransientProjection", () => {
 				startedAt: 456,
 				promptLength: 12,
 			},
-			localPersistedSessionProbeStatus: "permanent-reattach-failure",
 			capabilityMutationState: {
 				pendingMutationId: "mutation-1",
 				previewState: "pending",
@@ -57,7 +54,6 @@ describe("SessionTransientProjection", () => {
 			pendingSendIntent: {
 				attemptId: "attempt-1",
 			},
-			localPersistedSessionProbeStatus: "permanent-reattach-failure",
 			capabilityMutationState: {
 				pendingMutationId: "mutation-1",
 				previewState: "pending",

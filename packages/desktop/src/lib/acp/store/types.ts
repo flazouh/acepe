@@ -80,8 +80,6 @@ export interface SessionPendingSendIntent {
 	readonly promptLength: number;
 }
 
-export type LocalPersistedSessionProbeStatus = "none" | "permanent-reattach-failure";
-
 export interface SessionCapabilityMutationState {
 	readonly pendingMutationId: string | null;
 	readonly previewState: SessionCapabilities["previewState"] | null;
@@ -108,8 +106,6 @@ export interface SessionTransientProjection {
 	readonly usageTelemetry?: SessionUsageTelemetry;
 	/** Local send-click affordance only; never lifecycle truth. */
 	readonly pendingSendIntent?: SessionPendingSendIntent | null;
-	/** Local-created reattach probe status; never provider error text. */
-	readonly localPersistedSessionProbeStatus?: LocalPersistedSessionProbeStatus;
 	/** Local capability mutation progress; never capability truth. */
 	readonly capabilityMutationState?: SessionCapabilityMutationState;
 }
@@ -123,7 +119,6 @@ export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
 	modelPerMode: {},
 	statusChangedAt: Date.now(),
 	pendingSendIntent: null,
-	localPersistedSessionProbeStatus: "none",
 	capabilityMutationState: {
 		pendingMutationId: null,
 		previewState: null,

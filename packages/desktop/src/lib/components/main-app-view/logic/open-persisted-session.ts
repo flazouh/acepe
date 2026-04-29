@@ -4,7 +4,6 @@ import { api } from "$lib/acp/store/api.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import type { SessionOpenResult } from "$lib/services/acp-types.js";
 
 const logger = createLogger({ id: "open-persisted-session", name: "OpenPersistedSession" });
 const inflightPanelIds = new Set<string>();
@@ -14,10 +13,7 @@ type SessionOpenStore = Pick<
 	| "setSessionLoading"
 	| "setSessionLoaded"
 	| "setLocalCreatedSessionLoaded"
-	| "setSessionOpenMissing"
 	| "getSessionCold"
-	| "getLocalPersistedSessionProbeStatus"
-	| "setLocalPersistedSessionProbeStatus"
 	| "connectSession"
 >;
 
@@ -36,70 +32,8 @@ interface OpenPersistedSessionOptions {
 	readonly source: "initialization-manager" | "session-handler";
 }
 
-const PERMANENT_LOCAL_REATTACH_ERROR_MARKERS = [
-	"This saved session is no longer available to reopen",
-	"Resource not found: Session",
-] as const;
-
-function missingSessionMessage(session: ReturnType<SessionOpenStore["getSessionCold"]>): string {
-	if (session?.agentId === "cursor" && session.sourcePath?.endsWith("store.db")) {
-		return "This Cursor history session is view-only and can't be reopened because no canonical resumable state was persisted.";
-	}
-
-	return "This session can't be reopened yet because provider history isn't available. Retry once the provider has flushed the session history.";
-}
-
-function errorSessionMessage(result: Extract<SessionOpenResult, { outcome: "error" }>): string {
-	if (result.reason === "parseFailure") {
-		return "This session can't be reopened because the provider history could not be parsed.";
-	}
-
-	if (result.retryable) {
-		return "This session couldn't be reopened because Acepe hit an internal error while loading it. Try again in a moment.";
-	}
-
-	return "This session couldn't be reopened because Acepe hit an internal error while loading it.";
-}
-
-function localCreatedReattachUnavailableMessage(
-	session: ReturnType<SessionOpenStore["getSessionCold"]>
-): string {
-	if (session?.agentId === "cursor") {
-		return "This Cursor session is no longer available to reopen. Start a new session to continue.";
-	}
-
-	if (session?.agentId === "copilot") {
-		return "This GitHub Copilot session is no longer available to reopen. Start a new session to continue.";
-	}
-
-	return "This saved session is no longer available to reopen. Start a new session to continue.";
-}
-
 function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
 	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
-}
-
-function errorDetails(error: AppError): string {
-	const causeMessage = error.cause instanceof Error ? error.cause.message : "";
-	return causeMessage.length > 0 ? `${error.message}\n${causeMessage}` : error.message;
-}
-
-function isPermanentLocalReattachFailure(message: string | null): boolean {
-	if (message === null) {
-		return false;
-	}
-
-	return PERMANENT_LOCAL_REATTACH_ERROR_MARKERS.some((marker) => message.includes(marker));
-}
-
-function setLocalReattachFailureIfPermanent(
-	sessionStore: SessionOpenStore,
-	sessionId: string,
-	details: string
-): void {
-	if (isPermanentLocalReattachFailure(details)) {
-		sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "permanent-reattach-failure");
-	}
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -132,25 +66,14 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	}
 
 	if (!isProviderHistoryBackedSession(session)) {
-		if (
-			sessionStore.getLocalPersistedSessionProbeStatus(sessionId) ===
-			"permanent-reattach-failure"
-		) {
-			sessionStore.setSessionOpenMissing(sessionId, localCreatedReattachUnavailableMessage(session));
-			logger.debug("Skipping permanent failed local-created session reattach", {
-				source,
-				panelId,
-				sessionId,
-				agentId: session.agentId,
-			});
-			return;
-		}
-
-		sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
+		// GOD: local-created reattach failure is reported via the canonical
+		// lifecycle envelope (FailureReason::SessionGoneUpstream for upstream-
+		// permanent, ResumeFailed for transient). The UI reads
+		// `lifecycle.failureReason` and composes user copy itself — no TS-side
+		// string-match gate, no probe-status hot-state, no setSessionOpenMissing.
 		sessionStore.setSessionLoading(sessionId);
 		void sessionStore.connectSession(sessionId).match(
 			() => {
-				sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
 				sessionStore.setLocalCreatedSessionLoaded(sessionId);
 				logger.debug("Reattached local created session", {
 					source,
@@ -160,21 +83,11 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				});
 			},
 			(error: AppError) => {
-				const details = errorDetails(error);
-				const permanentLocalReattachFailure = isPermanentLocalReattachFailure(details);
-				setLocalReattachFailureIfPermanent(sessionStore, sessionId, details);
-				if (permanentLocalReattachFailure) {
-					sessionStore.setSessionOpenMissing(
-						sessionId,
-						localCreatedReattachUnavailableMessage(session)
-					);
-				}
 				logger.warn("Failed to reattach local created session", {
 					source,
 					panelId,
 					sessionId,
 					agentId: session.agentId,
-					details,
 					error,
 				});
 			}
@@ -205,8 +118,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	)
 		.andThen((result) => {
 			if (result.outcome === "missing") {
+				// GOD: Rust emitted a Failed lifecycle envelope (SessionGoneUpstream)
+				// from get_session_open_result before returning. UI is canonical-driven.
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionOpenMissing(sessionId, missingSessionMessage(session));
+				sessionStore.setSessionLoaded(sessionId);
 				logger.warn("Session open returned missing", {
 					source,
 					panelId,
@@ -216,8 +131,12 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			}
 
 			if (result.outcome === "error") {
+				// GOD: Rust emitted a Failed lifecycle envelope (ResumeFailed for
+				// transient, SessionGoneUpstream for upstream-permanent) before
+				// returning. UI reads lifecycle.failureReason via the canonical
+				// projection.
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionOpenMissing(sessionId, errorSessionMessage(result));
+				sessionStore.setSessionLoaded(sessionId);
 				logger.warn("Session open returned explicit error state", {
 					source,
 					panelId,

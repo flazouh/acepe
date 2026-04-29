@@ -34,7 +34,6 @@ function createHotState(
 		modelPerMode: {},
 		statusChangedAt: STATUS_CHANGED_AT,
 		pendingSendIntent: null,
-		localPersistedSessionProbeStatus: "none",
 		capabilityMutationState: {
 			pendingMutationId: null,
 			previewState: null,
