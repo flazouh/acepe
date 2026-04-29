@@ -992,6 +992,8 @@ impl Drop for ClaudeSDKClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cc_sdk::transport::mock::MockTransport;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_client_lifecycle() {
@@ -1036,5 +1038,34 @@ mod tests {
             .session_id("my-session-123")
             .build();
         assert_eq!(options.session_id.as_deref(), Some("my-session-123"));
+    }
+
+    #[tokio::test]
+    async fn send_request_uses_options_session_id_for_resumed_clients() {
+        let (transport, mut handle) = MockTransport::pair();
+        let options = ClaudeCodeOptions::builder()
+            .resume("provider-session-1")
+            .session_id("acepe-session-1")
+            .build();
+        let mut client = ClaudeSDKClient::with_transport(options, transport);
+
+        client.connect(None).await.expect("connect mock transport");
+        client
+            .send_request("hello".to_string(), None)
+            .await
+            .expect("send request");
+
+        let message = tokio::time::timeout(Duration::from_secs(1), handle.sent_input_rx.recv())
+            .await
+            .expect("sent message should arrive")
+            .expect("sent message channel should stay open");
+        assert_eq!(message.session_id, "acepe-session-1");
+        assert_eq!(
+            message.message,
+            serde_json::json!({
+                "role": "user",
+                "content": "hello"
+            })
+        );
     }
 }

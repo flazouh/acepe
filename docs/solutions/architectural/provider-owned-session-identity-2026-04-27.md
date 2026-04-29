@@ -1,6 +1,6 @@
 ---
 module: acp-session-identity
-last_updated: 2026-04-27
+last_updated: 2026-04-28
 tags:
   - provider-owned-identity
   - creation-attempts
@@ -59,7 +59,7 @@ Only registry-file legacy aliases (`__session_registry__/{old_id}`) are migrated
 - Provider history loading should use `session_metadata.id` directly.
 - If provider history is missing or unparseable, surface a typed restore failure instead of fabricating local transcript state.
 - Never insert fake `session_metadata` rows to reserve worktree or sequence state; use `creation_attempts`.
-- First-send and terminal-error paths for pending creation must update both machine state and hot state, then remove the pending creation entry.
+- First-send from a backend-authored `Reserved` session must route through direct send, not resume/load. `Detached` is the lifecycle state that authorizes provider resume/load. Pending-creation terminal-error paths must still update both machine state and hot state, then remove the pending creation entry.
 - Tests should exercise behavior through repositories, migrations, and store services; avoid source-text contract tests that assert implementation strings.
 
 ## Review-time regression checklist

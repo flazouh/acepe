@@ -403,13 +403,35 @@ pub async fn get_session_open_result(
         match load_provider_owned_session_snapshot(app_clone, &replay_context).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
-                return Ok(SessionOpenResult::Error(
-                    session_open_error_from_provider_load(&session_id, error),
-                ));
+                let open_error = session_open_error_from_provider_load(&session_id, error);
+                // GOD: emit a Failed lifecycle envelope so canonical readers see the
+                // failure through the canonical channel — no client-side synthesis.
+                let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+                    session_id: session_id.clone(),
+                    attempt_id: 0,
+                    error: open_error.message.clone(),
+                };
+                crate::acp::commands::emit_lifecycle_event(
+                    &app,
+                    &Some(hub.clone()),
+                    update,
+                    &session_id,
+                )
+                .await;
+                return Ok(SessionOpenResult::Error(open_error));
             }
         };
 
     let Some(thread_content) = thread_content else {
+        // GOD: emit a Failed lifecycle envelope so canonical readers see the
+        // missing state through the canonical channel — no client-side synthesis.
+        let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
+            session_id: session_id.clone(),
+            attempt_id: 0,
+            error: "Provider history is not available for this session".to_string(),
+        };
+        crate::acp::commands::emit_lifecycle_event(&app, &Some(hub.clone()), update, &session_id)
+            .await;
         return Ok(SessionOpenResult::Missing(SessionOpenMissing {
             requested_session_id: session_id,
         }));

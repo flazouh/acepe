@@ -8,7 +8,7 @@ import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { SessionEntry, SessionLinkedPr } from "../../../application/dto/session";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
-import type { TurnState } from "../../../store/types.js";
+import type { SessionTurnState } from "../../../../services/acp-types.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
@@ -48,6 +48,7 @@ let {
 	inlineErrorReferenceId,
 	inlineErrorReferenceSearchable,
 	onRetryConnection,
+	isRetryingConnection = false,
 	onDismissError,
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
@@ -107,6 +108,7 @@ let {
 	inlineErrorReferenceId: string | null;
 	inlineErrorReferenceSearchable: boolean;
 	onRetryConnection: () => void;
+	isRetryingConnection?: boolean;
 	onDismissError: () => void;
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
@@ -132,7 +134,7 @@ let {
 	effectiveProjectPath: string | null;
 	sessionProjectPath: string | null;
 	sessionEntries: SessionEntry[];
-	sessionTurnState: TurnState;
+	sessionTurnState: SessionTurnState | null;
 	effectivePathForGit: string | null;
 	createdPr: number | null;
 	createPrRunning: boolean;
@@ -189,6 +191,7 @@ let {
 								details={errorInfo.details ?? "Unknown error"}
 								referenceId={inlineErrorReferenceId}
 								referenceSearchable={inlineErrorReferenceSearchable}
+								isRetrying={isRetryingConnection}
 								onRetry={onRetryConnection}
 								onDismiss={onDismissError}
 								onCopyReferenceId={onCopyInlineErrorReference}

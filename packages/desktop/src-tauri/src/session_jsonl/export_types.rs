@@ -398,6 +398,11 @@ pub fn export_all_types() {
     export_acp_type!(QuestionData);
     export_acp_type!(UsageTelemetryData);
     export_acp_type!(UsageTelemetryTokens);
+    export_acp_type!(PlanStepStatus);
+    export_acp_type!(PlanStep);
+    export_acp_type!(PlanSource);
+    export_acp_type!(PlanConfidence);
+    export_acp_type!(PlanData);
     export_acp_type!(TodoStatus);
     export_acp_type!(TodoItem);
     export_acp_type!(TodoUpdateOperation);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { ConnectionError } from "$lib/acp/errors/app-error.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
@@ -16,6 +17,8 @@ type SessionOpenStore = Pick<
 	| "setLocalCreatedSessionLoaded"
 	| "setSessionOpenMissing"
 	| "getSessionCold"
+	| "getLocalPersistedSessionProbeStatus"
+	| "setLocalPersistedSessionProbeStatus"
 	| "connectSession"
 >;
 
@@ -43,6 +46,8 @@ describe("openPersistedSession", () => {
 			setLocalCreatedSessionLoaded: mock(() => {}),
 			setSessionOpenMissing: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
+			getLocalPersistedSessionProbeStatus: mock(() => "none"),
+			setLocalPersistedSessionProbeStatus: mock(() => {}),
 			getSessionCold: mock(() => ({
 				id: "session-1",
 				title: "Session 1",
@@ -160,6 +165,86 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
+	});
+
+	it("hydrates the open snapshot before marking loaded and connecting for manual and startup opens", async () => {
+		const sources = ["session-handler", "initialization-manager"] as const;
+
+		for (const source of sources) {
+			const sessionId = source === "session-handler" ? "manual-session" : "startup-session";
+			const panelId = source === "session-handler" ? "manual-panel" : "startup-panel";
+			const callOrder: string[] = [];
+
+			sessionStore.setSessionLoading = mock((loadedSessionId: string) => {
+				callOrder.push(`loading:${loadedSessionId}`);
+			});
+			sessionStore.setSessionLoaded = mock((loadedSessionId: string) => {
+				callOrder.push(`loaded:${loadedSessionId}`);
+			});
+			const connectSession: SessionOpenStore["connectSession"] = (connectedSessionId: string) => {
+				callOrder.push(`connect:${connectedSessionId}`);
+				return okAsync({
+					id: connectedSessionId,
+					title: "Session",
+					projectPath: "/project",
+					agentId: "claude-code",
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					parentId: null,
+				});
+			};
+			sessionStore.connectSession = mock(connectSession);
+			sessionStore.getSessionCold = mock(() => ({
+				id: sessionId,
+				title: "Session",
+				projectPath: "/project",
+				agentId: "claude-code",
+				sourcePath: `/tmp/${sessionId}.jsonl`,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				parentId: null,
+			}));
+			sessionOpenHydrator.beginAttempt = mock(() => `request-${sessionId}`);
+			sessionOpenHydrator.hydrateFound = mock(() => {
+				callOrder.push(`hydrate:${sessionId}`);
+				return okAsync({
+					canonicalSessionId: sessionId,
+					openToken: `open-token-${sessionId}`,
+					applied: true,
+				});
+			});
+			sessionOpenHydrator.clearAttempt = mock(() => {
+				callOrder.push(`clear:${panelId}`);
+			});
+			sessionOpenHydrator.isCurrentAttempt = mock(() => true);
+			getSessionOpenResultMock.mockImplementation(() => {
+				callOrder.push(`open:${sessionId}`);
+				return okAsync(createFoundResult(sessionId));
+			});
+
+			openPersistedSession({
+				panelId,
+				sessionId,
+				sessionStore,
+				sessionOpenHydrator,
+				getSessionOpenResult: getSessionOpenResultMock,
+				timeoutMs: 10_000,
+				source,
+			});
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(callOrder).toEqual([
+				`loading:${sessionId}`,
+				`open:${sessionId}`,
+				`hydrate:${sessionId}`,
+				`loaded:${sessionId}`,
+				`clear:${panelId}`,
+				`connect:${sessionId}`,
+			]);
+			resetOpenPersistedSessionForTests();
+		}
 	});
 
 	it("reconnects hydrated sessions even when the snapshot was already current", async () => {
@@ -372,9 +457,94 @@ describe("openPersistedSession", () => {
 		expect(sessionOpenHydrator.beginAttempt).not.toHaveBeenCalled();
 		expect(sessionStore.setSessionLoading).not.toHaveBeenCalled();
 		expect(sessionStore.setSessionOpenMissing).not.toHaveBeenCalled();
+		expect(sessionStore.setLocalPersistedSessionProbeStatus).toHaveBeenCalledWith(
+			"session-1",
+			"none"
+		);
 		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
 		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("surfaces permanent local-created reattach failures as non-openable", async () => {
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "cursor",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created" as const,
+			parentId: null,
+		}));
+		sessionStore.connectSession = mock(() =>
+			errAsync(
+				new ConnectionError(
+					"session-1",
+					new Error("Protocol error: This saved session is no longer available to reopen.")
+				)
+			)
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionStore.setLocalPersistedSessionProbeStatus).toHaveBeenCalledWith(
+			"session-1",
+			"none"
+		);
+		expect(sessionStore.setLocalPersistedSessionProbeStatus).toHaveBeenCalledWith(
+			"session-1",
+			"permanent-reattach-failure"
+		);
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This Cursor session is no longer available to reopen. Start a new session to continue."
+		);
+		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
+	});
+
+	it("does not retry local-created reattach while a permanent failure is already active", async () => {
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "cursor",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created" as const,
+			parentId: null,
+		}));
+		sessionStore.getLocalPersistedSessionProbeStatus = mock(
+			(_sessionId: string): "permanent-reattach-failure" =>
+				"permanent-reattach-failure"
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
+		expect(sessionStore.connectSession).not.toHaveBeenCalled();
+		expect(sessionStore.setSessionOpenMissing).toHaveBeenCalledWith(
+			"session-1",
+			"This Cursor session is no longer available to reopen. Start a new session to continue."
+		);
 	});
 
 	it("surfaces provider parse failures explicitly instead of silently settling to idle", async () => {
@@ -503,6 +673,20 @@ function createFoundResult(
 		operations: [],
 		interactions: [],
 		turnState: "Idle",
+		lifecycle: {
+			status: "ready",
+			actionability: {
+				canSend: true,
+				canResume: false,
+				canRetry: false,
+				canArchive: false,
+				canConfigure: true,
+				recommendedAction: "send",
+				recoveryPhase: "none",
+				compactStatus: "ready",
+			},
+		},
+		capabilities: {},
 		...overrides,
 	};
 }

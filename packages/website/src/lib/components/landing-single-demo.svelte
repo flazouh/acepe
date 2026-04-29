@@ -126,6 +126,17 @@ const scene = $derived<AgentPanelSceneModel>({
 				title: "Read",
 				filePath: "packages/website/src/lib/components/landing-single-demo.svelte",
 				status: "done",
+				presentationState: "resolved",
+			},
+			{
+				id: "single-unresolved-restore",
+				type: "tool_call",
+				kind: "other",
+				title: "Unresolved tool",
+				subtitle: "Restored transcript row",
+				status: "degraded",
+				presentationState: "degraded_operation",
+				degradedReason: "No canonical operation was found for this restored transcript tool row.",
 			},
 			{
 				id: "single-edit-1",

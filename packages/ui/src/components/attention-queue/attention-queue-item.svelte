@@ -16,8 +16,9 @@
 	let { selected = false, onSelect, children, slidingHighlight = false, compactPadding = false, collapsed = false }: Props = $props();
 
 	const paddingClass = $derived(collapsed ? "px-0 py-0.5" : compactPadding ? "px-1.5 py-1" : "px-2 py-1.5");
-	const baseClass =
-		$derived(`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} rounded transition-[background-color] duration-75 ease-out`);
+	const baseClass = $derived(
+		`flex flex-col ${collapsed ? "items-center" : ""} justify-center w-full text-left gap-1 ${paddingClass} rounded transition-[background-color] duration-75 ease-out`
+	);
 	const withHover = $derived(slidingHighlight ? "" : "hover:bg-accent/50");
 	const selectedClass = $derived(selected ? "bg-accent/20" : "");
 
@@ -32,7 +33,7 @@
 
 {#if onSelect}
 	<div
-		class="{baseClass} {withHover} {selectedClass}"
+		class="{baseClass} {withHover} {selectedClass} cursor-pointer"
 		role="button"
 		tabindex={0}
 		aria-pressed={selected}

@@ -13,7 +13,7 @@ pub enum SessionStateGraphMutation {
         graph: Box<SessionStateGraph>,
     },
     ApplyDelta {
-        delta: SessionStateDelta,
+        delta: Box<SessionStateDelta>,
     },
     UpdateLifecycle {
         lifecycle: SessionGraphLifecycle,
@@ -40,6 +40,7 @@ impl SessionStateReducer {
                 *graph = *replacement_graph;
             }
             SessionStateGraphMutation::ApplyDelta { delta } => {
+                let delta = *delta;
                 if !delta.transcript_operations.is_empty() {
                     apply_transcript_delta(
                         &mut graph.transcript_snapshot,
@@ -53,13 +54,10 @@ impl SessionStateReducer {
                 for interaction in delta.interaction_patches {
                     upsert_interaction_patch(&mut graph.interactions, interaction);
                 }
-                graph.activity = select_session_graph_activity(
-                    &graph.lifecycle,
-                    &graph.turn_state,
-                    &graph.operations,
-                    &graph.interactions,
-                    graph.active_turn_failure.as_ref(),
-                );
+                graph.activity = delta.activity;
+                graph.turn_state = delta.turn_state;
+                graph.active_turn_failure = delta.active_turn_failure;
+                graph.last_terminal_turn_id = delta.last_terminal_turn_id;
                 graph.revision = delta.to_revision;
             }
             SessionStateGraphMutation::UpdateLifecycle {
@@ -110,30 +108,11 @@ fn upsert_operation_patch(
         .iter_mut()
         .find(|existing| existing.id == operation.id)
     {
-        if is_terminal_operation_snapshot(existing) && !is_terminal_operation_snapshot(&operation) {
-            return;
-        }
-        *existing = operation;
+        *existing = crate::acp::projections::merge_operation_snapshot_evidence(existing, operation);
         return;
     }
 
     operations.push(operation);
-}
-
-fn is_terminal_operation_snapshot(operation: &crate::acp::projections::OperationSnapshot) -> bool {
-    if operation
-        .operation_state
-        .as_ref()
-        .is_some_and(is_terminal_operation_state)
-    {
-        return true;
-    }
-
-    matches!(
-        operation.provider_status,
-        crate::acp::session_update::ToolCallStatus::Completed
-            | crate::acp::session_update::ToolCallStatus::Failed
-    )
 }
 
 fn is_terminal_operation_state(state: &crate::acp::projections::OperationState) -> bool {
@@ -203,7 +182,7 @@ fn apply_transcript_delta(
 
 #[cfg(test)]
 mod tests {
-    use crate::acp::projections::SessionTurnState;
+    use crate::acp::projections::{SessionTurnState, TurnFailureSnapshot};
     use crate::acp::session_state_engine::graph::SessionStateGraph;
     use crate::acp::session_state_engine::protocol::SessionStateDelta;
     use crate::acp::session_state_engine::reducer::{
@@ -211,8 +190,10 @@ mod tests {
     };
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::session_state_engine::selectors::{
-        SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
+        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
+        SessionGraphLifecycle,
     };
+    use crate::acp::session_update::{TurnErrorKind, TurnErrorSource};
     use crate::acp::transcript_projection::{
         TranscriptDeltaOperation, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
         TranscriptSnapshot,
@@ -299,6 +280,10 @@ mod tests {
         let delta = SessionStateDelta {
             from_revision: SessionGraphRevision::new(1, 1, 1),
             to_revision: SessionGraphRevision::new(2, 2, 2),
+            activity: SessionGraphActivity::idle(),
+            turn_state: SessionTurnState::Idle,
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
             transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
                 entry_id: "assistant-1".to_string(),
                 role: TranscriptEntryRole::Assistant,
@@ -312,7 +297,12 @@ mod tests {
             changed_fields: vec!["transcriptSnapshot".to_string()],
         };
 
-        SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
 
         assert_eq!(graph.revision, SessionGraphRevision::new(2, 2, 2));
         assert_eq!(graph.transcript_snapshot.revision, 2);
@@ -337,6 +327,10 @@ mod tests {
         let delta = SessionStateDelta {
             from_revision: SessionGraphRevision::new(1, 1, 1),
             to_revision: SessionGraphRevision::new(5, 5, 5),
+            activity: SessionGraphActivity::idle(),
+            turn_state: SessionTurnState::Idle,
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
             transcript_operations: vec![TranscriptDeltaOperation::ReplaceSnapshot {
                 snapshot: replacement_snapshot.clone(),
             }],
@@ -345,7 +339,12 @@ mod tests {
             changed_fields: vec!["transcriptSnapshot".to_string()],
         };
 
-        SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
 
         assert_eq!(graph.transcript_snapshot, replacement_snapshot);
         assert_eq!(graph.revision, SessionGraphRevision::new(5, 5, 5));
@@ -357,6 +356,10 @@ mod tests {
         let delta = SessionStateDelta {
             from_revision: SessionGraphRevision::new(1, 1, 1),
             to_revision: SessionGraphRevision::new(10, 4, 10),
+            activity: SessionGraphActivity::idle(),
+            turn_state: SessionTurnState::Idle,
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
             transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
                 entry_id: "assistant-1".to_string(),
                 role: TranscriptEntryRole::Assistant,
@@ -370,11 +373,65 @@ mod tests {
             changed_fields: vec!["transcriptSnapshot".to_string()],
         };
 
-        SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
 
         assert_eq!(graph.revision, SessionGraphRevision::new(10, 4, 10));
         assert_eq!(graph.transcript_snapshot.revision, 4);
         assert_eq!(graph.transcript_snapshot.entries[0].segments.len(), 2);
+    }
+
+    #[test]
+    fn reducer_applies_session_projection_fields_from_delta() {
+        let mut graph = base_graph();
+        let active_turn_failure = TurnFailureSnapshot {
+            turn_id: Some("turn-2".to_string()),
+            message: "rate limit".to_string(),
+            code: Some("429".to_string()),
+            kind: TurnErrorKind::Recoverable,
+            source: TurnErrorSource::Process,
+        };
+        let activity = SessionGraphActivity {
+            kind: SessionGraphActivityKind::Error,
+            active_operation_count: 0,
+            active_subagent_count: 0,
+            dominant_operation_id: None,
+            blocking_interaction_id: None,
+        };
+        let delta = SessionStateDelta {
+            from_revision: SessionGraphRevision::new(1, 1, 1),
+            to_revision: SessionGraphRevision::new(2, 1, 2),
+            activity: activity.clone(),
+            turn_state: SessionTurnState::Failed,
+            active_turn_failure: Some(active_turn_failure.clone()),
+            last_terminal_turn_id: Some("turn-2".to_string()),
+            transcript_operations: Vec::new(),
+            operation_patches: Vec::new(),
+            interaction_patches: Vec::new(),
+            changed_fields: vec![
+                "activity".to_string(),
+                "turnState".to_string(),
+                "activeTurnFailure".to_string(),
+                "lastTerminalTurnId".to_string(),
+            ],
+        };
+
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
+
+        assert_eq!(graph.activity, activity);
+        assert_eq!(graph.turn_state, SessionTurnState::Failed);
+        assert_eq!(graph.active_turn_failure, Some(active_turn_failure));
+        assert_eq!(graph.last_terminal_turn_id, Some("turn-2".to_string()));
+        assert_eq!(graph.revision, SessionGraphRevision::new(2, 1, 2));
     }
 
     #[test]
@@ -492,6 +549,10 @@ mod tests {
         let delta = SessionStateDelta {
             from_revision: SessionGraphRevision::new(1, 1, 1),
             to_revision: SessionGraphRevision::new(2, 1, 2),
+            activity: SessionGraphActivity::idle(),
+            turn_state: SessionTurnState::Idle,
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
             transcript_operations: Vec::new(),
             operation_patches: vec![operation_snapshot(
                 "session-1:op-1",
@@ -503,7 +564,12 @@ mod tests {
             changed_fields: vec!["operations".to_string()],
         };
 
-        SessionStateReducer::apply(&mut graph, SessionStateGraphMutation::ApplyDelta { delta });
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
 
         assert_eq!(graph.operations.len(), 1);
         assert_eq!(
@@ -514,5 +580,54 @@ mod tests {
             graph.operations[0].provider_status,
             ToolCallStatus::Completed
         );
+    }
+
+    #[test]
+    fn sparse_terminal_operation_patch_does_not_erase_richer_prior_evidence() {
+        use crate::acp::projections::OperationState;
+        use crate::acp::session_update::ToolCallStatus;
+        use serde_json::json;
+
+        let mut graph = base_graph();
+        let mut rich_operation = operation_snapshot(
+            "session-1:op-rich",
+            "op-rich",
+            ToolCallStatus::Completed,
+            OperationState::Completed,
+        );
+        rich_operation.title = Some("Run checks".to_string());
+        rich_operation.command = Some("bun test".to_string());
+        rich_operation.result = Some(json!("20 pass"));
+        graph.operations.push(rich_operation);
+
+        let delta = SessionStateDelta {
+            from_revision: SessionGraphRevision::new(1, 1, 1),
+            to_revision: SessionGraphRevision::new(2, 1, 2),
+            activity: SessionGraphActivity::idle(),
+            turn_state: SessionTurnState::Idle,
+            active_turn_failure: None,
+            last_terminal_turn_id: None,
+            transcript_operations: Vec::new(),
+            operation_patches: vec![operation_snapshot(
+                "session-1:op-rich",
+                "op-rich",
+                ToolCallStatus::Completed,
+                OperationState::Completed,
+            )],
+            interaction_patches: Vec::new(),
+            changed_fields: vec!["operations".to_string()],
+        };
+
+        SessionStateReducer::apply(
+            &mut graph,
+            SessionStateGraphMutation::ApplyDelta {
+                delta: Box::new(delta),
+            },
+        );
+
+        assert_eq!(graph.operations.len(), 1);
+        assert_eq!(graph.operations[0].title.as_deref(), Some("Run checks"));
+        assert_eq!(graph.operations[0].command.as_deref(), Some("bun test"));
+        assert_eq!(graph.operations[0].result, Some(json!("20 pass")));
     }
 }

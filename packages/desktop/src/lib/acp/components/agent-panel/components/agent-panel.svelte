@@ -3,7 +3,7 @@ import { AgentPanelShell } from "@acepe/ui/agent-panel";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
 import { Clock } from "phosphor-svelte";
-import { tick } from "svelte";
+import { onDestroy, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { createLocalReferenceDetails } from "$lib/errors/error-reference.js";
 import type { SessionTurnState } from "../../../../services/acp-types.js";
@@ -53,7 +53,8 @@ import {
 	createWorktreeCreationState,
 	copyTextToClipboard,
 	derivePanelErrorInfo,
-	mapSessionStatusToUI,
+	mapCanonicalSessionToPanelStatus,
+	mapCanonicalTurnStateToHotTurnState,
 	matchesWorktreeSetupContext,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	reduceWorktreeSetupEvent,
@@ -61,6 +62,7 @@ import {
 	resolveVisibleSessionEntries,
 	shouldConfirmWorktreeClose,
 } from "../logic";
+import { materializeAgentPanelSceneFromGraph } from "../../../session-state/agent-panel-graph-materializer.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
@@ -128,14 +130,8 @@ import {
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
 
-function mapCanonicalTurnStateToHotTurnState(turnState: SessionTurnState): TurnState {
-	switch (turnState) {
-		case "Idle": return "idle";
-		case "Running": return "streaming";
-		case "Completed": return "completed";
-		case "Failed": return "error";
-	}
-}
+// Canonical-to-hot turn state mapping is provided by the shared logic module
+// (mapCanonicalTurnStateToHotTurnState) imported above.
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -378,15 +374,17 @@ const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(se
 const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
-// Canonical-first lifecycle reads: prefer graph projection over hotState.
+const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
+const canonicalSessionTurnState = $derived(
+	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
+);
 const sessionTurnState = $derived(
-	canonicalProjection !== null
-		? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState)
-		: (sessionHotState?.turnState ?? "idle")
+	canonicalSessionTurnState !== null
+		? mapCanonicalTurnStateToHotTurnState(canonicalSessionTurnState)
+		: "idle"
 );
 const sessionIsConnected = $derived(
-	canonicalProjection?.lifecycle?.actionability?.canSend ??
-		(sessionHotState?.isConnected ?? false)
+	canonicalProjection?.lifecycle?.actionability?.canSend ?? false
 );
 const sessionWorkProjection = $derived.by(() => {
 	if (!sessionId) {
@@ -395,14 +393,8 @@ const sessionWorkProjection = $derived.by(() => {
 
 	return deriveLiveSessionWorkProjection({
 		runtimeState,
-		hotState: {
-			status: sessionHotState?.status ?? "idle",
-			currentMode: sessionHotState?.currentMode ?? null,
-			connectionError: sessionHotState?.connectionError ?? null,
-			activeTurnFailure: sessionHotState?.activeTurnFailure ?? null,
-			activity: sessionHotState?.activity ?? null,
-		},
 		canonicalProjection,
+		currentModeId: sessionId ? sessionStore.getSessionCurrentModeId(sessionId) : null,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
@@ -438,18 +430,30 @@ const effectiveProjectName = $derived(
 // ✅ Derived values from granular session data
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionAgentId);
 const agentName = $derived(effectivePanelAgentId);
-const sessionStatus = $derived.by(() => {
+const legacySessionStatus = $derived.by(() => {
 	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
 		return "connecting";
 	return sessionWorkProjection ? selectSessionStatusForPresentation(sessionWorkProjection) : null;
 });
-const mappedSessionStatus = $derived(mapSessionStatusToUI(sessionStatus));
+const panelSessionStatus = $derived.by(() =>
+	mapCanonicalSessionToPanelStatus({
+		lifecycle: canonicalProjection?.lifecycle ?? null,
+		activity: canonicalProjection?.activity ?? null,
+		turnState: canonicalProjection?.turnState ?? null,
+		hasEntries: sessionEntries.length > 0,
+	})
+);
+const sessionStatus = $derived(legacySessionStatus);
 const sessionIsStreaming = $derived(sessionCanonicalActivity === "running_operation");
+const isAwaitingModelResponse = $derived(sessionCanonicalActivity === "awaiting_model");
+const showPlanningIndicator = $derived(hasOptimisticPendingEntry || isAwaitingModelResponse);
 const sessionCanSubmit = $derived(runtimeState?.canSubmit ?? false);
 const sessionShowStop = $derived(runtimeState?.showStop ?? false);
-const sessionConnectionError = $derived(sessionHotState?.connectionError ?? null);
+const sessionConnectionError = $derived(
+	sessionId ? sessionStore.getSessionConnectionError(sessionId) : null
+);
 const activeTurnError = $derived.by(() => {
-	const activeTurnFailure = sessionHotState?.activeTurnFailure;
+	const activeTurnFailure = sessionId ? sessionStore.getSessionActiveTurnFailure(sessionId) : null;
 	if (activeTurnFailure) {
 		return {
 			content: activeTurnFailure.message,
@@ -530,6 +534,7 @@ const viewStateInput = $derived({
 	runtimeState,
 	entriesCount,
 	hasSession,
+	isAwaitingModelResponse,
 	showProjectSelection,
 	hasEffectiveProjectPath: !!effectiveProjectPath,
 	errorInfo,
@@ -719,6 +724,28 @@ const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
 
 const agentIconSrc = $derived(getAgentIcon(effectivePanelAgentId, effectiveTheme));
+const graphMaterializedScene = $derived.by(() => {
+	if (sessionStateGraph === null) {
+		return null;
+	}
+
+	return materializeAgentPanelSceneFromGraph({
+		panelId: effectivePanelId,
+		graph: sessionStateGraph,
+		header: {
+			title: displayTitle,
+			subtitle: sessionTitle,
+			agentIconSrc,
+			agentLabel: agentName,
+			projectLabel: displayProjectName,
+			projectColor,
+			sequenceId,
+		},
+	});
+});
+const graphSceneEntries = $derived(
+	hasOptimisticPendingEntry ? undefined : graphMaterializedScene?.conversation.entries
+);
 const isConnecting = $derived(
 	panelConnectionState === PanelConnectionState.CONNECTING ||
 		(!sessionId && panelId ? panelHotState?.pendingUserEntry !== null : false)
@@ -786,7 +813,17 @@ let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
 } | null>(null);
+let isRetryingConnection = $state(false);
+let retryBusyTimer: ReturnType<typeof setTimeout> | null = null;
 let headerRef: HTMLElement | undefined = $state();
+
+onDestroy(() => {
+	if (retryBusyTimer !== null) {
+		clearTimeout(retryBusyTimer);
+		retryBusyTimer = null;
+	}
+});
+
 const worktreeSetupMatchContext = $derived.by(() => {
 	const activeSetupState = worktreeSetupState?.isVisible ? worktreeSetupState : null;
 
@@ -944,7 +981,7 @@ const debugPanelState = $derived.by(() => {
 		hasSession: sessionId !== null,
 		sessionId,
 		sessionTitle,
-		sessionStatus: mappedSessionStatus,
+		sessionStatus: panelSessionStatus,
 		sessionProjectPath,
 		sessionAgentId,
 		selectedAgentId,
@@ -1488,6 +1525,32 @@ function handlePanelKeyDown(e: KeyboardEvent) {
 }
 
 function handleRetryConnection() {
+	if (isRetryingConnection) {
+		return;
+	}
+	isRetryingConnection = true;
+	if (retryBusyTimer !== null) {
+		clearTimeout(retryBusyTimer);
+	}
+	// Auto-clear after a short window so the spinner doesn't hang forever
+	// if the underlying state machine doesn't bounce. The state-driven
+	// reactive clear below also resets it as soon as the error/turn state
+	// transitions away from the failure.
+	retryBusyTimer = setTimeout(() => {
+		isRetryingConnection = false;
+		retryBusyTimer = null;
+	}, 4000);
+
+	// Turn-level failure on an existing session: re-send the last user
+	// message in the same session instead of recreating the session.
+	// Recreating throws away the bound session and the user sees no change.
+	const isTurnFailure =
+		sessionId !== null && (activeTurnError !== null || sessionTurnState === "error");
+	if (isTurnFailure && agentInputRef) {
+		agentInputRef.retrySend();
+		return;
+	}
+
 	runPanelConnectionRetry({
 		sessionId,
 		panelId: panelId ?? undefined,
@@ -1510,6 +1573,23 @@ function handleRetryConnection() {
 		},
 	});
 }
+
+// Clear the retry busy flag as soon as the underlying state advances
+// (turn becomes non-failed, error info clears, or panel reconnects).
+$effect(() => {
+	const stillFailed =
+		errorInfo.showError ||
+		activeTurnError !== null ||
+		sessionTurnState === "error" ||
+		panelConnectionState === PanelConnectionState.ERROR;
+	if (!stillFailed && isRetryingConnection) {
+		isRetryingConnection = false;
+		if (retryBusyTimer !== null) {
+			clearTimeout(retryBusyTimer);
+			retryBusyTimer = null;
+		}
+	}
+});
 
 function handleCancelConnection() {
 	// For now, just show a message that cancellation is not implemented
@@ -1811,7 +1891,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{isFullscreen}
 			{hideProjectBadge}
 			{sequenceId}
-			sessionStatus={mappedSessionStatus}
+			sessionStatus={panelSessionStatus}
 			projectPath={sessionProjectPath}
 			projectName={displayProjectName}
 			{projectColor}
@@ -1907,6 +1987,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{viewState}
 						{sessionId}
 						sessionEntries={visibleSessionEntries}
+						sceneEntries={graphSceneEntries}
 						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
@@ -1918,9 +1999,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{effectiveTheme}
 						{modifiedFilesState}
 						turnState={sessionTurnState}
-						isWaitingForResponse={hasOptimisticPendingEntry ||
-							isWaitingForSession ||
-							sessionCanonicalActivity === "awaiting_model"}
+						isWaitingForResponse={showPlanningIndicator}
 					/>
 				</div>
 				{#if viewState.kind === "conversation" && !contentIsAtTop}
@@ -1967,6 +2046,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{inlineErrorReferenceId}
 			{inlineErrorReferenceSearchable}
 			onRetryConnection={handleRetryConnection}
+			isRetryingConnection={isRetryingConnection}
 			onDismissError={handleDismissError}
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
 			inlineErrorIssueDraft={inlineErrorIssueDraft}
@@ -1987,7 +2067,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			effectiveProjectPath={effectiveProjectPath ?? null}
 			sessionProjectPath={sessionProjectPath ?? null}
 			sessionEntries={sessionEntries}
-			sessionTurnState={sessionTurnState}
+			sessionTurnState={canonicalSessionTurnState}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}

@@ -1,7 +1,8 @@
 import type { SessionEntry } from "../../../application/dto/session.js";
 
-export function shouldUseDesktopToolRenderer(
-	_entry: Extract<SessionEntry, { type: "tool_call" }>
+export function shouldUseOptimisticDesktopToolRenderer(
+	_entry: Extract<SessionEntry, { type: "tool_call" }>,
+	hasCanonicalSceneEntries: boolean
 ): boolean {
-	return true;
+	return !hasCanonicalSceneEntries;
 }

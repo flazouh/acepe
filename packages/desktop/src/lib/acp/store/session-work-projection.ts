@@ -178,10 +178,6 @@ export function selectSessionStatusForPresentation(
 		return "connecting";
 	}
 
-	if (state.connection === "disconnected") {
-		return "idle";
-	}
-
 	if (state.activity.kind === "paused") {
 		return "paused";
 	}
@@ -196,6 +192,10 @@ export function selectSessionStatusForPresentation(
 		projection.canonicalActivity === "waiting_for_user"
 	) {
 		return "streaming";
+	}
+
+	if (state.connection === "disconnected") {
+		return "idle";
 	}
 
 	if (state.activity.kind === "streaming" || state.activity.kind === "thinking") {

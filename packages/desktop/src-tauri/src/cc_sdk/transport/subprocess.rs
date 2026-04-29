@@ -796,6 +796,56 @@ impl SubprocessTransport {
             apply_process_user(&mut cmd, user)?;
         }
 
+        // Diagnostic spawn dump — copy/paste reproducible.
+        // Prints argv, cwd, and auth-relevant env so we can run the same
+        // command manually in a shell and bisect the 401 root cause.
+        {
+            let std_cmd = cmd.as_std();
+            let argv: Vec<String> = std::iter::once(self.cli_path.display().to_string())
+                .chain(std_cmd.get_args().map(|a| a.to_string_lossy().into_owned()))
+                .collect();
+            let cwd = std_cmd
+                .get_current_dir()
+                .map(|p| p.display().to_string())
+                .or_else(|| {
+                    std::env::current_dir()
+                        .ok()
+                        .map(|p| p.display().to_string())
+                })
+                .unwrap_or_else(|| "<unknown>".into());
+
+            let mut auth_env: Vec<(String, String)> = Vec::new();
+            for key in [
+                "HOME",
+                "USER",
+                "PATH",
+                "ANTHROPIC_API_KEY",
+                "ANTHROPIC_AUTH_TOKEN",
+                "CLAUDE_CONFIG_DIR",
+                "XDG_CONFIG_HOME",
+            ] {
+                let value = std::env::var(key).ok();
+                let display = match (key, value) {
+                    ("ANTHROPIC_API_KEY" | "ANTHROPIC_AUTH_TOKEN", Some(v)) => {
+                        format!("<set len={}>", v.len())
+                    }
+                    (_, Some(v)) => v,
+                    (_, None) => "<unset>".to_string(),
+                };
+                auth_env.push((key.to_string(), display));
+            }
+            let mut claude_env: Vec<(String, String)> = std::env::vars()
+                .filter(|(k, _)| k.starts_with("CLAUDE_"))
+                .collect();
+            claude_env.sort();
+
+            info!(
+                target: "claude_spawn_diag",
+                "Claude subprocess spawn diagnostic argv={:?} cwd={} auth_env={:?} claude_env={:?}",
+                argv, cwd, auth_env, claude_env,
+            );
+        }
+
         let mut child = cmd.spawn().map_err(|e| {
             error!("Failed to spawn Claude CLI: {}", e);
             SdkError::ProcessError(e)

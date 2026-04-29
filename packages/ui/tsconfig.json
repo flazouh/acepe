@@ -12,6 +12,9 @@
 		"outDir": "dist",
 		"rootDir": "src",
 		"paths": {
+			"$lib/components/*": ["./src/components/*"],
+			"$lib/lib/*": ["./src/lib/*"],
+			"$lib/hooks/*": ["./src/lib/hooks/*"],
 			"$lib/*": ["./src/lib/*"],
 			"$components/*": ["./src/components/*"]
 		}

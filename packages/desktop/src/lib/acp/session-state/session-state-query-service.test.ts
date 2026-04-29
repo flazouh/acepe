@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { SessionStateDelta } from "../../services/acp-types.js";
 import { resolveSessionStateDelta } from "./session-state-query-service.js";
 
+const idleActivity = {
+	kind: "idle",
+	activeOperationCount: 0,
+	activeSubagentCount: 0,
+	dominantOperationId: null,
+	blockingInteractionId: null,
+} as const;
+
 describe("resolveSessionStateDelta", () => {
 	it("does not refresh when only the graph frontier advances", () => {
 		const delta: SessionStateDelta = {
@@ -16,6 +24,10 @@ describe("resolveSessionStateDelta", () => {
 				transcriptRevision: 4,
 				lastEventSeq: 7,
 			},
+			activity: idleActivity,
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
@@ -39,6 +51,10 @@ describe("resolveSessionStateDelta", () => {
 				transcriptRevision: 7,
 				lastEventSeq: 8,
 			},
+			activity: idleActivity,
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
@@ -62,6 +78,10 @@ describe("resolveSessionStateDelta", () => {
 				transcriptRevision: 7,
 				lastEventSeq: 8,
 			},
+			activity: idleActivity,
+			turnState: "Running",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
 			transcriptOperations: [
 				{
 					kind: "appendEntry",

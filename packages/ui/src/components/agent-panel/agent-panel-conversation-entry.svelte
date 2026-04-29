@@ -9,6 +9,7 @@
 	import AgentToolReadLints from "./agent-tool-read-lints.svelte";
 	import AgentToolOther from "./agent-tool-other.svelte";
 	import AgentToolBrowser from "./agent-tool-browser.svelte";
+	import AgentToolEdit from "./agent-tool-edit.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import AgentToolSearch from "./agent-tool-search.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
@@ -74,6 +75,16 @@
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
 		{iconBasePath}
+	/>
+{:else if isToolCall(entry) && entry.kind === "edit"}
+	<AgentToolEdit
+		diffs={entry.editDiffs ? Array.from(entry.editDiffs) : []}
+		filePath={entry.filePath ?? null}
+		isStreaming={entry.status === "pending" || entry.status === "running"}
+		status={entry.status}
+		applied={entry.status === "done"}
+		awaitingApproval={entry.presentationState === "pending_operation"}
+		iconBasePath={iconBasePath}
 	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute

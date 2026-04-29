@@ -67,6 +67,89 @@ describe("groupAllPanelsByProject", () => {
 		expect(groups[0].browserPanels).toHaveLength(1);
 	});
 
+	it("orders agent panels by descending project sequence within each project", () => {
+		const groups = groupAllPanelsByProject(
+			[
+				{
+					id: "agent-1",
+					sessionProjectPath: "/tmp/project-a",
+					sessionSequenceId: 1,
+				},
+				{
+					id: "agent-4",
+					sessionProjectPath: "/tmp/project-a",
+					sessionSequenceId: 4,
+				},
+				{
+					id: "agent-2",
+					sessionProjectPath: "/tmp/project-a",
+					sessionSequenceId: 2,
+				},
+			],
+			[],
+			[],
+			[],
+			[],
+			[],
+			[
+				{
+					path: "/tmp/project-a",
+					name: "Project A",
+					color: "#123456",
+					createdAt: new Date(),
+					iconPath: null,
+				},
+			]
+		);
+
+		expect(groups[0]?.agentPanels.map((panel) => panel.id)).toEqual([
+			"agent-4",
+			"agent-2",
+			"agent-1",
+		]);
+	});
+
+	it("keeps unsequenced agent panels after sequenced panels without changing their relative order", () => {
+		const groups = groupAllPanelsByProject(
+			[
+				{
+					id: "unsequenced-a",
+					sessionProjectPath: "/tmp/project-a",
+				},
+				{
+					id: "sequenced",
+					sessionProjectPath: "/tmp/project-a",
+					sessionSequenceId: 1,
+				},
+				{
+					id: "unsequenced-b",
+					sessionProjectPath: "/tmp/project-a",
+					sessionSequenceId: null,
+				},
+			],
+			[],
+			[],
+			[],
+			[],
+			[],
+			[
+				{
+					path: "/tmp/project-a",
+					name: "Project A",
+					color: "#123456",
+					createdAt: new Date(),
+					iconPath: null,
+				},
+			]
+		);
+
+		expect(groups[0]?.agentPanels.map((panel) => panel.id)).toEqual([
+			"sequenced",
+			"unsequenced-a",
+			"unsequenced-b",
+		]);
+	});
+
 	it("keeps multiple terminal panel groups for one project", () => {
 		const groups = groupAllPanelsByProject(
 			[],

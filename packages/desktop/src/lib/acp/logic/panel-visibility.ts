@@ -23,6 +23,7 @@ export interface PanelViewStateInput {
 	readonly runtimeState: SessionRuntimeState | null;
 	readonly entriesCount: number;
 	readonly hasSession: boolean;
+	readonly isAwaitingModelResponse: boolean;
 	readonly showProjectSelection: boolean;
 	readonly hasEffectiveProjectPath: boolean;
 	readonly errorInfo: PanelErrorInfo;
@@ -36,7 +37,7 @@ export interface PanelViewStateInput {
  * Priority (first match wins):
  * 1. project_selection — needs project selection OR agent selection (agents are embedded in project cards)
  * 2. error            — blocking error with no entries
- * 3. conversation     — has entries (carries inline errorDetails)
+ * 3. conversation     — has entries or active model wait (carries inline errorDetails)
  * 4. ready            — connected session, creating session, or can start one
  */
 export function derivePanelViewState(input: PanelViewStateInput): PanelViewState {
@@ -44,6 +45,7 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		runtimeState,
 		entriesCount,
 		hasSession,
+		isAwaitingModelResponse,
 		showProjectSelection,
 		hasEffectiveProjectPath,
 		errorInfo,
@@ -64,6 +66,13 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return {
 			kind: "conversation",
 			errorDetails: errorInfo.showError ? (errorInfo.details ?? null) : null,
+		};
+	}
+
+	if (hasSession && isAwaitingModelResponse) {
+		return {
+			kind: "conversation",
+			errorDetails: null,
 		};
 	}
 

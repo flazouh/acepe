@@ -200,6 +200,72 @@ contextWindowSize?: number | null }
 export type UsageTelemetryTokens = { total?: number | null; input?: number | null; output?: number | null; cacheRead?: number | null; cacheWrite?: number | null; reasoning?: number | null }
 
 /**
+ * Plan step status.
+ */
+export type PlanStepStatus = "pending" | "in_progress" | "completed" | "failed"
+
+/**
+ * A single step in a plan.
+ */
+export type PlanStep = { description: string; status: PlanStepStatus }
+
+/**
+ * Plan signal source.
+ */
+export type PlanSource = "deterministic" | "heuristic"
+
+/**
+ * Confidence level for a plan signal.
+ */
+export type PlanConfidence = "high" | "medium"
+
+/**
+ * Plan data with steps and optional current step index.
+ * Also supports streaming plan content from Edit tool writes.
+ */
+export type PlanData = { steps: PlanStep[]; currentStep?: number | null; 
+/**
+ * Whether this payload currently represents an active plan.
+ */
+hasPlan?: boolean; 
+/**
+ * Whether the plan content is still streaming (true) or complete (false).
+ */
+streaming?: boolean; 
+/**
+ * The raw markdown content of the plan file (partial during streaming).
+ */
+content?: string | null; 
+/**
+ * Normalized markdown content consumed by the frontend.
+ */
+contentMarkdown?: string | null; 
+/**
+ * The file path where the plan is being written.
+ */
+filePath?: string | null; 
+/**
+ * The plan title extracted from the first # heading.
+ */
+title?: string | null; 
+/**
+ * Source quality of the signal.
+ */
+source?: PlanSource | null; 
+/**
+ * Confidence of the signal.
+ */
+confidence?: PlanConfidence | null; 
+/**
+ * Agent identifier that produced this plan.
+ */
+agentId?: string | null; 
+/**
+ * Last update timestamp in milliseconds.
+ */
+updatedAt?: number | null }
+
+/**
  * Todo item status.
  */
 export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled"
@@ -325,7 +391,7 @@ export type TurnFailureSnapshot = { turn_id: string | null; message: string; cod
 
 export type LifecycleStatus = "reserved" | "activating" | "ready" | "reconnecting" | "detached" | "failed" | "archived"
 
-export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore"
+export type DetachedReason = "restoredRequiresAttach" | "reconnectExhausted" | "abandonedInFlight" | "legacyAmbiguousRestore" | "closedByClient"
 
 export type FailureReason = "deterministicRestoreFault" | "activationFailed" | "resumeFailed" | "providerSessionMismatch" | "corruptedPersistedState" | "explicitErrorHandlingRequired" | "legacyIrrecoverable"
 
@@ -387,7 +453,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -434,9 +500,9 @@ export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
-export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision }
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 

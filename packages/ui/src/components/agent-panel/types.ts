@@ -11,7 +11,18 @@ export type AgentSessionStatus =
 	| "idle"
 	| "running"
 	| "done";
-export type AgentToolStatus = "pending" | "running" | "done" | "error";
+export type AgentToolStatus =
+	| "pending"
+	| "running"
+	| "done"
+	| "error"
+	| "blocked"
+	| "cancelled"
+	| "degraded";
+export type AgentToolPresentationState =
+	| "resolved"
+	| "pending_operation"
+	| "degraded_operation";
 
 /**
  * Canonical tool kind — maps to icon + label in agent-tool-row.
@@ -48,6 +59,16 @@ export interface AgentAssistantEntry {
 	isStreaming?: boolean;
 }
 
+/** One file/replace hunk in an edit tool — used by {@link AgentToolEdit}. */
+export interface AgentToolEditDiffEntry {
+	filePath?: string | null;
+	fileName?: string | null;
+	additions?: number;
+	deletions?: number;
+	oldString?: string | null;
+	newString?: string | null;
+}
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -56,6 +77,8 @@ export interface AgentToolEntry {
 	subtitle?: string;
 	detailsText?: string | null;
 	scriptText?: string | null;
+	/** Populated for `kind === "edit"` from session tool arguments (drives {@link AgentToolEdit}). */
+	editDiffs?: readonly AgentToolEditDiffEntry[];
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
 	sourceExcerpt?: string | null;
@@ -85,6 +108,8 @@ export interface AgentToolEntry {
 	taskPrompt?: string | null;
 	taskResultText?: string | null;
 	taskChildren?: AnyAgentEntry[];
+	presentationState?: AgentToolPresentationState;
+	degradedReason?: string | null;
 	todos?: AgentTodoItem[];
 	question?: AgentQuestion | null;
 	lintDiagnostics?: LintDiagnostic[];
@@ -111,7 +136,11 @@ export interface AgentWebSearchLink {
 }
 
 /** Todo item status */
-export type AgentTodoStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type AgentTodoStatus =
+	| "pending"
+	| "in_progress"
+	| "completed"
+	| "cancelled";
 
 /** Normalized todo item for display */
 export interface AgentTodoItem {
@@ -210,7 +239,9 @@ export const AGENT_PANEL_ACTION_IDS = {
 		refresh: "browser.refresh",
 	},
 	status: {
+		resume: "status.resume",
 		retry: "status.retry",
+		archive: "status.archive",
 		install: "status.install",
 	},
 } as const;
@@ -252,9 +283,55 @@ export interface AgentPanelActionDescriptor {
 	destructive?: boolean;
 }
 
-export type AgentPanelActionCallbacks = Partial<Record<AgentPanelActionId, () => void>>;
+export type AgentPanelActionCallbacks = Partial<
+	Record<AgentPanelActionId, () => void>
+>;
 
 export type AgentPanelSessionStatus = AgentSessionStatus;
+
+export type AgentPanelLifecycleStatus =
+	| "reserved"
+	| "activating"
+	| "ready"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export type AgentPanelRecommendedAction =
+	| "send"
+	| "resume"
+	| "retry"
+	| "archive"
+	| "wait"
+	| "none";
+
+export type AgentPanelRecoveryPhase =
+	| "none"
+	| "activating"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export interface AgentPanelActionabilityModel {
+	canSend: boolean;
+	canResume: boolean;
+	canRetry: boolean;
+	canArchive: boolean;
+	canConfigure: boolean;
+	recommendedAction: AgentPanelRecommendedAction;
+	recoveryPhase: AgentPanelRecoveryPhase;
+	compactStatus: AgentPanelLifecycleStatus;
+}
+
+export interface AgentPanelLifecycleModel {
+	status: AgentPanelLifecycleStatus;
+	detachedReason?: string | null;
+	failureReason?: string | null;
+	errorMessage?: string | null;
+	actionability: AgentPanelActionabilityModel;
+}
 
 export interface AgentPanelBadge {
 	id: string;
@@ -379,7 +456,11 @@ export interface AgentPanelPrCardModel {
 	onOpen?: (event: MouseEvent) => void;
 }
 
-export type AgentPanelFileReviewStatus = "accepted" | "partial" | "denied" | "unreviewed";
+export type AgentPanelFileReviewStatus =
+	| "accepted"
+	| "partial"
+	| "denied"
+	| "unreviewed";
 
 export interface AgentPanelModifiedFileItem {
 	id: string;
@@ -394,7 +475,7 @@ export interface AgentPanelModifiedFileItem {
 export type ReviewWorkspaceFileItem = AgentPanelModifiedFileItem;
 
 export function getReviewWorkspaceDefaultIndex(
-	files: readonly ReviewWorkspaceFileItem[]
+	files: readonly ReviewWorkspaceFileItem[],
 ): number | null {
 	if (files.length === 0) {
 		return null;
@@ -412,7 +493,7 @@ export function getReviewWorkspaceDefaultIndex(
 
 export function resolveReviewWorkspaceSelectedIndex(
 	files: readonly ReviewWorkspaceFileItem[],
-	selectedIndex?: number | null
+	selectedIndex?: number | null,
 ): number | null {
 	if (files.length === 0) {
 		return null;
@@ -529,6 +610,7 @@ export type AgentPanelSceneEntryModel = AgentPanelConversationEntry;
 export interface AgentPanelSceneModel {
 	panelId: string;
 	status: AgentPanelSessionStatus;
+	lifecycle?: AgentPanelLifecycleModel | null;
 	header: AgentPanelHeaderModel;
 	conversation: AgentPanelConversationModel;
 	composer?: AgentPanelComposerModel | null;

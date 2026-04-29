@@ -1,5 +1,6 @@
 import type {
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionTurnState,
@@ -12,5 +13,6 @@ export type CanonicalSessionProjection = {
 	readonly turnState: SessionTurnState;
 	readonly activeTurnFailure: ActiveTurnFailure | null;
 	readonly lastTerminalTurnId: string | null;
+	readonly capabilities: SessionGraphCapabilities;
 	readonly revision: SessionGraphRevision;
 };

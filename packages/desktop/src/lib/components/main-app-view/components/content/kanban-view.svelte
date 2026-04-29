@@ -250,7 +250,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 
 		const identity = sessionStore.getSessionIdentity(sessionId);
 		const metadata = sessionStore.getSessionMetadata(sessionId);
-		const hotState = sessionStore.getHotState(sessionId);
 		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
 		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
 		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
@@ -283,7 +282,9 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			lastTodoToolCall: operationStore.getLastTodoToolCall(sessionId),
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
 			runtimeState,
-			hotState,
+			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
+			connectionError: sessionStore.getSessionConnectionError(sessionId),
+			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
 			canonicalProjection,
 			interactionSnapshot,
 			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
@@ -313,7 +314,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
-			autonomousEnabled: hotState.autonomousEnabled,
+			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId),
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,

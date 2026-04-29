@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentPanelConversationEntry, setIconConfig } from "@acepe/ui";
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { setContext, untrack } from "svelte";
 import { VList, type VListHandle } from "virtua/svelte";
 import type { SessionEntry } from "../../../application/dto/session.js";
@@ -17,6 +18,10 @@ import {
 	type ScrollPositionProvider,
 } from "../logic/create-auto-scroll.svelte.js";
 import {
+	createGraphSceneEntryIndex,
+	findGraphSceneEntryForDisplayEntry,
+} from "../logic/graph-scene-entry-match.js";
+import {
 	THREAD_FOLLOW_CONTROLLER_CONTEXT,
 	ThreadFollowController,
 } from "../logic/thread-follow-controller.svelte.js";
@@ -30,7 +35,7 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
-import { shouldUseDesktopToolRenderer } from "../logic/tool-renderer-routing.js";
+import { shouldUseOptimisticDesktopToolRenderer } from "../logic/tool-renderer-routing.js";
 import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-agent-panel-scene.js";
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
@@ -39,6 +44,7 @@ const MAX_EMPTY_RENDER_FRAMES = 4;
 type VirtualizedEntryListProps = {
 	panelId: string;
 	entries: readonly SessionEntry[];
+	sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	turnState: TurnState;
 	isWaitingForResponse: boolean;
 	projectPath: string | undefined;
@@ -79,6 +85,7 @@ const EMPTY_TOOL_CALL_MESSAGE: ToolCallDisplayEntry["message"] = {
 let {
 	panelId,
 	entries,
+	sceneEntries,
 	turnState,
 	isWaitingForResponse,
 	projectPath,
@@ -95,6 +102,7 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
+const sceneEntriesById = $derived(createGraphSceneEntryIndex(sceneEntries));
 let thinkingNowMs = $state(Date.now());
 
 $effect(() => {
@@ -269,6 +277,10 @@ function getSharedEntry(
 	entry: VirtualizedDisplayEntry | undefined,
 	thinkingDurationMs: number | null
 ) {
+	const graphEntry = getGraphSceneEntry(entry);
+	if (graphEntry !== undefined) {
+		return graphEntry;
+	}
 	return mapVirtualizedDisplayEntryToConversationEntry(
 		entry ?? THINKING_DISPLAY_ENTRY,
 		turnState,
@@ -279,6 +291,20 @@ function getSharedEntry(
 				(entry.type === "assistant_merged" && entry.memberIds.includes(lastAssistantId ?? ""))),
 		activeRootToolCallId,
 		thinkingDurationMs ?? undefined
+	);
+}
+
+function getGraphSceneEntry(
+	entry: VirtualizedDisplayEntry | undefined
+): AgentPanelSceneEntryModel | undefined {
+	return findGraphSceneEntryForDisplayEntry(entry, sceneEntriesById);
+}
+
+function shouldRenderDesktopTool(entry: VirtualizedDisplayEntry): boolean {
+	return (
+		getGraphSceneEntry(entry) === undefined &&
+		entry.type === "tool_call" &&
+		shouldUseOptimisticDesktopToolRenderer(entry, sceneEntries !== undefined)
 	);
 }
 
@@ -751,7 +777,7 @@ export function scrollToTop() {
 						{projectPath}
 						{streamingAnimationMode}
 					/>
-				{:else if entry.type === "tool_call" && shouldUseDesktopToolRenderer(entry)}
+				{:else if shouldRenderDesktopTool(entry)}
 					<ToolCallRouter toolCall={getToolCallMessage(entry)} {turnState} {projectPath} />
 				{:else}
 					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />

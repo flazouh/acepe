@@ -119,4 +119,5 @@ Unit 7 final integration proof completed after provider-owned session identity l
 ## Post-land learnings
 
 - `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — After the GOD stack landed, a regression was found where `isTerminalOperationState` in `operation-store.svelte.ts` lacked `"blocked"` in its terminal-state set. ToolCall `in_progress` events could overwrite a canonical blocked patch. The guard is the enforcement mechanism for the GOD rule that raw event lanes cannot regress settled canonical state.
+- `docs/solutions/logic-errors/reserved-first-send-routed-through-resume-2026-04-28.md` — After PR 180, fresh `Reserved` sessions could route their first prompt through resume/load because desktop projections still filled lifecycle/actionability gaps from hot state. The GOD routing invariant is explicit now: `Reserved` first-send uses direct send; `Detached` restore uses resume/load.
 - `docs/solutions/test-failures/bun-module-mock-cache-leakage-2026-04-25.md` — `analytics.test.ts` was deleted after its partial `mock.module` stub for `settings.js` leaked into `settings.test.ts` via Bun's per-process module cache.

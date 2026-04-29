@@ -1,6 +1,8 @@
+import type { AgentSessionStatus } from "@acepe/ui/agent-panel";
+
 /**
  * UI status for session display.
  *
- * Maps domain session statuses to UI-specific display states.
+ * Presentation status understood by the shared agent-panel UI.
  */
-export type SessionStatusUI = "empty" | "warming" | "connected" | "error";
+export type SessionStatusUI = AgentSessionStatus;

@@ -2,7 +2,7 @@
  * Session Messaging Service - Handles message sending and streaming.
  *
  * Responsibilities:
- * - Message sending with optimistic updates
+ * - Message sending with local pending-send affordances
  * - Streaming response handling
  * - Tool call management
  * - Chunk aggregation
@@ -33,7 +33,9 @@ import { api } from "../api.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
 import { serializeWithAttachments } from "../message-queue/message-queue-store.svelte.js";
 import type { SessionEntry } from "../types.js";
-import { canActivateCreatedSessionWithFirstPrompt } from "./first-send-activation.js";
+import {
+	canActivateCreatedSessionWithFirstPrompt,
+} from "./first-send-activation.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -42,6 +44,11 @@ import type {
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });
+const PENDING_SEND_INTENT_TIMEOUT_MS = 90_000;
+
+type UnrefableTimeout = ReturnType<typeof setTimeout> & {
+	readonly unref?: () => void;
+};
 
 type PromptContentBlocks = {
 	readonly textContent: string;
@@ -110,6 +117,8 @@ export class SessionMessagingService {
 	 * Used to avoid creating duplicate checkpoints when no new edits occurred.
 	 */
 	private lastCheckpointEditCount = new Map<string, number>();
+	private pendingSendAttemptIds = new Map<string, string>();
+	private pendingSendIntentTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	constructor(
 		private readonly stateReader: ISessionStateReader,
@@ -117,6 +126,45 @@ export class SessionMessagingService {
 		private readonly entryManager: IEntryManager,
 		private readonly connectionManager: IConnectionManager
 	) {}
+
+	private setPendingSendIntent(sessionId: string, attemptId: string, promptLength: number): void {
+		const previousTimeout = this.pendingSendIntentTimeouts.get(sessionId);
+		if (previousTimeout !== undefined) {
+			clearTimeout(previousTimeout);
+		}
+
+		this.pendingSendAttemptIds.set(sessionId, attemptId);
+		this.hotStateManager.updateHotState(sessionId, {
+			pendingSendIntent: {
+				attemptId,
+				startedAt: Date.now(),
+				promptLength,
+			},
+		});
+
+		const timeoutId = setTimeout(() => {
+			this.clearPendingSendIntent(sessionId, attemptId);
+		}, PENDING_SEND_INTENT_TIMEOUT_MS);
+		(timeoutId as UnrefableTimeout).unref?.();
+		this.pendingSendIntentTimeouts.set(sessionId, timeoutId);
+	}
+
+	private clearPendingSendIntent(sessionId: string, attemptId: string): void {
+		if (this.pendingSendAttemptIds.get(sessionId) !== attemptId) {
+			return;
+		}
+
+		this.pendingSendAttemptIds.delete(sessionId);
+		const timeoutId = this.pendingSendIntentTimeouts.get(sessionId);
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+			this.pendingSendIntentTimeouts.delete(sessionId);
+		}
+
+		this.hotStateManager.updateHotState(sessionId, {
+			pendingSendIntent: null,
+		});
+	}
 
 	// ============================================
 	// MESSAGING
@@ -139,13 +187,13 @@ export class SessionMessagingService {
 		if (!session) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
-		const hotState = this.stateReader.getHotState(sessionId);
-		const canSend = this.stateReader.getSessionCanSend?.(sessionId) ?? hotState.isConnected;
+		const lifecycleStatus = this.stateReader.getSessionLifecycleStatus?.(sessionId) ?? null;
+		const canonicalCanSend = this.stateReader.getSessionCanSend?.(sessionId) ?? null;
 		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
 			session,
-			hotState,
-			lifecycleStatus: this.stateReader.getSessionLifecycleStatus?.(sessionId) ?? null,
+			lifecycleStatus,
 		});
+		const canSend = canonicalCanSend === true;
 		if (!canSend && !canActivateFirstPrompt) {
 			return errAsync(new ConnectionError(sessionId));
 		}
@@ -158,6 +206,8 @@ export class SessionMessagingService {
 
 		const textContent = promptContent.textContent;
 		const imageBlocks = promptContent.imageBlocks;
+		const sendAttemptId = crypto.randomUUID();
+		this.setPendingSendIntent(sessionId, sendAttemptId, textContent.length);
 
 		// Providers like Cursor can reuse/omit message IDs across prompts. Force the
 		// next assistant chunks into a new entry so the new answer stays after this prompt.
@@ -193,13 +243,6 @@ export class SessionMessagingService {
 		// Start awaiting response in state machine
 		this.connectionManager.sendMessageSent(sessionId);
 
-		this.hotStateManager.updateHotState(sessionId, {
-			status: "streaming",
-			turnState: "streaming",
-			connectionError: null, // Clear any previous turn error
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
 		logger.debug("Sending message (optimistic)", { sessionId });
 
 		return api
@@ -211,9 +254,8 @@ export class SessionMessagingService {
 			})
 			.mapErr((error) => {
 				this.entryManager.removeEntry(sessionId, userEntry.id);
-				// Transition XState machine to ERROR (fatal) — subprocess is dead, can't
-				// accept messages. Must pair machine event with hot-state update per the
-				// reactive anchor pattern to prevent stuck UI.
+				// Transition XState machine to ERROR (fatal) — subprocess is dead and
+				// cannot accept messages. Canonical envelopes remain lifecycle authority.
 				this.connectionManager.sendTurnFailed(sessionId, {
 					turnId: null,
 					kind: "fatal",
@@ -221,13 +263,7 @@ export class SessionMessagingService {
 					code: null,
 					source: "unknown",
 				});
-				this.hotStateManager.updateHotState(sessionId, {
-					status: "error",
-					turnState: "error",
-					connectionError: error.message,
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-				});
+				this.clearPendingSendIntent(sessionId, sendAttemptId);
 				logger.error("Failed to send message, rolling back", {
 					sessionId,
 					error,
@@ -247,13 +283,8 @@ export class SessionMessagingService {
 			return errAsync(new AgentError("sendPendingCreationMessage: cannot send empty message"));
 		}
 
-		this.hotStateManager.updateHotState(sessionId, {
-			status: "streaming",
-			turnState: "streaming",
-			connectionError: null,
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
+		const sendAttemptId = crypto.randomUUID();
+		this.setPendingSendIntent(sessionId, sendAttemptId, promptContent.textContent.length);
 		this.connectionManager.sendMessageSent(sessionId);
 		return api
 			.sendPrompt(sessionId, promptContent.contentBlocks)
@@ -268,13 +299,7 @@ export class SessionMessagingService {
 					code: null,
 					source: "unknown",
 				});
-				this.hotStateManager.updateHotState(sessionId, {
-					status: "error",
-					turnState: "error",
-					connectionError: error.message,
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-				});
+				this.clearPendingSendIntent(sessionId, sendAttemptId);
 				logger.error("Failed to send pending creation message", {
 					sessionId,
 					error,
@@ -314,9 +339,9 @@ export class SessionMessagingService {
 	 * Handle stream complete from Tauri events.
 	 */
 	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
-		const hotState = this.hotStateManager.getHotState(sessionId);
 		const machineState = this.connectionManager.getState(sessionId);
-		if (hotState?.turnState === "completed") {
+		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
+		if (canonical?.turnState === "Completed") {
 			const connectionState = machineState?.connection ?? null;
 			if (
 				connectionState === ConnectionState.AWAITING_RESPONSE ||
@@ -330,8 +355,8 @@ export class SessionMessagingService {
 		}
 
 		if (
-			hotState?.turnState === "error" &&
-			matchesTurnId(hotState.lastTerminalTurnId, turnId ?? null)
+			canonical?.turnState === "Failed" &&
+			matchesTurnId(canonical.lastTerminalTurnId, turnId ?? null)
 		) {
 			// Still finalize streaming entries — tool calls may have been streaming when
 			// the error occurred and need to stop shimmering.
@@ -345,13 +370,6 @@ export class SessionMessagingService {
 		// prevents fragmented one-word assistant entries.
 		// Complete streaming in state machine
 		this.connectionManager.sendResponseComplete(sessionId);
-
-		this.hotStateManager.updateHotState(sessionId, {
-			status: "ready",
-			turnState: "completed",
-			activeTurnFailure: null,
-			lastTerminalTurnId: turnId ?? null,
-		});
 
 		// Mark any still-streaming tool call entries as not streaming
 		// so pending tools stop shimmering in the queue and thread views.
@@ -460,13 +478,21 @@ export class SessionMessagingService {
 		this.entryManager.clearStreamingAssistantEntry(sessionId);
 		// Transition machine STREAMING → ERROR
 		this.connectionManager.sendConnectionError(sessionId);
-		this.hotStateManager.updateHotState(sessionId, {
-			status: "error",
-			turnState: "error",
-			connectionError: error.message,
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
+
+		// GOD authority: if canonical already shows a terminal turnState
+		// (Completed/Failed), don't regress it from a stale stream error.
+		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
+		const canonicalTurnIsTerminal =
+			canonical?.turnState === "Completed" || canonical?.turnState === "Failed";
+		if (canonicalTurnIsTerminal) {
+			logger.warn("handleStreamError: canonical already terminal, skipping stale stream error", {
+				sessionId,
+				canonicalTurnState: canonical.turnState,
+				error: error.message,
+			});
+			return;
+		}
+
 		logger.error("Stream error", { sessionId, error });
 	}
 
@@ -475,11 +501,12 @@ export class SessionMessagingService {
 	 * Uses explicit turn failure semantics from the backend.
 	 */
 	handleTurnError(sessionId: string, update: TurnErrorUpdate): void {
-		const hotState = this.hotStateManager.getHotState(sessionId);
+		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
 		const normalized = normalizeActiveTurnFailure(update);
+
 		if (
-			hotState?.turnState === "error" &&
-			matchesTurnId(hotState.lastTerminalTurnId, normalized.turnId)
+			canonical?.turnState === "Failed" &&
+			matchesTurnId(canonical.lastTerminalTurnId, normalized.turnId)
 		) {
 			logger.warn("Ignoring duplicate turn error for terminal turn", {
 				sessionId,
@@ -492,13 +519,6 @@ export class SessionMessagingService {
 		this.connectionManager.sendTurnFailed(sessionId, normalized);
 
 		if (normalized.kind === "fatal") {
-			this.hotStateManager.updateHotState(sessionId, {
-				status: "error",
-				turnState: "error",
-				connectionError: null,
-				activeTurnFailure: normalized,
-				lastTerminalTurnId: normalized.turnId,
-			});
 			logger.error("Fatal turn error", {
 				sessionId,
 				error: normalized.message,
@@ -507,13 +527,6 @@ export class SessionMessagingService {
 				turnId: normalized.turnId,
 			});
 		} else {
-			this.hotStateManager.updateHotState(sessionId, {
-				status: "ready",
-				turnState: "error",
-				connectionError: null,
-				activeTurnFailure: normalized,
-				lastTerminalTurnId: normalized.turnId,
-			});
 			logger.error("Recoverable turn error", {
 				sessionId,
 				error: normalized.message,
@@ -543,22 +556,13 @@ export class SessionMessagingService {
 	}
 
 	/**
-	 * Update available commands.
-	 */
-	updateAvailableCommands(sessionId: string, commands: AvailableCommand[]): void {
-		this.hotStateManager.updateHotState(sessionId, {
-			availableCommands: commands,
-		});
-	}
-
-	/**
 	 * Ensure streaming state is set.
 	 */
 	ensureStreamingState(sessionId: string): void {
-		const hotState = this.hotStateManager.getHotState(sessionId);
 		const machineState = this.connectionManager.getState(sessionId);
+		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
 
-		if (hotState.turnState === "error" && hotState.activeTurnFailure !== null) {
+		if (canonical?.turnState === "Failed" && canonical.activeTurnFailure !== null) {
 			return;
 		}
 
@@ -566,18 +570,6 @@ export class SessionMessagingService {
 		// This hides the "Thinking_" indicator when response starts
 		if (machineState?.connection === ConnectionState.AWAITING_RESPONSE) {
 			this.connectionManager.sendResponseStarted(sessionId);
-			this.hotStateManager.updateHotState(sessionId, {
-				status: "streaming",
-				turnState: "streaming",
-			});
-			return;
-		}
-
-		if (hotState.turnState !== "streaming") {
-			this.hotStateManager.updateHotState(sessionId, {
-				status: "streaming",
-				turnState: "streaming",
-			});
 		}
 	}
 
@@ -607,6 +599,17 @@ export class SessionMessagingService {
 	 */
 	clearSessionState(sessionId: string): void {
 		this.lastCheckpointEditCount.delete(sessionId);
+		this.pendingSendAttemptIds.delete(sessionId);
+		const timeoutId = this.pendingSendIntentTimeouts.get(sessionId);
+		if (timeoutId !== undefined) {
+			clearTimeout(timeoutId);
+			this.pendingSendIntentTimeouts.delete(sessionId);
+		}
+		if (this.hotStateManager.hasHotState(sessionId)) {
+			this.hotStateManager.updateHotState(sessionId, {
+				pendingSendIntent: null,
+			});
+		}
 	}
 }
 

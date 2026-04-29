@@ -5,6 +5,7 @@
 	} from "../agent-panel/types.js";
 
 	import AgentAssistantMessage from "../agent-panel/agent-assistant-message.svelte";
+	import AgentToolEdit from "../agent-panel/agent-tool-edit.svelte";
 	import AgentToolExecute from "../agent-panel/agent-tool-execute.svelte";
 	import AgentToolFetch from "../agent-panel/agent-tool-fetch.svelte";
 	import AgentToolQuestion from "../agent-panel/agent-tool-question.svelte";
@@ -98,7 +99,10 @@
 				taskDescription: child.taskDescription,
 				taskPrompt: child.taskPrompt,
 				taskResultText: child.taskResultText,
-				taskChildren: mapTaskChildren(child.taskChildren)
+				taskChildren: mapTaskChildren(child.taskChildren),
+				presentationState: child.presentationState,
+				degradedReason: child.degradedReason,
+				editDiffs: child.editDiffs
 			};
 		});
 	}
@@ -180,6 +184,16 @@
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
 		{iconBasePath}
+	/>
+{:else if isToolCall(entry) && entry.kind === "edit"}
+	<AgentToolEdit
+		diffs={entry.editDiffs ? Array.from(entry.editDiffs) : []}
+		filePath={entry.filePath ?? null}
+		isStreaming={entry.status === "pending" || entry.status === "running"}
+		status={entry.status}
+		applied={entry.status === "done"}
+		awaitingApproval={entry.presentationState === "pending_operation"}
+		iconBasePath={iconBasePath}
 	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute

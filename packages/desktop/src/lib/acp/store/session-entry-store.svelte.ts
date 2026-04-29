@@ -146,16 +146,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	storeEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
 		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
-
-		this.operationStore.clearSession(sessionId);
-		for (const entry of normalizedEntries) {
-			if (!isToolCallEntry(entry)) {
-				continue;
-			}
-
-			this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
-		}
-
 		this.preloadedIds.add(sessionId);
 	}
 
@@ -176,10 +166,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		snapshot: TranscriptSnapshot,
 		timestamp: Date
 	): void {
-		const entries = this.mergeTranscriptSnapshotEntries(
-			sessionId,
-			convertTranscriptSnapshotToSessionEntries(snapshot, timestamp)
-		);
+		const entries = convertTranscriptSnapshotToSessionEntries(snapshot, timestamp);
 		this.setEntriesAndBuildIndices(sessionId, entries);
 		this.transcriptRevisionBySession.set(sessionId, snapshot.revision);
 	}
@@ -373,14 +360,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		return -1;
 	}
 
-	private syncOperationStoreForEntry(sessionId: string, entry: SessionEntry): void {
-		if (!isToolCallEntry(entry)) {
-			return;
-		}
-
-		this.operationStore.upsertFromToolCall(sessionId, entry.id, entry.message);
-	}
-
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
 		const seenToolCallIds = new Set<string>();
 		let hasDuplicateToolCall = false;
@@ -437,7 +416,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (isToolCallEntry(normalizedEntry)) {
 			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
 		}
-		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 		logger.debug("addEntry: appended entry", {
 			sessionId,
 			entryId: normalizedEntry.id,
@@ -509,7 +487,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
 			this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 		}
-		this.syncOperationStoreForEntry(sessionId, normalizedEntry);
 	}
 
 	/**
@@ -534,72 +511,17 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		return this.operationStore;
 	}
 
-	private mergeTranscriptSnapshotEntries(
-		sessionId: string,
-		entries: SessionEntry[]
-	): SessionEntry[] {
-		const existingEntries = this.getEntries(sessionId);
-		const existingEntryById = new Map(existingEntries.map((entry) => [entry.id, entry] as const));
-		return entries.map((entry) =>
-			this.preserveStructuredTranscriptEntry(existingEntryById.get(entry.id), entry)
-		);
-	}
-
-	private preserveStructuredTranscriptEntry(
-		existingEntry: SessionEntry | undefined,
-		nextEntry: SessionEntry
-	): SessionEntry {
-		if (
-			existingEntry === undefined ||
-			existingEntry.type !== "tool_call" ||
-			nextEntry.type !== "tool_call"
-		) {
-			return nextEntry;
-		}
-
-		const nextTitle = nextEntry.message.title ?? null;
-		const nextName = nextEntry.message.name;
-		return {
-			id: nextEntry.id,
-			type: "tool_call",
-			message: {
-				id: existingEntry.message.id,
-				name: nextName.length > 0 ? nextName : existingEntry.message.name,
-				arguments: existingEntry.message.arguments,
-				progressiveArguments: existingEntry.message.progressiveArguments,
-				rawInput: existingEntry.message.rawInput,
-				status: existingEntry.message.status,
-				result: existingEntry.message.result,
-				kind: existingEntry.message.kind,
-				title: nextTitle !== null && nextTitle.length > 0 ? nextTitle : existingEntry.message.title,
-				locations: existingEntry.message.locations,
-				skillMeta: existingEntry.message.skillMeta,
-				normalizedQuestions: existingEntry.message.normalizedQuestions,
-				normalizedTodos: existingEntry.message.normalizedTodos,
-				parentToolUseId: existingEntry.message.parentToolUseId,
-				taskChildren: existingEntry.message.taskChildren,
-				questionAnswer: existingEntry.message.questionAnswer,
-				awaitingPlanApproval: existingEntry.message.awaitingPlanApproval,
-				planApprovalRequestId: existingEntry.message.planApprovalRequestId,
-				normalizedResult: existingEntry.message.normalizedResult,
-			},
-			timestamp: existingEntry.timestamp,
-			isStreaming: existingEntry.isStreaming,
-		};
-	}
-
 	private preserveTranscriptEntry(
 		existingEntry: SessionEntry | undefined,
 		nextEntry: SessionEntry
 	): SessionEntry {
-		const structuredEntry = this.preserveStructuredTranscriptEntry(existingEntry, nextEntry);
 		if (
 			existingEntry === undefined ||
 			existingEntry.type !== "user" ||
 			nextEntry.type !== "user" ||
 			existingEntry.message.sentAt === undefined
 		) {
-			return structuredEntry;
+			return nextEntry;
 		}
 
 		return {

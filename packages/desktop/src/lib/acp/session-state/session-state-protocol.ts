@@ -18,7 +18,6 @@ import type {
 
 export type {
 	CapabilityPreviewState,
-	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
 	SessionGraphCapabilities,
@@ -37,41 +36,6 @@ function isActiveOperation(operation: OperationSnapshot): boolean {
 		operation.operation_state === "running" ||
 		operation.operation_state === "blocked"
 	);
-}
-
-function defaultLifecycleActionability(
-	status: SessionGraphLifecycle["status"]
-): SessionGraphActionability {
-	return {
-		canSend: status === "ready",
-		canResume: status === "detached",
-		canRetry: status === "failed",
-		canArchive: status !== "archived",
-		canConfigure: status === "ready",
-		recommendedAction:
-			status === "ready"
-				? "send"
-				: status === "detached"
-					? "resume"
-					: status === "failed"
-						? "retry"
-						: status === "archived"
-							? "none"
-							: "wait",
-		recoveryPhase:
-			status === "activating"
-				? "activating"
-				: status === "reconnecting"
-					? "reconnecting"
-					: status === "detached"
-						? "detached"
-						: status === "failed"
-							? "failed"
-							: status === "archived"
-								? "archived"
-								: "none",
-		compactStatus: status,
-	};
 }
 
 function selectSessionGraphActivity(input: {
@@ -146,10 +110,9 @@ function selectSessionGraphActivity(input: {
 }
 
 export function graphFromSessionOpenFound(
-	found: SessionOpenFound,
-	lifecycle: SessionGraphLifecycle,
-	capabilities: SessionGraphCapabilities
+	found: SessionOpenFound
 ): SessionStateGraph {
+	assertOpenFoundHasGraphAuthority(found);
 	return {
 		requestedSessionId: found.requestedSessionId,
 		canonicalSessionId: found.canonicalSessionId,
@@ -170,16 +133,25 @@ export function graphFromSessionOpenFound(
 		messageCount: found.messageCount,
 		activeTurnFailure: found.activeTurnFailure,
 		lastTerminalTurnId: found.lastTerminalTurnId,
-		lifecycle,
+		lifecycle: found.lifecycle,
 		activity: selectSessionGraphActivity({
-			lifecycle,
+			lifecycle: found.lifecycle,
 			turnState: found.turnState,
 			operations: found.operations,
 			interactions: found.interactions,
 			activeTurnFailure: found.activeTurnFailure,
 		}),
-		capabilities,
+		capabilities: found.capabilities,
 	};
+}
+
+function assertOpenFoundHasGraphAuthority(found: SessionOpenFound): void {
+	if (!found.lifecycle) {
+		throw new Error("Session open result is missing canonical lifecycle authority");
+	}
+	if (!found.capabilities) {
+		throw new Error("Session open result is missing canonical capabilities authority");
+	}
 }
 
 export function createSnapshotEnvelope(graph: SessionStateGraph): SessionStateEnvelope {
@@ -194,26 +166,6 @@ export function createSnapshotEnvelope(graph: SessionStateGraph): SessionStateEn
 	};
 }
 
-export function defaultSnapshotLifecycle(): SessionGraphLifecycle {
-	return {
-		status: "reserved",
-		detachedReason: null,
-		failureReason: null,
-		errorMessage: null,
-		actionability: defaultLifecycleActionability("reserved"),
-	};
-}
-
-export function defaultSnapshotCapabilities(): SessionGraphCapabilities {
-	return {
-		models: null,
-		modes: null,
-		availableCommands: [],
-		configOptions: [],
-		autonomousEnabled: false,
-	};
-}
-
 export function materializeSnapshotGraph(
 	graph: SessionStateGraph
 ): SessionStateSnapshotMaterialization {
@@ -225,9 +177,7 @@ export function materializeSnapshotGraph(
 export function materializeSnapshotFromOpenFound(
 	found: SessionOpenFound
 ): SessionStateSnapshotMaterialization {
-	return materializeSnapshotGraph(
-		graphFromSessionOpenFound(found, defaultSnapshotLifecycle(), defaultSnapshotCapabilities())
-	);
+	return materializeSnapshotGraph(graphFromSessionOpenFound(found));
 }
 
 export function listGraphAuthorityIds(graph: SessionStateGraph): {

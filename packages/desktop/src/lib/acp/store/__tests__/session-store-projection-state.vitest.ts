@@ -15,11 +15,14 @@ vi.mock("../api.js", () => ({
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
+	SessionGraphActivity,
 	SessionGraphLifecycle,
+	SessionOpenFound,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TurnFailureSnapshot,
 } from "$lib/services/acp-types.js";
+import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 
@@ -28,6 +31,16 @@ type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 type GraphOverride = Partial<SessionStateGraph> & {
 	activeTurnFailure?: ProjectionFailureOverride;
 };
+
+function createIdleActivity(): SessionGraphActivity {
+	return {
+		kind: "idle",
+		activeOperationCount: 0,
+		activeSubagentCount: 0,
+		dominantOperationId: null,
+		blockingInteractionId: null,
+	};
+}
 
 function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): OperationSnapshot {
 	return {
@@ -194,6 +207,33 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 	};
 }
 
+function createSessionOpenFoundFromGraph(
+	graph: SessionStateGraph = createSessionStateGraph()
+): SessionOpenFound {
+	return {
+		requestedSessionId: graph.requestedSessionId,
+		canonicalSessionId: graph.canonicalSessionId,
+		isAlias: graph.isAlias,
+		lastEventSeq: graph.revision.lastEventSeq,
+		graphRevision: graph.revision.graphRevision,
+		openToken: "open-token",
+		agentId: graph.agentId,
+		projectPath: graph.projectPath,
+		worktreePath: graph.worktreePath ?? null,
+		sourcePath: graph.sourcePath ?? null,
+		transcriptSnapshot: graph.transcriptSnapshot,
+		sessionTitle: "Opened session",
+		operations: graph.operations,
+		interactions: graph.interactions,
+		turnState: graph.turnState,
+		messageCount: graph.messageCount,
+		lifecycle: graph.lifecycle,
+		capabilities: graph.capabilities,
+		activeTurnFailure: graph.activeTurnFailure ?? null,
+		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
+	};
+}
+
 function addColdSession(store: SessionStore, sessionId = "session-1", agentId = "codex"): void {
 	store.addSession({
 		id: sessionId,
@@ -221,6 +261,21 @@ function createSnapshotEnvelope(
 	};
 }
 
+function materializeStoredScene(store: SessionStore, sessionId = "session-1") {
+	const graph = store.getSessionStateGraph(sessionId);
+	if (graph === null) {
+		throw new Error(`Expected graph for ${sessionId}`);
+	}
+
+	return materializeAgentPanelSceneFromGraph({
+		panelId: "panel-1",
+		graph,
+		header: {
+			title: "Session",
+		},
+	});
+}
+
 beforeEach(() => {
 	getSessionStateMock.mockReset();
 	getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope()));
@@ -229,6 +284,470 @@ beforeEach(() => {
 });
 
 describe("SessionStore.applySessionStateGraph", () => {
+	it("populates canonical projection from backend-authored open snapshots", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("reserved"),
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			capabilities: {
+				models: null,
+				modes: null,
+				availableCommands: [
+					{
+						name: "edit",
+						description: "Edit files",
+					},
+				],
+				configOptions: [],
+				autonomousEnabled: false,
+			},
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+
+		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
+			lifecycle: {
+				status: "reserved",
+				actionability: {
+					canSend: false,
+					recommendedAction: "wait",
+				},
+			},
+			turnState: "Idle",
+			activeTurnFailure: null,
+			revision: graph.revision,
+		});
+	});
+
+	it("keeps open snapshot transcript entries spine-only while operations hold rich tool data before connect", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("detached"),
+			transcriptSnapshot: {
+				revision: 12,
+				entries: [
+					{
+						entryId: "tool-1",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-1:tool",
+								text: "Run ls",
+							},
+						],
+					},
+				],
+			},
+			operations: [
+				createOperationSnapshot({
+					id: "session-1:tool-1",
+					tool_call_id: "tool-1",
+					name: "bash",
+					kind: "execute",
+					provider_status: "completed",
+					title: "Run ls",
+					arguments: {
+						kind: "execute",
+						command: "ls",
+					},
+					result: {
+						content: "README.md",
+						detailedContent: "README.md\npackage.json",
+					},
+					command: "ls",
+					operation_state: "completed",
+				}),
+			],
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+
+		const entries = store.getEntries("session-1");
+		expect(entries).toHaveLength(1);
+		const entry = entries[0];
+		expect(entry?.type).toBe("tool_call");
+		if (entry?.type !== "tool_call") {
+			throw new Error("Expected hydrated entry to be a tool call");
+		}
+		expect(entry.message.kind).toBe("other");
+		expect(entry.message.arguments).toEqual({
+			kind: "other",
+			raw: null,
+		});
+		expect(entry.message.result).toBeNull();
+		const operation = store.getOperationStore().getByToolCallId("session-1", "tool-1");
+		expect(operation).toMatchObject({
+			toolCallId: "tool-1",
+			kind: "execute",
+			arguments: {
+				kind: "execute",
+				command: "ls",
+			},
+			result: {
+				content: "README.md",
+				detailedContent: "README.md\npackage.json",
+			},
+		});
+		expect(operation?.arguments).toEqual({
+			kind: "execute",
+			command: "ls",
+		});
+		expect(operation?.result).toEqual({
+			content: "README.md",
+			detailedContent: "README.md\npackage.json",
+		});
+	});
+
+	it("exposes a graph-materialized restored scene before connect replays history", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("detached"),
+			transcriptSnapshot: {
+				revision: 12,
+				entries: [
+					{
+						entryId: "tool-1",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-1:tool",
+								text: "Run ls",
+							},
+						],
+					},
+				],
+			},
+			operations: [
+				createOperationSnapshot({
+					id: "session-1:tool-1",
+					tool_call_id: "tool-1",
+					name: "bash",
+					kind: "execute",
+					provider_status: "completed",
+					title: "Run ls",
+					arguments: {
+						kind: "execute",
+						command: "ls",
+					},
+					result: {
+						content: "README.md",
+						detailedContent: "README.md\npackage.json",
+					},
+					command: "ls",
+					operation_state: "completed",
+				}),
+			],
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+
+		const restoredGraph = store.getSessionStateGraph("session-1");
+		expect(restoredGraph).not.toBeNull();
+		if (restoredGraph === null) {
+			throw new Error("Expected restored graph to be available for scene materialization");
+		}
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph: restoredGraph,
+			header: {
+				title: "Opened session",
+			},
+		});
+		const sceneEntry = scene.conversation.entries[0];
+		expect(sceneEntry).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run ls",
+			status: "done",
+			command: "ls",
+			stdout: "README.md\npackage.json",
+			presentationState: "resolved",
+		});
+	});
+
+	it("preserves restored historical scene content across connect lifecycle envelopes", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Completed",
+			activeTurnFailure: null,
+			lastTerminalTurnId: "turn-7",
+			lifecycle: createGraphLifecycle("detached"),
+			activity: createIdleActivity(),
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			transcriptSnapshot: {
+				revision: 7,
+				entries: [
+					{
+						entryId: "tool-1",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-1:tool",
+								text: "Run ls",
+							},
+						],
+					},
+				],
+			},
+			operations: [
+				createOperationSnapshot({
+					id: "session-1:tool-1",
+					tool_call_id: "tool-1",
+					name: "bash",
+					kind: "execute",
+					provider_status: "completed",
+					title: "Run ls",
+					arguments: {
+						kind: "execute",
+						command: "ls",
+					},
+					result: {
+						content: "README.md",
+						detailedContent: "README.md\npackage.json",
+					},
+					command: "ls",
+					operation_state: "completed",
+				}),
+			],
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		const openScene = materializeStoredScene(store);
+		const openEntries = openScene.conversation.entries;
+		expect(openEntries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run ls",
+			status: "done",
+			command: "ls",
+			stdout: "README.md\npackage.json",
+			presentationState: "resolved",
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("ready"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+		const connectedScene = materializeStoredScene(store);
+		expect(connectedScene.conversation.entries).toEqual(openEntries);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 9,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("failed", "Reconnect failed"),
+				revision: {
+					graphRevision: 9,
+					transcriptRevision: 7,
+					lastEventSeq: 9,
+				},
+			},
+		});
+		const failedScene = materializeStoredScene(store);
+		expect(failedScene.status).toBe("error");
+		expect(failedScene.lifecycle).toMatchObject({
+			status: "failed",
+			errorMessage: "Reconnect failed",
+			actionability: {
+				canRetry: true,
+				recommendedAction: "retry",
+			},
+		});
+		expect(failedScene.conversation.entries).toEqual(openEntries);
+	});
+
+	it("updates only the affected restored operation when connect delivers a newer operation delta", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("ready"),
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			transcriptSnapshot: {
+				revision: 7,
+				entries: [
+					{
+						entryId: "tool-1",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-1:tool",
+								text: "Run pwd",
+							},
+						],
+					},
+					{
+						entryId: "tool-2",
+						role: "tool",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "tool-2:tool",
+								text: "Run tests",
+							},
+						],
+					},
+				],
+			},
+			operations: [
+				createOperationSnapshot({
+					id: "op-1",
+					tool_call_id: "tool-1",
+					name: "bash",
+					kind: "execute",
+					provider_status: "completed",
+					title: "Run pwd",
+					arguments: {
+						kind: "execute",
+						command: "pwd",
+					},
+					result: "/repo",
+					command: "pwd",
+					operation_state: "completed",
+				}),
+				createOperationSnapshot({
+					id: "op-2",
+					tool_call_id: "tool-2",
+					name: "bash",
+					kind: "execute",
+					provider_status: "in_progress",
+					title: "Run tests",
+					arguments: {
+						kind: "execute",
+						command: "bun test",
+					},
+					result: null,
+					command: "bun test",
+					operation_state: "running",
+				}),
+			],
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		const openScene = materializeStoredScene(store);
+		const stableEntry = openScene.conversation.entries[0];
+		expect(stableEntry).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run pwd",
+			status: "done",
+			stdout: "/repo",
+		});
+		expect(openScene.conversation.entries[1]).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run tests",
+			status: "running",
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: createIdleActivity(),
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					transcriptOperations: [],
+					operationPatches: [
+						createOperationSnapshot({
+							id: "op-2",
+							tool_call_id: "tool-2",
+							name: "bash",
+							kind: "execute",
+							provider_status: "completed",
+							title: "Run tests",
+							arguments: {
+								kind: "execute",
+								command: "bun test",
+							},
+							result: {
+								content: "Tests passed",
+								detailedContent: "20 pass",
+							},
+							command: "bun test",
+							operation_state: "completed",
+						}),
+					],
+					interactionPatches: [],
+					changedFields: ["operations", "activity"],
+				},
+			},
+		});
+
+		const patchedScene = materializeStoredScene(store);
+		expect(patchedScene.conversation.entries[0]).toEqual(stableEntry);
+		expect(patchedScene.conversation.entries[1]).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run tests",
+			status: "done",
+			command: "bun test",
+			stdout: "20 pass",
+			presentationState: "resolved",
+		});
+	});
+
 	it("hydrates canonical failed-turn state from the graph snapshot", () => {
 		const store = new SessionStore();
 
@@ -370,7 +889,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				},
 			],
 		});
-		expect(store.getCapabilities("session-1")).toMatchObject({
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
 			availableModes: [
 				{
 					id: "plan",
@@ -392,8 +911,220 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("preserves seeded model capabilities when a lifecycle-only graph omits capabilities", () => {
+	it("carries canonical capabilities across lifecycle-only envelopes", () => {
 		const store = new SessionStore();
+		addColdSession(store);
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+					capabilities: {
+						models: {
+							currentModelId: "gpt-5",
+							availableModels: [
+								{
+									modelId: "gpt-5",
+									name: "GPT-5",
+								},
+							],
+						},
+						modes: null,
+						availableCommands: [
+							{
+								name: "run",
+								description: "Run command",
+							},
+						],
+						configOptions: [],
+						autonomousEnabled: true,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getCanonicalSessionProjection("session-1")?.capabilities).toMatchObject({
+			models: {
+				currentModelId: "gpt-5",
+			},
+			autonomousEnabled: true,
+		});
+		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+			{
+				id: "gpt-5",
+				name: "GPT-5",
+				description: undefined,
+			},
+		]);
+	});
+
+	it("replaces canonical capabilities while carrying lifecycle fields forward", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+					capabilities: {
+						models: {
+							currentModelId: "gpt-4.1",
+							availableModels: [
+								{
+									modelId: "gpt-4.1",
+									name: "GPT-4.1",
+								},
+							],
+						},
+						modes: null,
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: false,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "capabilities",
+				capabilities: {
+					models: {
+						currentModelId: "gpt-5",
+						availableModels: [
+							{
+								modelId: "gpt-5",
+								name: "GPT-5",
+							},
+						],
+					},
+					modes: null,
+					availableCommands: [],
+					configOptions: [],
+					autonomousEnabled: true,
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+				pending_mutation_id: "mutation-1",
+				preview_state: "pending",
+			},
+		});
+
+		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
+			lifecycle: {
+				status: "ready",
+			},
+			turnState: "Running",
+			capabilities: {
+				models: {
+					currentModelId: "gpt-5",
+				},
+				autonomousEnabled: true,
+			},
+			revision: {
+				graphRevision: 8,
+				transcriptRevision: 7,
+				lastEventSeq: 8,
+			},
+		});
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
+			availableModels: [
+				{
+					id: "gpt-5",
+					name: "GPT-5",
+				},
+			],
+			pendingMutationId: "mutation-1",
+			previewState: "pending",
+		});
+	});
+
+	it("redacts unsafe config option values before writing canonical capabilities", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Idle",
+			capabilities: {
+				models: null,
+				modes: null,
+				availableCommands: [],
+				configOptions: [
+					{
+						id: "api-key",
+						name: "API key",
+						category: "credentials",
+						type: "string",
+						currentValue: "sk-secret",
+						options: [
+							{
+								name: "secret",
+								value: "ghp_secret",
+							},
+						],
+					},
+					{
+						id: "max-tokens",
+						name: "Max tokens",
+						category: "general",
+						type: "string",
+						currentValue: "4096",
+					},
+				],
+				autonomousEnabled: false,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+
+		expect(
+			store.getCanonicalSessionProjection("session-1")?.capabilities.configOptions?.[0]
+		).toMatchObject({
+			id: "api-key",
+			currentValue: null,
+			options: [
+				{
+					name: "secret",
+					value: null,
+				},
+			],
+		});
+		expect(
+			store.getCanonicalSessionProjection("session-1")?.capabilities.configOptions?.[1]
+		).toMatchObject({
+			id: "max-tokens",
+			currentValue: "4096",
+		});
+	});
+
+	it("preserves canonical model capabilities when a capabilities envelope omits models and modes", () => {
+		const store = new SessionStore();
+		addColdSession(store, "session-1", "cursor");
 
 		store.applySessionStateGraph(
 			createSessionStateGraph({
@@ -425,37 +1156,37 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		store.applySessionStateGraph(
-			createSessionStateGraph({
-				activeTurnFailure: null,
-				turnState: "Running",
-				lifecycle: createGraphLifecycle("ready"),
-				revision: {
-					graphRevision: 8,
-					transcriptRevision: 8,
-					lastEventSeq: 8,
-				},
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "capabilities",
 				capabilities: {
 					models: null,
 					modes: null,
 					availableCommands: [],
 					configOptions: [],
+					autonomousEnabled: false,
 				},
-			})
-		);
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 8,
+					lastEventSeq: 8,
+				},
+				pending_mutation_id: null,
+				preview_state: "partial",
+			},
+		});
 
-		expect(store.getCapabilities("session-1").availableModels).toEqual([
+		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
 			{
 				id: "cursor-model",
 				name: "Cursor Model",
 				description: undefined,
 			},
 		]);
-		expect(store.getHotState("session-1").currentModel).toEqual({
-			id: "cursor-model",
-			name: "Cursor Model",
-			description: undefined,
-		});
+		expect(store.getSessionCurrentModelId("session-1")).toBe("cursor-model");
 	});
 
 	it("reconciles the connection machine from canonical lifecycle and turn state", () => {
@@ -535,9 +1266,98 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("does not let a non-advancing snapshot erase restored transcript history", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const restoredGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Completed",
+			lastTerminalTurnId: "turn-7",
+			lifecycle: createGraphLifecycle("ready"),
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			transcriptSnapshot: {
+				revision: 7,
+				entries: [
+					{
+						entryId: "assistant-history-7",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-history-7:block:0",
+								text: "restored history",
+							},
+						],
+					},
+				],
+			},
+		});
+		const staleReadyGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Idle",
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("ready"),
+			revision: {
+				graphRevision: 8,
+				transcriptRevision: 7,
+				lastEventSeq: 8,
+			},
+			transcriptSnapshot: {
+				revision: 7,
+				entries: [],
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(restoredGraph));
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(staleReadyGraph));
+
+		expect(store.getEntries("session-1")).toHaveLength(1);
+		expect(store.getEntries("session-1")[0]).toMatchObject({
+			id: "assistant-history-7",
+			type: "assistant",
+			message: {
+				chunks: [
+					{
+						block: {
+							text: "restored history",
+						},
+					},
+				],
+			},
+		});
+		expect(store.getHotState("session-1")).toMatchObject({
+			status: "ready",
+			isConnected: true,
+		});
+		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot.entries).toEqual([
+			{
+				entryId: "assistant-history-7",
+				role: "assistant",
+				segments: [
+					{
+						kind: "text",
+						segmentId: "assistant-history-7:block:0",
+						text: "restored history",
+					},
+				],
+			},
+		]);
+	});
+
 	it("applies canonical operation and interaction patches from delta envelopes", () => {
 		const store = new SessionStore();
 		const interactions = new InteractionStore();
+		const patchActivity: SessionGraphActivity = {
+			kind: "running_operation",
+			activeOperationCount: 1,
+			activeSubagentCount: 0,
+			dominantOperationId: "op-1",
+			blockingInteractionId: null,
+		};
 		store.setLiveSessionStateGraphConsumer(interactions);
 		addColdSession(store);
 		store.applySessionStateEnvelope(
@@ -547,6 +1367,21 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activeTurnFailure: null,
 					turnState: "Running",
 					lifecycle: createGraphLifecycle("ready"),
+					capabilities: {
+						models: {
+							currentModelId: "gpt-5",
+							availableModels: [
+								{
+									modelId: "gpt-5",
+									name: "GPT-5",
+								},
+							],
+						},
+						modes: null,
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: false,
+					},
 				})
 			)
 		);
@@ -568,10 +1403,14 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						transcriptRevision: 7,
 						lastEventSeq: 8,
 					},
+					activity: patchActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: [],
 					operationPatches: [createOperationSnapshot()],
 					interactionPatches: [createPermissionInteractionSnapshot()],
-					changedFields: ["operations", "interactions"],
+					changedFields: ["operations", "interactions", "activity"],
 				},
 			},
 		});
@@ -581,6 +1420,160 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			id: "permission-1",
 			sessionId: "session-1",
 			permission: "Read",
+		});
+		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
+		expect(store.getCanonicalSessionProjection("session-1")?.turnState).toBe("Running");
+		expect(store.getCanonicalSessionProjection("session-1")?.revision).toEqual({
+			graphRevision: 8,
+			transcriptRevision: 7,
+			lastEventSeq: 8,
+		});
+		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+			{
+				id: "gpt-5",
+				name: "GPT-5",
+				description: undefined,
+			},
+		]);
+		expect(store.getHotState("session-1")).toMatchObject({
+			activity: patchActivity,
+			turnState: "streaming",
+		});
+	});
+
+	it("materializes live operation patches without replacing the transcript snapshot", () => {
+		const store = new SessionStore();
+		const runningActivity: SessionGraphActivity = {
+			kind: "awaiting_model",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+		const patchActivity: SessionGraphActivity = {
+			kind: "running_operation",
+			activeOperationCount: 1,
+			activeSubagentCount: 0,
+			dominantOperationId: "op-1",
+			blockingInteractionId: null,
+		};
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+					activity: runningActivity,
+					transcriptSnapshot: {
+						revision: 7,
+						entries: [
+							{
+								entryId: "tool-1",
+								role: "tool",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "tool-1:tool",
+										text: "Run pwd",
+									},
+								],
+							},
+						],
+					},
+					operations: [],
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		const pendingGraph = store.getSessionStateGraph("session-1");
+		expect(pendingGraph).not.toBeNull();
+		if (pendingGraph === null) {
+			throw new Error("Expected initial graph");
+		}
+		expect(
+			materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph: pendingGraph,
+				header: {
+					title: "Session",
+				},
+			}).conversation.entries[0]
+		).toMatchObject({
+			type: "tool_call",
+			status: "pending",
+			presentationState: "pending_operation",
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: patchActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptOperations: [],
+					operationPatches: [
+						createOperationSnapshot({
+							id: "op-1",
+							tool_call_id: "tool-1",
+							name: "bash",
+							kind: "execute",
+							provider_status: "completed",
+							title: "Run pwd",
+							arguments: {
+								kind: "execute",
+								command: "pwd",
+							},
+							result: "/repo",
+							command: "pwd",
+							operation_state: "completed",
+						}),
+					],
+					interactionPatches: [],
+					changedFields: ["operations", "activity"],
+				},
+			},
+		});
+
+		const patchedGraph = store.getSessionStateGraph("session-1");
+		expect(patchedGraph?.transcriptSnapshot.revision).toBe(7);
+		expect(
+			materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph: patchedGraph ?? pendingGraph,
+				header: {
+					title: "Session",
+				},
+			}).conversation.entries[0]
+		).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run pwd",
+			status: "done",
+			command: "pwd",
+			stdout: "/repo",
+			presentationState: "resolved",
 		});
 	});
 
@@ -834,7 +1827,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getCapabilities("session-1")).toMatchObject({
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
 			availableModels: [
 				{
 					id: "claude-sonnet-4.6",
@@ -1006,6 +1999,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						transcriptRevision: 8,
 						lastEventSeq: 8,
 					},
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -1056,6 +2053,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						transcriptRevision: 10,
 						lastEventSeq: 10,
 					},
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -1145,6 +2146,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						transcriptRevision: 8,
 						lastEventSeq: 8,
 					},
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -1209,6 +2214,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 	it("sends the first prompt for a created reserved session without forcing resume first", async () => {
 		const store = new SessionStore();
+		const connectSession = vi.spyOn(store, "connectSession");
 		store.addSession({
 			id: "session-1",
 			projectPath: "/repo",
@@ -1248,10 +2254,82 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
 			{ type: "text", text: "cursor UI diagnostic ping - reply ok" },
 		]);
+		expect(connectSession).not.toHaveBeenCalled();
 	});
 
-	it("sends the first prompt for a just-created session before canonical lifecycle hydration arrives", async () => {
+	it("clears local pending send intent when the canonical graph accepts the send", async () => {
 		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(store.getHotState("session-1").pendingSendIntent).toEqual({
+			attemptId: expect.any(String),
+			startedAt: expect.any(Number),
+			promptLength: 36,
+		});
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("activating"),
+					turnState: "Running",
+					messageCount: 1,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 1,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+				})
+			)
+		);
+
+		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+	});
+
+	it("fails closed for a just-created session before canonical lifecycle hydration arrives", async () => {
+		const store = new SessionStore();
+		const connectSession = vi.spyOn(store, "connectSession");
 		store.addSession({
 			id: "session-1",
 			projectPath: "/repo",
@@ -1265,10 +2343,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
-		expect(result.isOk()).toBe(true);
-		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
-			{ type: "text", text: "cursor UI diagnostic ping - reply ok" },
-		]);
+		expect(result.isErr()).toBe(true);
+		expect(sendPromptMock).not.toHaveBeenCalled();
+		expect(connectSession).not.toHaveBeenCalled();
 	});
 
 	it("marks restored local created sessions as loaded so the composer can submit", () => {
@@ -1293,8 +2370,82 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("sends follow-up prompts for restored local created sessions without forcing resume first", async () => {
+	it("routes detached restored sessions through connect before sending", async () => {
 		const store = new SessionStore();
+		const restoredSession = {
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "Restored Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sourcePath: "/repo/.cursor/history/session.jsonl",
+			sessionLifecycleState: "persisted",
+			parentId: null,
+		} as const;
+		const connectSession = vi.spyOn(store, "connectSession").mockImplementation(() => {
+			store.applySessionStateEnvelope(
+				"session-1",
+				createSnapshotEnvelope(
+					createSessionStateGraph({
+						agentId: "cursor",
+						sourcePath: "/repo/.cursor/history/session.jsonl",
+						lifecycle: createGraphLifecycle("ready"),
+						turnState: "Idle",
+						messageCount: 1,
+						activeTurnFailure: null,
+						lastTerminalTurnId: null,
+						transcriptSnapshot: {
+							revision: 2,
+							entries: [],
+						},
+						revision: {
+							graphRevision: 2,
+							transcriptRevision: 2,
+							lastEventSeq: 2,
+						},
+					})
+				)
+			);
+			return okAsync(restoredSession);
+		});
+		store.addSession(restoredSession);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					sourcePath: "/repo/.cursor/history/session.jsonl",
+					lifecycle: createGraphLifecycle("detached"),
+					turnState: "Idle",
+					messageCount: 1,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 1,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+				})
+			)
+		);
+
+		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(connectSession).toHaveBeenCalledWith("session-1");
+		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
+			{ type: "text", text: "cursor restored follow-up - reply ok" },
+		]);
+	});
+
+	it("fails closed for restored local created sessions without canonical lifecycle", async () => {
+		const store = new SessionStore();
+		const connectSession = vi.spyOn(store, "connectSession");
 		store.addSession({
 			id: "session-1",
 			projectPath: "/repo",
@@ -1314,10 +2465,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
-		expect(result.isOk()).toBe(true);
-		expect(sendPromptMock).toHaveBeenCalledWith("session-1", [
-			{ type: "text", text: "cursor restored follow-up - reply ok" },
-		]);
+		expect(result.isErr()).toBe(true);
+		expect(sendPromptMock).not.toHaveBeenCalled();
+		expect(connectSession).not.toHaveBeenCalled();
 	});
 
 	it("keeps transcript entries intact when lifecycle transitions to error", () => {

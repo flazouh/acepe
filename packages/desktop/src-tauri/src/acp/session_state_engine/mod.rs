@@ -9,7 +9,9 @@ pub mod runtime_registry;
 pub mod selectors;
 pub mod snapshot_builder;
 
-pub use bridge::{build_delta_envelope, build_snapshot_envelope};
+pub use bridge::{
+    build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
+};
 pub use envelope::SessionStateEnvelope;
 pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
 pub use graph::SessionStateGraph;

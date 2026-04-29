@@ -131,7 +131,7 @@ describe("OperationStore", () => {
 		expect(child?.command).toBe("go test ./...");
 	});
 
-	it("hydrates canonical operations when preloaded entries are stored", () => {
+	it("does not hydrate canonical operations from preloaded transcript entries", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
@@ -139,10 +139,8 @@ describe("OperationStore", () => {
 			createToolCallEntry(createExecuteToolCall("tool-1", "git status")),
 		]);
 
-		const operation = operationStore.getByToolCallId("session-1", "tool-1");
-		expect(operation).toBeDefined();
-		expect(operation?.sourceEntryId).toBe("entry-tool-1");
-		expect(operation?.command).toBe("git status");
+		expect(operationStore.getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(operationStore.getSessionOperations("session-1")).toHaveLength(0);
 	});
 
 	it("replaces snapshot operations in insertion order", () => {

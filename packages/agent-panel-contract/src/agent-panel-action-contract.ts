@@ -51,7 +51,9 @@ export const AGENT_PANEL_ACTION_IDS = {
 		refresh: "browser.refresh",
 	},
 	status: {
+		resume: "status.resume",
 		retry: "status.retry",
+		archive: "status.archive",
 		install: "status.install",
 	},
 } as const;
@@ -92,4 +94,6 @@ export interface AgentPanelActionDescriptor {
 	destructive?: boolean;
 }
 
-export type AgentPanelActionCallbacks = Partial<Record<AgentPanelActionId, () => void>>;
+export type AgentPanelActionCallbacks = Partial<
+	Record<AgentPanelActionId, () => void>
+>;

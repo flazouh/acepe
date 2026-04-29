@@ -8,7 +8,7 @@ import {
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { SessionEntry } from "../../application/dto/session-entry.js";
-import type { TurnState } from "../../store/types.js";
+import type { SessionTurnState } from "../../../services/acp-types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { Colors, COLOR_NAMES } from "../../utils/colors.js";
@@ -27,7 +27,7 @@ interface Props {
 	showCommandWhenRepresented?: boolean;
 	showCompactEditPreview?: boolean;
 	entries?: readonly SessionEntry[];
-	turnState?: TurnState;
+	turnState?: SessionTurnState | null;
 }
 
 let {
@@ -62,7 +62,7 @@ const isRepresentedByToolCall = $derived.by(() => {
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
 const effectiveTurnState = $derived(
-	turnStateProp ?? sessionStore.getHotState(sessionId)?.turnState
+	turnStateProp ?? sessionStore.getSessionTurnState(sessionId)
 );
 const currentToolCall = $derived.by((): ToolCall | null => {
 	const toolCallId = currentPermission?.tool?.callID;

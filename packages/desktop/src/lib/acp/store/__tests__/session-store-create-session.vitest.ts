@@ -1,7 +1,11 @@
 import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionOpenFound, SessionStateGraph } from "$lib/services/acp-types.js";
+import type {
+	SessionOpenFound,
+	SessionStateEnvelope,
+	SessionStateGraph,
+} from "$lib/services/acp-types.js";
 
 vi.mock("$lib/analytics.js", () => ({
 	captureException: vi.fn(),
@@ -47,6 +51,20 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Idle",
 		messageCount: overrides.messageCount ?? 0,
+		lifecycle: overrides.lifecycle ?? {
+			status: "ready",
+			actionability: {
+				canSend: true,
+				canResume: false,
+				canRetry: false,
+				canArchive: false,
+				canConfigure: true,
+				recommendedAction: "send",
+				recoveryPhase: "none",
+				compactStatus: "ready",
+			},
+		},
+		capabilities: overrides.capabilities ?? {},
 	};
 }
 
@@ -95,6 +113,18 @@ function createSessionStateGraph(overrides: Partial<SessionStateGraph> = {}): Se
 			blockingInteractionId: null,
 		},
 		capabilities: overrides.capabilities ?? {},
+	};
+}
+
+function createSnapshotEnvelope(graph: SessionStateGraph = createSessionStateGraph()): SessionStateEnvelope {
+	return {
+		sessionId: graph.canonicalSessionId,
+		graphRevision: graph.revision.graphRevision,
+		lastEventSeq: graph.revision.lastEventSeq,
+		payload: {
+			kind: "snapshot",
+			graph,
+		},
 	};
 }
 
@@ -419,5 +449,59 @@ describe("SessionStore.createSession", () => {
 				turnState: "error",
 			})
 		);
+		expect(store.getCanonicalSessionProjection("pending-session")).toBeNull();
+
+		store.applySessionStateEnvelope(
+			"pending-session",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					requestedSessionId: "pending-session",
+					canonicalSessionId: "pending-session",
+					agentId: "claude-code",
+					projectPath: "/repo",
+					revision: {
+						graphRevision: 2,
+						transcriptRevision: 0,
+						lastEventSeq: 2,
+					},
+					turnState: "Failed",
+					activeTurnFailure: {
+						turn_id: null,
+						message: "Claude provider session identity could not be verified",
+						kind: "fatal",
+						source: "transport",
+					},
+					lifecycle: {
+						status: "failed",
+						failureReason: "explicitErrorHandlingRequired",
+						errorMessage: "Claude provider session identity could not be verified",
+						actionability: {
+							canSend: false,
+							canResume: false,
+							canRetry: true,
+							canArchive: true,
+							canConfigure: true,
+							recommendedAction: "retry",
+							recoveryPhase: "failed",
+							compactStatus: "failed",
+						},
+					},
+					activity: {
+						kind: "error",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+				})
+			)
+		);
+
+		expect(store.getCanonicalSessionProjection("pending-session")).toMatchObject({
+			lifecycle: {
+				status: "failed",
+			},
+			turnState: "Failed",
+		});
 	});
 });

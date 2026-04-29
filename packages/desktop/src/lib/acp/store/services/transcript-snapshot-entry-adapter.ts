@@ -11,6 +11,9 @@ import type {
 	ToolKind,
 } from "$lib/services/converted-session-types.js";
 
+// Transcript tool entries are ordering spine only. Rich tool semantics come from
+// canonical operations and graph scene materialization, not from this DTO.
+
 function toContentBlock(text: string): ContentBlock {
 	return {
 		type: "text",
@@ -26,7 +29,7 @@ function segmentBlocks(entry: TranscriptEntry): ContentBlock[] {
 	return entry.segments.map((segment) => toContentBlock(segment.text));
 }
 
-function toToolCallMessage(entry: TranscriptEntry): ToolCallData {
+function toTranscriptToolSpineMessage(entry: TranscriptEntry): ToolCallData {
 	const title = segmentText(entry);
 	const status: ToolCallStatus = "completed";
 	const kind: ToolKind = "other";
@@ -91,7 +94,7 @@ export function convertTranscriptEntryToSessionEntry(
 		return {
 			id: entry.entryId,
 			type: "tool_call",
-			message: toToolCallMessage(entry),
+			message: toTranscriptToolSpineMessage(entry),
 			timestamp,
 		};
 	}

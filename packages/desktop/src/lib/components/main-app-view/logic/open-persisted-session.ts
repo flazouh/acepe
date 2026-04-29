@@ -16,6 +16,8 @@ type SessionOpenStore = Pick<
 	| "setLocalCreatedSessionLoaded"
 	| "setSessionOpenMissing"
 	| "getSessionCold"
+	| "getLocalPersistedSessionProbeStatus"
+	| "setLocalPersistedSessionProbeStatus"
 	| "connectSession"
 >;
 
@@ -33,6 +35,11 @@ interface OpenPersistedSessionOptions {
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
 }
+
+const PERMANENT_LOCAL_REATTACH_ERROR_MARKERS = [
+	"This saved session is no longer available to reopen",
+	"Resource not found: Session",
+] as const;
 
 function missingSessionMessage(session: ReturnType<SessionOpenStore["getSessionCold"]>): string {
 	if (session?.agentId === "cursor" && session.sourcePath?.endsWith("store.db")) {
@@ -54,8 +61,45 @@ function errorSessionMessage(result: Extract<SessionOpenResult, { outcome: "erro
 	return "This session couldn't be reopened because Acepe hit an internal error while loading it.";
 }
 
+function localCreatedReattachUnavailableMessage(
+	session: ReturnType<SessionOpenStore["getSessionCold"]>
+): string {
+	if (session?.agentId === "cursor") {
+		return "This Cursor session is no longer available to reopen. Start a new session to continue.";
+	}
+
+	if (session?.agentId === "copilot") {
+		return "This GitHub Copilot session is no longer available to reopen. Start a new session to continue.";
+	}
+
+	return "This saved session is no longer available to reopen. Start a new session to continue.";
+}
+
 function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
 	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
+}
+
+function errorDetails(error: AppError): string {
+	const causeMessage = error.cause instanceof Error ? error.cause.message : "";
+	return causeMessage.length > 0 ? `${error.message}\n${causeMessage}` : error.message;
+}
+
+function isPermanentLocalReattachFailure(message: string | null): boolean {
+	if (message === null) {
+		return false;
+	}
+
+	return PERMANENT_LOCAL_REATTACH_ERROR_MARKERS.some((marker) => message.includes(marker));
+}
+
+function setLocalReattachFailureIfPermanent(
+	sessionStore: SessionOpenStore,
+	sessionId: string,
+	details: string
+): void {
+	if (isPermanentLocalReattachFailure(details)) {
+		sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "permanent-reattach-failure");
+	}
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -88,9 +132,25 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	}
 
 	if (!isProviderHistoryBackedSession(session)) {
+		if (
+			sessionStore.getLocalPersistedSessionProbeStatus(sessionId) ===
+			"permanent-reattach-failure"
+		) {
+			sessionStore.setSessionOpenMissing(sessionId, localCreatedReattachUnavailableMessage(session));
+			logger.debug("Skipping permanent failed local-created session reattach", {
+				source,
+				panelId,
+				sessionId,
+				agentId: session.agentId,
+			});
+			return;
+		}
+
+		sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
 		sessionStore.setLocalCreatedSessionLoaded(sessionId);
 		void sessionStore.connectSession(sessionId).match(
 			() => {
+				sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
 				logger.debug("Reattached local created session", {
 					source,
 					panelId,
@@ -99,11 +159,21 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				});
 			},
 			(error: AppError) => {
+				const details = errorDetails(error);
+				const permanentLocalReattachFailure = isPermanentLocalReattachFailure(details);
+				setLocalReattachFailureIfPermanent(sessionStore, sessionId, details);
+				if (permanentLocalReattachFailure) {
+					sessionStore.setSessionOpenMissing(
+						sessionId,
+						localCreatedReattachUnavailableMessage(session)
+					);
+				}
 				logger.warn("Failed to reattach local created session", {
 					source,
 					panelId,
 					sessionId,
 					agentId: session.agentId,
+					details,
 					error,
 				});
 			}

@@ -43,7 +43,7 @@
 {#if shouldShow}
 	<Tooltip.Provider delayDuration={0}>
 		<div class="flex h-7 w-7 shrink-0 items-center justify-center">
-			{#if isConnecting || status === "warming"}
+			{#if isConnecting || status === "warming" || status === "running"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						<div class="animate-in fade-in duration-150">
@@ -59,10 +59,14 @@
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
-			{:else if status === "connected"}
+			{:else if status === "connected" || status === "done" || status === "idle"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<div class="animate-in zoom-in-50 duration-300 text-success">
+						<div
+							class="animate-in zoom-in-50 duration-300 {status === 'idle'
+								? 'text-muted-foreground'
+								: 'text-success'}"
+						>
 							<IconCircleCheckFilled {size} />
 						</div>
 					</Tooltip.Trigger>

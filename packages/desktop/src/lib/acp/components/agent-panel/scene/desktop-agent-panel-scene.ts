@@ -11,6 +11,10 @@ import {
 	type AgentPanelSessionStatus,
 	type AgentPanelSidebarModel,
 	type AgentPanelStripModel,
+	type AgentToolEditDiffEntry,
+	type AgentToolEntry,
+	type AgentToolPresentationState,
+	type AgentToolStatus,
 } from "@acepe/ui/agent-panel";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { SessionStatus } from "../../../application/dto/session.js";
@@ -27,8 +31,10 @@ import type {
 } from "../../../types/normalized-tool-result.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
+import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
+import { resolveToolCallEditDiffs } from "../../tool-calls/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
 import { resolveToolRouteKey } from "../../tool-calls/resolve-tool-operation.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
@@ -129,7 +135,7 @@ function mapToolStatus(
 	turnState: TurnState | undefined,
 	parentCompleted: boolean,
 	isActiveToolCall: boolean
-): "pending" | "running" | "done" | "error" {
+): AgentToolStatus {
 	if (toolCall.status === "failed") {
 		return "error";
 	}
@@ -152,6 +158,14 @@ function mapToolStatus(
 	}
 
 	return "pending";
+}
+
+interface MapToolCallEntryOptions {
+	readonly canonicalStatus?: AgentToolStatus;
+	readonly presentationState?: AgentToolPresentationState;
+	readonly degradedReason?: string | null;
+	readonly taskChildren?: AgentPanelSceneEntryModel[];
+	readonly includeDiagnosticDetails?: boolean;
 }
 
 function getActiveTailToolCallId(
@@ -711,11 +725,51 @@ function mapTaskResultText(toolCall: ToolCall): string | null {
 	return typeof toolCall.result === "string" ? toolCall.result : null;
 }
 
+function normalizeNullableFilePath(value: string | null | undefined): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function mapEditDiffEntriesForToolCall(toolCall: ToolCall): readonly AgentToolEditDiffEntry[] {
+	const resolved = resolveToolCallEditDiffs(
+		toolCall.arguments,
+		toolCall.progressiveArguments ?? null
+	);
+	const locationPath = normalizeNullableFilePath(toolCall.locations?.[0]?.path ?? null);
+
+	return resolved.map((diff, index): AgentToolEditDiffEntry => {
+		const filePath =
+			normalizeNullableFilePath(diff.filePath) ??
+			(index === 0 ? locationPath : null);
+		const oldString = diff.oldString ?? null;
+		const newString = diff.newString ?? null;
+		const stats = calculateDiffStats({
+			oldString: oldString ?? "",
+			newString: newString ?? "",
+		});
+		const additions = stats?.added ?? 0;
+		const deletions = stats?.removed ?? 0;
+
+		return {
+			filePath,
+			fileName: filePath ? getFileName(filePath) : null,
+			additions,
+			deletions,
+			oldString,
+			newString,
+		};
+	});
+}
+
 function mapToolCallEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean,
-	activeToolCallId: string | null
+	activeToolCallId: string | null,
+	options: MapToolCallEntryOptions = {}
 ): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
 	const executeResult =
@@ -727,14 +781,13 @@ function mapToolCallEntry(
 	const webSearchPayload = mapWebSearchPayload(toolCall);
 	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
-	const status = mapToolStatus(
-		toolCall,
-		turnState,
-		parentCompleted,
-		toolCall.id === activeToolCallId
-	);
+	const status =
+		options.canonicalStatus ??
+		mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
+	const diagnosticDetails =
+		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 
-	return {
+	const entry: AgentToolEntry = {
 		id: toolCall.id,
 		type: "tool_call",
 		kind: normalizeToolKind(kind),
@@ -749,7 +802,7 @@ function mapToolCallEntry(
 								? toolCall.normalizedResult.rawText
 								: toolCall.result
 						)
-					: serializeOtherToolDetails(toolCall),
+					: diagnosticDetails,
 		filePath: getToolFilePath(toolCall),
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
@@ -778,11 +831,37 @@ function mapToolCallEntry(
 		taskDescription: mapTaskDescription(toolCall),
 		taskPrompt: toolCall.arguments.kind === "think" ? (toolCall.arguments.prompt ?? null) : null,
 		taskResultText: mapTaskResultText(toolCall),
-		taskChildren: mapTaskChildren(toolCall.taskChildren, turnState, status === "done"),
+		taskChildren:
+			options.taskChildren !== undefined
+				? Array.from(options.taskChildren)
+				: mapTaskChildren(toolCall.taskChildren, turnState, status === "done"),
 		todos: mapTodos(toolCall),
 		question: mapQuestion(toolCall),
 		lintDiagnostics: mapLintDiagnostics(toolCall),
 	};
+
+	if (normalizeToolKind(kind) === "edit") {
+		entry.editDiffs = mapEditDiffEntriesForToolCall(toolCall);
+	}
+
+	if (options.presentationState !== undefined) {
+		entry.presentationState = options.presentationState;
+	}
+	if (options.degradedReason !== undefined) {
+		entry.degradedReason = options.degradedReason;
+	}
+
+	return entry;
+}
+
+export function mapToolCallToSceneEntry(
+	toolCall: ToolCall,
+	turnState: TurnState | undefined,
+	parentCompleted: boolean = false,
+	activeToolCallId: string | null = null,
+	options: MapToolCallEntryOptions = {}
+): AgentPanelSceneEntryModel {
+	return mapToolCallEntry(toolCall, turnState, parentCompleted, activeToolCallId, options);
 }
 
 function contentBlockToPlainText(block: ContentBlock): string {
@@ -895,7 +974,7 @@ export function mapSessionEntryToConversationEntry(
 	}
 
 	if (entry.type === "tool_call") {
-		return mapToolCallEntry(entry.message, turnState, false, activeToolCallId);
+		return mapToolCallToSceneEntry(entry.message, turnState, false, activeToolCallId);
 	}
 
 	if (entry.type === "ask") {

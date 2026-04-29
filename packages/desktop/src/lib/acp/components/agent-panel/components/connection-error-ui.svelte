@@ -14,9 +14,10 @@ interface Props {
 	error: string;
 	onRetry: () => void;
 	onCancel: () => void;
+	isRetrying?: boolean;
 }
 
-let { error, onRetry, onCancel }: Props = $props();
+let { error, onRetry, onCancel, isRetrying = false }: Props = $props();
 </script>
 
 <div class="relative h-full min-h-0 overflow-hidden">
@@ -82,10 +83,20 @@ let { error, onRetry, onCancel }: Props = $props();
 			<button
 				type="button"
 				onclick={onRetry}
-				class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+				disabled={isRetrying}
+				aria-busy={isRetrying ? "true" : undefined}
+				class="h-5 px-2.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 disabled:cursor-wait disabled:opacity-70"
 			>
-				<ArrowsClockwise class="h-3 w-3" weight="fill" />
-				{"Retry"}
+				{#if isRetrying}
+					<span
+						class="inline-block h-3 w-3 rounded-full border border-foreground/40 border-t-foreground animate-spin"
+						aria-hidden="true"
+					></span>
+					{"Retrying…"}
+				{:else}
+					<ArrowsClockwise class="h-3 w-3" weight="fill" />
+					{"Retry"}
+				{/if}
 			</button>
 		</div>
 		</div>

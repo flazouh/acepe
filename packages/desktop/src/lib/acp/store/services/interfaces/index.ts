@@ -6,7 +6,6 @@
  */
 
 export type { IBoundaryManager } from "./boundary-manager.js";
-export type { ICapabilitiesManager } from "./capabilities-manager.js";
 export type { IChunkAggregator } from "./chunk-aggregator-interface.js";
 export type { IConnectionManager } from "./connection-manager.js";
 export type { IEntryIndex } from "./entry-index.js";

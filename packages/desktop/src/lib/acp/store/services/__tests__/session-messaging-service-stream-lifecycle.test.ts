@@ -2,13 +2,14 @@
  * Session Messaging Service - Stream Lifecycle Tests
  *
  * Verifies that handleStreamComplete and handleStreamError
- * send the correct machine events alongside hot state updates,
+ * send the correct machine events without canonical-overlap hot state writes,
  * preventing the UI from getting stuck in "Planning next moves".
  */
 
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionEntryStore } from "../../session-entry-store.svelte.js";
+import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -25,6 +26,23 @@ vi.mock("../../checkpoint-store.svelte.js", () => ({
 }));
 
 let SessionMessagingService: typeof import("../session-messaging-service.js").SessionMessagingService;
+
+const canonicalOverlapHotStateFields = [
+	"status",
+	"turnState",
+	"connectionError",
+	"activeTurnFailure",
+	"lastTerminalTurnId",
+] as const;
+
+function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
+	for (const call of updateHotState.mock.calls) {
+		const updates = call[1];
+		for (const field of canonicalOverlapHotStateFields) {
+			expect(Object.prototype.hasOwnProperty.call(updates, field)).toBe(false);
+		}
+	}
+}
 
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
@@ -88,6 +106,51 @@ function createMockDeps() {
 	return { stateReader, hotStateManager, entryManager, connectionManager };
 }
 
+function createCanonicalProjection(
+	overrides: Partial<CanonicalSessionProjection> = {}
+): CanonicalSessionProjection {
+	return {
+		lifecycle: overrides.lifecycle ?? {
+			status: "ready",
+			detachedReason: null,
+			failureReason: null,
+			errorMessage: null,
+			actionability: {
+				canSend: true,
+				canResume: false,
+				canRetry: false,
+				canArchive: true,
+				canConfigure: true,
+				recommendedAction: "send",
+				recoveryPhase: "none",
+				compactStatus: "ready",
+			},
+		},
+		activity: overrides.activity ?? {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		turnState: overrides.turnState ?? "Idle",
+		activeTurnFailure: overrides.activeTurnFailure ?? null,
+		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		capabilities: overrides.capabilities ?? {
+			models: null,
+			modes: null,
+			availableCommands: [],
+			configOptions: [],
+			autonomousEnabled: false,
+		},
+		revision: overrides.revision ?? {
+			graphRevision: 1,
+			transcriptRevision: 1,
+			lastEventSeq: 1,
+		},
+	};
+}
+
 describe("SessionMessagingService.handleStreamComplete", () => {
 	const sessionId = "session-1";
 	let service: InstanceType<typeof SessionMessagingService>;
@@ -128,15 +191,10 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("updates hot state to ready and not streaming", () => {
+	it("does not write completed lifecycle state into hot state", () => {
 		service.handleStreamComplete(sessionId);
 
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "ready",
-			turnState: "completed",
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
 	it("does not clear streaming assistant entry on turn complete", () => {
@@ -145,7 +203,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(deps.entryManager.clearStreamingAssistantEntry).not.toHaveBeenCalled();
 	});
 
-	it("sends machine event before hot state update", () => {
+	it("sends the machine event without relying on a hot state write", () => {
 		const callOrder: string[] = [];
 		(deps.connectionManager.sendResponseComplete as ReturnType<typeof vi.fn>).mockImplementation(
 			() => {
@@ -158,10 +216,10 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 
 		service.handleStreamComplete(sessionId);
 
-		expect(callOrder).toEqual(["sendResponseComplete", "updateHotState"]);
+		expect(callOrder).toEqual(["sendResponseComplete"]);
 	});
 
-	it("still completes the session machine when hot state is completed but the machine is still streaming", () => {
+	it("does not let stale completed hot state suppress the stream-complete event", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
@@ -177,10 +235,25 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("is idempotent when the turn is already completed and the machine is already ready", () => {
+	it("does not treat stale completed hot state as idempotency authority", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
+		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+			content: "loaded",
+			connection: "ready",
+		});
+
+		service.handleStreamComplete(sessionId);
+
+		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("is idempotent when canonical turn state is already completed and machine is ready", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi
+			.fn()
+			.mockReturnValue(createCanonicalProjection({ turnState: "Completed" }));
 		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
 			content: "loaded",
 			connection: "ready",
@@ -192,7 +265,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
-	it("ignores a late turnComplete for a turn that already failed", () => {
+	it("does not let stale failed hot state suppress a turnComplete", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: "turn-1",
@@ -200,11 +273,33 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 
 		service.handleStreamComplete(sessionId, "turn-1");
 
-		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
+		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
-	it("ignores a late turnComplete when both terminal updates have null turn ids", () => {
+	it("ignores a late turnComplete for a canonical failed turn", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
+			createCanonicalProjection({
+				turnState: "Failed",
+				activeTurnFailure: {
+					turnId: "turn-1",
+					message: "Usage limit reached",
+					code: "429",
+					kind: "recoverable",
+					source: "process",
+				},
+				lastTerminalTurnId: "turn-1",
+			})
+		);
+
+		service.handleStreamComplete(sessionId, "turn-1");
+
+		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
+	});
+
+	it("does not let stale failed hot state with null turn id suppress a turnComplete", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: null,
@@ -212,7 +307,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 
 		service.handleStreamComplete(sessionId);
 
-		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
+		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
@@ -296,16 +391,42 @@ describe("SessionMessagingService.handleStreamError", () => {
 		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("updates hot state with error status and message", () => {
+	it("does not write stream errors into canonical-overlap hot state", () => {
 		service.handleStreamError(sessionId, new Error("stream broke"));
 
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "error",
-			turnState: "error",
-			connectionError: "stream broke",
-			activeTurnFailure: null,
-			lastTerminalTurnId: null,
-		});
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("does not treat canonical idle as terminal when a first stream error arrives", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi
+			.fn()
+			.mockReturnValue(createCanonicalProjection({ turnState: "Idle" }));
+
+		service.handleStreamError(sessionId, new Error("stream broke"));
+
+		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("does not regress canonical failed turns from stale stream errors", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
+			createCanonicalProjection({
+				turnState: "Failed",
+				activeTurnFailure: {
+					turnId: "turn-1",
+					message: "Usage limit reached",
+					code: "429",
+					kind: "recoverable",
+					source: "process",
+				},
+				lastTerminalTurnId: "turn-1",
+			})
+		);
+
+		service.handleStreamError(sessionId, new Error("stream broke"));
+
+		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
 	it("clears streaming assistant entry", () => {
@@ -314,7 +435,7 @@ describe("SessionMessagingService.handleStreamError", () => {
 		expect(deps.entryManager.clearStreamingAssistantEntry).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("sends machine event before hot state update", () => {
+	it("sends the machine error event without relying on a hot state write", () => {
 		const callOrder: string[] = [];
 		(deps.connectionManager.sendConnectionError as ReturnType<typeof vi.fn>).mockImplementation(
 			() => {
@@ -327,7 +448,7 @@ describe("SessionMessagingService.handleStreamError", () => {
 
 		service.handleStreamError(sessionId, new Error("stream broke"));
 
-		expect(callOrder).toEqual(["sendConnectionError", "updateHotState"]);
+		expect(callOrder).toEqual(["sendConnectionError"]);
 	});
 });
 
@@ -361,26 +482,30 @@ describe("SessionMessagingService.handleTurnError", () => {
 		);
 	});
 
-	it("stores recoverable turn failures in hot state instead of appending transcript entries", () => {
+	it("routes recoverable turn failures through the machine without appending transcript entries", () => {
 		service.handleTurnError(sessionId, turnErrorUpdate);
 
 		expect(deps.entryManager.addEntry).not.toHaveBeenCalled();
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "ready",
-			turnState: "error",
-			connectionError: null,
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "You're out of extra usage",
-				code: null,
-				kind: "recoverable",
-				source: "unknown",
-			},
-			lastTerminalTurnId: "turn-1",
+		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith(sessionId, {
+			turnId: "turn-1",
+			message: "You're out of extra usage",
+			code: null,
+			kind: "recoverable",
+			source: "unknown",
 		});
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
-	it("stringifies numeric turn error codes in canonical failed-turn state", () => {
+	it("does not write recoverable turn failures into hot state", () => {
+		service.handleTurnError(sessionId, turnErrorUpdate);
+
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expectNoCanonicalOverlapHotStateWrites(
+			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		);
+	});
+
+	it("stringifies numeric turn error codes before routing the canonical failed-turn event", () => {
 		service.handleTurnError(sessionId, {
 			type: "turnError",
 			session_id: sessionId,
@@ -393,51 +518,43 @@ describe("SessionMessagingService.handleTurnError", () => {
 			},
 		});
 
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "ready",
-			turnState: "error",
-			connectionError: null,
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "Rate limit reached",
-				code: "429",
-				kind: "recoverable",
-				source: "unknown",
-			},
-			lastTerminalTurnId: "turn-1",
+		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith(sessionId, {
+			turnId: "turn-1",
+			message: "Rate limit reached",
+			code: "429",
+			kind: "recoverable",
+			source: "unknown",
 		});
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
 	it("does not populate header-level connectionError for recoverable turn errors", () => {
 		service.handleTurnError(sessionId, turnErrorUpdate);
 
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "ready",
-			turnState: "error",
-			connectionError: null,
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "You're out of extra usage",
-				code: null,
-				kind: "recoverable",
-				source: "unknown",
-			},
-			lastTerminalTurnId: "turn-1",
+		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith(sessionId, {
+			turnId: "turn-1",
+			message: "You're out of extra usage",
+			code: null,
+			kind: "recoverable",
+			source: "unknown",
 		});
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
-	it("ignores duplicate terminal errors for the same turn", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-			turnState: "error",
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "You're out of extra usage",
-				code: null,
-				kind: "recoverable",
-				source: "unknown",
-			},
-			lastTerminalTurnId: "turn-1",
-		});
+	it("ignores duplicate canonical terminal errors for the same turn", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
+			createCanonicalProjection({
+				turnState: "Failed",
+				activeTurnFailure: {
+					turnId: "turn-1",
+					message: "You're out of extra usage",
+					code: null,
+					kind: "recoverable",
+					source: "unknown",
+				},
+				lastTerminalTurnId: "turn-1",
+			})
+		);
 
 		service.handleTurnError(sessionId, turnErrorUpdate);
 
@@ -445,18 +562,20 @@ describe("SessionMessagingService.handleTurnError", () => {
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 
-	it("ignores duplicate terminal errors when both turn ids are null", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValueOnce({
-			turnState: "error",
-			activeTurnFailure: {
-				turnId: null,
-				message: "You're out of extra usage",
-				code: null,
-				kind: "recoverable",
-				source: "unknown",
-			},
-			lastTerminalTurnId: null,
-		});
+	it("ignores duplicate canonical terminal errors when both turn ids are null", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
+			createCanonicalProjection({
+				turnState: "Failed",
+				activeTurnFailure: {
+					turnId: null,
+					message: "You're out of extra usage",
+					code: null,
+					kind: "recoverable",
+					source: "unknown",
+				},
+				lastTerminalTurnId: null,
+			})
+		);
 
 		service.handleTurnError(sessionId, {
 			type: "turnError",
@@ -494,7 +613,7 @@ describe("SessionMessagingService.ensureStreamingState", () => {
 		);
 	});
 
-	it("keeps a failed turn terminal when late provider updates arrive", () => {
+	it("does not let stale failed hot state suppress provider streaming updates", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "error",
 			activeTurnFailure: {
@@ -504,6 +623,34 @@ describe("SessionMessagingService.ensureStreamingState", () => {
 				kind: "recoverable",
 				source: "process",
 			},
+		});
+		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
+			connection: "awaitingResponse",
+		});
+
+		service.ensureStreamingState(sessionId);
+
+		expect(deps.connectionManager.sendResponseStarted).toHaveBeenCalledWith(sessionId);
+		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+	});
+
+	it("keeps a canonical failed turn terminal when late provider updates arrive", () => {
+		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
+			createCanonicalProjection({
+				turnState: "Failed",
+				activeTurnFailure: {
+					turnId: "turn-1",
+					message: "Usage limit reached",
+					code: "429",
+					kind: "recoverable",
+					source: "process",
+				},
+				lastTerminalTurnId: "turn-1",
+			})
+		);
+		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+			turnState: "streaming",
+			activeTurnFailure: null,
 		});
 		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
 			connection: "streaming",

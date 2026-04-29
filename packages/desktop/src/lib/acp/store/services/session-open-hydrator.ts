@@ -82,7 +82,14 @@ export class SessionOpenHydrator {
 				this.panelChains.delete(panelId);
 			}
 		});
-		this.panelChains.set(panelId, cleanup);
+		this.panelChains.set(
+			panelId,
+			cleanup.catch(() => ({
+				canonicalSessionId: found.canonicalSessionId,
+				openToken: found.openToken,
+				applied: false,
+			}))
+		);
 		return ResultAsync.fromPromise(queued, toAppError);
 	}
 

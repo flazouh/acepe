@@ -286,6 +286,7 @@ export { GitHubBadge } from "./components/github-badge/index.js";
 export {
 	ArrowRightIcon,
 	BuildIcon,
+	DotmTriangle17Spinner,
 	LoadingIcon,
 	PlanIcon,
 	RevertIcon,

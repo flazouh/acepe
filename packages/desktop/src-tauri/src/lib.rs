@@ -71,7 +71,7 @@ use checkpoint::commands::{
 };
 use commands::window::activate_window;
 use cursor_history::commands::{has_cursor_history, is_cursor_installed};
-use db::repository::{AppSettingsRepository, ProjectRepository};
+use db::repository::{AppSettingsRepository, ProjectRepository, SessionMetadataRepository};
 use file_index::{
     copy_file, create_directory, create_file, delete_path, get_file_diff,
     get_file_explorer_preview, get_project_files, get_project_git_overview_summary,
@@ -786,6 +786,28 @@ pub fn run() {
                     Err(e) => {
                         tracing::error!(error = %e, "Failed to initialize database, exiting");
                         std::process::exit(1);
+                    }
+                }
+            });
+
+            tauri::async_runtime::block_on(async {
+                let cutoff = chrono::Utc::now() - chrono::Duration::minutes(30);
+                match SessionMetadataRepository::expire_stale_creation_attempts(&db_conn, cutoff)
+                    .await
+                {
+                    Ok(expired_count) => {
+                        if expired_count > 0 {
+                            tracing::info!(
+                                expired_count,
+                                "Expired stale pending session creation attempts"
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            "Failed to expire stale pending session creation attempts"
+                        );
                     }
                 }
             });

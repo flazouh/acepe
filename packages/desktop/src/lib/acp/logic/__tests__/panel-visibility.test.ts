@@ -50,6 +50,7 @@ function makeInput(overrides: Partial<Parameters<typeof derivePanelViewState>[0]
 		runtimeState: makeRuntimeState(),
 		entriesCount: 0,
 		hasSession: true,
+		isAwaitingModelResponse: false,
 		showProjectSelection: false,
 		hasEffectiveProjectPath: true,
 		errorInfo: NO_ERROR,
@@ -173,6 +174,18 @@ describe("derivePanelViewState", () => {
 				entriesCount: 2,
 			})
 		);
+		expect(result.kind).toBe("conversation");
+	});
+
+	it("should show conversation for an awaiting-model session with no entries", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 0,
+				hasSession: true,
+				isAwaitingModelResponse: true,
+			})
+		);
+
 		expect(result.kind).toBe("conversation");
 	});
 

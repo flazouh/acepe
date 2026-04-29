@@ -7,12 +7,8 @@
 
 import type { ResultAsync } from "neverthrow";
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
-import type {
-	ConfigOptionData,
-	ContentBlock,
-} from "../../services/converted-session-types.js";
+import type { ContentBlock } from "../../services/converted-session-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { AvailableCommand } from "../types/available-command.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionEntry, SessionTransientProjection } from "./types.js";
 
@@ -66,11 +62,6 @@ export interface SessionEventHandler {
 	): ResultAsync<void, AppError>;
 
 	/**
-	 * Update available commands for a session.
-	 */
-	updateAvailableCommands(sessionId: string, commands: AvailableCommand[]): void;
-
-	/**
 	 * Ensure the session is in streaming state.
 	 */
 	ensureStreamingState(sessionId: string): void;
@@ -97,19 +88,6 @@ export interface SessionEventHandler {
 	 * Used when a user chunk appears between assistant chunks to force a new assistant entry.
 	 */
 	clearStreamingAssistantEntry(sessionId: string): void;
-
-	/**
-	 * Update the current mode for a session.
-	 * Called when the agent switches modes (e.g., entering plan mode).
-	 */
-	updateCurrentMode(sessionId: string, modeId: string): void;
-
-	/**
-	 * Update config options for a session.
-	 * Called when a configOptionUpdate session update is received.
-	 * Stores all config options (not just mode) for UI rendering.
-	 */
-	updateConfigOptions(sessionId: string, configOptions: ConfigOptionData[]): void;
 
 	/**
 	 * Update usage telemetry for a session (spend + tokens).

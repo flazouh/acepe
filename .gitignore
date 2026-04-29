@@ -94,8 +94,6 @@ packages/desktop/src-tauri/logs/
 .github/hooks/
 packages/desktop/src-tauri/*-threads.json
 todos
-docs/plans
-packages/desktop/docs/plans/
 
 # Scratch / test debris
 file.txt

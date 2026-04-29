@@ -34,27 +34,12 @@ export type {
 // STORE-SPECIFIC TYPES
 // ============================================
 
-import type { ProviderMetadataProjection, SessionGraphActivity } from "../../services/acp-types.js";
-import type { ConfigOptionData } from "../../services/converted-session-types.js";
-import type { Mode, Model, SessionStatus } from "../application/dto/session";
+import type { ProviderMetadataProjection } from "../../services/acp-types.js";
+import type { SessionCapabilities } from "../application/dto/session";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
-import type { AvailableCommand } from "../types/available-command";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
-import type { ActiveTurnFailure } from "../types/turn-error.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
-
-/**
- * Turn state for streaming sessions.
- * Explicitly encodes the state of the current turn to avoid boolean blindness.
- *
- * - idle: No active turn, ready for user input
- * - streaming: Agent is actively generating a response
- * - completed: Turn completed successfully
- * - interrupted: User manually interrupted the turn
- * - error: Turn ended due to an error
- */
-export type TurnState = "idle" | "streaming" | "completed" | "interrupted" | "error";
 
 /**
  * Usage telemetry state for a session (adapter-agnostic).
@@ -87,60 +72,62 @@ export interface SessionUsageTelemetry {
 	readonly updatedAt: number;
 }
 
+export type TurnState = "idle" | "streaming" | "completed" | "interrupted" | "error";
+
+export interface SessionPendingSendIntent {
+	readonly attemptId: string;
+	readonly startedAt: number;
+	readonly promptLength: number;
+}
+
+export type LocalPersistedSessionProbeStatus = "none" | "permanent-reattach-failure";
+
+export interface SessionCapabilityMutationState {
+	readonly pendingMutationId: string | null;
+	readonly previewState: SessionCapabilities["previewState"] | null;
+}
+
 /**
- * Hot state for session - properties that change frequently.
- * Separated from Session to avoid array recomputation on status changes.
+ * Local transient projection for session state that is not canonical graph truth.
  *
- * Includes: status, connection state, current model/mode, and available commands.
- * These change often (e.g., on every model switch) and should NOT trigger
- * full sessions array recreation.
+ * Rust-authored canonical session envelopes own lifecycle, activity, failure,
+ * actionability, and capabilities. This projection only carries local UI
+ * affordances that have no canonical counterpart.
  *
  * modelPerMode: Tracks which model was selected per mode within this session.
  * Used to restore user's previous model choice when switching between modes.
  * Format: { modeId → modelId }
  */
 export interface SessionTransientProjection {
-	readonly status: SessionStatus;
-	readonly isConnected: boolean;
-	readonly turnState: TurnState;
-	readonly activity?: SessionGraphActivity | null;
 	readonly acpSessionId: string | null;
-	readonly connectionError: string | null;
-	readonly activeTurnFailure?: ActiveTurnFailure | null;
-	readonly lastTerminalTurnId?: string | null;
-	readonly autonomousEnabled: boolean;
 	readonly autonomousTransition: "idle" | "enabling" | "disabling";
-	readonly currentModel: Model | null;
-	readonly currentMode: Mode | null;
-	readonly availableCommands: ReadonlyArray<AvailableCommand>;
 	readonly modelPerMode?: Record<string, string>;
-	/** Config options from agents that use configOptionUpdate (e.g., Codex) */
-	readonly configOptions?: ReadonlyArray<ConfigOptionData>;
-	/** Timestamp when status last changed (for urgency sorting) */
+	/** Timestamp when canonical lifecycle last changed (for urgency sorting) */
 	readonly statusChangedAt: number;
 	/** Usage/cost and token telemetry (adapter-agnostic). */
 	readonly usageTelemetry?: SessionUsageTelemetry;
+	/** Local send-click affordance only; never lifecycle truth. */
+	readonly pendingSendIntent?: SessionPendingSendIntent | null;
+	/** Local-created reattach probe status; never provider error text. */
+	readonly localPersistedSessionProbeStatus?: LocalPersistedSessionProbeStatus;
+	/** Local capability mutation progress; never capability truth. */
+	readonly capabilityMutationState?: SessionCapabilityMutationState;
 }
 
 /**
  * Default hot state for new sessions.
  */
 export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
-	status: "idle",
-	isConnected: false,
-	turnState: "idle",
-	activity: null,
 	acpSessionId: null,
-	connectionError: null,
-	activeTurnFailure: null,
-	lastTerminalTurnId: null,
-	autonomousEnabled: false,
 	autonomousTransition: "idle",
-	currentModel: null,
-	currentMode: null,
-	availableCommands: [],
 	modelPerMode: {},
 	statusChangedAt: Date.now(),
+	pendingSendIntent: null,
+	localPersistedSessionProbeStatus: "none",
+	capabilityMutationState: {
+		pendingMutationId: null,
+		previewState: null,
+	},
 };
 
 export type { StoreComposerState } from "../logic/composer-ui-state.js";

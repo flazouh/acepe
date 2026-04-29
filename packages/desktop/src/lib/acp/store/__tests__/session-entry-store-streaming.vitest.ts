@@ -257,7 +257,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		store = new SessionEntryStore();
 	});
 
-	it("hydrates transcript snapshots through the compatibility adapter", () => {
+	it("hydrates transcript snapshots into spine entries", () => {
 		const snapshot: TranscriptSnapshot = {
 			revision: 5,
 			entries: [
@@ -297,7 +297,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		]);
 	});
 
-	it("preserves structured tool data when a transcript snapshot rehydrates the same tool id", () => {
+	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
 		store.createToolCallEntry("session-1", {
 			id: "tool-1",
@@ -365,28 +365,16 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		expect(entry.message).toMatchObject({
 			id: "tool-1",
 			name: "Edit File",
-			kind: "edit",
+			kind: "other",
 			title: "Edit File",
 			arguments: {
-				kind: "edit",
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
+				kind: "other",
+				raw: null,
 			},
 		});
 		expect(entry.message.arguments).toEqual({
-			kind: "edit",
-			edits: [
-				{
-					filePath: "/tmp/example.ts",
-					oldString: "before",
-					newString: "after",
-				},
-			],
+			kind: "other",
+			raw: null,
 		});
 		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
 			toolCallId: "tool-1",
@@ -622,11 +610,8 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			},
 		]);
 
-		expect(operationStore.getByToolCallId("session-1", "tool-1")).toMatchObject({
-			toolCallId: "tool-1",
-			sourceEntryId: "tool-1",
-			title: "Read file\nstdout ready",
-		});
+		expect(operationStore.getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(operationStore.getSessionOperations("session-1")).toHaveLength(0);
 	});
 
 	it("reconciles a canonical user append entry onto the optimistic user row", () => {

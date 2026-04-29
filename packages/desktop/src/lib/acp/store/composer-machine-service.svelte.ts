@@ -9,18 +9,23 @@ import { createActor } from "xstate";
 import { type ComposerMachineEvent, composerMachine } from "../logic/composer-machine.js";
 import type { ComposerMachineSnapshot } from "../logic/composer-ui-state.js";
 import { createLogger } from "../utils/logger.js";
-import type { SessionTransientProjection } from "./types.js";
 
 const logger = createLogger({ id: "composer-machine-service", name: "ComposerMachineService" });
 
 type ComposerActor = ReturnType<typeof createActor<typeof composerMachine>>;
+
+export interface ComposerSessionCommitState {
+	readonly modeId: string | null;
+	readonly modelId: string | null;
+	readonly autonomousEnabled: boolean;
+}
 
 export class ComposerMachineService {
 	private readonly actors = new SvelteMap<string, ComposerActor>();
 	private readonly snapshotCache = new SvelteMap<string, ComposerMachineSnapshot>();
 	private readonly actorSubscriptions = new SvelteMap<string, () => void>();
 
-	constructor(private readonly getHotState: (sessionId: string) => SessionTransientProjection) {}
+	constructor(private readonly getCommitState: (sessionId: string) => ComposerSessionCommitState) {}
 
 	createOrGetActor(sessionId: string): ComposerActor {
 		let actor = this.actors.get(sessionId);
@@ -75,12 +80,12 @@ export class ComposerMachineService {
 			logger.debug("bindSession skipped while dispatching", { sessionId });
 			return;
 		}
-		const hot = this.getHotState(sessionId);
+		const canonical = this.getCommitState(sessionId);
 		actor.send({
 			type: "SESSION_BOUND",
-			committedModeId: hot.currentMode?.id ?? null,
-			committedModelId: hot.currentModel?.id ?? null,
-			committedAutonomousEnabled: hot.autonomousEnabled,
+			committedModeId: canonical.modeId,
+			committedModelId: canonical.modelId,
+			committedAutonomousEnabled: canonical.autonomousEnabled,
 		});
 	}
 
@@ -108,12 +113,12 @@ export class ComposerMachineService {
 	}
 
 	completeConfigSuccess(sessionId: string): void {
-		const hot = this.getHotState(sessionId);
+		const canonical = this.getCommitState(sessionId);
 		this.send(sessionId, {
 			type: "CONFIG_BLOCK_SUCCESS",
-			committedModeId: hot.currentMode?.id ?? null,
-			committedModelId: hot.currentModel?.id ?? null,
-			committedAutonomousEnabled: hot.autonomousEnabled,
+			committedModeId: canonical.modeId,
+			committedModelId: canonical.modelId,
+			committedAutonomousEnabled: canonical.autonomousEnabled,
 		});
 	}
 

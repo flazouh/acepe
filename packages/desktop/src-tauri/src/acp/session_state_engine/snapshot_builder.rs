@@ -1,17 +1,11 @@
 use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
-use crate::acp::session_state_engine::selectors::{
-    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
-};
+use crate::acp::session_state_engine::selectors::select_session_graph_activity;
 
-pub fn build_graph_from_open_found(
-    found: &SessionOpenFound,
-    lifecycle: SessionGraphLifecycle,
-    capabilities: SessionGraphCapabilities,
-) -> SessionStateGraph {
+pub fn build_graph_from_open_found(found: &SessionOpenFound) -> SessionStateGraph {
     let activity = select_session_graph_activity(
-        &lifecycle,
+        &found.lifecycle,
         &found.turn_state,
         &found.operations,
         &found.interactions,
@@ -37,9 +31,9 @@ pub fn build_graph_from_open_found(
         message_count: found.message_count,
         active_turn_failure: found.active_turn_failure.clone(),
         last_terminal_turn_id: found.last_terminal_turn_id.clone(),
-        lifecycle,
+        lifecycle: found.lifecycle.clone(),
         activity,
-        capabilities,
+        capabilities: found.capabilities.clone(),
     }
 }
 
@@ -77,15 +71,13 @@ mod tests {
             interactions: Vec::new(),
             turn_state: SessionTurnState::Idle,
             message_count: 0,
+            lifecycle: SessionGraphLifecycle::ready(),
+            capabilities: SessionGraphCapabilities::empty(),
             active_turn_failure: None,
             last_terminal_turn_id: None,
         };
 
-        let graph = build_graph_from_open_found(
-            &found,
-            SessionGraphLifecycle::idle(),
-            SessionGraphCapabilities::empty(),
-        );
+        let graph = build_graph_from_open_found(&found);
 
         assert_eq!(graph.canonical_session_id, "canonical-1");
         assert!(graph.is_alias);

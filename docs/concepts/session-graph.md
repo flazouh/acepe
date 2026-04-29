@@ -124,6 +124,8 @@ The architecture should preserve these invariants:
 6. **Lifecycle truth is backend-owned.** Shared UI may render lifecycle, but it may not reconstruct it from `isConnected`, raw transport timing, or hot-state.
 7. **Actionability is canonical too.** Status alone is not enough; resume/retry/send/archive affordances must come from canonical actionability/recovery fields.
 8. **Session activity is graph-backed.** Shared UI may render compact variants like "thinking" or "streaming," but it may not decide session-level activity from raw tool timing, transcript order, or local booleans once graph activity exists.
+9. **Transcript adapters are spine-only.** A transcript snapshot adapter may create lightweight row DTOs so virtualized history can preserve ordering, but it may not hydrate operation stores, preserve rich tool DTOs, or choose product tool renderers.
+10. **Graph scene materialization is the rendering boundary.** Historical/restored tool rows render from `AgentPanelSceneModel`; if a tool row has no matching operation, the scene should expose an explicit pending/degraded row rather than falling back to desktop tool semantics.
 
 ## Design consequence
 

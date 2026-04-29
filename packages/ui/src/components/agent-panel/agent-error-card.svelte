@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { WarningCircle } from "phosphor-svelte";
+	import DotmTriangle17Spinner from "../icons/dotm-triangle-17-spinner.svelte";
 
 	interface Props {
 		title: string;
@@ -16,6 +17,8 @@
 		copyReferenceIdLabel?: string;
 		issueActionLabel?: string;
 		retryLabel?: string;
+		retryingLabel?: string;
+		isRetrying?: boolean;
 		onRetry?: (() => void) | undefined;
 		onDismiss?: (() => void) | undefined;
 		onCopyReferenceId?: (() => void) | undefined;
@@ -36,6 +39,8 @@
 		copyReferenceIdLabel = "Copy ID",
 		issueActionLabel = "Create issue",
 		retryLabel = "Retry",
+		retryingLabel = "Retrying…",
+		isRetrying = false,
 		onRetry,
 		onDismiss,
 		onCopyReferenceId,
@@ -140,10 +145,22 @@
 				{#if onRetry}
 					<button
 						type="button"
-						class="h-6 px-2 text-[10px] font-mono font-medium text-foreground bg-accent/60 hover:bg-accent/80 rounded transition-colors cursor-pointer"
+						class="h-6 px-2 text-[10px] font-mono font-medium text-foreground bg-accent/60 hover:bg-accent/80 rounded transition-colors cursor-pointer disabled:cursor-wait disabled:opacity-70 inline-flex items-center gap-1.5"
 						onclick={onRetry}
+						disabled={isRetrying}
+						aria-busy={isRetrying ? "true" : undefined}
 					>
-						{retryLabel}
+						{#if isRetrying}
+							<DotmTriangle17Spinner
+								class="shrink-0"
+								size={10}
+								dotSize={1.05}
+								color="#bf8700"
+							/>
+							{retryingLabel}
+						{:else}
+							{retryLabel}
+						{/if}
 					</button>
 				{/if}
 			</div>

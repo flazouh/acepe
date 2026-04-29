@@ -20,6 +20,7 @@ vi.mock("../utils/logger.js", () => ({
 }));
 
 import type {
+	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionStateEnvelope,
 	TranscriptDelta,
@@ -39,14 +40,11 @@ function createMockHandler(): SessionEventHandler {
 		getHotState: vi.fn(),
 		aggregateAssistantChunk: vi.fn().mockReturnValue(okAsync(undefined)),
 		aggregateUserChunk: vi.fn().mockReturnValue(okAsync(undefined)),
-		updateAvailableCommands: vi.fn(),
 		ensureStreamingState: vi.fn(),
 		handleStreamEntry: vi.fn(),
 		handleStreamComplete: vi.fn(),
 		handleTurnError: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-		updateCurrentMode: vi.fn(),
-		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
@@ -91,6 +89,16 @@ function createGraphLifecycle(
 									: "none",
 			compactStatus: status,
 		},
+	};
+}
+
+function createIdleActivity(): SessionGraphActivity {
+	return {
+		kind: "idle",
+		activeOperationCount: 0,
+		activeSubagentCount: 0,
+		dominantOperationId: null,
+		blockingInteractionId: null,
 	};
 }
 
@@ -293,6 +301,10 @@ describe("SessionEventService streaming delta handling", () => {
 				delta: {
 					fromRevision: { graphRevision: 6, transcriptRevision: 6, lastEventSeq: 6 },
 					toRevision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: delta.operations,
 					operationPatches: [],
 					interactionPatches: [],
@@ -349,6 +361,10 @@ describe("SessionEventService streaming delta handling", () => {
 				delta: {
 					fromRevision: { graphRevision: 6, transcriptRevision: 6, lastEventSeq: 6 },
 					toRevision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: delta.operations,
 					operationPatches: [],
 					interactionPatches: [],
@@ -546,6 +562,9 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, handler);
 
 		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
+		// GOD authority: plan content flows through the canonical SessionStateEnvelope
+		// (kind: "plan") routed via applyPlan command. The raw lane is diagnostic-only
+		// and must not invoke the plan callback.
 		expect(onPlanUpdate).not.toHaveBeenCalled();
 	});
 
@@ -857,14 +876,11 @@ describe("SessionEventService streaming delta handling", () => {
 			aggregateUserChunk: vi
 				.fn()
 				.mockImplementation((id: string, chunk) => entryStore.aggregateUserChunk(id, chunk)),
-			updateAvailableCommands: vi.fn(),
 			ensureStreamingState: vi.fn(),
 			handleStreamEntry: vi.fn(),
 			handleStreamComplete: vi.fn(),
 			handleTurnError: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
-			updateCurrentMode: vi.fn(),
-			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};
@@ -1173,6 +1189,10 @@ describe("SessionEventService streaming delta handling", () => {
 				delta: {
 					fromRevision: { graphRevision: 41, transcriptRevision: 41, lastEventSeq: 41 },
 					toRevision: { graphRevision: 42, transcriptRevision: 42, lastEventSeq: 42 },
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
 					transcriptOperations: delta.operations,
 					operationPatches: [],
 					interactionPatches: [],
@@ -1213,7 +1233,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
+		expect(handler.applySessionStateEnvelope).not.toHaveBeenCalled();
 	});
 
 	it("keeps Cursor tool calls non-authoritative on the raw lane", () => {
@@ -1530,7 +1550,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
+		expect(handler.applySessionStateEnvelope).not.toHaveBeenCalled();
 	});
 
 	it("stores configOptionUpdate even when no mode option is present", () => {
@@ -1552,8 +1572,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateConfigOptions).not.toHaveBeenCalled();
-		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
+		expect(handler.applySessionStateEnvelope).not.toHaveBeenCalled();
 	});
 
 	it("stores configOptionUpdate even when mode currentValue is not a string", () => {
@@ -1575,8 +1594,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.updateConfigOptions).not.toHaveBeenCalled();
-		expect(handler.updateCurrentMode).not.toHaveBeenCalled();
+		expect(handler.applySessionStateEnvelope).not.toHaveBeenCalled();
 	});
 
 	it("drops duplicate raw toolCall events without mutating state", () => {
@@ -1777,14 +1795,11 @@ describe("SessionEventService streaming delta handling", () => {
 			aggregateUserChunk: vi
 				.fn()
 				.mockImplementation((id: string, chunk) => entryStore.aggregateUserChunk(id, chunk)),
-			updateAvailableCommands: vi.fn(),
 			ensureStreamingState: vi.fn(),
 			handleStreamEntry: vi.fn(),
 			handleStreamComplete: vi.fn(),
 			handleTurnError: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
-			updateCurrentMode: vi.fn(),
-			updateConfigOptions: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};

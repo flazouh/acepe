@@ -7,6 +7,7 @@ interface Props {
 	details: string;
 	referenceId?: string | null;
 	referenceSearchable?: boolean;
+	isRetrying?: boolean;
 	onRetry?: (() => void) | undefined;
 	onDismiss?: (() => void) | undefined;
 	onCopyReferenceId?: (() => void) | undefined;
@@ -20,6 +21,7 @@ let {
 	details,
 	referenceId = null,
 	referenceSearchable = false,
+	isRetrying = false,
 	onRetry,
 	onDismiss,
 	onCopyReferenceId,
@@ -36,6 +38,7 @@ let {
 	{referenceSearchable}
 	searchableReferenceLabel="Searchable in Sentry"
 	localOnlyReferenceLabel="Local only"
+	{isRetrying}
 	{onRetry}
 	{onDismiss}
 	{onCopyReferenceId}

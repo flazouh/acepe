@@ -346,6 +346,12 @@ impl ProjectionRegistry {
             self.snapshots.insert(session_id.clone(), session);
         }
         for operation in projection.operations {
+            let operation_id = operation.id.clone();
+            let operation = self
+                .operations_by_id
+                .get(&operation_id)
+                .map(|existing| merge_operation_snapshot_evidence(&existing, operation.clone()))
+                .unwrap_or(operation);
             self.operations_by_id
                 .insert(operation.id.clone(), operation.clone());
             self.operation_id_by_tool_key.insert(
@@ -853,6 +859,11 @@ impl ProjectionRegistry {
             degradation_reason,
         };
 
+        let operation = existing
+            .as_ref()
+            .map(|existing| merge_operation_snapshot_evidence(existing, operation.clone()))
+            .unwrap_or(operation);
+
         self.operations_by_id
             .insert(operation_id.clone(), operation.clone());
         self.operation_id_by_tool_key.insert(
@@ -921,43 +932,42 @@ impl ProjectionRegistry {
             _ => Some(derived_state),
         };
 
-        self.operations_by_id.insert(
-            operation_id,
-            OperationSnapshot {
-                id: existing.id,
-                session_id: existing.session_id,
-                tool_call_id: existing.tool_call_id,
-                name: existing.name,
-                kind: existing.kind,
-                provider_status: next_status,
-                title: next_title.clone(),
-                arguments: next_arguments.clone(),
-                progressive_arguments: next_progressive_arguments.clone(),
-                result: next_result,
-                command: extract_operation_command(
-                    Some(&next_arguments),
-                    next_progressive_arguments.as_ref(),
-                    next_title.as_deref(),
-                ),
-                normalized_todos: next_normalized_todos,
-                parent_tool_call_id: existing.parent_tool_call_id,
-                parent_operation_id: existing.parent_operation_id,
-                child_tool_call_ids: existing.child_tool_call_ids,
-                child_operation_ids: existing.child_operation_ids,
-                operation_provenance_key: existing.operation_provenance_key,
-                operation_state: next_operation_state,
-                locations: existing.locations,
-                skill_meta: existing.skill_meta,
-                normalized_questions: existing.normalized_questions,
-                question_answer: existing.question_answer,
-                awaiting_plan_approval: existing.awaiting_plan_approval,
-                plan_approval_request_id: existing.plan_approval_request_id,
-                started_at_ms: existing.started_at_ms,
-                completed_at_ms: existing.completed_at_ms,
-                source_entry_id: existing.source_entry_id,
-                degradation_reason: existing.degradation_reason,
-            },
-        );
+        let updated_operation = OperationSnapshot {
+            id: existing.id.clone(),
+            session_id: existing.session_id.clone(),
+            tool_call_id: existing.tool_call_id.clone(),
+            name: existing.name.clone(),
+            kind: existing.kind,
+            provider_status: next_status,
+            title: next_title.clone(),
+            arguments: next_arguments.clone(),
+            progressive_arguments: next_progressive_arguments.clone(),
+            result: next_result,
+            command: extract_operation_command(
+                Some(&next_arguments),
+                next_progressive_arguments.as_ref(),
+                next_title.as_deref(),
+            ),
+            normalized_todos: next_normalized_todos,
+            parent_tool_call_id: existing.parent_tool_call_id.clone(),
+            parent_operation_id: existing.parent_operation_id.clone(),
+            child_tool_call_ids: existing.child_tool_call_ids.clone(),
+            child_operation_ids: existing.child_operation_ids.clone(),
+            operation_provenance_key: existing.operation_provenance_key.clone(),
+            operation_state: next_operation_state,
+            locations: existing.locations.clone(),
+            skill_meta: existing.skill_meta.clone(),
+            normalized_questions: existing.normalized_questions.clone(),
+            question_answer: existing.question_answer.clone(),
+            awaiting_plan_approval: existing.awaiting_plan_approval,
+            plan_approval_request_id: existing.plan_approval_request_id,
+            started_at_ms: existing.started_at_ms,
+            completed_at_ms: existing.completed_at_ms,
+            source_entry_id: existing.source_entry_id.clone(),
+            degradation_reason: existing.degradation_reason.clone(),
+        };
+        let merged_operation = merge_operation_snapshot_evidence(&existing, updated_operation);
+        self.operations_by_id.insert(operation_id, merged_operation);
     }
 
     fn insert_session_operation_id(&self, session_id: &str, operation_id: &str) {
@@ -1351,6 +1361,127 @@ fn mark_tool_call_completed(snapshot: &mut SessionSnapshot, tool_call_id: &str) 
     snapshot
         .completed_tool_call_ids
         .push(tool_call_id.to_string());
+}
+
+fn operation_has_terminal_evidence(operation: &OperationSnapshot) -> bool {
+    operation
+        .operation_state
+        .as_ref()
+        .is_some_and(is_terminal_operation_state)
+        || is_terminal_tool_call_status(&operation.provider_status)
+}
+
+fn operation_identity_conflicts(
+    existing: &OperationSnapshot,
+    incoming: &OperationSnapshot,
+) -> bool {
+    if existing.session_id != incoming.session_id || existing.tool_call_id != incoming.tool_call_id
+    {
+        return true;
+    }
+
+    matches!(
+        (existing.kind, incoming.kind),
+        (Some(existing_kind), Some(incoming_kind)) if existing_kind != incoming_kind
+    )
+}
+
+fn merge_unique_strings(existing: &[String], incoming: Vec<String>) -> Vec<String> {
+    let mut merged = existing.to_vec();
+    for value in incoming {
+        if !merged.iter().any(|candidate| candidate == &value) {
+            merged.push(value);
+        }
+    }
+    merged
+}
+
+pub(crate) fn merge_operation_snapshot_evidence(
+    existing: &OperationSnapshot,
+    mut incoming: OperationSnapshot,
+) -> OperationSnapshot {
+    let conflicts = operation_identity_conflicts(existing, &incoming);
+    let existing_terminal = operation_has_terminal_evidence(existing);
+    let incoming_terminal = operation_has_terminal_evidence(&incoming);
+
+    if conflicts {
+        incoming.session_id = existing.session_id.clone();
+        incoming.tool_call_id = existing.tool_call_id.clone();
+        incoming.name = existing.name.clone();
+        incoming.kind = existing.kind;
+        incoming.arguments = existing.arguments.clone();
+        incoming.operation_state = Some(OperationState::Degraded);
+        incoming.degradation_reason = Some(OperationDegradationReason {
+            code: OperationDegradationCode::ImpossibleTransition,
+            detail: Some(
+                "Conflicting operation evidence was received for the same canonical operation."
+                    .to_string(),
+            ),
+        });
+    } else if existing_terminal {
+        incoming.operation_state = existing
+            .operation_state
+            .clone()
+            .or(incoming.operation_state);
+        if !incoming_terminal {
+            incoming.provider_status = existing.provider_status.clone();
+        }
+    } else if incoming.operation_state.is_none() {
+        incoming.operation_state = existing.operation_state.clone();
+    }
+
+    incoming.id = existing.id.clone();
+    incoming.title = incoming.title.or_else(|| existing.title.clone());
+    if operation_has_terminal_evidence(&incoming) {
+        incoming.progressive_arguments = None;
+    } else {
+        incoming.progressive_arguments = incoming
+            .progressive_arguments
+            .or_else(|| existing.progressive_arguments.clone());
+    }
+    incoming.result = incoming.result.or_else(|| existing.result.clone());
+    incoming.command = incoming.command.or_else(|| existing.command.clone());
+    incoming.normalized_todos = incoming
+        .normalized_todos
+        .or_else(|| existing.normalized_todos.clone());
+    incoming.parent_tool_call_id = incoming
+        .parent_tool_call_id
+        .or_else(|| existing.parent_tool_call_id.clone());
+    incoming.parent_operation_id = incoming
+        .parent_operation_id
+        .or_else(|| existing.parent_operation_id.clone());
+    incoming.child_tool_call_ids =
+        merge_unique_strings(&existing.child_tool_call_ids, incoming.child_tool_call_ids);
+    incoming.child_operation_ids =
+        merge_unique_strings(&existing.child_operation_ids, incoming.child_operation_ids);
+    incoming.operation_provenance_key = incoming
+        .operation_provenance_key
+        .or_else(|| existing.operation_provenance_key.clone());
+    incoming.locations = incoming.locations.or_else(|| existing.locations.clone());
+    incoming.skill_meta = incoming.skill_meta.or_else(|| existing.skill_meta.clone());
+    incoming.normalized_questions = incoming
+        .normalized_questions
+        .or_else(|| existing.normalized_questions.clone());
+    incoming.question_answer = incoming
+        .question_answer
+        .or_else(|| existing.question_answer.clone());
+    incoming.awaiting_plan_approval =
+        incoming.awaiting_plan_approval || existing.awaiting_plan_approval;
+    incoming.plan_approval_request_id = incoming
+        .plan_approval_request_id
+        .or(existing.plan_approval_request_id);
+    incoming.started_at_ms = incoming.started_at_ms.or(existing.started_at_ms);
+    incoming.completed_at_ms = incoming.completed_at_ms.or(existing.completed_at_ms);
+    incoming.source_entry_id = incoming
+        .source_entry_id
+        .or_else(|| existing.source_entry_id.clone());
+    if !conflicts {
+        incoming.degradation_reason = incoming
+            .degradation_reason
+            .or_else(|| existing.degradation_reason.clone());
+    }
+
+    incoming
 }
 
 #[cfg(test)]
@@ -2509,6 +2640,98 @@ mod tests {
         assert!(
             op.locations.is_some(),
             "locations should be preserved from initial tool call"
+        );
+    }
+
+    #[test]
+    fn sparse_full_tool_replay_does_not_erase_richer_prior_evidence() {
+        let registry = ProjectionRegistry::new();
+        let mut rich_tool_call =
+            create_execute_tool_call("tool-rich", "cat file.txt", ToolCallStatus::Completed);
+        rich_tool_call.title = Some("Read full file".to_string());
+        rich_tool_call.result = Some(json!("full file contents"));
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: rich_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let mut sparse_tool_call =
+            create_execute_tool_call("tool-rich", "cat file.txt", ToolCallStatus::Completed);
+        sparse_tool_call.title = None;
+        sparse_tool_call.result = None;
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: sparse_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let op = registry
+            .operation_for_tool_call("session-1", "tool-rich")
+            .unwrap();
+        assert_eq!(op.title.as_deref(), Some("Read full file"));
+        assert_eq!(op.result, Some(json!("full file contents")));
+        assert_eq!(registry.session_operations("session-1").len(), 1);
+    }
+
+    #[test]
+    fn conflicting_full_tool_replay_degrades_existing_operation_instead_of_duplicating() {
+        let registry = ProjectionRegistry::new();
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: create_execute_tool_call(
+                    "tool-conflict",
+                    "cargo test",
+                    ToolCallStatus::Completed,
+                ),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let conflicting_tool_call = ToolCallData {
+            id: "tool-conflict".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/README.md".to_string()),
+                source_context: None,
+            },
+            raw_input: None,
+            status: ToolCallStatus::Completed,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Read file".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: conflicting_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let op = registry
+            .operation_for_tool_call("session-1", "tool-conflict")
+            .unwrap();
+        assert_eq!(registry.session_operations("session-1").len(), 1);
+        assert_eq!(op.operation_state, Some(OperationState::Degraded));
+        assert_eq!(
+            op.degradation_reason.as_ref().map(|reason| &reason.code),
+            Some(&OperationDegradationCode::ImpossibleTransition)
         );
     }
 

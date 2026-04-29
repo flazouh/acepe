@@ -60,6 +60,8 @@ Transcript tool entries are still useful, but their role is narrower:
 
 That boundary matters because transcript replacement can legally degrade tool rows while operation state must stay stable enough to drive live UI.
 
+Frontend transcript adapters must preserve that boundary. They may convert transcript tool rows into minimal ordering/spine entries, but they must not hydrate `OperationStore`, preserve rich legacy tool DTOs across transcript replacement, or route restored rows through desktop tool renderers. Rich rendering comes from graph materialization of canonical operations.
+
 ## Lifecycle
 
 Operations use an explicit canonical state machine:
@@ -118,3 +120,5 @@ Shared UI should also not collapse operation presence into its own session-level
 ## Final GOD endpoint
 
 In the final architecture, operations are first-class graph nodes. Live provider events, provider-history restore, permissions, questions, todos, and plan approvals merge into canonical operation/interaction patches before desktop product code sees them. `ToolCallManager` is not operation truth; any remaining transport helper must be transport-only and must not mutate operation state, write operation stores, or create operation identity.
+
+During short optimistic windows before a canonical scene exists, desktop-specific tool rendering may still act as a transport fallback. Once a graph scene exists, that fallback is not product authority; missing or sparse operation evidence must appear as explicit pending/degraded canonical scene state.

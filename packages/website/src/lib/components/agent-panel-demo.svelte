@@ -329,6 +329,17 @@ function createNarrowStatusConversation(): DemoConversationEntry[] {
 			stdout: "svelte-check found 0 errors and 0 warnings",
 			exitCode: 0,
 			status: "done",
+			presentationState: "resolved",
+		},
+		{
+			id: "composer-polish-unresolved",
+			type: "tool_call",
+			kind: "other",
+			title: "Unresolved tool",
+			subtitle: "Restored transcript row",
+			status: "degraded",
+			presentationState: "degraded_operation",
+			degradedReason: "No canonical operation was found for this restored transcript tool row.",
 		},
 		createAssistantEntry(
 			"composer-polish-assistant",

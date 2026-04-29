@@ -12,6 +12,50 @@ export type AgentPanelSessionStatus =
 	| "running"
 	| "done";
 
+export type AgentPanelLifecycleStatus =
+	| "reserved"
+	| "activating"
+	| "ready"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export type AgentPanelRecommendedAction =
+	| "send"
+	| "resume"
+	| "retry"
+	| "archive"
+	| "wait"
+	| "none";
+
+export type AgentPanelRecoveryPhase =
+	| "none"
+	| "activating"
+	| "reconnecting"
+	| "detached"
+	| "failed"
+	| "archived";
+
+export interface AgentPanelActionabilityModel {
+	canSend: boolean;
+	canResume: boolean;
+	canRetry: boolean;
+	canArchive: boolean;
+	canConfigure: boolean;
+	recommendedAction: AgentPanelRecommendedAction;
+	recoveryPhase: AgentPanelRecoveryPhase;
+	compactStatus: AgentPanelLifecycleStatus;
+}
+
+export interface AgentPanelLifecycleModel {
+	status: AgentPanelLifecycleStatus;
+	detachedReason?: string | null;
+	failureReason?: string | null;
+	errorMessage?: string | null;
+	actionability: AgentPanelActionabilityModel;
+}
+
 export interface AgentPanelBadge {
 	id: string;
 	label: string;
@@ -28,9 +72,11 @@ export interface AgentPanelHeaderModel {
 	title: string;
 	subtitle?: string | null;
 	status: AgentPanelSessionStatus;
+	agentIconSrc?: string | null;
 	agentLabel?: string | null;
 	projectLabel?: string | null;
 	projectColor?: string | null;
+	sequenceId?: number | null;
 	branchLabel?: string | null;
 	badges?: readonly AgentPanelBadge[];
 	actions: readonly AgentPanelActionDescriptor[];
@@ -105,6 +151,7 @@ export interface AgentPanelReviewModel {
 export interface AgentPanelSceneModel {
 	panelId: string;
 	status: AgentPanelSessionStatus;
+	lifecycle?: AgentPanelLifecycleModel | null;
 	header: AgentPanelHeaderModel;
 	conversation: AgentPanelConversationModel;
 	composer?: AgentPanelComposerModel | null;

@@ -1,21 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { ComposerMachineService } from "../composer-machine-service.svelte.js";
-import type { SessionTransientProjection } from "../types.js";
-import { DEFAULT_TRANSIENT_PROJECTION } from "../types.js";
+import {
+	ComposerMachineService,
+	type ComposerSessionCommitState,
+} from "../composer-machine-service.svelte.js";
 
-function makeHot(overrides: Partial<SessionTransientProjection> = {}): SessionTransientProjection {
-	return { ...DEFAULT_TRANSIENT_PROJECTION, ...overrides };
+function makeCommitState(
+	modeId: string | null = null,
+	modelId: string | null = null,
+	autonomousEnabled: boolean = false
+): ComposerSessionCommitState {
+	return {
+		modeId,
+		modelId,
+		autonomousEnabled,
+	};
 }
 
 describe("ComposerMachineService", () => {
 	it("creates a reactive snapshot for a session id", () => {
-		const hot = makeHot({
-			currentMode: { id: "build", name: "Build" },
-			currentModel: { id: "m1", name: "M1" },
-			autonomousEnabled: false,
-		});
-		const service = new ComposerMachineService(() => hot);
+		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		const snap = service.getState("s1");
 		expect(snap).not.toBeNull();
@@ -23,8 +27,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("removes actor and snapshot cache on removeMachine", () => {
-		const hot = makeHot();
-		const service = new ComposerMachineService(() => hot);
+		const service = new ComposerMachineService(() => makeCommitState());
 		service.createOrGetActor("s1");
 		expect(service.getState("s1")).not.toBeNull();
 		service.removeMachine("s1");
@@ -32,12 +35,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("does not apply bindSession while dispatching", () => {
-		const hot = makeHot({
-			currentMode: { id: "build", name: "Build" },
-			currentModel: { id: "m1", name: "M1" },
-			autonomousEnabled: false,
-		});
-		const service = new ComposerMachineService(() => hot);
+		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		service.bindSession("s1");
 		const genBefore = service.getState("s1")!.context.boundGeneration;
@@ -49,7 +47,7 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("endDispatch is idempotent", () => {
-		const service = new ComposerMachineService(() => makeHot());
+		const service = new ComposerMachineService(() => makeCommitState());
 		service.createOrGetActor("s1");
 		service.beginDispatch("s1");
 		service.endDispatch("s1");
@@ -58,18 +56,13 @@ describe("ComposerMachineService", () => {
 		expect(service.getState("s1")?.value).toBe("interactive");
 	});
 
-	it("completes runConfigOperation on success", async () => {
-		const hot = makeHot({
-			currentMode: { id: "plan", name: "Plan" },
-			currentModel: { id: "m1", name: "M1" },
-			autonomousEnabled: true,
-		});
-		const service = new ComposerMachineService(() => hot);
+	it("commits canonical config on successful config operation", async () => {
+		const service = new ComposerMachineService(() => makeCommitState("plan", "m1", true));
 		const ok = await service.runConfigOperation(
 			"s1",
 			{
 				provisionalModeId: "build",
-				provisionalModelId: "m1",
+				provisionalModelId: "m2",
 				provisionalAutonomousEnabled: false,
 			},
 			async () => true
@@ -79,15 +72,34 @@ describe("ComposerMachineService", () => {
 		const snap = service.getState("s1")!;
 		expect(snap.context.committedModeId).toBe("plan");
 		expect(snap.context.committedModelId).toBe("m1");
+		expect(snap.context.committedAutonomousEnabled).toBe(true);
+	});
+
+	it("does not mutate committed autonomous state until the config operation commits", async () => {
+		let canonicalState = makeCommitState("build", "m1", false);
+		const service = new ComposerMachineService(() => canonicalState);
+		service.bindSession("s1");
+		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBe(false);
+
+		let resolveOperation: (value: boolean) => void = () => {};
+		const operation = new Promise<boolean>((resolve) => {
+			resolveOperation = resolve;
+		});
+		const runPromise = service.runConfigOperation(
+			"s1",
+			{ provisionalModeId: "build", provisionalModelId: "m1", provisionalAutonomousEnabled: true },
+			() => operation
+		);
+		canonicalState = makeCommitState("build", "m1", true);
+		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBe(false);
+
+		resolveOperation(true);
+		await runPromise;
+		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBe(true);
 	});
 
 	it("aborts runConfigOperation when CONFIG_BLOCK_BEGIN cannot apply", async () => {
-		const hot = makeHot({
-			currentMode: { id: "build", name: "Build" },
-			currentModel: { id: "m1", name: "M1" },
-			autonomousEnabled: false,
-		});
-		const service = new ComposerMachineService(() => hot);
+		const service = new ComposerMachineService(() => makeCommitState("build", "m1", false));
 		service.createOrGetActor("s1");
 		service.beginDispatch("s1");
 		const ok = await service.runConfigOperation(
@@ -104,20 +116,17 @@ describe("ComposerMachineService", () => {
 	});
 
 	it("invalidates async config completion after bind bumps generation", async () => {
-		const hotState = makeHot({
-			currentMode: { id: "build", name: "Build" },
-			currentModel: { id: "m1", name: "M1" },
-			autonomousEnabled: false,
-		});
-		const service = new ComposerMachineService((id) => (id === "s1" ? hotState : makeHot()));
-		let resolveOp: (v: boolean) => void = () => {};
-		const p = new Promise<boolean>((r) => {
-			resolveOp = r;
+		const service = new ComposerMachineService((id) =>
+			id === "s1" ? makeCommitState("build", "m1", false) : makeCommitState()
+		);
+		let resolveOp: (value: boolean) => void = () => {};
+		const operation = new Promise<boolean>((resolve) => {
+			resolveOp = resolve;
 		});
 		const runPromise = service.runConfigOperation(
 			"s1",
 			{ provisionalModeId: "plan", provisionalModelId: "m1", provisionalAutonomousEnabled: false },
-			() => p
+			() => operation
 		);
 		service.bindSession("s1");
 		resolveOp(true);

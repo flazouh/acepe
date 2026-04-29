@@ -42,7 +42,9 @@ export interface AgentPanelGroup<T extends { sessionProjectPath: string | null }
 /**
  * A unified group containing all panel types for a single project.
  */
-export interface ProjectPanelGroup<TAgent extends { sessionProjectPath: string | null }> {
+export interface ProjectPanelGroup<
+	TAgent extends { sessionProjectPath: string | null; sessionSequenceId?: number | null },
+> {
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
@@ -135,7 +137,9 @@ function ensureGroup<TAgent extends { sessionProjectPath: string | null }>(
  * Group all panel types by project path into unified groups.
  * Groups are ordered by first appearance of any panel for that project.
  */
-export function groupAllPanelsByProject<TAgent extends { sessionProjectPath: string | null }>(
+export function groupAllPanelsByProject<
+	TAgent extends { sessionProjectPath: string | null; sessionSequenceId?: number | null },
+>(
 	agentPanels: readonly TAgent[],
 	filePanels: readonly FilePanel[],
 	reviewPanels: readonly ReviewPanel[],
@@ -185,7 +189,29 @@ export function groupAllPanelsByProject<TAgent extends { sessionProjectPath: str
 		(group.gitPanels as GitPanel[]).push(panel);
 	}
 
+	for (const group of groupMap.values()) {
+		(group.agentPanels as TAgent[]).sort(compareAgentPanelSequence);
+	}
+
 	return groupOrder.map((key) => groupMap.get(key)!);
+}
+
+function compareAgentPanelSequence<
+	TAgent extends { sessionSequenceId?: number | null },
+>(left: TAgent, right: TAgent): number {
+	const leftSequenceId = left.sessionSequenceId ?? null;
+	const rightSequenceId = right.sessionSequenceId ?? null;
+
+	if (leftSequenceId !== null && rightSequenceId !== null) {
+		return rightSequenceId - leftSequenceId;
+	}
+	if (leftSequenceId !== null) {
+		return -1;
+	}
+	if (rightSequenceId !== null) {
+		return 1;
+	}
+	return 0;
 }
 
 /**

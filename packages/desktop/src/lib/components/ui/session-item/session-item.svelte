@@ -50,7 +50,6 @@ import { selectSessionWorkBucket } from "$lib/acp/store/session-work-projection.
 import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-queue";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
-import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -227,8 +226,8 @@ const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
-const hotState = $derived(sessionStore.getHotState(session.id));
 const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
+const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
 const currentStreamingToolCall = $derived(operationStore.getCurrentStreamingToolCall(session.id));
 const lastToolCall = $derived(operationStore.getLastToolCall(session.id));
 const lastTodoToolCall = $derived(operationStore.getLastTodoToolCall(session.id));
@@ -242,8 +241,8 @@ const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePa
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({
 		runtimeState,
-		hotState,
 		canonicalProjection,
+		currentModeId,
 		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -252,8 +251,8 @@ const liveSessionState = $derived.by(() =>
 const sessionWorkProjection = $derived.by(() =>
 	deriveLiveSessionWorkProjection({
 		runtimeState,
-		hotState,
 		canonicalProjection,
+		currentModeId,
 		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -362,7 +361,11 @@ const statusText = $derived.by(() => {
 	}
 
 	if (sessionWorkProjection.hasError) {
-		return hotState.connectionError ?? "Connection error";
+		const canonicalErrorMessage =
+			canonicalProjection?.lifecycle.errorMessage ??
+			canonicalProjection?.activeTurnFailure?.message ??
+			null;
+		return canonicalErrorMessage ?? "Connection error";
 	}
 
 	if (previewActivityKind === "thinking") {
@@ -574,24 +577,20 @@ function handleNextQuestion() {
 	{/key}
 {/if}
 
-<Tooltip.Root>
-	<Tooltip.Trigger>
-		{#snippet child({ props })}
-		<div
-			{...props}
-			bind:this={rowElement}
-			class="group relative z-10 flex items-stretch gap-1 overflow-hidden py-0"
-			style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
-			data-session-id={session.id}
-			onpointerenter={(e) => {
-				isRowHovered = true;
-				highlightCtx?.updateHighlight(e.currentTarget as HTMLElement);
-			}}
-			onpointerleave={() => {
-				isRowHovered = false;
-				highlightCtx?.clearHighlight();
-			}}
-		>
+<div
+	bind:this={rowElement}
+	class="group relative z-10 flex cursor-pointer items-stretch gap-1 overflow-hidden py-0"
+	style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
+	data-session-id={session.id}
+	onpointerenter={(e) => {
+		isRowHovered = true;
+		highlightCtx?.updateHighlight(e.currentTarget as HTMLElement);
+	}}
+	onpointerleave={() => {
+		isRowHovered = false;
+		highlightCtx?.clearHighlight();
+	}}
+>
 			{#if hasChildren}
 				<button
 					type="button"
@@ -754,7 +753,7 @@ function handleNextQuestion() {
 							aria-label="Rename session"
 						/>
 					{:else}
-						<div class="text-xs font-medium truncate" title={displayTitle}>
+						<div class="text-xs font-medium truncate">
 							{displayTitle}
 						</div>
 					{/if}
@@ -813,9 +812,3 @@ function handleNextQuestion() {
 				/>
 			</div>
 		</div>
-		{/snippet}
-	</Tooltip.Trigger>
-	<Tooltip.Content side="right" sideOffset={8} class="max-w-60">
-		{displayTitle}
-	</Tooltip.Content>
-</Tooltip.Root>

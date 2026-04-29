@@ -21,6 +21,7 @@ export {
 	type AgentPanelTodoItem,
 	type AgentPanelTodoStatus,
 	type AgentPanelToolCallEntry,
+	type AgentPanelToolEditDiffEntry,
 	type AgentPanelToolKind,
 	type AgentPanelToolStatus,
 	type AgentPanelUserEntry,

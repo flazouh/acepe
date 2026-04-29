@@ -383,6 +383,9 @@ export class SessionEventService {
 				}
 				this.recordInboundEvent();
 				rawStreamingStore.record(sessionId, update);
+				// Pending-creation failure: routed to handler.failPendingCreationSession
+				// which synthesizes a canonical "failed" projection so downstream
+				// readers see the failure through the canonical channel.
 				handler.failPendingCreationSession?.(sessionId, update);
 				this.pendingEvents.delete(sessionId);
 				this.pendingEventTimestamps.delete(sessionId);
@@ -460,7 +463,9 @@ export class SessionEventService {
 				break;
 
 			case "plan":
-				this.callbacks.onPlanUpdate?.(sessionId, update.plan);
+				// GOD authority: plan content is now delivered through the canonical
+				// SessionStateEnvelope (kind: "plan") routed via applyPlan command.
+				// The raw lane only sees this for diagnostic purposes — do not act.
 				logger.debug("plan received on diagnostic raw lane", {
 					sessionId,
 					stepCount: update.plan.steps.length,

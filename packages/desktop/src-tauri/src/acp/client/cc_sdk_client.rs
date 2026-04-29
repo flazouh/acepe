@@ -1154,10 +1154,9 @@ impl ClaudeCcSdkClient {
             approval_callback_tracker: self.approval_callback_tracker.clone(),
         };
 
-        let mut builder = cc_sdk::ClaudeCodeOptions::builder().cwd(PathBuf::from(cwd));
-        if resume.is_none() {
-            builder = builder.session_id(session_id.to_string());
-        }
+        let mut builder = cc_sdk::ClaudeCodeOptions::builder()
+            .cwd(PathBuf::from(cwd))
+            .session_id(session_id.to_string());
         builder = builder.include_partial_messages(true);
         builder = builder.setting_sources(vec![
             cc_sdk::SettingSource::User,
@@ -1435,6 +1434,16 @@ impl ClaudeCcSdkClient {
             session_id = ?self.session_id,
             prompt_len = text.len(),
             "cc-sdk: sending user message via send_user_message..."
+        );
+
+        log_debug_event(
+            &self.session_id,
+            "cc_sdk.user_message_outbound",
+            &serde_json::json!({
+                "direction": "app_to_sdk",
+                "charCount": text.chars().count(),
+                "text": text.as_str(),
+            }),
         );
 
         sdk_client
@@ -3200,19 +3209,19 @@ mod tests {
         let options = client.build_options("/tmp", "session-1", Some("resume-1".to_string()), true);
 
         assert_eq!(options.resume.as_deref(), Some("resume-1"));
-        assert_eq!(options.session_id.as_deref(), None);
+        assert_eq!(options.session_id.as_deref(), Some("session-1"));
         assert!(options.fork_session);
     }
 
     #[test]
-    fn build_options_omits_session_id_when_resuming_canonical_id() {
+    fn build_options_keeps_session_id_for_resumed_stdin_messages() {
         let client = make_test_client();
 
         let options =
             client.build_options("/tmp", "session-1", Some("session-1".to_string()), false);
 
         assert_eq!(options.resume.as_deref(), Some("session-1"));
-        assert_eq!(options.session_id.as_deref(), None);
+        assert_eq!(options.session_id.as_deref(), Some("session-1"));
     }
 
     #[tokio::test]

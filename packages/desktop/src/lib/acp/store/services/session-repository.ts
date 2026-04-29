@@ -381,12 +381,21 @@ export class SessionRepository {
 					if (openResult.outcome !== "found") {
 						return okAsync({ id, success: false as const });
 					}
-					this.stateWriter.replaceSessionOpenSnapshot(openResult);
-					const title = openResult.sessionTitle || undefined;
-					if (title && title !== session.title) {
-						this.stateWriter.updateSession(openResult.canonicalSessionId, { title });
-					}
-					return okAsync({ id: openResult.canonicalSessionId, success: true as const });
+					return ResultAsync.fromPromise(
+						Promise.resolve().then(() => {
+							this.stateWriter.replaceSessionOpenSnapshot(openResult);
+							const title = openResult.sessionTitle || undefined;
+							if (title && title !== session.title) {
+								this.stateWriter.updateSession(openResult.canonicalSessionId, { title });
+							}
+							return { id: openResult.canonicalSessionId, success: true as const };
+						}),
+						(error) =>
+							new AgentError(
+								"preloadSession",
+								error instanceof Error ? error : new Error(String(error))
+							)
+					);
 				})
 				.match(
 					(result) => result,

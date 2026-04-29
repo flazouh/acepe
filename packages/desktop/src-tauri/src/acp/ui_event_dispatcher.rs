@@ -1271,7 +1271,16 @@ mod tests {
             crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
                 assert_eq!(delta.from_revision, SessionGraphRevision::new(6, 6, 6));
                 assert_eq!(delta.to_revision, SessionGraphRevision::new(7, 7, 7));
-                assert_eq!(delta.changed_fields, vec!["transcriptSnapshot".to_string()]);
+                assert_eq!(
+                    delta.changed_fields,
+                    vec![
+                        "transcriptSnapshot".to_string(),
+                        "activity".to_string(),
+                        "turnState".to_string(),
+                        "activeTurnFailure".to_string(),
+                        "lastTerminalTurnId".to_string(),
+                    ]
+                );
             }
             other => panic!("expected delta payload, got {:?}", other),
         }

@@ -2,11 +2,15 @@ import type {
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
+	PlanData,
+	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateEnvelope,
 	SessionStateGraph,
+	SessionTurnState,
+	TurnFailureSnapshot,
 	TranscriptDelta,
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
@@ -36,6 +40,10 @@ export type SessionStateCommand =
 			telemetry: UsageTelemetryData;
 	  }
 	| {
+			kind: "applyPlan";
+			plan: PlanData;
+	  }
+	| {
 			kind: "refreshSnapshot";
 			fromRevision: number;
 			toRevision: number;
@@ -46,6 +54,11 @@ export type SessionStateCommand =
 	  }
 	| {
 			kind: "applyGraphPatches";
+			revision: SessionGraphRevision;
+			activity: SessionGraphActivity;
+			turnState: SessionTurnState;
+			activeTurnFailure: TurnFailureSnapshot | null;
+			lastTerminalTurnId: string | null;
 			operationPatches: OperationSnapshot[];
 			interactionPatches: InteractionSnapshot[];
 	  };
@@ -111,15 +124,35 @@ export function routeSessionStateEnvelope(
 					telemetry: envelope.payload.telemetry,
 				},
 			];
+		case "plan":
+			return [
+				{
+					kind: "applyPlan",
+					plan: envelope.payload.plan,
+				},
+			];
 		case "delta": {
-			const commands = commandFromDeltaResolution(
-				resolveSessionStateDelta(sessionId, currentTranscriptRevision, envelope.payload.delta)
+			const resolution = resolveSessionStateDelta(
+				sessionId,
+				currentTranscriptRevision,
+				envelope.payload.delta
 			);
+			const commands = commandFromDeltaResolution(resolution);
+			if (resolution.kind === "refreshSnapshot") {
+				return commands;
+			}
 			const operationPatches = envelope.payload.delta.operationPatches ?? [];
 			const interactionPatches = envelope.payload.delta.interactionPatches ?? [];
-			if (operationPatches.length > 0 || interactionPatches.length > 0) {
+			const includesActivity =
+				envelope.payload.delta.changedFields?.includes("activity") ?? false;
+			if (operationPatches.length > 0 || interactionPatches.length > 0 || includesActivity) {
 				commands.push({
 					kind: "applyGraphPatches",
+					revision: envelope.payload.delta.toRevision,
+					activity: envelope.payload.delta.activity,
+					turnState: envelope.payload.delta.turnState,
+					activeTurnFailure: envelope.payload.delta.activeTurnFailure ?? null,
+					lastTerminalTurnId: envelope.payload.delta.lastTerminalTurnId ?? null,
 					operationPatches,
 					interactionPatches,
 				});

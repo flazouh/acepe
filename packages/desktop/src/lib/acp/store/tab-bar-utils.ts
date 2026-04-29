@@ -221,7 +221,6 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		focusedPanelId,
 		agentId,
 		title,
-		hotState,
 		canonicalProjection,
 		runtimeState,
 		entries,
@@ -238,16 +237,11 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 	} = input;
 	const currentToolKind = providedCurrentToolKind;
 	const currentStreamingToolCall = providedCurrentStreamingToolCall;
+	const currentModeId = canonicalProjection?.capabilities.modes?.currentModeId ?? null;
 	const liveSessionInput: LiveSessionWorkInput = {
 		runtimeState,
-		hotState: hotState ?? {
-			status: "idle",
-			currentMode: null,
-			connectionError: null,
-			activeTurnFailure: null,
-			activity: null,
-		},
 		canonicalProjection,
+		currentModeId,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion,
@@ -265,7 +259,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		agentId,
 		title,
 		isFocused: panel.id === focusedPanelId,
-		currentModeId: hotState?.currentMode?.id ?? null,
+		currentModeId,
 		isUnseen,
 		currentToolKind,
 		workBucket: selectSessionWorkBucket(workProjection),

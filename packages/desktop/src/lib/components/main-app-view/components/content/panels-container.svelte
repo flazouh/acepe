@@ -174,6 +174,7 @@ const panelsWithState = $derived.by(() => {
 			...hotState,
 			// Pass primitives instead of full sessionData object
 			sessionProjectPath: resolvedSessionProjectPath,
+			sessionSequenceId: metadata?.sequenceId ?? null,
 			sessionAgentId: identity?.agentId ?? panel.agentId ?? null,
 			sessionTitle: metadata?.title ?? null,
 			selectedAgentId: panel.selectedAgentId,

@@ -5,20 +5,54 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
+import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import type { ConnectionCompleteData } from "../session-event-service.svelte.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
-import type { SessionCold, SessionTransientProjection } from "../types.js";
-import type { ICapabilitiesManager } from "./interfaces/capabilities-manager.js";
+import type { SessionCapabilities, SessionCold, SessionTransientProjection } from "../types.js";
 import type { IConnectionManager } from "./interfaces/connection-manager.js";
 import type { IEntryManager } from "./interfaces/entry-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
 import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
-import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 
 let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
+
+interface TestCapabilitiesManager {
+	getCapabilities(sessionId: string): SessionCapabilities;
+	hasCapabilities(sessionId: string): boolean;
+	updateCapabilities(sessionId: string, updates: Partial<SessionCapabilities>): void;
+	removeCapabilities(sessionId: string): void;
+}
+
+const canonicalOverlapHotStateFields = [
+	"status",
+	"isConnected",
+	"turnState",
+	"activity",
+	"connectionError",
+	"activeTurnFailure",
+	"lastTerminalTurnId",
+	"currentModel",
+	"currentMode",
+	"availableCommands",
+	"availableModels",
+	"availableModes",
+	"autonomousEnabled",
+	"configOptions",
+	"providerMetadata",
+	"modelsDisplay",
+] as const;
+
+function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
+	for (const call of updateHotState.mock.calls) {
+		const updates = call[1];
+		for (const field of canonicalOverlapHotStateFields) {
+			expect(Object.prototype.hasOwnProperty.call(updates, field)).toBe(false);
+		}
+	}
+}
 
 const resumeSession = vi.fn();
 const newSession = vi.fn();
@@ -78,14 +112,11 @@ function createMockEventHandler(): SessionEventHandler {
 		getHotState: vi.fn(),
 		aggregateAssistantChunk: vi.fn(),
 		aggregateUserChunk: vi.fn(),
-		updateAvailableCommands: vi.fn(),
 		ensureStreamingState: vi.fn(),
 		handleStreamEntry: vi.fn(),
 		handleStreamComplete: vi.fn(),
 		handleTurnError: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
-		updateCurrentMode: vi.fn(),
-		updateConfigOptions: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
@@ -104,7 +135,7 @@ function createManager(deps: {
 	stateReader: ISessionStateReader;
 	stateWriter: ISessionStateWriter;
 	hotState: ITransientProjectionManager;
-	capabilities: ICapabilitiesManager;
+	capabilities: TestCapabilitiesManager;
 	entryManager: IEntryManager;
 	connectionManager: IConnectionManager;
 }) {
@@ -113,11 +144,16 @@ function createManager(deps: {
 		promise: Promise.resolve(nextLifecycleResult),
 		cancel: vi.fn(),
 	}));
+	if (deps.stateReader.getSessionCapabilities === undefined) {
+		Object.assign(deps.stateReader, { getSessionCapabilities: vi.fn() });
+	}
+	(deps.stateReader.getSessionCapabilities as ReturnType<typeof vi.fn>).mockImplementation(
+		(sessionId: string) => deps.capabilities.getCapabilities(sessionId)
+	);
 	return new SessionConnectionManager(
 		deps.stateReader,
 		deps.stateWriter,
 		deps.hotState,
-		deps.capabilities,
 		deps.entryManager,
 		deps.connectionManager,
 		lastEventService
@@ -166,6 +202,11 @@ describe("SessionConnectionManager.connectSession", () => {
 
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionCanSend: vi.fn(),
+		getSessionLifecycleStatus: vi.fn(),
+		getSessionAutonomousEnabled: vi.fn(),
+		getSessionCurrentModeId: vi.fn(),
+		getSessionCapabilities: vi.fn(),
 		getEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -192,7 +233,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: ICapabilitiesManager = {
+	const capabilities: TestCapabilitiesManager = {
 		getCapabilities: vi.fn(),
 		hasCapabilities: vi.fn(),
 		updateCapabilities: vi.fn(),
@@ -248,6 +289,10 @@ describe("SessionConnectionManager.connectSession", () => {
 			isStreaming: false,
 			status: "idle",
 		});
+		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(null);
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(connectionManager.isConnecting as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		ensureLoaded.mockReturnValue(okAsync(undefined));
 		isSessionModelLoaded.mockReturnValue(true);
@@ -308,10 +353,39 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "connecting",
-			connectionError: null,
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+	});
+
+	it("does not mutate historical content while attaching transport to a hydrated session", async () => {
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
 		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler(), {
+			openToken: "open-token-1",
+		});
+		result._unsafeUnwrap();
+
+		expect(resumeSession).toHaveBeenCalledWith(
+			sessionId,
+			projectPath,
+			expect.any(Number),
+			undefined,
+			undefined,
+			"open-token-1"
+		);
+		expect(stateWriter.replaceSessionOpenSnapshot).not.toHaveBeenCalled();
+		expect(entryManager.storeEntriesAndBuildIndex).not.toHaveBeenCalled();
+		expect(entryManager.clearEntries).not.toHaveBeenCalled();
+		expect(entryManager.createToolCallEntry).not.toHaveBeenCalled();
+		expect(entryManager.updateToolCallEntry).not.toHaveBeenCalled();
+		expect(connectionManager.sendContentLoad).not.toHaveBeenCalled();
+		expect(connectionManager.sendContentLoaded).not.toHaveBeenCalled();
 	});
 
 	it("re-syncs autonomous policy after reconnecting a disconnected session", async () => {
@@ -374,10 +448,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "connecting",
-			connectionError: null,
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
@@ -457,10 +528,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "connecting",
-			connectionError: null,
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("ignores cached provider metadata when restoring autonomous policy on reconnect", async () => {
@@ -862,7 +930,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
-	it("hydrates hot state with available commands on connect", async () => {
+	it("does not synthesize connection or capability hot state on connect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 
 		const manager = createManager({
@@ -877,10 +945,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "connecting",
-			connectionError: null,
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not rely on reconnect-time pending event flush after lifecycle-driven connect completes", async () => {
@@ -1026,12 +1091,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 
 		expect(result.isErr()).toBe(true);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "error",
-			isConnected: false,
-			availableCommands: [],
-			connectionError: "Method not found: session/load",
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
 	});
 });
@@ -1043,6 +1103,10 @@ describe("SessionConnectionManager.createSession", () => {
 
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionCanSend: vi.fn(),
+		getSessionLifecycleStatus: vi.fn(),
+		getSessionAutonomousEnabled: vi.fn(),
+		getSessionCurrentModeId: vi.fn(),
 		getEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -1069,7 +1133,7 @@ describe("SessionConnectionManager.createSession", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: ICapabilitiesManager = {
+	const capabilities: TestCapabilitiesManager = {
 		getCapabilities: vi.fn(),
 		hasCapabilities: vi.fn(),
 		updateCapabilities: vi.fn(),
@@ -1224,14 +1288,11 @@ describe("SessionConnectionManager.createSession", () => {
 
 		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0] as SessionCold;
-		// After the cold/hot split, currentModel is in hot state, not cold.
-		// Verify cold data was stored correctly.
 		expect(addedSession.id).toBe(sessionId);
 		expect(addedSession.agentId).toBe(agentId);
-		// Verify hot state was initialized with the resolved model
 		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[1];
-		expect(hotStateInit?.currentModel?.id).toBe("vendor/codex-enterprise/high");
+		expect(hotStateInit?.modelPerMode?.build).toBe("vendor/codex-enterprise/high");
 	});
 
 	it("resolves grouped variants from display model ids instead of matching display labels", async () => {
@@ -1303,7 +1364,7 @@ describe("SessionConnectionManager.createSession", () => {
 
 		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[1];
-		expect(hotStateInit?.currentModel?.id).toBe("vendor/codex-enterprise/high");
+		expect(hotStateInit?.modelPerMode?.build).toBe("vendor/codex-enterprise/high");
 	});
 
 	it("stores available commands from new session response", async () => {
@@ -1319,11 +1380,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const capabilitiesUpdate = (capabilities.updateCapabilities as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[1];
-		expect(capabilitiesUpdate?.availableCommands).toEqual([
-			{ name: "open", description: "Open file" },
-		]);
+		expect(capabilities.updateCapabilities).not.toHaveBeenCalled();
 	});
 
 	it("hydrates hot state with available commands on new session", async () => {
@@ -1340,7 +1397,7 @@ describe("SessionConnectionManager.createSession", () => {
 		result._unsafeUnwrap();
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.availableCommands).toEqual([{ name: "open", description: "Open file" }]);
+		expect(Object.prototype.hasOwnProperty.call(initUpdate, "availableCommands")).toBe(false);
 	});
 
 	it("keeps a newly created session disconnected until canonical connect materializes readiness", async () => {
@@ -1358,16 +1415,9 @@ describe("SessionConnectionManager.createSession", () => {
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
 		expect(initUpdate).toMatchObject({
-			status: "idle",
-			isConnected: false,
-			turnState: "idle",
-			currentMode: { id: "build", name: "Build", description: undefined },
-			currentModel: {
-				id: "gpt-5.2-codex/high",
-				name: "gpt-5.2-codex (high)",
-				description: undefined,
+			modelPerMode: {
+				build: "gpt-5.2-codex/high",
 			},
-			availableCommands: [{ name: "open", description: "Open file" }],
 		});
 		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
 	});
@@ -1417,12 +1467,7 @@ describe("SessionConnectionManager.createSession", () => {
 			worktreePath: null,
 		});
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
-		expect(hotState.initializeHotState).toHaveBeenCalledWith("provider-requested-id", {
-			status: "connecting",
-			isConnected: false,
-			turnState: "idle",
-			connectionError: null,
-		});
+		expect(hotState.initializeHotState).toHaveBeenCalledWith("provider-requested-id");
 		expect(entryManager.markPreloaded).not.toHaveBeenCalled();
 	});
 
@@ -1568,8 +1613,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5.2-codex/medium");
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.currentMode?.id).toBe("plan");
-		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/medium");
+		expect(initUpdate?.modelPerMode?.plan).toBe("gpt-5.2-codex/medium");
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
 	});
 
@@ -1629,8 +1673,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5.2-codex/medium");
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.currentMode?.id).toBe("plan");
-		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/medium");
+		expect(initUpdate?.modelPerMode?.plan).toBe("gpt-5.2-codex/medium");
 	});
 
 	it("keeps the created session when explicit initial mode setup fails after backend session creation", async () => {
@@ -1682,8 +1725,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(stateWriter.addSession).toHaveBeenCalled();
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.currentMode?.id).toBe("build");
-		expect(initUpdate?.currentModel?.id).toBe("gpt-5.2-codex/high");
+		expect(initUpdate?.modelPerMode?.build).toBe("gpt-5.2-codex/high");
 	});
 
 	it("returns the freshly created cold session even if the stateReader lookup has not caught up yet", async () => {
@@ -1761,7 +1803,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 
 		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.autonomousEnabled).toBe(true);
+		expect(Object.prototype.hasOwnProperty.call(initUpdate, "autonomousEnabled")).toBe(false);
 	});
 });
 
@@ -1779,6 +1821,10 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionCanSend: vi.fn(),
+		getSessionLifecycleStatus: vi.fn(),
+		getSessionAutonomousEnabled: vi.fn(),
+		getSessionCurrentModeId: vi.fn(),
 		getEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -1805,7 +1851,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: ICapabilitiesManager = {
+	const capabilities: TestCapabilitiesManager = {
 		getCapabilities: vi.fn(),
 		hasCapabilities: vi.fn(),
 		updateCapabilities: vi.fn(),
@@ -1870,6 +1916,10 @@ describe("SessionConnectionManager autonomous policy", () => {
 			modelPerMode: {},
 			statusChangedAt: Date.now(),
 		});
+		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
+		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("ready");
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
 		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [
 				{ id: "build", name: "Build", description: null },
@@ -1881,7 +1931,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		setSessionAutonomous.mockReturnValue(okAsync(undefined));
 	});
 
-	it("syncs Autonomous after updating local transition state", async () => {
+	it("syncs Autonomous after updating only local transition state", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -1906,16 +1956,12 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
-			autonomousEnabled: true,
 			autonomousTransition: "enabling",
 		});
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
-	it("stores Autonomous locally when the session is disconnected", async () => {
+	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
 		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			isConnected: false,
 			status: "idle",
@@ -1930,6 +1976,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 			modelPerMode: {},
 			statusChangedAt: Date.now(),
 		});
+		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
 
 		const manager = createManager({
 			stateReader,
@@ -1944,10 +1993,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		result._unsafeUnwrap();
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("rolls Autonomous state back when backend policy sync fails", async () => {
@@ -1978,13 +2024,12 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
-			autonomousEnabled: true,
 			autonomousTransition: "enabling",
 		});
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
-			autonomousEnabled: false,
 			autonomousTransition: "idle",
 		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
@@ -2116,13 +2161,12 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(result.isErr()).toBe(true);
 
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
-			autonomousEnabled: true,
 			autonomousTransition: "enabling",
 		});
 		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
-			autonomousEnabled: false,
 			autonomousTransition: "idle",
 		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
@@ -2205,6 +2249,8 @@ describe("SessionConnectionManager autonomous policy", () => {
 			modelsDisplay: undefined,
 		});
 		setMode.mockReturnValue(okAsync(undefined));
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(true);
+		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
 
 		const manager = createManager({
 			stateReader,
@@ -2286,6 +2332,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionLifecycleStatus: vi.fn(),
 		getEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -2312,7 +2359,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: ICapabilitiesManager = {
+	const capabilities: TestCapabilitiesManager = {
 		getCapabilities: vi.fn(),
 		hasCapabilities: vi.fn(),
 		updateCapabilities: vi.fn(),
@@ -2368,6 +2415,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 			isStreaming: true,
 			status: "idle",
 		});
+		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("activating");
 	});
 
 	it("sends sendResponseComplete to transition machine STREAMING → READY on success", async () => {
@@ -2386,10 +2434,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		result._unsafeUnwrap();
 
 		expect(connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expect(hotState.updateHotState).toHaveBeenCalledWith(sessionId, {
-			status: "ready",
-			turnState: "interrupted",
-		});
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not send machine event when API call fails", async () => {
@@ -2413,21 +2458,13 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 });
 
 describe("SessionConnectionManager.disconnectSession", () => {
-	it("clears available commands when disconnecting a session", async () => {
+	it("clears only local hot state when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
 			getHotState: vi.fn(
 				(): SessionTransientProjection => ({
-					isConnected: true,
-					status: "ready" as const,
-					turnState: "idle" as const,
 					acpSessionId: "acp-1",
-					connectionError: null,
-					autonomousEnabled: false,
 					autonomousTransition: "idle",
-					currentModel: null,
-					currentMode: null,
-					availableCommands: [{ name: "open", description: "Open file" }],
 					modelPerMode: {},
 					statusChangedAt: Date.now(),
 				})
@@ -2466,7 +2503,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			initializeHotState: vi.fn(),
 		};
 
-		const capabilities: ICapabilitiesManager = {
+		const capabilities: TestCapabilitiesManager = {
 			getCapabilities: vi.fn(),
 			hasCapabilities: vi.fn(),
 			updateCapabilities: vi.fn(),
@@ -2530,9 +2567,10 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		expect(hotState.updateHotState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
-				availableCommands: [],
-				isConnected: false,
+				acpSessionId: null,
+				modelPerMode: {},
 			})
 		);
+		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 });

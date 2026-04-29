@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionEntry } from "../../../../application/dto/session.js";
 import type { ToolCall } from "../../../../types/tool-call.js";
-import { shouldUseDesktopToolRenderer } from "../tool-renderer-routing.js";
+import { shouldUseOptimisticDesktopToolRenderer } from "../tool-renderer-routing.js";
 
 function createToolCallEntry(
 	id: string,
@@ -15,8 +15,8 @@ function createToolCallEntry(
 	};
 }
 
-describe("shouldUseDesktopToolRenderer", () => {
-	it("keeps transcript-derived generic tool calls on the desktop renderer path", () => {
+describe("shouldUseOptimisticDesktopToolRenderer", () => {
+	it("keeps transcript-derived generic tool calls on the desktop renderer path before canonical scene entries exist", () => {
 		const entry = createToolCallEntry("tool-generic-1", {
 			id: "tool-generic-1",
 			name: "List assets and packages",
@@ -28,10 +28,10 @@ describe("shouldUseDesktopToolRenderer", () => {
 			awaitingPlanApproval: false,
 		});
 
-		expect(shouldUseDesktopToolRenderer(entry)).toBe(true);
+		expect(shouldUseOptimisticDesktopToolRenderer(entry, false)).toBe(true);
 	});
 
-	it("keeps structured tool calls on the desktop renderer path too", () => {
+	it("routes structured tool calls away from the desktop renderer once canonical scene entries exist", () => {
 		const entry = createToolCallEntry("tool-execute-1", {
 			id: "tool-execute-1",
 			name: "execute",
@@ -43,6 +43,6 @@ describe("shouldUseDesktopToolRenderer", () => {
 			awaitingPlanApproval: false,
 		});
 
-		expect(shouldUseDesktopToolRenderer(entry)).toBe(true);
+		expect(shouldUseOptimisticDesktopToolRenderer(entry, true)).toBe(false);
 	});
 });

@@ -1,6 +1,6 @@
 /**
  * Session Transient Projection Store - manages non-authoritative frontend
- * projections for capability/config/telemetry and compatibility reactivity.
+ * projections for local UI affordances and telemetry.
  *
  * Uses SvelteMap for fine-grained per-session reactivity: when session A's
  * transient projection changes, only components reading session A re-render.
@@ -42,16 +42,9 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	/**
 	 * Update transient projection state for a session.
 	 * Writes directly to SvelteMap for fine-grained reactivity.
-	 *
-	 * Automatically tracks statusChangedAt when status changes.
 	 */
 	updateHotState(sessionId: string, updates: Partial<SessionTransientProjection>): void {
-		// Track status change timestamp
 		const current = this.transientProjections.get(sessionId) ?? DEFAULT_TRANSIENT_PROJECTION;
-		if (updates.status !== undefined && updates.status !== current.status) {
-			updates = Object.assign({}, updates, { statusChangedAt: Date.now() });
-		}
-
 		// Write directly to SvelteMap (fine-grained reactivity)
 		this.transientProjections.set(sessionId, Object.assign({}, current, updates));
 	}

@@ -3,7 +3,6 @@ import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPanelStore, getSessionStore } from "../../store/index.js";
-import type { TurnState } from "../../store/types.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { calculateDiffStats, getFileName, getRelativeFilePath } from "../../utils/file-utils.js";
@@ -11,14 +10,14 @@ import {
 	pierreDiffsUnsafeCSS,
 	registerCursorThemeForPierreDiffs,
 } from "../../utils/pierre-diffs-theme.js";
-import { getToolStatus } from "../../utils/tool-state-utils.js";
+import { getToolStatus, type ToolStatusTurnState } from "../../utils/tool-state-utils.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 import { extractPermissionFilePath } from "./permission-display.js";
 import { resolveToolCallEditDiffs } from "./tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
 
 interface ToolCallEditProps {
 	toolCall: ToolCall;
-	turnState?: TurnState;
+	turnState?: ToolStatusTurnState | null;
 	projectPath?: string;
 	elapsedLabel?: string | null;
 	pendingPermission?: PermissionRequest | null;
@@ -81,8 +80,9 @@ const primaryDiff = $derived(editDiffs[0] ?? null);
 const filePath = $derived(primaryDiff?.filePath ?? null);
 
 // Streaming detection
+const isTurnStreaming = $derived(turnState === "streaming" || turnState === "Running");
 const isStreaming = $derived(
-	toolStatus.isInputStreaming || (toolStatus.isPending && turnState === "streaming")
+	toolStatus.isInputStreaming || (toolStatus.isPending && isTurnStreaming)
 );
 
 // Don't treat as streaming when waiting for permission approval

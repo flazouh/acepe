@@ -20,6 +20,7 @@ pub enum DetachedReason {
     ReconnectExhausted,
     AbandonedInFlight,
     LegacyAmbiguousRestore,
+    ClosedByClient,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

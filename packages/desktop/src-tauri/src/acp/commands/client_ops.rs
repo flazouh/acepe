@@ -110,12 +110,16 @@ fn canonicalize_reconnect_error(error: SerializableAcpError) -> SerializableAcpE
     }
 }
 
-fn reconnect_error_indicates_live_session_is_already_loaded(error: &SerializableAcpError) -> bool {
+fn reconnect_error_allows_cached_ready_snapshot(
+    error: &SerializableAcpError,
+    _agent_id: &CanonicalAgentId,
+) -> bool {
     match error {
         SerializableAcpError::JsonRpcError { message }
         | SerializableAcpError::ProtocolError { message }
         | SerializableAcpError::InvalidState { message } => {
-            message.to_ascii_lowercase().contains("already loaded")
+            let normalized = message.to_ascii_lowercase();
+            normalized.contains("already loaded")
         }
         _ => false,
     }
@@ -188,7 +192,7 @@ where
             }
 
             if let Err(error) = existing_resume_result {
-                if reconnect_error_indicates_live_session_is_already_loaded(&error) {
+                if reconnect_error_allows_cached_ready_snapshot(&error, &agent_id) {
                     if let Some(snapshot) = session_registry.get_ready_snapshot(&session_id) {
                         tracing::info!(
                             session_id = %session_id,

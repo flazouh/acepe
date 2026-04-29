@@ -202,6 +202,11 @@ pub enum PreconnectionCapabilityMode {
     ProjectScoped,
 }
 
+/// Display-only provider metadata for frontend capability projection.
+///
+/// This type is constructed by backend provider adapters, never deserialized
+/// from provider responses, and must not carry credentials, tokens, bearer
+/// material, or provider error text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendProviderProjection {

@@ -21,7 +21,6 @@ import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "../live
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
 import { selectSessionStatusForPresentation } from "../session-work-projection.js";
-import type { SessionTransientProjection } from "../types.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
@@ -68,10 +67,9 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly lastTodoToolCall: ToolCall | null;
 	readonly updatedAt: Date;
 	readonly runtimeState: SessionRuntimeState | null;
-	readonly hotState: Pick<
-		SessionTransientProjection,
-		"status" | "currentMode" | "connectionError" | "activeTurnFailure" | "activity"
-	>;
+	readonly currentModeId: string | null;
+	readonly connectionError: string | null;
+	readonly activeTurnFailure: ActiveTurnFailure | null;
 	readonly canonicalProjection?: CanonicalSessionProjection | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
@@ -135,16 +133,16 @@ export function buildQueueSessionSnapshot(
 ): QueueSessionSnapshot {
 	const state = deriveLiveSessionState({
 		runtimeState: input.runtimeState,
-		hotState: input.hotState,
 		canonicalProjection: input.canonicalProjection ?? null,
+		currentModeId: input.currentModeId,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
 	const workProjection = deriveLiveSessionWorkProjection({
 		runtimeState: input.runtimeState,
-		hotState: input.hotState,
 		canonicalProjection: input.canonicalProjection ?? null,
+		currentModeId: input.currentModeId,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
@@ -165,9 +163,9 @@ export function buildQueueSessionSnapshot(
 		isThinking: workProjection.compactActivityKind === "thinking",
 		status: selectSessionStatusForPresentation(workProjection),
 		updatedAt: input.updatedAt,
-		currentModeId: input.hotState.currentMode ? input.hotState.currentMode.id : null,
-		connectionError: input.hotState.connectionError,
-		activeTurnFailure: input.hotState.activeTurnFailure ?? null,
+		currentModeId: input.currentModeId,
+		connectionError: input.connectionError,
+		activeTurnFailure: input.activeTurnFailure,
 	};
 }
 

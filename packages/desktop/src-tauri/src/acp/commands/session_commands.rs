@@ -20,6 +20,9 @@ use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
+use crate::acp::session_state_engine::selectors::{
+    SessionGraphCapabilities, SessionGraphLifecycle,
+};
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
@@ -242,9 +245,10 @@ async fn resolve_fork_session_target(
 
 async fn build_new_session_open_result(
     app: &AppHandle,
-    session_id: &str,
+    response: &NewSessionResponse,
     fallback_agent_id: &CanonicalAgentId,
 ) -> Result<SessionOpenResult, SerializableAcpError> {
+    let session_id = &response.session_id;
     let db = app.state::<DbConn>();
     let hub = app.state::<Arc<AcpEventHubState>>();
     let metadata = SessionMetadataRepository::get_by_id(db.inner(), session_id)
@@ -271,8 +275,26 @@ async fn build_new_session_open_result(
         project_path,
         descriptor.worktree_path,
         descriptor.source_path,
+        SessionGraphLifecycle::reserved(),
+        capabilities_from_new_session_response(app, response),
     )
     .await)
+}
+
+fn capabilities_from_new_session_response(
+    app: &AppHandle,
+    response: &NewSessionResponse,
+) -> SessionGraphCapabilities {
+    let policy_registry = app.state::<Arc<SessionPolicyRegistry>>();
+    SessionGraphCapabilities {
+        models: Some(response.models.clone()),
+        modes: Some(response.modes.clone()),
+        available_commands: response.available_commands.clone(),
+        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
+            response.config_options.clone(),
+        ),
+        autonomous_enabled: policy_registry.is_autonomous(&response.session_id),
+    }
 }
 
 /// Initialize the ACP connection.
@@ -324,6 +346,14 @@ pub async fn acp_set_session_autonomous(
     session_id: String,
     enabled: bool,
 ) -> CommandResult<()> {
+    acp_set_session_autonomous_for_handle(app, session_id, enabled).await
+}
+
+pub(crate) async fn acp_set_session_autonomous_for_handle<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    session_id: String,
+    enabled: bool,
+) -> CommandResult<()> {
     expected_acp_command_result(
         "acp_set_session_autonomous",
         async {
@@ -334,12 +364,96 @@ pub async fn acp_set_session_autonomous(
             );
 
             let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
+            let canonical_emit =
+                prepare_autonomous_capability_emit(&app, &session_id, enabled).await?;
             session_policy.set_autonomous(&session_id, enabled);
+            publish_autonomous_capability_emit(&session_id, canonical_emit);
 
             Ok(())
         }
         .await,
     )
+}
+
+struct AutonomousCapabilityEmit {
+    event_hub: Arc<AcpEventHubState>,
+    runtime_registry: Arc<SessionGraphRuntimeRegistry>,
+    revision: SessionGraphRevision,
+    capabilities: SessionGraphCapabilities,
+}
+
+async fn prepare_autonomous_capability_emit<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    session_id: &str,
+    enabled: bool,
+) -> Result<AutonomousCapabilityEmit, SerializableAcpError> {
+    let event_hub = app
+        .try_state::<Arc<AcpEventHubState>>()
+        .map(|state| Arc::clone(state.inner()))
+        .ok_or_else(|| SerializableAcpError::InvalidState {
+            message: "Cannot emit autonomous capability update without event hub".to_string(),
+        })?;
+    let runtime_registry = app
+        .try_state::<Arc<SessionGraphRuntimeRegistry>>()
+        .map(|state| Arc::clone(state.inner()))
+        .ok_or_else(|| SerializableAcpError::InvalidState {
+            message: "Cannot emit autonomous capability update without runtime registry"
+                .to_string(),
+        })?;
+    let db = app
+        .try_state::<DbConn>()
+        .ok_or_else(|| SerializableAcpError::InvalidState {
+            message: "Cannot emit autonomous capability update without database".to_string(),
+        })?;
+    let transcript_projection_registry = app
+        .try_state::<Arc<TranscriptProjectionRegistry>>()
+        .map(|state| Arc::clone(state.inner()))
+        .ok_or_else(|| SerializableAcpError::InvalidState {
+            message: "Cannot emit autonomous capability update without transcript registry"
+                .to_string(),
+        })?;
+
+    let revision = load_live_session_graph_revision(
+        db.inner(),
+        transcript_projection_registry.as_ref(),
+        Some(runtime_registry.as_ref()),
+        session_id,
+    )
+    .await?;
+    let mut capabilities = runtime_registry
+        .snapshot_for_session(session_id)
+        .capabilities;
+    capabilities.autonomous_enabled = enabled;
+
+    Ok(AutonomousCapabilityEmit {
+        event_hub,
+        runtime_registry,
+        revision,
+        capabilities,
+    })
+}
+
+fn publish_autonomous_capability_emit(session_id: &str, emit: AutonomousCapabilityEmit) {
+    let graph_revision = emit.runtime_registry.replace_capabilities_with_graph_seed(
+        session_id,
+        emit.revision.graph_revision,
+        emit.capabilities.clone(),
+    );
+    let revision = SessionGraphRevision::new(
+        graph_revision,
+        emit.revision.transcript_revision,
+        emit.revision.last_event_seq,
+    );
+    publish_session_state_envelope(
+        &emit.event_hub,
+        emit.runtime_registry.build_capabilities_envelope(
+            session_id,
+            emit.capabilities,
+            revision,
+            None,
+            crate::acp::session_state_engine::CapabilityPreviewState::Canonical,
+        ),
+    );
 }
 
 #[tauri::command]
@@ -447,16 +561,14 @@ pub async fn acp_get_session_state(
             message_count: projection_session
                 .map(|session| session.message_count)
                 .unwrap_or(0),
+            lifecycle: runtime_snapshot.lifecycle.clone(),
+            capabilities: runtime_snapshot.capabilities.clone(),
             active_turn_failure: projection_session.and_then(|session| session.active_turn_failure.clone()),
             last_terminal_turn_id: projection_session
                 .and_then(|session| session.last_terminal_turn_id.clone()),
         };
 
-        Ok(build_snapshot_envelope(
-            &found,
-            runtime_snapshot.lifecycle,
-            runtime_snapshot.capabilities,
-        ))
+        Ok(build_snapshot_envelope(&found))
     }
     .await)
 }
@@ -932,7 +1044,7 @@ pub async fn acp_new_session(
         let session_open = if provider_uses_deferred_creation {
             None
         } else {
-            Some(build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?)
+            Some(build_new_session_open_result(&app, &result, &agent_id_enum).await?)
         };
 
         Ok(NewSessionResponse {
@@ -1298,6 +1410,84 @@ pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
     }
 }
 
+/// Emit a Detached lifecycle envelope for a client-driven disconnect.
+///
+/// Unlike `emit_lifecycle_event` (which is driven by a `SessionUpdate` flowing
+/// through the reducer), this path uses `transition_lifecycle_state` to set the
+/// canonical lifecycle directly to Detached(reason). It is the GOD-pure
+/// replacement for the former TS-side synthetic-detached projection workaround.
+pub(crate) async fn emit_detached_lifecycle<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    hub: &Option<Arc<AcpEventHubState>>,
+    session_id: &str,
+    reason: crate::acp::lifecycle::DetachedReason,
+) {
+    let Some(hub) = hub else {
+        tracing::warn!(session_id = %session_id, "Event hub unavailable, detached lifecycle dropped");
+        return;
+    };
+    let supervisor = app.state::<Arc<crate::acp::lifecycle::SessionSupervisor>>();
+    let projection_registry = app.state::<Arc<ProjectionRegistry>>();
+    let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+    let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
+    let db = app.state::<DbConn>();
+
+    if let Err(error) = supervisor
+        .inner()
+        .transition_lifecycle_state(
+            db.inner(),
+            projection_registry.inner(),
+            session_id,
+            crate::acp::lifecycle::LifecycleState::detached(reason),
+        )
+        .await
+    {
+        tracing::error!(
+            session_id = %session_id,
+            error = %error,
+            "Failed to persist supervisor-owned detached lifecycle transition"
+        );
+        return;
+    }
+
+    let revision = match load_live_session_graph_revision(
+        db.inner(),
+        transcript_projection_registry.inner(),
+        runtime_registry
+            .as_ref()
+            .map(|registry| registry.inner().as_ref()),
+        session_id,
+    )
+    .await
+    {
+        Ok(revision) => revision,
+        Err(error) => {
+            tracing::error!(
+                session_id = %session_id,
+                error = %error,
+                "Failed to determine session graph revision for detached envelope"
+            );
+            return;
+        }
+    };
+
+    if let Some(runtime_registry) = runtime_registry.as_ref() {
+        if let Some(envelope) = runtime_registry
+            .inner()
+            .build_snapshot_envelope_for_session(
+                db.inner(),
+                session_id,
+                revision,
+                projection_registry.inner(),
+                transcript_projection_registry.inner(),
+            )
+            .await
+        {
+            publish_session_state_envelope(hub, envelope);
+        }
+    }
+}
+
 async fn load_live_session_graph_revision(
     db: &DbConn,
     transcript_projection_registry: &TranscriptProjectionRegistry,
@@ -1618,6 +1808,7 @@ mod transcript_buffer_tests {
     use crate::acp::event_hub::{AcpEventEnvelope, AcpEventHubState};
     use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
+    use crate::acp::session_state_engine::selectors::SessionGraphActivity;
     use crate::acp::session_state_engine::SessionStateEnvelope;
     use serde_json::{json, to_value};
 
@@ -1643,6 +1834,10 @@ mod transcript_buffer_tests {
                             delta: SessionStateDelta {
                                 from_revision: SessionGraphRevision::new(6, 6, 6),
                                 to_revision: SessionGraphRevision::new(7, 7, 7),
+                                activity: SessionGraphActivity::idle(),
+                                turn_state: crate::acp::projections::SessionTurnState::Idle,
+                                active_turn_failure: None,
+                                last_terminal_turn_id: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -1667,6 +1862,10 @@ mod transcript_buffer_tests {
                             delta: SessionStateDelta {
                                 from_revision: SessionGraphRevision::new(7, 7, 7),
                                 to_revision: SessionGraphRevision::new(8, 8, 8),
+                                activity: SessionGraphActivity::idle(),
+                                turn_state: crate::acp::projections::SessionTurnState::Idle,
+                                active_turn_failure: None,
+                                last_terminal_turn_id: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -1798,8 +1997,7 @@ pub async fn acp_fork_session(
                 &cwd,
             )
             .await?;
-            let session_open =
-                build_new_session_open_result(&app, &result.session_id, &agent_id_enum).await?;
+            let session_open = build_new_session_open_result(&app, &result, &agent_id_enum).await?;
             Ok(NewSessionResponse {
                 creation_attempt_id: None,
                 deferred_creation: false,
@@ -1855,6 +2053,9 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
             let session_policy = app.state::<Arc<SessionPolicyRegistry>>();
             let projection_registry = app.state::<Arc<ProjectionRegistry>>();
             let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
+            let hub = app
+                .try_state::<Arc<AcpEventHubState>>()
+                .map(|state| state.inner().clone());
 
             let agent_id_str = session_registry
                 .get_agent_id(&session_id)
@@ -1878,6 +2079,18 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
             }
 
             session_policy.remove(&session_id);
+
+            // GOD: emit a Detached(ClosedByClient) lifecycle envelope so canonical
+            // readers see the disconnect through the canonical channel — no
+            // client-side synthesis. Must run before projection cleanup so the
+            // snapshot can still be built.
+            emit_detached_lifecycle(
+                &app,
+                &hub,
+                &session_id,
+                crate::acp::lifecycle::DetachedReason::ClosedByClient,
+            )
+            .await;
 
             // Clean up streaming accumulator state for this session
             crate::acp::streaming_accumulator::cleanup_session_streaming(&session_id);

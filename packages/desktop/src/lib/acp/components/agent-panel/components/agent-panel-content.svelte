@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
+import { mapCanonicalTurnStateToHotTurnState } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
 import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
@@ -18,6 +19,7 @@ let {
 	viewState,
 	sessionId,
 	sessionEntries = [],
+	sceneEntries,
 	sessionProjectPath,
 	allProjects = [],
 	scrollContainer = $bindable(null),
@@ -93,14 +95,8 @@ const sessionWorkProjection = $derived.by(() => {
 
 	return deriveLiveSessionWorkProjection({
 		runtimeState,
-		hotState: {
-			status: hotState?.status ?? "idle",
-			currentMode: hotState?.currentMode ?? null,
-			connectionError: hotState?.connectionError ?? null,
-			activeTurnFailure: hotState?.activeTurnFailure ?? null,
-			activity: hotState?.activity ?? null,
-		},
 		canonicalProjection,
+		currentModeId: sessionId ? (sessionStore?.getSessionCurrentModeId(sessionId) ?? null) : null,
 		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
@@ -111,7 +107,12 @@ const sessionWorkProjection = $derived.by(() => {
 	});
 });
 
-const turnState = $derived<TurnState>(turnStateProp ?? hotState?.turnState ?? "idle");
+const turnState = $derived<TurnState>(
+	turnStateProp ??
+		(canonicalProjection != null
+			? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState)
+			: (hotState?.turnState ?? "idle"))
+);
 const isStreaming = $derived(turnState === "streaming");
 const isWaitingForResponse = $derived(
 	isWaitingProp ?? sessionWorkProjection?.canonicalActivity === "awaiting_model"
@@ -190,6 +191,7 @@ export function scrollToTop() {
 					bind:this={virtualizedListRef}
 					{panelId}
 					entries={sessionEntries}
+					{sceneEntries}
 					{sessionId}
 					{turnState}
 					{isWaitingForResponse}

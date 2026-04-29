@@ -197,7 +197,7 @@ const capabilitiesAgentId = $derived.by(() => {
 
 // Get capabilities from session store when we have a session
 const sessionCapabilities = $derived(
-	props.sessionId ? sessionStore.getCapabilities(props.sessionId) : null
+	props.sessionId ? sessionStore.getSessionCapabilities(props.sessionId) : null
 );
 const capabilitiesAgent = $derived.by(() => {
 	if (!capabilitiesAgentId) {
@@ -232,7 +232,7 @@ const preconnectionCapabilities = $derived.by(() =>
 	})
 );
 
-// Get hot state for current mode/model
+// Local transient affordances only; capability truth comes from canonical accessors below.
 const sessionHotState = $derived(
 	props.sessionId ? sessionStore.getHotState(props.sessionId) : null
 );
@@ -241,6 +241,21 @@ const sessionRuntimeState = $derived(
 );
 const storeComposerState = $derived(
 	props.sessionId ? sessionStore.getStoreComposerState(props.sessionId) : null
+);
+const sessionCurrentModeId = $derived(
+	props.sessionId ? sessionStore.getSessionCurrentModeId(props.sessionId) : null
+);
+const sessionCurrentModelId = $derived(
+	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
+);
+const sessionAutonomousEnabled = $derived(
+	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : false
+);
+const sessionConfigOptions = $derived(
+	props.sessionId ? sessionStore.getSessionConfigOptions(props.sessionId) : []
+);
+const sessionAvailableCommands = $derived(
+	props.sessionId ? sessionStore.getSessionAvailableCommands(props.sessionId) : []
 );
 
 let previousComposerBindSessionId: string | null = null;
@@ -298,7 +313,7 @@ const effectiveComposerProvisionalModelId = $derived(
 
 const effectiveCurrentModeId = $derived.by(() =>
 	resolveToolbarModeId({
-		liveCurrentModeId: sessionHotState?.currentMode?.id ?? null,
+		liveCurrentModeId: sessionCurrentModeId,
 		provisionalModeId: effectiveComposerProvisionalModeId,
 		visibleModes,
 	})
@@ -327,7 +342,7 @@ const autonomousToggleActive = $derived.by(() => {
 		if (cs && cs.provisionalAutonomousEnabled !== null) {
 			return cs.provisionalAutonomousEnabled;
 		}
-		return sessionHotState ? sessionHotState.autonomousEnabled : false;
+		return sessionAutonomousEnabled;
 	}
 	return panelProvisionalAutonomousEnabled;
 });
@@ -373,7 +388,7 @@ const preferredDefaultModelId = $derived.by(() => {
 
 const effectiveCurrentModelId = $derived.by(() =>
 	resolveToolbarModelId({
-		liveCurrentModelId: sessionHotState?.currentModel?.id ?? null,
+		liveCurrentModelId: sessionCurrentModelId,
 		provisionalModelId: effectiveComposerProvisionalModelId,
 		availableModels: effectiveAvailableModels,
 		preferredDefaultModelId,
@@ -381,11 +396,11 @@ const effectiveCurrentModelId = $derived.by(() =>
 );
 
 const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
-	if (!sessionHotState || !sessionHotState.configOptions) {
+	if (sessionConfigOptions.length === 0) {
 		return [];
 	}
 
-	return getToolbarConfigOptions(sessionHotState.configOptions, effectiveAvailableModels).map(
+	return getToolbarConfigOptions(sessionConfigOptions, effectiveAvailableModels).map(
 		(option): AgentInputConfigOption => {
 			const raw = option.currentValue;
 			const currentValue: string | number | boolean | null =
@@ -416,8 +431,8 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 });
 
 const liveAvailableCommands = $derived.by(() => {
-	if (sessionHotState?.availableCommands) {
-		return sessionHotState.availableCommands;
+	if (sessionAvailableCommands.length > 0) {
+		return sessionAvailableCommands;
 	}
 
 	return [];
@@ -530,14 +545,14 @@ $effect(() => {
 	const resolution = resolvePendingToolbarSelections({
 		provisionalModeId: provMode,
 		provisionalModelId: provModel,
-		liveCurrentModeId: sessionHotState?.currentMode?.id ?? null,
-		liveCurrentModelId: sessionHotState?.currentModel?.id ?? null,
+		liveCurrentModeId: sessionCurrentModeId,
+		liveCurrentModelId: sessionCurrentModelId,
 		availableModes: visibleModes,
 		availableModels: effectiveAvailableModels,
 	});
 
-	const liveModeId = sessionHotState?.currentMode?.id ?? null;
-	const liveModelId = sessionHotState?.currentModel?.id ?? null;
+	const liveModeId = sessionCurrentModeId;
+	const liveModelId = sessionCurrentModelId;
 
 	if (!resolution.modeIdToApply && !resolution.modelIdToApply) {
 		return;
@@ -547,7 +562,7 @@ $effect(() => {
 
 	const run = async () => {
 		const autonomousForBegin =
-			cs?.provisionalAutonomousEnabled ?? sessionHotState?.autonomousEnabled ?? false;
+			cs?.provisionalAutonomousEnabled ?? sessionAutonomousEnabled;
 		await sessionStore.runComposerConfigOperation(
 			sessionId,
 			{

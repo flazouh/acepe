@@ -135,6 +135,7 @@ function createScene(params: {
 					searchFiles: params.searchFiles,
 					searchResultCount: params.searchFiles.length,
 					status: "done",
+					presentationState: "resolved",
 				},
 				{
 					id: `${params.panelId}-tool-edit`,
@@ -142,7 +143,11 @@ function createScene(params: {
 					kind: "edit",
 					title: "Edit",
 					filePath: params.editFilePath,
-					status: "done",
+					status: params.isStreaming ? "degraded" : "done",
+					presentationState: params.isStreaming ? "degraded_operation" : "resolved",
+					degradedReason: params.isStreaming
+						? "No canonical operation was found for this restored transcript tool row."
+						: null,
 				},
 				{
 					id: `${params.panelId}-assistant`,

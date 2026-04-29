@@ -1,5 +1,8 @@
+import type { SessionTurnState } from "../../services/acp-types.js";
 import type { TurnState } from "../store/types.js";
 import type { ToolCall } from "../types/tool-call.js";
+
+export type ToolStatusTurnState = TurnState | SessionTurnState;
 
 /**
  * Comprehensive tool status result
@@ -21,7 +24,14 @@ export interface ToolStatusResult {
  * @param turnState - Current turn state (idle, streaming, completed, interrupted, error)
  * @returns Comprehensive status flags
  */
-export function getToolStatus(toolCall: ToolCall, turnState?: TurnState): ToolStatusResult {
+function isStreamingTurnState(turnState: ToolStatusTurnState | undefined): boolean {
+	return turnState === "streaming" || turnState === "Running";
+}
+
+export function getToolStatus(
+	toolCall: ToolCall,
+	turnState?: ToolStatusTurnState
+): ToolStatusResult {
 	const status = toolCall.status;
 
 	// Error state: explicitly failed
@@ -36,12 +46,12 @@ export function getToolStatus(toolCall: ToolCall, turnState?: TurnState): ToolSt
 
 	// Input streaming: tool arguments are still being streamed
 	// In Acepe, this is when status is "pending" and we're actively streaming
-	const isInputStreaming = status === "pending" && turnState === "streaming";
+	const isInputStreaming = status === "pending" && isStreamingTurnState(turnState);
 
 	// Interrupted: tool was pending but the turn is no longer actively streaming.
 	// This covers: explicit cancel (turnState "interrupted"), turn completed without
 	// the tool finishing ("completed"), session idle after cancel ("idle"), or error.
-	const isInterrupted = basePending && turnState !== undefined && turnState !== "streaming";
+	const isInterrupted = basePending && turnState !== undefined && !isStreamingTurnState(turnState);
 
 	// Pending: tool is still in progress AND the turn is actively streaming.
 	// Once the turn ends (completed, interrupted, idle, error), pending tools

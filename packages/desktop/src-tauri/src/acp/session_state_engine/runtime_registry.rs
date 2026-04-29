@@ -9,10 +9,10 @@ use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::{
-    build_delta_envelope, CapabilityPreviewState, SessionGraphRevision, SessionStateEnvelope,
-    SessionStatePayload,
+    build_delta_envelope, CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields,
+    SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
 };
-use crate::acp::session_update::SessionUpdate;
+use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptProjectionRegistry};
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
@@ -189,16 +189,88 @@ impl SessionGraphRuntimeRegistry {
             ));
         }
 
+        if let SessionUpdate::Plan { plan, .. } = request.update {
+            return Some(build_live_session_state_plan_envelope(
+                request.session_id,
+                plan.clone(),
+                request.revision,
+            ));
+        }
+
+        if let Some(tool_call_id) = tool_call_id_for_operation_patch(request.update) {
+            let transcript_operations = request
+                .transcript_delta
+                .map(|delta| delta.operations.clone())
+                .unwrap_or_default();
+            let is_transcript_bearing = !transcript_operations.is_empty();
+            let current_frontier =
+                current_frontier_from_previous_revision(request.previous_revision);
+
+            return match decide_frontier_transition(
+                current_frontier,
+                request.revision,
+                0,
+                is_transcript_bearing,
+            ) {
+                SessionFrontierDecision::RequireSnapshot { .. } => {
+                    self.build_snapshot_envelope(
+                        request.db,
+                        request.session_id,
+                        request.revision,
+                        request.projection_registry,
+                        request.transcript_projection_registry,
+                    )
+                    .await
+                }
+                SessionFrontierDecision::AcceptDelta {
+                    from_revision,
+                    to_revision,
+                } => {
+                    let Some(operation) = request
+                        .projection_registry
+                        .operation_for_tool_call(request.session_id, tool_call_id)
+                    else {
+                        return self
+                            .build_snapshot_envelope(
+                                request.db,
+                                request.session_id,
+                                request.revision,
+                                request.projection_registry,
+                                request.transcript_projection_registry,
+                            )
+                            .await;
+                    };
+                    let projection = self.delta_projection_for_session(
+                        request.session_id,
+                        request.projection_registry,
+                    );
+                    let mut changed_fields = vec![
+                        "operations".to_string(),
+                        "activity".to_string(),
+                        "turnState".to_string(),
+                        "activeTurnFailure".to_string(),
+                        "lastTerminalTurnId".to_string(),
+                    ];
+                    if is_transcript_bearing {
+                        changed_fields.push("transcriptSnapshot".to_string());
+                    }
+                    Some(build_delta_envelope(DeltaEnvelopeParts {
+                        session_id: request.session_id,
+                        from_revision,
+                        to_revision,
+                        projection,
+                        transcript_operations,
+                        operation_patches: vec![operation],
+                        interaction_patches: Vec::new(),
+                        changed_fields,
+                    }))
+                }
+            };
+        }
+
         let delta = request.transcript_delta?;
         let is_transcript_bearing = !delta.operations.is_empty();
-        let current_frontier = if request.previous_revision.graph_revision == 0
-            && request.previous_revision.transcript_revision == 0
-            && request.previous_revision.last_event_seq == 0
-        {
-            None
-        } else {
-            Some(request.previous_revision)
-        };
+        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
 
         match decide_frontier_transition(
             current_frontier,
@@ -223,6 +295,7 @@ impl SessionGraphRuntimeRegistry {
                 delta,
                 from_revision,
                 to_revision,
+                self.delta_projection_for_session(request.session_id, request.projection_registry),
             )),
             SessionFrontierDecision::AcceptDelta { .. } => None,
         }
@@ -254,10 +327,41 @@ impl SessionGraphRuntimeRegistry {
         projection_registry: &ProjectionRegistry,
         transcript_projection_registry: &TranscriptProjectionRegistry,
     ) -> Option<SessionStateEnvelope> {
-        let metadata = SessionMetadataRepository::get_by_id(db, session_id)
+        let metadata = match SessionMetadataRepository::get_by_id(db, session_id)
             .await
             .ok()
-            .flatten()?;
+            .flatten()
+        {
+            Some(metadata) => metadata,
+            None => {
+                // No persisted metadata yet (e.g. pending-creation session whose
+                // creation failed before promotion to DB). We can still emit a
+                // canonical Lifecycle envelope so the frontend learns about the
+                // authoritative lifecycle transition (e.g. Failed) without
+                // requiring client-side synthesis. Skip when the runtime
+                // lifecycle hasn't departed from its idle/reserved default —
+                // there's nothing for the client to learn yet.
+                let runtime_snapshot = self.snapshot_for_session(session_id);
+                use crate::acp::lifecycle::LifecycleStatus;
+                if matches!(
+                    runtime_snapshot.lifecycle.status,
+                    LifecycleStatus::Reserved | LifecycleStatus::Ready
+                ) && runtime_snapshot.lifecycle.failure_reason.is_none()
+                    && runtime_snapshot.lifecycle.detached_reason.is_none()
+                {
+                    return None;
+                }
+                return Some(SessionStateEnvelope {
+                    session_id: session_id.to_string(),
+                    graph_revision: revision.graph_revision,
+                    last_event_seq: revision.last_event_seq,
+                    payload: SessionStatePayload::Lifecycle {
+                        lifecycle: runtime_snapshot.lifecycle,
+                        revision,
+                    },
+                });
+            }
+        };
         let agent_id = metadata
             .agent_id_enum()
             .unwrap_or(CanonicalAgentId::parse(&metadata.agent_id));
@@ -310,6 +414,31 @@ impl SessionGraphRuntimeRegistry {
             },
         })
     }
+
+    fn delta_projection_for_session(
+        &self,
+        session_id: &str,
+        projection_registry: &ProjectionRegistry,
+    ) -> DeltaSessionProjectionFields {
+        let projection_snapshot = projection_registry.session_projection(session_id);
+        let session_snapshot = projection_snapshot
+            .session
+            .unwrap_or_else(|| SessionSnapshot::new(session_id.to_string(), None));
+        let runtime_snapshot = self.snapshot_for_session(session_id);
+        let activity = select_session_graph_activity(
+            &runtime_snapshot.lifecycle,
+            &session_snapshot.turn_state,
+            &projection_snapshot.operations,
+            &projection_snapshot.interactions,
+            session_snapshot.active_turn_failure.as_ref(),
+        );
+        DeltaSessionProjectionFields {
+            activity,
+            turn_state: session_snapshot.turn_state,
+            active_turn_failure: session_snapshot.active_turn_failure,
+            last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
+        }
+    }
 }
 
 impl SessionGraphRuntimeSnapshot {
@@ -341,7 +470,7 @@ impl SessionGraphRuntimeSnapshot {
                     models: Some(models.clone()),
                     modes: Some(modes.clone()),
                     available_commands: available_commands.clone(),
-                    config_options: config_options.clone(),
+                    config_options: sanitize_config_options_for_canonical(config_options.clone()),
                     autonomous_enabled: *autonomous_enabled,
                 };
             }
@@ -349,6 +478,23 @@ impl SessionGraphRuntimeSnapshot {
                 self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
                     LifecycleState::failed(FailureReason::ResumeFailed, Some(error.clone())),
                 );
+            }
+            SessionUpdate::TurnError { error, .. } => {
+                if matches!(
+                    self.lifecycle.status,
+                    crate::acp::lifecycle::LifecycleStatus::Reserved
+                        | crate::acp::lifecycle::LifecycleStatus::Activating
+                ) {
+                    let message = match error {
+                        crate::acp::session_update::TurnErrorData::Legacy(msg) => msg.clone(),
+                        crate::acp::session_update::TurnErrorData::Structured(info) => {
+                            info.message.clone()
+                        }
+                    };
+                    self.lifecycle = SessionGraphLifecycle::from_lifecycle_state(
+                        LifecycleState::failed(FailureReason::ActivationFailed, Some(message)),
+                    );
+                }
             }
             SessionUpdate::AvailableCommandsUpdate { update, .. } => {
                 self.capabilities.available_commands = update.available_commands.clone();
@@ -364,7 +510,8 @@ impl SessionGraphRuntimeSnapshot {
                 }
             }
             SessionUpdate::ConfigOptionUpdate { update, .. } => {
-                self.capabilities.config_options = update.config_options.clone();
+                self.capabilities.config_options =
+                    sanitize_config_options_for_canonical(update.config_options.clone());
             }
             _ => {}
         }
@@ -399,16 +546,45 @@ fn build_live_session_state_delta_envelope(
     delta: &TranscriptDelta,
     from_revision: SessionGraphRevision,
     to_revision: SessionGraphRevision,
+    projection: DeltaSessionProjectionFields,
 ) -> SessionStateEnvelope {
-    build_delta_envelope(
-        &delta.session_id,
+    build_delta_envelope(DeltaEnvelopeParts {
+        session_id: &delta.session_id,
         from_revision,
         to_revision,
-        delta.operations.clone(),
-        Vec::new(),
-        Vec::new(),
-        vec!["transcriptSnapshot".to_string()],
-    )
+        projection,
+        transcript_operations: delta.operations.clone(),
+        operation_patches: Vec::new(),
+        interaction_patches: Vec::new(),
+        changed_fields: vec![
+            "transcriptSnapshot".to_string(),
+            "activity".to_string(),
+            "turnState".to_string(),
+            "activeTurnFailure".to_string(),
+            "lastTerminalTurnId".to_string(),
+        ],
+    })
+}
+
+fn current_frontier_from_previous_revision(
+    previous_revision: SessionGraphRevision,
+) -> Option<SessionGraphRevision> {
+    if previous_revision.graph_revision == 0
+        && previous_revision.transcript_revision == 0
+        && previous_revision.last_event_seq == 0
+    {
+        None
+    } else {
+        Some(previous_revision)
+    }
+}
+
+fn tool_call_id_for_operation_patch(update: &SessionUpdate) -> Option<&str> {
+    match update {
+        SessionUpdate::ToolCall { tool_call, .. } => Some(tool_call.id.as_str()),
+        SessionUpdate::ToolCallUpdate { update, .. } => Some(update.tool_call_id.as_str()),
+        _ => None,
+    }
 }
 
 fn build_live_session_state_telemetry_envelope(
@@ -424,6 +600,19 @@ fn build_live_session_state_telemetry_envelope(
             telemetry,
             revision,
         },
+    }
+}
+
+fn build_live_session_state_plan_envelope(
+    session_id: &str,
+    plan: crate::acp::session_update::PlanData,
+    revision: SessionGraphRevision,
+) -> SessionStateEnvelope {
+    SessionStateEnvelope {
+        session_id: session_id.to_string(),
+        graph_revision: revision.graph_revision,
+        last_event_seq: revision.last_event_seq,
+        payload: SessionStatePayload::Plan { plan, revision },
     }
 }
 
@@ -459,9 +648,7 @@ fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
     matches!(
         update,
-        SessionUpdate::ToolCall { .. }
-            | SessionUpdate::ToolCallUpdate { .. }
-            | SessionUpdate::PermissionRequest { .. }
+        SessionUpdate::PermissionRequest { .. }
             | SessionUpdate::QuestionRequest { .. }
             | SessionUpdate::TurnComplete { .. }
             | SessionUpdate::TurnError { .. }
@@ -475,20 +662,83 @@ mod tests {
     use super::{
         build_live_session_state_capabilities_envelope, build_live_session_state_delta_envelope,
         build_live_session_state_telemetry_envelope, CapabilityPreviewState,
-        SessionGraphRuntimeRegistry,
+        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
     };
     use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::lifecycle::LifecycleStatus;
-    use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
-    use crate::acp::session_state_engine::SessionGraphRevision;
+    use crate::acp::projections::ProjectionRegistry;
+    use crate::acp::session_state_engine::selectors::{
+        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
+    };
     use crate::acp::session_state_engine::SessionStatePayload;
+    use crate::acp::session_state_engine::{DeltaSessionProjectionFields, SessionGraphRevision};
     use crate::acp::session_update::{
         AvailableCommandsData, ConfigOptionData, CurrentModeData, SessionUpdate,
         UsageTelemetryData, UsageTelemetryTokens,
     };
-    use crate::acp::transcript_projection::{
-        TranscriptDelta, TranscriptDeltaOperation, TranscriptSnapshot,
+    use crate::acp::session_update::{
+        ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
     };
+    use crate::acp::transcript_projection::{
+        TranscriptDelta, TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSnapshot,
+    };
+    use crate::acp::types::CanonicalAgentId;
+    use crate::db::repository::SessionMetadataRepository;
+    use sea_orm::{Database, DbConn};
+    use sea_orm_migration::MigratorTrait;
+
+    async fn setup_test_db() -> DbConn {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect test database");
+
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("run migrations");
+
+        db
+    }
+
+    async fn insert_session_metadata(db: &DbConn, session_id: &str) {
+        SessionMetadataRepository::upsert(
+            db,
+            session_id.to_string(),
+            "Session".to_string(),
+            1,
+            "/workspace/a".to_string(),
+            CanonicalAgentId::Cursor.as_str().to_string(),
+            "__session_registry__/session-1".to_string(),
+            0,
+            0,
+        )
+        .await
+        .expect("insert session metadata");
+    }
+
+    fn create_execute_tool_call(id: &str, command: &str, status: ToolCallStatus) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: "bash".to_string(),
+            arguments: ToolArguments::Execute {
+                command: Some(command.to_string()),
+            },
+            raw_input: None,
+            status,
+            result: None,
+            kind: Some(ToolKind::Execute),
+            title: Some("Run command".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
 
     #[test]
     fn registry_tracks_connection_and_capability_updates() {
@@ -599,14 +849,237 @@ mod tests {
         let from_revision = SessionGraphRevision::new(13, 7, 20);
         let to_revision = SessionGraphRevision::new(14, 8, 21);
 
-        let envelope = build_live_session_state_delta_envelope(&delta, from_revision, to_revision);
+        let envelope = build_live_session_state_delta_envelope(
+            &delta,
+            from_revision,
+            to_revision,
+            DeltaSessionProjectionFields {
+                activity: SessionGraphActivity::idle(),
+                turn_state: crate::acp::projections::SessionTurnState::Idle,
+                active_turn_failure: None,
+                last_terminal_turn_id: None,
+            },
+        );
 
         match envelope.payload {
             SessionStatePayload::Delta { delta } => {
                 assert_eq!(delta.from_revision, from_revision);
                 assert_eq!(delta.to_revision, to_revision);
+                assert_eq!(delta.activity, SessionGraphActivity::idle());
+                assert_eq!(
+                    delta.turn_state,
+                    crate::acp::projections::SessionTurnState::Idle
+                );
             }
             other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_call_emits_bounded_delta_with_operation_patch_and_activity() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let update = SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call("tool-1", "bun test", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &update);
+        runtime_registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ConnectionComplete {
+                session_id: "session-1".to_string(),
+                attempt_id: 1,
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: Vec::new(),
+                config_options: Vec::new(),
+                autonomous_enabled: false,
+            },
+        );
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(6, 6, 6),
+                revision: SessionGraphRevision::new(7, 6, 7),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("tool call delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.from_revision, SessionGraphRevision::new(6, 6, 6));
+                assert_eq!(delta.to_revision, SessionGraphRevision::new(7, 6, 7));
+                assert_eq!(delta.transcript_operations.len(), 0);
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.operation_patches[0].tool_call_id, "tool-1");
+                assert_eq!(
+                    delta.activity.kind,
+                    SessionGraphActivityKind::RunningOperation
+                );
+                assert_eq!(
+                    delta.turn_state,
+                    crate::acp::projections::SessionTurnState::Running
+                );
+                assert_eq!(delta.activity.active_operation_count, 1);
+                assert_eq!(
+                    delta.changed_fields,
+                    vec![
+                        "operations".to_string(),
+                        "activity".to_string(),
+                        "turnState".to_string(),
+                        "activeTurnFailure".to_string(),
+                        "lastTerminalTurnId".to_string(),
+                    ]
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_call_update_emits_bounded_delta_with_updated_operation_patch() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let original_tool_call = SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call("tool-1", "bun test", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        };
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "tool-1".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(serde_json::json!({ "ok": true })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &original_tool_call);
+        projection_registry.apply_session_update("session-1", &update);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(7, 6, 7),
+                revision: SessionGraphRevision::new(8, 6, 8),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("tool call update delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.operation_patches[0].tool_call_id, "tool-1");
+                assert_eq!(
+                    delta.operation_patches[0].provider_status,
+                    ToolCallStatus::Completed
+                );
+                assert_eq!(delta.activity.kind, SessionGraphActivityKind::AwaitingModel);
+                assert_eq!(
+                    delta.turn_state,
+                    crate::acp::projections::SessionTurnState::Running
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn tool_call_delta_uses_snapshot_when_frontier_requires_repair() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let update = SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call("tool-1", "bun test", ToolCallStatus::InProgress),
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &update);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(0, 0, 0),
+                revision: SessionGraphRevision::new(7, 6, 7),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("snapshot repair envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(graph.revision, SessionGraphRevision::new(7, 6, 7));
+                assert_eq!(graph.operations.len(), 1);
+            }
+            other => panic!("expected snapshot payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_tool_operation_projection_falls_back_to_snapshot() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "missing-tool".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(7, 6, 7),
+                revision: SessionGraphRevision::new(8, 6, 8),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("snapshot fallback envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(graph.revision, SessionGraphRevision::new(8, 6, 8));
+                assert!(graph.operations.is_empty());
+            }
+            other => panic!("expected snapshot payload, got {:?}", other),
         }
     }
 
