@@ -462,8 +462,14 @@ function graphWithPatches(input: {
 		sourcePath: input.graph.sourcePath ?? null,
 		revision: input.revision,
 		transcriptSnapshot: input.graph.transcriptSnapshot,
-		operations: mergeOperationSnapshots(input.graph.operations, input.operationPatches),
-		interactions: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
+		operations:
+			input.operationPatches.length === 0
+				? input.graph.operations
+				: mergeOperationSnapshots(input.graph.operations, input.operationPatches),
+		interactions:
+			input.interactionPatches.length === 0
+				? input.graph.interactions
+				: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
 		turnState: input.turnState,
 		messageCount: input.graph.messageCount,
 		activeTurnFailure: input.activeTurnFailure,

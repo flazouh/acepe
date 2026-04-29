@@ -748,6 +748,77 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
+	it("keeps operation and interaction arrays stable for graph-only terminal turn deltas", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("ready"),
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-1",
+				blockingInteractionId: null,
+			},
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			operations: [
+				createOperationSnapshot({
+					id: "op-1",
+					tool_call_id: "tool-1",
+					operation_state: "completed",
+					provider_status: "completed",
+				}),
+			],
+			interactions: [createPermissionInteractionSnapshot()],
+		});
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+		const beforeGraph = store.getSessionStateGraph("session-1");
+		if (beforeGraph === null) {
+			throw new Error("Expected graph before terminal delta");
+		}
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: createIdleActivity(),
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity", "turnState", "activeTurnFailure", "lastTerminalTurnId"],
+				},
+			},
+		});
+		const afterGraph = store.getSessionStateGraph("session-1");
+
+		expect(afterGraph?.operations).toBe(beforeGraph.operations);
+		expect(afterGraph?.interactions).toBe(beforeGraph.interactions);
+		expect(afterGraph?.turnState).toBe("Completed");
+		expect(afterGraph?.lastTerminalTurnId).toBe("turn-8");
+	});
+
 	it("hydrates canonical failed-turn state from the graph snapshot", () => {
 		const store = new SessionStore();
 
@@ -766,18 +837,16 @@ describe("SessionStore.applySessionStateGraph", () => {
 				message: "Usage limit reached",
 			},
 		});
-		expect(store.getHotState("session-1")).toMatchObject({
-			turnState: "error",
-			connectionError: null,
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "Usage limit reached",
-				code: "429",
-				kind: "recoverable",
-				source: "process",
-			},
-			lastTerminalTurnId: "turn-1",
+		expect(store.getSessionTurnState("session-1")).toBe("Failed");
+		expect(store.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+			turnId: "turn-1",
+			message: "Usage limit reached",
+			code: "429",
+			kind: "recoverable",
+			source: "process",
 		});
+		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
 
 	it("clears hydrated failed-turn state when the projection no longer has one", () => {
@@ -792,11 +861,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			turnState: "completed",
-			activeTurnFailure: null,
-			lastTerminalTurnId: "turn-1",
-		});
+		expect(store.getSessionTurnState("session-1")).toBe("Completed");
+		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
 
 	it("defaults missing projected failure source to unknown during hydration", () => {
@@ -808,15 +875,14 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateGraph(graph);
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			activeTurnFailure: {
-				source: "unknown",
-			},
+		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+			source: "unknown",
 		});
 	});
 
 	it("hydrates lifecycle and capabilities from the graph snapshot", () => {
 		const store = new SessionStore();
+		addColdSession(store);
 
 		store.applySessionStateGraph(
 			createSessionStateGraph({
@@ -861,34 +927,23 @@ describe("SessionStore.applySessionStateGraph", () => {
 		);
 
 		expect(store.getHotState("session-1")).toMatchObject({
-			status: "ready",
-			isConnected: true,
 			acpSessionId: "session-1",
-			turnState: "streaming",
-			currentMode: {
-				id: "plan",
-				name: "Plan",
-			},
-			currentModel: {
-				id: "gpt-5",
-				name: "GPT-5",
-			},
-			availableCommands: [
-				{
-					name: "run",
-					description: "Run a command",
-				},
-			],
-			configOptions: [
-				{
-					id: "approval-policy",
-					name: "approval-policy",
-					category: "general",
-					type: "string",
-					currentValue: "always",
-				},
-			],
 		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionCanSend("session-1")).toBe(true);
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.getSessionConfigOptions("session-1")).toEqual([
+			{
+				id: "approval-policy",
+				name: "approval-policy",
+				category: "general",
+				type: "string",
+				currentValue: "always",
+				options: [],
+			},
+		]);
 		expect(store.getSessionCapabilities("session-1")).toMatchObject({
 			availableModes: [
 				{
@@ -1260,10 +1315,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		expect(store.getOperationStore().getSessionOperations("session-1")).toHaveLength(1);
 		expect(store.getHotState("session-1")).toMatchObject({
-			status: "ready",
-			isConnected: true,
 			acpSessionId: "session-1",
 		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
 
 	it("does not let a non-advancing snapshot erase restored transcript history", () => {
@@ -1329,10 +1384,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		expect(store.getHotState("session-1")).toMatchObject({
-			status: "ready",
-			isConnected: true,
-		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionCanSend("session-1")).toBe(true);
 		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot.entries).toEqual([
 			{
 				entryId: "assistant-history-7",
@@ -1435,10 +1488,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				description: undefined,
 			},
 		]);
-		expect(store.getHotState("session-1")).toMatchObject({
-			activity: patchActivity,
-			turnState: "streaming",
-		});
+		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
 	});
 
 	it("materializes live operation patches without replacing the transcript snapshot", () => {
@@ -1614,11 +1665,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			status: "error",
-			isConnected: false,
-			connectionError: "Connection dropped",
-		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
+		expect(store.getSessionCanSend("session-1")).toBe(false);
+		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
 		expect(store.getSessionState("session-1")).toMatchObject({
 			connection: "error",
 		});
@@ -1640,14 +1689,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			activity: {
-				kind: "running_operation",
-				activeOperationCount: 2,
-				activeSubagentCount: 1,
-				dominantOperationId: "op-2",
-				blockingInteractionId: null,
-			},
+		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual({
+			kind: "running_operation",
+			activeOperationCount: 2,
+			activeSubagentCount: 1,
+			dominantOperationId: "op-2",
+			blockingInteractionId: null,
 		});
 	});
 
@@ -1681,14 +1728,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			activity: {
-				kind: "error",
-				activeOperationCount: 2,
-				activeSubagentCount: 1,
-				dominantOperationId: "op-2",
-				blockingInteractionId: null,
-			},
+		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual({
+			kind: "error",
+			activeOperationCount: 2,
+			activeSubagentCount: 1,
+			dominantOperationId: "op-2",
+			blockingInteractionId: null,
 		});
 	});
 
@@ -1774,6 +1819,13 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 	it("hydrates capabilities envelopes into capability and hot-state selectors", () => {
 		const store = new SessionStore();
 		addColdSession(store);
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				activeTurnFailure: null,
+				turnState: "Idle",
+				lifecycle: createGraphLifecycle("ready"),
+			})
+		);
 
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
@@ -1847,32 +1899,25 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				},
 			],
 		});
-		expect(store.getHotState("session-1")).toMatchObject({
-			currentMode: {
-				id: "build",
-				name: "Build",
+		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("claude-sonnet-4.6");
+		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+			{
+				name: "edit",
+				description: "Edit files",
 			},
-			currentModel: {
-				id: "claude-sonnet-4.6",
-				name: "Claude Sonnet 4.6",
+		]);
+		expect(store.getSessionConfigOptions("session-1")).toEqual([
+			{
+				id: "sandbox",
+				name: "sandbox",
+				category: "runtime",
+				type: "string",
+				currentValue: "workspace-write",
+				options: [],
 			},
-			availableCommands: [
-				{
-					name: "edit",
-					description: "Edit files",
-				},
-			],
-			configOptions: [
-				{
-					id: "sandbox",
-					name: "sandbox",
-					category: "runtime",
-					type: "string",
-					currentValue: "workspace-write",
-				},
-			],
-			autonomousEnabled: true,
-		});
+		]);
+		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
 	});
 
 	it("hydrates telemetry envelopes into usage telemetry state", () => {
@@ -2084,10 +2129,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			"assistant-9",
 			"assistant-10",
 		]);
-		expect(store.getHotState("session-1")).toMatchObject({
-			status: "ready",
-			isConnected: true,
-		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
 
 	it("preserves reopened transcript history across a new user turn and canonical assistant reply", async () => {
@@ -2526,10 +2569,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		expect(store.getHotState("session-1")).toMatchObject({
-			status: "error",
-			connectionError: "Provider disconnected",
-			isConnected: false,
-		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
+		expect(store.getSessionCanSend("session-1")).toBe(false);
+		expect(store.getSessionConnectionError("session-1")).toBe("Provider disconnected");
 	});
 });
