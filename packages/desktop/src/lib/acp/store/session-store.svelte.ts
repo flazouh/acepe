@@ -367,13 +367,17 @@ function deriveOperationSnapshotState(operation: OperationSnapshot): OperationSt
 }
 
 function isTerminalOperationSnapshotState(state: OperationState): boolean {
-	return (
-		state === "completed" ||
-		state === "failed" ||
-		state === "cancelled" ||
-		state === "degraded" ||
-		state === "blocked"
-	);
+	switch (state) {
+		case "completed":
+		case "failed":
+		case "cancelled":
+		case "degraded":
+			return true;
+		case "pending":
+		case "running":
+		case "blocked":
+			return false;
+	}
 }
 
 function mergeOperationSnapshots(

@@ -201,7 +201,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 
 ## Implementation Units
 
-- [ ] **Unit 0: Make blocked state production-reachable from Rust**
+- [x] **Unit 0: Make blocked state production-reachable from Rust**
 
 **Goal:** Ensure real permission/question/approval blockers emit canonical `OperationState::Blocked`, and resolution emits the next canonical operation state instead of relying on raw ToolCall updates.
 
@@ -245,7 +245,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 - `OperationState::Blocked` is reachable from production Rust code, not only tests or synthetic patches.
 - The first canonical `blocked -> running` path exists before TS terminal guards are loosened in Unit 1.
 
-- [ ] **Unit 1: Freeze the operation lifecycle contract**
+- [x] **Unit 1: Freeze the operation lifecycle contract**
 
 **Goal:** Make `blocked` non-terminal everywhere TS applies or merges canonical operation snapshots, and document the corrected lifecycle semantics.
 

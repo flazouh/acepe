@@ -2,10 +2,11 @@ use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
 use crate::acp::event_hub::AcpEventHubState;
-use crate::acp::projections::ProjectionRegistry;
+use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
 use crate::acp::session_state_engine::{
-    LiveSessionStateEnvelopeRequest, SessionGraphRevision, SessionGraphRuntimeRegistry,
-    SessionStateEnvelope,
+    build_delta_envelope, select_session_graph_activity, DeltaEnvelopeParts,
+    DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest, SessionGraphRevision,
+    SessionGraphRuntimeRegistry, SessionStateEnvelope,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
@@ -346,6 +347,8 @@ pub struct AcpUiEventDispatcher {
     tx: Option<mpsc::UnboundedSender<AcpUiEvent>>,
     domain_event_seq: Arc<AtomicI64>,
     projection_registry: Arc<ProjectionRegistry>,
+    runtime_graph_registry: Arc<SessionGraphRuntimeRegistry>,
+    transcript_projection_registry: Arc<TranscriptProjectionRegistry>,
     #[cfg(test)]
     test_sink: Option<Arc<std::sync::Mutex<Vec<AcpUiEvent>>>>,
 }
@@ -358,6 +361,8 @@ impl AcpUiEventDispatcher {
                 tx: None,
                 domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry: Arc::new(ProjectionRegistry::new()),
+                runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
+                transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
                 #[cfg(test)]
                 test_sink: None,
             };
@@ -380,6 +385,8 @@ impl AcpUiEventDispatcher {
                 tx: None,
                 domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
                 #[cfg(test)]
                 test_sink: None,
             };
@@ -396,7 +403,7 @@ impl AcpUiEventDispatcher {
             policy,
             rx,
             projection_registry.clone(),
-            runtime_graph_registry,
+            runtime_graph_registry.clone(),
             transcript_projection_registry.clone(),
         ));
 
@@ -404,6 +411,8 @@ impl AcpUiEventDispatcher {
             tx: Some(tx),
             domain_event_seq: Arc::new(AtomicI64::new(0)),
             projection_registry,
+            runtime_graph_registry,
+            transcript_projection_registry,
             #[cfg(test)]
             test_sink: None,
         }
@@ -426,6 +435,8 @@ impl AcpUiEventDispatcher {
                 tx: None,
                 domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry,
+                runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
+                transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
                 test_sink: Some(Arc::clone(&sink)),
             },
             sink,
@@ -512,6 +523,116 @@ impl AcpUiEventDispatcher {
         if let Err(error) = tx.send(event) {
             tracing::error!(error = %error, "Failed to enqueue ACP session domain event");
         }
+    }
+
+    pub(crate) fn enqueue_interaction_transition_state(
+        &self,
+        session_id: &str,
+        interaction_patch: InteractionSnapshot,
+    ) {
+        let Some(session_snapshot) = self.projection_registry.snapshot_for_session(session_id)
+        else {
+            tracing::warn!(
+                session_id,
+                interaction_id = %interaction_patch.id,
+                "Skipping interaction transition state envelope because the session projection is missing"
+            );
+            return;
+        };
+        let previous_runtime_snapshot =
+            self.runtime_graph_registry.snapshot_for_session(session_id);
+        let previous_transcript_revision = self
+            .transcript_projection_registry
+            .snapshot_for_session(session_id)
+            .map(|snapshot| snapshot.revision)
+            .unwrap_or(0);
+        let previous_graph_revision = if previous_runtime_snapshot.graph_revision > 0 {
+            previous_runtime_snapshot.graph_revision
+        } else {
+            session_snapshot.last_event_seq.saturating_sub(1)
+        };
+        let graph_revision = self
+            .runtime_graph_registry
+            .advance_graph_revision_with_seed(session_id, session_snapshot.last_event_seq);
+        let revision = SessionGraphRevision::new(
+            graph_revision,
+            previous_transcript_revision,
+            session_snapshot.last_event_seq,
+        );
+        let projection_snapshot = self.projection_registry.session_projection(session_id);
+        let runtime_snapshot = self.runtime_graph_registry.snapshot_for_session(session_id);
+        let activity = select_session_graph_activity(
+            &runtime_snapshot.lifecycle,
+            &session_snapshot.turn_state,
+            &projection_snapshot.operations,
+            &projection_snapshot.interactions,
+            session_snapshot.active_turn_failure.as_ref(),
+        );
+        let operation_patches = match interaction_patch.canonical_operation_id.as_deref() {
+            Some(operation_id) => match self.projection_registry.operation(operation_id) {
+                Some(operation) => vec![operation],
+                None => {
+                    tracing::warn!(
+                        session_id,
+                        interaction_id = %interaction_patch.id,
+                        operation_id,
+                        "Interaction transition state envelope has no linked operation patch"
+                    );
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
+        let mut changed_fields = vec![
+            "interactions".to_string(),
+            "activity".to_string(),
+            "turnState".to_string(),
+            "activeTurnFailure".to_string(),
+            "lastTerminalTurnId".to_string(),
+        ];
+        if !operation_patches.is_empty() {
+            changed_fields.insert(0, "operations".to_string());
+        }
+        let envelope = build_delta_envelope(DeltaEnvelopeParts {
+            session_id,
+            from_revision: SessionGraphRevision::new(
+                previous_graph_revision,
+                previous_transcript_revision,
+                session_snapshot.last_event_seq.saturating_sub(1),
+            ),
+            to_revision: revision,
+            projection: DeltaSessionProjectionFields {
+                activity,
+                turn_state: session_snapshot.turn_state,
+                active_turn_failure: session_snapshot.active_turn_failure,
+                last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
+            },
+            transcript_operations: Vec::new(),
+            operation_patches,
+            interaction_patches: vec![interaction_patch],
+            changed_fields,
+        });
+        self.enqueue_session_state_envelope(envelope);
+    }
+
+    fn enqueue_session_state_envelope(&self, envelope: SessionStateEnvelope) {
+        let payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
+            tracing::error!(
+                %error,
+                session_id = %envelope.session_id,
+                graph_revision = envelope.graph_revision,
+                last_event_seq = envelope.last_event_seq,
+                "Failed to serialize ACP session state envelope"
+            );
+            Value::Null
+        });
+        self.enqueue(AcpUiEvent::json_event(
+            "acp-session-state",
+            payload,
+            Some(envelope.session_id.clone()),
+            AcpUiEventPriority::Normal,
+            false,
+        ));
     }
 
     fn create_session_domain_event(

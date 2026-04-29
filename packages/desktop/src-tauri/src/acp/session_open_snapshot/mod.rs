@@ -18,8 +18,9 @@
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::projections::{
-    InteractionSnapshot, OperationDegradationCode, OperationDegradationReason, OperationSnapshot,
-    OperationState, SessionTurnState, TurnFailureSnapshot,
+    is_terminal_operation_state, InteractionSnapshot, OperationDegradationCode,
+    OperationDegradationReason, OperationSnapshot, OperationState, SessionTurnState,
+    TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::selectors::{
@@ -255,16 +256,6 @@ fn build_projection_from_thread_snapshot(
         &replay_context.local_session_id,
         Some(replay_context.agent_id.clone()),
         snapshot,
-    )
-}
-
-fn is_terminal_operation_state(state: &OperationState) -> bool {
-    matches!(
-        state,
-        OperationState::Completed
-            | OperationState::Failed
-            | OperationState::Cancelled
-            | OperationState::Degraded
     )
 }
 

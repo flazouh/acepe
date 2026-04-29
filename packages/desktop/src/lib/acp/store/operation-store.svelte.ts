@@ -85,17 +85,29 @@ function deriveOperationState(
 }
 
 function isTerminalOperationState(state: OperationState | undefined): boolean {
-	return (
-		state === "completed" ||
-		state === "failed" ||
-		state === "cancelled" ||
-		state === "degraded" ||
-		state === "blocked"
-	);
+	if (state === undefined) {
+		return false;
+	}
+
+	switch (state) {
+		case "completed":
+		case "failed":
+		case "cancelled":
+		case "degraded":
+			return true;
+		case "pending":
+		case "running":
+		case "blocked":
+			return false;
+	}
 }
 
 function isStreamingOperationState(state: OperationState): boolean {
-	return state === "pending" || state === "running";
+	return state === "pending" || state === "running" || state === "blocked";
+}
+
+function shouldPreserveOperationStateAgainstToolCall(state: OperationState | undefined): boolean {
+	return state === "blocked" || isTerminalOperationState(state);
 }
 
 export class OperationStore {
@@ -398,7 +410,8 @@ export class OperationStore {
 		const derivedOperationState = deriveOperationState(toolCall.status, toolCall.kind);
 		const existingOperationState = existingOperation?.operationState;
 		const nextOperationState =
-			existingOperationState !== undefined && isTerminalOperationState(existingOperationState)
+			existingOperationState !== undefined &&
+			shouldPreserveOperationStateAgainstToolCall(existingOperationState)
 				? existingOperationState
 				: derivedOperationState;
 		const childToolCallIds: Array<string> = [];

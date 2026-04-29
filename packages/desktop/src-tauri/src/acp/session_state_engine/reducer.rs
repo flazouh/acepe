@@ -1,3 +1,4 @@
+use crate::acp::projections::is_terminal_operation_state;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::protocol::SessionStateDelta;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
@@ -113,16 +114,6 @@ fn upsert_operation_patch(
     }
 
     operations.push(operation);
-}
-
-fn is_terminal_operation_state(state: &crate::acp::projections::OperationState) -> bool {
-    matches!(
-        state,
-        crate::acp::projections::OperationState::Completed
-            | crate::acp::projections::OperationState::Failed
-            | crate::acp::projections::OperationState::Cancelled
-            | crate::acp::projections::OperationState::Degraded
-    )
 }
 
 fn upsert_interaction_patch(

@@ -44,6 +44,29 @@ function createToolCallEntry(toolCall: ToolCallData) {
 	};
 }
 
+function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): OperationSnapshot {
+	return {
+		id: overrides?.id ?? "op-1",
+		session_id: overrides?.session_id ?? "session-1",
+		tool_call_id: overrides?.tool_call_id ?? "tool-1",
+		name: overrides?.name ?? "bash",
+		kind: overrides?.kind ?? "execute",
+		provider_status: overrides?.provider_status ?? "in_progress",
+		operation_state: overrides?.operation_state ?? "running",
+		operation_provenance_key: overrides?.operation_provenance_key ?? "tool-1",
+		title: overrides?.title ?? "Run command",
+		arguments: overrides?.arguments ?? { kind: "execute", command: "pwd" },
+		progressive_arguments: overrides?.progressive_arguments ?? null,
+		result: overrides?.result ?? null,
+		command: overrides?.command ?? "pwd",
+		normalized_todos: overrides?.normalized_todos ?? null,
+		parent_tool_call_id: overrides?.parent_tool_call_id ?? null,
+		parent_operation_id: overrides?.parent_operation_id ?? null,
+		child_tool_call_ids: overrides?.child_tool_call_ids ?? [],
+		child_operation_ids: overrides?.child_operation_ids ?? [],
+	};
+}
+
 describe("OperationStore", () => {
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
@@ -497,6 +520,140 @@ describe("OperationStore", () => {
 		expect(operation?.operationState).toBe("completed");
 		expect(operation?.status).toBe("completed");
 		expect(operation?.result).toBe("done");
+	});
+
+	it("applies canonical blocked resume patches because blocked is not terminal", () => {
+		const operationStore = new OperationStore();
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				operation_state: "blocked",
+				provider_status: "in_progress",
+			}),
+			createOperationSnapshot({
+				operation_state: "running",
+				provider_status: "in_progress",
+			}),
+		]);
+		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("running");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				operation_state: "completed",
+				provider_status: "completed",
+				result: "done",
+			}),
+		]);
+
+		const operation = operationStore.getByToolCallId("session-1", "tool-1");
+		expect(operation?.operationState).toBe("completed");
+		expect(operation?.status).toBe("completed");
+		expect(operation?.result).toBe("done");
+	});
+
+	it("applies canonical blocked terminal patches after user rejection or degradation", () => {
+		const operationStore = new OperationStore();
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: "op-cancelled",
+				tool_call_id: "tool-cancelled",
+				operation_provenance_key: "tool-cancelled",
+				operation_state: "blocked",
+			}),
+			createOperationSnapshot({
+				id: "op-cancelled",
+				tool_call_id: "tool-cancelled",
+				operation_provenance_key: "tool-cancelled",
+				operation_state: "cancelled",
+				provider_status: "in_progress",
+			}),
+			createOperationSnapshot({
+				id: "op-degraded",
+				tool_call_id: "tool-degraded",
+				operation_provenance_key: "tool-degraded",
+				operation_state: "blocked",
+			}),
+			createOperationSnapshot({
+				id: "op-degraded",
+				tool_call_id: "tool-degraded",
+				operation_provenance_key: "tool-degraded",
+				operation_state: "degraded",
+				provider_status: "failed",
+			}),
+		]);
+
+		expect(operationStore.getByToolCallId("session-1", "tool-cancelled")?.operationState).toBe(
+			"cancelled"
+		);
+		expect(operationStore.getByToolCallId("session-1", "tool-degraded")?.operationState).toBe(
+			"degraded"
+		);
+	});
+
+	it("keeps blocked operations addressable as the current active operation", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				operation_state: "blocked",
+				provider_status: "in_progress",
+			}),
+		]);
+
+		expect(operationStore.getCurrentStreamingOperation("session-1")?.id).toBe("op-1");
+		expect(operationStore.getCurrentStreamingToolCall("session-1")?.id).toBe("tool-1");
+	});
+
+	it("keeps terminal states protected from stale non-terminal operation patches", () => {
+		const cases = [
+			{
+				operationId: "op-completed",
+				toolCallId: "tool-completed",
+				terminalState: "completed" as const,
+				providerStatus: "completed" as const,
+			},
+			{
+				operationId: "op-failed",
+				toolCallId: "tool-failed",
+				terminalState: "failed" as const,
+				providerStatus: "failed" as const,
+			},
+			{
+				operationId: "op-cancelled",
+				toolCallId: "tool-cancelled",
+				terminalState: "cancelled" as const,
+				providerStatus: "in_progress" as const,
+			},
+			{
+				operationId: "op-degraded",
+				toolCallId: "tool-degraded",
+				terminalState: "degraded" as const,
+				providerStatus: "failed" as const,
+			},
+		];
+		const operationStore = new OperationStore();
+		for (const testCase of cases) {
+			operationStore.applySessionOperationPatches("session-1", [
+				createOperationSnapshot({
+					id: testCase.operationId,
+					tool_call_id: testCase.toolCallId,
+					operation_provenance_key: testCase.toolCallId,
+					operation_state: testCase.terminalState,
+					provider_status: testCase.providerStatus,
+				}),
+				createOperationSnapshot({
+					id: testCase.operationId,
+					tool_call_id: testCase.toolCallId,
+					operation_provenance_key: testCase.toolCallId,
+					operation_state: "running",
+					provider_status: "in_progress",
+				}),
+			]);
+		}
+
+		for (const testCase of cases) {
+			expect(operationStore.getByToolCallId("session-1", testCase.toolCallId)?.operationState).toBe(
+				testCase.terminalState
+			);
+		}
 	});
 
 	it("buildCanonicalOperationId produces stable id matching buildOperationId", () => {

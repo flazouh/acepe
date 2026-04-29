@@ -78,7 +78,7 @@ The enum is independent of transcript-layer `ToolCall` DTOs. Provider `toolCallI
 
 **lifecycle must be canonical and monotonic enough that reconnect/resume does not need to guess.**
 
-Terminal states are completed, failed, cancelled/abandoned, and degraded/partial. Later sparse or stale evidence may add diagnostics, but it must not regress a terminal operation back to active state.
+Terminal states are completed, failed, cancelled/abandoned, and degraded/partial. `blocked` is not terminal: it is a resumable pause owned by linked interaction evidence. Later sparse or stale evidence may add diagnostics, but it must not regress a terminal operation back to active state.
 
 ## Blocking
 
@@ -89,6 +89,7 @@ That means:
 - a permission prompt can arrive before a full operation materializes,
 - the system still preserves the blocked relationship,
 - once the operation exists, the blocker attaches to the same canonical record,
+- resolving the interaction moves the operation to the next canonical state, usually running or cancelled,
 - terminal lifecycle updates clear blocker state instead of leaving the operation semantically stuck.
 
 ## What shared UI should do

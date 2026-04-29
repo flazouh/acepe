@@ -314,10 +314,12 @@ pub(crate) async fn persist_interaction_transition(
     response: InteractionResponse,
     source: &str,
 ) {
-    if projection_registry
-        .resolve_interaction(session_id, interaction_id, state.clone(), response.clone())
-        .is_none()
-    {
+    let Some(interaction_patch) = projection_registry.resolve_interaction(
+        session_id,
+        interaction_id,
+        state.clone(),
+        response.clone(),
+    ) else {
         tracing::debug!(
             session_id = %session_id,
             interaction_id = %interaction_id,
@@ -325,7 +327,7 @@ pub(crate) async fn persist_interaction_transition(
             "Interaction projection missing during transition persistence"
         );
         return;
-    }
+    };
 
     if let Some(db) = db {
         if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
@@ -348,6 +350,7 @@ pub(crate) async fn persist_interaction_transition(
     }
 
     if let Some(dispatcher) = dispatcher {
+        dispatcher.enqueue_interaction_transition_state(session_id, interaction_patch);
         let payload = match domain_event_kind {
             SessionDomainEventKind::InteractionResolved => {
                 Some(SessionDomainEventPayload::InteractionResolved {
@@ -413,4 +416,200 @@ pub(crate) async fn apply_interaction_response_for_request(
         source,
     )
     .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::projections::OperationState;
+    use crate::acp::session_state_engine::{SessionStateEnvelope, SessionStatePayload};
+    use crate::acp::session_update::{
+        InteractionReplyHandler, PermissionData, ToolArguments, ToolCallData, ToolKind,
+        ToolReference,
+    };
+    use crate::acp::types::CanonicalAgentId;
+    use crate::acp::ui_event_dispatcher::AcpUiEventPayload;
+
+    fn pending_tool_call_update(session_id: &str, tool_call_id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: tool_call_id.to_string(),
+                name: "Read".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: json!({ "file_path": "src/main.rs" }),
+                },
+                raw_input: None,
+                kind: Some(ToolKind::Read),
+                title: Some("Read src/main.rs".to_string()),
+                status: ToolCallStatus::Pending,
+                result: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    fn permission_request_update(
+        session_id: &str,
+        permission_id: &str,
+        request_id: u64,
+        tool_call_id: &str,
+    ) -> SessionUpdate {
+        SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: permission_id.to_string(),
+                session_id: session_id.to_string(),
+                json_rpc_request_id: Some(request_id),
+                reply_handler: Some(InteractionReplyHandler::json_rpc(request_id)),
+                permission: "read".to_string(),
+                patterns: vec!["src/main.rs".to_string()],
+                metadata: json!({ "file_path": "src/main.rs" }),
+                always: Vec::new(),
+                auto_accepted: false,
+                tool: Some(ToolReference {
+                    message_id: String::new(),
+                    call_id: tool_call_id.to_string(),
+                }),
+            },
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    #[tokio::test]
+    async fn interaction_transition_emits_session_state_delta_for_resumed_operation() {
+        let session_id = "session-interaction-delta";
+        let tool_call_id = "tool-read-1";
+        let permission_id = "permission-read-1";
+        let projection_registry = StdArc::new(ProjectionRegistry::new());
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        projection_registry.apply_session_update(
+            session_id,
+            &pending_tool_call_update(session_id, tool_call_id),
+        );
+        projection_registry.apply_session_update(
+            session_id,
+            &permission_request_update(session_id, permission_id, 11, tool_call_id),
+        );
+        let blocked_operation = projection_registry
+            .operation_for_tool_call(session_id, tool_call_id)
+            .expect("operation should exist before transition");
+        assert_eq!(
+            blocked_operation.operation_state,
+            Some(OperationState::Blocked)
+        );
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
+                &projection_registry,
+            ));
+
+        persist_interaction_transition(
+            &projection_registry,
+            None,
+            Some(&dispatcher),
+            session_id,
+            permission_id,
+            InteractionState::Approved,
+            SessionDomainEventKind::InteractionResolved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: None,
+                reply: None,
+            },
+            "test",
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0].event_name, "acp-session-state");
+        assert_eq!(captured[1].event_name, "acp-session-domain-event");
+        let AcpUiEventPayload::Json(payload) = &captured[0].payload else {
+            panic!("expected serialized session-state envelope");
+        };
+        let envelope: SessionStateEnvelope =
+            serde_json::from_value(payload.clone()).expect("session state envelope");
+        let SessionStatePayload::Delta { delta } = envelope.payload else {
+            panic!("expected delta payload");
+        };
+        assert_eq!(delta.operation_patches.len(), 1);
+        assert_eq!(
+            delta.operation_patches[0].operation_state,
+            Some(OperationState::Running)
+        );
+        assert_eq!(delta.interaction_patches.len(), 1);
+        assert_eq!(
+            delta.interaction_patches[0].state,
+            InteractionState::Approved
+        );
+    }
+
+    #[tokio::test]
+    async fn interaction_transition_emits_session_state_delta_for_cancelled_operation() {
+        let session_id = "session-interaction-cancelled-delta";
+        let tool_call_id = "tool-read-cancelled-1";
+        let permission_id = "permission-read-cancelled-1";
+        let projection_registry = StdArc::new(ProjectionRegistry::new());
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        projection_registry.apply_session_update(
+            session_id,
+            &pending_tool_call_update(session_id, tool_call_id),
+        );
+        projection_registry.apply_session_update(
+            session_id,
+            &permission_request_update(session_id, permission_id, 12, tool_call_id),
+        );
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
+                &projection_registry,
+            ));
+
+        persist_interaction_transition(
+            &projection_registry,
+            None,
+            Some(&dispatcher),
+            session_id,
+            permission_id,
+            InteractionState::Rejected,
+            SessionDomainEventKind::InteractionCancelled,
+            InteractionResponse::Permission {
+                accepted: false,
+                option_id: None,
+                reply: None,
+            },
+            "test",
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        assert_eq!(captured[0].event_name, "acp-session-state");
+        assert_eq!(captured[1].event_name, "acp-session-domain-event");
+        let AcpUiEventPayload::Json(payload) = &captured[0].payload else {
+            panic!("expected serialized session-state envelope");
+        };
+        let envelope: SessionStateEnvelope =
+            serde_json::from_value(payload.clone()).expect("session state envelope");
+        let SessionStatePayload::Delta { delta } = envelope.payload else {
+            panic!("expected delta payload");
+        };
+        assert_eq!(delta.operation_patches.len(), 1);
+        assert_eq!(
+            delta.operation_patches[0].operation_state,
+            Some(OperationState::Cancelled)
+        );
+        assert_eq!(delta.interaction_patches.len(), 1);
+        assert_eq!(
+            delta.interaction_patches[0].state,
+            InteractionState::Rejected
+        );
+    }
 }

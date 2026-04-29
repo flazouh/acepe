@@ -119,6 +119,22 @@ impl SessionGraphRuntimeRegistry {
         self.apply_session_update_with_graph_seed(session_id, 0, update)
     }
 
+    pub fn advance_graph_revision_with_seed(
+        &self,
+        session_id: &str,
+        graph_revision_seed: i64,
+    ) -> i64 {
+        let mut state = self.snapshot_for_session(session_id);
+        state.graph_revision = state
+            .graph_revision
+            .max(graph_revision_seed)
+            .saturating_add(1);
+        let graph_revision = state.graph_revision;
+        self.supervisor
+            .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
+        graph_revision
+    }
+
     pub fn replace_capabilities_with_graph_seed(
         &self,
         session_id: &str,

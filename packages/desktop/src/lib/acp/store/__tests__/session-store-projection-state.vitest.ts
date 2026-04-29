@@ -1492,6 +1492,102 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
 	});
 
+	it("applies canonical blocked to running patches to graph and operation store", () => {
+		const store = new SessionStore();
+		const interactions = new InteractionStore();
+		store.setLiveSessionStateGraphConsumer(interactions);
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+					operations: [
+						createOperationSnapshot({
+							operation_state: "blocked",
+							provider_status: "in_progress",
+						}),
+					],
+					interactions: [createPermissionInteractionSnapshot()],
+					activity: {
+						kind: "waiting_for_user",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: "permission-1",
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: null,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptOperations: [],
+					operationPatches: [
+						createOperationSnapshot({
+							operation_state: "running",
+							provider_status: "in_progress",
+						}),
+					],
+					interactionPatches: [
+						createPermissionInteractionSnapshot({
+							state: "Approved",
+							responded_at_event_seq: 8,
+							response: {
+								kind: "permission",
+								accepted: true,
+								option_id: null,
+								reply: null,
+							},
+						}),
+					],
+					changedFields: [
+						"operations",
+						"interactions",
+						"activity",
+						"turnState",
+						"activeTurnFailure",
+						"lastTerminalTurnId",
+					],
+				},
+			},
+		});
+
+		const graph = store.getSessionStateGraph("session-1");
+		expect(graph?.operations[0]?.operation_state).toBe("running");
+		expect(graph?.interactions[0]?.state).toBe("Approved");
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")?.operationState).toBe(
+			"running"
+		);
+	});
+
 	it("materializes live operation patches without replacing the transcript snapshot", () => {
 		const store = new SessionStore();
 		const runningActivity: SessionGraphActivity = {
