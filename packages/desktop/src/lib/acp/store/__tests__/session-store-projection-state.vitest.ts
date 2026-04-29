@@ -1292,6 +1292,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							name: "bash",
 							kind: "execute",
 							provider_status: "completed",
+							operation_state: "completed",
 							title: "Run command",
 							arguments: {
 								kind: "execute",

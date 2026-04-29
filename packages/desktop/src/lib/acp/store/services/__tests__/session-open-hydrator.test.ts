@@ -331,6 +331,7 @@ describe("SessionOpenHydrator", () => {
 			name: "Read",
 			kind: "read" as const,
 			provider_status: "in_progress" as const,
+			operation_state: "running" as const,
 			title: "Read /repo/src/main.ts",
 			arguments: { kind: "read" as const, file_path: "/repo/src/main.ts" },
 			progressive_arguments: null,

@@ -238,9 +238,9 @@ pub fn select_session_graph_activity(
         .filter(|operation| {
             matches!(
                 operation.operation_state,
-                Some(crate::acp::projections::OperationState::Pending)
-                    | Some(crate::acp::projections::OperationState::Running)
-                    | Some(crate::acp::projections::OperationState::Blocked)
+                crate::acp::projections::OperationState::Pending
+                    | crate::acp::projections::OperationState::Running
+                    | crate::acp::projections::OperationState::Blocked
             )
         })
         .collect();
@@ -355,12 +355,12 @@ mod tests {
             child_tool_call_ids: Vec::new(),
             child_operation_ids: Vec::new(),
             operation_provenance_key: None,
-            operation_state: Some(match status {
+            operation_state: match status {
                 ToolCallStatus::Pending => OperationState::Pending,
                 ToolCallStatus::InProgress => OperationState::Running,
                 ToolCallStatus::Completed => OperationState::Completed,
                 ToolCallStatus::Failed => OperationState::Failed,
-            }),
+            },
             locations: None,
             skill_meta: None,
             normalized_questions: None,

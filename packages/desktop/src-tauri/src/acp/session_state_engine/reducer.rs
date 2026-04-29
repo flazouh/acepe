@@ -87,13 +87,9 @@ impl SessionStateReducer {
                 new_state,
             } => {
                 if let Some(op) = graph.operations.iter_mut().find(|o| o.id == operation_id) {
-                    let is_terminal = op
-                        .operation_state
-                        .as_ref()
-                        .map(is_terminal_operation_state)
-                        .unwrap_or(false);
+                    let is_terminal = is_terminal_operation_state(&op.operation_state);
                     if !is_terminal {
-                        op.operation_state = Some(new_state);
+                        op.operation_state = new_state;
                     }
                 }
             }
@@ -251,7 +247,7 @@ mod tests {
             child_tool_call_ids: vec![],
             child_operation_ids: vec![],
             operation_provenance_key: Some(tool_call_id.to_string()),
-            operation_state: Some(operation_state),
+            operation_state,
             locations: None,
             skill_meta: None,
             normalized_questions: None,
@@ -450,7 +446,7 @@ mod tests {
             child_tool_call_ids: vec![],
             child_operation_ids: vec![],
             operation_provenance_key: Some("op-1".to_string()),
-            operation_state: Some(OperationState::Completed),
+            operation_state: OperationState::Completed,
             locations: None,
             skill_meta: None,
             normalized_questions: None,
@@ -473,7 +469,7 @@ mod tests {
         );
         assert_eq!(
             graph.operations[0].operation_state,
-            Some(OperationState::Completed),
+            OperationState::Completed,
             "terminal state must not be regressed"
         );
 
@@ -496,7 +492,7 @@ mod tests {
             child_tool_call_ids: vec![],
             child_operation_ids: vec![],
             operation_provenance_key: Some("op-2".to_string()),
-            operation_state: Some(OperationState::Running),
+            operation_state: OperationState::Running,
             locations: None,
             skill_meta: None,
             normalized_questions: None,
@@ -519,7 +515,7 @@ mod tests {
         );
         assert_eq!(
             graph2.operations[0].operation_state,
-            Some(OperationState::Completed),
+            OperationState::Completed,
             "non-terminal state should transition to Completed"
         );
     }
@@ -565,7 +561,7 @@ mod tests {
         assert_eq!(graph.operations.len(), 1);
         assert_eq!(
             graph.operations[0].operation_state,
-            Some(OperationState::Completed)
+            OperationState::Completed
         );
         assert_eq!(
             graph.operations[0].provider_status,

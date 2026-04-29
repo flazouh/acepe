@@ -128,23 +128,6 @@ function findOperationForTranscriptEntry(
 	);
 }
 
-function deriveOperationState(operation: OperationSnapshot): OperationState {
-	if (operation.operation_state !== null && operation.operation_state !== undefined) {
-		return operation.operation_state;
-	}
-
-	if (operation.provider_status === "pending") {
-		return "pending";
-	}
-	if (operation.provider_status === "in_progress") {
-		return "running";
-	}
-	if (operation.provider_status === "completed") {
-		return "completed";
-	}
-	return "failed";
-}
-
 function mapOperationStateToToolStatus(state: OperationState): AgentToolStatus {
 	if (state === "pending") {
 		return "pending";
@@ -428,7 +411,7 @@ function materializeOperationEntry(
 	}
 	visitedOperationIds.delete(operation.id);
 
-	const state = deriveOperationState(operation);
+	const state = operation.operation_state;
 	const toolCall = operationSnapshotToToolCall(operation);
 	const presentationState = state === "degraded" ? "degraded_operation" : "resolved";
 	const mapped = mapToolCallToSceneEntry(

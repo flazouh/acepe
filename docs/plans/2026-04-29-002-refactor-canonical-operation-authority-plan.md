@@ -295,7 +295,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 - Canonical `blocked -> running` patches cannot be dropped by TS terminal guards.
 - Rust and TS terminal sets agree that `blocked` is non-terminal.
 
-- [ ] **Unit 2: Make canonical operation state required**
+- [x] **Unit 2: Make canonical operation state required**
 
 **Goal:** Make Rust emit `operation_state` as a required canonical field and delete every TS fallback that synthesizes it from `provider_status`.
 

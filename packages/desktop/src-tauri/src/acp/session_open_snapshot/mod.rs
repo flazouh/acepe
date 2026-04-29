@@ -27,7 +27,6 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::acp::session_update::ToolCallStatus;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
@@ -252,6 +251,8 @@ fn build_projection_from_thread_snapshot(
     replay_context: &SessionReplayContext,
     snapshot: &SessionThreadSnapshot,
 ) -> crate::acp::projections::SessionProjectionSnapshot {
+    // Provider restore enters through ProjectionRegistry so historical tool evidence
+    // is normalized to canonical operation_state before the graph reaches TypeScript.
     ProjectionRegistry::project_thread_snapshot(
         &replay_context.local_session_id,
         Some(replay_context.agent_id.clone()),
@@ -259,15 +260,8 @@ fn build_projection_from_thread_snapshot(
     )
 }
 
-fn has_terminal_provider_status(status: &ToolCallStatus) -> bool {
-    status == &ToolCallStatus::Completed || status == &ToolCallStatus::Failed
-}
-
 fn operation_can_be_restored_as_historical(operation: &OperationSnapshot) -> bool {
-    match operation.operation_state.as_ref() {
-        Some(state) => is_terminal_operation_state(state),
-        None => has_terminal_provider_status(&operation.provider_status),
-    }
+    is_terminal_operation_state(&operation.operation_state)
 }
 
 fn downgrade_stale_active_operation(mut operation: OperationSnapshot) -> OperationSnapshot {
@@ -275,7 +269,9 @@ fn downgrade_stale_active_operation(mut operation: OperationSnapshot) -> Operati
         return operation;
     }
 
-    operation.operation_state = Some(OperationState::Degraded);
+    // The journal frontier proves this active operation is stale; keep the state
+    // explicit instead of relying on provider_status fallback in the UI.
+    operation.operation_state = OperationState::Degraded;
     if operation.degradation_reason.is_none() {
         operation.degradation_reason = Some(OperationDegradationReason {
 			code: OperationDegradationCode::AbsentFromHistory,
@@ -898,7 +894,7 @@ mod tests {
         let operation = &found.operations[0];
         assert_eq!(
             operation.operation_state,
-            Some(crate::acp::projections::OperationState::Degraded)
+            crate::acp::projections::OperationState::Degraded
         );
         assert_eq!(
             operation

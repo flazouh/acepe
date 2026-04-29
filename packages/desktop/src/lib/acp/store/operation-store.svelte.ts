@@ -65,7 +65,7 @@ export function extractToolOperationCommand(toolCall: ToolCall): string | null {
 	return normalizeCommand(titleMatch[1]);
 }
 
-function deriveOperationState(
+function operationStateFromRawToolCall(
 	status: Operation["status"],
 	kind: Operation["kind"]
 ): OperationState {
@@ -350,9 +350,7 @@ export class OperationStore {
 			name: snapshot.name,
 			kind: snapshot.kind,
 			status: providerStatus,
-			operationState:
-				snapshot.operation_state ??
-				deriveOperationState(providerStatus, snapshot.kind ?? undefined),
+			operationState: snapshot.operation_state,
 			operationProvenanceKey: snapshot.operation_provenance_key ?? snapshot.tool_call_id,
 			title: snapshot.title,
 			arguments: snapshot.arguments,
@@ -407,7 +405,7 @@ export class OperationStore {
 		const existingOperation = this.operationsById.get(operationId);
 		const nextSourceEntryId = sourceEntryId ?? existingOperation?.sourceEntryId ?? null;
 		const nextParentToolCallId = toolCall.parentToolUseId ?? parentToolCallId ?? null;
-		const derivedOperationState = deriveOperationState(toolCall.status, toolCall.kind);
+		const derivedOperationState = operationStateFromRawToolCall(toolCall.status, toolCall.kind);
 		const existingOperationState = existingOperation?.operationState;
 		const nextOperationState =
 			existingOperationState !== undefined &&

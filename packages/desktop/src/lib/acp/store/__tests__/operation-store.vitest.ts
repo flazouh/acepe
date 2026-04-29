@@ -207,6 +207,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "pending",
+				operation_state: "pending",
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
 				progressive_arguments: null,
@@ -225,6 +226,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "completed",
+				operation_state: "completed",
 				title: "Second",
 				arguments: { kind: "execute", command: "ls" },
 				progressive_arguments: null,
@@ -261,6 +263,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "completed",
+				operation_state: "completed",
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
 				progressive_arguments: null,
@@ -279,6 +282,7 @@ describe("OperationStore", () => {
 				name: "grep",
 				kind: null,
 				provider_status: "in_progress",
+				operation_state: "running",
 				title: "Second",
 				arguments: { kind: "execute", command: "grep needle" },
 				progressive_arguments: null,
@@ -307,6 +311,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "completed",
+				operation_state: "completed",
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
 				progressive_arguments: null,
@@ -325,6 +330,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "in_progress",
+				operation_state: "running",
 				title: "Second",
 				arguments: { kind: "execute", command: "bun test" },
 				progressive_arguments: null,
@@ -372,6 +378,7 @@ describe("OperationStore", () => {
 				name: "bash",
 				kind: "execute",
 				provider_status: "completed",
+				operation_state: "completed",
 				title: "Run command",
 				arguments: { kind: "execute", command: "printf hello" },
 				progressive_arguments: null,
@@ -403,6 +410,7 @@ describe("OperationStore", () => {
 				name: "TodoWrite",
 				kind: null,
 				provider_status: "in_progress",
+				operation_state: "running",
 				title: "Todo list",
 				arguments: { kind: "other", raw: {} },
 				progressive_arguments: null,
@@ -450,8 +458,8 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				name: "bash",
 				kind: "execute",
-				provider_status: "completed",
-				operation_state: "completed",
+				provider_status: "in_progress",
+				operation_state: "blocked",
 				operation_provenance_key: "tool-1",
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -467,7 +475,7 @@ describe("OperationStore", () => {
 		];
 		operationStore.replaceSessionOperations("session-1", snapshots);
 		const op = operationStore.getByToolCallId("session-1", "tool-1");
-		expect(op?.operationState).toBe("completed");
+		expect(op?.operationState).toBe("blocked");
 		expect(op?.operationProvenanceKey).toBe("tool-1");
 	});
 

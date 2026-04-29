@@ -502,10 +502,7 @@ mod tests {
         let blocked_operation = projection_registry
             .operation_for_tool_call(session_id, tool_call_id)
             .expect("operation should exist before transition");
-        assert_eq!(
-            blocked_operation.operation_state,
-            Some(OperationState::Blocked)
-        );
+        assert_eq!(blocked_operation.operation_state, OperationState::Blocked);
         let (dispatcher, captured_events) =
             AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
                 &projection_registry,
@@ -543,7 +540,7 @@ mod tests {
         assert_eq!(delta.operation_patches.len(), 1);
         assert_eq!(
             delta.operation_patches[0].operation_state,
-            Some(OperationState::Running)
+            OperationState::Running
         );
         assert_eq!(delta.interaction_patches.len(), 1);
         assert_eq!(
@@ -604,7 +601,7 @@ mod tests {
         assert_eq!(delta.operation_patches.len(), 1);
         assert_eq!(
             delta.operation_patches[0].operation_state,
-            Some(OperationState::Cancelled)
+            OperationState::Cancelled
         );
         assert_eq!(delta.interaction_patches.len(), 1);
         assert_eq!(

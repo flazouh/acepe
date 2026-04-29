@@ -350,22 +350,6 @@ function graphWithCapabilities(
 	};
 }
 
-function deriveOperationSnapshotState(operation: OperationSnapshot): OperationState {
-	if (operation.operation_state !== null && operation.operation_state !== undefined) {
-		return operation.operation_state;
-	}
-	if (operation.provider_status === "pending") {
-		return "pending";
-	}
-	if (operation.provider_status === "in_progress") {
-		return "running";
-	}
-	if (operation.provider_status === "completed") {
-		return "completed";
-	}
-	return "failed";
-}
-
 function isTerminalOperationSnapshotState(state: OperationState): boolean {
 	switch (state) {
 		case "completed":
@@ -396,8 +380,8 @@ function mergeOperationSnapshots(
 		const existing = operationById.get(patch.id);
 		if (
 			existing !== undefined &&
-			isTerminalOperationSnapshotState(deriveOperationSnapshotState(existing)) &&
-			!isTerminalOperationSnapshotState(deriveOperationSnapshotState(patch))
+			isTerminalOperationSnapshotState(existing.operation_state) &&
+			!isTerminalOperationSnapshotState(patch.operation_state)
 		) {
 			continue;
 		}

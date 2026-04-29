@@ -147,8 +147,7 @@ pub struct OperationSnapshot {
     pub child_operation_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub operation_provenance_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub operation_state: Option<OperationState>,
+    pub operation_state: OperationState,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub locations: Option<Vec<crate::acp::session_update::ToolCallLocation>>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -799,11 +798,10 @@ impl ProjectionRegistry {
         }
 
         let derived_operation_state = derive_operation_state(tool_call.kind, &tool_call.status);
-        let mut new_operation_state = match existing
-            .as_ref()
-            .and_then(|operation| operation.operation_state.as_ref())
-        {
-            Some(current) if is_terminal_operation_state(current) => current.clone(),
+        let mut new_operation_state = match existing.as_ref() {
+            Some(operation) if is_terminal_operation_state(&operation.operation_state) => {
+                operation.operation_state.clone()
+            }
             _ => derived_operation_state.clone(),
         };
         if !is_terminal_operation_state(&new_operation_state)
@@ -846,7 +844,7 @@ impl ProjectionRegistry {
             child_tool_call_ids,
             child_operation_ids,
             operation_provenance_key: Some(tool_call.id.clone()),
-            operation_state: Some(new_operation_state),
+            operation_state: new_operation_state,
             locations: tool_call
                 .locations
                 .clone()
@@ -940,16 +938,15 @@ impl ProjectionRegistry {
             .or(existing.normalized_todos.clone());
 
         let derived_state = derive_operation_state(existing.kind, &next_status);
-        let mut next_operation_state = match existing.operation_state.as_ref() {
-            Some(current) if is_terminal_operation_state(current) => Some(current.clone()),
-            _ => Some(derived_state),
+        let mut next_operation_state = if is_terminal_operation_state(&existing.operation_state) {
+            existing.operation_state.clone()
+        } else {
+            derived_state
         };
-        if next_operation_state
-            .as_ref()
-            .is_some_and(|state| !is_terminal_operation_state(state))
+        if !is_terminal_operation_state(&next_operation_state)
             && self.has_pending_blocking_interaction_for_operation(session_id, &operation_id)
         {
-            next_operation_state = Some(OperationState::Blocked);
+            next_operation_state = OperationState::Blocked;
         }
 
         let updated_operation = OperationSnapshot {
@@ -1021,11 +1018,7 @@ impl ProjectionRegistry {
             .operations_by_id
             .get(operation_id)
             .map(|operation| operation.clone())?;
-        if existing
-            .operation_state
-            .as_ref()
-            .is_some_and(is_terminal_operation_state)
-        {
+        if is_terminal_operation_state(&existing.operation_state) {
             return Some(existing);
         }
 
@@ -1047,7 +1040,7 @@ impl ProjectionRegistry {
             child_tool_call_ids: existing.child_tool_call_ids.clone(),
             child_operation_ids: existing.child_operation_ids.clone(),
             operation_provenance_key: existing.operation_provenance_key.clone(),
-            operation_state: Some(new_state),
+            operation_state: new_state,
             locations: existing.locations.clone(),
             skill_meta: existing.skill_meta.clone(),
             normalized_questions: existing.normalized_questions.clone(),
@@ -1375,7 +1368,7 @@ fn rejected_operation_snapshot(
         child_tool_call_ids: Vec::new(),
         child_operation_ids: Vec::new(),
         operation_provenance_key: None,
-        operation_state: Some(OperationState::Degraded),
+        operation_state: OperationState::Degraded,
         locations: tool_call.locations.clone(),
         skill_meta: tool_call.skill_meta.clone(),
         normalized_questions: tool_call.normalized_questions.clone(),
@@ -1489,11 +1482,7 @@ fn mark_tool_call_completed(snapshot: &mut SessionSnapshot, tool_call_id: &str) 
 }
 
 fn operation_has_terminal_evidence(operation: &OperationSnapshot) -> bool {
-    operation
-        .operation_state
-        .as_ref()
-        .is_some_and(is_terminal_operation_state)
-        || is_terminal_tool_call_status(&operation.provider_status)
+    is_terminal_operation_state(&operation.operation_state)
 }
 
 fn operation_identity_conflicts(
@@ -1535,7 +1524,7 @@ pub(crate) fn merge_operation_snapshot_evidence(
         incoming.name = existing.name.clone();
         incoming.kind = existing.kind;
         incoming.arguments = existing.arguments.clone();
-        incoming.operation_state = Some(OperationState::Degraded);
+        incoming.operation_state = OperationState::Degraded;
         incoming.degradation_reason = Some(OperationDegradationReason {
             code: OperationDegradationCode::ImpossibleTransition,
             detail: Some(
@@ -1544,15 +1533,10 @@ pub(crate) fn merge_operation_snapshot_evidence(
             ),
         });
     } else if existing_terminal {
-        incoming.operation_state = existing
-            .operation_state
-            .clone()
-            .or(incoming.operation_state);
+        incoming.operation_state = existing.operation_state.clone();
         if !incoming_terminal {
             incoming.provider_status = existing.provider_status.clone();
         }
-    } else if incoming.operation_state.is_none() {
-        incoming.operation_state = existing.operation_state.clone();
     }
 
     incoming.id = existing.id.clone();
@@ -2208,7 +2192,7 @@ mod tests {
                 child_tool_call_ids: vec![],
                 child_operation_ids: vec![],
                 operation_provenance_key: None,
-                operation_state: None,
+                operation_state: OperationState::Completed,
                 locations: None,
                 skill_meta: None,
                 normalized_questions: None,
@@ -2853,7 +2837,7 @@ mod tests {
             .operation_for_tool_call("session-1", "tool-conflict")
             .unwrap();
         assert_eq!(registry.session_operations("session-1").len(), 1);
-        assert_eq!(op.operation_state, Some(OperationState::Degraded));
+        assert_eq!(op.operation_state, OperationState::Degraded);
         assert_eq!(
             op.degradation_reason.as_ref().map(|reason| &reason.code),
             Some(&OperationDegradationCode::ImpossibleTransition)
@@ -2896,7 +2880,7 @@ mod tests {
         let op = registry
             .operation_for_tool_call("session-1", "tool-unclassified")
             .unwrap();
-        assert_eq!(op.operation_state, Some(OperationState::Degraded));
+        assert_eq!(op.operation_state, OperationState::Degraded);
         assert!(op.degradation_reason.is_some());
         let reason = op.degradation_reason.unwrap();
         assert_eq!(reason.code, OperationDegradationCode::ClassificationFailure);
@@ -3054,7 +3038,7 @@ mod tests {
         let running = registry
             .operation_for_tool_call("session-1", "tool-1")
             .expect("expected running operation");
-        assert_eq!(running.operation_state, Some(OperationState::Running));
+        assert_eq!(running.operation_state, OperationState::Running);
 
         registry.apply_session_update(
             "session-1",
@@ -3081,7 +3065,7 @@ mod tests {
         let blocked = registry
             .operation_for_tool_call("session-1", "tool-1")
             .expect("expected blocked operation");
-        assert_eq!(blocked.operation_state, Some(OperationState::Blocked));
+        assert_eq!(blocked.operation_state, OperationState::Blocked);
 
         registry
             .resolve_interaction(
@@ -3099,7 +3083,7 @@ mod tests {
         let resumed = registry
             .operation_for_tool_call("session-1", "tool-1")
             .expect("expected resumed operation");
-        assert_eq!(resumed.operation_state, Some(OperationState::Running));
+        assert_eq!(resumed.operation_state, OperationState::Running);
     }
 
     #[test]
@@ -3142,7 +3126,7 @@ mod tests {
         let blocked = registry
             .operation_for_tool_call("session-1", "question-tool")
             .expect("expected blocked operation");
-        assert_eq!(blocked.operation_state, Some(OperationState::Blocked));
+        assert_eq!(blocked.operation_state, OperationState::Blocked);
 
         registry
             .resolve_interaction(
@@ -3158,7 +3142,7 @@ mod tests {
         let resumed = registry
             .operation_for_tool_call("session-1", "question-tool")
             .expect("expected resumed operation");
-        assert_eq!(resumed.operation_state, Some(OperationState::Running));
+        assert_eq!(resumed.operation_state, OperationState::Running);
     }
 
     #[test]
@@ -3180,7 +3164,7 @@ mod tests {
         let blocked = registry
             .operation_for_tool_call("session-1", "plan-tool")
             .expect("expected blocked operation");
-        assert_eq!(blocked.operation_state, Some(OperationState::Blocked));
+        assert_eq!(blocked.operation_state, OperationState::Blocked);
 
         let plan_id = build_plan_approval_interaction_id("session-1", "plan-tool", 44);
         registry
@@ -3195,7 +3179,7 @@ mod tests {
         let resumed = registry
             .operation_for_tool_call("session-1", "plan-tool")
             .expect("expected resumed operation");
-        assert_eq!(resumed.operation_state, Some(OperationState::Running));
+        assert_eq!(resumed.operation_state, OperationState::Running);
     }
 
     #[test]
@@ -3266,7 +3250,7 @@ mod tests {
         let blocked = registry
             .operation_for_tool_call("session-1", "late-tool")
             .expect("expected late materialized operation");
-        assert_eq!(blocked.operation_state, Some(OperationState::Blocked));
+        assert_eq!(blocked.operation_state, OperationState::Blocked);
     }
 
     #[test]
@@ -3310,7 +3294,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             op.operation_state,
-            Some(OperationState::Completed),
+            OperationState::Completed,
             "terminal state must not regress"
         );
     }
@@ -3346,7 +3330,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             op.operation_state,
-            Some(OperationState::Completed),
+            OperationState::Completed,
             "terminal state must not regress from a stale full tool-call projection"
         );
     }

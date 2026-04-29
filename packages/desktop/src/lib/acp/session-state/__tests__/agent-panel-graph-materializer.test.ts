@@ -311,6 +311,40 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("uses canonical operation state instead of provider status for presentation", () => {
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				createTranscriptEntry("tool-1", "tool", "Run"),
+			]),
+			operations: [
+				createOperationSnapshot({
+					provider_status: "completed",
+					operation_state: "degraded",
+					degradation_reason: {
+						code: "classification_failure",
+						detail: "Tool classification was insufficient for canonical presentation.",
+					},
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			status: "degraded",
+			presentationState: "degraded_operation",
+			degradedReason: "Tool operation could not be classified safely.",
+		});
+	});
+
 	it("keeps live transcript-before-operation races pending until canonical operation data arrives", () => {
 		const graph = createGraph({
 			transcriptSnapshot: createTranscriptSnapshot([
