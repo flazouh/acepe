@@ -55,6 +55,7 @@ The final integration gate must prove:
 - no product code path depends on `ToolCallManager` as operation truth,
 - no product code path depends on `SessionHotState` as lifecycle truth,
 - raw session-update and inbound-request lanes cannot mutate transcript, operation, interaction, or lifecycle product stores directly,
+- transcript-operation rendering joins only through explicit canonical `source_link` authority,
 - local journal/snapshot paths cannot reconstruct provider content when provider history is missing,
 - diagnostics are structurally blocked from product-store imports.
 
@@ -64,7 +65,8 @@ The final stack removes or demotes the old peer authorities:
 
 | Former authority | Final status |
 |---|---|
-| `ToolCallManager` | Replaced by `TranscriptToolCallBuffer`, a transcript-only compatibility buffer. Product operation identity/state is owned by canonical operation IDs and `OperationStore`. |
+| `ToolCallManager` | Replaced by `TranscriptToolCallBuffer`, a transcript-only compatibility buffer. Product operation identity/state is owned by canonical operation IDs and graph-fed `OperationStore` snapshots/patches. |
+| Raw `ToolCall` operation writer | Deleted. Raw transcript/tool lanes can record transcript display rows, but they cannot create operation identity, update operation lifecycle, or reconcile operation arguments/status in TypeScript. |
 | `SessionHotState` | Replaced by `SessionTransientProjection`. Lifecycle/actionability/activity selectors prefer canonical graph projection; transient state is a compatibility/config/telemetry projection, not lifecycle truth. |
 | Raw `acp-session-update` lane | Diagnostic/coordination only. Raw tool calls, tool updates, plan payloads, user chunks, permission requests, and question requests do not mutate transcript/operation/interaction/lifecycle product stores. |
 | Raw `acp-inbound-request` lane | Normalized at the edge and used only for response coordination; canonical interaction state flows through graph patches. |
@@ -127,9 +129,21 @@ The pure GOD canonical widening plan is closed on automated gates:
 
 Tauri live-app smoke was not run during this closure because no MCP Bridge app was connected to the local driver. A human live-app pass remains appropriate before merge if the PR gate requires fresh UI evidence for send-disable latency, model switching, autonomous toggles, turn errors, reconnect, and local-created persisted-session restore failure.
 
+## Unit 10 canonical operation authority closure (2026-04-29)
+
+Operation authority is closed on the GOD model after the canonical operation refactor:
+
+- `operation_state` is required on `OperationSnapshot`; TypeScript no longer derives lifecycle from `provider_status`.
+- `provider_status` remains provenance evidence only. Product display status maps from canonical `operation_state` into presentation DTOs.
+- `blocked` is a resumable, non-terminal state tied to canonical interaction evidence. Terminal states are `completed`, `failed`, `cancelled`, and `degraded`.
+- `source_link` is the only transcript-operation join authority. Synthetic and degraded operations do not fake-join to transcript rows by matching ids, tool-call ids, or provenance keys.
+- Raw `ToolCall` and `ToolCallUpdate` lanes no longer create or mutate operation truth. The TypeScript reconciler that merged raw status/arguments into operations was deleted.
+- Tool routing for `read_lints` now comes from Rust canonical classification (`ToolKind::ReadLints`), not UI-level raw name/title aliases.
+- Shared UI receives presentation-safe status values derived from operations (`pending`, `running`, `blocked`, `done`, `error`, `cancelled`, `degraded`) and remains presentational.
+
 
 ## Post-land learnings
 
-- `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — After the GOD stack landed, a regression was found where `isTerminalOperationState` in `operation-store.svelte.ts` lacked `"blocked"` in its terminal-state set. ToolCall `in_progress` events could overwrite a canonical blocked patch. The guard is the enforcement mechanism for the GOD rule that raw event lanes cannot regress settled canonical state.
+- `docs/solutions/logic-errors/terminal-state-guard-missing-blocked-2026-04-25.md` — Superseded by the canonical operation authority closure above. The old raw-writer guard treated `blocked` as settled to prevent raw `in_progress` events from overwriting it; the final model makes `blocked` resumable/non-terminal and removes the raw operation writer instead.
 - `docs/solutions/logic-errors/reserved-first-send-routed-through-resume-2026-04-28.md` — After PR 180, fresh `Reserved` sessions could route their first prompt through resume/load because desktop projections still filled lifecycle/actionability gaps from hot state. The GOD routing invariant is explicit now: `Reserved` first-send uses direct send; `Detached` restore uses resume/load.
 - `docs/solutions/test-failures/bun-module-mock-cache-leakage-2026-04-25.md` — `analytics.test.ts` was deleted after its partial `mock.module` stub for `settings.js` leaked into `settings.test.ts` via Bun's per-process module cache.

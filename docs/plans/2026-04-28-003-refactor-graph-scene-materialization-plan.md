@@ -328,7 +328,7 @@ flowchart TB
 - Happy path: an operation patch for an existing transcript tool source entry updates the materialized scene from unresolved/degraded to rich execute/search/read presentation.
 - Happy path: repeated operation patch with richer evidence updates title/result/command without duplicating the scene entry.
 - Edge case: sparse later patch does not erase command/result/title already present from richer evidence.
-- Edge case: stale active patch does not regress a terminal, blocked, failed, cancelled, or degraded operation state.
+- Edge case: stale active patch does not regress terminal failed, cancelled, completed, or degraded operation state; `blocked` is an actionable non-terminal presentation state and may resume to `running` through canonical patches.
 - Integration: live `SessionStatePayload::Delta` with operation patches updates panel tool presentation without a `replaceSnapshot` transcript operation.
 
 **Verification:**

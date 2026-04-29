@@ -1498,7 +1498,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
 	});
 
-	it("applies canonical blocked to running patches to graph and operation store", () => {
+	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {
 		const store = new SessionStore();
 		const interactions = new InteractionStore();
 		store.setLiveSessionStateGraphConsumer(interactions);
@@ -1516,6 +1516,22 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							provider_status: "in_progress",
 						}),
 					],
+					transcriptSnapshot: {
+						revision: 7,
+						entries: [
+							{
+								entryId: "tool-1",
+								role: "tool",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "tool-1:tool",
+										text: "Run pwd",
+									},
+								],
+							},
+						],
+					},
 					interactions: [createPermissionInteractionSnapshot()],
 					activity: {
 						kind: "waiting_for_user",
@@ -1527,6 +1543,26 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				})
 			)
 		);
+
+		const blockedGraph = store.getSessionStateGraph("session-1");
+		expect(blockedGraph).not.toBeNull();
+		if (blockedGraph === null) {
+			throw new Error("Expected blocked graph");
+		}
+		expect(
+			materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph: blockedGraph,
+				header: {
+					title: "Session",
+				},
+			}).conversation.entries[0]
+		).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			status: "blocked",
+			presentationState: "resolved",
+		});
 
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
@@ -1587,11 +1623,90 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 
 		const graph = store.getSessionStateGraph("session-1");
+		expect(graph).not.toBeNull();
+		if (graph === null) {
+			throw new Error("Expected running graph");
+		}
 		expect(graph?.operations[0]?.operation_state).toBe("running");
 		expect(graph?.interactions[0]?.state).toBe("Approved");
 		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")?.operationState).toBe(
 			"running"
 		);
+		expect(
+			materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph: graph,
+				header: {
+					title: "Session",
+				},
+			}).conversation.entries[0]
+		).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			status: "running",
+			presentationState: "resolved",
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 9,
+						transcriptRevision: 7,
+						lastEventSeq: 9,
+					},
+					activity: createIdleActivity(),
+					turnState: "Idle",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptOperations: [],
+					operationPatches: [
+						createOperationSnapshot({
+							operation_state: "completed",
+							provider_status: "completed",
+						}),
+					],
+					interactionPatches: [],
+					changedFields: [
+						"operations",
+						"activity",
+						"turnState",
+						"activeTurnFailure",
+						"lastTerminalTurnId",
+					],
+				},
+			},
+		});
+
+		const completedGraph = store.getSessionStateGraph("session-1");
+		expect(completedGraph).not.toBeNull();
+		if (completedGraph === null) {
+			throw new Error("Expected completed graph");
+		}
+		expect(completedGraph.operations[0]?.operation_state).toBe("completed");
+		expect(
+			materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph: completedGraph,
+				header: {
+					title: "Session",
+				},
+			}).conversation.entries[0]
+		).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			status: "done",
+			presentationState: "resolved",
+		});
 	});
 
 	it("materializes live operation patches without replacing the transcript snapshot", () => {

@@ -34,7 +34,7 @@ The corrected invariant is:
 
 - terminal states are `completed | failed | cancelled | degraded`;
 - `blocked` is a non-terminal pause caused by a linked interaction;
-- raw ToolCall updates must not overwrite canonical blocked state;
+- raw ToolCall updates must not write operation state;
 - only canonical operation patches may move `blocked -> running`, `blocked -> cancelled`, or `blocked -> degraded`.
 
 ## Symptoms
@@ -49,7 +49,7 @@ Adding `"blocked"` to the terminal set was a temporary workaround. It confused l
 
 ## Solution
 
-Keep `blocked` out of terminal-state guards, then add a separate raw-lane protection guard for ToolCall upserts.
+Keep `blocked` out of terminal-state guards and delete the raw ToolCall operation writer. Raw ToolCall updates may remain transcript/diagnostic evidence, but they must not create operations, update operation lifecycle, or reconcile operation arguments in TypeScript.
 
 **`packages/desktop/src/lib/acp/store/operation-store.svelte.ts`**
 
@@ -70,29 +70,20 @@ function isTerminalOperationState(state: OperationState | undefined): boolean {
   }
 }
 
-function shouldPreserveOperationStateAgainstToolCall(state: OperationState | undefined): boolean {
-  return state === "blocked" || isTerminalOperationState(state);
-}
 ```
 
-Regression tests must cover both authority paths:
+Regression tests must cover the canonical path and the absence of a raw operation writer:
 
 ```ts
 it("applies canonical blocked resume patches because blocked is not terminal", () => {
   operationStore.applySessionOperationPatches("session-1", [blockedPatch, runningPatch]);
   expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("running");
 });
-
-it("upsertFromToolCall does not overwrite canonical blocked state when ToolCall lane fires", () => {
-  operationStore.applySessionOperationPatches("session-1", [blockedPatch]);
-  entryStore.updateToolCallEntry("session-1", { toolCallId: "tool-1", status: "in_progress" });
-  expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
-});
 ```
 
 ## Why This Works
 
-Canonical graph patches and raw ToolCall updates no longer share one lifecycle guard. Terminal guards protect truly settled states from stale non-terminal patches. The ToolCall guard protects canonical blocked state from lower-authority raw evidence without pretending blocked is terminal.
+Canonical graph patches and raw ToolCall updates no longer share one lifecycle guard. Terminal guards protect truly settled states from stale non-terminal patches, while the deleted raw writer prevents lower-authority raw evidence from becoming operation truth at all.
 
 ## Prevention
 
@@ -101,7 +92,7 @@ Canonical graph patches and raw ToolCall updates no longer share one lifecycle g
 - canonical patch path: `blocked -> running -> completed`;
 - cancellation path: `blocked -> cancelled`;
 - degraded path: `blocked -> degraded`;
-- lower-authority raw path: blocked canonical patch, then ToolCall `in_progress`, and blocked remains preserved.
+- lower-authority raw path: no production API exists that writes operation state from a ToolCall DTO.
 
 **Make terminal-state guards closed-set switches:**
 

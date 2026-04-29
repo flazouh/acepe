@@ -7,7 +7,7 @@ Commit: fafc8e023 ("refactor: implement final GOD architecture (canonical sessio
 
 ## Summary
 
-The core GOD architecture is substantively delivered: the canonical session graph is the single authority path, raw ACP update lanes are diagnostic-only, `ToolCallManager` and `SessionHotState` have been renamed/demoted, the seven-state lifecycle is the only runtime shape, `load_stored_projection` is gone, and all three UI teardown crash guards are in place. Two previously-blocking gaps were subsequently resolved: (1) the dangling `clearSessionProjection` call in `main-app-view.svelte` was removed; (2) the `OperationStatus = ToolCallStatus` coupling was resolved by deprecating the alias and introducing `OperationProviderStatus`. Three advisory warnings remain open (R3, R5a, R13) but are not blockers — canonical state is the product authority in all three cases, with legacy paths demoted to fallback/carry-along roles.
+The core GOD architecture is substantively delivered: the canonical session graph is the single authority path, raw ACP update lanes are diagnostic-only, `ToolCallManager` and `SessionHotState` have been renamed/demoted, the seven-state lifecycle is the only runtime shape, `load_stored_projection` is gone, and all three UI teardown crash guards are in place. Later closure work also resolved the old operation-authority smells: `operation_state` is required, `provider_status` is provenance-only, `blocked` is resumable/non-terminal, raw tool lanes cannot write operations, and transcript-operation rendering joins only through explicit `source_link` authority.
 
 ---
 
@@ -52,42 +52,33 @@ Raw events are captured in `rawStreamingStore` (dev mode only) and then the swit
 
 ---
 
-### ⚠️ R3: Legacy compatibility paths acting as alternate product truth are deleted
+### ✅ R3: Legacy compatibility paths acting as alternate product truth are deleted
 
 **Evidence — deleted/demoted:**
 - `session-hot-state-store.svelte.ts` → file no longer exists; replaced by `session-transient-projection-store.svelte.ts` (`SessionTransientProjectionStore`). Confirmed: `grep -l "session-hot-state-store"` returns nothing in production code.
 - `tool-call-manager.svelte.ts` (as `ToolCallManager`) → no production references found. Replaced by `services/transcript-tool-call-buffer.svelte.ts` (`TranscriptToolCallBuffer`).
 - `compat_graph_lifecycle` / `replace_checkpoint_for_compat` → no occurrences anywhere in `src-tauri/src/`. Confirmed absent.
 - `load_stored_projection` → no occurrences anywhere in `src-tauri/src/`. Confirmed absent.
+- `clearSessionProjection` dangling call was removed after the original verification gap.
+- Raw tool operation writer/reconciler symbols are absent from product code.
 
-**Gap:**
-- `clearSessionProjection` was removed from `SessionStore` (confirmed: `grep -c "clearSessionProjection" session-store.svelte.ts` = 0) BUT the call site at `main-app-view.svelte:160` still invokes `sessionStore.clearSessionProjection(id)` inside the `onSessionRemoved` callback. This is a **dangling method call** on every session-removed event. TypeScript will error at compile time and it will throw at runtime.
-
-**Severity: 🛑 Blocker** — any session teardown (tab close, session removal) hits this code path.
+**Assessment:** Legacy helpers may remain as transport/transcript or diagnostic helpers, but they do not write canonical lifecycle, operations, interactions, or rich tool presentation.
 
 ---
 
-### ⚠️ R5 / R5a: Operations are canonical graph nodes independent of ToolCall DTOs
+### ✅ R5 / R5a: Operations are canonical graph nodes independent of ToolCall DTO authority
 
 **Evidence — what was done:**
 - `OperationState` type is canonical and independent: `"pending" | "running" | "blocked" | "completed" | "failed" | "cancelled" | "degraded"`.
 - `isTerminalOperationState` uses `operationState`, not `status`.
 - All product decisions (terminal-state guard, streaming-state guard) use `operation.operationState`.
-- `buildOperationId` derives stable ID from `sessionId` + `toolCallId` (provenance key pattern).
-- `operationProvenanceKey` field added alongside `toolCallId`.
+- `operation_state` is required on `OperationSnapshot`; TypeScript no longer derives lifecycle from provider status.
+- `provider_status` is named provenance evidence (`OperationProviderStatus`) and is not product lifecycle.
+- `source_link` is required on `OperationSnapshot`; transcript rows join to operations only through `OperationSourceLink::TranscriptLinked`.
+- Raw `ToolCall` and `ToolCallUpdate` lanes no longer create operation identity, mutate operation state, or reconcile operation arguments/status in TypeScript.
+- Tool presentation status maps from canonical `operation_state`, not transcript-layer status.
 
-**Gap:**
-- `types/operation.ts` still has:
-  ```typescript
-  export type OperationStatus = ToolCallStatus; // "pending" | "in_progress" | "completed" | "failed"
-  export type OperationKind = ToolKind | null | undefined;
-  export interface Operation { ... status: OperationStatus; ... }
-  ```
-- Rust `OperationSnapshot` still has `status: ToolCallStatus` and `kind: Option<ToolKind>`.
-- These are ToolCall DTO type aliases remaining in the canonical schema, violating R5a.
-- `status` is carried forward but not used for product decisions (terminal/streaming state uses `operationState`). This is a schema-level violation even if the runtime behavior routes through `operationState`.
-
-**Severity: ⚠️ Warning** — product decisions use `operationState`; the `status` field is carry-along but still exposes ToolCall types in the canonical schema.
+**Assessment:** Any ToolCall-shaped data that remains on an operation is provider evidence at the adapter/projection edge. Product identity, lifecycle, source linkage, and presentation are canonical operation fields.
 
 ---
 
@@ -97,21 +88,29 @@ Raw events are captured in `rawStreamingStore` (dev mode only) and then the swit
 
 ---
 
-### ✅ R6a: `isTerminalOperationState` protects terminal states including `"blocked"`
+### ✅ R6a: `blocked` is canonical and resumable, not terminal
 
-**Evidence (`operation-store.svelte.ts:83–91`):**
+**Evidence (`operation-store.svelte.ts`):**
 ```typescript
 function isTerminalOperationState(state: OperationState | undefined): boolean {
-    return (
-        state === "completed" ||
-        state === "failed" ||
-        state === "cancelled" ||
-        state === "degraded" ||
-        state === "blocked"
-    );
+    if (state === undefined) {
+        return false;
+    }
+
+    switch (state) {
+        case "completed":
+        case "failed":
+        case "cancelled":
+        case "degraded":
+            return true;
+        case "pending":
+        case "running":
+        case "blocked":
+            return false;
+    }
 }
 ```
-`"blocked"` is in the terminal set. Lines 281–282 use this guard to prevent ToolCall lane upserts from overwriting settled canonical state.
+`"blocked"` is excluded from the terminal set and included in the streaming/active set. Resolution of the linked interaction can move the same canonical operation back to `running`, while completed/failed/cancelled/degraded operations remain protected from stale active patches.
 
 ---
 
@@ -252,47 +251,29 @@ The following legacy symbols have been confirmed **absent** from all production 
 | `compat_graph_lifecycle` | Removed from checkpoint.rs | ✅ Not found in `src-tauri/src/` |
 | `replace_checkpoint_for_compat` | Removed | ✅ Not found in `src-tauri/src/` |
 | `load_stored_projection` | Removed from `cc_sdk_client.rs` | ✅ Not found in `src-tauri/src/` |
+| `upsertFromToolCall` | Raw tool operation writer deleted | ✅ No production operation-store writer from raw `ToolCall` |
+| `createCompatibilityOperation` / `extractToolOperationCommand` | TypeScript operation reconciliation deleted | ✅ No frontend compatibility operation synthesis |
+| `ToolRouteKey` / `resolveToolRouteKey` | UI-level raw tool name/title routing deleted | ✅ Routing uses canonical `ToolKind` |
 
 ---
 
-## Gaps Requiring Action
+## Historical Gaps Now Closed
 
-### 🛑 GAP 1 (Blocker): Dangling `clearSessionProjection` call in `main-app-view.svelte`
+### ✅ Former GAP 1: Dangling `clearSessionProjection` call
 
-**File:** `packages/desktop/src/lib/components/main-app-view.svelte:160`
-**Issue:** `sessionStore.clearSessionProjection(id)` is called inside `sessionStore.onSessionRemoved(...)` callback. The method `clearSessionProjection` was removed from `SessionStore` in this commit ("Removed dead clearSessionProjection method from SessionStore") but the call site was not updated.
-
-**Impact:**
-- TypeScript compile error: Property `clearSessionProjection` does not exist on type `SessionStore`.
-- Runtime `TypeError`: calling `.clearSessionProjection` will throw on every session-removed event (tab close, session archive, etc.).
-
-**Fix:** Remove the `sessionStore.clearSessionProjection(id)` call from `main-app-view.svelte`. Verify whether any cleanup that `clearSessionProjection` formerly performed (hot-state removal) is now handled by `SessionStore.removeSession` or another path; if not, route cleanup through the appropriate current method.
+The dangling `sessionStore.clearSessionProjection(id)` call was removed. Session cleanup now routes through current store teardown paths instead of a deleted projection API.
 
 ---
 
-### ⚠️ GAP 2 (Warning): `OperationStatus = ToolCallStatus` schema coupling (R5a)
+### ✅ Former GAP 2: Operation status/tool-call schema coupling
 
-**Files:**
-- `packages/desktop/src/lib/acp/types/operation.ts`: `OperationStatus = ToolCallStatus`
-- `packages/desktop/src-tauri/src/acp/projections/mod.rs`: `OperationSnapshot.status: ToolCallStatus`
-
-**Issue:** The canonical `Operation` schema still derives the `status` field type from the transcript-layer `ToolCallStatus` alias. R5a requires operation kind/status types to not derive from ToolCall.
-
-**Mitigating factor:** All product decisions (terminal-state guard, streaming-state guard, actionability) use `operationState: OperationState`, which is fully decoupled. The `status` field is carry-along from the provider. This is a schema-level coupling, not a runtime authority gap.
-
-**Fix:** Introduce a canonical `OperationProviderStatus` or rename/re-type the `status` field to signal it is provenance evidence, not canonical state. Alternatively, defer to Unit 7 final integration gate for explicit disposition.
+`OperationSnapshot` now carries required `operation_state` and a provenance-only `provider_status`. Product state, guards, and presentation derive from `operation_state`; provider status is not lifecycle authority.
 
 ---
 
-### ⚠️ GAP 3 (Warning): `SessionTransientProjection` still carries lifecycle-authority fields (R13 partial)
+### ✅ Former GAP 3: `SessionTransientProjection` lifecycle fallback
 
-**File:** `packages/desktop/src/lib/acp/store/session-store.svelte.ts:1407,1469,1501`
-
-**Issue:** `hotState.isConnected` and `hotState.status` are used as fallbacks when `getSessionCanSend()` returns `null` (no canonical projection yet). R13 requires lifecycle fields to come only from canonical selectors.
-
-**Mitigating factor:** The fallback only fires during the pre-connection window before the first `SessionStateEnvelope` arrives. The canonical projection is primary; transient state is written FROM canonical data.
-
-**Fix:** Remove the `?? hotState.isConnected` fallback patterns; return `null`/`false` explicitly when canonical projection is not yet available, so pre-connection state is explicitly unknown rather than sourced from transient projection.
+`SessionTransientProjection` is residual-only. Lifecycle, actionability, activity, turn state, failures, model/mode, commands, config options, autonomous truth, and provider metadata are read through canonical projection accessors.
 
 ---
 
@@ -302,7 +283,7 @@ The following legacy symbols have been confirmed **absent** from all production 
 
 **Test:** Open a session, perform some interaction, then close/remove the session tab.
 **Expected:** No JavaScript `TypeError: sessionStore.clearSessionProjection is not a function` error in the console; session cleanup completes without error.
-**Why human:** This is the call path for GAP 1 — needs live Tauri verification to confirm the error fires (and to confirm it after fix).
+**Why human:** This is the live Tauri path for teardown cleanup and console-safety evidence.
 
 ### 2. Agent Panel Live Rendering Stability
 
@@ -325,8 +306,8 @@ The following legacy symbols have been confirmed **absent** from all production 
 | R1: Single authority path | ✅ VERIFIED |
 | R2: Raw updates not product authority | ✅ VERIFIED |
 | R3: Legacy paths deleted | ✅ VERIFIED — dangling clearSessionProjection call removed |
-| R5/R5a: Operations independent of ToolCall DTOs | ✅ VERIFIED — OperationProviderStatus canonical type introduced |
-| R6a: isTerminalOperationState includes "blocked" | ✅ VERIFIED |
+| R5/R5a: Operations independent of ToolCall DTOs | ✅ VERIFIED — provider status is provenance-only |
+| R6a: blocked is resumable/non-terminal | ✅ VERIFIED |
 | R10: Seven-state lifecycle | ✅ VERIFIED |
 | R13: SessionTransientProjection non-authoritative | ✅ VERIFIED — hotState fallbacks removed |
 | R15: load_stored_projection removed | ✅ VERIFIED |
@@ -339,4 +320,5 @@ The following legacy symbols have been confirmed **absent** from all production 
 ---
 
 _Verified: 2026-04-25_
+_Updated: 2026-04-29_
 _Verifier: gsd-verifier_

@@ -29,12 +29,13 @@ They do not directly own the final answer to "what is this session doing now?" o
 An operation should be the place shared code looks for:
 
 - tool identity,
-- lifecycle and status,
+- canonical `operation_state`,
+- provider status as provenance evidence only,
 - blocked reason,
 - typed display metadata,
 - execution timing,
 - parent/child links,
-- source entry links,
+- explicit `source_link` transcript/source authority,
 - raw evidence merged from provider signals.
 
 ## How operations are built
@@ -60,7 +61,7 @@ Transcript tool entries are still useful, but their role is narrower:
 
 That boundary matters because transcript replacement can legally degrade tool rows while operation state must stay stable enough to drive live UI.
 
-Frontend transcript adapters must preserve that boundary. They may convert transcript tool rows into minimal ordering/spine entries, but they must not hydrate `OperationStore`, preserve rich legacy tool DTOs across transcript replacement, or route restored rows through desktop tool renderers. Rich rendering comes from graph materialization of canonical operations.
+Frontend transcript adapters must preserve that boundary. They may convert transcript tool rows into minimal ordering/spine entries, but they must not hydrate `OperationStore`, preserve rich legacy tool DTOs across transcript replacement, or route restored rows through desktop tool renderers. Rich rendering comes from graph materialization of canonical operations, and transcript-operation joins are valid only through an operation's explicit `source_link.kind === "transcript_linked"` plus matching `entry_id`.
 
 ## Lifecycle
 
@@ -74,7 +75,7 @@ Operations use an explicit canonical state machine:
 - cancelled/abandoned,
 - degraded/partial.
 
-The enum is independent of transcript-layer `ToolCall` DTOs. Provider `toolCallId` may remain provenance evidence, but UI and product stores use canonical `operationId`.
+The enum is independent of transcript-layer `ToolCall` DTOs. Provider `toolCallId` and `provider_status` may remain provenance evidence, but UI and product stores use canonical `operationId`, `operation_state`, and presentation DTOs derived from `operation_state`.
 
 **lifecycle must be canonical and monotonic enough that reconnect/resume does not need to guess.**
 
@@ -101,7 +102,7 @@ Shared UI should ask selectors questions like:
 - is the operation blocked by a permission?
 - what was the last meaningful tool state?
 
-Shared UI should **not** re-classify provider payloads or rebuild tool semantics from transcript text.
+Shared UI should **not** re-classify provider payloads, rebuild tool semantics from transcript text, or derive display lifecycle from `provider_status`.
 
 Shared UI should also not collapse operation presence into its own session-level booleans like "planning" vs "working". That summary belongs to the graph-backed activity contract, which may preserve:
 
@@ -120,6 +121,6 @@ Shared UI should also not collapse operation presence into its own session-level
 
 ## Final GOD endpoint
 
-In the final architecture, operations are first-class graph nodes. Live provider events, provider-history restore, permissions, questions, todos, and plan approvals merge into canonical operation/interaction patches before desktop product code sees them. `ToolCallManager` is not operation truth; any remaining transport helper must be transport-only and must not mutate operation state, write operation stores, or create operation identity.
+In the final architecture, operations are first-class graph nodes. Live provider events, provider-history restore, permissions, questions, todos, and plan approvals merge into canonical operation/interaction patches before desktop product code sees them. `ToolCallManager` is not operation truth; any remaining transport helper must be transport-only and must not mutate operation state, write operation stores, create operation identity, or provide alternate transcript-operation joins.
 
-During short optimistic windows before a canonical scene exists, desktop-specific tool rendering may still act as a transport fallback. Once a graph scene exists, that fallback is not product authority; missing or sparse operation evidence must appear as explicit pending/degraded canonical scene state.
+During short optimistic windows before a canonical scene exists, desktop may render transport coordination hints. Once a graph scene exists, those hints are not product authority; missing or sparse operation evidence must appear as explicit pending/degraded canonical scene state.

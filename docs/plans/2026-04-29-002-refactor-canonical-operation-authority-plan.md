@@ -525,7 +525,7 @@ Unit 1 is a shippable correctness milestone once Unit 0 makes `Blocked` producti
 - Product UI decisions for tool status route through canonical operation state or explicit presentation DTOs.
 - `read_lints` has no UI-layer provider-name/title special case.
 
-- [ ] **Unit 6: Final deletion proof, docs, and integration coverage**
+- [x] **Unit 6: Final deletion proof, docs, and integration coverage**
 
 **Goal:** Prove the operation/tool-call subsystem has one canonical authority and update documentation so future work follows the corrected model.
 

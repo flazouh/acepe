@@ -73,11 +73,13 @@ Operations represent durable runtime work such as tool execution and its lifecyc
 
 They own facts like:
 
-- status and lifecycle,
+- canonical `operation_state`,
+- provider status as provenance evidence only,
 - blocked reason,
 - typed semantic fields,
 - timing,
 - parent/child links,
+- explicit source links for transcript-operation joins,
 - evidence merged from live and replayed signals.
 
 ## 3. Interactions
@@ -119,13 +121,14 @@ The architecture should preserve these invariants:
 1. **One state, many views.** Transcript, current tool UI, queue badges, session previews, and session activity copy may render different slices, but they must derive from the same underlying graph.
 2. **Raw updates are observational unless promoted.** A transport event can coordinate UX, but it does not own durable truth by itself.
 3. **Revisions matter.** Canonical envelopes apply in revision order and can be buffered until the target session is registered.
-4. **Transcript is not operation authority.** Tool rows in transcript history are presentation data, not the sole live source of runtime tool state.
+4. **Transcript is not operation authority.** Tool rows in transcript history are presentation data, not the sole live source of runtime tool state. A rich tool row may join to an operation only through `OperationSourceLink::TranscriptLinked`.
 5. **Provider quirks belong at the edge.** Provider-specific parsing and lifecycle policy must be resolved before shared UI/store code consumes the state.
 6. **Lifecycle truth is backend-owned.** Shared UI may render lifecycle, but it may not reconstruct it from `isConnected`, raw transport timing, or hot-state.
 7. **Actionability is canonical too.** Status alone is not enough; resume/retry/send/archive affordances must come from canonical actionability/recovery fields.
 8. **Session activity is graph-backed.** Shared UI may render compact variants like "thinking" or "streaming," but it may not decide session-level activity from raw tool timing, transcript order, or local booleans once graph activity exists.
 9. **Transcript adapters are spine-only.** A transcript snapshot adapter may create lightweight row DTOs so virtualized history can preserve ordering, but it may not hydrate operation stores, preserve rich tool DTOs, or choose product tool renderers.
-10. **Graph scene materialization is the rendering boundary.** Historical/restored tool rows render from `AgentPanelSceneModel`; if a tool row has no matching operation, the scene should expose an explicit pending/degraded row rather than falling back to desktop tool semantics.
+10. **Graph scene materialization is the rendering boundary.** Historical/restored tool rows render from `AgentPanelSceneModel`; if a tool row has no matching transcript-linked operation, the scene should expose an explicit pending/degraded row rather than falling back to desktop tool semantics.
+11. **Operation presentation derives from canonical operation state.** `provider_status` remains raw provider provenance. UI display status comes from canonical `operation_state` mapped into presentation DTOs, not from transcript-layer status or local provider-name/title heuristics.
 
 ## Design consequence
 
