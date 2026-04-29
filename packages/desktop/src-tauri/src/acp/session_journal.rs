@@ -232,12 +232,96 @@ pub fn decode_serialized_events(
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_serialized_events, ProjectionJournalUpdate, SessionJournalEventPayload};
+    use super::{
+        decode_serialized_events, rebuild_session_projection, ProjectionJournalUpdate,
+        SessionJournalEventPayload,
+    };
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::SessionReplayContext;
-    use crate::acp::session_update::{PermissionData, SessionUpdate};
+    use crate::acp::session_update::{
+        PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
+    };
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::SerializedSessionJournalEventRow;
+
+    fn replay_context() -> SessionReplayContext {
+        SessionReplayContext {
+            local_session_id: "local-session".to_string(),
+            history_session_id: "provider-session".to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            parser_agent_type: AgentType::Copilot,
+            project_path: "/repo".to_string(),
+            worktree_path: None,
+            effective_cwd: "/repo".to_string(),
+            source_path: None,
+            compatibility:
+                crate::acp::session_descriptor::SessionDescriptorCompatibility::Canonical,
+        }
+    }
+
+    fn permission_update(index: usize) -> SessionUpdate {
+        SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: format!("permission-{index}"),
+                session_id: "local-session".to_string(),
+                json_rpc_request_id: Some(index as u64),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(index as u64),
+                ),
+                permission: "Read".to_string(),
+                patterns: vec![format!("/repo/file-{index}.txt")],
+                metadata: serde_json::json!({}),
+                always: vec![],
+                auto_accepted: false,
+                tool: None,
+            },
+            session_id: Some("local-session".to_string()),
+        }
+    }
+
+    fn question_update(index: usize) -> SessionUpdate {
+        SessionUpdate::QuestionRequest {
+            question: QuestionData {
+                id: format!("question-{index}"),
+                session_id: "local-session".to_string(),
+                json_rpc_request_id: Some(index as u64),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(index as u64),
+                ),
+                questions: vec![QuestionItem {
+                    question: "Proceed?".to_string(),
+                    header: format!("Question {index}"),
+                    options: vec![QuestionOption {
+                        label: "Yes".to_string(),
+                        description: "Continue".to_string(),
+                    }],
+                    multi_select: false,
+                }],
+                tool: None,
+            },
+            session_id: Some("local-session".to_string()),
+        }
+    }
+
+    fn serialized_projection_row(
+        event_seq: i64,
+        update: SessionUpdate,
+    ) -> SerializedSessionJournalEventRow {
+        let payload = SessionJournalEventPayload::ProjectionUpdate {
+            update: Box::new(
+                ProjectionJournalUpdate::from_session_update(&update)
+                    .expect("update should be journaled"),
+            ),
+        };
+        SerializedSessionJournalEventRow {
+            event_id: format!("event-{event_seq}"),
+            session_id: "local-session".to_string(),
+            event_seq,
+            event_kind: "projection_update".to_string(),
+            event_json: serde_json::to_string(&payload).expect("serialize payload"),
+            created_at_ms: event_seq,
+        }
+    }
 
     #[test]
     fn decode_serialized_events_uses_replay_context_to_restore_projection_updates() {
@@ -271,18 +355,7 @@ mod tests {
             event_json: serde_json::to_string(&payload).expect("serialize payload"),
             created_at_ms: 123,
         }];
-        let replay_context = SessionReplayContext {
-            local_session_id: "local-session".to_string(),
-            history_session_id: "provider-session".to_string(),
-            agent_id: CanonicalAgentId::Copilot,
-            parser_agent_type: AgentType::Copilot,
-            project_path: "/repo".to_string(),
-            worktree_path: None,
-            effective_cwd: "/repo".to_string(),
-            source_path: None,
-            compatibility:
-                crate::acp::session_descriptor::SessionDescriptorCompatibility::Canonical,
-        };
+        let replay_context = replay_context();
 
         let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
 
@@ -301,5 +374,35 @@ mod tests {
             },
             other => panic!("expected projection payload, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn long_replay_decodes_and_rebuilds_journaled_interactions_without_tool_payloads() {
+        let replay_context = replay_context();
+        let rows = (1..=160)
+            .map(|index| {
+                let update = if index % 2 == 0 {
+                    permission_update(index as usize)
+                } else {
+                    question_update(index as usize)
+                };
+                serialized_projection_row(index, update)
+            })
+            .collect::<Vec<_>>();
+
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+        let replayed = rebuild_session_projection(&replay_context, &decoded);
+
+        assert_eq!(decoded.len(), 160);
+        assert_eq!(replayed.operations.len(), 0);
+        assert_eq!(replayed.interactions.len(), 160);
+        assert!(replayed
+            .interactions
+            .iter()
+            .any(|interaction| interaction.id == "permission-160"));
+        assert!(replayed
+            .interactions
+            .iter()
+            .any(|interaction| interaction.id == "question-159"));
     }
 }

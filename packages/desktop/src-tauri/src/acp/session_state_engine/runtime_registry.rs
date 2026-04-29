@@ -169,6 +169,10 @@ impl SessionGraphRuntimeRegistry {
             ));
         }
 
+        if should_emit_turn_state_delta(request.update) {
+            return self.build_turn_state_delta_envelope(&request).await;
+        }
+
         if should_emit_session_state_snapshot(request.update) {
             return self
                 .build_snapshot_envelope(
@@ -317,6 +321,64 @@ impl SessionGraphRuntimeRegistry {
             transcript_projection_registry,
         )
         .await
+    }
+
+    async fn build_turn_state_delta_envelope(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+    ) -> Option<SessionStateEnvelope> {
+        let transcript_operations = request
+            .transcript_delta
+            .map(|delta| delta.operations.clone())
+            .unwrap_or_default();
+        let is_transcript_bearing = !transcript_operations.is_empty();
+        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
+
+        match decide_frontier_transition(
+            current_frontier,
+            request.revision,
+            0,
+            is_transcript_bearing,
+        ) {
+            SessionFrontierDecision::RequireSnapshot { .. } => {
+                self.build_snapshot_envelope(
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                )
+                .await
+            }
+            SessionFrontierDecision::AcceptDelta {
+                from_revision,
+                to_revision,
+            } => {
+                let mut changed_fields = vec![
+                    "activity".to_string(),
+                    "turnState".to_string(),
+                    "activeTurnFailure".to_string(),
+                    "lastTerminalTurnId".to_string(),
+                ];
+                if is_transcript_bearing {
+                    changed_fields.push("transcriptSnapshot".to_string());
+                }
+
+                Some(build_delta_envelope(DeltaEnvelopeParts {
+                    session_id: request.session_id,
+                    from_revision,
+                    to_revision,
+                    projection: self.delta_projection_for_session(
+                        request.session_id,
+                        request.projection_registry,
+                    ),
+                    transcript_operations,
+                    operation_patches: Vec::new(),
+                    interaction_patches: Vec::new(),
+                    changed_fields,
+                }))
+            }
+        }
     }
 
     async fn build_snapshot_envelope(
@@ -650,10 +712,15 @@ fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
         update,
         SessionUpdate::PermissionRequest { .. }
             | SessionUpdate::QuestionRequest { .. }
-            | SessionUpdate::TurnComplete { .. }
-            | SessionUpdate::TurnError { .. }
             | SessionUpdate::ConnectionComplete { .. }
             | SessionUpdate::ConnectionFailed { .. }
+    )
+}
+
+fn should_emit_turn_state_delta(update: &SessionUpdate) -> bool {
+    matches!(
+        update,
+        SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
     )
 }
 
@@ -671,13 +738,16 @@ mod tests {
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
     };
     use crate::acp::session_state_engine::SessionStatePayload;
-    use crate::acp::session_state_engine::{DeltaSessionProjectionFields, SessionGraphRevision};
+    use crate::acp::session_state_engine::{
+        DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
+    };
     use crate::acp::session_update::{
         AvailableCommandsData, ConfigOptionData, CurrentModeData, SessionUpdate,
         UsageTelemetryData, UsageTelemetryTokens,
     };
     use crate::acp::session_update::{
-        ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
+        PermissionData, QuestionData, QuestionItem, QuestionOption, ToolArguments, ToolCallData,
+        ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
     };
     use crate::acp::transcript_projection::{
         TranscriptDelta, TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSnapshot,
@@ -713,6 +783,404 @@ mod tests {
         )
         .await
         .expect("insert session metadata");
+    }
+
+    fn create_completed_history_tool_call(index: usize) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call(
+                &format!("history-tool-{index}"),
+                &format!("echo history-{index}"),
+                ToolCallStatus::Completed,
+            ),
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn create_active_tool_call_update() -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call(
+                "active-tool",
+                "bun test --filter long-session",
+                ToolCallStatus::InProgress,
+            ),
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn create_active_tool_completion_update() -> SessionUpdate {
+        SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "active-tool".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(serde_json::json!({ "ok": true })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    async fn build_delta_for_history_depth(
+        db: &DbConn,
+        history_count: usize,
+        update_under_test: SessionUpdate,
+        seed_active_tool: bool,
+    ) -> SessionStateEnvelope {
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        for index in 0..history_count {
+            projection_registry
+                .apply_session_update("session-1", &create_completed_history_tool_call(index));
+        }
+        if seed_active_tool {
+            projection_registry
+                .apply_session_update("session-1", &create_active_tool_call_update());
+        }
+        projection_registry.apply_session_update("session-1", &update_under_test);
+
+        runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db,
+                session_id: "session-1",
+                update: &update_under_test,
+                previous_revision: SessionGraphRevision::new(10, 10, 10),
+                revision: SessionGraphRevision::new(11, 10, 11),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("hot tool delta envelope")
+    }
+
+    async fn build_snapshot_for_history_depth(
+        db: &DbConn,
+        history_count: usize,
+        update_under_test: SessionUpdate,
+    ) -> SessionStateEnvelope {
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        for index in 0..history_count {
+            let history_update = create_completed_history_tool_call(index);
+            projection_registry.apply_session_update("session-1", &history_update);
+            let _ = transcript_projection_registry
+                .apply_session_update(index as i64 + 1, &history_update);
+        }
+        projection_registry.apply_session_update("session-1", &update_under_test);
+        let _ = transcript_projection_registry
+            .apply_session_update(history_count as i64 + 1, &update_under_test);
+        runtime_registry.apply_session_update("session-1", &update_under_test);
+
+        runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db,
+                session_id: "session-1",
+                update: &update_under_test,
+                previous_revision: SessionGraphRevision::new(
+                    10,
+                    history_count as i64,
+                    history_count as i64,
+                ),
+                revision: SessionGraphRevision::new(
+                    11,
+                    history_count as i64 + 1,
+                    history_count as i64 + 1,
+                ),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("snapshot envelope")
+    }
+
+    async fn build_turn_envelope_for_history_depth(
+        db: &DbConn,
+        history_count: usize,
+        update_under_test: SessionUpdate,
+    ) -> SessionStateEnvelope {
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        for index in 0..history_count {
+            let history_update = create_completed_history_tool_call(index);
+            projection_registry.apply_session_update("session-1", &history_update);
+            let _ = transcript_projection_registry
+                .apply_session_update(index as i64 + 1, &history_update);
+        }
+        projection_registry.apply_session_update("session-1", &update_under_test);
+        let transcript_delta = transcript_projection_registry
+            .apply_session_update(history_count as i64 + 1, &update_under_test);
+        runtime_registry.apply_session_update("session-1", &update_under_test);
+
+        runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db,
+                session_id: "session-1",
+                update: &update_under_test,
+                previous_revision: SessionGraphRevision::new(
+                    10,
+                    history_count as i64,
+                    history_count as i64,
+                ),
+                revision: SessionGraphRevision::new(
+                    11,
+                    history_count as i64 + 1,
+                    history_count as i64 + 1,
+                ),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: transcript_delta.as_ref(),
+            })
+            .await
+            .expect("turn-state envelope")
+    }
+
+    fn assert_hot_tool_delta_contract(envelope: &SessionStateEnvelope) {
+        match &envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.transcript_operations.len(), 0);
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.interaction_patches.len(), 0);
+                assert_eq!(
+                    delta.changed_fields,
+                    vec![
+                        "operations".to_string(),
+                        "activity".to_string(),
+                        "turnState".to_string(),
+                        "activeTurnFailure".to_string(),
+                        "lastTerminalTurnId".to_string(),
+                    ]
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+
+        let value = serde_json::to_value(envelope).expect("serialize envelope to value");
+        let payload = value
+            .get("payload")
+            .expect("payload")
+            .as_object()
+            .expect("payload object");
+        assert_eq!(
+            payload.get("kind").and_then(|kind| kind.as_str()),
+            Some("delta")
+        );
+        assert!(payload.get("graph").is_none());
+        assert!(payload.get("transcriptSnapshot").is_none());
+    }
+
+    fn assert_snapshot_payload_contract(
+        surface: &str,
+        envelope: &SessionStateEnvelope,
+        expected_history_count: usize,
+    ) {
+        match &envelope.payload {
+            SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(
+                    graph.operations.len(),
+                    expected_history_count,
+                    "{surface} should carry the full operation history while it remains a snapshot surface"
+                );
+                assert!(
+                    graph.transcript_snapshot.entries.len() >= expected_history_count,
+                    "{surface} should carry the transcript history while it remains a snapshot surface"
+                );
+            }
+            other => panic!("expected snapshot payload for {surface}, got {:?}", other),
+        }
+    }
+
+    fn assert_turn_state_delta_contract(
+        surface: &str,
+        envelope: &SessionStateEnvelope,
+        expected_transcript_operations: usize,
+    ) {
+        match &envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(
+                    delta.transcript_operations.len(),
+                    expected_transcript_operations,
+                    "{surface} transcript delta shape changed"
+                );
+                assert_eq!(delta.operation_patches.len(), 0);
+                assert_eq!(delta.interaction_patches.len(), 0);
+                assert!(
+                    delta.changed_fields.contains(&"activity".to_string()),
+                    "{surface} delta should update activity"
+                );
+                assert!(
+                    delta.changed_fields.contains(&"turnState".to_string()),
+                    "{surface} delta should update turn state"
+                );
+                assert!(
+                    delta
+                        .changed_fields
+                        .contains(&"activeTurnFailure".to_string()),
+                    "{surface} delta should update active turn failure"
+                );
+                assert!(
+                    delta
+                        .changed_fields
+                        .contains(&"lastTerminalTurnId".to_string()),
+                    "{surface} delta should update terminal turn"
+                );
+            }
+            other => panic!("expected turn-state delta for {surface}, got {:?}", other),
+        }
+    }
+
+    async fn assert_snapshot_surface_scales_with_history(
+        db: &DbConn,
+        surface: &str,
+        update_under_test: SessionUpdate,
+    ) {
+        let short_envelope =
+            build_snapshot_for_history_depth(db, 4, update_under_test.clone()).await;
+        let long_envelope = build_snapshot_for_history_depth(db, 300, update_under_test).await;
+        assert_snapshot_payload_contract(surface, &short_envelope, 4);
+        assert_snapshot_payload_contract(surface, &long_envelope, 300);
+        let short_len = serialized_envelope_len(&short_envelope);
+        let long_len = serialized_envelope_len(&long_envelope);
+        assert!(
+            long_len > short_len + 1024,
+            "{surface} did not show measurable history scaling: short={short_len}, long={long_len}"
+        );
+    }
+
+    async fn assert_turn_state_surface_stays_history_independent(
+        db: &DbConn,
+        surface: &str,
+        update_under_test: SessionUpdate,
+        expected_transcript_operations: usize,
+    ) {
+        let short_envelope =
+            build_turn_envelope_for_history_depth(db, 4, update_under_test.clone()).await;
+        let long_envelope =
+            build_turn_envelope_for_history_depth(db, 300, update_under_test.clone()).await;
+        let doubled_envelope =
+            build_turn_envelope_for_history_depth(db, 600, update_under_test).await;
+        assert_turn_state_delta_contract(surface, &short_envelope, expected_transcript_operations);
+        assert_turn_state_delta_contract(surface, &long_envelope, expected_transcript_operations);
+        assert_turn_state_delta_contract(
+            surface,
+            &doubled_envelope,
+            expected_transcript_operations,
+        );
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
+    }
+
+    fn serialized_envelope_len(envelope: &SessionStateEnvelope) -> usize {
+        serde_json::to_string(envelope)
+            .expect("serialize envelope")
+            .len()
+    }
+
+    fn assert_history_independent_payload_size(
+        short_envelope: &SessionStateEnvelope,
+        long_envelope: &SessionStateEnvelope,
+    ) {
+        let short_len = serialized_envelope_len(short_envelope);
+        let long_len = serialized_envelope_len(long_envelope);
+        assert!(
+            long_len <= short_len + 1024,
+            "long hot delta payload grew too much: short={short_len}, long={long_len}"
+        );
+        assert!(
+            long_len * 100 <= short_len * 110,
+            "long hot delta payload exceeded relative budget: short={short_len}, long={long_len}"
+        );
+        assert!(
+            long_len <= 64 * 1024,
+            "normal hot delta payload exceeded absolute budget: len={long_len}"
+        );
+    }
+
+    fn create_permission_request_update() -> SessionUpdate {
+        SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(7),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                ),
+                permission: "Read".to_string(),
+                patterns: vec!["/workspace/a/README.md".to_string()],
+                metadata: serde_json::json!({}),
+                always: Vec::new(),
+                auto_accepted: false,
+                tool: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn create_question_request_update() -> SessionUpdate {
+        SessionUpdate::QuestionRequest {
+            question: QuestionData {
+                id: "question-1".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(8),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(8),
+                ),
+                questions: vec![QuestionItem {
+                    question: "Proceed?".to_string(),
+                    header: "Approval".to_string(),
+                    options: vec![QuestionOption {
+                        label: "Yes".to_string(),
+                        description: "Continue".to_string(),
+                    }],
+                    multi_select: false,
+                }],
+                tool: None,
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
+    fn create_turn_complete_update() -> SessionUpdate {
+        SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        }
+    }
+
+    fn create_turn_error_update() -> SessionUpdate {
+        SessionUpdate::TurnError {
+            error: TurnErrorData::Legacy("model stopped".to_string()),
+            session_id: Some("session-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        }
+    }
+
+    fn create_connection_complete_update() -> SessionUpdate {
+        SessionUpdate::ConnectionComplete {
+            session_id: "session-1".to_string(),
+            attempt_id: 1,
+            models: default_session_model_state(),
+            modes: default_modes(),
+            available_commands: Vec::new(),
+            config_options: Vec::new(),
+            autonomous_enabled: false,
+        }
+    }
+
+    fn create_connection_failed_update() -> SessionUpdate {
+        SessionUpdate::ConnectionFailed {
+            session_id: "session-1".to_string(),
+            attempt_id: 1,
+            error: "connection failed".to_string(),
+        }
     }
 
     fn create_execute_tool_call(id: &str, command: &str, status: ToolCallStatus) -> ToolCallData {
@@ -1002,6 +1470,119 @@ mod tests {
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    async fn hot_tool_call_delta_payload_stays_history_independent() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        let short_envelope =
+            build_delta_for_history_depth(&db, 4, create_active_tool_call_update(), false).await;
+        let long_envelope =
+            build_delta_for_history_depth(&db, 300, create_active_tool_call_update(), false).await;
+        let doubled_envelope =
+            build_delta_for_history_depth(&db, 600, create_active_tool_call_update(), false).await;
+
+        assert_hot_tool_delta_contract(&short_envelope);
+        assert_hot_tool_delta_contract(&long_envelope);
+        assert_hot_tool_delta_contract(&doubled_envelope);
+        match &long_envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.operation_patches[0].tool_call_id, "active-tool");
+                assert_eq!(
+                    delta.operation_patches[0].provider_status,
+                    ToolCallStatus::InProgress
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
+    }
+
+    #[tokio::test]
+    async fn hot_tool_call_update_delta_payload_stays_history_independent() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        let short_envelope =
+            build_delta_for_history_depth(&db, 4, create_active_tool_completion_update(), true)
+                .await;
+        let long_envelope =
+            build_delta_for_history_depth(&db, 300, create_active_tool_completion_update(), true)
+                .await;
+        let doubled_envelope =
+            build_delta_for_history_depth(&db, 600, create_active_tool_completion_update(), true)
+                .await;
+
+        assert_hot_tool_delta_contract(&short_envelope);
+        assert_hot_tool_delta_contract(&long_envelope);
+        assert_hot_tool_delta_contract(&doubled_envelope);
+        match &long_envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.operation_patches[0].tool_call_id, "active-tool");
+                assert_eq!(
+                    delta.operation_patches[0].provider_status,
+                    ToolCallStatus::Completed
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
+    }
+
+    #[tokio::test]
+    async fn non_turn_snapshot_payloads_are_measurable_history_scaling_surfaces() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        assert_snapshot_surface_scales_with_history(
+            &db,
+            "permission_request",
+            create_permission_request_update(),
+        )
+        .await;
+        assert_snapshot_surface_scales_with_history(
+            &db,
+            "question_request",
+            create_question_request_update(),
+        )
+        .await;
+        assert_snapshot_surface_scales_with_history(
+            &db,
+            "connection_complete",
+            create_connection_complete_update(),
+        )
+        .await;
+        assert_snapshot_surface_scales_with_history(
+            &db,
+            "connection_failed",
+            create_connection_failed_update(),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn per_turn_terminal_updates_emit_history_independent_deltas() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        assert_turn_state_surface_stays_history_independent(
+            &db,
+            "turn_complete",
+            create_turn_complete_update(),
+            0,
+        )
+        .await;
+        assert_turn_state_surface_stays_history_independent(
+            &db,
+            "turn_error",
+            create_turn_error_update(),
+            1,
+        )
+        .await;
     }
 
     #[tokio::test]
