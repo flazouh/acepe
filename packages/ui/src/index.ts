@@ -37,6 +37,7 @@ export type {
 	AgentThinkingEntry,
 	AgentTodoItem,
 	AgentTodoStatus,
+	AgentToolEditDiffEntry,
 	AgentToolEntry,
 	AgentToolKind,
 	AgentToolStatus,

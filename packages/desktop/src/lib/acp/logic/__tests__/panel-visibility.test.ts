@@ -104,6 +104,25 @@ describe("derivePanelViewState", () => {
 		}
 	});
 
+	it("should return error when runtime connection failed without canonical details", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 0,
+				runtimeState: makeRuntimeState({
+					connectionPhase: "failed",
+					contentPhase: "loading",
+					showConversation: false,
+					showReadyPlaceholder: false,
+				}),
+			})
+		);
+
+		expect(result.kind).toBe("error");
+		if (result.kind === "error") {
+			expect(result.details).toBe("Unable to connect to the agent.");
+		}
+	});
+
 	// ── Session Creation: Ready (not connecting) ──────────────
 
 	it("should return ready (not connecting) while session is being created", () => {
@@ -187,6 +206,22 @@ describe("derivePanelViewState", () => {
 		);
 
 		expect(result.kind).toBe("conversation");
+	});
+
+	it("should return loading while restored session content is materializing", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 0,
+				hasSession: true,
+				runtimeState: makeRuntimeState({
+					contentPhase: "loading",
+					showConversation: false,
+					showReadyPlaceholder: false,
+				}),
+			})
+		);
+
+		expect(result.kind).toBe("loading");
 	});
 
 	// ── Bug fix regression: entries > 0 NEVER produces ready ───

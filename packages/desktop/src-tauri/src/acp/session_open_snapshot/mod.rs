@@ -437,22 +437,27 @@ pub async fn session_open_result_from_thread_snapshot(
 ///
 /// Arms a reservation at `last_event_seq = 0` (or the proven initial cutoff
 /// when a seed journal event was persisted before this call).
+pub struct NewSessionOpenResultInput {
+    pub session_id: String,
+    pub agent_id: CanonicalAgentId,
+    pub project_path: String,
+    pub worktree_path: Option<String>,
+    pub source_path: Option<String>,
+    pub lifecycle: SessionGraphLifecycle,
+    pub capabilities: SessionGraphCapabilities,
+}
+
 pub async fn session_open_result_for_new_session(
     db: &DbConn,
     hub: &Arc<AcpEventHubState>,
-    session_id: &str,
-    agent_id: CanonicalAgentId,
-    project_path: String,
-    worktree_path: Option<String>,
-    source_path: Option<String>,
-    lifecycle: SessionGraphLifecycle,
-    capabilities: SessionGraphCapabilities,
+    input: NewSessionOpenResultInput,
 ) -> SessionOpenResult {
-    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, session_id).await {
+    let session_id = input.session_id;
+    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, &session_id).await {
         Ok(seq) => seq.unwrap_or(0),
         Err(err) => {
             return SessionOpenResult::Error(SessionOpenError::internal(
-                session_id,
+                &session_id,
                 format!("Failed to determine journal cutoff for new session {session_id}: {err}"),
             ));
         }
@@ -460,27 +465,27 @@ pub async fn session_open_result_for_new_session(
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    hub.arm_reservation(open_token, session_id.to_string(), last_event_seq, epoch_ms);
+    hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
-        requested_session_id: session_id.to_string(),
-        canonical_session_id: session_id.to_string(),
+        requested_session_id: session_id.clone(),
+        canonical_session_id: session_id.clone(),
         is_alias: false,
         last_event_seq,
         graph_revision: last_event_seq,
         open_token: open_token.to_string(),
-        agent_id,
-        project_path,
-        worktree_path,
-        source_path,
+        agent_id: input.agent_id,
+        project_path: input.project_path,
+        worktree_path: input.worktree_path,
+        source_path: input.source_path,
         transcript_snapshot: TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
-        session_title: default_session_title(session_id),
+        session_title: default_session_title(&session_id),
         operations: vec![],
         interactions: vec![],
         turn_state: SessionTurnState::Idle,
         message_count: 0,
-        lifecycle,
-        capabilities,
+        lifecycle: input.lifecycle,
+        capabilities: input.capabilities,
         active_turn_failure: None,
         last_terminal_turn_id: None,
     }))
@@ -523,6 +528,21 @@ mod tests {
 
     fn make_hub() -> Arc<AcpEventHubState> {
         Arc::new(AcpEventHubState::new())
+    }
+
+    fn new_session_open_input(
+        session_id: &str,
+        capabilities: SessionGraphCapabilities,
+    ) -> NewSessionOpenResultInput {
+        NewSessionOpenResultInput {
+            session_id: session_id.to_string(),
+            agent_id: CanonicalAgentId::Copilot,
+            project_path: "/test/project".to_string(),
+            worktree_path: None,
+            source_path: None,
+            lifecycle: SessionGraphLifecycle::reserved(),
+            capabilities,
+        }
     }
 
     async fn seed_session_metadata(db: &DbConn, session_id: &str, agent_id: &str) {
@@ -710,13 +730,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            capabilities.clone(),
+            new_session_open_input(session_id, capabilities.clone()),
         )
         .await;
 
@@ -759,13 +773,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -992,13 +1000,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -1024,13 +1026,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -1058,13 +1054,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -1106,13 +1096,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -1150,13 +1134,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 
@@ -1181,13 +1159,7 @@ mod tests {
         let result = session_open_result_for_new_session(
             &db,
             &hub,
-            session_id,
-            CanonicalAgentId::Copilot,
-            "/test/project".to_string(),
-            None,
-            None,
-            SessionGraphLifecycle::reserved(),
-            SessionGraphCapabilities::empty(),
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
         )
         .await;
 

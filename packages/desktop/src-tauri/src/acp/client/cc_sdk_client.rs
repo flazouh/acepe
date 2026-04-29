@@ -1436,16 +1436,6 @@ impl ClaudeCcSdkClient {
             "cc-sdk: sending user message via send_user_message..."
         );
 
-        log_debug_event(
-            &self.session_id,
-            "cc_sdk.user_message_outbound",
-            &serde_json::json!({
-                "direction": "app_to_sdk",
-                "charCount": text.chars().count(),
-                "text": text.as_str(),
-            }),
-        );
-
         sdk_client
             .lock()
             .await

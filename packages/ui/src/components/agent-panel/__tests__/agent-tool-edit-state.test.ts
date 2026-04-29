@@ -17,10 +17,17 @@ describe("agent-tool-edit-state", () => {
   it("resolves header state from status + applied + approval flags", () => {
     expect(resolveEditHeaderState("pending", false, false)).toBe("editing");
     expect(resolveEditHeaderState("running", false, false)).toBe("editing");
+    expect(resolveEditHeaderState("pending", false, true)).toBe(
+      "awaitingApproval",
+    );
+    expect(resolveEditHeaderState("running", false, true)).toBe(
+      "awaitingApproval",
+    );
     expect(resolveEditHeaderState("done", true, false)).toBe("edited");
     expect(resolveEditHeaderState("done", false, true)).toBe(
       "awaitingApproval",
     );
+    expect(resolveEditHeaderState("done", true, true)).toBe("awaitingApproval");
     expect(resolveEditHeaderState("done", false, false)).toBe("interrupted");
     expect(resolveEditHeaderState("error", false, false)).toBe("failed");
   });

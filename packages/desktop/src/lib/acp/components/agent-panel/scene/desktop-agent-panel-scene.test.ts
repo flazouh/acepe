@@ -161,6 +161,61 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("maps edit tool arguments into editDiffs for shared AgentToolEdit", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-edit-1",
+				type: "tool_call",
+				message: {
+					id: "tool-edit-1",
+					name: "Edit",
+					arguments: {
+						kind: "edit",
+						edits: [
+							{
+								filePath: "/repo/src/a.ts",
+								oldString: "a",
+								newString: "b",
+							},
+						],
+					},
+					rawInput: null,
+					status: "completed",
+					result: null,
+					kind: "edit",
+					title: "Edit File",
+					locations: null,
+					skillMeta: null,
+					normalizedResult: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		const toolCall = conversation.entries[0] as { editDiffs?: readonly unknown[] };
+		expect(toolCall).toMatchObject({
+			id: "tool-edit-1",
+			type: "tool_call",
+			kind: "edit",
+			status: "done",
+			filePath: "/repo/src/a.ts",
+		});
+		expect(toolCall.editDiffs).toHaveLength(1);
+		expect(toolCall.editDiffs?.[0]).toMatchObject({
+			filePath: "/repo/src/a.ts",
+			oldString: "a",
+			newString: "b",
+		});
+	});
+
 	it("only keeps the trailing incomplete tool call live during streaming", () => {
 		const entries: SessionEntry[] = [
 			{

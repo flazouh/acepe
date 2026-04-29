@@ -115,6 +115,18 @@ Unit 7 final integration proof completed after provider-owned session identity l
 
 **Live Tauri smoke pass:** Still required for teardown, reconnect, and pending-permission survival scenarios. Automated component tests cover the stale-row/teardown crash class; Tauri driver was unreachable during automated closure.
 
+## Unit 9 canonical widening closure (2026-04-29)
+
+The pure GOD canonical widening plan is closed on automated gates:
+
+- `SessionTransientProjection` is now residual-only: `acpSessionId`, `autonomousTransition`, `statusChangedAt`, `modelPerMode`, `usageTelemetry`, `pendingSendIntent`, `localPersistedSessionProbeStatus`, and `capabilityMutationState`.
+- `SessionCapabilitiesStore`, `ICapabilitiesManager`, and `sessionStore.getCapabilities()` are deleted. Product capability readers use canonical projection accessors.
+- Lifecycle, actionability, activity, turn state, failures, terminal-turn id, mode/model, commands, config options, autonomous truth, provider metadata, and model display are no longer hot-state fields.
+- `canonical-projection-parity.test.ts` verifies a representative cold-open snapshot and live snapshot envelope produce identical canonical projections and capability accessors.
+- The GOD clearance scan found no forbidden bridge references, canonical-overlap hot-state reads/writes, or canonical-to-hot-state fallback patterns in ACP store code.
+
+Tauri live-app smoke was not run during this closure because no MCP Bridge app was connected to the local driver. A human live-app pass remains appropriate before merge if the PR gate requires fresh UI evidence for send-disable latency, model switching, autonomous toggles, turn errors, reconnect, and local-created persisted-session restore failure.
+
 
 ## Post-land learnings
 

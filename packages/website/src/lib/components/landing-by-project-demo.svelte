@@ -148,6 +148,16 @@ function createScene(params: {
 					degradedReason: params.isStreaming
 						? "No canonical operation was found for this restored transcript tool row."
 						: null,
+					editDiffs: [
+						{
+							filePath: params.editFilePath,
+							fileName: params.editFilePath.split("/").pop() ?? params.editFilePath,
+							oldString: "// before\n",
+							newString: "// after\n",
+							additions: 1,
+							deletions: 1,
+						},
+					],
 				},
 				{
 					id: `${params.panelId}-assistant`,

@@ -226,6 +226,16 @@ function createRemoveEffectConversation(): DemoConversationEntry[] {
 			title: "Edit",
 			filePath: "packages/desktop/src/lib/components/session-list.svelte",
 			status: "done",
+			editDiffs: [
+				{
+					filePath: "packages/desktop/src/lib/components/session-list.svelte",
+					fileName: "session-list.svelte",
+					oldString: "$effect(() => {\n  if (entries.length) el.scrollTop = el.scrollHeight;\n});",
+					newString: "let n = $derived(entries.length);\n// use:scrollToBottom={n}",
+					additions: 2,
+					deletions: 3,
+				},
+			],
 		},
 		{
 			id: "composer-primary-execute",
@@ -280,6 +290,16 @@ function createKeyboardNavConversation(): DemoConversationEntry[] {
 			title: "Edit",
 			filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
 			status: "done",
+			editDiffs: [
+				{
+					filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
+					fileName: "panel-keyboard-handler.ts",
+					oldString: "case \"l\":",
+					newString: "case \"l\":\ncase \"[\":\ncase \"]\":",
+					additions: 2,
+					deletions: 0,
+				},
+			],
 		},
 		{
 			id: "composer-verify-execute",
@@ -313,12 +333,41 @@ function createNarrowStatusConversation(): DemoConversationEntry[] {
 			status: "done",
 		},
 		{
+			id: "composer-polish-edit-awaiting",
+			type: "tool_call",
+			kind: "edit",
+			title: "Edit",
+			filePath: "packages/desktop/src/lib/acp/store/session-store.svelte.ts",
+			status: "blocked",
+			presentationState: "pending_operation",
+			editDiffs: [
+				{
+					filePath: "packages/desktop/src/lib/acp/store/session-store.svelte.ts",
+					fileName: "session-store.svelte.ts",
+					oldString: "merge(sessionPatch)",
+					newString: "mergeCanonical(sessionPatch)",
+					additions: 1,
+					deletions: 1,
+				},
+			],
+		},
+		{
 			id: "composer-polish-edit",
 			type: "tool_call",
 			kind: "edit",
 			title: "Edit",
 			filePath: "packages/ui/src/components/agent-panel/types.ts",
 			status: "done",
+			editDiffs: [
+				{
+					filePath: "packages/ui/src/components/agent-panel/types.ts",
+					fileName: "types.ts",
+					oldString: "status?: string;",
+					newString: "status?: AgentSessionStatus;",
+					additions: 1,
+					deletions: 1,
+				},
+			],
 		},
 		{
 			id: "composer-polish-execute",

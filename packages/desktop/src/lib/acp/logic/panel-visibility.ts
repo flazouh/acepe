@@ -15,6 +15,7 @@ export type PanelViewState =
 	| { readonly kind: "project_selection" }
 	| { readonly kind: "error"; readonly details: string }
 	| { readonly kind: "conversation"; readonly errorDetails: string | null }
+	| { readonly kind: "loading" }
 	| { readonly kind: "ready" };
 
 // ── Input ──────────────────────────────────────────────────────
@@ -38,7 +39,8 @@ export interface PanelViewStateInput {
  * 1. project_selection — needs project selection OR agent selection (agents are embedded in project cards)
  * 2. error            — blocking error with no entries
  * 3. conversation     — has entries or active model wait (carries inline errorDetails)
- * 4. ready            — connected session, creating session, or can start one
+ * 4. loading          — content or connection is still materializing
+ * 5. ready            — connected session, creating session, or can start one
  */
 export function derivePanelViewState(input: PanelViewStateInput): PanelViewState {
 	const {
@@ -61,6 +63,10 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 
+	if (runtimeState?.connectionPhase === "failed" && entriesCount === 0) {
+		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
+	}
+
 	// 3. Conversation — entries exist (inline error banner if applicable)
 	if (entriesCount > 0) {
 		return {
@@ -76,7 +82,17 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		};
 	}
 
-	// 4. Ready — connected session with no entries, or can start a new one.
+	if (
+		hasSession &&
+		runtimeState !== null &&
+		runtimeState.contentPhase === "loading" &&
+		!runtimeState.showConversation &&
+		!runtimeState.showReadyPlaceholder
+	) {
+		return { kind: "loading" };
+	}
+
+	// 5. Ready — connected session with no entries, or can start a new one.
 	// Session creation also falls through here so the user sees "Ready to assist"
 	// and can type immediately while the session is being created in the background.
 	const sessionIsReady =

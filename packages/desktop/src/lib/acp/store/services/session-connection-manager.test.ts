@@ -19,11 +19,11 @@ import type { ITransientProjectionManager } from "./interfaces/transient-project
 
 let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 
-interface TestCapabilitiesManager {
-	getCapabilities(sessionId: string): SessionCapabilities;
-	hasCapabilities(sessionId: string): boolean;
-	updateCapabilities(sessionId: string, updates: Partial<SessionCapabilities>): void;
-	removeCapabilities(sessionId: string): void;
+interface TestCanonicalCapabilities {
+	readCapabilities(sessionId: string): SessionCapabilities;
+	hasCanonicalCapabilities(sessionId: string): boolean;
+	recordCapabilityUpdate(sessionId: string, updates: Partial<SessionCapabilities>): void;
+	removeCanonicalCapabilities(sessionId: string): void;
 }
 
 const canonicalOverlapHotStateFields = [
@@ -44,6 +44,25 @@ const canonicalOverlapHotStateFields = [
 	"providerMetadata",
 	"modelsDisplay",
 ] as const;
+
+function createResidualHotState(input: {
+	acpSessionId?: string | null;
+	autonomousTransition?: SessionTransientProjection["autonomousTransition"];
+	modelPerMode?: Record<string, string>;
+} = {}): SessionTransientProjection {
+	return {
+		acpSessionId: input.acpSessionId ?? null,
+		autonomousTransition: input.autonomousTransition ?? "idle",
+		modelPerMode: input.modelPerMode ?? {},
+		statusChangedAt: Date.now(),
+		pendingSendIntent: null,
+		localPersistedSessionProbeStatus: "none",
+		capabilityMutationState: {
+			pendingMutationId: null,
+			previewState: null,
+		},
+	};
+}
 
 function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
 	for (const call of updateHotState.mock.calls) {
@@ -135,7 +154,7 @@ function createManager(deps: {
 	stateReader: ISessionStateReader;
 	stateWriter: ISessionStateWriter;
 	hotState: ITransientProjectionManager;
-	capabilities: TestCapabilitiesManager;
+	capabilities: TestCanonicalCapabilities;
 	entryManager: IEntryManager;
 	connectionManager: IConnectionManager;
 }) {
@@ -148,7 +167,7 @@ function createManager(deps: {
 		Object.assign(deps.stateReader, { getSessionCapabilities: vi.fn() });
 	}
 	(deps.stateReader.getSessionCapabilities as ReturnType<typeof vi.fn>).mockImplementation(
-		(sessionId: string) => deps.capabilities.getCapabilities(sessionId)
+		(sessionId: string) => deps.capabilities.readCapabilities(sessionId)
 	);
 	return new SessionConnectionManager(
 		deps.stateReader,
@@ -233,11 +252,11 @@ describe("SessionConnectionManager.connectSession", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: TestCapabilitiesManager = {
-		getCapabilities: vi.fn(),
-		hasCapabilities: vi.fn(),
-		updateCapabilities: vi.fn(),
-		removeCapabilities: vi.fn(),
+	const capabilities: TestCanonicalCapabilities = {
+		readCapabilities: vi.fn(),
+		hasCanonicalCapabilities: vi.fn(),
+		recordCapabilityUpdate: vi.fn(),
+		removeCanonicalCapabilities: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -284,11 +303,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(baseSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -317,14 +332,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("applies the stored Autonomous profile after reconnecting a disconnected session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentMode: { id: "build", name: "Build", description: null },
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -398,14 +406,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentMode: { id: "build", name: "Build", description: null },
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -452,14 +453,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			autonomousEnabled: false,
-			autonomousTransition: "idle",
-			currentMode: { id: "plan", name: "Plan", description: null },
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -495,14 +489,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentMode: { id: "build", name: "Build", description: null },
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -536,14 +523,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			...baseSession,
 			agentId: "custom-agent",
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			isStreaming: false,
-			status: "idle",
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentMode: { id: "build", name: "Build", description: null },
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		getCachedModelsDisplay.mockReturnValue({
 			groups: [],
 			presentation: {
@@ -865,7 +845,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(capabilities.updateCapabilities).not.toHaveBeenCalled();
+		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
 	});
 
 	it("hydrates provider metadata into model display caches on connect", async () => {
@@ -1009,13 +989,9 @@ describe("SessionConnectionManager.connectSession", () => {
 		// Simulate a session that was previously connected (has an acpSessionId in hot state).
 		// The old replay-suppression guard would have skipped the resume call in this case.
 		// Post-U5 this must always proceed to resumeSession.
-		(hotState.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			status: "idle",
-			acpSessionId: "existing-acp-session-id",
-			isConnected: false,
-			connectionError: null,
-			metadata: {},
-		});
+		(hotState.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: "existing-acp-session-id" })
+		);
 
 		const manager = createManager({
 			stateReader,
@@ -1133,11 +1109,11 @@ describe("SessionConnectionManager.createSession", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: TestCapabilitiesManager = {
-		getCapabilities: vi.fn(),
-		hasCapabilities: vi.fn(),
-		updateCapabilities: vi.fn(),
-		removeCapabilities: vi.fn(),
+	const capabilities: TestCanonicalCapabilities = {
+		readCapabilities: vi.fn(),
+		hasCanonicalCapabilities: vi.fn(),
+		recordCapabilityUpdate: vi.fn(),
+		removeCanonicalCapabilities: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -1380,7 +1356,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(capabilities.updateCapabilities).not.toHaveBeenCalled();
+		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
 	});
 
 	it("hydrates hot state with available commands on new session", async () => {
@@ -1851,11 +1827,11 @@ describe("SessionConnectionManager autonomous policy", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: TestCapabilitiesManager = {
-		getCapabilities: vi.fn(),
-		hasCapabilities: vi.fn(),
-		updateCapabilities: vi.fn(),
-		removeCapabilities: vi.fn(),
+	const capabilities: TestCanonicalCapabilities = {
+		readCapabilities: vi.fn(),
+		hasCanonicalCapabilities: vi.fn(),
+		recordCapabilityUpdate: vi.fn(),
+		removeCanonicalCapabilities: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -1902,25 +1878,14 @@ describe("SessionConnectionManager autonomous policy", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "ready",
-			turnState: "idle",
-			acpSessionId: sessionId,
-			connectionError: null,
-			autonomousEnabled: false,
-			autonomousTransition: "idle" as const,
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("ready");
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
-		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [
 				{ id: "build", name: "Build", description: null },
 				{ id: "plan", name: "Plan", description: null },
@@ -1962,20 +1927,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-			turnState: "idle",
-			acpSessionId: null,
-			connectionError: null,
-			autonomousEnabled: false,
-			autonomousTransition: "idle" as const,
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
@@ -2033,39 +1985,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
-		const connectedHotState = {
-			isConnected: true,
-			status: "ready",
-			turnState: "idle",
-			acpSessionId: sessionId,
-			connectionError: null,
-			autonomousEnabled: false,
-			autonomousTransition: "idle" as const,
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		};
-		const reconnectingHotState = {
-			isConnected: false,
-			status: "idle",
-			turnState: "idle",
-			acpSessionId: null,
-			connectionError: null,
-			autonomousEnabled: true,
-			autonomousTransition: "enabling" as const,
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		};
-		let hotStateReadCount = 0;
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockImplementation(() => {
-			hotStateReadCount += 1;
-			return hotStateReadCount <= 2 ? connectedHotState : reconnectingHotState;
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2075,7 +1997,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [],
 			availableModels: [],
 			availableCommands: [],
@@ -2134,6 +2056,36 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(resumeSession).not.toHaveBeenCalled();
 	});
 
+	it("rejects Autonomous changes while a local transition is pending", async () => {
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ autonomousTransition: "enabling" })
+		);
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "custom-agent",
+			title: "Launch Profile Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setAutonomousEnabled(sessionId, true, createMockEventHandler());
+
+		expect(result.isErr()).toBe(true);
+		expect(setSessionAutonomous).not.toHaveBeenCalled();
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
+	});
+
 	it("rolls Autonomous state back when backend policy sync fails", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
@@ -2170,20 +2122,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "ready",
-			turnState: "idle",
-			acpSessionId: sessionId,
-			connectionError: null,
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2193,7 +2134,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [{ id: "plan", name: "Plan", description: null }],
 			availableModels: [],
 			availableCommands: [],
@@ -2219,20 +2160,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("disables backend Autonomous when switching from build into plan mode", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "ready",
-			turnState: "idle",
-			acpSessionId: sessionId,
-			connectionError: null,
-			autonomousEnabled: true,
-			autonomousTransition: "idle",
-			currentModel: null,
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2242,7 +2172,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [{ id: "plan", name: "Plan", description: null }],
 			availableModels: [],
 			availableCommands: [],
@@ -2270,20 +2200,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("does not mutate hot state directly when setting model", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "ready",
-			turnState: "idle",
-			acpSessionId: sessionId,
-			connectionError: null,
-			autonomousEnabled: false,
-			autonomousTransition: "idle",
-			currentModel: { id: "gpt-4", name: "GPT-4", description: null },
-			currentMode: { id: "build", name: "Build", description: null },
-			availableCommands: [],
-			modelPerMode: {},
-			statusChangedAt: Date.now(),
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2293,7 +2212,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(capabilities.getCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
 			availableModes: [{ id: "build", name: "Build", description: null }],
 			availableModels: [{ id: "gpt-5", name: "GPT-5", description: null }],
 			availableCommands: [],
@@ -2359,11 +2278,11 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		initializeHotState: vi.fn(),
 	};
 
-	const capabilities: TestCapabilitiesManager = {
-		getCapabilities: vi.fn(),
-		hasCapabilities: vi.fn(),
-		updateCapabilities: vi.fn(),
-		removeCapabilities: vi.fn(),
+	const capabilities: TestCanonicalCapabilities = {
+		readCapabilities: vi.fn(),
+		hasCanonicalCapabilities: vi.fn(),
+		recordCapabilityUpdate: vi.fn(),
+		removeCanonicalCapabilities: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -2410,11 +2329,9 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			isStreaming: true,
-			status: "idle",
-		});
+		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualHotState({ acpSessionId: sessionId })
+		);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("activating");
 	});
 
@@ -2503,11 +2420,11 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			initializeHotState: vi.fn(),
 		};
 
-		const capabilities: TestCapabilitiesManager = {
-			getCapabilities: vi.fn(),
-			hasCapabilities: vi.fn(),
-			updateCapabilities: vi.fn(),
-			removeCapabilities: vi.fn(),
+		const capabilities: TestCanonicalCapabilities = {
+			readCapabilities: vi.fn(),
+			hasCanonicalCapabilities: vi.fn(),
+			recordCapabilityUpdate: vi.fn(),
+			removeCanonicalCapabilities: vi.fn(),
 		};
 
 		const entryManager: IEntryManager = {

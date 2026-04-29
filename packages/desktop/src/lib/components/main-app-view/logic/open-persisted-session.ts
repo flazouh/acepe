@@ -147,10 +147,11 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		}
 
 		sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
-		sessionStore.setLocalCreatedSessionLoaded(sessionId);
+		sessionStore.setSessionLoading(sessionId);
 		void sessionStore.connectSession(sessionId).match(
 			() => {
 				sessionStore.setLocalPersistedSessionProbeStatus(sessionId, "none");
+				sessionStore.setLocalCreatedSessionLoaded(sessionId);
 				logger.debug("Reattached local created session", {
 					source,
 					panelId,

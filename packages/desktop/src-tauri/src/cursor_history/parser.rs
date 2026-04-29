@@ -1147,6 +1147,14 @@ async fn find_sqlite_store_db_for_session(
     storage::find_sqlite_store_db_for_session(chats_dir, session_id).await
 }
 
+#[cfg(test)]
+async fn find_acp_sessions_store_db_for_session(
+    acp_sessions_dir: &Path,
+    session_id: &str,
+) -> Result<Option<PathBuf>> {
+    storage::find_acp_sessions_store_db_for_session(acp_sessions_dir, session_id).await
+}
+
 pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSession>> {
     storage::find_sqlite_session_by_id(session_id).await
 }

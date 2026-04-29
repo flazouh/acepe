@@ -6,6 +6,27 @@ export type ToolCallEditDiff = {
 	readonly newString: string | null;
 };
 
+/**
+ * cc-sdk / Cursor may stream replacement text as a truncated envelope instead of a raw string:
+ * `{ value: string; truncated?: boolean; originalChars?: number }`.
+ * Generated `EditEntry` types only describe `string`, so we normalize at the boundary.
+ */
+function coerceEditText(value: unknown): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	if (typeof value === "string") {
+		return value;
+	}
+	if (typeof value === "object" && !Array.isArray(value)) {
+		const envelope = value as { value?: unknown };
+		if (typeof envelope.value === "string") {
+			return envelope.value;
+		}
+	}
+	return null;
+}
+
 function getEditEntries(
 	arguments_: ToolArguments | null | undefined
 ): Extract<ToolArguments, { kind: "edit" }>["edits"] {
@@ -26,8 +47,8 @@ export function resolveToolCallEditDiffs(
 	if (streamingEdits.length === 0) {
 		return baseEdits.map((edit) => ({
 			filePath: edit.filePath ?? null,
-			oldString: edit.oldString ?? null,
-			newString: edit.newString ?? edit.content ?? null,
+			oldString: coerceEditText(edit.oldString),
+			newString: coerceEditText(edit.newString ?? edit.content),
 		}));
 	}
 
@@ -37,15 +58,18 @@ export function resolveToolCallEditDiffs(
 		const baseEdit = baseEdits[index];
 		const streamingEdit = streamingEdits[index];
 
+		const mergedNew =
+			streamingEdit?.newString ??
+			streamingEdit?.content ??
+			baseEdit?.newString ??
+			baseEdit?.content ??
+			null;
+		const mergedOld = streamingEdit?.oldString ?? baseEdit?.oldString ?? null;
+
 		return {
 			filePath: streamingEdit?.filePath ?? baseEdit?.filePath ?? null,
-			oldString: streamingEdit?.oldString ?? baseEdit?.oldString ?? null,
-			newString:
-				streamingEdit?.newString ??
-				streamingEdit?.content ??
-				baseEdit?.newString ??
-				baseEdit?.content ??
-				null,
+			oldString: coerceEditText(mergedOld),
+			newString: coerceEditText(mergedNew),
 		};
 	});
 }

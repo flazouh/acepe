@@ -39,8 +39,58 @@ pub(super) async fn find_sqlite_store_db_for_session(
     Ok(None)
 }
 
+/// Look up an ACP-mode Cursor session's store.db by id.
+///
+/// ACP-mode sessions live under a flat `~/.cursor/acp-sessions/<session-id>/store.db`
+/// layout (no project-hash directory level), unlike the interactive Cursor CLI which
+/// uses `~/.cursor/chats/<project-hash>/<session-id>/store.db`.
+pub(super) async fn find_acp_sessions_store_db_for_session(
+    acp_sessions_dir: &Path,
+    session_id: &str,
+) -> Result<Option<PathBuf>> {
+    validate_path_segment(session_id, "session_id").map_err(anyhow::Error::msg)?;
+
+    if !tokio::fs::try_exists(acp_sessions_dir)
+        .await
+        .unwrap_or(false)
+    {
+        return Ok(None);
+    }
+
+    let store_db = acp_sessions_dir.join(session_id).join("store.db");
+    if tokio::fs::try_exists(&store_db).await.unwrap_or(false) {
+        Ok(Some(store_db))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Find and load a Cursor session by id from SQLite chat storage.
+///
+/// Searches in order:
+/// 1. ACP-mode store: `~/.cursor/acp-sessions/<session-id>/store.db` (Acepe-launched cursor sessions)
+/// 2. Interactive CLI store: `~/.cursor/chats/<project-hash>/<session-id>/store.db`
 pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSession>> {
+    let acp_sessions_dir = get_cursor_acp_sessions_dir()?;
+    if let Some(store_db_path) =
+        find_acp_sessions_store_db_for_session(&acp_sessions_dir, session_id).await?
+    {
+        tracing::info!(
+            session_id = %session_id,
+            store_db = %store_db_path.display(),
+            "Found Cursor session in ACP-mode store"
+        );
+
+        let workspace = read_acp_session_cwd(&acp_sessions_dir, session_id).await;
+        let session = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
+            &store_db_path,
+            session_id,
+            workspace.as_deref(),
+        )
+        .await?;
+        return Ok(Some(session));
+    }
+
     let chats_dir = get_cursor_chats_dir()?;
     let Some(store_db_path) = find_sqlite_store_db_for_session(&chats_dir, session_id).await?
     else {
@@ -61,6 +111,23 @@ pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSe
     )
     .await?;
     Ok(Some(session))
+}
+
+/// Read the `cwd` field from an ACP session's `meta.json` sidecar.
+///
+/// ACP-mode cursor sessions persist a `meta.json` next to `store.db` containing
+/// `{"schemaVersion":1,"cwd":"...","title":"..."}`. The cwd is the workspace
+/// path the agent was launched against — much more reliable than the MD5
+/// reverse-lookup needed for `~/.cursor/chats/<hash>/`.
+async fn read_acp_session_cwd(acp_sessions_dir: &Path, session_id: &str) -> Option<String> {
+    let meta_path = acp_sessions_dir.join(session_id).join("meta.json");
+    let bytes = tokio::fs::read(&meta_path).await.ok()?;
+    #[derive(Deserialize)]
+    struct AcpSessionMeta {
+        cwd: Option<String>,
+    }
+    let meta: AcpSessionMeta = serde_json::from_slice(&bytes).ok()?;
+    meta.cwd
 }
 
 /// Find a Cursor session by id across all supported persisted sources.
@@ -302,15 +369,122 @@ fn get_cursor_chats_dir() -> Result<PathBuf> {
     get_cursor_home_dir().map(|h| h.join("chats"))
 }
 
+/// Get the Cursor ACP-sessions directory (~/.cursor/acp-sessions).
+///
+/// This is where `cursor-agent acp` (the ACP server cursor exposes for
+/// programmatic clients like Acepe) persists its sessions. It is **separate
+/// from** `~/.cursor/chats/` (interactive CLI) and `~/.cursor/projects/.../
+/// agent-transcripts/` (exported transcripts).
+fn get_cursor_acp_sessions_dir() -> Result<PathBuf> {
+    get_cursor_home_dir().map(|h| h.join("acp-sessions"))
+}
+
+/// Scan ACP-mode Cursor sessions in `~/.cursor/acp-sessions/<id>/store.db`.
+///
+/// The layout is flat (one level: `<id>/store.db`, with a `meta.json` sidecar
+/// containing the `cwd` workspace path). When `project_paths` is supplied, only
+/// sessions whose `cwd` matches one of the supplied paths are returned.
+async fn scan_acp_sessions_impl(
+    acp_sessions_dir: &Path,
+    project_paths: Option<&[String]>,
+) -> Vec<CursorChatEntry> {
+    if !tokio::fs::try_exists(acp_sessions_dir)
+        .await
+        .unwrap_or(false)
+    {
+        return Vec::new();
+    }
+
+    let project_filter: Option<std::collections::HashSet<&str>> =
+        project_paths.map(|paths| paths.iter().map(|p| p.as_str()).collect());
+
+    let mut entries = Vec::new();
+    let mut read_dir = match tokio::fs::read_dir(acp_sessions_dir).await {
+        Ok(rd) => rd,
+        Err(error) => {
+            tracing::warn!(
+                dir = %acp_sessions_dir.display(),
+                error = %error,
+                "Failed to read ACP-sessions directory"
+            );
+            return entries;
+        }
+    };
+    let mut sessions_processed = 0usize;
+
+    while let Some(entry) = read_dir.next_entry().await.ok().flatten() {
+        if sessions_processed >= MAX_SESSIONS_PER_PROJECT {
+            break;
+        }
+        let session_dir = entry.path();
+        let ft = match entry.file_type().await {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if !ft.is_dir() {
+            continue;
+        }
+
+        let store_db = session_dir.join("store.db");
+        if !tokio::fs::try_exists(&store_db).await.unwrap_or(false) {
+            continue;
+        }
+
+        let cwd = match tokio::fs::read(session_dir.join("meta.json")).await {
+            Ok(bytes) => {
+                #[derive(Deserialize)]
+                struct AcpSessionMeta {
+                    cwd: Option<String>,
+                }
+                serde_json::from_slice::<AcpSessionMeta>(&bytes)
+                    .ok()
+                    .and_then(|m| m.cwd)
+            }
+            Err(_) => None,
+        };
+
+        if let (Some(filter), Some(cwd_value)) = (project_filter.as_ref(), cwd.as_deref()) {
+            if !filter.contains(cwd_value) {
+                continue;
+            }
+        }
+
+        match parse_sqlite_chat(&store_db, "", cwd.as_deref()).await {
+            Ok(Some(parsed)) => {
+                entries.push(parsed);
+                sessions_processed += 1;
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::warn!(
+                    path = ?store_db,
+                    error = %error,
+                    "Failed to parse ACP-mode SQLite chat"
+                );
+            }
+        }
+    }
+
+    tracing::info!(
+        count = entries.len(),
+        dir = %acp_sessions_dir.display(),
+        "Scanned ACP-mode Cursor sessions"
+    );
+    entries
+}
+
 /// Scan SQLite-based Cursor chats. If `project_paths` is provided, resolves project hashes to
 /// workspace paths via MD5; otherwise workspace_path is always None.
 /// Limited to 100 projects and 100 sessions per project for startup performance.
 async fn scan_sqlite_chats_impl(project_paths: Option<&[String]>) -> Result<Vec<CursorChatEntry>> {
     let chats_dir = get_cursor_chats_dir()?;
+    let acp_sessions_dir = get_cursor_acp_sessions_dir()?;
+
+    let mut all_entries = scan_acp_sessions_impl(&acp_sessions_dir, project_paths).await;
 
     if !tokio::fs::try_exists(&chats_dir).await.unwrap_or(false) {
         tracing::info!("Cursor chats directory not found: {:?}", chats_dir);
-        return Ok(Vec::new());
+        return Ok(all_entries);
     }
 
     let hash_to_path: std::collections::HashMap<String, String> = project_paths
@@ -325,7 +499,6 @@ async fn scan_sqlite_chats_impl(project_paths: Option<&[String]>) -> Result<Vec<
         })
         .unwrap_or_default();
 
-    let mut all_entries = Vec::new();
     let mut read_dir = tokio::fs::read_dir(&chats_dir).await?;
     let mut projects_processed = 0usize;
 

@@ -9,8 +9,8 @@ use crate::acp::session_descriptor::{
     SessionCompatibilityInput, SessionReplayContext,
 };
 use crate::acp::session_open_snapshot::{
-    resolve_canonical_session_title, session_open_result_for_new_session, SessionOpenFound,
-    SessionOpenResult,
+    resolve_canonical_session_title, session_open_result_for_new_session,
+    NewSessionOpenResultInput, SessionOpenFound, SessionOpenResult,
 };
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
@@ -270,13 +270,15 @@ async fn build_new_session_open_result(
     Ok(session_open_result_for_new_session(
         db.inner(),
         hub.inner(),
-        session_id,
-        agent_id,
-        project_path,
-        descriptor.worktree_path,
-        descriptor.source_path,
-        SessionGraphLifecycle::reserved(),
-        capabilities_from_new_session_response(app, response),
+        NewSessionOpenResultInput {
+            session_id: session_id.to_string(),
+            agent_id,
+            project_path,
+            worktree_path: descriptor.worktree_path,
+            source_path: descriptor.source_path,
+            lifecycle: SessionGraphLifecycle::reserved(),
+            capabilities: capabilities_from_new_session_response(app, response),
+        },
     )
     .await)
 }

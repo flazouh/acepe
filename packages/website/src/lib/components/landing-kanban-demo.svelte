@@ -54,6 +54,16 @@ const taskToolCalls: readonly AgentToolEntry[] = [
 		title: "Edit",
 		filePath: "packages/ui/src/components/kanban/kanban-scene-board.svelte",
 		status: "running",
+		editDiffs: [
+			{
+				filePath: "packages/ui/src/components/kanban/kanban-scene-board.svelte",
+				fileName: "kanban-scene-board.svelte",
+				oldString: "<!-- streaming -->",
+				newString: "<!-- wired -->",
+				additions: 1,
+				deletions: 1,
+			},
+		],
 	},
 ];
 

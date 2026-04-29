@@ -145,6 +145,16 @@ const scene = $derived<AgentPanelSceneModel>({
 				title: "Edit",
 				filePath: "packages/website/src/lib/components/landing-single-demo.svelte",
 				status: "done",
+				editDiffs: [
+					{
+						filePath: "packages/website/src/lib/components/landing-single-demo.svelte",
+						fileName: "landing-single-demo.svelte",
+						oldString: 'placeholder="Ask anything…"',
+						newString: 'placeholder="Plan, @ for context, / for commands"',
+						additions: 1,
+						deletions: 1,
+					},
+				],
 			},
 			{
 				id: "single-assistant-1",

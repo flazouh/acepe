@@ -455,7 +455,7 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
 		expect(sessionOpenHydrator.beginAttempt).not.toHaveBeenCalled();
-		expect(sessionStore.setSessionLoading).not.toHaveBeenCalled();
+		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setSessionOpenMissing).not.toHaveBeenCalled();
 		expect(sessionStore.setLocalPersistedSessionProbeStatus).toHaveBeenCalledWith(
 			"session-1",
@@ -509,6 +509,7 @@ describe("openPersistedSession", () => {
 			"session-1",
 			"This Cursor session is no longer available to reopen. Start a new session to continue."
 		);
+		expect(sessionStore.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
 		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
 	});
 

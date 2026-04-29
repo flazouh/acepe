@@ -17,9 +17,10 @@ export function resolveEditHeaderState(
   awaitingApproval: boolean,
 ): AgentToolEditHeaderState {
   if (status === "error") return "failed";
+  // Permission / plan gates should read above streaming or “applied” transcript hints.
+  if (awaitingApproval) return "awaitingApproval";
   if (isEditInProgress(status)) return "editing";
   if (applied) return "edited";
-  if (awaitingApproval) return "awaitingApproval";
   return "interrupted";
 }
 

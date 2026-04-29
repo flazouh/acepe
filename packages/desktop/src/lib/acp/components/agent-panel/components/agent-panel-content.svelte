@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentPanelStatePanel, TextShimmer } from "@acepe/ui";
+import { AgentPanelStatePanel, LoadingIcon, TextShimmer } from "@acepe/ui";
 import { mapCanonicalTurnStateToHotTurnState } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
@@ -180,7 +180,10 @@ export function scrollToTop() {
 {:else if viewState.kind === "error"}
 	<AgentPanelStatePanel centerContent={true}>
 		{#snippet children()}
-			<ReadyToAssistPlaceholder {agentIconSrc} {isFullscreen} />
+			<div class="flex max-w-sm flex-col items-center gap-2 text-center">
+				<div class="text-lg font-medium tracking-tight">{"Unable to load session"}</div>
+				<div class="text-sm text-muted-foreground">{viewState.details}</div>
+			</div>
 		{/snippet}
 	</AgentPanelStatePanel>
 {:else if viewState.kind === "conversation"}
@@ -220,6 +223,14 @@ export function scrollToTop() {
 			{/if}
 		</div>
 	</div>
+{:else if viewState.kind === "loading"}
+	<AgentPanelStatePanel centerContent={true}>
+		{#snippet children()}
+			<div class="flex h-full w-full items-center justify-center">
+				<LoadingIcon class="size-10" aria-label="Loading session" />
+			</div>
+		{/snippet}
+	</AgentPanelStatePanel>
 {:else if viewState.kind === "ready"}
 	<AgentPanelStatePanel centerContent={true}>
 		{#snippet children()}
