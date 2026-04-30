@@ -8,6 +8,7 @@
 	import AgentToolEdit from "../agent-panel/agent-tool-edit.svelte";
 	import AgentToolExecute from "../agent-panel/agent-tool-execute.svelte";
 	import AgentToolFetch from "../agent-panel/agent-tool-fetch.svelte";
+	import AgentToolOther from "../agent-panel/agent-tool-other.svelte";
 	import AgentToolQuestion from "../agent-panel/agent-tool-question.svelte";
 	import AgentToolRead from "../agent-panel/agent-tool-read.svelte";
 	import AgentToolReadLints from "../agent-panel/agent-tool-read-lints.svelte";
@@ -72,6 +73,7 @@
 				kind: child.kind,
 				title: child.title,
 				subtitle: child.subtitle,
+				detailsText: child.detailsText,
 				filePath: child.filePath,
 				status: child.status,
 				command: child.command,
@@ -251,13 +253,10 @@
 		<p class="mt-2 whitespace-pre-wrap text-xs text-foreground">{entry.resultText}</p>
 	</div>
 {:else if isToolCall(entry)}
-	<AgentToolRow
+	<AgentToolOther
 		title={entry.title}
 		subtitle={entry.subtitle}
-		filePath={entry.filePath}
+		detailsText={entry.detailsText ?? null}
 		status={entry.status}
-		kind={entry.kind}
-		padded={true}
-		{iconBasePath}
 	/>
 {/if}

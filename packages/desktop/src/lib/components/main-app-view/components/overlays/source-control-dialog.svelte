@@ -2,7 +2,7 @@
 import { GitPanel } from "$lib/acp/components/git-panel/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 
 interface Props {
 	projectManager: ProjectManager;

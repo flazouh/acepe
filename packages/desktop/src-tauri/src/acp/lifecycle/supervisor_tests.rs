@@ -2,6 +2,7 @@ use crate::acp::lifecycle::{LifecycleCheckpoint, LifecycleState, SessionSupervis
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
+use crate::acp::session_update::{AvailableCommandsData, SessionUpdate};
 use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
@@ -122,4 +123,35 @@ async fn restore_session_checkpoint_replaces_supervisor_checkpoint() {
         .expect("supervisor checkpoint");
     assert_eq!(current.graph_revision, restored.graph_revision);
     assert_eq!(current.lifecycle, restored.lifecycle);
+}
+
+#[tokio::test]
+async fn unknown_update_does_not_create_supervisor_checkpoint_or_block_reserve() {
+    let db = setup_db().await;
+    seed_session_metadata(&db, "session-1").await;
+    let projection_registry = ProjectionRegistry::new();
+    projection_registry.register_session(
+        "session-1".to_string(),
+        crate::acp::types::CanonicalAgentId::ClaudeCode,
+    );
+    let supervisor = Arc::new(SessionSupervisor::new());
+    let runtime_registry = SessionGraphRuntimeRegistry::with_supervisor(supervisor.clone());
+    let early_update = SessionUpdate::AvailableCommandsUpdate {
+        update: AvailableCommandsData {
+            available_commands: Vec::new(),
+        },
+        session_id: Some("session-1".to_string()),
+    };
+
+    runtime_registry.apply_session_update_with_graph_seed("session-1", 1, &early_update);
+
+    assert!(
+        supervisor.snapshot_for_session("session-1").is_none(),
+        "provider updates must not create lifecycle existence before reserve"
+    );
+    let checkpoint = supervisor
+        .reserve(&db, &projection_registry, "session-1")
+        .await
+        .expect("reserve should still create lifecycle after early provider update");
+    assert_eq!(checkpoint.lifecycle, LifecycleState::reserved());
 }

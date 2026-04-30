@@ -1,7 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionGraphLifecycle } from "$lib/services/acp-types.js";
-import { mapCanonicalSessionToPanelStatus, mapSessionStatusToUI } from "../session-status-mapper";
+import {
+	deriveCanonicalAgentPanelSessionState,
+	mapCanonicalSessionToPanelStatus,
+	mapSessionStatusToUI,
+} from "../session-status-mapper";
 
 function lifecycle(
 	status: SessionGraphLifecycle["status"],
@@ -126,5 +130,74 @@ describe("mapCanonicalSessionToPanelStatus", () => {
 
 	it("maps archived lifecycle to idle read-only presentation", () => {
 		expect(mapCanonicalSessionToPanelStatus({ lifecycle: lifecycle("archived") })).toBe("idle");
+	});
+});
+
+describe("deriveCanonicalAgentPanelSessionState", () => {
+	it("uses completed idle canonical state for send-ready reopened sessions", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			lifecycle: lifecycle("ready"),
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: "Completed",
+			hasEntries: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "done",
+			isConnected: true,
+			isStreaming: false,
+			showPlanningIndicator: false,
+			canSubmit: true,
+			showStop: false,
+		});
+	});
+
+	it("keeps pre-canonical optimistic sends in warming presentation", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			lifecycle: null,
+			activity: null,
+			turnState: null,
+			hasEntries: true,
+			hasOptimisticPendingEntry: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "warming",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: true,
+			canSubmit: false,
+			showStop: false,
+		});
+	});
+
+	it("uses awaiting-model canonical state for planning and stop affordances", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			lifecycle: lifecycle("ready", false, false, false),
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: "Running",
+			hasEntries: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "running",
+			isConnected: true,
+			isStreaming: true,
+			showPlanningIndicator: true,
+			canSubmit: false,
+			showStop: true,
+		});
 	});
 });

@@ -3,7 +3,7 @@
 	import { CaretDown } from "phosphor-svelte";
 	import { CaretRight } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolLabel from "./tool-label.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface WebSearchLink {
@@ -87,22 +87,22 @@
 		<div
 			class="flex h-6 min-w-0 items-center justify-between gap-2 border-b border-border px-2 bg-muted/40"
 		>
-			<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-				<ToolLabel {status}>{headerLabel}</ToolLabel>
+			<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+				<ToolHeaderLeading kind="web_search" {status}>{headerLabel}</ToolHeaderLeading>
 				{#if query}
-					<code class="min-w-0 max-w-[200px] truncate rounded bg-muted px-1 py-px font-mono text-[10px] text-foreground" title={query}>
+					<code class="min-w-0 max-w-[200px] truncate rounded bg-muted px-1 py-px font-mono text-sm text-foreground" title={query}>
 						{query}
 					</code>
 				{/if}
 				{#if resultText}
 					<span class="text-muted-foreground/80">·</span>
-					<span class="font-mono text-[10px] text-muted-foreground/80">{resultText}</span>
+					<span class="font-mono text-sm text-muted-foreground/80">{resultText}</span>
 				{/if}
 				{#if isDone && !hasLinks && !hasSummary}
-					<span class="font-mono text-[10px] text-muted-foreground/70">{noResultsLabel}</span>
+					<span class="font-mono text-sm text-muted-foreground/70">{noResultsLabel}</span>
 				{/if}
 				{#if durationLabel}
-					<span class="shrink-0 font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+					<span class="shrink-0 font-mono text-sm text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 			</div>
 			{#if hasLinks || hasSummary}
@@ -123,7 +123,7 @@
 
 		<!-- Body: links and summary -->
 		{#if hasLinks && isCollapsed}
-				<div class="flex flex-col gap-0 px-2 py-1.5 text-xs">
+				<div class="flex flex-col gap-0 px-2 py-1.5 text-sm">
 					{#each displayedLinks as link, i (i)}
 						<a
 							href={link.url}
@@ -137,10 +137,10 @@
 								}
 							}}
 						>
-							<span class="shrink-0 text-[10px] text-muted-foreground/50 w-[7ch] text-right tabular-nums">
+							<span class="shrink-0 text-sm text-muted-foreground/50 w-[7ch] text-right tabular-nums">
 								{link.domain.replace(/^www\./, '').split('.').slice(0, -1).join('.').slice(0, 7)}
 							</span>
-							<span class="text-[11px] text-muted-foreground truncate">
+							<span class="text-sm text-muted-foreground truncate">
 								{link.title}
 							</span>
 							<ArrowSquareOut
@@ -154,7 +154,7 @@
 						<button
 							type="button"
 							onclick={() => { showAll = !showAll; }}
-							class="flex items-center gap-1.5 rounded px-1 py-0.5 text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground border-none bg-transparent cursor-pointer self-start"
+							class="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm text-muted-foreground/60 transition-colors hover:text-foreground border-none bg-transparent cursor-pointer self-start"
 						>
 							{#if !showAll}
 								<span>{showMoreCollapsedLabel(links.length - COLLAPSED_LIMIT)}</span>
@@ -167,10 +167,10 @@
 			{/if}
 
 			{#if !isCollapsed && (hasLinks || hasSummary)}
-				<div class="px-2 py-1.5 text-xs">
+				<div class="px-2 py-1.5 text-sm">
 					{#if hasSummary && summary}
 						<div class="text-muted-foreground leading-relaxed">
-							<pre class="m-0 whitespace-pre-wrap break-words text-xs">{summary}</pre>
+							<pre class="m-0 whitespace-pre-wrap break-words text-sm">{summary}</pre>
 						</div>
 						{#if hasLinks}
 							<div class="border-t border-border/50 mt-1.5 pt-1.5" role="separator"></div>
@@ -193,7 +193,7 @@
 									}}
 								>
 									<div class="flex items-center justify-between gap-1.5">
-										<span class="truncate text-[10px] text-muted-foreground/70">
+										<span class="truncate text-sm text-muted-foreground/70">
 											{link.domain}
 										</span>
 										<ArrowSquareOut
@@ -202,7 +202,7 @@
 											class="shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
 										/>
 									</div>
-									<span class="text-xs text-foreground line-clamp-2 leading-snug">
+									<span class="text-sm text-foreground line-clamp-2 leading-snug">
 										{link.title}
 									</span>
 								</a>

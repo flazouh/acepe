@@ -31,7 +31,7 @@ import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
 import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";

@@ -44,6 +44,7 @@ impl SessionSupervisorEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionSupervisorError {
     AlreadyReserved { session_id: String },
+    SessionNotFound { session_id: String },
     Persistence { message: String },
 }
 
@@ -52,6 +53,9 @@ impl fmt::Display for SessionSupervisorError {
         match self {
             Self::AlreadyReserved { session_id } => {
                 write!(f, "session {session_id} is already reserved")
+            }
+            Self::SessionNotFound { session_id } => {
+                write!(f, "session {session_id} is not lifecycle-reserved")
             }
             Self::Persistence { message } => f.write_str(message),
         }
@@ -81,17 +85,21 @@ impl SessionSupervisor {
 
     #[must_use]
     pub fn seed_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) -> bool {
-        if self.sessions.contains_key(&session_id) {
-            return false;
+        match self.sessions.entry(session_id) {
+            dashmap::mapref::entry::Entry::Occupied(_) => false,
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(SessionSupervisorEntry::new(checkpoint));
+                true
+            }
         }
-
-        self.sessions
-            .insert(session_id, SessionSupervisorEntry::new(checkpoint));
-        true
     }
 
-    pub(crate) fn replace_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
-        self.store_checkpoint(&session_id, checkpoint, true);
+    pub(crate) fn replace_checkpoint(
+        &self,
+        session_id: String,
+        checkpoint: LifecycleCheckpoint,
+    ) -> bool {
+        self.store_checkpoint(&session_id, checkpoint, true)
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -157,6 +165,22 @@ impl SessionSupervisor {
         projection_registry: &ProjectionRegistry,
         session_id: &str,
     ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
+        self.reserve_with_capabilities(
+            db,
+            projection_registry,
+            session_id,
+            SessionGraphCapabilities::empty(),
+        )
+        .await
+    }
+
+    pub async fn reserve_with_capabilities(
+        &self,
+        db: &DbConn,
+        projection_registry: &ProjectionRegistry,
+        session_id: &str,
+        capabilities: SessionGraphCapabilities,
+    ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
         let gate = self.gate_for_session(session_id);
         let _guard = gate.lock().await;
 
@@ -173,14 +197,15 @@ impl SessionSupervisor {
                     "Failed to append reservation frontier for session {session_id}: {error}"
                 ),
             })?;
-        let checkpoint = LifecycleCheckpoint::new(
-            barrier.event_seq,
-            LifecycleState::reserved(),
-            SessionGraphCapabilities::empty(),
-        );
+        let checkpoint =
+            LifecycleCheckpoint::new(barrier.event_seq, LifecycleState::reserved(), capabilities);
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
-        self.store_checkpoint(session_id, checkpoint.clone(), true);
+        let created = self.seed_checkpoint(session_id.to_string(), checkpoint.clone());
+        debug_assert!(
+            created,
+            "reserve checked lifecycle existence before storing"
+        );
         Ok(checkpoint)
     }
 
@@ -194,19 +219,23 @@ impl SessionSupervisor {
     ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
         let gate = self.gate_for_session(session_id);
         let _guard = gate.lock().await;
-        let previous_checkpoint = self.snapshot_for_session(session_id);
-        let mut runtime_snapshot = previous_checkpoint
-            .as_ref()
-            .map(SessionGraphRuntimeSnapshot::from_checkpoint)
-            .unwrap_or_default();
+        let previous_checkpoint = self.snapshot_for_session(session_id).ok_or_else(|| {
+            SessionSupervisorError::SessionNotFound {
+                session_id: session_id.to_string(),
+            }
+        })?;
+        let mut runtime_snapshot =
+            SessionGraphRuntimeSnapshot::from_checkpoint(&previous_checkpoint);
         runtime_snapshot.apply_update_with_graph_seed(event_seq.saturating_sub(1), update);
         let checkpoint = runtime_snapshot.into_checkpoint();
-        let advances_runtime_epoch = previous_checkpoint
-            .as_ref()
-            .is_none_or(|previous| previous.lifecycle != checkpoint.lifecycle);
+        let advances_runtime_epoch = previous_checkpoint.lifecycle != checkpoint.lifecycle;
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
-        self.store_checkpoint(session_id, checkpoint.clone(), advances_runtime_epoch);
+        let stored = self.store_checkpoint(session_id, checkpoint.clone(), advances_runtime_epoch);
+        debug_assert!(
+            stored,
+            "record_session_update checked lifecycle existence before storing"
+        );
         Ok(checkpoint)
     }
 
@@ -226,16 +255,23 @@ impl SessionSupervisor {
                     "Failed to append lifecycle frontier for session {session_id}: {error}"
                 ),
             })?;
-        let mut runtime_snapshot = self
-            .snapshot_for_session(session_id)
-            .map(|checkpoint| SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint))
-            .unwrap_or_default();
+        let current_checkpoint = self.snapshot_for_session(session_id).ok_or_else(|| {
+            SessionSupervisorError::SessionNotFound {
+                session_id: session_id.to_string(),
+            }
+        })?;
+        let mut runtime_snapshot =
+            SessionGraphRuntimeSnapshot::from_checkpoint(&current_checkpoint);
         runtime_snapshot.graph_revision = runtime_snapshot.graph_revision.max(barrier.event_seq);
         runtime_snapshot.apply_update(update);
         let checkpoint = runtime_snapshot.into_checkpoint();
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
-        self.store_checkpoint(session_id, checkpoint.clone(), true);
+        let stored = self.store_checkpoint(session_id, checkpoint.clone(), true);
+        debug_assert!(
+            stored,
+            "transition_lifecycle checked lifecycle existence before storing"
+        );
         Ok(checkpoint)
     }
 
@@ -257,12 +293,18 @@ impl SessionSupervisor {
             })?;
         let capabilities = self
             .snapshot_for_session(session_id)
-            .map(|checkpoint| checkpoint.capabilities)
-            .unwrap_or_else(SessionGraphCapabilities::empty);
+            .ok_or_else(|| SessionSupervisorError::SessionNotFound {
+                session_id: session_id.to_string(),
+            })?
+            .capabilities;
         let checkpoint = LifecycleCheckpoint::new(barrier.event_seq, lifecycle, capabilities);
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
-        self.store_checkpoint(session_id, checkpoint.clone(), true);
+        let stored = self.store_checkpoint(session_id, checkpoint.clone(), true);
+        debug_assert!(
+            stored,
+            "transition_lifecycle_state checked lifecycle existence before storing"
+        );
         Ok(checkpoint)
     }
 
@@ -278,19 +320,19 @@ impl SessionSupervisor {
         session_id: &str,
         checkpoint: LifecycleCheckpoint,
         advance_runtime_epoch: bool,
-    ) {
-        let next_entry = self
-            .sessions
-            .get(session_id)
-            .map(|entry| {
-                if advance_runtime_epoch {
-                    entry.advance(checkpoint.clone())
-                } else {
-                    entry.replace_checkpoint(checkpoint.clone())
-                }
-            })
-            .unwrap_or_else(|| SessionSupervisorEntry::new(checkpoint));
+    ) -> bool {
+        let next_entry = {
+            let Some(entry) = self.sessions.get(session_id) else {
+                return false;
+            };
+            if advance_runtime_epoch {
+                entry.advance(checkpoint)
+            } else {
+                entry.replace_checkpoint(checkpoint)
+            }
+        };
         self.sessions.insert(session_id.to_string(), next_entry);
+        true
     }
 
     async fn persist_runtime_checkpoint(

@@ -2,7 +2,7 @@
 import { SvelteSet } from "svelte/reactivity";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";

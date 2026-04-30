@@ -136,8 +136,8 @@
 	>
 		{#if filteredCommands.length > 0}
 			<div class="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 shrink-0">
-				<span class="text-[11px] font-medium text-muted-foreground">{headerLabel}</span>
-				<span class="text-[11px] tabular-nums text-muted-foreground">{filteredCommands.length}</span>
+				<span class="text-sm font-medium text-muted-foreground">{headerLabel}</span>
+				<span class="text-sm tabular-nums text-muted-foreground">{filteredCommands.length}</span>
 			</div>
 
 			<div class="flex max-h-64 flex-col overflow-y-auto">
@@ -157,16 +157,16 @@
 						<IconTerminal
 							class="h-3.5 w-3.5 shrink-0 {isSelected ? 'text-accent-foreground' : 'text-muted-foreground'}"
 						/>
-						<span class="min-w-0 truncate font-mono text-[11px] leading-none">/{command.name}</span>
+						<span class="min-w-0 truncate font-mono text-sm leading-none">/{command.name}</span>
 					</div>
 				{/each}
 			</div>
 
 			<div class="flex items-center gap-2 border-t bg-muted/30 px-3 py-1 shrink-0">
-				<kbd class="rounded border bg-muted px-1 py-0.5 text-[10px] font-medium">Enter</kbd>
-				<span class="text-[10px] text-muted-foreground">{selectHintLabel}</span>
-				<kbd class="ml-1.5 rounded border bg-muted px-1 py-0.5 text-[10px] font-medium">Esc</kbd>
-				<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
+				<kbd class="rounded border bg-muted px-1 py-0.5 text-sm font-medium">Enter</kbd>
+				<span class="text-sm text-muted-foreground">{selectHintLabel}</span>
+				<kbd class="ml-1.5 rounded border bg-muted px-1 py-0.5 text-sm font-medium">Esc</kbd>
+				<span class="text-sm text-muted-foreground">{closeHintLabel}</span>
 			</div>
 		{:else if commands.length === 0}
 			<div class="px-3 py-4 text-center text-sm text-muted-foreground">{noCommandsLabel}</div>
@@ -174,7 +174,7 @@
 			<div class="px-3 py-4 text-center text-sm text-muted-foreground">{noResultsLabel}</div>
 		{:else}
 			<div class="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 shrink-0">
-				<span class="text-[11px] font-medium text-muted-foreground">{headerLabel}</span>
+				<span class="text-sm font-medium text-muted-foreground">{headerLabel}</span>
 			</div>
 			<div class="px-3 py-4 text-center text-sm text-muted-foreground">{startTypingLabel}</div>
 		{/if}

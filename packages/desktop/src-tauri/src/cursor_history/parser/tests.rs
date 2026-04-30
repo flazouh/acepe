@@ -570,6 +570,28 @@ async fn test_find_acp_sessions_store_db_finds_session() {
 }
 
 #[tokio::test]
+async fn test_find_cursor_store_db_prefers_acp_session_layout() {
+    let temp = tempdir().unwrap();
+    let chats_dir = temp.path().join("chats");
+    let acp_dir = temp.path().join("acp-sessions");
+    let session_id = "33e32f56-flat-layout";
+    let session_dir = acp_dir.join(session_id);
+    std::fs::create_dir_all(&session_dir).unwrap();
+    std::fs::create_dir_all(chats_dir.join("hash-a").join(session_id)).unwrap();
+    std::fs::write(session_dir.join("store.db"), b"").unwrap();
+    std::fs::write(
+        chats_dir.join("hash-a").join(session_id).join("store.db"),
+        b"",
+    )
+    .unwrap();
+
+    let found = find_cursor_store_db_for_session(&chats_dir, &acp_dir, session_id)
+        .await
+        .unwrap();
+    assert_eq!(found, Some(session_dir.join("store.db")));
+}
+
+#[tokio::test]
 async fn test_find_acp_sessions_store_db_returns_none_when_missing() {
     let temp = tempdir().unwrap();
     let acp_dir = temp.path().join("acp-sessions");

@@ -266,73 +266,61 @@ function collectChildOperations(
 	return children;
 }
 
-function applySceneTextLimits(entry: AgentToolEntry): AgentToolEntry {
-	const limited: AgentToolEntry = {
-		id: entry.id,
-		type: "tool_call",
-		title: entry.title,
-		status: entry.status,
+/**
+ * Shape-preserving transformer: `(AgentToolEntry) => AgentToolEntry`. Returns a
+ * shallow clone of `entry` with truncation applied to long-text fields and
+ * `taskChildren` recursively limited.
+ *
+ * Implementation note — spread carve-out:
+ *   This function uses object spread (`...entry`) to clone, then overrides the
+ *   five truncation targets (and `taskChildren`) explicitly. This is the
+ *   sanctioned exception to the no-spread rule (see `.agent-guides/typescript.md`,
+ *   "Explicit Over Implicit"): in a shape-preserving transformer `(x: T) => T`,
+ *   spread is the safer default because adding a new field to `AgentToolEntry`
+ *   does not silently drop it here. The previous allow-list rebuild had the
+ *   opposite property and caused at least one observed bug (`editDiffs` dropped).
+ *
+ * Safety assumption — read-only pipeline:
+ *   Several fields on `AgentToolEntry` are mutable arrays / nested objects
+ *   (`searchMatches`, `webSearchLinks`, `todos`, `lintDiagnostics`, `searchFiles`,
+ *   `editDiffs`, `question.options`, `taskChildren`). Shallow spread shares those
+ *   references. This is safe today because the rendering pipeline downstream of
+ *   materialization is read-only — nothing mutates these arrays/objects in place.
+ *   If that ever changes (e.g. optimistic-UI patches mutating in place), this
+ *   function must move to a deep clone for the affected fields.
+ */
+export function applySceneTextLimits(entry: AgentToolEntry): AgentToolEntry {
+	const taskChildren: AnyAgentEntry[] | undefined =
+		entry.taskChildren === undefined
+			? undefined
+			: entry.taskChildren.map((child) =>
+					child.type === "tool_call" ? applySceneTextLimits(child) : child
+				);
+
+	return {
+		...entry,
+		detailsText:
+			entry.detailsText === undefined
+				? entry.detailsText
+				: truncateDisplayText(entry.detailsText, AGENT_PANEL_SCENE_TEXT_LIMITS.details),
+		stdout:
+			entry.stdout === undefined
+				? entry.stdout
+				: truncateDisplayText(entry.stdout, AGENT_PANEL_SCENE_TEXT_LIMITS.output),
+		stderr:
+			entry.stderr === undefined
+				? entry.stderr
+				: truncateDisplayText(entry.stderr, AGENT_PANEL_SCENE_TEXT_LIMITS.output),
+		resultText:
+			entry.resultText === undefined
+				? entry.resultText
+				: truncateDisplayText(entry.resultText, AGENT_PANEL_SCENE_TEXT_LIMITS.result),
+		taskResultText:
+			entry.taskResultText === undefined
+				? entry.taskResultText
+				: truncateDisplayText(entry.taskResultText, AGENT_PANEL_SCENE_TEXT_LIMITS.result),
+		taskChildren,
 	};
-	if (entry.kind !== undefined) limited.kind = entry.kind;
-	if (entry.subtitle !== undefined) limited.subtitle = entry.subtitle;
-	if (entry.detailsText !== undefined) {
-		limited.detailsText = truncateDisplayText(
-			entry.detailsText,
-			AGENT_PANEL_SCENE_TEXT_LIMITS.details
-		);
-	}
-	if (entry.scriptText !== undefined) limited.scriptText = entry.scriptText;
-	if (entry.filePath !== undefined) limited.filePath = entry.filePath;
-	if (entry.sourceExcerpt !== undefined) limited.sourceExcerpt = entry.sourceExcerpt;
-	if (entry.sourceRangeLabel !== undefined) limited.sourceRangeLabel = entry.sourceRangeLabel;
-	if (entry.command !== undefined) limited.command = entry.command;
-	if (entry.stdout !== undefined) {
-		limited.stdout = truncateDisplayText(entry.stdout, AGENT_PANEL_SCENE_TEXT_LIMITS.output);
-	}
-	if (entry.stderr !== undefined) {
-		limited.stderr = truncateDisplayText(entry.stderr, AGENT_PANEL_SCENE_TEXT_LIMITS.output);
-	}
-	if (entry.exitCode !== undefined) limited.exitCode = entry.exitCode;
-	if (entry.query !== undefined) limited.query = entry.query;
-	if (entry.searchPath !== undefined) limited.searchPath = entry.searchPath;
-	if (entry.searchFiles !== undefined) limited.searchFiles = entry.searchFiles;
-	if (entry.searchResultCount !== undefined) limited.searchResultCount = entry.searchResultCount;
-	if (entry.url !== undefined) limited.url = entry.url;
-	if (entry.resultText !== undefined) {
-		limited.resultText = truncateDisplayText(entry.resultText, AGENT_PANEL_SCENE_TEXT_LIMITS.result);
-	}
-	if (entry.webSearchLinks !== undefined) limited.webSearchLinks = entry.webSearchLinks;
-	if (entry.webSearchSummary !== undefined) limited.webSearchSummary = entry.webSearchSummary;
-	if (entry.skillName !== undefined) limited.skillName = entry.skillName;
-	if (entry.skillArgs !== undefined) limited.skillArgs = entry.skillArgs;
-	if (entry.skillDescription !== undefined) limited.skillDescription = entry.skillDescription;
-	if (entry.taskDescription !== undefined) limited.taskDescription = entry.taskDescription;
-	if (entry.taskPrompt !== undefined) limited.taskPrompt = entry.taskPrompt;
-	if (entry.taskResultText !== undefined) {
-		limited.taskResultText = truncateDisplayText(
-			entry.taskResultText,
-			AGENT_PANEL_SCENE_TEXT_LIMITS.result
-		);
-	}
-
-	if (entry.taskChildren !== undefined) {
-		const nextChildren: AnyAgentEntry[] = [];
-		for (const child of entry.taskChildren) {
-			if (child.type === "tool_call") {
-				nextChildren.push(applySceneTextLimits(child));
-			} else {
-				nextChildren.push(child);
-			}
-		}
-		limited.taskChildren = nextChildren;
-	}
-	if (entry.presentationState !== undefined) limited.presentationState = entry.presentationState;
-	if (entry.degradedReason !== undefined) limited.degradedReason = entry.degradedReason;
-	if (entry.todos !== undefined) limited.todos = entry.todos;
-	if (entry.question !== undefined) limited.question = entry.question;
-	if (entry.lintDiagnostics !== undefined) limited.lintDiagnostics = entry.lintDiagnostics;
-
-	return limited;
 }
 
 function materializeOperationEntry(

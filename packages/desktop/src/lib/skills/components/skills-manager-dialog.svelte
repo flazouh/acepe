@@ -6,7 +6,7 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
-} from "$lib/components/ui/dialog/index.js";
+} from "@acepe/ui/dialog";
 
 import SkillsPage from "./skills-page.svelte";
 

@@ -73,7 +73,7 @@
 				name="browser-url"
 				type="text"
 				value={inputValue}
-				class="h-5 min-w-0 flex-1 bg-transparent text-[11px] font-mono text-foreground outline-none placeholder:text-muted-foreground/70"
+				class="h-5 min-w-0 flex-1 bg-transparent text-sm font-mono text-foreground outline-none placeholder:text-muted-foreground/70"
 				autocapitalize="off"
 				autocomplete="off"
 				spellcheck="false"

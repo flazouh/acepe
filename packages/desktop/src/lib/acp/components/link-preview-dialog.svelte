@@ -5,7 +5,7 @@ import { ArrowSquareOut } from "phosphor-svelte";
 import { ArrowsClockwise } from "phosphor-svelte";
 import { WarningCircle } from "phosphor-svelte";
 import { untrack } from "svelte";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 interface Props {
 	url: string;

@@ -18,7 +18,7 @@
 	<div class="flex min-w-0 items-center gap-2">
 		<button
 			type="button"
-			class="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[0.6875rem] font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+			class="inline-flex h-6 items-center gap-1 rounded px-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 			onclick={() => onClose?.()}
 			data-testid="review-workspace-close"
 		>
@@ -33,7 +33,7 @@
 		</span>
 
 		<h2
-			class="min-w-0 truncate text-[0.6875rem] font-medium text-foreground"
+			class="min-w-0 truncate text-sm font-medium text-foreground"
 			data-testid="review-workspace-title"
 		>
 			{label}
@@ -41,7 +41,7 @@
 	</div>
 
 	{#if typeof fileCount === "number" && fileCount > 0}
-		<span class="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+		<span class="shrink-0 text-sm tabular-nums text-muted-foreground">
 			{fileCount}
 		</span>
 	{/if}

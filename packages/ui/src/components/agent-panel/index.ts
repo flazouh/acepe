@@ -90,6 +90,8 @@ export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
+export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
+export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";

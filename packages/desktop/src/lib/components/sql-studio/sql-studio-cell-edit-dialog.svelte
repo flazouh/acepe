@@ -2,7 +2,7 @@
 import { FloppyDisk } from "phosphor-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 
 export interface CellEditState {
 	rowIndex: number;

@@ -11,8 +11,10 @@ import type {
 } from "../../../services/acp-types.js";
 import {
 	AGENT_PANEL_SCENE_TEXT_LIMITS,
+	applySceneTextLimits,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
+import type { AgentToolEntry } from "@acepe/ui/agent-panel";
 
 function createActionability(): SessionGraphActionability {
 	return {
@@ -191,6 +193,59 @@ describe("agent panel graph materializer", () => {
 			type: "assistant",
 			markdown: "Checks are green.",
 			isStreaming: undefined,
+		});
+	});
+
+	it("preserves editDiffs through scene text limit filtering for edit tool calls", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Apply the patch"),
+			createTranscriptEntry("tool-edit", "tool", "Edit"),
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [
+				createOperationSnapshot({
+					id: "op:session-1:tool-edit",
+					tool_call_id: "tool-edit",
+					name: "Edit",
+					kind: "edit",
+					title: "Edit",
+					command: null,
+					arguments: {
+						kind: "edit",
+						edits: [
+							{
+								filePath: "/repo/foo.ts",
+								oldString: "const x = 1;",
+								newString: "const x = 2;",
+							},
+						],
+					},
+					result: null,
+					source_link: { kind: "transcript_linked", entry_id: "tool-edit" },
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Edit session" },
+		});
+
+		const editEntry = scene.conversation.entries.find(
+			(entry) => entry.type === "tool_call" && entry.kind === "edit"
+		);
+		expect(editEntry).toBeDefined();
+		expect(editEntry).toMatchObject({
+			kind: "edit",
+			editDiffs: [
+				{
+					filePath: "/repo/foo.ts",
+					oldString: "const x = 1;",
+					newString: "const x = 2;",
+				},
+			],
 		});
 	});
 
@@ -385,6 +440,49 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("renders valid unclassified operations without degraded warning styling", () => {
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				createTranscriptEntry("tool-1", "tool", "write_bash"),
+			]),
+			operations: [
+				createOperationSnapshot({
+					name: "write_bash",
+					kind: "unclassified",
+					title: "",
+					arguments: {
+						kind: "unclassified",
+						raw_name: "write_bash",
+						raw_kind_hint: null,
+						title: null,
+						arguments_preview: null,
+						signals_tried: ["ProviderNameMap", "ArgumentShape"],
+					},
+					provider_status: "completed",
+					operation_state: "completed",
+					degradation_reason: null,
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			kind: "other",
+			status: "done",
+			title: "Write Bash",
+			presentationState: "resolved",
+		});
+	});
+
 	it("renders blocked from canonical operation state even when provider status is stale", () => {
 		const graph = createGraph({
 			transcriptSnapshot: createTranscriptSnapshot([createTranscriptEntry("tool-1", "tool", "Run")]),
@@ -556,5 +654,154 @@ describe("agent panel graph materializer", () => {
 
 		expect(entry.stdout?.length).toBeLessThan(longOutput.length);
 		expect(entry.stdout?.endsWith("[truncated]")).toBe(true);
+	});
+
+	it("applySceneTextLimits passes through every populated AgentToolEntry field unchanged except the declared truncation targets", () => {
+		const fullEntry: AgentToolEntry = {
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Run build",
+			subtitle: "in repo root",
+			detailsText: "short details",
+			scriptText: "echo hello",
+			editDiffs: [
+				{
+					filePath: "/repo/foo.ts",
+					oldString: "a",
+					newString: "b",
+				},
+			],
+			filePath: "/repo/foo.ts",
+			sourceExcerpt: "const x = 1;",
+			sourceRangeLabel: "L1-L1",
+			status: "done",
+			command: "bun run build",
+			stdout: "build ok",
+			stderr: "",
+			exitCode: 0,
+			query: "needle",
+			searchPath: "/repo",
+			searchFiles: ["/repo/a.ts", "/repo/b.ts"],
+			searchResultCount: 2,
+			searchMode: "content",
+			searchNumFiles: 2,
+			searchNumMatches: 4,
+			searchMatches: [
+				{
+					filePath: "/repo/a.ts",
+					fileName: "a.ts",
+					lineNumber: 1,
+					content: "needle",
+					isMatch: true,
+				},
+			],
+			url: "https://example.com",
+			resultText: "result body",
+			webSearchLinks: [
+				{ title: "T", url: "https://example.com", domain: "example.com" },
+			],
+			webSearchSummary: "summary",
+			skillName: "ce-debug",
+			skillArgs: "--quick",
+			skillDescription: "debug",
+			taskDescription: "task desc",
+			taskPrompt: "task prompt",
+			taskResultText: "task result",
+			taskChildren: [
+				{
+					id: "child-1",
+					type: "tool_call",
+					title: "Child tool",
+					status: "done",
+				},
+			],
+			presentationState: "resolved",
+			degradedReason: null,
+			todos: [{ content: "do it", status: "pending" }],
+			question: { question: "Pick one", options: [{ label: "A" }] },
+			lintDiagnostics: [
+				{ filePath: "/repo/a.ts", line: 1, severity: "error", message: "boom" },
+			],
+		};
+
+		const limited = applySceneTextLimits(fullEntry);
+
+		// Every key present in the input must be present in the output.
+		// This is the structural contract that protects against the allow-list
+		// footgun: if someone reverts to manual rebuild and forgets a field,
+		// this check fails for that field.
+		for (const key of Object.keys(fullEntry) as Array<keyof AgentToolEntry>) {
+			expect(limited).toHaveProperty(key);
+		}
+
+		// Non-truncated fields are pass-through (reference-equal where applicable).
+		expect(limited.id).toBe(fullEntry.id);
+		expect(limited.kind).toBe(fullEntry.kind);
+		expect(limited.title).toBe(fullEntry.title);
+		expect(limited.subtitle).toBe(fullEntry.subtitle);
+		expect(limited.scriptText).toBe(fullEntry.scriptText);
+		expect(limited.editDiffs).toBe(fullEntry.editDiffs);
+		expect(limited.filePath).toBe(fullEntry.filePath);
+		expect(limited.sourceExcerpt).toBe(fullEntry.sourceExcerpt);
+		expect(limited.sourceRangeLabel).toBe(fullEntry.sourceRangeLabel);
+		expect(limited.status).toBe(fullEntry.status);
+		expect(limited.command).toBe(fullEntry.command);
+		expect(limited.exitCode).toBe(fullEntry.exitCode);
+		expect(limited.query).toBe(fullEntry.query);
+		expect(limited.searchPath).toBe(fullEntry.searchPath);
+		expect(limited.searchFiles).toBe(fullEntry.searchFiles);
+		expect(limited.searchResultCount).toBe(fullEntry.searchResultCount);
+		expect(limited.searchMode).toBe(fullEntry.searchMode);
+		expect(limited.searchNumFiles).toBe(fullEntry.searchNumFiles);
+		expect(limited.searchNumMatches).toBe(fullEntry.searchNumMatches);
+		expect(limited.searchMatches).toBe(fullEntry.searchMatches);
+		expect(limited.url).toBe(fullEntry.url);
+		expect(limited.webSearchLinks).toBe(fullEntry.webSearchLinks);
+		expect(limited.webSearchSummary).toBe(fullEntry.webSearchSummary);
+		expect(limited.skillName).toBe(fullEntry.skillName);
+		expect(limited.skillArgs).toBe(fullEntry.skillArgs);
+		expect(limited.skillDescription).toBe(fullEntry.skillDescription);
+		expect(limited.taskDescription).toBe(fullEntry.taskDescription);
+		expect(limited.taskPrompt).toBe(fullEntry.taskPrompt);
+		expect(limited.presentationState).toBe(fullEntry.presentationState);
+		expect(limited.degradedReason).toBe(fullEntry.degradedReason);
+		expect(limited.todos).toBe(fullEntry.todos);
+		expect(limited.question).toBe(fullEntry.question);
+		expect(limited.lintDiagnostics).toBe(fullEntry.lintDiagnostics);
+
+		// Truncation targets pass through unchanged when under the limit.
+		expect(limited.detailsText).toBe(fullEntry.detailsText);
+		expect(limited.stdout).toBe(fullEntry.stdout);
+		expect(limited.stderr).toBe(fullEntry.stderr);
+		expect(limited.resultText).toBe(fullEntry.resultText);
+		expect(limited.taskResultText).toBe(fullEntry.taskResultText);
+
+		// taskChildren is rebuilt (recursion) but contents preserved by identity for non-tool children
+		// and structurally for tool children.
+		expect(limited.taskChildren).toHaveLength(1);
+		expect(limited.taskChildren?.[0]).toMatchObject({
+			id: "child-1",
+			type: "tool_call",
+			title: "Child tool",
+		});
+	});
+
+	it("applySceneTextLimits preserves empty arrays as empty arrays (does not nullify)", () => {
+		const entry: AgentToolEntry = {
+			id: "tool-empty",
+			type: "tool_call",
+			title: "Empty",
+			status: "done",
+			editDiffs: [],
+			searchFiles: [],
+			todos: [],
+		};
+
+		const limited = applySceneTextLimits(entry);
+
+		expect(limited.editDiffs).toEqual([]);
+		expect(limited.searchFiles).toEqual([]);
+		expect(limited.todos).toEqual([]);
 	});
 });

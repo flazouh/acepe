@@ -142,7 +142,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 
 - NEVER use `try/catch` — use `neverthrow` `ResultAsync`.
 - NEVER use `any` or `unknown` — use proper types or Zod for validation.
-- NEVER use spread syntax (`...obj`) — explicitly enumerate properties for provenance tracking.
+- NEVER use spread syntax (`...obj`) — explicitly enumerate properties for provenance tracking. **Carve-out:** spread is permitted in shape-preserving transformers `(x: T): T` to clone before applying explicit per-field overrides (see `.agent-guides/typescript.md`, "Explicit Over Implicit"). The criterion is *same declared type on both sides*; merges, partial patches, building new shapes, and loop accumulators are still forbidden.
 - ALWAYS run `bun run check` after TypeScript changes.
 
 ### Svelte 5

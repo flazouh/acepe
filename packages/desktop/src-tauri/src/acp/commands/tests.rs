@@ -55,6 +55,19 @@ async fn setup_test_db() -> DbConn {
     db
 }
 
+fn seed_runtime_lifecycle(
+    runtime_registry: &SessionGraphRuntimeRegistry,
+    session_id: &str,
+    graph_revision: i64,
+) {
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        graph_revision,
+        SessionGraphLifecycle::reserved(),
+        SessionGraphCapabilities::empty(),
+    );
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MockReconnectBehavior {
     Resume,
@@ -491,6 +504,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
     let projection_registry = ProjectionRegistry::new();
     let transcript_projection_registry = TranscriptProjectionRegistry::new();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
+    seed_runtime_lifecycle(&runtime_registry, "session-1", 6);
     let update = crate::acp::session_update::SessionUpdate::ConnectionComplete {
         session_id: "session-1".to_string(),
         attempt_id: 42,
@@ -587,6 +601,7 @@ async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
     let projection_registry = ProjectionRegistry::new();
     let transcript_projection_registry = TranscriptProjectionRegistry::new();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
+    seed_runtime_lifecycle(&runtime_registry, "session-1", 8);
     let update = crate::acp::session_update::SessionUpdate::ConnectionFailed {
         session_id: "session-1".to_string(),
         attempt_id: 42,
@@ -1515,6 +1530,11 @@ async fn resume_session_allows_live_pending_claude_session_without_provider_id()
     let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
         &supervisor,
     )));
+    projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+    supervisor
+        .reserve(&db, projection_registry.as_ref(), session_id)
+        .await
+        .expect("reserve live pending session");
 
     let session_registry = SessionRegistry::new();
     session_registry.store(

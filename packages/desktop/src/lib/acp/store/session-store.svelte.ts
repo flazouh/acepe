@@ -1626,45 +1626,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			capabilities: canonicalCapabilities,
 			revision: graph.revision,
 		});
-		const isNewCompletedTurn =
-			graph.turnState === "Completed" &&
-			(previousProjection?.turnState !== "Completed" ||
-				previousProjection.lastTerminalTurnId !== nextLastTerminalTurnId);
-		const isNewFailedTurn =
-			graph.turnState === "Failed" &&
-			activeTurnFailure !== null &&
-			(previousProjection?.turnState !== "Failed" ||
-				previousProjection.lastTerminalTurnId !== nextLastTerminalTurnId);
-
-		if (isNewCompletedTurn) {
-			this.messagingSvc.handleStreamComplete(
-				graph.canonicalSessionId,
-				graph.lastTerminalTurnId ?? undefined
-			);
-			this.callbacks.onTurnComplete?.(graph.canonicalSessionId);
-		}
-
-		const projectedFailure = graph.activeTurnFailure ?? null;
-		if (isNewFailedTurn && projectedFailure !== null) {
-			const numericCode =
-				projectedFailure.code == null || projectedFailure.code.trim() === ""
-					? undefined
-					: Number.isNaN(Number(projectedFailure.code))
-						? undefined
-						: Number(projectedFailure.code);
-			this.messagingSvc.handleTurnError(graph.canonicalSessionId, {
-				type: "turnError",
-				session_id: graph.canonicalSessionId,
-				turn_id: projectedFailure.turn_id ?? undefined,
-				error: {
-					message: projectedFailure.message,
-					code: numericCode,
-					kind: projectedFailure.kind,
-					source: projectedFailure.source ?? "unknown",
-				},
-			});
-			this.callbacks.onTurnError?.(graph.canonicalSessionId);
-		}
+		this.applyCanonicalTerminalTurnSideEffects({
+			sessionId: graph.canonicalSessionId,
+			previousProjection,
+			turnState: graph.turnState,
+			activeTurnFailure,
+			projectedFailure: graph.activeTurnFailure ?? null,
+			lastTerminalTurnId: nextLastTerminalTurnId,
+		});
 
 		const updates: SessionTransientProjectionUpdates = {
 			acpSessionId: graph.lifecycle.status === "ready" ? graph.canonicalSessionId : null,
@@ -1694,6 +1663,53 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			graph.turnState,
 			activeTurnFailure
 		);
+	}
+
+	private applyCanonicalTerminalTurnSideEffects(input: {
+		sessionId: string;
+		previousProjection: CanonicalSessionProjection | null;
+		turnState: SessionTurnState;
+		activeTurnFailure: ActiveTurnFailure | null;
+		projectedFailure: TurnFailureSnapshot | null;
+		lastTerminalTurnId: string | null;
+	}): void {
+		const isNewCompletedTurn =
+			input.turnState === "Completed" &&
+			(input.previousProjection?.turnState !== "Completed" ||
+				input.previousProjection.lastTerminalTurnId !== input.lastTerminalTurnId);
+		const isNewFailedTurn =
+			input.turnState === "Failed" &&
+			input.activeTurnFailure !== null &&
+			(input.previousProjection?.turnState !== "Failed" ||
+				input.previousProjection.lastTerminalTurnId !== input.lastTerminalTurnId);
+
+		if (isNewCompletedTurn) {
+			this.messagingSvc.handleStreamComplete(input.sessionId, input.lastTerminalTurnId ?? undefined);
+			this.callbacks.onTurnComplete?.(input.sessionId);
+		}
+
+		if (!isNewFailedTurn || input.projectedFailure === null) {
+			return;
+		}
+
+		const numericCode =
+			input.projectedFailure.code == null || input.projectedFailure.code.trim() === ""
+				? undefined
+				: Number.isNaN(Number(input.projectedFailure.code))
+					? undefined
+					: Number(input.projectedFailure.code);
+		this.messagingSvc.handleTurnError(input.sessionId, {
+			type: "turnError",
+			session_id: input.sessionId,
+			turn_id: input.projectedFailure.turn_id ?? undefined,
+			error: {
+				message: input.projectedFailure.message,
+				code: numericCode,
+				kind: input.projectedFailure.kind,
+				source: input.projectedFailure.source ?? "unknown",
+			},
+		});
+		this.callbacks.onTurnError?.(input.sessionId);
 	}
 
 	private reconcileConnectionMachineFromCanonicalState(
@@ -3162,6 +3178,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					updates.pendingSendIntent = null;
 				}
 				this.hotStateStore.updateHotState(sessionId, updates);
+				this.applyCanonicalTerminalTurnSideEffects({
+					sessionId,
+					previousProjection,
+					turnState: command.turnState,
+					activeTurnFailure,
+					projectedFailure: command.activeTurnFailure,
+					lastTerminalTurnId: command.lastTerminalTurnId,
+				});
+				this.reconcileConnectionMachineFromCanonicalState(
+					sessionId,
+					previousProjection.lifecycle,
+					command.turnState,
+					activeTurnFailure
+				);
 				continue;
 			}
 

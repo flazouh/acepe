@@ -57,6 +57,7 @@ use acp::github_issues::{
 };
 use acp::lifecycle::SessionSupervisor;
 use acp::opencode::OpenCodeManagerRegistry;
+use acp::pre_reservation_event_buffer::PreReservationEventBuffer;
 use acp::projections::ProjectionRegistry;
 use acp::provider::{AgentProvider, CommandAvailabilityCache};
 use acp::providers::CustomAgentConfig;
@@ -1017,6 +1018,7 @@ pub fn run() {
             app.manage(SessionRegistry::new());
             app.manage(Arc::new(SessionPolicyRegistry::new()));
             app.manage(Arc::new(ProjectionRegistry::new()));
+            app.manage(Arc::new(PreReservationEventBuffer::new()));
             let session_supervisor = Arc::new(SessionSupervisor::new());
             app.manage(session_supervisor.clone());
             app.manage(Arc::new(SessionGraphRuntimeRegistry::with_supervisor(

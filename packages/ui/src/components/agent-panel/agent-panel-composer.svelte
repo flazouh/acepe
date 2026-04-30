@@ -94,12 +94,12 @@
 			{:else if composer}
 				<div class="flex min-w-0 flex-1 items-center gap-2 px-2">
 					{#if composer.selectedModel}
-						<span class="truncate text-[11px] text-muted-foreground">
+						<span class="truncate text-sm text-muted-foreground">
 							{composer.selectedModel.label}
 						</span>
 					{/if}
 					{#each composer.attachments ?? [] as attachment (attachment.id)}
-						<span class="truncate rounded-full border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+						<span class="truncate rounded-full border border-border/50 px-2 py-0.5 text-sm text-muted-foreground">
 							{attachment.label}
 						</span>
 					{/each}
@@ -122,6 +122,6 @@
 	</InputContainer>
 
 	{#if resolvedDisabledReason}
-		<p class="mt-2 text-[11px] text-muted-foreground">{resolvedDisabledReason}</p>
+		<p class="mt-2 text-sm text-muted-foreground">{resolvedDisabledReason}</p>
 	{/if}
 </div>

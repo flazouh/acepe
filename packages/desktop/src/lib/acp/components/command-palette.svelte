@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import * as Kbd from "$lib/components/ui/kbd/index.js";
 import { TIMING } from "../constants/timing.js";
 import type { UseCommandPalette } from "../hooks/use-command-palette.svelte.js";

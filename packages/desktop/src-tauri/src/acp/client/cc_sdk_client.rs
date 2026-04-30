@@ -2474,6 +2474,19 @@ impl AgentClient for ClaudeCcSdkClient {
         })
     }
 
+    fn begin_pre_reservation_drain(&self, session_id: &str) {
+        self.dispatcher.begin_pre_reservation_drain(session_id);
+    }
+
+    fn drain_pre_reservation_events(&self, session_id: &str) {
+        self.dispatcher.drain_pre_reservation_events(session_id);
+    }
+
+    fn discard_pre_reservation_events(&self, session_id: &str, reason: &'static str) {
+        self.dispatcher
+            .discard_pre_reservation_events(session_id, reason);
+    }
+
     async fn resume_session(
         &mut self,
         session_id: String,

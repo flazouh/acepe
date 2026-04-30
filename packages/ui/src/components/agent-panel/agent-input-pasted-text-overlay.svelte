@@ -111,7 +111,7 @@
 	onmouseenter={handleOverlayMouseEnter}
 >
 	<div class="flex items-center justify-between px-2 py-0.5 border-b border-border/30">
-		<span class="text-[10px] text-muted-foreground tabular-nums">{lineCount}L · {charCount.toLocaleString()}ch</span>
+		<span class="text-sm text-muted-foreground tabular-nums">{lineCount}L · {charCount.toLocaleString()}ch</span>
 		<button
 			type="button"
 			class="inline-flex items-center justify-center size-5 text-muted-foreground hover:text-foreground transition-colors rounded"
@@ -126,7 +126,7 @@
 		<!-- svelte-ignore a11y_autofocus -->
 		<textarea
 			autofocus={mode === "edit"}
-			class="min-h-[140px] w-full resize-y bg-transparent font-mono text-xs text-foreground outline-none"
+			class="min-h-[140px] w-full resize-y bg-transparent font-mono text-sm text-foreground outline-none"
 			bind:value={editText}
 			onkeydown={handleEditKeydown}
 		></textarea>

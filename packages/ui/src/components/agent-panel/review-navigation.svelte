@@ -61,7 +61,7 @@
 	}: Props = $props();
 
 	const embeddedButtonClass =
-		"h-7 inline-flex items-center justify-center px-2 text-xs font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:pointer-events-none";
+		"h-7 inline-flex items-center justify-center px-2 text-sm font-medium text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:pointer-events-none";
 </script>
 
 <div
@@ -116,7 +116,7 @@
 				<CaretUp class="h-3.5 w-3.5" weight="fill" />
 			</EmbeddedIconButton>
 			<span
-				class="h-7 inline-flex items-center justify-center px-1 text-xs tabular-nums min-w-[2rem]"
+				class="h-7 inline-flex items-center justify-center px-1 text-sm tabular-nums min-w-[2rem]"
 				aria-label="Hunk {hunkCurrent} of {hunkTotal}"
 			>
 				{hunkCurrent}/{hunkTotal}
@@ -143,7 +143,7 @@
 				<CaretLeft class="h-3.5 w-3.5" weight="fill" />
 			</EmbeddedIconButton>
 			<span
-				class="h-7 inline-flex items-center justify-center px-1 text-xs tabular-nums min-w-[2rem]"
+				class="h-7 inline-flex items-center justify-center px-1 text-sm tabular-nums min-w-[2rem]"
 				aria-label="File {fileCurrent} of {fileTotal}"
 			>
 				{fileCurrent}/{fileTotal}

@@ -67,7 +67,7 @@
 					{@const isNewest = messages[messages.length - 1]?.id === message.id}
 					{@const hasAttachments = (message.attachments?.length ?? 0) > 0}
 					<div
-						class="queue-message-row flex flex-col gap-1.5 px-3 py-2 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isNewest ? 'bg-muted/30' : ''}"
+						class="queue-message-row flex flex-col gap-1.5 px-3 py-2 text-sm leading-tight border-b border-border/30 last:border-b-0 {isNewest ? 'bg-muted/30' : ''}"
 					>
 						<!-- Attachment chips -->
 						{#if hasAttachments && message.attachments}
@@ -124,7 +124,7 @@
 		</div>
 
 		<div class="w-full flex items-center justify-between px-3 py-1 rounded-b-lg bg-accent">
-			<div class="flex items-center gap-1.5 text-[0.6875rem] min-w-0">
+			<div class="flex items-center gap-1.5 text-sm min-w-0">
 				<span class="font-medium text-foreground shrink-0">{queueLabel} ({count})</span>
 				{#if isPaused}
 					<span class="text-muted-foreground">· {pausedLabel}</span>

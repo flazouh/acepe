@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { CaretRight } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolLabel from "./tool-label.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -59,13 +59,13 @@
 
 <AgentToolCard>
 	<div
-		class="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-xs"
+		class="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-sm"
 		class:border-b={hasResult}
 		class:border-border={hasResult}
 	>
-		<ToolLabel {status}>
+		<ToolHeaderLeading kind="fetch" {status}>
 			{title}
-		</ToolLabel>
+		</ToolHeaderLeading>
 
 		{#if domain}
 			<span class="min-w-0 truncate text-muted-foreground/70">{domain}</span>
@@ -74,7 +74,7 @@
 		{/if}
 
 		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">
+			<span class="ml-auto shrink-0 font-mono text-sm text-muted-foreground/70">
 				{durationLabel}
 			</span>
 		{/if}
@@ -85,7 +85,7 @@
 			<button
 				type="button"
 				onclick={() => { isExpanded = !isExpanded; }}
-				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
+				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 			>
 				<CaretRight
 					size={10}
@@ -100,7 +100,7 @@
 
 			{#if isExpanded}
 				<div class="border-t border-border bg-muted/20 px-2.5 py-2">
-					<pre class="m-0 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{resultText}</pre>
+					<pre class="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{resultText}</pre>
 				</div>
 		{/if}
 	</div>

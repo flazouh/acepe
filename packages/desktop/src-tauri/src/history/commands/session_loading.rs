@@ -446,10 +446,15 @@ pub async fn get_session_open_result(
         }));
     };
 
+    let runtime_registry = app
+        .try_state::<Arc<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry>>()
+        .map(|state| state.inner().clone());
+
     Ok(
         crate::acp::session_open_snapshot::session_open_result_from_thread_snapshot(
             db.inner(),
             &hub,
+            runtime_registry.as_deref(),
             &replay_context,
             &session_id,
             &thread_content,

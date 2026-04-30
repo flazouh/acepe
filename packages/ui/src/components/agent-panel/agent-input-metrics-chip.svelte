@@ -50,8 +50,8 @@
 
 <div
 	class="flex items-center text-muted-foreground {compact
-		? 'h-5 gap-1 px-0.5 text-[10px]'
-		: 'h-7 gap-1.5 px-1.5 text-[11px]'}"
+		? 'h-5 gap-1 px-0.5 text-sm'
+		: 'h-7 gap-1.5 px-1.5 text-sm'}"
 	role="status"
 	aria-label={ariaLabel}
 	{title}

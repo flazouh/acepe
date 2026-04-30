@@ -8,7 +8,7 @@ import {
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
 

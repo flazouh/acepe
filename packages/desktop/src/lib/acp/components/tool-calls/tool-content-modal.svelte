@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 
-import * as Dialog from "$lib/components/ui/dialog";
+import * as Dialog from "@acepe/ui/dialog";
 
 import type { ToolCall } from "../../types/tool-call.js";
 

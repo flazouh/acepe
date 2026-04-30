@@ -40,7 +40,7 @@
 
 <AgentToolCard>
 	<div
-		class="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-xs"
+		class="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm"
 		class:border-b={hasDetails}
 		class:border-border={hasDetails}
 	>
@@ -51,7 +51,7 @@
 		{/if}
 
 		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">
+			<span class="ml-auto shrink-0 font-mono text-sm text-muted-foreground/70">
 				{durationLabel}
 			</span>
 		{/if}
@@ -64,7 +64,7 @@
 				onclick={() => {
 					isExpanded = !isExpanded;
 				}}
-				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
+				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 				aria-label={isExpanded ? ariaCollapseDetails : ariaExpandDetails}
 			>
 				<CaretRight
@@ -80,7 +80,7 @@
 
 			{#if isExpanded}
 				<div class="border-t border-border bg-muted/20 px-2.5 py-2">
-					<pre class="m-0 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{detailsText}</pre>
+					<pre class="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{detailsText}</pre>
 				</div>
 			{/if}
 		</div>

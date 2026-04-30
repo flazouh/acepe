@@ -1,5 +1,5 @@
 <script lang="ts">
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 
 import { createPanZoomHandlers } from "./use-pan-zoom.js";
 

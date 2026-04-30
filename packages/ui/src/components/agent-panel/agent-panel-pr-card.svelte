@@ -125,7 +125,7 @@
 	{#snippet expandedContent()}
 		{#if model.descriptionHtml}
 			<div class="px-3 pt-0 pb-2 max-h-[200px] overflow-y-auto">
-				<div class="markdown-content text-xs text-foreground leading-relaxed">
+				<div class="markdown-content text-sm text-foreground leading-relaxed">
 					{@html model.descriptionHtml}
 					{#if model.mode === "streaming" && model.isStreaming}
 						<span class="inline-block w-1.5 h-3 bg-foreground/50 animate-pulse ml-0.5 align-text-bottom"></span>
@@ -147,7 +147,7 @@
 								commit.onClick?.(event);
 							}}
 						/>
-						<span class="text-[11px] text-foreground/70 truncate leading-none">{commit.message}</span>
+						<span class="text-sm text-foreground/70 truncate leading-none">{commit.message}</span>
 					</div>
 				{/each}
 			</div>

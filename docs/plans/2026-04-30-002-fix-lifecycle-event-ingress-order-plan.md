@@ -31,6 +31,8 @@ The architectural issue is not that `reserve` rejects duplicates. The issue is t
 
 ## Requirements Trace
 
+Requirements are grouped by concern; stable R-numbering is intentionally not strictly sequential across headings.
+
 ### Lifecycle Authority & Event Sequencing
 
 - R1. Preserve one product-state authority path for sessions: provider facts -> backend/provider edge -> canonical session graph -> desktop selectors/UI.
@@ -50,9 +52,9 @@ The architectural issue is not that `reserve` rejects duplicates. The issue is t
 
 ### Buffer Safety & Diagnostics
 
-- R9. Pre-reservation buffering must be in-memory delivery plumbing only: not persisted, not exposed to desktop stores/selectors, bounded to at most 16 buffered events per provider/client/session key and 128 buffered session keys globally unless stricter existing queue limits are reused, and discarded on creation failure, creation cancellation, provider-client stop, or app shutdown.
-- R10. Orphan, overflow, and replay diagnostics must be sanitized. They may include update kind, provider/agent id, non-secret session correlation, counts, and reason codes; they must not include raw provider payloads, command bodies, capability bodies, environment values, credentials, or file contents.
-- R11. Provider session ids are trust-boundary data. Buffer keys must be namespaced by provider/client identity plus provider session id, and buffered events may replay only into the matching lifecycle-reserved session produced by the same creation path.
+- R9. Pre-reservation buffering must be in-memory delivery plumbing only: not persisted, not exposed to desktop stores/selectors, bounded to at most 16 buffered events and 64 KiB serialized payload per provider/client/session key, 128 buffered session keys globally, and 2 MiB total serialized payload globally unless stricter existing queue limits are reused, and discarded on creation failure, creation cancellation, provider-client stop, or app shutdown.
+- R10. Orphan, overflow, and replay diagnostics must be sanitized and coalesced. They may include update kind, provider/agent id, non-secret session correlation, counts, and reason codes; they must not include raw provider payloads, command bodies, capability bodies, environment values, credentials, or file contents. Diagnostic emission must be bounded to one immediate diagnostic per provider/client/session key and reason plus a summary count on drain/discard.
+- R11. Provider session ids are trust-boundary data. Buffer keys must be namespaced by a Rust-runtime-assigned provider/client handle plus provider session id, never by a provider-supplied identity namespace, and buffered events may replay only into the matching lifecycle-reserved session produced by the same creation path.
 
 ## Scope Boundaries
 
@@ -95,7 +97,7 @@ The architectural issue is not that `reserve` rejects duplicates. The issue is t
 - **Decision: only lifecycle-authorized paths may create supervisor entries.** `reserve`, restore/seed paths for known restored sessions, and explicitly reviewed creation-attempt promotion paths may create lifecycle existence. Arbitrary update application may not.
 - **Decision: event ingress must fail closed or buffer before lifecycle exists.** A provider update for an unknown lifecycle session must not mutate projections, transcript projections, runtime graph, or journal semantics as product state. For useful early capability updates, buffering and replay after reservation is preferred to dropping.
 - **Decision: the pre-reservation buffer is a standalone delivery component.** It must not live inside `SessionSupervisor` or become a readable graph/runtime source. It should sit beside shared ACP event-ingress state and expose only narrow operations to buffer an unknown-session update, drain a now-reserved session through the normal dispatcher path, and discard pending delivery facts for failed/cancelled sessions.
-- **Decision: reservation, buffer drain, and post-reservation live admission must be serialized per session.** Once a session becomes lifecycle-known, buffered events for that session must replay through the canonical reducer before later live events for the same session can overtake them.
+- **Decision: the buffer owns per-session drain serialization.** The buffer should model each key as `collecting -> draining -> open` or `collecting -> discarded`. `DispatcherSink::enqueue` and direct-publish paths consult that state before touching projections. `acp_new_session` calls the buffer's drain operation after `reserve` and relies on that operation's per-session ordering guarantee; it must not add an independent global dispatcher lock.
 - **Decision: capability updates are facts, not lifecycle.** `available_commands_update` may enrich `SessionGraphCapabilities` after `Reserved`, but it cannot create `Reserved`.
 - **Decision: preserve provider-owned identity ordering.** Do not reserve a completed session before provider id is known and metadata promotion has succeeded. If updates arrive in the narrow gap after provider id is known but before reserve completes, ingress buffering handles the ordering.
 - **Decision: keep TS passive.** The fix should produce correct Rust canonical envelopes/open results; TypeScript should not special-case `already reserved`, synthesize lifecycle, or fall back to transient state.
@@ -113,7 +115,21 @@ The architectural issue is not that `reserve` rejects duplicates. The issue is t
 ### Deferred to Implementation
 
 - **Exact internal storage primitive for the standalone buffer:** implementation should choose the narrowest existing shared-state registration pattern that lets `ui_event_dispatcher` buffer and `acp_new_session` drain/discard without making the buffer a graph authority.
-- **Exact update-category policy:** implementation should start from the invariant that no unknown-session update mutates product graph state, then right-size whether each update category is buffered, rejected with sanitized diagnostics, or treated as an edge-ordering violation.
+
+## Pre-Reservation Update Policy
+
+Unknown-session ingress must classify updates before any projection, journal, transcript, or runtime graph mutation:
+
+| Update category | Variants | Pre-reservation handling |
+|-----------------|----------|--------------------------|
+| Capability/config facts | `AvailableCommandsUpdate`, `CurrentModeUpdate`, `ConfigOptionUpdate` | Buffer when a provider session id is present and the buffer is within count/byte limits. On overflow or invalid replay, drop the fact with sanitized coalesced diagnostics and continue creation from safe degraded canonical state. |
+| Transcript/content/operation evidence | `UserMessageChunk`, `AgentMessageChunk`, `AgentThoughtChunk`, `ToolCall`, `ToolCallUpdate`, `Plan` | Do not buffer. Treat before reservation as an edge-ordering violation: no product-state mutation; fail the active session-scoped creation if it belongs to one, otherwise emit sanitized orphan diagnostics. |
+| Interaction/turn lifecycle evidence | `PermissionRequest`, `QuestionRequest`, `TurnComplete`, `TurnError` | Do not buffer. Treat before reservation as semantically unsafe edge ordering: no product-state mutation; fail the active session-scoped creation if it belongs to one, otherwise emit sanitized orphan diagnostics. |
+| Connection lifecycle notifications | `ConnectionComplete`, `ConnectionFailed` | Must target a known lifecycle session or a reviewed resume/reconnect path. Unknown-session calls are rejected by typed guard and sanitized diagnostics. |
+| Telemetry | `UsageTelemetryUpdate` | Do not buffer before lifecycle exists. Drop with sanitized diagnostics; telemetry must never create lifecycle or actionability. |
+| Missing session id or unknown/future variant | Any update with no provider session id, or any future `SessionUpdate` variant not classified here | Fail closed: no product-state mutation, no buffering, sanitized diagnostics only. |
+
+Buffered events receive no trust elevation. During drain, each event must pass the same ingress validation and canonical reducer path as a live event of the same category.
 
 ## High-Level Technical Design
 
@@ -148,8 +164,9 @@ Provider early update
         v
 event ingress asks: does SessionSupervisor own lifecycle?
         |
-        +-- no  --> standalone pre-reservation buffer
-        |          in-memory, bounded, no product graph mutation
+        +-- no  --> classify update before mutation
+        |          capability/config + key + within limits -> buffer
+        |          everything else -> sanitized edge/orphan diagnostic
         |
         +-- yes --> apply through canonical graph path
 
@@ -179,7 +196,7 @@ No provider event may create lifecycle existence.
 
 ## Implementation Units
 
-- [ ] **Unit 1: Characterize pre-reservation provider update race**
+- [x] **Unit 1: Characterize pre-reservation provider update race**
 
 **Goal:** Add failing coverage that proves an early provider capability update can currently create supervisor state before `acp_new_session` reserves lifecycle.
 
@@ -214,7 +231,7 @@ No provider event may create lifecycle existence.
 **Verification:**
 - The failing tests name the race precisely and do not depend on Copilot binaries or live Tauri state.
 
-- [ ] **Unit 2: Make SessionSupervisor lifecycle creation explicit**
+- [x] **Unit 2: Make SessionSupervisor lifecycle creation explicit**
 
 **Goal:** Enforce at the lowest shared layer that only lifecycle-authorized paths can create supervisor entries.
 
@@ -251,7 +268,7 @@ No provider event may create lifecycle existence.
 **Verification:**
 - `SessionSupervisor` becomes structurally unable to let arbitrary update application create lifecycle existence.
 
-- [ ] **Unit 3: Gate and buffer provider events at Rust event ingress**
+- [x] **Unit 3: Gate and buffer provider events at Rust event ingress**
 
 **Goal:** Ensure provider events for unknown lifecycle sessions cannot mutate projection/runtime/transcript state, while preserving early capability facts for replay after reservation.
 
@@ -264,20 +281,24 @@ No provider event may create lifecycle existence.
 - Modify: `packages/desktop/src-tauri/src/acp/ui_event_dispatcher.rs`
 - Review: `packages/desktop/src-tauri/src/acp/client_transport.rs`
 - Modify/review: `packages/desktop/src-tauri/src/acp/session_state_engine/runtime_registry.rs`
-- Modify/review: `packages/desktop/src-tauri/src/acp/projections/mod.rs`
+- Review: `packages/desktop/src-tauri/src/acp/projections/mod.rs`
 - Test: `packages/desktop/src-tauri/src/acp/ui_event_dispatcher.rs`
 
 **Approach:**
 - Add a lifecycle-existence gate before event ingress applies provider updates to projection, journal, transcript projection, or runtime graph.
-- For updates whose session is not yet lifecycle-known, place eligible updates into the standalone pre-reservation buffer keyed by provider/client identity plus provider session id. This buffer is delivery plumbing, not semantic authority.
-- Keep hard bounds in the buffer implementation: at most 16 buffered events per provider/client/session key and 128 buffered session keys globally unless stricter existing queue limits are reused. Overflow must not apply product state; it must emit a sanitized diagnostic and follow the update-category policy from this unit.
+- Put the first gate at the top of `DispatcherSink::enqueue`, before `session_domain_event_from_update`, `ProjectionRegistry::apply_canonical_event`, or `ProjectionRegistry::apply_session_update` can run. A later `persist_dispatch_event` guard is still needed for journal/supervisor paths, but it is not sufficient alone.
+- Route `publish_direct_session_update` through the same gate, or prove and guard that its callers only target lifecycle-known sessions. Unknown-session direct-publish calls must be rejected before `ProjectionRegistry::apply_session_update`.
+- For updates whose session is not yet lifecycle-known, classify them with the Pre-Reservation Update Policy. Only capability/config facts with a provider session id are eligible for the standalone pre-reservation buffer keyed by Rust-runtime-assigned provider/client handle plus provider session id.
+- Keep hard bounds in the buffer implementation: at most 16 buffered events and 64 KiB serialized payload per provider/client/session key, 128 buffered session keys globally, and 2 MiB serialized payload globally unless stricter existing queue limits are reused. Overflow must not apply product state; it must emit a sanitized coalesced diagnostic and follow the Pre-Reservation Update Policy.
 - Do not persist buffered events. Discard them on creation failure before reserve, creation cancellation, provider-client stop, explicit orphan cleanup, or app shutdown.
-- Preserve FIFO ordering for each session and avoid cross-session blocking.
-- Replay buffered events only after lifecycle reservation exists for that session, and serialize the drain so later live events for that session cannot overtake buffered events.
+- Preserve FIFO ordering for each session and avoid cross-session blocking. The drain serialization mechanism must be per-session-scoped; do not use a global dispatcher lock that stalls unrelated reserved sessions.
+- Replay buffered events only after lifecycle reservation exists for that session. The buffer's per-session state must hold later live events for that same key behind the drain until the state transitions to `open`.
+- During drain, replay each buffered event through the identical validation and canonical reducer path used for live ingress. Buffering must not mark an event trusted or pre-validated.
 - Treat updates that cannot be buffered safely as explicit orphan/edge-ordering diagnostics rather than product-state mutations.
 - Ensure both journaled and non-journaled updates respect the same gate. The `Ok(None)` non-journaled path is not the only path that can create state.
 - Avoid applying raw updates to `ProjectionRegistry` before the lifecycle gate. The projection registry is also product graph state and must not be pre-reservation authority.
-- Review `client_transport.rs` only to confirm it has no bypass around `ui_event_dispatcher`. If a provider update path bypasses the dispatcher, add the same lifecycle gate there instead of creating a second divergent gate.
+- Review `client_transport.rs` only to confirm live provider updates route through the gated dispatcher. Existing direct `ProjectionRegistry::apply_session_update` test setup does not need lifecycle gating; any live bypass must be routed through the shared gate instead of adding a second divergent gate.
+- Review `projections/mod.rs` only to confirm no lifecycle dependency is added there. The projection registry should stay lifecycle-unaware; the gate belongs before callers invoke it.
 
 **Execution note:** Add behavior tests for both non-journaled capability updates and journaled interaction/turn updates so the guard is not accidentally scoped only to `available_commands_update`.
 
@@ -290,15 +311,18 @@ No provider event may create lifecycle existence.
 - Happy path: after `reserve`, buffered `available_commands_update` replays and capabilities appear in the canonical runtime graph.
 - Edge case: multiple early updates for the same session replay in original order.
 - Edge case: early updates for session A do not block normal updates for already-reserved session B.
+- Edge case: a post-reservation live event for session A arrives while session A is draining; it waits behind the buffered drain, while session B continues normally.
+- Edge case: an update with no session id before reservation is rejected with sanitized diagnostics and does not create graph/projection state.
+- Error path: a pre-reservation `PermissionRequest`, `ToolCall`, or `TurnComplete` is rejected as edge-ordering violation and does not enter the buffer.
 - Error path: creation fails after buffering but before reserve; buffered updates for that provider/client/session key are discarded and cannot replay into a later attempt.
-- Error path: buffer overflow emits sanitized diagnostics and does not mutate product state.
+- Error path: buffer count or byte overflow emits coalesced sanitized diagnostics and does not mutate product state.
 - Error path: an update for a session that never becomes reserved is reported/cleaned as orphaned without mutating product state.
 - Integration: projection registry does not have product session state for a buffered unknown-session update before reservation.
 
 **Verification:**
 - Provider ingress cannot race ahead of lifecycle authority, and useful early capability facts are preserved through the buffer.
 
-- [ ] **Unit 4: Flush buffered events from new-session reservation**
+- [x] **Unit 4: Flush buffered events from new-session reservation**
 
 **Goal:** Wire the creation flow so synchronous provider sessions reserve lifecycle, then release buffered provider facts before the session is exposed as a completed open result.
 
@@ -309,7 +333,7 @@ No provider event may create lifecycle existence.
 **Files:**
 - Modify: `packages/desktop/src-tauri/src/acp/commands/session_commands.rs`
 - Modify/review: `packages/desktop/src-tauri/src/acp/pre_reservation_event_buffer.rs`
-- Modify/review: `packages/desktop/src-tauri/src/acp/session_open_snapshot/mod.rs`
+- Review: `packages/desktop/src-tauri/src/acp/session_open_snapshot/mod.rs`
 - Modify/review: `packages/desktop/src-tauri/src/acp/session_state_engine/runtime_registry.rs`
 - Test: `packages/desktop/src-tauri/src/acp/commands/tests.rs`
 
@@ -318,10 +342,13 @@ No provider event may create lifecycle existence.
 - Immediately after successful `reserve`, ask the pre-reservation buffer to drain pending updates for that provider/client/session key through the normal canonical graph path.
 - Drain buffered updates before the session open result is exposed and before later live events for that session can overtake the drained updates.
 - Build the new-session open result from the post-reservation graph state so the desktop receives a `Reserved` lifecycle plus any safe early capabilities that were replayed.
-- If replay of buffered capability/config facts fails validation, drop the invalid fact with a sanitized diagnostic and continue creation from the reserved graph state. If a buffered transcript, interaction, turn, or lifecycle-adjacent update fails because provider ordering is semantically unsafe, fail the session-scoped creation with a sanitized typed edge-ordering error and stop only the affected provider client/session path.
+- If replay of buffered capability/config facts fails validation, drop the invalid fact with a sanitized diagnostic and continue creation from the reserved graph state. If drain fails because of an internal graph/reducer error after `reserve`, transition the session-scoped lifecycle to `Failed` with a sanitized reason, discard the buffer, stop only the affected provider client/session path, and do not emit a successful open result.
+- Pre-reservation transcript, interaction, turn, lifecycle, telemetry, missing-session-id, and unknown/future update categories should never be present in the drain because Unit 3 rejects them before buffering.
+- If capability/config overflow happened before reservation, open from the safe post-drain graph state with degraded/missing capabilities rather than TS fallback or local repair. Later canonical provider updates may enrich capabilities through the normal live path.
 - Ensure creation failure before `reserve`, replay failure that aborts creation, and provider-client teardown all discard buffered updates for the provider/client/session key.
 - Keep deferred-creation providers separate: pending creation remains keyed by creation attempt until provider identity is proven; do not pretend a completed session exists early.
 - Treat R7 as an unchanged constraint in this unit: returning `Reserved` must preserve first-send direct-send semantics, but TS routing verification belongs to Unit 5.
+- Review `session_open_snapshot/mod.rs` to confirm the open result consumes the capabilities/session graph snapshot supplied by `session_commands.rs`; only modify it if that contract currently prevents post-drain graph materialization.
 
 **Execution note:** Extend the command-level regression from Unit 1 so it proves the full fix: early provider update, successful creation, `Reserved` lifecycle, capabilities preserved, no `MetadataCommitFailed`.
 
@@ -335,14 +362,16 @@ No provider event may create lifecycle existence.
 - Happy path: returned open result has `lifecycle.status = Reserved` and contains replayed capability data when the early update was valid.
 - Edge case: no early updates still follows the normal creation path.
 - Error path: invalid buffered capability/config fact is dropped with sanitized diagnostics and creation still succeeds from the reserved graph state.
-- Error path: semantically unsafe buffered transcript/interaction/turn update becomes a sanitized typed creation/edge error instead of a generic `AlreadyReserved`.
+- Error path: capability/config overflow before reservation opens with safe degraded canonical capabilities and emits sanitized diagnostics; no TS fallback fills the gap.
+- Error path: semantically unsafe pre-reservation transcript/interaction/turn update never reaches drain and becomes a sanitized typed creation/edge error instead of a generic `AlreadyReserved`.
+- Error path: internal drain failure after reservation marks the session-scoped lifecycle failed and does not expose a successful open result.
 - Error path: metadata promotion fails after early buffering but before reserve; the buffer entry is discarded and cannot affect a later creation attempt.
 - Integration: session registry stores the client only after metadata, reservation, and buffered-event replay are complete.
 
 **Verification:**
 - New synchronous provider sessions can no longer fail because an early event pre-created supervisor state.
 
-- [ ] **Unit 5: Prove desktop remains canonical-only**
+- [x] **Unit 5: Prove desktop remains canonical-only**
 
 **Goal:** Verify the Rust fix produces the canonical lifecycle/capability state needed by desktop without adding TypeScript fallback authority.
 
@@ -377,7 +406,7 @@ No provider event may create lifecycle existence.
 **Verification:**
 - No desktop fallback or provider-specific UI patch is introduced, and first-send routing remains graph-backed.
 
-- [ ] **Unit 6: Regression verification and documentation**
+- [x] **Unit 6: Regression verification and documentation**
 
 **Goal:** Close the loop with targeted tests, live reproduction, and durable learning.
 
@@ -410,6 +439,7 @@ No provider event may create lifecycle existence.
 - Integration: newly created session remains `Reserved` until first send and then transitions through the canonical lifecycle path.
 - Error path: orphaned provider updates for never-reserved sessions are diagnosed/cleaned and never materialize UI product state.
 - Error path: orphan, overflow, and replay diagnostics contain no raw provider payloads or credential-like values.
+- Error path: repeated overflow/orphan events coalesce diagnostics by provider/client/session key and reason instead of emitting unbounded per-event logs.
 - Regression: old missing-provider-history sessions still show explicit restore failure rather than being repaired by local journal/runtime state.
 
 **Verification:**
@@ -422,6 +452,7 @@ No provider event may create lifecycle existence.
 - **State lifecycle risks:** The key risk is introducing a buffer that becomes semantic authority. The buffer must store in-memory delivery facts only, be hard-bounded, never be read by desktop/product selectors, and replay through the normal canonical graph reducer after lifecycle exists.
 - **API surface parity:** All providers using shared ACP event ingress benefit; Copilot is the primary regression test but the change should cover Cursor/OpenCode/subprocess providers where applicable.
 - **Trust boundary:** Provider session ids are trusted only as provider-scoped correlation values. Buffer and replay matching must include provider/client identity to avoid cross-provider or stale-attempt collisions.
+- **Provider-agnostic ingress:** Providers or helper paths that cannot supply a provider session id before lifecycle exists are not buffer-eligible. They fail closed with sanitized diagnostics rather than using `creation_attempts` as a fake session key.
 - **Integration coverage:** Unit tests must include supervisor-only, dispatcher-ingress, and command-level creation flows; live Tauri/Copilot verification proves the real timing path.
 - **Unchanged invariants:** `creation_attempts` remain pre-provider intent; completed sessions remain keyed by provider-owned ids; TypeScript remains canonical-envelope consumer; `Reserved` first-send direct-send routing remains unchanged.
 
@@ -441,6 +472,8 @@ No provider event may create lifecycle existence.
 | Buffered early updates are never flushed | Medium | Missing initial capabilities or stale UI actionability | Flush from the creation path immediately after `reserve`; add command-level tests that assert capabilities survive |
 | Buffer becomes a second semantic authority | Medium | GOD architecture regression | Keep buffer as delivery-only; replay through canonical reducer; no desktop reads from buffer |
 | Buffer overflow or orphan retention grows memory | Medium | Memory pressure or hidden provider-loop failure | Hard-bound per-session/global buffer counts; discard on creation failure/client stop; emit sanitized diagnostics |
+| Buffered payload bytes exhaust memory despite count caps | Medium | Desktop process memory pressure | Add per-key and global serialized byte caps; overflow drops delivery facts without product mutation |
+| Drain ordering uses a global lock | Medium | Unrelated sessions stall during creation | Require per-session drain state (`collecting -> draining -> open/discarded`) and test cross-session non-blocking |
 | Unknown-session updates are silently dropped | Medium | Debugging blind spots | Emit sanitized structured diagnostics and bounded cleanup logs; test orphan cleanup behavior |
 | Supervisor hardening breaks legitimate restore/seed paths | Medium | Cold-open/reconnect regressions | Preserve explicit creation paths (`reserve`, reviewed seed/restore) and add tests for known-session update paths |
 | Projection registry still mutates before lifecycle gate | Medium | Split graph state remains even if supervisor is fixed | Gate before projection application; add tests asserting no product projection exists before lifecycle reservation |

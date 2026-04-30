@@ -9,7 +9,7 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
-} from "$lib/components/ui/dialog/index.js";
+} from "@acepe/ui/dialog";
 
 interface Props {
 	open?: boolean;

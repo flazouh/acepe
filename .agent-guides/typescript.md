@@ -17,7 +17,47 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 ## Explicit Over Implicit
 
 - **NEVER use spread syntax (`...obj`)** — it obscures data flow, makes refactoring error-prone, and breaks TypeScript's ability to track property provenance. Explicitly enumerate all properties instead.
-- Prefer explicit property assignment over object spread when merging or updating objects
+- Prefer explicit property assignment over object spread when merging or updating objects.
+
+### Carve-out: shape-preserving transformers
+
+Spread is **permitted** in shape-preserving transformers — functions whose declared input and output types are the same shape `T` — when used to clone before applying explicit per-field overrides.
+
+```ts
+// ALLOWED: shape-preserving transformer (T) => T, spread to clone, explicit overrides.
+function applySceneTextLimits(entry: AgentToolEntry): AgentToolEntry {
+  return {
+    ...entry,
+    detailsText: truncate(entry.detailsText, LIMITS.details),
+    stdout: truncate(entry.stdout, LIMITS.output),
+  };
+}
+```
+
+The reason for this carve-out: in a shape-preserving transformer, the explicit allow-list pattern *inverts* the safety profile of the no-spread rule. Adding a new field to `T` then silently drops it at the transformer (we shipped at least one bug — `editDiffs` missing from the agent panel — caused by exactly this). Spread + override gives the field an explicit, observable default behavior (pass through unchanged) and makes truncation/transformation the only listed concern.
+
+**Counterexamples — still forbidden:**
+
+```ts
+// FORBIDDEN: heterogeneous merge, building a new shape.
+const merged = { ...userInput, ...defaults, computed: derive(userInput) };
+
+// FORBIDDEN: applying a Partial<T> patch via spread.
+function update(state: State, patch: Partial<State>): State {
+  return { ...state, ...patch };
+}
+
+// FORBIDDEN: accumulator in a loop.
+let acc = {};
+for (const item of items) acc = { ...acc, [item.key]: item.value };
+
+// FORBIDDEN: input and output types differ, even if related.
+function toDto(entry: AgentToolEntry): AgentToolEntryDto {
+  return { ...entry, createdAt: now() };
+}
+```
+
+The criterion is **same declared type on both sides**. Code review enforces — if a function's declared signature is `(x: T): T` but it is actually constructing a different shape from a wide interface, the carve-out does not apply.
 
 ## Modern JavaScript/TypeScript
 

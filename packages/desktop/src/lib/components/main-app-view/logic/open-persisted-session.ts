@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import { okAsync, type ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { api } from "$lib/acp/store/api.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
@@ -36,6 +36,39 @@ function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["ge
 	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
 }
 
+function reattachLocalCreatedSession(input: {
+	readonly source: OpenPersistedSessionOptions["source"];
+	readonly panelId: string;
+	readonly sessionId: string;
+	readonly sessionStore: SessionOpenStore;
+	readonly agentId: string;
+}): ResultAsync<void, AppError> {
+	const { source, panelId, sessionId, sessionStore, agentId } = input;
+	return sessionStore
+		.connectSession(sessionId)
+		.map(() => {
+			sessionStore.setLocalCreatedSessionLoaded(sessionId);
+			logger.debug("Reattached local created session", {
+				source,
+				panelId,
+				sessionId,
+				agentId,
+			});
+			return undefined;
+		})
+		.orElse((error: AppError) => {
+			sessionStore.setSessionLoaded(sessionId);
+			logger.warn("Failed to reattach local created session", {
+				source,
+				panelId,
+				sessionId,
+				agentId,
+				error,
+			});
+			return okAsync(undefined);
+		});
+}
+
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
 	const {
 		panelId,
@@ -65,41 +98,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		return;
 	}
 
-	if (!isProviderHistoryBackedSession(session)) {
-		// GOD: local-created reattach failure is reported via the canonical
-		// lifecycle envelope (FailureReason::SessionGoneUpstream for upstream-
-		// permanent, ResumeFailed for transient). The UI reads
-		// `lifecycle.failureReason` and composes user copy itself — no TS-side
-		// string-match gate, no probe-status hot-state, no setSessionOpenMissing.
-		sessionStore.setSessionLoading(sessionId);
-		void sessionStore.connectSession(sessionId).match(
-			() => {
-				sessionStore.setLocalCreatedSessionLoaded(sessionId);
-				logger.debug("Reattached local created session", {
-					source,
-					panelId,
-					sessionId,
-					agentId: session.agentId,
-				});
-			},
-			(error: AppError) => {
-				logger.warn("Failed to reattach local created session", {
-					source,
-					panelId,
-					sessionId,
-					agentId: session.agentId,
-					error,
-				});
-			}
-		);
-		logger.debug("Skipping provider-history open for local created session", {
-			source,
-			panelId,
-			sessionId,
-			agentId: session.agentId,
-		});
-		return;
-	}
+	const shouldAttemptLocalReattach = !isProviderHistoryBackedSession(session);
 
 	inflightPanelIds.add(panelId);
 	sessionStore.setSessionLoading(sessionId);
@@ -121,12 +120,21 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				// GOD: Rust emitted a Failed lifecycle envelope (SessionGoneUpstream)
 				// from get_session_open_result before returning. UI is canonical-driven.
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionLoaded(sessionId);
 				logger.warn("Session open returned missing", {
 					source,
 					panelId,
 					sessionId,
 				});
+				if (shouldAttemptLocalReattach) {
+					return reattachLocalCreatedSession({
+						source,
+						panelId,
+						sessionId,
+						sessionStore,
+						agentId: session.agentId,
+					});
+				}
+				sessionStore.setSessionLoaded(sessionId);
 				return okAsync(undefined);
 			}
 
@@ -136,7 +144,6 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				// returning. UI reads lifecycle.failureReason via the canonical
 				// projection.
 				sessionOpenHydrator.clearAttempt(panelId);
-				sessionStore.setSessionLoaded(sessionId);
 				logger.warn("Session open returned explicit error state", {
 					source,
 					panelId,
@@ -145,6 +152,16 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					reason: result.reason,
 					retryable: result.retryable,
 				});
+				if (shouldAttemptLocalReattach) {
+					return reattachLocalCreatedSession({
+						source,
+						panelId,
+						sessionId,
+						sessionStore,
+						agentId: session.agentId,
+					});
+				}
+				sessionStore.setSessionLoaded(sessionId);
 				return okAsync(undefined);
 			}
 
@@ -177,6 +194,25 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		.match(
 			() => undefined,
 			(error: AppError) => {
+				if (shouldAttemptLocalReattach) {
+					logger.warn("Session open request failed before local-created reattach", {
+						source,
+						panelId,
+						sessionId,
+						agentId: session.agentId,
+						error,
+					});
+					return reattachLocalCreatedSession({
+						source,
+						panelId,
+						sessionId,
+						sessionStore,
+						agentId: session.agentId,
+					}).match(
+						() => undefined,
+						() => undefined
+					);
+				}
 				sessionStore.setSessionLoaded(sessionId);
 				logger.error("Failed to open session", {
 					source,

@@ -423,7 +423,14 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.connectSession).not.toHaveBeenCalled();
 	});
 
-	it("does not ask provider history to reopen local created sessions without a source path", async () => {
+	it("falls back to local reattach when Rust cannot open a local-created snapshot", async () => {
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				okAsync({
+					outcome: "missing",
+					requestedSessionId: "session-1",
+				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
+		);
 		sessionStore.getSessionCold = mock(() => ({
 			id: "session-1",
 			title: "Session 1",
@@ -446,12 +453,80 @@ describe("openPersistedSession", () => {
 		});
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
-		expect(sessionOpenHydrator.beginAttempt).not.toHaveBeenCalled();
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
 		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("falls back to local reattach when local-created snapshot open rejects", async () => {
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				errAsync(new Error("open snapshot unavailable")) as unknown as ReturnType<
+					typeof getSessionOpenResultMock
+				>
+		);
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "cursor",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created" as const,
+			parentId: null,
+		}));
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
+		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.setSessionLoaded).not.toHaveBeenCalled();
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("hydrates local-created sessions when Rust can open a canonical snapshot", async () => {
+		sessionStore.getSessionCold = mock(() => ({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "cursor",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "created" as const,
+			parentId: null,
+		}));
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
+		expect(sessionOpenHydrator.hydrateFound).toHaveBeenCalledTimes(1);
+		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+		});
+		expect(sessionStore.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
 	});
 
 	it("does not synthesize TS-side reattach failure messages when local-created reattach fails", async () => {
@@ -460,6 +535,13 @@ describe("openPersistedSession", () => {
 		// string-match gate and friendly-message fallback have been retired —
 		// open-persisted-session must not write any UI state on reattach failure
 		// other than logging.
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				okAsync({
+					outcome: "missing",
+					requestedSessionId: "session-1",
+				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
+		);
 		sessionStore.getSessionCold = mock(() => ({
 			id: "session-1",
 			title: "Session 1",
@@ -490,9 +572,10 @@ describe("openPersistedSession", () => {
 		});
 
 		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.setLocalCreatedSessionLoaded).not.toHaveBeenCalled();
-		expect(getSessionOpenResultMock).not.toHaveBeenCalled();
+		expect(sessionStore.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		// Must NOT carry symbols of the deleted gate.
 		expect((sessionStore as unknown as Record<string, unknown>)["setSessionOpenMissing"]).toBeUndefined();
 		expect(

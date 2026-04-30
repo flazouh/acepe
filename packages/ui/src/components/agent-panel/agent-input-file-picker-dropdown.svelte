@@ -237,8 +237,8 @@
 		<div class="flex w-72 shrink-0 flex-col border-r">
 			{#if filteredFiles.length > 0}
 				<div class="flex items-center justify-between border-b bg-muted/30 px-3 py-2 shrink-0">
-					<span class="text-xs font-medium text-muted-foreground">{headerLabel}</span>
-					<span class="text-xs tabular-nums text-muted-foreground">{filteredFiles.length}</span>
+					<span class="text-sm font-medium text-muted-foreground">{headerLabel}</span>
+					<span class="text-sm tabular-nums text-muted-foreground">{filteredFiles.length}</span>
 				</div>
 
 				<div class="flex-1 overflow-y-auto">
@@ -260,7 +260,7 @@
 							<span class="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded bg-background/60 text-[8px] font-mono uppercase text-muted-foreground">
 								{extension ? extension.slice(0, 3) : "?"}
 							</span>
-							<span class="min-w-0 truncate font-mono text-[11px] leading-none" title={file.path}>
+							<span class="min-w-0 truncate font-mono text-sm leading-none" title={file.path}>
 								{getFileName(file.path)}
 							</span>
 							{#if file.gitStatus && (file.gitStatus.insertions > 0 || file.gitStatus.deletions > 0)}
@@ -276,10 +276,10 @@
 				</div>
 
 				<div class="flex items-center gap-2 border-t bg-muted/30 px-3 py-1.5 shrink-0">
-					<kbd class="rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium">Enter</kbd>
-					<span class="text-[10px] text-muted-foreground">{selectHintLabel}</span>
-					<kbd class="ml-2 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium">Esc</kbd>
-					<span class="text-[10px] text-muted-foreground">{closeHintLabel}</span>
+					<kbd class="rounded border bg-muted px-1.5 py-0.5 text-sm font-medium">Enter</kbd>
+					<span class="text-sm text-muted-foreground">{selectHintLabel}</span>
+					<kbd class="ml-2 rounded border bg-muted px-1.5 py-0.5 text-sm font-medium">Esc</kbd>
+					<span class="text-sm text-muted-foreground">{closeHintLabel}</span>
 				</div>
 			{:else if isLoading}
 				<div class="flex flex-1 items-center justify-center text-sm text-muted-foreground">

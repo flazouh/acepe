@@ -8,7 +8,7 @@ import {
 	getSessionStore,
 } from "$lib/acp/store/index.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";

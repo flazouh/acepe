@@ -196,12 +196,12 @@
 						<BuildIcon size="sm" class="mt-0.5 self-start" style={`color: ${modeColor(option.id)}`} />
 					{/if}
 					<div class="flex min-w-0 flex-1 flex-col">
-						<span class="text-[12px] font-medium">{option.label}</span>
+						<span class="text-xs font-medium">{option.label}</span>
 						{#if option.description}
-							<span class="text-[10px] leading-[1.25] text-muted-foreground">{option.description}</span>
+							<span class="text-[11px] leading-[1.25] text-muted-foreground">{option.description}</span>
 						{/if}
 						{#if option.id === autoModeId && autoDisabled && autoDisabledReason}
-							<span class="text-[10px] leading-[1.25] text-muted-foreground">
+							<span class="text-[11px] leading-[1.25] text-muted-foreground">
 								{autoDisabledReason}
 							</span>
 						{/if}

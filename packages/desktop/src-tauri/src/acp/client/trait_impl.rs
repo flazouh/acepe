@@ -29,6 +29,18 @@ impl AgentClient for AcpClient {
         self.new_session(cwd).await
     }
 
+    fn begin_pre_reservation_drain(&self, session_id: &str) {
+        AcpClient::begin_pre_reservation_drain(self, session_id);
+    }
+
+    fn drain_pre_reservation_events(&self, session_id: &str) {
+        AcpClient::drain_pre_reservation_events(self, session_id);
+    }
+
+    fn discard_pre_reservation_events(&self, session_id: &str, reason: &'static str) {
+        AcpClient::discard_pre_reservation_events(self, session_id, reason);
+    }
+
     async fn resume_session(
         &mut self,
         session_id: String,

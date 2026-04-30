@@ -39,6 +39,12 @@ pub trait AgentClient: Send + Sync {
     /// attempt only after the first stream confirms the provider identity.
     fn bind_pending_creation_attempt(&mut self, _attempt_id: Option<String>) {}
 
+    fn begin_pre_reservation_drain(&self, _session_id: &str) {}
+
+    fn drain_pre_reservation_events(&self, _session_id: &str) {}
+
+    fn discard_pre_reservation_events(&self, _session_id: &str, _reason: &'static str) {}
+
     /// Resume an existing session
     /// Per ACP protocol: ResumeSessionResponse does NOT include sessionId
     async fn resume_session(

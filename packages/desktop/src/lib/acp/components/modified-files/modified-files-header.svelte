@@ -8,18 +8,18 @@ import {
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
+import * as Dialog from "@acepe/ui/dialog";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { ArrowsOut } from "phosphor-svelte";
-import { Check } from "phosphor-svelte";
-import { CheckCircle } from "phosphor-svelte";
-import { DotsThreeVertical } from "phosphor-svelte";
-import { FileCode } from "phosphor-svelte";
-import { GitMerge } from "phosphor-svelte";
-import { GitPullRequest } from "phosphor-svelte";
-import { NotePencil } from "phosphor-svelte";
-import { Robot } from "phosphor-svelte";
-import { SidebarSimple } from "phosphor-svelte";
+import { Textarea } from "$lib/components/ui/textarea/index.js";
+import { Tooltip } from "bits-ui";
+import { GitMerge, GitPullRequest, LinkSimple, SlidersHorizontal } from "phosphor-svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+} from "$lib/acp/application/dto/session-linked-pr.js";
+import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";
@@ -31,7 +31,6 @@ import { getReviewPreferenceStore } from "../../store/review-preference-store.sv
 import { sessionReviewStateStore } from "../../store/session-review-state-store.svelte.js";
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
-import AnimatedChevron from "../animated-chevron.svelte";
 import SelectorCheck from "../selector-check.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
@@ -44,6 +43,7 @@ import {
 	buildPrGenerationRequestConfig,
 	getValidPrGenerationModelId,
 } from "./logic/pr-generation-preferences.js";
+import PrLinkFooterButton from "../shared/pr-link-footer-button.svelte";
 import { getReviewStatusByFilePath, hasKeepAllBeenApplied } from "./logic/review-progress.js";
 import type { ModifiedFilesState } from "./types/modified-files-state.js";
 
@@ -74,6 +74,16 @@ interface Props {
 	merging?: boolean;
 	/** PR state used to decide between merge button and merged badge */
 	prState?: "OPEN" | "CLOSED" | "MERGED" | null;
+	/** Project path for manually linking an existing PR from the header menu */
+	projectPath?: string | null;
+	/** Current session-linked PR, when one is known */
+	linkedPr?: SessionLinkedPr | null;
+	/** Whether the current session PR link is automatic or manually selected */
+	prLinkMode?: SessionPrLinkMode | null;
+	/** Project sessions used to show and transfer existing PR links */
+	projectSessions?: readonly SessionCold[];
+	/** Project metadata used for linked-session badges */
+	project?: Project | null;
 	/** Available agents for PR generation selection */
 	availableAgents?: AgentInfo[];
 	/** Current/default agent ID for PR generation */
@@ -95,6 +105,11 @@ let {
 	onMerge,
 	merging = false,
 	prState = null,
+	projectPath = null,
+	linkedPr = null,
+	prLinkMode = "automatic",
+	projectSessions = [],
+	project = null,
 	availableAgents = [],
 	currentAgentId = null,
 	currentModelId = null,
@@ -106,6 +121,7 @@ const reviewPreferenceStore = getReviewPreferenceStore();
 
 let hasPromptDraft = $state(false);
 let promptDraft = $state("");
+let promptDialogOpen = $state(false);
 
 // PR generation preferences — persisted globally via SQLite
 const prPrefs = $derived(agentModelPrefs.getPrGenerationPrefs());
@@ -145,11 +161,6 @@ const effectiveAgentDisplayName = $derived.by(() => {
 	return capitalizeName(effectiveAgent.name);
 });
 
-const effectiveAgentIcon = $derived.by(() => {
-	if (!effectiveAgent) return null;
-	return getAgentIcon(effectiveAgent.id, effectiveTheme);
-});
-
 const promptEditorBaseline = $derived.by(() => {
 	const normalizedSavedPrompt = normalizeCustomShipInstructions(prPrefs.customPrompt);
 	if (normalizedSavedPrompt) {
@@ -180,6 +191,18 @@ const canSavePrompt = $derived(
 const canResetPrompt = $derived(
 	hasPromptDraft || Boolean(normalizeCustomShipInstructions(prPrefs.customPrompt))
 );
+
+const promptStatusLabel = $derived.by(() => {
+	if (hasUnsavedPromptChanges) {
+		return "Unsaved draft";
+	}
+
+	if (normalizeCustomShipInstructions(prPrefs.customPrompt)) {
+		return "Custom";
+	}
+
+	return "Default";
+});
 
 const totalAdded = $derived(
 	modifiedFilesState ? modifiedFilesState.files.reduce((sum, f) => sum + f.totalAdded, 0) : 0
@@ -362,6 +385,7 @@ function handlePromptSaveClick(): void {
 		modelId: prPrefs.modelId,
 		customPrompt: normalizedNextPrompt,
 	});
+	promptDialogOpen = false;
 }
 
 function handlePromptResetClick(): void {
@@ -404,179 +428,138 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 		{/snippet}
 
 		{#snippet leadingContent()}
-				<!-- PR split button: main action + dropdown for agent/model/prompt config -->
+				<!-- PR action group: open PR + generation settings + link existing -->
 				{#if onCreatePr}
-					<DropdownMenu.Root>
-						<div
-							class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-							role="none"
+					<div
+						class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
+						onclick={(e: MouseEvent) => e.stopPropagation()}
+						role="none"
+					>
+						<Button
+							variant="headerAction"
+							size="headerAction"
+							class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
+							disabled={createPrLoading}
+							onclick={handleCreatePrClick}
 						>
-							<Button
-								variant="headerAction"
-								size="headerAction"
-								class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
-								disabled={createPrLoading}
-								onclick={handleCreatePrClick}
-							>
-								<span class="flex items-center gap-1 shrink-0">
-									{#if createPrLoading}
-										<Spinner class="size-3 shrink-0" />
-										{createPrLabel ? createPrLabel : "Open PR"}
-									{:else}
-										<GitPullRequest
-											size={11}
-											weight="bold"
-											class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
-										/>
-										{"Open PR"}
-									{/if}
-								</span>
-								<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
-							</Button>
-							<DropdownMenu.Trigger
-								disabled={createPrLoading}
-								class="self-stretch flex items-center px-1 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-								onclick={(e: MouseEvent) => e.stopPropagation()}
-							>
-								<DotsThreeVertical size={12} weight="bold" class="shrink-0" />
-							</DropdownMenu.Trigger>
-						</div>
-						<DropdownMenu.Content align="start" class="w-[420px] overflow-hidden p-0" sideOffset={6}>
-							<div class="border-b border-border/50 bg-muted/20 px-3 py-2.5">
-								<div class="flex items-center gap-2 text-[0.6875rem] font-medium text-foreground/90">
-									<GitPullRequest size={12} weight="bold" class="shrink-0 text-muted-foreground" />
-									PR settings
-								</div>
-							</div>
+							<span class="flex items-center gap-1 shrink-0">
+								{#if createPrLoading}
+									<Spinner class="size-3 shrink-0" />
+									{createPrLabel ? createPrLabel : "Open PR"}
+								{:else}
+									<GitPullRequest size={11} weight="bold" class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success" />
+									{"Open PR"}
+								{/if}
+							</span>
+							<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
+						</Button>
 
-							<div class="border-b border-border/50 px-3 py-2.5">
-								<div class="grid gap-1.5 sm:grid-cols-2">
-									<div class="space-y-1.5">
-										<div class="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-											<Robot size={10} weight="bold" class="shrink-0" />
-											Agent
-										</div>
-										<DropdownMenu.Root>
+						<!-- Generation settings: agent / model / prompt -->
+						<DropdownMenu.Root>
+							<Tooltip.Provider delayDuration={400}>
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										{#snippet child({ props })}
 											<DropdownMenu.Trigger
-												disabled={availableAgents.length === 0}
-												class="flex w-full items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 text-[11px] text-foreground/85 transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
-												onclick={(e: MouseEvent) => e.stopPropagation()}
+												{...props}
+												disabled={createPrLoading}
+												class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+												aria-label="PR generation settings"
 											>
-												{#if effectiveAgentIcon}
-													<img src={effectiveAgentIcon} alt={effectiveAgentDisplayName} class="h-3 w-3 shrink-0" />
-												{/if}
-												<span class="flex-1 truncate text-left">{effectiveAgentDisplayName}</span>
-												<svg class="size-2.5 shrink-0 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-													<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-												</svg>
+												<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
 											</DropdownMenu.Trigger>
-											<DropdownMenu.Content align="start" class="w-[190px] p-0" sideOffset={6}>
-												{#each availableAgents as agent (agent.id)}
-													{@const icon = getAgentIcon(agent.id, effectiveTheme)}
-													{@const isSelected = agent.id === effectiveAgentId}
-													<DropdownMenu.Item
-														onSelect={() => handleAgentPickerChange(agent.id)}
-														class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
-													>
-														<div class="flex w-full min-w-0 items-center gap-1.5">
-															{#if icon}
-																<img src={icon} alt={agent.name} class="h-3.5 w-3.5 shrink-0" />
-															{/if}
-															<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
-															<SelectorCheck visible={isSelected} />
-														</div>
-													</DropdownMenu.Item>
-												{/each}
-											</DropdownMenu.Content>
-										</DropdownMenu.Root>
-									</div>
-
-									<div class="space-y-1.5">
-										<div class="text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-											Model
-										</div>
-										<DropdownMenu.Root>
-											<DropdownMenu.Trigger
-												disabled={reactiveModels.length === 0}
-												class="flex w-full items-center gap-1.5 rounded-md border border-border/50 bg-background/70 px-2 py-1 text-[11px] text-foreground/85 transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
-												onclick={(e: MouseEvent) => e.stopPropagation()}
+										{/snippet}
+									</Tooltip.Trigger>
+									<Tooltip.Portal>
+										<Tooltip.Content
+											class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md"
+											sideOffset={4}
+											side="top"
+										>
+											PR generation settings
+										</Tooltip.Content>
+									</Tooltip.Portal>
+								</Tooltip.Root>
+							</Tooltip.Provider>
+							<DropdownMenu.Content align="start" class="w-[260px]" sideOffset={6}>
+								<DropdownMenu.Sub>
+									<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
+										<span class="flex-1">Agent</span>
+										<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
+											{effectiveAgentDisplayName}
+										</span>
+									</DropdownMenu.SubTrigger>
+									<DropdownMenu.SubContent class="w-[220px] max-h-[260px] overflow-y-auto p-0">
+										{#each availableAgents as agent (agent.id)}
+											{@const icon = getAgentIcon(agent.id, effectiveTheme)}
+											{@const isSelected = agent.id === effectiveAgentId}
+											<DropdownMenu.Item
+												onSelect={() => handleAgentPickerChange(agent.id)}
+												class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
 											>
-												<span class="flex-1 truncate text-left">{effectiveModelDisplayName}</span>
-												<svg class="size-2.5 shrink-0 text-muted-foreground" viewBox="0 0 10 10" fill="none">
-													<path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-												</svg>
-											</DropdownMenu.Trigger>
-											<DropdownMenu.Content align="start" class="w-[210px] p-0" sideOffset={6}>
-												{#each reactiveModels as model (model.id)}
-													{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
-													{@const isSelected = model.id === effectiveModelId}
-													<DropdownMenu.Item
-														onSelect={() => handleModelPickerChange(model.id)}
-														class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
-													>
-														<div class="flex w-full min-w-0 items-center gap-1.5">
-															<span class="flex-1 truncate text-[11px]">{displayName}</span>
-															<SelectorCheck visible={isSelected} />
-														</div>
-													</DropdownMenu.Item>
-												{/each}
-											</DropdownMenu.Content>
-										</DropdownMenu.Root>
-									</div>
-								</div>
-							</div>
+												<div class="flex w-full min-w-0 items-center gap-1.5">
+													{#if icon}
+														<img src={icon} alt={agent.name} class="h-3.5 w-3.5 shrink-0" />
+													{/if}
+													<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
+													<SelectorCheck visible={isSelected} />
+												</div>
+											</DropdownMenu.Item>
+										{/each}
+									</DropdownMenu.SubContent>
+								</DropdownMenu.Sub>
 
-							<div class="px-3 py-2.5">
-								<div class="flex items-center justify-between gap-3">
-									<div>
-										<div class="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-											<NotePencil size={10} weight="bold" class="shrink-0" />
-											PR instructions
-										</div>
-									</div>
-									<div class="flex shrink-0 items-center gap-1.5">
-										<button
-											type="button"
-											disabled={!canResetPrompt}
-											onclick={(e: MouseEvent) => {
-												e.preventDefault();
-												e.stopPropagation();
-												handlePromptResetClick();
-											}}
-											class="rounded border border-border/50 px-2 py-1 text-[0.625rem] font-medium text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											Reset
-										</button>
-										<button
-											type="button"
-											disabled={!canSavePrompt}
-											onclick={(e: MouseEvent) => {
-												e.preventDefault();
-												e.stopPropagation();
-												handlePromptSaveClick();
-											}}
-											class="rounded border border-[#D6A16A] bg-[#F4D2AE] px-2 py-1 text-[0.625rem] font-medium text-[#5B3818] transition-colors hover:bg-[#EEC18F] disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											Save prompt
-										</button>
-									</div>
-								</div>
-								<textarea
-									class="mt-2 w-full min-h-[150px] max-h-[260px] resize-y rounded-md border border-border/50 bg-background/70 px-2.5 py-2 text-[0.6875rem] leading-snug text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-1 focus:ring-primary/35"
-									placeholder="Add PR instructions for Acepe to apply"
-									spellcheck="false"
-									value={resolvedPromptEditorValue}
-									oninput={handlePromptChange}
-									onclick={(e: MouseEvent) => e.stopPropagation()}
-									onkeydown={(e: KeyboardEvent) => e.stopPropagation()}
-								></textarea>
-								<p class="mt-2 text-[0.625rem] leading-snug text-muted-foreground/70">
-									{promptPreviewHelperText}
-								</p>
-							</div>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
+								<DropdownMenu.Sub>
+									<DropdownMenu.SubTrigger disabled={reactiveModels.length === 0} class="cursor-pointer">
+										<span class="flex-1">Model</span>
+										<span class="max-w-[132px] truncate text-[10px] text-muted-foreground">
+											{effectiveModelDisplayName}
+										</span>
+									</DropdownMenu.SubTrigger>
+									<DropdownMenu.SubContent class="w-[240px] max-h-[280px] overflow-y-auto p-0">
+										{#each reactiveModels as model (model.id)}
+											{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
+											{@const isSelected = model.id === effectiveModelId}
+											<DropdownMenu.Item
+												onSelect={() => handleModelPickerChange(model.id)}
+												class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
+											>
+												<div class="flex w-full min-w-0 items-center gap-1.5">
+													<span class="flex-1 truncate text-[11px]">{displayName}</span>
+													<SelectorCheck visible={isSelected} />
+												</div>
+											</DropdownMenu.Item>
+										{/each}
+									</DropdownMenu.SubContent>
+								</DropdownMenu.Sub>
+
+								<DropdownMenu.Separator />
+
+								<DropdownMenu.Item
+									onSelect={() => {
+										promptDialogOpen = true;
+									}}
+									class="cursor-pointer"
+								>
+									<span class="flex-1">Prompt</span>
+									<span class="text-[10px] text-muted-foreground">{promptStatusLabel}</span>
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+
+						<!-- Link existing PR: dedicated picker -->
+						{#if sessionId && projectPath}
+							<PrLinkFooterButton
+								{sessionId}
+								{projectPath}
+								{linkedPr}
+								prLinkMode={prLinkMode ?? "automatic"}
+								{projectSessions}
+								{project}
+								variant="header-icon"
+							/>
+						{/if}
+					</div>
 				{/if}
 
 				<!-- Merge split button: shown after PR is created -->
@@ -659,4 +642,47 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 			<SharedAgentPanelModifiedFilesTrailingControls model={trailingControlsModel} {isExpanded} />
 		{/snippet}
 	</SharedAgentPanelModifiedFilesHeader>
+
+	<Dialog.Root bind:open={promptDialogOpen}>
+		<Dialog.Content class="max-w-lg">
+			<Dialog.Header>
+				<Dialog.Title>PR prompt</Dialog.Title>
+				<Dialog.Description>
+					Customize the instructions Acepe uses before it adds branch, changed-file, diff, and XML response context.
+				</Dialog.Description>
+			</Dialog.Header>
+
+			<div class="grid gap-2 py-2">
+				<Textarea
+					class="min-h-[240px] max-h-[420px] resize-y text-xs leading-relaxed"
+					placeholder="Add PR instructions for Acepe to apply"
+					spellcheck="false"
+					value={resolvedPromptEditorValue}
+					oninput={handlePromptChange}
+				/>
+				<p class="text-xs text-muted-foreground">
+					{promptPreviewHelperText}
+				</p>
+			</div>
+
+			<Dialog.Footer>
+				<Button
+					variant="header"
+					size="header"
+					disabled={!canResetPrompt}
+					onclick={handlePromptResetClick}
+				>
+					Reset
+				</Button>
+				<Button
+					variant="invert"
+					size="header"
+					disabled={!canSavePrompt}
+					onclick={handlePromptSaveClick}
+				>
+					Save prompt
+				</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
 {/if}

@@ -30,7 +30,7 @@
 	const fileName = $derived(tool.filePath ? (tool.filePath.split("/").pop() || tool.filePath) : null);
 </script>
 
-<div class={`flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground ${className}`.trim()}>
+<div class={`flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground ${className}`.trim()}>
 	{#if tool.kind}
 		<PermissionBarIcon kind={tool.kind} color="var(--token-plan-icon-dark)" size={iconSize} />
 	{/if}

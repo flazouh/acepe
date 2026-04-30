@@ -46,7 +46,9 @@ pub(crate) fn classify_resume_error(
             // have already mapped these to `SessionNotFound`, but if a
             // future code path emits the raw form, we still classify
             // correctly.
-            if is_resource_not_found_session(message) || is_session_not_found_invalid_params(message) {
+            if is_resource_not_found_session(message)
+                || is_session_not_found_invalid_params(message)
+            {
                 ClassifiedResumeFailure {
                     failure_reason: FailureReason::SessionGoneUpstream,
                 }
@@ -95,7 +97,11 @@ mod tests {
     use crate::acp::lifecycle::FailureReason;
     use crate::acp::types::CanonicalAgentId;
 
-    fn assert_classified(error: &SerializableAcpError, agent: &CanonicalAgentId, expected: FailureReason) {
+    fn assert_classified(
+        error: &SerializableAcpError,
+        agent: &CanonicalAgentId,
+        expected: FailureReason,
+    ) {
         let ClassifiedResumeFailure { failure_reason } = classify_resume_error(agent, error);
         assert_eq!(failure_reason, expected, "classification mismatch");
     }
@@ -124,7 +130,11 @@ mod tests {
             message: "{\"code\":-32002,\"message\":\"Resource not found: Session 1ea29f08\"}"
                 .to_string(),
         };
-        assert_classified(&error, &CanonicalAgentId::Copilot, FailureReason::SessionGoneUpstream);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Copilot,
+            FailureReason::SessionGoneUpstream,
+        );
     }
 
     #[test]
@@ -133,7 +143,11 @@ mod tests {
             message: "{\"code\":-32602,\"data\":{\"message\":\"Session \\\"abc\\\" not found\"},\"message\":\"Invalid params\"}"
                 .to_string(),
         };
-        assert_classified(&error, &CanonicalAgentId::Cursor, FailureReason::SessionGoneUpstream);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Cursor,
+            FailureReason::SessionGoneUpstream,
+        );
     }
 
     #[test]
@@ -144,7 +158,11 @@ mod tests {
             message: "{\"code\":-32002,\"message\":\"Resource not found: Project xyz\"}"
                 .to_string(),
         };
-        assert_classified(&error, &CanonicalAgentId::Copilot, FailureReason::ResumeFailed);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Copilot,
+            FailureReason::ResumeFailed,
+        );
     }
 
     #[test]
@@ -152,13 +170,21 @@ mod tests {
         let error = SerializableAcpError::JsonRpcError {
             message: "{\"code\":-32000,\"message\":\"Internal error\"}".to_string(),
         };
-        assert_classified(&error, &CanonicalAgentId::Copilot, FailureReason::ResumeFailed);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Copilot,
+            FailureReason::ResumeFailed,
+        );
     }
 
     #[test]
     fn non_json_rpc_errors_classify_as_resume_failed() {
         let error = SerializableAcpError::ClientNotStarted;
-        assert_classified(&error, &CanonicalAgentId::Copilot, FailureReason::ResumeFailed);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Copilot,
+            FailureReason::ResumeFailed,
+        );
     }
 
     #[test]
@@ -166,6 +192,10 @@ mod tests {
         let error = SerializableAcpError::JsonRpcError {
             message: "this is not valid json at all".to_string(),
         };
-        assert_classified(&error, &CanonicalAgentId::Copilot, FailureReason::ResumeFailed);
+        assert_classified(
+            &error,
+            &CanonicalAgentId::Copilot,
+            FailureReason::ResumeFailed,
+        );
     }
 }

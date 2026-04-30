@@ -47,7 +47,7 @@
 	type="button"
 	onclick={() => file.onSelect?.()}
 	data-selected={isSelected ? "true" : "false"}
-	class="group relative flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-[0.6875rem] transition-colors {isSelected
+	class="group relative flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-sm transition-colors {isSelected
 		? 'bg-accent text-foreground font-medium'
 		: 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}"
 >
@@ -65,7 +65,7 @@
 	/>
 
 	<span
-		class="ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[0.625rem] leading-none text-foreground"
+		class="ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-sm leading-none text-foreground"
 	>
 		{#if reviewIndicator.icon === "accepted"}
 			<CheckCircle class="h-3 w-3 shrink-0 {reviewIndicator.iconClassName}" weight="fill" />

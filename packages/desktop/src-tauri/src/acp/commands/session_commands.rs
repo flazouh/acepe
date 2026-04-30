@@ -20,9 +20,7 @@ use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
-use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
-};
+use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
 use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
@@ -251,6 +249,7 @@ async fn build_new_session_open_result(
     let session_id = &response.session_id;
     let db = app.state::<DbConn>();
     let hub = app.state::<Arc<AcpEventHubState>>();
+    let runtime_graph_registry = app.state::<Arc<SessionGraphRuntimeRegistry>>();
     let metadata = SessionMetadataRepository::get_by_id(db.inner(), session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
@@ -266,6 +265,13 @@ async fn build_new_session_open_result(
         .agent_id
         .unwrap_or_else(|| fallback_agent_id.clone());
     let project_path = descriptor.project_path.unwrap_or_default();
+    let runtime_snapshot = runtime_graph_registry
+        .supervisor()
+        .snapshot_for_session(session_id)
+        .map(|checkpoint| SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint))
+        .ok_or_else(|| SerializableAcpError::InvalidState {
+            message: format!("Missing lifecycle checkpoint for new session {session_id}"),
+        })?;
 
     Ok(session_open_result_for_new_session(
         db.inner(),
@@ -276,8 +282,8 @@ async fn build_new_session_open_result(
             project_path,
             worktree_path: descriptor.worktree_path,
             source_path: descriptor.source_path,
-            lifecycle: SessionGraphLifecycle::reserved(),
-            capabilities: capabilities_from_new_session_response(app, response),
+            lifecycle: runtime_snapshot.lifecycle,
+            capabilities: runtime_snapshot.capabilities,
         },
     )
     .await)
@@ -846,6 +852,7 @@ pub async fn acp_new_session(
                 &format!("provider-session-id-invalid: {error}"),
             )
             .await;
+            client.discard_pre_reservation_events(&result.session_id, "invalid_provider_session_id");
             client.stop();
             let message = error.to_string();
             return Err(creation_failure(
@@ -918,6 +925,10 @@ pub async fn acp_new_session(
                         &format!("worktree-launch-promotion-failed: {error}"),
                     )
                     .await;
+                    client.discard_pre_reservation_events(
+                        &result.session_id,
+                        "worktree_launch_promotion_failed",
+                    );
                     client.stop();
                     return Err(creation_failure(
                         CreationFailureKind::LaunchTokenUnavailable,
@@ -953,6 +964,10 @@ pub async fn acp_new_session(
                         &format!("metadata-promotion-failed: {error}"),
                     )
                     .await;
+                    client.discard_pre_reservation_events(
+                        &result.session_id,
+                        "metadata_promotion_failed",
+                    );
                     client.stop();
                     return Err(creation_failure(
                         CreationFailureKind::MetadataCommitFailed,
@@ -972,6 +987,10 @@ pub async fn acp_new_session(
             ensure_session_anchor_snapshots(db.inner(), &result.session_id, &agent_id_enum)
                 .await
                 .map_err(|error| {
+                    client.discard_pre_reservation_events(
+                        &result.session_id,
+                        "anchor_snapshot_failed",
+                    );
                     creation_failure(
                         CreationFailureKind::MetadataCommitFailed,
                         format!(
@@ -991,15 +1010,26 @@ pub async fn acp_new_session(
         );
         projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
         if !provider_uses_deferred_creation {
+            let initial_capabilities = capabilities_from_new_session_response(&app, &result);
+            client.begin_pre_reservation_drain(&result.session_id);
             app.state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
                 .inner()
-                .reserve(db.inner(), projection_registry.inner(), &result.session_id)
+                .reserve_with_capabilities(
+                    db.inner(),
+                    projection_registry.inner(),
+                    &result.session_id,
+                    initial_capabilities,
+                )
                 .await
                 .map_err(|error| {
                     tracing::error!(
                         session_id = %result.session_id,
                         error = %error,
                         "Failed to reserve supervisor runtime checkpoint for new session"
+                    );
+                    client.discard_pre_reservation_events(
+                        &result.session_id,
+                        "lifecycle_reservation_failed",
                     );
                     client.stop();
                     creation_failure(
@@ -1013,6 +1043,7 @@ pub async fn acp_new_session(
                         true,
                     )
                 })?;
+            client.drain_pre_reservation_events(&result.session_id);
         }
 
         // Store the client keyed by session_id only after session metadata and
@@ -2078,6 +2109,11 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
             let hub = app
                 .try_state::<Arc<AcpEventHubState>>()
                 .map(|state| state.inner().clone());
+            if let Some(buffer) = app.try_state::<Arc<
+                crate::acp::pre_reservation_event_buffer::PreReservationEventBuffer,
+            >>() {
+                buffer.inner().discard(&session_id, "session_closed");
+            }
 
             let agent_id_str = session_registry
                 .get_agent_id(&session_id)
@@ -2145,6 +2181,9 @@ mod tests {
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
     };
+    use crate::acp::session_state_engine::selectors::{
+        SessionGraphCapabilities, SessionGraphLifecycle,
+    };
     use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
     use crate::acp::session_update::{PermissionData, SessionUpdate};
     use crate::acp::transcript_projection::TranscriptProjectionRegistry;
@@ -2176,6 +2215,19 @@ mod tests {
             SessionCompatibilityInput::default(),
         )
         .expect("replay context")
+    }
+
+    fn seed_lifecycle(
+        registry: &SessionGraphRuntimeRegistry,
+        session_id: &str,
+        graph_revision: i64,
+    ) {
+        registry.restore_session_state(
+            session_id.to_string(),
+            graph_revision,
+            SessionGraphLifecycle::reserved(),
+            SessionGraphCapabilities::empty(),
+        );
     }
 
     #[tokio::test]
@@ -2335,6 +2387,7 @@ mod tests {
             .expect("append barrier");
 
         let runtime_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_registry, "live-session", 8);
         runtime_registry.apply_session_update_with_graph_seed(
             "live-session",
             8,
@@ -2395,6 +2448,7 @@ mod tests {
     #[test]
     fn runtime_snapshot_for_refresh_prefers_runtime_registry_state() {
         let registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&registry, "session-1", 0);
         registry.apply_session_update(
             "session-1",
             &SessionUpdate::ConnectionComplete {

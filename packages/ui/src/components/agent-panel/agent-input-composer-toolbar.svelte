@@ -155,7 +155,7 @@
 		{#if currentVoiceState !== null && isVoiceRecordingUi}
 			<div class="voice-recording-bar flex items-center pr-0.5">
 				{#if currentVoiceState.recordingElapsedLabel}
-					<span class="mr-2 font-mono text-[10px] text-muted-foreground tabular-nums">
+					<span class="mr-2 font-mono text-sm text-muted-foreground tabular-nums">
 						{currentVoiceState.recordingElapsedLabel}
 					</span>
 				{/if}
@@ -191,7 +191,7 @@
 				{#if currentVoiceState.phase === "error"}
 					<button
 						type="button"
-						class="text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline mr-1"
+						class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline mr-1"
 						onclick={() => currentVoiceState.dismissError()}
 					>
 						{voiceCloseLabel}

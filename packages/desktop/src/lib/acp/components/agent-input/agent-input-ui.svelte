@@ -601,7 +601,9 @@ const isStreaming = $derived(
 
 // Queue while the runtime contract still allows cancellation.
 // That covers both streaming and the awaiting-response gap used by OpenCode.
-const isAgentBusy = $derived(sessionRuntimeState?.canCancel ?? false);
+const isAgentBusy = $derived(
+	props.sessionShowStop ?? sessionRuntimeState?.canCancel ?? false
+);
 const hasDraftInput = $derived(
 	inputState.message.trim().length > 0 || inputState.attachments.length > 0
 );

@@ -215,7 +215,8 @@ export function scrollToTop() {
 						{/if}
 					{/each}
 					<MessageWrapper entryIndex={sessionEntries.length} entryKey="pending-thinking" {isFullscreen}>
-						<div class="py-3 text-sm text-muted-foreground">
+						<div class="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+							<LoadingIcon class="shrink-0" style="width: 14px; height: 14px;" aria-label="Loading" />
 							<TextShimmer>{"Planning next moves"}</TextShimmer>
 						</div>
 					</MessageWrapper>

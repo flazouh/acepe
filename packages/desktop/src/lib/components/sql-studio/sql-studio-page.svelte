@@ -23,7 +23,7 @@ import { toast } from "svelte-sonner";
 import { getWorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import {
 	type ConnectionFormInput,
 	type DbEngine,

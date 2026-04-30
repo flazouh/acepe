@@ -1,3 +1,4 @@
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
@@ -122,7 +123,7 @@ fn convert_full_session_impl(
                 content,
             } = block
             {
-                tool_results.insert(tool_use_id.clone(), content.clone());
+                tool_results.insert(normalize_tool_call_id(tool_use_id), content.clone());
             }
         }
     }
@@ -150,7 +151,7 @@ fn convert_full_session_impl(
 
             if !content.is_empty() {
                 let meta = parse_skill_meta_from_content(&content);
-                skill_metas.insert(tool_use_id.clone(), meta);
+                skill_metas.insert(normalize_tool_call_id(tool_use_id), meta);
             }
         }
     }
@@ -384,7 +385,8 @@ fn convert_assistant_message(
                 }
             }
             ContentBlock::ToolUse { id, name, input } => {
-                let result = tool_results.get(id).cloned();
+                let normalized_id = normalize_tool_call_id(id);
+                let result = tool_results.get(&normalized_id).cloned();
                 let status = if result.is_some() {
                     "completed"
                 } else {
@@ -393,7 +395,7 @@ fn convert_assistant_message(
 
                 // Get skill meta if this is a Skill tool call
                 let skill_meta = if name == "Skill" {
-                    skill_metas.get(id).cloned()
+                    skill_metas.get(&normalized_id).cloned()
                 } else {
                     None
                 };
@@ -409,7 +411,7 @@ fn convert_assistant_message(
                 let parser = get_parser(agent_type);
                 let classified = classify_raw_tool_call(
                     parser,
-                    id,
+                    &normalized_id,
                     input,
                     ToolClassificationHints {
                         name: None,
@@ -420,9 +422,9 @@ fn convert_assistant_message(
                     },
                 );
                 tool_entries.push(StoredEntry::ToolCall {
-                    id: id.clone(),
+                    id: normalized_id.clone(),
                     message: ToolCallData {
-                        id: id.clone(),
+                        id: normalized_id,
                         name: classified.name.clone(),
                         title: Some(classified.name.clone()),
                         status: tool_call_status_from_str(status),

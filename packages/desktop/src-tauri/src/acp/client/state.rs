@@ -134,6 +134,24 @@ impl AcpClient {
         })
     }
 
+    pub(crate) fn begin_pre_reservation_drain(&self, session_id: &str) {
+        if let Some(dispatcher) = &self.dispatcher {
+            dispatcher.begin_pre_reservation_drain(session_id);
+        }
+    }
+
+    pub(crate) fn drain_pre_reservation_events(&self, session_id: &str) {
+        if let Some(dispatcher) = &self.dispatcher {
+            dispatcher.drain_pre_reservation_events(session_id);
+        }
+    }
+
+    pub(crate) fn discard_pre_reservation_events(&self, session_id: &str, reason: &'static str) {
+        if let Some(dispatcher) = &self.dispatcher {
+            dispatcher.discard_pre_reservation_events(session_id, reason);
+        }
+    }
+
     pub(super) fn set_active_session_id(&self, session_id: Option<String>) {
         if let Ok(mut active_session_id) = self.active_session_id.lock() {
             *active_session_id = session_id;

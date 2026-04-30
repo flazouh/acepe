@@ -1275,6 +1275,76 @@ describe("SessionStore.applySessionStateGraph", () => {
 			connection: "ready",
 		});
 	});
+
+	it("reconciles the connection machine when a terminal graph delta completes the turn", () => {
+		const store = new SessionStore();
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: createGraphLifecycle("ready"),
+					activity: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: null,
+					},
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+			showStop: true,
+			canCancel: true,
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: createIdleActivity(),
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity", "turnState", "activeTurnFailure", "lastTerminalTurnId"],
+				},
+			},
+		});
+
+		expect(store.getSessionState("session-1")).toMatchObject({
+			connection: "ready",
+		});
+		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+			showStop: false,
+			canCancel: false,
+			canSubmit: true,
+		});
+	});
 });
 
 describe("SessionStore.applySessionStateEnvelope", () => {

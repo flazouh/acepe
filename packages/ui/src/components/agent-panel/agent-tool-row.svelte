@@ -50,7 +50,7 @@
 		</div>
 	</div>
 	{#if durationLabel}
-		<span class="shrink-0 pt-0.5 font-mono text-[10px] text-muted-foreground/70">
+		<span class="shrink-0 pt-0.5 font-mono text-sm text-muted-foreground/70">
 			{durationLabel}
 		</span>
 	{/if}

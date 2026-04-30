@@ -45,11 +45,11 @@
 	<AgentToolCard>
 		<div class="px-3 py-2 space-y-2">
 			<!-- Header with progress -->
-			<div class="mb-1.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+			<div class="mb-1.5 flex items-center justify-between gap-2 text-sm text-muted-foreground">
 				<div class="flex min-w-0 items-center gap-2">
 					<span class="font-medium uppercase tracking-wide">{tasksLabel}</span>
 					{#if durationLabel}
-						<span class="font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+						<span class="font-mono text-sm text-muted-foreground/70">{durationLabel}</span>
 					{/if}
 				</div>
 				<span class="font-mono">{completedCount}/{totalTasks}</span>
@@ -69,7 +69,7 @@
 					{@const isCurrent = index === inProgressIndex}
 					{@const isCurrentAndLive = isCurrent && isLive}
 					<div
-						class="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-1 py-0.5 rounded text-xs {isCurrent
+						class="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-1 py-0.5 rounded text-sm {isCurrent
 							? 'bg-muted/30'
 							: ''}"
 					>
@@ -87,14 +87,14 @@
 									: "text-foreground"}
 						>
 							{#if isCurrentAndLive && todo.activeForm}
-								<TextShimmer class="text-xs">{todo.activeForm}</TextShimmer>
+								<TextShimmer class="text-sm">{todo.activeForm}</TextShimmer>
 							{:else}
 								{todo.content}
 							{/if}
 						</span>
 
 						<!-- Duration -->
-						<span class="shrink-0 text-right text-muted-foreground font-mono text-[10px]">
+						<span class="shrink-0 text-right text-muted-foreground font-mono text-sm">
 							{formatDuration(todo.duration)}
 						</span>
 					</div>
@@ -105,7 +105,7 @@
 {:else}
 	<!-- Fallback when no todos parsed -->
 	<AgentToolCard>
-		<div class="px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+		<div class="px-3 py-2.5 flex items-center gap-2 text-sm text-muted-foreground">
 			<ListChecks size={14} />
 			<span>{fallbackLabel}</span>
 		</div>

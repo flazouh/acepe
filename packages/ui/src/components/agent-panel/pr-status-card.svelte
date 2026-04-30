@@ -58,7 +58,7 @@
 				? 'cursor-pointer'
 				: 'cursor-default'} {isExpanded ? 'rounded-t-none border-t-0' : ''} {hasBelowHeader ? 'rounded-b-none border-b border-border/70' : ''}"
 		>
-			<div class="flex items-center gap-1.5 min-w-0 text-[0.6875rem]">
+			<div class="flex items-center gap-1.5 min-w-0 text-sm">
 				{@render headerMain()}
 			</div>
 
@@ -74,7 +74,7 @@
 		{/if}
 
 		{#if fetchError}
-			<div class="px-3 py-1.5 text-xs text-destructive/70 bg-input/30 rounded-b-lg border border-t-0 border-border">
+			<div class="px-3 py-1.5 text-sm text-destructive/70 bg-input/30 rounded-b-lg border border-t-0 border-border">
 				{fetchError}
 			</div>
 		{/if}

@@ -86,6 +86,14 @@ export interface AgentPanelToolEditDiffEntry {
 	readonly newString?: string | null;
 }
 
+export interface AgentPanelSearchMatch {
+	filePath: string;
+	fileName: string;
+	lineNumber: number;
+	content: string;
+	isMatch: boolean;
+}
+
 export interface AgentPanelToolCallEntry {
 	id: string;
 	type: "tool_call";
@@ -102,6 +110,10 @@ export interface AgentPanelToolCallEntry {
 	searchPath?: string;
 	searchFiles?: readonly string[];
 	searchResultCount?: number;
+	searchMode?: "content" | "files" | "count";
+	searchNumFiles?: number;
+	searchNumMatches?: number;
+	searchMatches?: readonly AgentPanelSearchMatch[];
 	url?: string | null;
 	resultText?: string | null;
 	webSearchLinks?: readonly AgentPanelWebSearchLink[];

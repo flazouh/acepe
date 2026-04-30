@@ -3,8 +3,7 @@ import type { WorkerPoolManager } from "@pierre/diffs/worker";
 import { CaretRight } from "phosphor-svelte";
 
 import { FilePathBadge } from "../file-path-badge/index.js";
-import { TextShimmer } from "../text-shimmer/index.js";
-import ToolLabel from "./tool-label.svelte";
+import ToolHeaderLeading from "./tool-header-leading.svelte";
 
 import AgentToolCard from "./agent-tool-card.svelte";
 import AgentToolEditDiff from "./agent-tool-edit-diff.svelte";
@@ -175,12 +174,12 @@ function expand() {
 
 <AgentToolCard>
 	<!-- Header: fixed h-7 height to prevent layout shift -->
-	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-xs">
+	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-sm">
 		<!-- Left side: label + file info -->
 		<div class="flex items-center gap-1.5 truncate flex-1 min-w-0">
 			{#if displayedFilePath && !hasMultipleDiffs}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<ToolLabel {status}>
+					<ToolHeaderLeading kind="edit" {status}>
 						{#if headerState === "editing"}
 							{editingLabel}
 						{:else if headerState === "edited"}
@@ -200,7 +199,7 @@ function expand() {
 						{:else}
 							{pendingLabel}
 						{/if}
-					</ToolLabel>
+					</ToolHeaderLeading>
 					<FilePathBadge
 						filePath={displayedFilePath}
 						fileName={derivedFileName}
@@ -213,7 +212,7 @@ function expand() {
 				</div>
 			{:else if hasMultipleDiffs}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<ToolLabel {status}>
+					<ToolHeaderLeading kind="edit" {status}>
 						{#if headerState === "editing"}
 							{editingLabel}
 						{:else if headerState === "edited"}
@@ -233,13 +232,15 @@ function expand() {
 						{:else}
 							{pendingLabel}
 						{/if}
-					</ToolLabel>
-					<span class="truncate font-mono text-[0.6875rem] text-muted-foreground">
+					</ToolHeaderLeading>
+					<span class="truncate font-mono text-sm text-muted-foreground">
 						{displayedFileCountLabel}
 					</span>
 				</div>
-		{:else if isPending}
-			<TextShimmer class="text-muted-foreground" duration={1.2}>{preparingLabel}</TextShimmer>
+			{:else if isPending}
+				<div class="flex items-center gap-1.5 min-w-0">
+					<ToolHeaderLeading kind="edit" {status}>{editingLabel}</ToolHeaderLeading>
+				</div>
 			{/if}
 		</div>
 
@@ -247,7 +248,7 @@ function expand() {
 		{#if durationLabel || (!isPending && hasContent)}
 			<div class="ml-2 flex shrink-0 items-center gap-2">
 				{#if durationLabel}
-					<span class="font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+					<span class="font-mono text-sm text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 				{#if !isPending && hasContent}
 					<button
@@ -272,7 +273,7 @@ function expand() {
 	{#if hasContent}
 		{#each resolvedDiffs as diff, index (diff.filePath ?? `edit-${index}`)}
 			{#if hasMultipleDiffs}
-				<div class="flex items-center gap-1.5 border-t border-border px-2.5 py-1.5 text-xs">
+				<div class="flex items-center gap-1.5 border-t border-border px-2.5 py-1.5 text-sm">
 					{#if diff.filePath}
 						<FilePathBadge
 							filePath={diff.filePath}
@@ -284,7 +285,7 @@ function expand() {
 							onSelect={interactive ? () => onSelect?.(diff.filePath) : undefined}
 						/>
 					{:else}
-						<span class="font-mono text-[0.6875rem] text-muted-foreground">
+						<span class="font-mono text-sm text-muted-foreground">
 							Edit {index + 1}
 						</span>
 					{/if}

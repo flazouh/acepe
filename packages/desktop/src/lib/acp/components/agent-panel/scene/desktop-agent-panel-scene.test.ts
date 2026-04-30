@@ -773,6 +773,54 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("surfaces write_bash shell input metadata on generic tool rows", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "write-bash-1",
+				type: "tool_call",
+				message: {
+					id: "write-bash-1",
+					name: "write_bash",
+					arguments: {
+						kind: "unclassified",
+						raw_name: "write_bash",
+						raw_kind_hint: null,
+						title: "Write shell input",
+						arguments_preview: '{"shellId":"2","input":"{enter}","delay":10}',
+						signals_tried: ["ProviderNameMap", "ArgumentShape"],
+					},
+					rawInput: { shellId: "2", input: "{enter}", delay: 10 },
+					status: "completed",
+					result: {
+						content: "done",
+					},
+					kind: "unclassified",
+					title: "Write shell input",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "other",
+			title: "Write shell input",
+			subtitle: "Shell 2: {enter}",
+			detailsText: expect.stringContaining('"shellId": "2"'),
+			status: "done",
+		});
+	});
+
 	it("preserves details for sql and unclassified tool entries", () => {
 		const entries: SessionEntry[] = [
 			{

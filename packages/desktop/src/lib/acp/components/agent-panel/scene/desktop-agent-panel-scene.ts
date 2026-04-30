@@ -29,6 +29,7 @@ import type {
 	NormalizedSearchResult,
 	NormalizedWebSearchResult,
 } from "../../../types/normalized-tool-result.js";
+import type { JsonValue } from "../../../../services/converted-session-types.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
@@ -287,7 +288,7 @@ function resolveToolTitle(
 	turnState: TurnState | undefined
 ): string {
 	const semanticTitle =
-		kind === "other"
+		kind === "other" || kind === "unclassified"
 			? formatOtherToolName(toolCall.name)
 			: getDefaultToolTitle(kind, turnState) || toolCall.name;
 	const rawTitle = toolCall.title?.trim();
@@ -307,7 +308,63 @@ function resolveToolTitle(
 	return rawTitle;
 }
 
+function getJsonObject(value: JsonValue | null | undefined): { [key: string]: JsonValue } | null {
+	if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+
+	return value;
+}
+
+function getJsonScalarLabel(value: JsonValue | undefined): string | null {
+	if (value === undefined || value === null) {
+		return null;
+	}
+
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		return trimmed.length > 0 ? trimmed : null;
+	}
+
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
+
+	return null;
+}
+
+function getWriteBashSubtitle(toolCall: ToolCall): string | undefined {
+	const rawToolName =
+		toolCall.arguments.kind === "unclassified" ? toolCall.arguments.raw_name : toolCall.name;
+	if (toolCall.name !== "write_bash" && rawToolName !== "write_bash") {
+		return undefined;
+	}
+
+	const rawInput = getJsonObject(toolCall.rawInput);
+	const shellId = getJsonScalarLabel(rawInput?.shellId);
+	const input = getJsonScalarLabel(rawInput?.input);
+
+	if (shellId && input) {
+		return `Shell ${shellId}: ${input}`;
+	}
+
+	if (input) {
+		return `Input: ${input}`;
+	}
+
+	if (shellId) {
+		return `Shell ${shellId}`;
+	}
+
+	return undefined;
+}
+
 function getToolSubtitle(toolCall: ToolCall): string | undefined {
+	const writeBashSubtitle = getWriteBashSubtitle(toolCall);
+	if (writeBashSubtitle) {
+		return writeBashSubtitle;
+	}
+
 	if (toolCall.arguments.kind === "execute") {
 		return toolCall.arguments.command ?? undefined;
 	}
@@ -555,6 +612,16 @@ function mapTaskChildren(
 function mapSearchPayload(toolCall: ToolCall): {
 	searchFiles?: string[];
 	searchResultCount?: number;
+	searchMode?: "content" | "files" | "count";
+	searchNumFiles?: number;
+	searchNumMatches?: number;
+	searchMatches?: {
+		filePath: string;
+		fileName: string;
+		lineNumber: number;
+		content: string;
+		isMatch: boolean;
+	}[];
 } {
 	if (toolCall.arguments.kind === "search") {
 		const normalizedResult = isSearchNormalizedResult(toolCall.normalizedResult)
@@ -570,6 +637,16 @@ function mapSearchPayload(toolCall: ToolCall): {
 				normalizedResult.mode === "content"
 					? (normalizedResult.numMatches ?? normalizedResult.numFiles)
 					: normalizedResult.files.length,
+			searchMode: normalizedResult.mode,
+			searchNumFiles: normalizedResult.numFiles,
+			searchNumMatches: normalizedResult.numMatches,
+			searchMatches: normalizedResult.matches.map((match) => ({
+				filePath: match.filePath,
+				fileName: match.fileName,
+				lineNumber: match.lineNumber,
+				content: match.content,
+				isMatch: match.isMatch,
+			})),
 		};
 	}
 
@@ -825,6 +902,10 @@ function mapToolCallEntry(
 				: undefined,
 		searchFiles: searchPayload.searchFiles,
 		searchResultCount: searchPayload.searchResultCount,
+		searchMode: searchPayload.searchMode,
+		searchNumFiles: searchPayload.searchNumFiles,
+		searchNumMatches: searchPayload.searchNumMatches,
+		searchMatches: searchPayload.searchMatches,
 		url: toolCall.arguments.kind === "fetch" ? (toolCall.arguments.url ?? null) : null,
 		resultText: mapFetchResultText(toolCall),
 		webSearchLinks: webSearchPayload.webSearchLinks,

@@ -70,6 +70,14 @@ export interface AgentToolEditDiffEntry {
 	newString?: string | null;
 }
 
+export interface AgentSearchMatch {
+	filePath: string;
+	fileName: string;
+	lineNumber: number;
+	content: string;
+	isMatch: boolean;
+}
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -95,6 +103,10 @@ export interface AgentToolEntry {
 	searchPath?: string;
 	searchFiles?: string[];
 	searchResultCount?: number;
+	searchMode?: "content" | "files" | "count";
+	searchNumFiles?: number;
+	searchNumMatches?: number;
+	searchMatches?: AgentSearchMatch[];
 	// Fetch-specific
 	url?: string | null;
 	resultText?: string | null;

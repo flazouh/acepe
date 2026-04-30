@@ -153,25 +153,6 @@ fn stored_block_from_content(block: &ContentBlock) -> StoredContentBlock {
     }
 }
 
-fn combine_user_blocks(chunks: &[StoredContentBlock]) -> StoredContentBlock {
-    let texts = chunks
-        .iter()
-        .filter_map(|chunk| chunk.text.as_deref())
-        .collect::<Vec<_>>();
-
-    if texts.is_empty() {
-        return chunks.first().cloned().unwrap_or(StoredContentBlock {
-            block_type: "text".to_string(),
-            text: Some(String::new()),
-        });
-    }
-
-    StoredContentBlock {
-        block_type: "text".to_string(),
-        text: Some(texts.join("")),
-    }
-}
-
 fn turn_error_message(error: &TurnErrorData) -> &str {
     match error {
         TurnErrorData::Legacy(message) => message.as_str(),
@@ -406,15 +387,6 @@ impl ReplayAccumulator {
         timestamp: Option<String>,
     ) {
         let block = stored_block_from_content(&chunk.content);
-
-        if let Some(StoredEntry::User { message, .. }) = self.entries.last_mut() {
-            message.chunks.push(block);
-            message.content = combine_user_blocks(&message.chunks);
-            if message.sent_at.is_none() {
-                message.sent_at = timestamp;
-            }
-            return;
-        }
 
         let id = format!("user-{}", self.next_user_index);
         self.next_user_index += 1;
@@ -850,6 +822,55 @@ mod tests {
                 );
             }
             other => panic!("expected assistant entry, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn replay_conversion_keeps_distinct_user_messages_separate_without_assistant_content() {
+        let session_id = "copilot-session-consecutive-users";
+        let converted = convert_replay_updates_to_session(
+            session_id,
+            "Copilot Session",
+            &[
+                (
+                    1_710_000_020_000,
+                    crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                        chunk: ContentChunk {
+                            content: ContentBlock::Text {
+                                text: "continue".to_string(),
+                            },
+                            aggregation_hint: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+                (
+                    1_710_000_021_000,
+                    crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                        chunk: ContentChunk {
+                            content: ContentBlock::Text {
+                                text: "continue".to_string(),
+                            },
+                            aggregation_hint: None,
+                        },
+                        session_id: Some(session_id.to_string()),
+                    },
+                ),
+            ],
+        );
+
+        assert_eq!(converted.entries.len(), 2);
+        match (&converted.entries[0], &converted.entries[1]) {
+            (
+                StoredEntry::User { message: first, .. },
+                StoredEntry::User {
+                    message: second, ..
+                },
+            ) => {
+                assert_eq!(first.content.text.as_deref(), Some("continue"));
+                assert_eq!(second.content.text.as_deref(), Some("continue"));
+            }
+            other => panic!("expected two user entries, got {:?}", other),
         }
     }
 

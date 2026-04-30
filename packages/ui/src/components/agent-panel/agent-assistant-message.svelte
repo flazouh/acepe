@@ -5,6 +5,7 @@ import { IconCheck } from "@tabler/icons-svelte";
 import { Copy } from "phosphor-svelte";
 import { MarkdownDisplay } from "../markdown/index.js";
 import { TextShimmer } from "../text-shimmer/index.js";
+import { LoadingIcon } from "../icons/index.js";
 import AgentToolThinking from "./agent-tool-thinking.svelte";
 import {
 groupAssistantChunks,
@@ -288,7 +289,8 @@ isMessageTextRevealActive = active;
 })}
 {:else if group.type === "text"}
 {#if isStreaming && !group.text}
-<div class="py-2 text-sm text-muted-foreground">
+<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+<LoadingIcon class="shrink-0" style="width: 14px; height: 14px;" aria-label="Loading" />
 <TextShimmer>Planning next moves…</TextShimmer>
 </div>
 {:else}

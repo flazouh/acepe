@@ -39,11 +39,11 @@
 		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-input/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
 	>
 		<div class="flex w-full items-start justify-between gap-1.5">
-			<div class="flex min-w-0 w-full items-center gap-1.5 text-[0.6875rem]">
+			<div class="flex min-w-0 w-full items-center gap-1.5 text-sm">
 				<span class="inline-flex shrink-0 items-center justify-center" aria-label={verb} title={verb}>
 					{@render leading()}
 				</span>
-				<span class="shrink-0 text-[10px] font-medium text-muted-foreground">{verb}</span>
+				<span class="shrink-0 text-sm font-medium text-muted-foreground">{verb}</span>
 				{#if filePath && showFilePath}
 					<div class="min-w-0 flex-1 cursor-pointer">
 						<FilePathBadge {filePath} interactive={false} />
@@ -76,7 +76,7 @@
 
 	{#if command}
 		<div class="max-h-[72px] overflow-y-auto rounded-b-md border border-border border-t-0 bg-input/30 px-2 py-0.5">
-			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-[10px] text-foreground/70">
+			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-foreground/70">
 				$ {command}
 			</code>
 		</div>

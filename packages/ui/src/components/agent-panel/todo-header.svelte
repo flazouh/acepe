@@ -65,7 +65,7 @@
 						{@const isInProgress = item.status === "in_progress"}
 						{@const duration = formatDuration(item.duration)}
 						<div
-							class="flex items-center gap-2 px-3 py-1 text-[0.6875rem] leading-tight border-b border-border/30 last:border-b-0 {isInProgress
+							class="flex items-center gap-2 px-3 py-1 text-sm leading-tight border-b border-border/30 last:border-b-0 {isInProgress
 								? 'bg-muted'
 								: ''}"
 						>
@@ -74,7 +74,7 @@
 							</span>
 
 							{#if isInProgress && isLive}
-								<TextShimmer class="flex-1 truncate text-foreground text-[0.6875rem]">
+								<TextShimmer class="flex-1 truncate text-foreground text-sm">
 									{item.content}
 								</TextShimmer>
 							{:else}
@@ -90,7 +90,7 @@
 							{/if}
 
 							{#if duration}
-								<span class="shrink-0 text-muted-foreground font-mono text-[0.625rem]">
+								<span class="shrink-0 text-muted-foreground font-mono text-sm">
 									{duration}
 								</span>
 							{/if}
@@ -102,9 +102,9 @@
 
 		{#if compact}
 			<div class="w-full flex items-center justify-between px-1.5 py-0.5">
-				<div class="flex items-center gap-1.5 text-[10px] min-w-0">
+				<div class="flex items-center gap-1.5 text-sm min-w-0">
 					{#if isLive && currentTask}
-						<TextShimmer class="truncate text-foreground text-[10px]">
+						<TextShimmer class="truncate text-foreground text-sm">
 							{currentTask.activeForm ? currentTask.activeForm : currentTask.content}
 						</TextShimmer>
 					{:else if currentTask}
@@ -120,7 +120,7 @@
 
 				<div class="flex items-center gap-1.5 shrink-0">
 					<SegmentedProgress current={completedCount} total={totalCount} />
-					<span class="text-[10px] text-muted-foreground">
+					<span class="text-sm text-muted-foreground">
 						{completedCount}/{totalCount}
 					</span>
 				</div>
@@ -140,9 +140,9 @@
 					? 'rounded-t-none border-t-0'
 					: ''}"
 			>
-				<div class="flex items-center gap-1.5 text-[0.6875rem] min-w-0">
+				<div class="flex items-center gap-1.5 text-sm min-w-0">
 					{#if isLive && currentTask}
-						<span class="text-foreground font-medium truncate text-[0.6875rem]">
+						<span class="text-foreground font-medium truncate text-sm">
 							{currentTask.activeForm ? currentTask.activeForm : currentTask.content}
 						</span>
 					{:else if currentTask}

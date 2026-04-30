@@ -17,8 +17,8 @@
 	{:else}
 		<Folder class="size-3 shrink-0 text-muted-foreground" />
 	{/if}
-	<span class="truncate text-[0.6875rem] font-medium text-foreground">{primaryLabel}</span>
+	<span class="truncate text-sm font-medium text-foreground">{primaryLabel}</span>
 	{#if secondaryLabel}
-		<span class="truncate text-[0.6875rem] text-muted-foreground">{secondaryLabel}</span>
+		<span class="truncate text-sm text-muted-foreground">{secondaryLabel}</span>
 	{/if}
 </div>

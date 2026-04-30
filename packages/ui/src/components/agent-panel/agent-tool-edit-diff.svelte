@@ -178,7 +178,7 @@ function handleContentClick(): void {
 }
 
 const containerClass = $derived.by(() => {
-	const base = "border-t border-border font-mono text-xs transition-colors duration-150";
+	const base = "border-t border-border font-mono text-sm transition-colors duration-150";
 	const expandedClasses = isExpanded ? "max-h-[200px] overflow-y-auto" : "h-[72px] overflow-hidden";
 	const clickableClasses = isClickable ? "cursor-pointer hover:bg-muted/50" : "";
 	return `${base} ${expandedClasses} ${clickableClasses}`;

@@ -74,7 +74,7 @@
 		</DropdownMenu.Group>
 		<DropdownMenu.Separator />
 		{#if modelsLoading}
-			<div class="px-2 py-1.5 text-[11px] text-muted-foreground">
+			<div class="px-2 py-1.5 text-sm text-muted-foreground">
 				{loadingLabel}
 			</div>
 		{:else}
@@ -90,20 +90,20 @@
 								weight="bold"
 							/>
 							<div class="flex flex-1 items-center min-w-0">
-								<span class="truncate text-[12px] font-medium">{model.name}</span>
+								<span class="truncate text-sm font-medium">{model.name}</span>
 							</div>
-							<span class="text-[10px] text-muted-foreground/40 shrink-0">
+							<span class="text-sm text-muted-foreground/40 shrink-0">
 								{formatBytes(model.sizeBytes)}
 							</span>
 						</div>
 					</DropdownMenu.Item>
 				{:else}
 					<div
-						class="model-row relative z-10 flex items-center gap-2 px-2 py-1 text-[11px] font-medium select-none border-b border-border/20 last:border-b-0"
+						class="model-row relative z-10 flex items-center gap-2 px-2 py-1 text-sm font-medium select-none border-b border-border/20 last:border-b-0"
 					>
 						<Check class="size-3 shrink-0 text-transparent" weight="bold" />
 						<div class="flex flex-1 items-center min-w-0">
-							<span class="truncate text-[12px] font-medium text-muted-foreground">
+							<span class="truncate text-sm font-medium text-muted-foreground">
 								{model.name}
 							</span>
 						</div>
@@ -121,7 +121,7 @@
 							<Button
 								variant="headerAction"
 								size="headerAction"
-								class="shrink-0 gap-1 font-mono text-[0.625rem]"
+								class="shrink-0 gap-1 font-mono text-sm"
 								onclick={(e: MouseEvent) => {
 									e.stopPropagation();
 									onDownloadModel(model.id);

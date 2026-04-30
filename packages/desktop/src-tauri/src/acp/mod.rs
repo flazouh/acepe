@@ -30,6 +30,7 @@ pub mod parsers;
 pub mod partial_json;
 pub(crate) mod pending_prompt_registry;
 pub mod permission_tracker;
+pub mod pre_reservation_event_buffer;
 pub mod preconnection_slash;
 pub mod projections;
 pub mod provider;

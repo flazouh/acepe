@@ -17,7 +17,7 @@ import {
 import type { Component } from "svelte";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import { cn } from "$lib/utils.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";

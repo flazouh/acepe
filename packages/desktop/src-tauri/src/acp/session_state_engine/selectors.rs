@@ -529,8 +529,7 @@ mod tests {
         assert_eq!(failed.status, LifecycleStatus::Failed);
         assert!(failed.actionability.can_retry);
 
-        let session_gone =
-            SessionGraphLifecycle::failed(FailureReason::SessionGoneUpstream, None);
+        let session_gone = SessionGraphLifecycle::failed(FailureReason::SessionGoneUpstream, None);
         assert_eq!(session_gone.status, LifecycleStatus::Failed);
         assert!(
             !session_gone.actionability.can_retry,

@@ -47,7 +47,7 @@
 <div class="flex h-full min-h-0 flex-col" data-testid="review-workspace-file-list">
 	{#if files.length === 0}
 		<div
-			class="flex flex-1 items-center justify-center px-4 text-center text-[0.6875rem] text-muted-foreground"
+			class="flex flex-1 items-center justify-center px-4 text-center text-sm text-muted-foreground"
 			data-testid="review-workspace-file-list-empty"
 		>
 			{emptyStateLabel}

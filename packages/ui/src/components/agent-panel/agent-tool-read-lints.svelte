@@ -2,7 +2,7 @@
 	import { CaretRight } from "phosphor-svelte";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolLabel from "./tool-label.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentToolStatus, LintDiagnostic } from "./types.js";
 
@@ -82,11 +82,11 @@
 
 <AgentToolCard>
 	<!-- Header: same fixed height as edit card -->
-	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-xs">
-		<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
-			<ToolLabel {status}>
+	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-sm">
+		<div class="flex min-w-0 flex-1 items-center gap-2 truncate">
+			<ToolHeaderLeading kind="read_lints" {status}>
 				{labelText}
-			</ToolLabel>
+			</ToolHeaderLeading>
 			{#if isPending}
 				<TextShimmer class="text-muted-foreground" duration={1.2}>
 					<span class="truncate">Read Lints</span>
@@ -99,7 +99,7 @@
 		{#if durationLabel || (!isPending && hasContent)}
 			<div class="ml-2 flex shrink-0 items-center gap-2">
 				{#if durationLabel}
-					<span class="font-mono text-[10px] text-muted-foreground/70">{durationLabel}</span>
+					<span class="font-mono text-sm text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 				{#if !isPending && hasContent}
 					<button
@@ -123,9 +123,9 @@
 	<!-- Expandable content: summary + optional diagnostics list -->
 	{#if hasContent && isExpanded}
 		<div class="border-t border-border px-2.5 py-2">
-			<p class="text-xs text-muted-foreground">{summaryText}</p>
+			<p class="text-sm text-muted-foreground">{summaryText}</p>
 			{#if displayDiagnostics}
-				<ul class="mt-2 space-y-1.5 text-xs">
+				<ul class="mt-2 space-y-1.5 text-sm">
 					{#each displayDiagnostics as diag, i (i)}
 						<li class="flex flex-col gap-0.5 rounded border border-border/60 bg-muted/20 px-2 py-1.5">
 							{#if diag.filePath}

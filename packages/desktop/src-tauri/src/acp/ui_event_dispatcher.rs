@@ -2,6 +2,9 @@ use crate::acp::domain_events::{
     SessionDomainEvent, SessionDomainEventKind, SessionDomainEventPayload,
 };
 use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::pre_reservation_event_buffer::{
+    PreReservationEventBuffer, PreReservationIngressDecision,
+};
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
 use crate::acp::session_state_engine::{
     build_delta_envelope, select_session_graph_activity, DeltaEnvelopeParts,
@@ -23,6 +26,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 const TELEMETRY_INTERVAL: Duration = Duration::from_secs(5);
+const MAX_PRE_RESERVATION_DRAIN_BATCHES: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcpUiEventPriority {
@@ -198,6 +202,44 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
         return false;
     };
 
+    let Some(session_id) = update.session_id() else {
+        tracing::warn!("Direct session update without session id rejected");
+        return false;
+    };
+    let Some(pre_reservation_event_buffer) = app.try_state::<Arc<PreReservationEventBuffer>>()
+    else {
+        tracing::warn!(
+            session_id,
+            "Pre-reservation event buffer unavailable; direct session update dropped"
+        );
+        return false;
+    };
+    let lifecycle_exists = runtime_graph_registry
+        .inner()
+        .supervisor()
+        .snapshot_for_session(session_id)
+        .is_some();
+    match pre_reservation_event_buffer
+        .inner()
+        .decide_ingress(session_id, lifecycle_exists, &update)
+    {
+        PreReservationIngressDecision::Allow => {}
+        PreReservationIngressDecision::Buffered => {
+            tracing::debug!(
+                session_id,
+                "Direct session update deferred behind pre-reservation drain"
+            );
+            return true;
+        }
+        PreReservationIngressDecision::Rejected => {
+            tracing::warn!(
+                session_id,
+                "Direct session update rejected before lifecycle reservation"
+            );
+            return false;
+        }
+    }
+
     if let Some(session_id) = update.session_id() {
         projection_registry
             .inner()
@@ -349,6 +391,9 @@ pub struct AcpUiEventDispatcher {
     projection_registry: Arc<ProjectionRegistry>,
     runtime_graph_registry: Arc<SessionGraphRuntimeRegistry>,
     transcript_projection_registry: Arc<TranscriptProjectionRegistry>,
+    pre_reservation_event_buffer: Arc<PreReservationEventBuffer>,
+    #[cfg(test)]
+    bypass_pre_reservation_gate: bool,
     #[cfg(test)]
     test_sink: Option<Arc<std::sync::Mutex<Vec<AcpUiEvent>>>>,
 }
@@ -363,6 +408,9 @@ impl AcpUiEventDispatcher {
                 projection_registry: Arc::new(ProjectionRegistry::new()),
                 runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
                 transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
+                pre_reservation_event_buffer: Arc::new(PreReservationEventBuffer::new()),
+                #[cfg(test)]
+                bypass_pre_reservation_gate: false,
                 #[cfg(test)]
                 test_sink: None,
             };
@@ -379,6 +427,10 @@ impl AcpUiEventDispatcher {
             .try_state::<Arc<SessionGraphRuntimeRegistry>>()
             .map(|state| state.inner().clone())
             .unwrap_or_else(|| Arc::new(SessionGraphRuntimeRegistry::new()));
+        let pre_reservation_event_buffer = handle
+            .try_state::<Arc<PreReservationEventBuffer>>()
+            .map(|state| state.inner().clone())
+            .unwrap_or_else(|| Arc::new(PreReservationEventBuffer::new()));
         let Some(hub_state) = handle.try_state::<Arc<AcpEventHubState>>() else {
             tracing::warn!("ACP event hub state unavailable; UI event dispatcher disabled");
             return Self {
@@ -387,6 +439,9 @@ impl AcpUiEventDispatcher {
                 projection_registry,
                 runtime_graph_registry,
                 transcript_projection_registry,
+                pre_reservation_event_buffer,
+                #[cfg(test)]
+                bypass_pre_reservation_gate: false,
                 #[cfg(test)]
                 test_sink: None,
             };
@@ -413,6 +468,9 @@ impl AcpUiEventDispatcher {
             projection_registry,
             runtime_graph_registry,
             transcript_projection_registry,
+            pre_reservation_event_buffer,
+            #[cfg(test)]
+            bypass_pre_reservation_gate: false,
             #[cfg(test)]
             test_sink: None,
         }
@@ -426,8 +484,33 @@ impl AcpUiEventDispatcher {
 
     #[cfg(test)]
     #[must_use]
+    pub fn test_sink_with_pre_reservation_gate() -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
+        Self::test_sink_with_projection_registry_and_gate(
+            Arc::new(ProjectionRegistry::new()),
+            false,
+        )
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub fn test_sink_with_projection_registry_and_pre_reservation_gate(
+        projection_registry: Arc<ProjectionRegistry>,
+    ) -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
+        Self::test_sink_with_projection_registry_and_gate(projection_registry, false)
+    }
+
+    #[cfg(test)]
+    #[must_use]
     pub fn test_sink_with_projection_registry(
         projection_registry: Arc<ProjectionRegistry>,
+    ) -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
+        Self::test_sink_with_projection_registry_and_gate(projection_registry, true)
+    }
+
+    #[cfg(test)]
+    fn test_sink_with_projection_registry_and_gate(
+        projection_registry: Arc<ProjectionRegistry>,
+        bypass_pre_reservation_gate: bool,
     ) -> (Self, Arc<std::sync::Mutex<Vec<AcpUiEvent>>>) {
         let sink = Arc::new(std::sync::Mutex::new(Vec::new()));
         (
@@ -437,6 +520,8 @@ impl AcpUiEventDispatcher {
                 projection_registry,
                 runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
                 transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
+                pre_reservation_event_buffer: Arc::new(PreReservationEventBuffer::new()),
+                bypass_pre_reservation_gate,
                 test_sink: Some(Arc::clone(&sink)),
             },
             sink,
@@ -444,6 +529,19 @@ impl AcpUiEventDispatcher {
     }
 
     pub fn enqueue(&self, event: AcpUiEvent) {
+        #[cfg(test)]
+        let bypass_pre_reservation_gate = self.bypass_pre_reservation_gate;
+        #[cfg(not(test))]
+        let bypass_pre_reservation_gate = false;
+
+        if !bypass_pre_reservation_gate && self.should_hold_pre_reservation_event(&event) {
+            return;
+        }
+
+        self.enqueue_lifecycle_known(event);
+    }
+
+    fn enqueue_lifecycle_known(&self, event: AcpUiEvent) {
         // Build the canonical domain event first so we have the seq for idempotency.
         let derived_domain_event = session_domain_event_from_update(&event.payload)
             .map(|e| self.create_session_domain_event(&e.session_id, e.kind, e.payload));
@@ -494,6 +592,75 @@ impl AcpUiEventDispatcher {
                 tracing::error!(error = %error, "Failed to enqueue ACP session domain event");
             }
         }
+    }
+
+    fn should_hold_pre_reservation_event(&self, event: &AcpUiEvent) -> bool {
+        let AcpUiEventPayload::SessionUpdate(update) = &event.payload else {
+            return false;
+        };
+        let Some(session_id) = update.session_id() else {
+            tracing::warn!(
+                event_name = event.event_name,
+                "Rejecting pre-reservation session update without session id"
+            );
+            return true;
+        };
+        let lifecycle_exists = self
+            .runtime_graph_registry
+            .supervisor()
+            .snapshot_for_session(session_id)
+            .is_some();
+        match self.pre_reservation_event_buffer.decide_ingress(
+            session_id,
+            lifecycle_exists,
+            update.as_ref(),
+        ) {
+            PreReservationIngressDecision::Allow => false,
+            PreReservationIngressDecision::Buffered | PreReservationIngressDecision::Rejected => {
+                true
+            }
+        }
+    }
+
+    pub fn begin_pre_reservation_drain(&self, session_id: &str) {
+        self.pre_reservation_event_buffer.begin_draining(session_id);
+    }
+
+    pub fn drain_pre_reservation_events(&self, session_id: &str) {
+        let mut batch = self
+            .pre_reservation_event_buffer
+            .take_draining_batch(session_id);
+        let mut drained_batches = 0usize;
+        loop {
+            drained_batches = drained_batches.saturating_add(1);
+            for update in batch {
+                self.enqueue_lifecycle_known(AcpUiEvent::session_update(update));
+            }
+
+            if drained_batches >= MAX_PRE_RESERVATION_DRAIN_BATCHES {
+                tracing::warn!(
+                    session_id,
+                    max_batches = MAX_PRE_RESERVATION_DRAIN_BATCHES,
+                    "Stopping pre-reservation drain after bounded batch limit"
+                );
+                self.pre_reservation_event_buffer
+                    .discard(session_id, "drain_batch_limit");
+                break;
+            }
+
+            let Some(next_batch) = self
+                .pre_reservation_event_buffer
+                .finish_draining_or_next_batch(session_id)
+            else {
+                break;
+            };
+            batch = next_batch;
+        }
+    }
+
+    pub fn discard_pre_reservation_events(&self, session_id: &str, reason: &'static str) {
+        self.pre_reservation_event_buffer
+            .discard(session_id, reason);
     }
 
     pub fn enqueue_session_domain_event(&self, session_id: &str, kind: SessionDomainEventKind) {
@@ -1025,6 +1192,18 @@ async fn persist_dispatch_event(
     let AcpUiEventPayload::SessionUpdate(update) = &event.payload else {
         return DispatchPersistenceEffects::default();
     };
+    if runtime_graph_registry
+        .supervisor()
+        .snapshot_for_session(session_id)
+        .is_none()
+    {
+        tracing::warn!(
+            session_id,
+            event_name = event.event_name,
+            "Skipping session update persistence before lifecycle reservation"
+        );
+        return DispatchPersistenceEffects::default();
+    }
 
     let previous_runtime_snapshot = runtime_graph_registry.snapshot_for_session(session_id);
     let previous_transcript_revision = transcript_projection_registry
@@ -1155,8 +1334,8 @@ mod tests {
     use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_update::{
-        ContentChunk, PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
-        ToolKind,
+        AvailableCommand, AvailableCommandsData, ContentChunk, CurrentModeData, PermissionData,
+        SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::transcript_projection::TranscriptDelta;
     use crate::acp::types::CanonicalAgentId;
@@ -1189,6 +1368,203 @@ mod tests {
             .await
             .expect("migrations");
         db
+    }
+
+    fn seed_lifecycle(runtime_graph_registry: &SessionGraphRuntimeRegistry, session_id: &str) {
+        runtime_graph_registry.restore_session_state(
+            session_id.to_string(),
+            0,
+            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
+            crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+        );
+    }
+
+    fn available_commands_update(session_id: Option<&str>) -> SessionUpdate {
+        SessionUpdate::AvailableCommandsUpdate {
+            update: AvailableCommandsData {
+                available_commands: vec![AvailableCommand {
+                    name: "commit".to_string(),
+                    description: "Create a commit".to_string(),
+                    input: None,
+                }],
+            },
+            session_id: session_id.map(str::to_string),
+        }
+    }
+
+    fn current_mode_update(session_id: &str, mode: &str) -> SessionUpdate {
+        SessionUpdate::CurrentModeUpdate {
+            update: CurrentModeData {
+                current_mode_id: mode.to_string(),
+            },
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    #[test]
+    fn dispatcher_buffers_eligible_update_before_lifecycle_without_projection_mutation() {
+        let session_id = "pre-reservation-capability";
+        let projection_registry = Arc::new(ProjectionRegistry::new());
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry_and_pre_reservation_gate(
+                Arc::clone(&projection_registry),
+            );
+
+        dispatcher.enqueue(AcpUiEvent::session_update(available_commands_update(Some(
+            session_id,
+        ))));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert!(captured.is_empty());
+        assert_eq!(
+            dispatcher
+                .pre_reservation_event_buffer
+                .buffered_event_count(session_id),
+            1
+        );
+        assert!(projection_registry
+            .snapshot_for_session(session_id)
+            .is_none());
+        assert!(dispatcher
+            .runtime_graph_registry
+            .supervisor()
+            .snapshot_for_session(session_id)
+            .is_none());
+    }
+
+    #[test]
+    fn dispatcher_rejects_pre_lifecycle_non_capability_update() {
+        let session_id = "pre-reservation-turn";
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: None,
+        }));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert!(captured.is_empty());
+        assert_eq!(
+            dispatcher
+                .pre_reservation_event_buffer
+                .buffered_event_count(session_id),
+            0
+        );
+        assert!(dispatcher
+            .runtime_graph_registry
+            .supervisor()
+            .snapshot_for_session(session_id)
+            .is_none());
+    }
+
+    #[test]
+    fn dispatcher_rejects_pre_lifecycle_update_without_session_id() {
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        dispatcher.enqueue(AcpUiEvent::session_update(available_commands_update(None)));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert!(captured.is_empty());
+    }
+
+    #[test]
+    fn dispatcher_drains_buffered_capability_update_after_lifecycle_exists() {
+        let session_id = "pre-reservation-drain";
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        dispatcher.enqueue(AcpUiEvent::session_update(available_commands_update(Some(
+            session_id,
+        ))));
+        dispatcher.begin_pre_reservation_drain(session_id);
+        seed_lifecycle(dispatcher.runtime_graph_registry.as_ref(), session_id);
+        dispatcher.drain_pre_reservation_events(session_id);
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 1);
+        assert!(matches!(
+            captured[0].payload,
+            AcpUiEventPayload::SessionUpdate(ref update)
+                if matches!(update.as_ref(), SessionUpdate::AvailableCommandsUpdate { .. })
+        ));
+        assert_eq!(
+            dispatcher
+                .pre_reservation_event_buffer
+                .buffered_event_count(session_id),
+            0
+        );
+    }
+
+    #[test]
+    fn dispatcher_holds_live_same_session_update_behind_draining_buffer() {
+        let session_id = "pre-reservation-draining-order";
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        dispatcher.enqueue(AcpUiEvent::session_update(current_mode_update(
+            session_id, "plan",
+        )));
+        dispatcher.begin_pre_reservation_drain(session_id);
+        seed_lifecycle(dispatcher.runtime_graph_registry.as_ref(), session_id);
+        dispatcher.enqueue(AcpUiEvent::session_update(current_mode_update(
+            session_id, "build",
+        )));
+
+        assert!(captured_events
+            .lock()
+            .expect("captured events lock")
+            .is_empty());
+        assert_eq!(
+            dispatcher
+                .pre_reservation_event_buffer
+                .buffered_event_count(session_id),
+            2
+        );
+
+        dispatcher.drain_pre_reservation_events(session_id);
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        let modes: Vec<String> = captured
+            .iter()
+            .map(|event| match &event.payload {
+                AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                    SessionUpdate::CurrentModeUpdate { update, .. } => {
+                        update.current_mode_id.clone()
+                    }
+                    other => panic!("expected current mode update, got {:?}", other),
+                },
+                other => panic!("expected session update, got {:?}", other),
+            })
+            .collect();
+        assert_eq!(modes, vec!["plan".to_string(), "build".to_string()]);
+    }
+
+    #[test]
+    fn dispatcher_caps_pre_lifecycle_buffer_by_event_count() {
+        let session_id = "pre-reservation-overflow";
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        for index in 0..17 {
+            dispatcher.enqueue(AcpUiEvent::session_update(current_mode_update(
+                session_id,
+                &format!("mode-{index}"),
+            )));
+        }
+
+        assert!(captured_events
+            .lock()
+            .expect("captured events lock")
+            .is_empty());
+        assert_eq!(
+            dispatcher
+                .pre_reservation_event_buffer
+                .buffered_event_count(session_id),
+            16
+        );
     }
 
     #[test]
@@ -1255,6 +1631,7 @@ mod tests {
         }
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_graph_registry, "session-1");
         let effects = persist_dispatch_event(
             Some(&db),
             &event,
@@ -1316,6 +1693,7 @@ mod tests {
         }
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_graph_registry, "session-1");
         let effects = persist_dispatch_event(
             Some(&db),
             &event,
@@ -1494,6 +1872,7 @@ mod tests {
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_graph_registry, "session-1");
         let mut state = DispatcherState::new(DispatchPolicy::default());
         state.enqueue(AcpUiEvent::session_update(
             SessionUpdate::AgentMessageChunk {

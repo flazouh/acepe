@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import ToolLabel from "./tool-label.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -58,15 +58,14 @@
 <div>
 	<div class="flex items-start gap-1.5">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5">
-			<div class="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-				<!-- Status label with shimmer when pending -->
-				<ToolLabel {status}>
+			<div class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+				<ToolHeaderLeading kind="read" {status}>
 					{#if isPending}
 						{runningLabel}
 					{:else}
 						{doneLabel}
 					{/if}
-				</ToolLabel>
+				</ToolHeaderLeading>
 
 				<!-- File chip with diff stats -->
 				{#if filePath}
@@ -83,7 +82,7 @@
 			</div>
 		</div>
 		{#if durationLabel}
-			<span class="shrink-0 pt-0.5 font-mono text-[10px] text-muted-foreground/70">
+					<span class="shrink-0 pt-0.5 font-mono text-sm text-muted-foreground/70">
 				{durationLabel}
 			</span>
 		{/if}
@@ -91,10 +90,10 @@
 	{#if sourceRangeLabel || sourceExcerpt}
 		<div class="mt-1.5 space-y-1 pl-5">
 			{#if sourceRangeLabel}
-				<div class="font-mono text-[10px] text-muted-foreground/70">{sourceRangeLabel}</div>
+				<div class="font-mono text-sm text-muted-foreground/70">{sourceRangeLabel}</div>
 			{/if}
 			{#if sourceExcerpt}
-				<pre class="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{sourceExcerpt}</pre>
+				<pre class="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 px-2 py-1 text-sm text-muted-foreground">{sourceExcerpt}</pre>
 			{/if}
 		</div>
 	{/if}

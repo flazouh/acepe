@@ -93,7 +93,7 @@
 			"bg-popover text-popover-foreground shadow-md",
 			"data-[state=closed]:animate-out data-[state=open]:animate-in",
 			"border border-border",
-			"rounded-md",
+			"rounded-lg",
 			className
 		)}
 		{...restProps}

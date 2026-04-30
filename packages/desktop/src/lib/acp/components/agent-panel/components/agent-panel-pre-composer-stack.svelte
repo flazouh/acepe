@@ -5,7 +5,9 @@ import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
+import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { SessionEntry, SessionLinkedPr } from "../../../application/dto/session";
+import type { SessionCold } from "../../../application/dto/session-cold.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
 import type { SessionTurnState } from "../../../../services/acp-types.js";
@@ -77,6 +79,9 @@ let {
 	prDetails,
 	prFetchError,
 	linkedPr,
+	prLinkMode,
+	projectSessionsForPr,
+	projectForPr,
 	streamingShipData,
 	modifiedFilesState,
 	onEnterReviewMode,
@@ -142,6 +147,9 @@ let {
 	prDetails: PrDetails | null;
 	prFetchError: string | null;
 	linkedPr: SessionLinkedPr | null;
+	prLinkMode: SessionPrLinkMode | null;
+	projectSessionsForPr: readonly SessionCold[];
+	projectForPr: Project | null;
 	streamingShipData: ShipCardData | null;
 	modifiedFilesState: ModifiedFilesState | null;
 	onEnterReviewMode: (s: ModifiedFilesState) => void;
@@ -259,6 +267,11 @@ let {
 								onMerge={createdPr && prDetails && prDetails.state !== "MERGED" ? onMergePr : undefined}
 								merging={mergePrRunning}
 								prState={prDetails ? prDetails.state : null}
+								projectPath={sessionProjectPath}
+								{linkedPr}
+								{prLinkMode}
+								projectSessions={projectSessionsForPr}
+								project={projectForPr}
 								{availableAgents}
 								currentAgentId={effectivePanelAgentId}
 								currentModelId={sessionCurrentModelId}

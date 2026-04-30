@@ -29,12 +29,12 @@
 		<div class="min-w-0">
 			<p class="text-sm font-medium text-foreground">{strip.title}</p>
 			{#if strip.description}
-				<p class="mt-1 text-[11px] text-muted-foreground">{strip.description}</p>
+				<p class="mt-1 text-sm text-muted-foreground">{strip.description}</p>
 			{/if}
 			{#if strip.items && strip.items.length > 0}
 				<div class="mt-2 flex flex-wrap gap-1">
 					{#each strip.items as item (item.id)}
-						<span class="rounded-full border border-border/50 px-2 py-0.5 text-[10px] text-muted-foreground">
+						<span class="rounded-full border border-border/50 px-2 py-0.5 text-sm text-muted-foreground">
 							{item.label}{#if item.value}: {item.value}{/if}
 						</span>
 					{/each}

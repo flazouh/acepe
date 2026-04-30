@@ -35,6 +35,7 @@ enum CopilotEventData {
     UserMessage(UserMessageData),
     AssistantMessage(AssistantMessageData),
     AssistantReasoning(AssistantReasoningData),
+    SessionError(SessionErrorData),
     ToolExecutionStart(ToolExecutionStartData),
     ToolExecutionComplete(ToolExecutionCompleteData),
     SubagentStarted(SubagentStartedData),
@@ -67,6 +68,11 @@ struct AssistantToolRequest {
 struct AssistantReasoningData {
     message_id: Option<String>,
     content: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SessionErrorData {
+    message: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -312,7 +318,24 @@ pub(crate) fn convert_events_to_updates(
                     },
                 ));
             }
+            CopilotEventData::SessionError(data) => {
+                if data.message.trim().is_empty() {
+                    continue;
+                }
+                updates.push((
+                    timestamp_ms,
+                    SessionUpdate::AgentMessageChunk {
+                        chunk: text_chunk(format!("Error: {}", data.message)),
+                        part_id: None,
+                        message_id: None,
+                        session_id: Some(session_id.to_string()),
+                    },
+                ));
+            }
             CopilotEventData::ToolExecutionStart(data) => {
+                if is_internal_runtime_tool(&data.tool_name) {
+                    continue;
+                }
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
                     name: data.tool_name,
@@ -333,6 +356,13 @@ pub(crate) fn convert_events_to_updates(
                 ));
             }
             CopilotEventData::ToolExecutionComplete(data) => {
+                if data
+                    .tool_name
+                    .as_deref()
+                    .is_some_and(is_internal_runtime_tool)
+                {
+                    continue;
+                }
                 let raw = RawToolCallUpdateInput {
                     id: data.tool_call_id,
                     status: Some(if data.success {
@@ -523,6 +553,7 @@ fn parse_event_data(event_type: &str, data: Value) -> Result<CopilotEventData, S
         "assistant.reasoning" => Ok(CopilotEventData::AssistantReasoning(
             parse_assistant_reasoning(data)?,
         )),
+        "session.error" => Ok(CopilotEventData::SessionError(parse_session_error(data)?)),
         "tool.execution_start" => Ok(CopilotEventData::ToolExecutionStart(
             parse_tool_execution_start(data)?,
         )),
@@ -596,12 +627,26 @@ fn parse_assistant_reasoning(data: Value) -> Result<AssistantReasoningData, Stri
     })
 }
 
+fn parse_session_error(data: Value) -> Result<SessionErrorData, String> {
+    let message = data
+        .get("message")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "missing message".to_string())?;
+    Ok(SessionErrorData {
+        message: message.to_string(),
+    })
+}
+
 fn parse_tool_execution_start(data: Value) -> Result<ToolExecutionStartData, String> {
     Ok(ToolExecutionStartData {
         tool_call_id: required_string(&data, "toolCallId")?,
         tool_name: required_string(&data, "toolName")?,
         arguments: data.get("arguments").cloned().unwrap_or_else(|| json!({})),
     })
+}
+
+fn is_internal_runtime_tool(tool_name: &str) -> bool {
+    tool_name == "report_intent"
 }
 
 fn parse_tool_execution_complete(data: Value) -> Result<ToolExecutionCompleteData, String> {
@@ -656,6 +701,7 @@ fn parse_tool_request(value: &Value) -> Option<AssistantToolRequest> {
         arguments: value.get("arguments").cloned().unwrap_or_else(|| json!({})),
         title: value
             .get("intentionSummary")
+            .or_else(|| value.get("toolTitle"))
             .and_then(Value::as_str)
             .map(ToString::to_string),
     })
@@ -871,6 +917,34 @@ mod tests {
     }
 
     #[test]
+    fn session_error_replays_as_assistant_error_message() {
+        let jsonl = r#"
+{"type":"user.message","data":{"content":"try again"},"timestamp":"2026-04-10T00:00:01Z"}
+{"type":"assistant.turn_start","data":{"turnId":"0"},"timestamp":"2026-04-10T00:00:02Z"}
+{"type":"assistant.turn_end","data":{"turnId":"0"},"timestamp":"2026-04-10T00:00:03Z"}
+{"type":"session.error","data":{"message":"You've hit your rate limit.","errorType":"rate_limit","errorCode":"rate_limited"},"timestamp":"2026-04-10T00:00:04Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 2);
+        match &converted.entries[1] {
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("Error: You've hit your rate limit.")
+                );
+            }
+            other => panic!("expected assistant error entry, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn converts_execution_start_into_tool_call_when_no_request_exists() {
         let jsonl = r#"
 {"type":"user.message","data":{"content":"inspect"},"timestamp":"2026-04-10T00:00:01Z"}
@@ -894,6 +968,36 @@ mod tests {
                 );
             }
             other => panic!("expected tool call entry, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn filters_internal_report_intent_but_preserves_side_effectful_tools() {
+        let jsonl = r#"
+{"type":"tool.execution_start","data":{"toolCallId":"tool-report","toolName":"report_intent","arguments":{"intent":"Exploring scaffold"}},"timestamp":"2026-04-10T00:00:01Z"}
+{"type":"tool.execution_complete","data":{"toolCallId":"tool-report","toolName":"report_intent","success":true,"result":{"content":"Intent logged"}},"timestamp":"2026-04-10T00:00:02Z"}
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-write","name":"write_bash","arguments":{"shellId":"shell-1","input":"{enter}"},"toolTitle":"Write shell input"}]},"timestamp":"2026-04-10T00:00:02Z"}
+{"type":"tool.execution_start","data":{"toolCallId":"tool-write","toolName":"write_bash","arguments":{"shellId":"shell-1","input":"{enter}"}},"timestamp":"2026-04-10T00:00:03Z"}
+{"type":"tool.execution_complete","data":{"toolCallId":"tool-write","toolName":"write_bash","success":true,"result":{"content":"done"}},"timestamp":"2026-04-10T00:00:04Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.id, "tool-write");
+                assert_eq!(message.name, "write_bash");
+                assert_eq!(message.title.as_deref(), Some("Write shell input"));
+                assert_eq!(
+                    message.status,
+                    crate::acp::session_update::ToolCallStatus::Completed
+                );
+            }
+            other => panic!("expected write_bash tool call entry, got {other:?}"),
         }
     }
 

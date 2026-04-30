@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import { WarningCircle } from "phosphor-svelte";
-	import DotmTriangle17Spinner from "../icons/dotm-triangle-17-spinner.svelte";
+	import { LoadingIcon } from "../icons/index.js";
 
 	interface Props {
 		title: string;
@@ -151,12 +151,7 @@
 						aria-busy={isRetrying ? "true" : undefined}
 					>
 						{#if isRetrying}
-							<DotmTriangle17Spinner
-								class="shrink-0"
-								size={10}
-								dotSize={1.05}
-								color="#bf8700"
-							/>
+							<LoadingIcon class="shrink-0" style="width: 10px; height: 10px;" />
 							{retryingLabel}
 						{:else}
 							{retryLabel}

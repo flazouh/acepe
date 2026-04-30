@@ -12,6 +12,7 @@
 	import AgentToolEdit from "./agent-tool-edit.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import AgentToolSearch from "./agent-tool-search.svelte";
+	import AgentToolSkill from "./agent-tool-skill.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
@@ -100,6 +101,10 @@
 		searchPath={entry.searchPath}
 		files={entry.searchFiles}
 		resultCount={entry.searchResultCount}
+		searchMode={entry.searchMode}
+		searchNumFiles={entry.searchNumFiles}
+		searchNumMatches={entry.searchNumMatches}
+		searchMatches={entry.searchMatches}
 		status={entry.status}
 		{iconBasePath}
 	/>
@@ -131,6 +136,13 @@
 		detailsText={entry.detailsText ?? null}
 		status={entry.status}
 	/>
+{:else if isToolCall(entry) && entry.kind === "skill"}
+	<AgentToolSkill
+		skillName={entry.skillName}
+		skillArgs={entry.skillArgs}
+		description={entry.skillDescription}
+		status={entry.status}
+	/>
 {:else if isToolCall(entry) && (entry.kind === "task" || entry.kind === "task_output")}
 	<AgentToolTask
 		description={entry.taskDescription ?? entry.title}
@@ -144,9 +156,9 @@
 	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
 		<p class="text-sm font-medium text-destructive">{entry.title}</p>
 		{#if entry.subtitle}
-			<p class="mt-1 text-[11px] text-muted-foreground">{entry.subtitle}</p>
+			<p class="mt-1 text-sm text-muted-foreground">{entry.subtitle}</p>
 		{/if}
-		<p class="mt-2 whitespace-pre-wrap text-xs text-foreground">{entry.resultText}</p>
+		<p class="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.resultText}</p>
 	</div>
 {:else if isToolCall(entry)}
 	<AgentToolRow

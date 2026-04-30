@@ -13,6 +13,20 @@ export interface CanonicalSessionPresentationStatusInput {
 	readonly hasEntries?: boolean;
 }
 
+export interface CanonicalAgentPanelSessionStateInput
+	extends CanonicalSessionPresentationStatusInput {
+	readonly hasOptimisticPendingEntry?: boolean;
+}
+
+export interface CanonicalAgentPanelSessionState {
+	readonly sessionStatus: SessionStatusUI;
+	readonly isConnected: boolean;
+	readonly isStreaming: boolean;
+	readonly showPlanningIndicator: boolean;
+	readonly canSubmit: boolean;
+	readonly showStop: boolean;
+}
+
 /**
  * Maps domain session status to UI display status.
  *
@@ -94,4 +108,39 @@ export function mapCanonicalSessionToPanelStatus(
 	}
 
 	return "connected";
+}
+
+function isCanonicalBusy(
+	activity: SessionGraphActivity | null | undefined,
+	turnState: SessionTurnState | null | undefined
+): boolean {
+	return (
+		activity?.kind === "running_operation" ||
+		activity?.kind === "awaiting_model" ||
+		activity?.kind === "waiting_for_user" ||
+		turnState === "Running"
+	);
+}
+
+export function deriveCanonicalAgentPanelSessionState(
+	input: CanonicalAgentPanelSessionStateInput
+): CanonicalAgentPanelSessionState {
+	const isBusy = isCanonicalBusy(input.activity, input.turnState);
+	const showPlanningIndicator =
+		input.hasOptimisticPendingEntry === true || input.activity?.kind === "awaiting_model";
+	const sessionStatus =
+		input.lifecycle === null || input.lifecycle === undefined
+			? input.hasOptimisticPendingEntry === true
+				? "warming"
+				: mapCanonicalSessionToPanelStatus(input)
+			: mapCanonicalSessionToPanelStatus(input);
+
+	return {
+		sessionStatus,
+		isConnected: input.lifecycle?.status === "ready",
+		isStreaming: isBusy,
+		showPlanningIndicator,
+		canSubmit: input.lifecycle?.actionability.canSend === true,
+		showStop: isBusy,
+	};
 }

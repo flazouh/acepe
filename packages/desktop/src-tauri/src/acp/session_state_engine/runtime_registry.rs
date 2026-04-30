@@ -90,7 +90,12 @@ impl SessionGraphRuntimeRegistry {
             capabilities,
         }
         .into_checkpoint();
-        self.supervisor.replace_checkpoint(session_id, checkpoint);
+        if !self
+            .supervisor
+            .replace_checkpoint(session_id.clone(), checkpoint.clone())
+        {
+            let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
+        }
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -98,7 +103,12 @@ impl SessionGraphRuntimeRegistry {
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
-        self.supervisor.replace_checkpoint(session_id, checkpoint);
+        if !self
+            .supervisor
+            .replace_checkpoint(session_id.clone(), checkpoint.clone())
+        {
+            let _ = self.supervisor.seed_checkpoint(session_id, checkpoint);
+        }
     }
 
     pub fn apply_session_update_with_graph_seed(
@@ -107,11 +117,20 @@ impl SessionGraphRuntimeRegistry {
         graph_revision_seed: i64,
         update: &SessionUpdate,
     ) -> i64 {
-        let mut state = self.snapshot_for_session(session_id);
+        let Some(checkpoint) = self.supervisor.snapshot_for_session(session_id) else {
+            tracing::warn!(
+                session_id,
+                "Skipping runtime graph update for session without lifecycle checkpoint"
+            );
+            return graph_revision_seed;
+        };
+        let mut state = SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint);
         state.apply_update_with_graph_seed(graph_revision_seed, update);
         let graph_revision = state.graph_revision;
-        self.supervisor
+        let stored = self
+            .supervisor
             .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
+        debug_assert!(stored, "snapshot existed before runtime graph update");
         graph_revision
     }
 
@@ -124,14 +143,23 @@ impl SessionGraphRuntimeRegistry {
         session_id: &str,
         graph_revision_seed: i64,
     ) -> i64 {
-        let mut state = self.snapshot_for_session(session_id);
+        let Some(checkpoint) = self.supervisor.snapshot_for_session(session_id) else {
+            tracing::warn!(
+                session_id,
+                "Skipping graph revision advance for session without lifecycle checkpoint"
+            );
+            return graph_revision_seed;
+        };
+        let mut state = SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint);
         state.graph_revision = state
             .graph_revision
             .max(graph_revision_seed)
             .saturating_add(1);
         let graph_revision = state.graph_revision;
-        self.supervisor
+        let stored = self
+            .supervisor
             .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
+        debug_assert!(stored, "snapshot existed before graph revision advance");
         graph_revision
     }
 
@@ -141,15 +169,24 @@ impl SessionGraphRuntimeRegistry {
         graph_revision_seed: i64,
         capabilities: SessionGraphCapabilities,
     ) -> i64 {
-        let mut state = self.snapshot_for_session(session_id);
+        let Some(checkpoint) = self.supervisor.snapshot_for_session(session_id) else {
+            tracing::warn!(
+                session_id,
+                "Skipping capabilities replacement for session without lifecycle checkpoint"
+            );
+            return graph_revision_seed;
+        };
+        let mut state = SessionGraphRuntimeSnapshot::from_checkpoint(&checkpoint);
         state.graph_revision = state
             .graph_revision
             .max(graph_revision_seed)
             .saturating_add(1);
         state.capabilities = capabilities;
         let graph_revision = state.graph_revision;
-        self.supervisor
+        let stored = self
+            .supervisor
             .replace_checkpoint(session_id.to_string(), state.into_checkpoint());
+        debug_assert!(stored, "snapshot existed before capabilities replacement");
         graph_revision
     }
 
@@ -756,6 +793,7 @@ mod tests {
     use crate::acp::projections::ProjectionRegistry;
     use crate::acp::session_state_engine::selectors::{
         SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
+        SessionGraphLifecycle,
     };
     use crate::acp::session_state_engine::SessionStatePayload;
     use crate::acp::session_state_engine::{
@@ -803,6 +841,19 @@ mod tests {
         )
         .await
         .expect("insert session metadata");
+    }
+
+    fn seed_lifecycle(
+        registry: &SessionGraphRuntimeRegistry,
+        session_id: &str,
+        graph_revision: i64,
+    ) {
+        registry.restore_session_state(
+            session_id.to_string(),
+            graph_revision,
+            SessionGraphLifecycle::reserved(),
+            SessionGraphCapabilities::empty(),
+        );
     }
 
     fn create_completed_history_tool_call(index: usize) -> SessionUpdate {
@@ -1233,6 +1284,7 @@ mod tests {
     fn registry_tracks_connection_and_capability_updates() {
         let registry = SessionGraphRuntimeRegistry::new();
         let session_id = "session-1";
+        seed_lifecycle(&registry, session_id, 0);
 
         registry.apply_session_update(
             session_id,
@@ -1307,6 +1359,7 @@ mod tests {
     fn registry_honors_seeded_graph_revision_for_runtime_only_mutations() {
         let registry = SessionGraphRuntimeRegistry::new();
         let session_id = "session-1";
+        seed_lifecycle(&registry, session_id, 12);
 
         let graph_revision = registry.apply_session_update_with_graph_seed(
             session_id,
@@ -1333,6 +1386,7 @@ mod tests {
             crate::acp::lifecycle::FailureReason::SessionGoneUpstream,
         ] {
             let registry = SessionGraphRuntimeRegistry::new();
+            seed_lifecycle(&registry, "session-1", 0);
             registry.apply_session_update(
                 "session-1",
                 &SessionUpdate::ConnectionFailed {

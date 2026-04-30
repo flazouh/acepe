@@ -17,10 +17,7 @@ import { getConnectionStore } from "../../../store/connection-store.svelte.js";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
-import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
-import { selectSessionStatusForPresentation } from "../../../store/session-work-projection.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
@@ -52,8 +49,8 @@ import {
 	createResolvedWorktreeCloseConfirmationState,
 	createWorktreeCreationState,
 	copyTextToClipboard,
+	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
-	mapCanonicalSessionToPanelStatus,
 	mapCanonicalTurnStateToHotTurnState,
 	matchesWorktreeSetupContext,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
@@ -78,7 +75,6 @@ import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
-import PrLinkFooterButton from "../../shared/pr-link-footer-button.svelte";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
@@ -221,24 +217,6 @@ const firstMessageAttachments = $derived.by(() => {
 	return extractAttachmentsFromChunks(firstUserEntry.message.chunks ?? []);
 });
 
-// Hot state: status, isStreaming (changes during activity)
-const sessionHotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
-const currentStreamingToolCall = $derived(
-	sessionId ? operationStore.getCurrentStreamingToolCall(sessionId) : null
-);
-const interactionSnapshot = $derived.by(() =>
-	sessionId
-		? buildSessionOperationInteractionSnapshot(sessionId, operationStore, interactionStore)
-		: {
-				pendingQuestion: null,
-				pendingQuestionOperation: null,
-				pendingPermission: null,
-				pendingPermissionOperation: null,
-				pendingPlanApproval: null,
-				pendingPlanApprovalOperation: null,
-			}
-);
-
 const hasMessages = $derived(sessionEntries.length > 0);
 const sessionProjectPath = $derived(sessionIdentity?.projectPath ?? null);
 const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
@@ -378,28 +356,6 @@ const sessionTurnState = $derived(
 		? mapCanonicalTurnStateToHotTurnState(canonicalSessionTurnState)
 		: "idle"
 );
-const sessionIsConnected = $derived(
-	canonicalProjection?.lifecycle?.actionability?.canSend ?? false
-);
-const sessionWorkProjection = $derived.by(() => {
-	if (!sessionId) {
-		return null;
-	}
-
-	return deriveLiveSessionWorkProjection({
-		runtimeState,
-		canonicalProjection,
-		currentModeId: sessionId ? sessionStore.getSessionCurrentModeId(sessionId) : null,
-		currentStreamingToolCall,
-		interactionSnapshot: {
-			pendingQuestion: interactionSnapshot.pendingQuestion,
-			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
-			pendingPermission: interactionSnapshot.pendingPermission,
-		},
-		hasUnseenCompletion: false,
-	});
-});
-const sessionCanonicalActivity = $derived(sessionWorkProjection?.canonicalActivity ?? null);
 const entriesCount = $derived(sessionEntries.length);
 const hasSession = $derived(sessionId !== null);
 const hasOptimisticPendingEntry = $derived((panelHotState?.pendingUserEntry ?? null) !== null);
@@ -425,25 +381,22 @@ const effectiveProjectName = $derived(
 // ✅ Derived values from granular session data
 const effectivePanelAgentId = $derived(selectedAgentId ?? sessionAgentId);
 const agentName = $derived(effectivePanelAgentId);
-const legacySessionStatus = $derived.by(() => {
-	if (!sessionId && panelId && panelStore.getHotState(panelId).pendingUserEntry)
-		return "connecting";
-	return sessionWorkProjection ? selectSessionStatusForPresentation(sessionWorkProjection) : null;
-});
-const panelSessionStatus = $derived.by(() =>
-	mapCanonicalSessionToPanelStatus({
+const canonicalPanelSessionState = $derived.by(() =>
+	deriveCanonicalAgentPanelSessionState({
 		lifecycle: canonicalProjection?.lifecycle ?? null,
 		activity: canonicalProjection?.activity ?? null,
 		turnState: canonicalProjection?.turnState ?? null,
 		hasEntries: sessionEntries.length > 0,
+		hasOptimisticPendingEntry,
 	})
 );
-const sessionStatus = $derived(legacySessionStatus);
-const sessionIsStreaming = $derived(sessionCanonicalActivity === "running_operation");
-const isAwaitingModelResponse = $derived(sessionCanonicalActivity === "awaiting_model");
-const showPlanningIndicator = $derived(hasOptimisticPendingEntry || isAwaitingModelResponse);
-const sessionCanSubmit = $derived(runtimeState?.canSubmit ?? false);
-const sessionShowStop = $derived(runtimeState?.showStop ?? false);
+const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
+const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
+const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
+const isAwaitingModelResponse = $derived(canonicalProjection?.activity?.kind === "awaiting_model");
+const showPlanningIndicator = $derived(canonicalPanelSessionState.showPlanningIndicator);
+const sessionCanSubmit = $derived(canonicalPanelSessionState.canSubmit);
+const sessionShowStop = $derived(canonicalPanelSessionState.showStop);
 const sessionConnectionError = $derived(
 	sessionId ? sessionStore.getSessionConnectionError(sessionId) : null
 );
@@ -778,14 +731,14 @@ const footerWorktreeStatus = $derived.by(() => {
 	return null;
 });
 
-/** All sessions in the session-panel's current project, used by the footer PR picker. */
+/** All sessions in the session-panel's current project, used by the modified-header PR picker. */
 const projectSessionsForPr = $derived.by(() => {
 	if (!sessionProjectPath) return [];
 	return sessionStore.getSessionsForProject(sessionProjectPath);
 });
 
 /** Project matching the current session, used to render project-letter badges in the PR picker. */
-const projectForFooterPr = $derived.by(() => {
+const projectForPr = $derived.by(() => {
 	if (!sessionProjectPath) return null;
 	return allProjects.find((p) => p.path === sessionProjectPath) ?? null;
 });
@@ -1683,7 +1636,7 @@ const todoState = $derived.by(() => {
 	const threadData: ThreadWithEntries = {
 		entries: sessionEntries,
 		isConnected: sessionIsConnected,
-		status: sessionStatus ?? "idle",
+		status: panelSessionStatus,
 		isStreaming: sessionIsStreaming,
 	};
 	const result = todoManager.getTodoState(sessionId, threadData);
@@ -2078,6 +2031,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{prDetails}
 			{prFetchError}
 			linkedPr={sessionMetadata?.linkedPr ?? null}
+			prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
+			{projectSessionsForPr}
+			{projectForPr}
 			{streamingShipData}
 			{modifiedFilesState}
 			onEnterReviewMode={handleEnterReviewMode}
@@ -2120,7 +2076,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
-							{sessionStatus}
 							sessionIsConnected={sessionIsConnected}
 							{sessionIsStreaming}
 							{sessionCanSubmit}
@@ -2214,16 +2169,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 									worktreePath={effectiveActiveWorktreePath}
 									label={footerWorktreeStatus.primaryLabel}
 									mode={footerWorktreeStatus.mode}
-								/>
-							{/if}
-							{#if sessionId && sessionProjectPath}
-								<PrLinkFooterButton
-									sessionId={sessionId}
-									projectPath={sessionProjectPath}
-									linkedPr={sessionMetadata?.linkedPr ?? null}
-									prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
-									projectSessions={projectSessionsForPr}
-									project={projectForFooterPr}
 								/>
 							{/if}
 						</div>

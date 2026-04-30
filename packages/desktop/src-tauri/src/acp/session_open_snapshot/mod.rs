@@ -18,11 +18,12 @@
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::projections::{
-    is_terminal_operation_state, InteractionSnapshot, OperationDegradationCode,
+    is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationDegradationCode,
     OperationDegradationReason, OperationSnapshot, OperationState, SessionTurnState,
     TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
@@ -284,6 +285,15 @@ fn downgrade_stale_active_operation(mut operation: OperationSnapshot) -> Operati
     operation
 }
 
+fn cancel_historical_active_operation(mut operation: OperationSnapshot) -> OperationSnapshot {
+    if operation_can_be_restored_as_historical(&operation) {
+        return operation;
+    }
+
+    operation.operation_state = OperationState::Cancelled;
+    operation
+}
+
 fn sanitize_operations_for_projection_frontier(
     operations: Vec<OperationSnapshot>,
     projection_is_behind_journal: bool,
@@ -298,9 +308,42 @@ fn sanitize_operations_for_projection_frontier(
         .collect()
 }
 
+fn sanitize_operations_for_historical_open(
+    operations: Vec<OperationSnapshot>,
+    projection_is_behind_journal: bool,
+) -> Vec<OperationSnapshot> {
+    if projection_is_behind_journal {
+        return sanitize_operations_for_projection_frontier(
+            operations,
+            projection_is_behind_journal,
+        );
+    }
+
+    operations
+        .into_iter()
+        .map(cancel_historical_active_operation)
+        .collect()
+}
+
+fn sanitize_interactions_for_historical_open(
+    interactions: Vec<InteractionSnapshot>,
+) -> Vec<InteractionSnapshot> {
+    interactions
+        .into_iter()
+        .map(|mut interaction| {
+            if interaction.state == InteractionState::Pending {
+                interaction.state = InteractionState::Unresolved;
+                interaction.reply_handler = None;
+            }
+            interaction
+        })
+        .collect()
+}
+
 pub async fn session_open_result_from_thread_snapshot(
     db: &DbConn,
     hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
     replay_context: &SessionReplayContext,
     requested_session_id: &str,
     snapshot: &SessionThreadSnapshot,
@@ -361,12 +404,28 @@ pub async fn session_open_result_from_thread_snapshot(
     // case, preserve transcript content but do not resurrect stale active work.
     let projection_is_behind_journal = projected_graph_revision < last_event_seq;
     let graph_revision = projected_graph_revision.max(last_event_seq);
+    let raw_turn_state = session_snap
+        .map(|session| session.turn_state.clone())
+        .unwrap_or(SessionTurnState::Idle);
+    let had_historical_active_state = raw_turn_state == SessionTurnState::Running
+        || operations
+            .iter()
+            .any(|operation| !is_terminal_operation_state(&operation.operation_state))
+        || interactions
+            .iter()
+            .any(|interaction| interaction.state == InteractionState::Pending);
     let turn_state = if projection_is_behind_journal {
         SessionTurnState::Idle
+    } else if raw_turn_state == SessionTurnState::Failed {
+        raw_turn_state
+    } else if had_historical_active_state {
+        if snapshot.entries.is_empty() {
+            SessionTurnState::Idle
+        } else {
+            SessionTurnState::Completed
+        }
     } else {
-        session_snap
-            .map(|session| session.turn_state.clone())
-            .unwrap_or(SessionTurnState::Idle)
+        raw_turn_state
     };
     let message_count = if projection_is_behind_journal {
         0
@@ -388,7 +447,22 @@ pub async fn session_open_result_from_thread_snapshot(
     let transcript_snapshot =
         TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries);
     let operations =
-        sanitize_operations_for_projection_frontier(operations, projection_is_behind_journal);
+        sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
+    let interactions = sanitize_interactions_for_historical_open(interactions);
+
+    let lifecycle = SessionGraphLifecycle::detached(
+        crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+    );
+    let capabilities = SessionGraphCapabilities::empty();
+
+    if let Some(runtime_registry) = runtime_registry {
+        runtime_registry.restore_session_state(
+            canonical_session_id.clone(),
+            graph_revision,
+            lifecycle.clone(),
+            capabilities.clone(),
+        );
+    }
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: requested_session_id.to_string(),
@@ -410,10 +484,8 @@ pub async fn session_open_result_from_thread_snapshot(
         interactions,
         turn_state,
         message_count,
-        lifecycle: SessionGraphLifecycle::detached(
-            crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-        ),
-        capabilities: SessionGraphCapabilities::empty(),
+        lifecycle,
+        capabilities,
         active_turn_failure,
         last_terminal_turn_id,
     }))
@@ -652,6 +724,33 @@ mod tests {
         }
     }
 
+    fn make_pending_plan_approval_entry(id: &str) -> StoredEntry {
+        StoredEntry::ToolCall {
+            id: id.to_string(),
+            message: ToolCallData {
+                id: id.to_string(),
+                name: "create_plan".to_string(),
+                arguments: ToolArguments::Other { raw: json!({}) },
+                raw_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::CreatePlan),
+                title: Some("Create plan".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: true,
+                plan_approval_request_id: Some(42),
+            },
+            timestamp: None,
+        }
+    }
+
     fn make_provider_thread_snapshot(entry_id: &str, title: &str) -> SessionThreadSnapshot {
         SessionThreadSnapshot {
             entries: vec![make_tool_call_entry(entry_id)],
@@ -786,6 +885,7 @@ mod tests {
         let result = session_open_result_from_thread_snapshot(
             &db,
             &hub,
+            None,
             &replay_context,
             session_id,
             &provider_snapshot,
@@ -820,6 +920,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_operations() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-normalized-tool-open";
+        seed_session_metadata(&db, session_id, "cursor").await;
+        append_frontier_barrier(&db, session_id).await;
+
+        let provider_snapshot =
+            make_provider_thread_snapshot("provider-tool\ncursor-call", "Provider title");
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Cursor);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.transcript_snapshot.entries.len(), 1);
+        assert_eq!(
+            found.transcript_snapshot.entries[0].entry_id,
+            "provider-tool%0Acursor-call"
+        );
+        assert_eq!(
+            found.transcript_snapshot.entries[0].segments,
+            vec![crate::acp::transcript_projection::TranscriptSegment::Text {
+                segment_id: "provider-tool%0Acursor-call:tool".to_string(),
+                text: "Read file".to_string(),
+            }]
+        );
+        assert_eq!(found.operations.len(), 1);
+        let operation = &found.operations[0];
+        assert_eq!(operation.tool_call_id, "provider-tool%0Acursor-call");
+        assert_eq!(
+            operation.source_link,
+            crate::acp::projections::OperationSourceLink::TranscriptLinked {
+                entry_id: "provider-tool%0Acursor-call".to_string()
+            }
+        );
+        assert_ne!(
+            operation.operation_state,
+            crate::acp::projections::OperationState::Degraded
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "provider-open-runtime-restore";
+        seed_session_metadata(&db, session_id, "copilot").await;
+        append_frontier_barrier(&db, session_id).await;
+
+        let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            Some(&runtime_registry),
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let runtime_snapshot = runtime_registry.snapshot_for_session(session_id);
+
+        assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
+        assert_eq!(
+            runtime_snapshot.lifecycle.status,
+            crate::acp::lifecycle::LifecycleStatus::Detached
+        );
+        assert_eq!(
+            runtime_snapshot.lifecycle.detached_reason,
+            Some(crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach)
+        );
+    }
+
+    #[tokio::test]
     async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
         let db = setup_db().await;
         let hub = make_hub();
@@ -841,6 +1031,7 @@ mod tests {
         let result = session_open_result_from_thread_snapshot(
             &db,
             &hub,
+            None,
             &replay_context,
             session_id,
             &provider_snapshot,
@@ -879,6 +1070,7 @@ mod tests {
         let result = session_open_result_from_thread_snapshot(
             &db,
             &hub,
+            None,
             &replay_context,
             session_id,
             &provider_snapshot,
@@ -902,6 +1094,130 @@ mod tests {
                 .as_ref()
                 .map(|reason| reason.code.clone()),
             Some(crate::acp::projections::OperationDegradationCode::AbsentFromHistory)
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_closes_historical_active_operation_without_journal_gap()
+    {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-historical-active-operation-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let provider_snapshot = SessionThreadSnapshot {
+            entries: vec![make_running_tool_call_entry("provider-read")],
+            title: "Provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.turn_state, SessionTurnState::Completed);
+        assert_eq!(found.operations.len(), 1);
+        let operation = &found.operations[0];
+        assert_eq!(operation.tool_call_id, "provider-read");
+        assert_eq!(operation.provider_status, ToolCallStatus::InProgress);
+        assert_eq!(
+            operation.operation_state,
+            crate::acp::projections::OperationState::Cancelled
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later_user_message()
+    {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-user-boundary-tool-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let provider_snapshot = SessionThreadSnapshot {
+            entries: vec![
+                make_running_tool_call_entry("provider-write"),
+                make_user_entry("user-resumed", "i ran the command myself, proceed"),
+            ],
+            title: "Provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.turn_state, SessionTurnState::Completed);
+        assert!(!found.lifecycle.actionability.can_send);
+        assert_eq!(found.operations.len(), 1);
+        let operation = &found.operations[0];
+        assert_eq!(operation.tool_call_id, "provider-write");
+        assert_eq!(operation.provider_status, ToolCallStatus::InProgress);
+        assert_eq!(
+            operation.operation_state,
+            crate::acp::projections::OperationState::Cancelled
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_marks_historical_pending_interactions_unresolved() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-historical-pending-interaction-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let provider_snapshot = SessionThreadSnapshot {
+            entries: vec![make_pending_plan_approval_entry("provider-plan")],
+            title: "Provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.turn_state, SessionTurnState::Completed);
+        assert_eq!(found.interactions.len(), 1);
+        let interaction = &found.interactions[0];
+        assert_eq!(interaction.state, InteractionState::Unresolved);
+        assert!(interaction.reply_handler.is_none());
+        assert_eq!(found.operations.len(), 1);
+        assert_eq!(
+            found.operations[0].operation_state,
+            crate::acp::projections::OperationState::Cancelled
         );
     }
 
@@ -932,6 +1248,7 @@ mod tests {
         let result = session_open_result_from_thread_snapshot(
             &db,
             &hub,
+            None,
             &replay_context,
             session_id,
             &provider_snapshot,
@@ -962,6 +1279,7 @@ mod tests {
         let result = session_open_result_from_thread_snapshot(
             &db,
             &hub,
+            None,
             &replay_context,
             requested_session_id,
             &provider_snapshot,

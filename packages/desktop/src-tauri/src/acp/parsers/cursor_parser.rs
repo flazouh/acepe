@@ -577,4 +577,33 @@ mod tests {
         let raw_input = update.raw_input.unwrap();
         assert_eq!(raw_input["file_path"], "/tmp/foo.rs");
     }
+
+    #[test]
+    fn cursor_tool_call_ids_are_normalized_for_canonical_provenance() {
+        let parser = CursorParser;
+        let raw_id =
+            "call_Wn1fy43fPwtgTmTwe53Bno3P\nfc_061be5537213afbd0169f36b1dc28c81998a9514839fc91b89";
+        let expected_id =
+            "call_Wn1fy43fPwtgTmTwe53Bno3P%0Afc_061be5537213afbd0169f36b1dc28c81998a9514839fc91b89";
+
+        let tool_call = parser
+            .parse_acp_tool_call(&json!({
+                "toolCallId": raw_id,
+                "title": "Find",
+                "kind": "search",
+                "rawInput": {}
+            }))
+            .unwrap();
+        let tool_update = parser
+            .parse_acp_tool_call_update(&json!({
+                "toolCallId": raw_id,
+                "status": "completed",
+                "rawOutput": { "totalFiles": 0 }
+            }))
+            .unwrap();
+
+        assert_eq!(tool_call.id, expected_id);
+        assert_eq!(tool_update.id, expected_id);
+        assert!(!tool_call.id.contains('\n'));
+    }
 }

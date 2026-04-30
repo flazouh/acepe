@@ -1,3 +1,4 @@
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::providers;
 use crate::acp::session_update::{
@@ -38,7 +39,7 @@ fn build_persisted_tool_use_index(
         for block in &message.content_blocks {
             if let ContentBlock::ToolUse { id, name, input } = block {
                 index.insert(
-                    id.clone(),
+                    normalize_tool_call_id(id),
                     PersistedToolUse {
                         name: name.clone(),
                         input: input.clone(),
@@ -686,6 +687,52 @@ mod tests {
                 assert_eq!(update.title.as_deref(), Some("Read /tmp/example.rs"));
                 assert_eq!(update.locations.as_ref().map(Vec::len), Some(1));
             }
+            other => panic!("Expected ToolCallUpdate, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn persisted_tool_use_index_matches_normalized_cursor_tool_call_ids() {
+        let mut session = make_session_with_tool_use();
+        session.messages[0].content_blocks = vec![ContentBlock::ToolUse {
+            id: "call-1\nfc-1".to_string(),
+            name: "Glob".to_string(),
+            input: json!({
+                "target_directory": "/tmp/project",
+                "glob_pattern": "**/*bash*tool*card*"
+            }),
+        }];
+        let index = build_persisted_tool_use_index(&session);
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "call-1%0Afc-1".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(json!({ "totalFiles": 0 })),
+                content: None,
+                raw_output: Some(json!({ "totalFiles": 0 })),
+                title: Some("Find".to_string()),
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: Some("session-123".to_string()),
+        };
+
+        let enriched = enrich_tool_call_from_index(update, &index);
+
+        match enriched {
+            SessionUpdate::ToolCallUpdate { update, .. } => match update.arguments {
+                Some(ToolArguments::Glob { pattern, path }) => {
+                    assert_eq!(pattern.as_deref(), Some("**/*bash*tool*card*"));
+                    assert_eq!(path.as_deref(), Some("/tmp/project"));
+                }
+                other => panic!("Expected glob arguments, got {:?}", other),
+            },
             other => panic!("Expected ToolCallUpdate, got {:?}", other),
         }
     }

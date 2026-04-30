@@ -1155,15 +1155,26 @@ async fn find_acp_sessions_store_db_for_session(
     storage::find_acp_sessions_store_db_for_session(acp_sessions_dir, session_id).await
 }
 
+#[cfg(test)]
+async fn find_cursor_store_db_for_session(
+    chats_dir: &Path,
+    acp_sessions_dir: &Path,
+    session_id: &str,
+) -> Result<Option<PathBuf>> {
+    storage::find_cursor_store_db_for_session(chats_dir, acp_sessions_dir, session_id).await
+}
+
 pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSession>> {
     storage::find_sqlite_session_by_id(session_id).await
 }
 
-/// Resolve the store.db path for a Cursor session (SQLite chat storage).
-/// Returns None if the session is not found under ~/.cursor/chats.
+/// Resolve the store.db path for a Cursor session.
+/// Searches ACP-mode sessions first, then interactive SQLite chat storage.
 pub async fn get_sqlite_store_db_path_for_session(session_id: &str) -> Result<Option<PathBuf>> {
-    let chats_dir = get_cursor_home_dir()?.join("chats");
-    storage::find_sqlite_store_db_for_session(&chats_dir, session_id).await
+    let cursor_home = get_cursor_home_dir()?;
+    let chats_dir = cursor_home.join("chats");
+    let acp_sessions_dir = cursor_home.join("acp-sessions");
+    storage::find_cursor_store_db_for_session(&chats_dir, &acp_sessions_dir, session_id).await
 }
 
 /// Produce a diagnostic report for why a session got its title (or fallback).

@@ -52,7 +52,7 @@
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
 						<Tooltip.Content
-							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
 							sideOffset={4}
 						>
 							{warmingLabel}
@@ -72,13 +72,13 @@
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
 						<Tooltip.Content
-							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
 							sideOffset={4}
 						>
 							<div class="space-y-1.5">
 								<div class="font-medium">{connectedLabel}</div>
 								{#if agentId}
-									<table class="text-xs">
+									<table class="text-sm">
 										<tbody>
 											<tr>
 												<td class="pr-3 text-muted-foreground">Agent ID:</td>
@@ -105,7 +105,7 @@
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
 						<Tooltip.Content
-							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
 							sideOffset={4}
 						>
 							{errorLabel}

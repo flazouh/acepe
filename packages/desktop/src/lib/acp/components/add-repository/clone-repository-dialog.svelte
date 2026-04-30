@@ -4,7 +4,7 @@ import { GitBranch } from "phosphor-svelte";
 import { Link } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as Dialog from "$lib/components/ui/dialog/index.js";
+import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";

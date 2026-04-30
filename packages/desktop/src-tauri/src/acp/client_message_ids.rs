@@ -1,8 +1,9 @@
 //! Stable message-id assignment for streaming assistant chunks.
 //!
 //! Pure, agent-agnostic: takes a `SessionUpdate` in, assigns a stable
-//! `message_id` for the current turn when one is missing, and clears the
-//! per-session id at turn boundaries (`UserMessageChunk`, `TurnComplete`).
+//! `message_id` for the current assistant transcript entry when one is missing,
+//! and clears the per-session id at transcript boundaries (`UserMessageChunk`,
+//! `ToolCall`, `TurnComplete`).
 //!
 //! Provider-specific quirks (e.g. transport-level replay handling) MUST live
 //! at the provider edge (`parsers/`, `providers/`, `client/<provider>_*`),
@@ -15,8 +16,8 @@ use uuid::Uuid;
 
 /// Assign a stable message id for the current turn.
 ///
-/// - On `UserMessageChunk` and `TurnComplete`, clears the per-session id so
-///   the next assistant chunk starts a fresh turn.
+/// - On `UserMessageChunk`, `ToolCall`, and `TurnComplete`, clears the
+///   per-session id so the next assistant chunk starts a fresh transcript entry.
 /// - On `AgentMessageChunk` / `AgentThoughtChunk`, reuses the cached id (or
 ///   generates one) so all chunks within a turn share an id.
 /// - All other variants pass through untouched.
@@ -30,6 +31,18 @@ pub(crate) fn normalize_message_id(
                 tracker.remove(session_id);
             }
             SessionUpdate::UserMessageChunk { chunk, session_id }
+        }
+        SessionUpdate::ToolCall {
+            tool_call,
+            session_id,
+        } => {
+            if let Some(session_id) = session_id.as_ref() {
+                tracker.remove(session_id);
+            }
+            SessionUpdate::ToolCall {
+                tool_call,
+                session_id,
+            }
         }
         SessionUpdate::AgentMessageChunk {
             chunk,
@@ -95,7 +108,9 @@ fn resolve_message_id(
 #[cfg(test)]
 mod tests {
     use super::normalize_message_id;
-    use crate::acp::session_update::{ContentChunk, SessionUpdate};
+    use crate::acp::session_update::{
+        ContentChunk, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
+    };
     use crate::acp::types::ContentBlock;
     use std::collections::HashMap;
 
@@ -146,6 +161,34 @@ mod tests {
             SessionUpdate::AgentMessageChunk { message_id, .. } => message_id.clone(),
             SessionUpdate::AgentThoughtChunk { message_id, .. } => message_id.clone(),
             _ => None,
+        }
+    }
+
+    fn tool_call(session_id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: "tool-1".to_string(),
+                name: "bash".to_string(),
+                arguments: ToolArguments::Execute {
+                    command: Some("ls".to_string()),
+                },
+                raw_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Execute),
+                title: Some("List current directory".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            session_id: Some(session_id.to_string()),
         }
     }
 
@@ -220,6 +263,25 @@ mod tests {
         assert!(!tracker.contains_key("session-1"));
 
         let second = normalize_message_id(thought_chunk("session-1"), &mut tracker);
+        let second_id = extract_message_id(&second).expect("message id");
+
+        assert_ne!(first_id, second_id);
+    }
+
+    #[test]
+    fn clears_message_id_on_tool_call_boundary() {
+        let mut tracker = HashMap::new();
+        let first =
+            normalize_message_id(message_chunk_with_text("session-1", "before"), &mut tracker);
+        let first_id = extract_message_id(&first).expect("message id");
+
+        let boundary = normalize_message_id(tool_call("session-1"), &mut tracker);
+
+        assert!(matches!(boundary, SessionUpdate::ToolCall { .. }));
+        assert!(!tracker.contains_key("session-1"));
+
+        let second =
+            normalize_message_id(message_chunk_with_text("session-1", "after"), &mut tracker);
         let second_id = extract_message_id(&second).expect("message id");
 
         assert_ne!(first_id, second_id);

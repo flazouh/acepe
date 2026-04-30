@@ -14,9 +14,11 @@
 	import AgentToolBrowser from "./agent-tool-browser.svelte";
 	import AgentToolReadLints from "./agent-tool-read-lints.svelte";
 	import AgentToolTask from "./agent-tool-task.svelte";
+	import AgentToolSkill from "./agent-tool-skill.svelte";
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
 	import { TextShimmer } from "../text-shimmer/index.js";
+	import { LoadingIcon } from "../icons/index.js";
 
 	interface Props {
 		entries: AnyAgentEntry[];
@@ -139,6 +141,13 @@
 							detailsText={entry.detailsText ?? null}
 							status={entry.status}
 						/>
+					{:else if entry.kind === "skill"}
+						<AgentToolSkill
+							skillName={entry.skillName}
+							skillArgs={entry.skillArgs}
+							description={entry.skillDescription}
+							status={entry.status}
+						/>
 					{:else if entry.todos && entry.todos.length > 0}
 						<AgentToolTodo todos={entry.todos} isLive={entry.status === "running"} />
 					{:else if entry.kind === "task"}
@@ -161,7 +170,8 @@
 						/>
 					{/if}
 				{:else if entry.type === "thinking"}
-					<div class="py-2 text-sm text-muted-foreground">
+					<div class="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+						<LoadingIcon class="shrink-0" style="width: 14px; height: 14px;" aria-label="Loading" />
 						<TextShimmer>Planning next moves…</TextShimmer>
 					</div>
 				{/if}

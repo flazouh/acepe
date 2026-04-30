@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { AppWindow, CaretRight } from "phosphor-svelte";
+	import { CaretRight } from "phosphor-svelte";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolLabel from "./tool-label.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	const SCRIPT_COLLAPSE_CHARACTER_LIMIT = 280;
@@ -71,12 +71,11 @@
 
 <AgentToolCard>
 	<div
-		class="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-xs"
+		class="flex min-w-0 items-center gap-1.5 px-2.5 py-1.5 text-sm"
 		class:border-b={hasDetails || hasScript}
 		class:border-border={hasDetails || hasScript}
 	>
-		<AppWindow weight="duotone" size={14} class="shrink-0 text-muted-foreground/70" />
-		<ToolLabel {status}>{title}</ToolLabel>
+		<ToolHeaderLeading kind="browser" {status}>{title}</ToolHeaderLeading>
 
 		{#if subtitle}
 			<span class="min-w-0 truncate text-muted-foreground/70">{subtitle}</span>
@@ -87,7 +86,7 @@
 		{/if}
 
 		{#if durationLabel}
-			<span class="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/70">
+			<span class="ml-auto shrink-0 font-mono text-sm text-muted-foreground/70">
 				{durationLabel}
 			</span>
 		{/if}
@@ -101,7 +100,7 @@
 					onclick={() => {
 						isScriptExpanded = !isScriptExpanded;
 					}}
-					class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
+					class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 					aria-label={isScriptExpanded ? "Collapse script" : "Expand script"}
 				>
 					<CaretRight
@@ -130,7 +129,7 @@
 				{/if}
 			{:else}
 				<div class="border-t border-border bg-muted/20 px-2.5 py-2">
-					<div class="mb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
+					<div class="mb-1 text-sm font-medium uppercase tracking-[0.08em] text-muted-foreground/70">
 						{scriptLabel}
 					</div>
 					<pre
@@ -149,7 +148,7 @@
 				onclick={() => {
 					isResultExpanded = !isResultExpanded;
 				}}
-				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
+				class="flex w-full items-center gap-2 border-none bg-transparent px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30 cursor-pointer"
 				aria-label={isResultExpanded ? "Collapse result" : "Expand result"}
 			>
 				<CaretRight
@@ -165,7 +164,7 @@
 
 			{#if isResultExpanded}
 				<div class="border-t border-border bg-muted/20 px-2.5 py-2">
-					<pre class="m-0 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{detailsText}</pre>
+					<pre class="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{detailsText}</pre>
 				</div>
 			{/if}
 		</div>
@@ -177,7 +176,7 @@
 	.browser-script-preview {
 		margin: 0;
 		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
-		font-size: 0.75rem;
+		font-size: 0.875rem;
 		line-height: 1.45;
 		white-space: pre-wrap;
 		word-break: break-word;

@@ -39,6 +39,20 @@ pub(super) async fn find_sqlite_store_db_for_session(
     Ok(None)
 }
 
+pub(super) async fn find_cursor_store_db_for_session(
+    chats_dir: &Path,
+    acp_sessions_dir: &Path,
+    session_id: &str,
+) -> Result<Option<PathBuf>> {
+    if let Some(store_db) =
+        find_acp_sessions_store_db_for_session(acp_sessions_dir, session_id).await?
+    {
+        return Ok(Some(store_db));
+    }
+
+    find_sqlite_store_db_for_session(chats_dir, session_id).await
+}
+
 /// Look up an ACP-mode Cursor session's store.db by id.
 ///
 /// ACP-mode sessions live under a flat `~/.cursor/acp-sessions/<session-id>/store.db`

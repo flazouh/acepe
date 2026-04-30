@@ -10,7 +10,6 @@ import { listPullRequests, getRepoContext } from "$lib/acp/services/github-servi
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import * as Popover from "$lib/components/ui/popover/index.js";
-import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 
 interface Props {
@@ -130,7 +129,6 @@ function handleSelectPullRequest(pr: PrListItem): void {
 
 <div bind:this={triggerAnchor}>
 	<DropdownMenu.Item onSelect={handleOpenPicker} class="cursor-pointer">
-		<LinkSimple class="mr-2 h-3.5 w-3.5" />
 		{linkedPr ? "Change linked pull request" : "Link pull request"}
 	</DropdownMenu.Item>
 </div>

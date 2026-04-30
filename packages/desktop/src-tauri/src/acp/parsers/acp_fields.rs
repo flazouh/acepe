@@ -102,8 +102,43 @@ pub fn extract_tool_call_id(data: &serde_json::Value) -> Result<String, ParseErr
         .or_else(|| data.get(ID))
         .or_else(|| data.get(TOOL_USE_ID))
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
+        .map(normalize_tool_call_id)
         .ok_or_else(|| ParseError::MissingField("toolCallId, id, or tool_use_id".to_string()))
+}
+
+/// Normalize provider tool-call IDs before they become canonical operation provenance.
+///
+/// Cursor ACP can emit composite IDs containing control characters, for example
+/// `call_...\nfc_...`. The canonical operation graph must keep provenance keys
+/// printable and delimiter-safe, while tool_call and tool_call_update still need
+/// to resolve to the same ID.
+///
+/// Idempotent: inputs without control characters are returned unchanged. This is
+/// safe because legitimate provider tool-call IDs never contain `%` literals — they
+/// are opaque provider identifiers. Skipping work on already-normalized inputs
+/// prevents double-encoding (`%0A` → `%250A`) when this function is called along
+/// multiple boundaries (live ingress + persistence + snapshot rehydration).
+pub fn normalize_tool_call_id(raw_id: &str) -> String {
+    if !raw_id.chars().any(char::is_control) {
+        return raw_id.to_string();
+    }
+    let mut normalized = String::with_capacity(raw_id.len());
+    for character in raw_id.chars() {
+        if character == '%' {
+            normalized.push_str("%25");
+            continue;
+        }
+        if character.is_control() {
+            let mut buffer = [0_u8; 4];
+            for byte in character.encode_utf8(&mut buffer).as_bytes() {
+                normalized.push('%');
+                normalized.push_str(&format!("{byte:02X}"));
+            }
+            continue;
+        }
+        normalized.push(character);
+    }
+    normalized
 }
 
 /// Extract a title string from an ACP payload.
@@ -270,4 +305,30 @@ pub fn detect_acp_update_type(
     }
 
     Err(ParseError::MissingField("type or toolCallId".to_string()))
+}
+
+#[cfg(test)]
+mod normalize_tool_call_id_tests {
+    use super::normalize_tool_call_id;
+
+    #[test]
+    fn normalizes_control_characters_to_percent_escapes() {
+        assert_eq!(
+            normalize_tool_call_id("call_abc\nfc_def"),
+            "call_abc%0Afc_def"
+        );
+    }
+
+    #[test]
+    fn passes_through_already_printable_ids_unchanged() {
+        assert_eq!(normalize_tool_call_id("call_abc_def"), "call_abc_def");
+    }
+
+    #[test]
+    fn is_idempotent_for_already_normalized_ids() {
+        let raw = "call_abc\nfc_def";
+        let once = normalize_tool_call_id(raw);
+        let twice = normalize_tool_call_id(&once);
+        assert_eq!(once, twice, "double-normalization must equal single-normalization to keep canonical join keys stable across ingress + persistence + snapshot boundaries");
+    }
 }

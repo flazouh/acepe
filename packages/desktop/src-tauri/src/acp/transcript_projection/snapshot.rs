@@ -1,3 +1,4 @@
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::session_jsonl::types::{StoredAssistantChunk, StoredContentBlock, StoredEntry};
 use serde::{Deserialize, Serialize};
 
@@ -49,17 +50,20 @@ impl TranscriptEntry {
                 role: TranscriptEntryRole::Assistant,
                 segments: segments_from_assistant_chunks(id, &message.chunks),
             }),
-            StoredEntry::ToolCall { id, message, .. } => Some(Self {
-                entry_id: id.clone(),
-                role: TranscriptEntryRole::Tool,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: format!("{id}:tool"),
-                    text: message
-                        .title
-                        .clone()
-                        .unwrap_or_else(|| message.name.clone()),
-                }],
-            }),
+            StoredEntry::ToolCall { id, message, .. } => {
+                let entry_id = normalize_tool_call_id(id);
+                Some(Self {
+                    entry_id: entry_id.clone(),
+                    role: TranscriptEntryRole::Tool,
+                    segments: vec![TranscriptSegment::Text {
+                        segment_id: format!("{entry_id}:tool"),
+                        text: message
+                            .title
+                            .clone()
+                            .unwrap_or_else(|| message.name.clone()),
+                    }],
+                })
+            }
             StoredEntry::Error { id, message, .. } => Some(Self {
                 entry_id: id.clone(),
                 role: TranscriptEntryRole::Error,
@@ -243,6 +247,49 @@ mod tests {
             vec![TranscriptSegment::Text {
                 segment_id: "error-1:error".to_string(),
                 text: "boom".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn transcript_snapshot_normalizes_tool_row_ids_for_canonical_join_keys() {
+        let snapshot = TranscriptSnapshot::from_stored_entries(
+            3,
+            &[StoredEntry::ToolCall {
+                id: "tool%provider\ncursor".to_string(),
+                message: ToolCallData {
+                    id: "tool%provider\ncursor".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file".to_string()),
+                        source_context: None,
+                    },
+                    raw_input: None,
+                    status: ToolCallStatus::Completed,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: Some("Read file".to_string()),
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                timestamp: None,
+            }],
+        );
+
+        assert_eq!(snapshot.entries[0].entry_id, "tool%25provider%0Acursor");
+        assert_eq!(
+            snapshot.entries[0].segments,
+            vec![TranscriptSegment::Text {
+                segment_id: "tool%25provider%0Acursor:tool".to_string(),
+                text: "Read file".to_string(),
             }]
         );
     }
