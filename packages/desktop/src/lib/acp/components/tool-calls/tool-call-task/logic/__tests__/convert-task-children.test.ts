@@ -1,8 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
+import type { AgentPanelSceneEntryModel, AgentToolEntry } from "@acepe/ui/agent-panel";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
 import { convertTaskChildren } from "../convert-task-children.js";
+
+function asToolCall(entry: AgentPanelSceneEntryModel | undefined): AgentToolEntry {
+	if (!entry || entry.type !== "tool_call") throw new Error("Expected tool_call entry");
+	return entry;
+}
 
 function createChild(
 	overrides: Partial<ToolCall> & Pick<ToolCall, "id" | "kind" | "status">
@@ -35,22 +41,22 @@ describe("convertTaskChildren", () => {
 	});
 
 	describe("status mapping", () => {
-		it("maps 'pending' to 'pending'", () => {
+		it("maps 'pending' to 'done' when turn state is not streaming", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "pending" })];
 			const result = convertTaskChildren(children);
-			expect(result[0].status).toBe("pending");
+			expect(asToolCall(result[0]).status).toBe("done");
 		});
 
 		it("maps 'in_progress' to 'running'", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "in_progress" })];
 			const result = convertTaskChildren(children, "streaming");
-			expect(result[0].status).toBe("running");
+			expect(asToolCall(result[0]).status).toBe("running");
 		});
 
 		it("maps 'in_progress' to 'done' when turn is not streaming", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "in_progress" })];
 			const result = convertTaskChildren(children, "completed");
-			expect(result[0].status).toBe("done");
+			expect(asToolCall(result[0]).status).toBe("done");
 		});
 
 		it("maps non-terminal status to 'done' when result is present", () => {
@@ -63,25 +69,25 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children, "streaming");
-			expect(result[0].status).toBe("done");
+			expect(asToolCall(result[0]).status).toBe("done");
 		});
 
 		it("maps unfinished child to 'done' when the parent task completed successfully", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "in_progress" })];
 			const result = convertTaskChildren(children, "completed", true);
-			expect(result[0].status).toBe("done");
+			expect(asToolCall(result[0]).status).toBe("done");
 		});
 
 		it("maps 'completed' to 'done'", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "completed" })];
 			const result = convertTaskChildren(children);
-			expect(result[0].status).toBe("done");
+			expect(asToolCall(result[0]).status).toBe("done");
 		});
 
 		it("maps 'failed' to 'error'", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "failed" })];
 			const result = convertTaskChildren(children);
-			expect(result[0].status).toBe("error");
+			expect(asToolCall(result[0]).status).toBe("error");
 		});
 	});
 
@@ -102,7 +108,7 @@ describe("convertTaskChildren", () => {
 		] as const)("maps '%s' to '%s'", (input, expected) => {
 			const children = [createChild({ id: "t1", kind: input, status: "completed" })];
 			const result = convertTaskChildren(children);
-			expect(result[0].kind).toBe(expected);
+			expect(asToolCall(result[0]).kind).toBe(expected);
 		});
 
 		it.each([
@@ -115,7 +121,7 @@ describe("convertTaskChildren", () => {
 		] as const)("maps '%s' to 'other'", (input) => {
 			const children = [createChild({ id: "t1", kind: input, status: "completed" })];
 			const result = convertTaskChildren(children);
-			expect(result[0].kind).toBe("other");
+			expect(asToolCall(result[0]).kind).toBe("other");
 		});
 	});
 
@@ -142,15 +148,15 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].title).toBe("Read config file");
+			expect(asToolCall(result[0]).title).toBe("Read config file");
 		});
 
 		it("falls back to generated title when child title is null", () => {
 			const children = [createChild({ id: "t1", kind: "read", status: "completed", title: null })];
 			const result = convertTaskChildren(children);
-			// Should get a non-empty title from the registry
-			expect(result[0].title).toBeTruthy();
-			expect(typeof result[0].title).toBe("string");
+			// Should get a non-empty title from the scene mapper
+			expect(asToolCall(result[0]).title).toBeTruthy();
+			expect(typeof asToolCall(result[0]).title).toBe("string");
 		});
 
 		it("extracts filePath for read tool calls", () => {
@@ -163,7 +169,7 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].filePath).toBe("/src/lib/utils.ts");
+			expect(asToolCall(result[0]).filePath).toBe("/src/lib/utils.ts");
 		});
 
 		it("extracts filePath for edit tool calls", () => {
@@ -179,7 +185,7 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].filePath).toBe("/src/main.rs");
+			expect(asToolCall(result[0]).filePath).toBe("/src/main.rs");
 		});
 
 		it("extracts subtitle for search tool calls", () => {
@@ -192,7 +198,7 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].subtitle).toBe("taskChildren");
+			expect(asToolCall(result[0]).subtitle).toBe("taskChildren");
 		});
 
 		it("extracts subtitle for execute tool calls", () => {
@@ -205,7 +211,7 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].subtitle).toBe("bun test");
+			expect(asToolCall(result[0]).subtitle).toBe("bun test");
 		});
 	});
 
@@ -242,11 +248,11 @@ describe("convertTaskChildren", () => {
 
 			expect(result).toHaveLength(3);
 			expect(result[0].id).toBe("c1");
-			expect(result[0].status).toBe("done");
+			expect(asToolCall(result[0]).status).toBe("done");
 			expect(result[1].id).toBe("c2");
-			expect(result[1].status).toBe("running");
+			expect(asToolCall(result[1]).status).toBe("running");
 			expect(result[2].id).toBe("c3");
-			expect(result[2].status).toBe("pending");
+			expect(asToolCall(result[2]).status).toBe("pending");
 		});
 	});
 
@@ -261,7 +267,7 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			expect(result[0].kind).toBe("other");
+			expect(asToolCall(result[0]).kind).toBe("other");
 		});
 
 		it("falls back to tool name when title is null and registry returns empty", () => {
@@ -275,8 +281,8 @@ describe("convertTaskChildren", () => {
 				}),
 			];
 			const result = convertTaskChildren(children);
-			// Should have some title (either from registry or name fallback)
-			expect(result[0].title).toBeTruthy();
+			// Should have some title (either from scene mapper or name fallback)
+			expect(asToolCall(result[0]).title).toBeTruthy();
 		});
 	});
 });

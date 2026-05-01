@@ -10,13 +10,9 @@ import {
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
-import { convertTaskChildren } from "../tool-calls/tool-call-task/logic/convert-task-children.js";
-import {
-	type CompactToolDisplay,
-	compactAgentToolEntry,
-	resolveCompactToolDisplay,
-	resolveFullToolEntry,
-} from "../tool-calls/tool-definition-registry.js";
+import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
+
+export type CompactToolDisplay = Pick<AgentToolEntry, "id" | "kind" | "title" | "filePath" | "status">;
 
 export type CompactActivityKind = "idle" | "thinking" | "streaming" | "paused";
 
@@ -167,7 +163,9 @@ function getChildSummary(child: ToolCall): string | null {
 		}
 	}
 
-	const entry = resolveFullToolEntry({ toolCall: child });
+	const rawEntry = mapToolCallToSceneEntry(child, undefined, false);
+	if (rawEntry.type !== "tool_call") return null;
+	const entry = rawEntry;
 	const subtitle = entry.subtitle?.trim();
 	if (subtitle && subtitle.length > 0) {
 		return subtitle;
@@ -218,7 +216,9 @@ export function projectTaskActivity(
 
 	const taskSubagentSummaries = getTaskSubagentSummaries(toolCall);
 	const rawChildren = toolCall.taskChildren ?? [];
-	const convertedChildren = convertTaskChildren(rawChildren, turnState);
+	const convertedChildren = rawChildren
+		.map((child) => mapToolCallToSceneEntry(child, turnState, false, child.id))
+		.filter((e): e is AgentToolEntry => e.type === "tool_call");
 	const preferredChildIndex =
 		rawChildren.length > 0 && convertedChildren.length === rawChildren.length
 			? getPreferredTaskChildIndex(rawChildren)
@@ -234,10 +234,16 @@ export function projectTaskActivity(
 			? rawChildren[preferredChildIndex]
 			: null;
 	const preferredSummary = preferredRawChild ? getChildSummary(preferredRawChild) : null;
-	const latestTaskSubagentTool =
-		orderedChildren.length > 0
-			? compactAgentToolEntry(orderedChildren[orderedChildren.length - 1])
-			: null;
+	const latestEntry = orderedChildren.length > 0 ? orderedChildren[orderedChildren.length - 1] : null;
+	const latestTaskSubagentTool: CompactToolDisplay | null = latestEntry
+		? {
+				id: latestEntry.id,
+				kind: latestEntry.kind,
+				title: latestEntry.filePath ? latestEntry.title : (latestEntry.subtitle ?? latestEntry.title),
+				filePath: latestEntry.filePath,
+				status: latestEntry.status,
+			}
+		: null;
 	const taskDescription =
 		preferredRawChild && isTodoLikeChild(preferredRawChild) && preferredSummary
 			? preferredSummary
@@ -313,22 +319,23 @@ export function projectActivityEntry(input: ActivityEntryProjectionInput): Activ
 	const showToolShimmer = (toolKind === "think" || toolKind === "task") && isStreaming;
 	const hasTaskCard =
 		taskProjection.showTaskSubagentList && taskProjection.taskSubagentTools.length > 0;
-	const latestTool =
+	const latestRawEntry =
 		toolCall && toolKind && !hasTaskCard && toolKind !== "think"
-			? resolveCompactToolDisplay({
-					toolCall,
-					toolKind,
-					turnState,
-				})
+			? mapToolCallToSceneEntry(toolCall, turnState, false)
 			: null;
-	const latestToolEntry =
-		toolCall && toolKind && !hasTaskCard && toolKind !== "think"
-			? resolveFullToolEntry({
-					toolCall,
-					toolKind,
-					turnState,
-				})
-			: null;
+	const latestNarrowedEntry = latestRawEntry?.type === "tool_call" ? latestRawEntry : null;
+	const latestTool: CompactToolDisplay | null = latestNarrowedEntry
+		? {
+				id: latestNarrowedEntry.id,
+				kind: latestNarrowedEntry.kind,
+				title: latestNarrowedEntry.filePath
+					? latestNarrowedEntry.title
+					: (latestNarrowedEntry.subtitle ?? latestNarrowedEntry.title),
+				filePath: latestNarrowedEntry.filePath,
+				status: latestNarrowedEntry.status,
+			}
+		: null;
+	const latestToolEntry = latestNarrowedEntry ?? null;
 
 	return {
 		selectedTool,

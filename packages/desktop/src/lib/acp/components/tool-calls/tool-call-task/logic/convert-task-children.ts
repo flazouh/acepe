@@ -1,22 +1,16 @@
-import type { AgentToolEntry } from "@acepe/ui/agent-panel";
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../../../store/types.js";
 import type { ToolCall } from "../../../../types/tool-call.js";
-import { resolveFullToolEntry } from "../../tool-definition-registry.js";
+import { mapToolCallToSceneEntry } from "../../../agent-panel/scene/desktop-agent-panel-scene.js";
 
 /**
- * Convert taskChildren (ToolCall[]) into AnyAgentEntry[] for the AgentToolTask UI.
+ * Convert taskChildren (ToolCall[]) into AgentPanelSceneEntryModel[] for the AgentToolTask UI.
  */
 export function convertTaskChildren(
 	children: ToolCall[] | null | undefined,
 	turnState?: TurnState,
 	parentCompleted: boolean = false
-): AgentToolEntry[] {
+): AgentPanelSceneEntryModel[] {
 	if (!children || children.length === 0) return [];
-	return children.map((child) =>
-		resolveFullToolEntry({
-			toolCall: child,
-			turnState,
-			parentCompleted,
-		})
-	);
+	return children.map((child) => mapToolCallToSceneEntry(child, turnState, parentCompleted, child.id));
 }

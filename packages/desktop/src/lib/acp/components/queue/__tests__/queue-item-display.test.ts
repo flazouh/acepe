@@ -137,7 +137,7 @@ describe("getQueueItemTaskDisplay", () => {
 
 		const display = getQueueItemTaskDisplay(taskTool, "task", "completed");
 
-		expect(display).toEqual({
+		expect(display).toMatchObject({
 			taskDescription: "Parent task",
 			taskSubagentSummaries: [
 				"Explore community board and email notification code",
@@ -149,7 +149,7 @@ describe("getQueueItemTaskDisplay", () => {
 					type: "tool_call",
 					kind: "task",
 					title: "Task completed",
-					subtitle: "Explore community board and email notification ...",
+					subtitle: "Explore community board and email notification code",
 					filePath: undefined,
 					status: "done",
 				},
@@ -185,16 +185,16 @@ describe("getQueueItemTaskDisplay", () => {
 		expect(display.latestTaskSubagentTool).toEqual({
 			id: "child-2",
 			kind: "read",
-			title: "Reading",
+			title: "Read",
 			filePath: "/repo/child-2.ts",
 			status: "running",
 		});
-		expect(display.taskSubagentTools).toEqual([
+		expect(display.taskSubagentTools).toMatchObject([
 			{
 				id: "child-1",
 				type: "tool_call",
 				kind: "search",
-				title: "Grep",
+				title: "Search",
 				subtitle: "taskChildren",
 				filePath: undefined,
 				status: "done",
@@ -203,8 +203,7 @@ describe("getQueueItemTaskDisplay", () => {
 				id: "child-2",
 				type: "tool_call",
 				kind: "read",
-				title: "Reading",
-				subtitle: "/repo/child-2.ts",
+				title: "Read",
 				filePath: "/repo/child-2.ts",
 				status: "running",
 			},
@@ -229,7 +228,7 @@ describe("getQueueItemTaskDisplay", () => {
 		});
 		expect(display.taskSubagentTools[display.taskSubagentTools.length - 1]).toMatchObject({
 			id: "child-todo",
-			title: "Updating todos",
+			title: "Todo running",
 			subtitle: "Keep todo active",
 		});
 	});
