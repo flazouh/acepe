@@ -304,7 +304,7 @@ Target split:
 - The content viewport has one renderer dispatch path for all row kinds.
 - Transcript-derived scene helpers no longer produce live rendered output in the main viewport.
 
-- [ ] **Unit 4: Land migration-independent blank-state stabilization**
+- [x] **Unit 4: Land migration-independent blank-state stabilization**
 
 **Goal:** Fix blank-state failure modes that do not depend on the full viewport rewrite.
 

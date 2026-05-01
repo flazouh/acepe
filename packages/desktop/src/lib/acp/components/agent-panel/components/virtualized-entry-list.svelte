@@ -46,6 +46,7 @@ import {
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
 const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
+type NativeFallbackReason = "zero_viewport" | "no_rendered_entries";
 
 type VirtualizedEntryListProps = {
 	panelId: string;
@@ -155,6 +156,8 @@ let wrapperRef: HTMLDivElement | null = $state(null);
 let fallbackViewportRef: HTMLDivElement | null = $state(null);
 let viewportNudgeOffsetPx = $state(0);
 let useNativeFallback = $state(false);
+let nativeFallbackReason = $state<NativeFallbackReason | null>(null);
+let nativeFallbackRetryCount = $state(0);
 const fallbackRowRefs = new Map<string, HTMLElement>();
 
 // ===== AUTO-SCROLL =====
@@ -535,6 +538,8 @@ $effect(() => {
 	autoScroll.reset();
 	followController.reset();
 	useNativeFallback = false;
+	nativeFallbackReason = null;
+	nativeFallbackRetryCount = 0;
 	viewportNudgeOffsetPx = 0;
 	historicalScrollApplied = false;
 
@@ -570,9 +575,10 @@ $effect(() => {
 	let cancelled = false;
 	let attempts = 0;
 	let recoveryFrameId: number | null = null;
+	const recoverySessionId = sessionId;
 
 	const recoverViewport = () => {
-		if (cancelled) {
+		if (cancelled || sessionId !== recoverySessionId) {
 			return;
 		}
 
@@ -593,6 +599,7 @@ $effect(() => {
 				);
 			}
 			useNativeFallback = true;
+			nativeFallbackReason = "zero_viewport";
 			return;
 		}
 
@@ -625,9 +632,10 @@ $effect(() => {
 	let cancelled = false;
 	let remainingFrames = MAX_EMPTY_RENDER_FRAMES;
 	let probeFrameId: number | null = null;
+	const probeSessionId = sessionId;
 
 	const probeRenderedEntries = () => {
-		if (cancelled) {
+		if (cancelled || sessionId !== probeSessionId) {
 			return;
 		}
 
@@ -647,6 +655,7 @@ $effect(() => {
 				);
 			}
 			useNativeFallback = true;
+			nativeFallbackReason = "no_rendered_entries";
 			return;
 		}
 
@@ -660,6 +669,47 @@ $effect(() => {
 		cancelled = true;
 		if (probeFrameId !== null) {
 			cancelAnimationFrame(probeFrameId);
+		}
+	};
+});
+
+$effect(() => {
+	if (
+		!useNativeFallback ||
+		nativeFallbackReason !== "no_rendered_entries" ||
+		nativeFallbackRetryCount > 0
+	) {
+		return;
+	}
+
+	let cancelled = false;
+	let frameCount = 0;
+	let retryFrameId: number | null = null;
+	const fallbackSessionId = sessionId;
+
+	const retryVirtuaAfterFallback = () => {
+		if (cancelled || sessionId !== fallbackSessionId) {
+			return;
+		}
+
+		frameCount += 1;
+		if (frameCount < 2) {
+			retryFrameId = requestAnimationFrame(retryVirtuaAfterFallback);
+			return;
+		}
+
+		retryFrameId = null;
+		nativeFallbackRetryCount += 1;
+		nativeFallbackReason = null;
+		useNativeFallback = false;
+	};
+
+	retryFrameId = requestAnimationFrame(retryVirtuaAfterFallback);
+
+	return () => {
+		cancelled = true;
+		if (retryFrameId !== null) {
+			cancelAnimationFrame(retryFrameId);
 		}
 	};
 });

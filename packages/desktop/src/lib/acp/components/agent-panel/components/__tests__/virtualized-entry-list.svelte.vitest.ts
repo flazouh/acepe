@@ -268,6 +268,63 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		expect(view.queryByTestId("vlist-stub")).toBeNull();
 	});
 
+	it("recovers from a delayed no-render fallback instead of staying permanently native", async () => {
+		setSuppressRenderedChildren(true);
+
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+		});
+		await tick();
+
+		for (let i = 0; i < 6; i += 1) {
+			await flushAnimationFrames();
+		}
+
+		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+
+		setSuppressRenderedChildren(false);
+
+		for (let i = 0; i < 4; i += 1) {
+			await flushAnimationFrames();
+		}
+		await tick();
+
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
+	});
+
+	it("does not let a stale no-render probe switch the next session into fallback", async () => {
+		setSuppressRenderedChildren(true);
+
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "old")],
+			sessionId: "session-1",
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		setSuppressRenderedChildren(false);
+
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [createUserSceneEntry("user-2", "new")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-2",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+
+		for (let i = 0; i < 6; i += 1) {
+			await flushAnimationFrames();
+		}
+		await tick();
+
+		expect(view.queryByTestId("native-fallback")).toBeNull();
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+	});
+
 	it("renders user entries via Virtua VList", async () => {
 		const view = renderList({
 			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
