@@ -8,6 +8,7 @@ import type { TurnState } from "../../../../store/types.js";
 import {
 	clearHistory,
 	dataLengthHistory,
+	renderedItemHistory,
 	scrollToIndexCalls,
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
@@ -300,9 +301,38 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 		await tick();
 
+		expect(renderedItemHistory.some((item) => item.index === 0 && item.isUndefined)).toBe(true);
 		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
 		expect(stubs.length).toBe(0);
 		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+	});
+
+	it("characterizes the Virtua snippet boundary receiving undefined items", async () => {
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		renderedItemHistory.length = 0;
+		setUndefinedRenderedIndexes([1]);
+
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-2",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(renderedItemHistory).toContainEqual({ index: 1, isUndefined: true });
 	});
 
 	it("keeps mounted assistant rows stable when Virtua clears their item during teardown", async () => {
@@ -399,13 +429,16 @@ describe("VirtualizedEntryList auto-scroll", () => {
 			throw new Error("Missing viewport element");
 		}
 
+		scrollToIndexCalls.length = 0;
+
 		// Simulate user scroll to detach from auto-follow
+		await fireEvent.wheel(viewport, { deltaY: -100 });
 		await fireEvent.scroll(viewport);
+		await flushAnimationFrames();
 		triggerResizeObservers();
 		await tick();
 
-		// After detaching, resize should not trigger scroll-to-bottom
-		// (no forced reveal was requested)
+		expect(scrollToIndexCalls).toHaveLength(0);
 	});
 
 	it("force-follows a new user message even after the user detached", async () => {
@@ -421,8 +454,12 @@ describe("VirtualizedEntryList auto-scroll", () => {
 			throw new Error("Missing viewport element");
 		}
 
+		scrollToIndexCalls.length = 0;
+
 		// Simulate user scroll to detach
+		await fireEvent.wheel(viewport, { deltaY: -100 });
 		await fireEvent.scroll(viewport);
+		await flushAnimationFrames();
 
 		// Request forced user reveal (simulates sending a message)
 		view.component.prepareForNextUserReveal({ force: true });
@@ -438,9 +475,12 @@ describe("VirtualizedEntryList auto-scroll", () => {
 			onNearBottomChange: undefined,
 		});
 		await tick();
+		await flushAnimationFrames();
 
-		// The ThreadFollowController should force-reveal the new user message
-		// The test passes if no error is thrown and the component re-renders correctly
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 1,
+			options: { align: "end" },
+		});
 	});
 
 	it("reveals the trailing thinking indicator after a user message is sent", async () => {
@@ -488,8 +528,12 @@ describe("VirtualizedEntryList auto-scroll", () => {
 			throw new Error("Missing viewport element");
 		}
 
+		scrollToIndexCalls.length = 0;
+
 		// Simulate user scroll to detach
+		await fireEvent.wheel(viewport, { deltaY: -100 });
 		await fireEvent.scroll(viewport);
+		await flushAnimationFrames();
 
 		// Re-render with updated assistant content (no force reveal requested)
 		await view.rerender({
@@ -503,9 +547,45 @@ describe("VirtualizedEntryList auto-scroll", () => {
 			onNearBottomChange: undefined,
 		});
 		await tick();
+		await flushAnimationFrames();
 
-		// After detach without force-reveal, should not scroll to bottom
-		// The test passes if no error is thrown and the component re-renders correctly
+		expect(scrollToIndexCalls).toHaveLength(0);
+	});
+
+	it("switches sessions while waiting without staying empty and reveals the new thinking tail", async () => {
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "hello"), createAssistantSceneEntry("assistant-1", "world")],
+			isWaitingForResponse: true,
+			sessionId: "session-1",
+		});
+		await tick();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		dataLengthHistory.length = 0;
+		scrollToIndexCalls.length = 0;
+
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [createUserSceneEntry("user-2", "new"), createAssistantSceneEntry("assistant-2", "session")],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-2",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		expect(dataLengthHistory).not.toContain(0);
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 2,
+			options: { align: "end" },
+		});
 	});
 
 	it("renders tool call entries", async () => {

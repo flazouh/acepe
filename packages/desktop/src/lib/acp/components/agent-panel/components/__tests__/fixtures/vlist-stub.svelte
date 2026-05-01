@@ -6,6 +6,7 @@ import {
 	dataLengthHistory,
 	getDefaultViewportSize,
 	getRenderedItemAt,
+	recordRenderedItem,
 	scrollToIndexCalls,
 	shouldSuppressRenderedChildren,
 	shouldUseIndexKeys,
@@ -95,7 +96,9 @@ export function _setViewportSize(size: number): void {
 }
 
 function getRenderedItem(index: number): unknown {
-	return getRenderedItemAt(data, index);
+	const item = getRenderedItemAt(data, index);
+	recordRenderedItem(index, item === undefined);
+	return item;
 }
 
 function getRenderedKey(index: number): string | number {

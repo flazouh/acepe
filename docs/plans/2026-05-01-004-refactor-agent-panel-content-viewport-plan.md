@@ -140,7 +140,7 @@ Target split:
 
 ## Implementation Units
 
-- [ ] **Unit 1: Inventory desktop message behavior and characterize current failures**
+- [x] **Unit 1: Inventory desktop message behavior and characterize current failures**
 
 **Goal:** Establish the migration surface and red/characterization tests before changing render behavior.
 
@@ -188,6 +188,29 @@ Target split:
 **Verification:**
 - The inventory contains no unclassified desktop message branch or conditional in the current viewport/message chain.
 - The tests make current reliability behavior observable and will fail if the viewport silently goes blank, over-scrolls, or mounts unbounded fallback.
+
+**Behavior inventory:**
+
+| Current owner | Branch / conditional | Classification for migration |
+|---|---|---|
+| `virtualized-entry-list.svelte` | `entry.type === "user"` renders desktop `UserMessage` with synthetic `SessionEntry.message` from scene text | Requires scene/shared UI parity: shared user row already handles rich token text, but desktop-only command-output chunks, generic content blocks, file-panel token clicks, and command-output-card treatment must be either modeled or intentionally dropped before branch removal. |
+| `virtualized-entry-list.svelte` | `entry.type === "assistant"` renders desktop `AssistantMessage` | Requires shared renderer widening: assistant markdown/text exists in shared UI, but desktop branch currently supplies `revealMessageKey`, `projectPath`, `streamingAnimationMode`, content-block routing, copy behavior, repo/file badges, and streaming reveal callbacks. |
+| `virtualized-entry-list.svelte` | `entry.type === "assistant_merged"` renders desktop `AssistantMessage` from merged chunks | Requires canonical scene/display-row contract: merged rows need deterministic member-id selection or materialized merged assistant scene data; reveal key must stay stable across remounts. |
+| `virtualized-entry-list.svelte` | non-user/assistant rows render `AgentPanelConversationEntry` via `getSharedEntry()` | Already shared renderer for tools/thinking, but `getSharedEntry()` currently falls back to transcript-derived mapping and must be replaced by first-class degraded scene data. |
+| `virtualized-entry-list.svelte` | missing/undefined virtual row branch only calls `reportMissingVirtualizedEntry()` | Requires explicit degraded/placeholder behavior before final viewport rewrite; current behavior is diagnostic-only and can render nothing for the row. |
+| `virtualized-entry-list.svelte` | initial hydration gates non-empty raw entries to `[]` for one frame | Migration-independent viewport stabilization; tests must preserve the observable handoff and prevent permanent zero-row state. |
+| `virtualized-entry-list.svelte` | zero viewport and empty rendered-entry probes enter native fallback after fixed frame budgets | Migration-independent fallback stabilization; current tests should characterize bounded fallback and sticky/false-trigger risk. |
+| `virtualized-entry-list.svelte` | session switch resets auto-scroll, follow controller, fallback, nudge offset, historical scroll flag | Migration-independent stabilization; stale RAF/probe cleanup must be preserved and tested. |
+| `user-message.svelte` | `isOnlyCommandOutput` renders command output without user card wrapper | Requires scene/shared UI parity or explicit product drop; current shared `AgentUserMessage` only renders rich text inside `UserMessageContainer`. |
+| `user-message.svelte` | mixed chunks render `CommandOutputCard`, `RichTokenText`, or `ContentBlockRouter` inside `MessageInputContainer` | Requires scene-model widening for chunks/content blocks or deliberate simplification to text-only user rows. |
+| `user-message.svelte` | file/image rich-token click opens desktop file panel using `panelStore.openFilePanel()` | Requires injected callback/service from desktop host; cannot move Tauri/store access into `@acepe/ui`. |
+| `assistant-message.svelte` | thought groups render through `AgentToolThinking` and desktop `ContentBlockRouter` | Shared UI has equivalent thinking shell, but desktop content-block rendering and local follow/resize behavior must be preserved through `renderBlock` or scene data. |
+| `assistant-message.svelte` | message groups render through desktop `ContentBlockRouter` with streaming reveal keys and activity callbacks | Requires `revealMessageKey` on shared assistant entries plus host-provided block rendering/snippet support. |
+| `assistant-message.svelte` | copy affordance uses desktop `CopyButton` over message text | Shared UI has a copy button path, but parity should be verified with real shared component tests. |
+| `assistant-message.svelte` | invalid message prop falls back to empty message and emits dev warning | Shared renderer should avoid silent data repair for missing scene entries; invalid/missing canonical data belongs in degraded row diagnostics. |
+| `ContentBlockRouter` chain | validates text/image/audio/resource/resource_link blocks and renders unknown/invalid fallback text | Requires host-provided renderer or shared block contract before removing desktop assistant/user content-block branches. |
+| `markdown-text.svelte` | renders markdown sync/async, file badges, GitHub badges, streaming reveal, repo context, git status, file-panel opens, and Tauri `openUrl` | Requires injected desktop services/snippets; this is the largest desktop-only assistant behavior surface and must not be hidden by a plain markdown scene string. |
+| `message-wrapper.svelte` | registers reveal targets, ResizeObserver reveal follow, fullscreen width, `data-entry-key`, `data-message-id` | Viewport responsibility; must carry forward around shared renderer or into replacement viewport rows. |
 
 - [ ] **Unit 2: Complete shared renderer coverage for user, assistant, thinking, and missing rows**
 

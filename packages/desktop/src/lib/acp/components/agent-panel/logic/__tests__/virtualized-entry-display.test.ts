@@ -326,6 +326,31 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 		}
 	});
 
+	it("characterizes destructive scene-row shape changes by ordered display keys", () => {
+		const initial: AgentPanelSceneEntryModel[] = [
+			{ type: "user", id: "u1", text: "prompt", isOptimistic: false },
+			{ type: "assistant", id: "a1", markdown: "first", isStreaming: false },
+			{ type: "assistant", id: "a2", markdown: "second", isStreaming: false },
+			{ type: "user", id: "u2", text: "next", isOptimistic: false },
+		];
+		const destructiveReplacement: AgentPanelSceneEntryModel[] = [
+			{ type: "user", id: "u1", text: "prompt", isOptimistic: false },
+			{ type: "user", id: "u2", text: "next", isOptimistic: false },
+			{ type: "assistant", id: "a3", markdown: "replacement", isStreaming: false },
+		];
+
+		const initialKeys = buildVirtualizedDisplayEntriesFromScene(initial).map((entry) =>
+			getVirtualizedDisplayEntryKey(entry)
+		);
+		const replacementKeys = buildVirtualizedDisplayEntriesFromScene(destructiveReplacement).map((entry) =>
+			getVirtualizedDisplayEntryKey(entry)
+		);
+
+		expect(initialKeys).toEqual(["u1", "a1", "u2"]);
+		expect(replacementKeys).toEqual(["u1", "u2", "a3"]);
+		expect(replacementKeys.slice(0, initialKeys.length)).not.toEqual(initialKeys);
+	});
+
 	it("preserves timestampMs from scene assistant entry as a Date timestamp", () => {
 		const knownMs = Date.parse("2026-06-01T00:00:00.000Z");
 		const scene: AgentPanelSceneEntryModel[] = [

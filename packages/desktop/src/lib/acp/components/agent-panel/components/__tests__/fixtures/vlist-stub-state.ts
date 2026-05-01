@@ -4,6 +4,10 @@ export const scrollToIndexCalls: Array<{
 	index: number;
 	options?: { align?: string };
 }> = [];
+export const renderedItemHistory: Array<{
+	index: number;
+	isUndefined: boolean;
+}> = [];
 
 let defaultViewportSize = 100;
 let suppressRenderedChildren = false;
@@ -13,10 +17,15 @@ let useIndexKeys = false;
 export function clearHistory(): void {
 	dataLengthHistory.length = 0;
 	scrollToIndexCalls.length = 0;
+	renderedItemHistory.length = 0;
 	defaultViewportSize = 100;
 	suppressRenderedChildren = false;
 	undefinedRenderedIndexes = new Set<number>();
 	useIndexKeys = false;
+}
+
+export function recordRenderedItem(index: number, isUndefined: boolean): void {
+	renderedItemHistory.push({ index, isUndefined });
 }
 
 export function getDefaultViewportSize(): number {
