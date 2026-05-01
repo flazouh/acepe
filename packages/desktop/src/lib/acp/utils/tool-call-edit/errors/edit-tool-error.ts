@@ -1,4 +1,4 @@
-import { AcpError } from "../../../../errors/acp-error.js";
+import { AcpError } from "../../../errors/acp-error.js";
 
 /**
  * Error codes for edit tool operations.

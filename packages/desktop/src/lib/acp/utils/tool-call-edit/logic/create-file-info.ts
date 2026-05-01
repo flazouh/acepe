@@ -1,5 +1,5 @@
-import type { ToolCall } from "../../../../types/tool-call.js";
-import { calculateDiffStats, getFileName } from "../../../../utils/file-utils.js";
+import type { ToolCall } from "../../../types/tool-call.js";
+import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import type { FileInfo } from "../types/file-info.js";
 import { isMarkdownFile } from "./is-markdown-file.js";
 

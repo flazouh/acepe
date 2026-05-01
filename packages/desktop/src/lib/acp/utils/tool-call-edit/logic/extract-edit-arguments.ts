@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "neverthrow";
 
-import type { ToolArguments } from "../../../../../services/converted-session-types.js";
+import type { ToolArguments } from "../../../../services/converted-session-types.js";
 import { EDIT_TOOL_ERROR_CODES, EditToolError } from "../errors/index.js";
 import type { EditArguments } from "../types/index.js";
 

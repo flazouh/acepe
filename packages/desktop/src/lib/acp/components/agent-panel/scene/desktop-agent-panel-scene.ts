@@ -35,7 +35,7 @@ import type { ToolKind } from "../../../types/tool-kind.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
-import { resolveToolCallEditDiffs } from "../../tool-calls/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
+import { resolveToolCallEditDiffs } from "../../../utils/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
 import type { VirtualizedDisplayEntry } from "../logic/virtualized-entry-display.js";
 
 export interface DesktopAgentPanelHeaderInput {

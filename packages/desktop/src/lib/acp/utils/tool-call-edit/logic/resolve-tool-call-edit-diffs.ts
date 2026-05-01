@@ -1,4 +1,4 @@
-import type { ToolArguments } from "../../../../../services/converted-session-types.js";
+import type { ToolArguments } from "../../../../services/converted-session-types.js";
 
 export type ToolCallEditDiff = {
 	readonly filePath: string | null;

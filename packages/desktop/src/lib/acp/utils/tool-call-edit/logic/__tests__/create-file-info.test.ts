@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { ToolCall } from "../../../../../types/tool-call.js";
+import type { ToolCall } from "../../../../types/tool-call.js";
 
 import { createFileInfo } from "../create-file-info.js";
 
