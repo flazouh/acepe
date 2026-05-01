@@ -1058,6 +1058,7 @@ export function mapSessionEntryToConversationEntry(
 			type: "assistant",
 			markdown: extractAssistantMarkdown(entry),
 			isStreaming: entry.isStreaming,
+			revealMessageKey: entry.id,
 			timestampMs: entry.timestamp?.getTime(),
 		};
 	}
@@ -1114,6 +1115,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 				entry.startedAtMs === null || entry.startedAtMs === undefined
 					? null
 					: Math.max(0, nowMs - entry.startedAtMs),
+			startedAtMs: entry.startedAtMs,
 		};
 	}
 
@@ -1123,6 +1125,8 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 			type: "assistant",
 			markdown: contentBlocksToText(entry.message.chunks.map((chunk) => chunk.block)),
 			isStreaming: isStreamingAssistant || entry.isStreaming,
+			revealMessageKey: entry.key,
+			timestampMs: entry.timestamp?.getTime(),
 		};
 	}
 
@@ -1133,6 +1137,8 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 			type: mapped.type,
 			markdown: mapped.markdown,
 			isStreaming: isStreamingAssistant,
+			revealMessageKey: mapped.revealMessageKey,
+			timestampMs: mapped.timestampMs,
 		};
 	}
 

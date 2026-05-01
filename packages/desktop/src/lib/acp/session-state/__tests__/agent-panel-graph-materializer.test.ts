@@ -194,6 +194,7 @@ describe("agent panel graph materializer", () => {
 			type: "assistant",
 			markdown: "Checks are green.",
 			isStreaming: undefined,
+			revealMessageKey: "assistant-1",
 		});
 	});
 
@@ -874,6 +875,7 @@ describe("agent panel graph materializer", () => {
 				type: "assistant",
 				markdown: "Response",
 				isStreaming: undefined,
+				revealMessageKey: "assistant-1",
 			});
 		});
 

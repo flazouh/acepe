@@ -60,6 +60,7 @@ export interface AgentAssistantEntry {
 	type: "assistant";
 	markdown: string;
 	isStreaming?: boolean;
+	revealMessageKey?: string;
 	timestampMs?: number;
 }
 
@@ -135,13 +136,23 @@ export interface AgentThinkingEntry {
 	id: string;
 	type: "thinking";
 	durationMs?: number | null;
+	startedAtMs?: number | null;
+}
+
+export interface AgentMissingEntry {
+	id: string;
+	type: "missing";
+	title?: string | null;
+	message?: string | null;
+	diagnosticLabel?: string | null;
 }
 
 export type AnyAgentEntry =
 	| AgentUserEntry
 	| AgentAssistantEntry
 	| AgentToolEntry
-	| AgentThinkingEntry;
+	| AgentThinkingEntry
+	| AgentMissingEntry;
 
 /** Web search link for display */
 export interface AgentWebSearchLink {

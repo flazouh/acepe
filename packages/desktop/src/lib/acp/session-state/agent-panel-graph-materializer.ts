@@ -426,6 +426,7 @@ function materializeTranscriptEntry(
 			type: "assistant",
 			markdown: segmentText(entry),
 			isStreaming: undefined,
+			revealMessageKey: entry.entryId,
 		};
 	}
 

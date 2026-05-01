@@ -60,6 +60,7 @@ export { default as AgentPanelFooter } from "./agent-panel-footer.svelte";
 export { default as AgentPanelFooterChrome } from "./agent-panel-footer-chrome.svelte";
 export { default as AgentPanelHeader } from "./agent-panel-header.svelte";
 export { default as AgentPanelLayout } from "./agent-panel-layout.svelte";
+export { default as AgentMissingSceneEntry } from "./agent-missing-scene-entry.svelte";
 export { default as AgentPanelModifiedFileRow } from "./agent-panel-modified-file-row.svelte";
 export { default as AgentPanelModifiedFilesTrailingControls } from "./agent-panel-modified-files-trailing-controls.svelte";
 export { default as AgentPanelPrCard } from "./agent-panel-pr-card.svelte";
@@ -173,6 +174,7 @@ export type {
 	AgentQuestion,
 	AgentQuestionOption,
 	AgentSessionStatus,
+	AgentMissingEntry,
 	AgentThinkingEntry,
 	AgentTodoItem,
 	AgentTodoStatus,

@@ -18,6 +18,7 @@
 	import AgentToolTodo from "./agent-tool-todo.svelte";
 	import AgentToolWebSearch from "./agent-tool-web-search.svelte";
 	import AgentUserMessage from "./agent-user-message.svelte";
+	import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
 	import { getPlanningPlaceholderLabel } from "./planning-label.js";
 
 	export interface EditToolTheme {
@@ -59,10 +60,17 @@
 			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 		}}
 		isStreaming={entry.isStreaming}
+		revealMessageKey={entry.revealMessageKey}
 		{iconBasePath}
 	/>
 {:else if entry.type === "thinking"}
 	<AgentToolRow title={getPlanningPlaceholderLabel(entry.durationMs)} status="running" padded={false} />
+{:else if entry.type === "missing"}
+	<AgentMissingSceneEntry
+		title={entry.title}
+		message={entry.message}
+		diagnosticLabel={entry.diagnosticLabel}
+	/>
 {:else if isToolCall(entry) && entry.todos && entry.todos.length > 0}
 	<AgentToolTodo todos={entry.todos} isLive={entry.status === "running"} />
 {:else if isToolCall(entry) && entry.question}

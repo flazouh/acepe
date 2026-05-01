@@ -212,7 +212,7 @@ Target split:
 | `markdown-text.svelte` | renders markdown sync/async, file badges, GitHub badges, streaming reveal, repo context, git status, file-panel opens, and Tauri `openUrl` | Requires injected desktop services/snippets; this is the largest desktop-only assistant behavior surface and must not be hidden by a plain markdown scene string. |
 | `message-wrapper.svelte` | registers reveal targets, ResizeObserver reveal follow, fullscreen width, `data-entry-key`, `data-message-id` | Viewport responsibility; must carry forward around shared renderer or into replacement viewport rows. |
 
-- [ ] **Unit 2: Complete shared renderer coverage for user, assistant, thinking, and missing rows**
+- [x] **Unit 2: Complete shared renderer coverage for user, assistant, thinking, and missing rows**
 
 **Goal:** Make `AgentPanelConversationEntry` capable of rendering every conversation row currently handled by desktop-local branches, including a first-class degraded/missing scene row.
 
