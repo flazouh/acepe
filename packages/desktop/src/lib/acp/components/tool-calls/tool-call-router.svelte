@@ -1,3 +1,4 @@
+<!-- Agent-agnostic: dispatches solely by tool kind via getToolDefinition. No agent/provider-specific branching. The agent-panel render tree no longer routes through this component (Unit 3); the remaining consumer is virtual-session-list.svelte. -->
 <script lang="ts">
 import { useSessionContext } from "../../hooks/use-session-context.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
