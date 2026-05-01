@@ -1,7 +1,7 @@
 ---
 title: "refactor: Single canonical render path for agent-panel entries"
 type: refactor
-status: active
+status: completed
 date: 2026-05-01
 ---
 
