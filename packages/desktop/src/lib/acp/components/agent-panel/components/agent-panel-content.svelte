@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentPanelStatePanel, LoadingIcon, TextShimmer } from "@acepe/ui";
+import { AgentPanelStatePanel, LoadingIcon } from "@acepe/ui";
 import { mapCanonicalTurnStateToHotTurnState } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
@@ -7,8 +7,6 @@ import { buildSessionOperationInteractionSnapshot } from "../../../store/operati
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
-import MessageWrapper from "../../messages/message-wrapper.svelte";
-import UserMessage from "../../messages/user-message.svelte";
 import ProjectSelectionPanel from "../../project-selection-panel.svelte";
 import ReadyToAssistPlaceholder from "../../ready-to-assist-placeholder.svelte";
 import type { AgentPanelContentProps } from "../types/agent-panel-content-props.js";
@@ -18,7 +16,6 @@ let {
 	panelId,
 	viewState,
 	sessionId,
-	sessionEntries = [],
 	sceneEntries,
 	sessionProjectPath,
 	allProjects = [],
@@ -129,9 +126,9 @@ $effect(() => {
 		panelId,
 		sessionId,
 		viewState: viewState.kind,
-		entryCount: sessionEntries.length,
-		latestEntryId: sessionEntries.at(-1)?.id ?? null,
-		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+		entryCount: sceneEntries?.length ?? 0,
+		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
+		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		turnState,
 		isWaitingForResponse,
 	});
@@ -154,9 +151,9 @@ export function prepareForNextUserReveal(options?: { force?: boolean }) {
 	logger.info("prepareForNextUserReveal: content", {
 		panelId,
 		sessionId,
-		entryCount: sessionEntries.length,
-		latestEntryId: sessionEntries.at(-1)?.id ?? null,
-		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+		entryCount: sceneEntries?.length ?? 0,
+		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
+		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		force: options?.force ?? false,
 	});
 	virtualizedListRef?.prepareForNextUserReveal(options);
@@ -189,38 +186,19 @@ export function scrollToTop() {
 {:else if viewState.kind === "conversation"}
 	<div class="h-full flex flex-col relative">
 		<div class="flex-1 min-h-0">
-			{#if sessionId}
-				<VirtualizedEntryList
-					bind:this={virtualizedListRef}
-					{panelId}
-					{sceneEntries}
-					{sessionId}
-					{turnState}
-					{isWaitingForResponse}
-					projectPath={sessionProjectPath ?? undefined}
-					{isFullscreen}
-					{modifiedFilesState}
-					onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
-					onNearTopChange={(nearTop) => (isAtTop = nearTop)}
-				/>
-			{:else if sessionEntries.length > 0}
-				<!-- Pending entry: session not yet created, show optimistic user message + thinking shimmer -->
-				<div class="h-full overflow-y-auto px-1">
-					{#each sessionEntries as entry (entry.id)}
-						{#if entry.type === "user"}
-							<MessageWrapper entryIndex={0} entryKey={entry.id} {isFullscreen}>
-								<UserMessage message={entry.message} />
-							</MessageWrapper>
-						{/if}
-					{/each}
-					<MessageWrapper entryIndex={sessionEntries.length} entryKey="pending-thinking" {isFullscreen}>
-						<div class="flex items-center gap-2 py-3 text-sm text-muted-foreground">
-							<LoadingIcon class="shrink-0" style="width: 14px; height: 14px;" aria-label="Loading" />
-							<TextShimmer>{"Planning next moves"}</TextShimmer>
-						</div>
-					</MessageWrapper>
-				</div>
-			{/if}
+			<VirtualizedEntryList
+				bind:this={virtualizedListRef}
+				{panelId}
+				{sceneEntries}
+				{sessionId}
+				{turnState}
+				{isWaitingForResponse}
+				projectPath={sessionProjectPath ?? undefined}
+				{isFullscreen}
+				{modifiedFilesState}
+				onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
+				onNearTopChange={(nearTop) => (isAtTop = nearTop)}
+			/>
 		</div>
 	</div>
 {:else if viewState.kind === "loading"}

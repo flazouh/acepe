@@ -56,7 +56,6 @@ import {
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	reduceWorktreeSetupEvent,
 	resolveEffectiveProjectPath,
-	resolveVisibleSessionEntries,
 	shouldConfirmWorktreeClose,
 } from "../logic";
 import { materializeAgentPanelSceneFromGraph } from "../../../session-state/agent-panel-graph-materializer.js";
@@ -463,13 +462,6 @@ const errorDismissalKey = $derived(
 );
 const errorDismissed = $derived(
 	errorDismissalKey !== null && dismissedErrorKey === errorDismissalKey
-);
-
-const visibleSessionEntries = $derived.by(() =>
-	resolveVisibleSessionEntries({
-		sessionEntries,
-		activeTurnError,
-	})
 );
 
 // Panel view state: single discriminated union from all inputs
@@ -1939,7 +1931,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						panelId={effectivePanelId}
 						{viewState}
 						{sessionId}
-						sessionEntries={visibleSessionEntries}
 						sceneEntries={graphSceneEntries}
 						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
 						{allProjects}

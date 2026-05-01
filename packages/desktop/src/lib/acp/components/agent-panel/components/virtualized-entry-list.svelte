@@ -47,7 +47,7 @@ type VirtualizedEntryListProps = {
 	isWaitingForResponse: boolean;
 	projectPath: string | undefined;
 	/** Session ID for detecting session changes */
-	sessionId: string;
+	sessionId: string | null;
 	/** Whether the panel is in fullscreen mode (centers content with max-width) */
 	isFullscreen?: boolean;
 	/** Pre-computed modified files state from parent (avoids duplicate aggregateFileEdits calls) */
@@ -119,8 +119,8 @@ setIconConfig({ basePath: "/svgs/icons" });
 // Use getters to ensure reactivity (values update when they change)
 setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	get sessionId() {
-		return sessionId;
-	},
+			return sessionId ?? undefined;
+		},
 	get panelId() {
 		return panelId;
 	},
@@ -311,7 +311,7 @@ function reportMissingVirtualizedEntry(index: number | undefined): void {
 		return;
 	}
 
-	const warningKey = `${sessionId}:${String(index ?? "unknown")}:${displayEntries.length}`;
+	const warningKey = `${sessionId ?? "pre-session"}:${String(index ?? "unknown")}:${displayEntries.length}`;
 	if (warnedMissingEntryKeys.has(warningKey)) {
 		return;
 	}
@@ -792,7 +792,7 @@ export function scrollToTop() {
 			{/each}
 		</div>
 	{:else}
-		{#key `${sessionId}:${vlistRenderKey}`}
+		{#key `${sessionId ?? "pre-session"}:${vlistRenderKey}`}
 			<VList
 				bind:this={vlistRef}
 				data={displayEntries}

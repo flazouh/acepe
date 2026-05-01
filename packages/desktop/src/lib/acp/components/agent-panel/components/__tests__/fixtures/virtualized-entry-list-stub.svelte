@@ -1,5 +1,5 @@
 <script lang="ts">
-let { isWaitingForResponse = false } = $props<{ isWaitingForResponse?: boolean }>();
+let { isWaitingForResponse = false } = $props<{ isWaitingForResponse?: boolean; sessionId?: string | null }>();
 </script>
 
 <div

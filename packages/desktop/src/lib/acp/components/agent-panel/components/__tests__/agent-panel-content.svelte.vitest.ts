@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
 
 const storageMock: Storage = {
@@ -125,30 +125,23 @@ vi.mock("../virtualized-entry-list.svelte", async () => ({
 
 import AgentPanelContent from "../agent-panel-content.svelte";
 
-function createUserEntry(id: string, text: string): SessionEntry {
-	return {
-		id,
-		type: "user",
-		message: {
-			content: { type: "text", text },
-			chunks: [{ type: "text", text }],
-		},
-	};
+function createUserSceneEntry(id: string, text: string): AgentPanelSceneEntryModel {
+	return { id, type: "user", text };
 }
 
 function renderContent(
 	viewState: PanelViewState,
 	overrides?: {
-		sessionId?: string;
-		sessionEntries?: readonly SessionEntry[];
+		sessionId?: string | null;
+		sceneEntries?: readonly AgentPanelSceneEntryModel[];
 		isWaitingForResponse?: boolean;
 	}
 ) {
 	return render(AgentPanelContent, {
 		panelId: "panel-1",
 		viewState,
-		sessionId: overrides?.sessionId ?? "session-1",
-		sessionEntries: overrides?.sessionEntries ?? [createUserEntry("user-1", "hello")],
+		sessionId: overrides?.sessionId !== undefined ? overrides.sessionId : "session-1",
+		sceneEntries: overrides?.sceneEntries,
 		sessionProjectPath: null,
 		allProjects: [],
 		scrollContainer: null,
@@ -287,7 +280,6 @@ describe("AgentPanelContent", () => {
 			},
 			{
 				sessionId: "session-1",
-				sessionEntries: [createUserEntry("user-1", "hello")],
 			}
 		);
 
@@ -300,7 +292,6 @@ describe("AgentPanelContent", () => {
 				errorDetails: null,
 			},
 			sessionId: "session-2",
-			sessionEntries: [createUserEntry("user-2", "world")],
 			sessionProjectPath: null,
 			allProjects: [],
 			scrollContainer: null,
@@ -319,5 +310,20 @@ describe("AgentPanelContent", () => {
 		});
 
 		expect(view.getByTestId("virtualized-entry-list-stub")).toBe(initialList);
+	});
+
+	it("renders VirtualizedEntryList pre-session with pending entry and isWaitingForResponse=true", () => {
+		const view = renderContent(
+			{ kind: "conversation", errorDetails: null },
+			{
+				sessionId: null,
+				sceneEntries: [createUserSceneEntry("user-1", "send this")],
+				isWaitingForResponse: true,
+			}
+		);
+
+		const stub = view.getByTestId("virtualized-entry-list-stub");
+		expect(stub).toBeTruthy();
+		expect(stub.getAttribute("data-waiting")).toBe("true");
 	});
 });

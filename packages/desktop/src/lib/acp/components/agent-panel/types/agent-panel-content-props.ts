@@ -1,5 +1,4 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PanelViewState } from "../../../logic/panel-visibility";
 import type { Project } from "../../../logic/project-manager.svelte";
@@ -16,7 +15,6 @@ export interface AgentPanelContentProps {
 	readonly panelId: string;
 	readonly viewState: PanelViewState;
 	readonly sessionId: string | null;
-	readonly sessionEntries?: readonly SessionEntry[];
 	readonly sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	readonly sessionProjectPath: string | null;
 	readonly allProjects?: readonly Project[];

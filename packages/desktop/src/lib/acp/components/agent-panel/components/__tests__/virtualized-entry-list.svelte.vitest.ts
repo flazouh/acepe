@@ -63,7 +63,7 @@ function renderList(props?: {
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	turnState?: TurnState;
 	isWaitingForResponse?: boolean;
-	sessionId?: string;
+	sessionId?: string | null;
 }): ReturnType<typeof render> {
 	return render(VirtualizedEntryList, {
 		panelId: "panel-1",
@@ -71,7 +71,7 @@ function renderList(props?: {
 		turnState: props?.turnState ?? "idle",
 		isWaitingForResponse: props?.isWaitingForResponse ?? false,
 		projectPath: undefined,
-		sessionId: props?.sessionId ?? "session-1",
+		sessionId: props?.sessionId !== undefined ? props.sessionId : "session-1",
 		isFullscreen: false,
 		onNearBottomChange: undefined,
 	});
@@ -615,5 +615,20 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		// Should not throw
 		view.component.scrollToBottom();
 		view.component.scrollToBottom({ force: true });
+	});
+
+	it("renders scene entries without crash when sessionId is null (pre-session)", async () => {
+		const view = renderList({
+			sceneEntries: [createUserSceneEntry("user-1", "pre-session message")],
+			sessionId: null,
+			isWaitingForResponse: true,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		// user entry + thinking entry = at least 2 stubs
+		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
 });
