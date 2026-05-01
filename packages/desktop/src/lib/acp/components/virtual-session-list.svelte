@@ -8,8 +8,9 @@ import type { AssistantMessage as AssistantMessageType } from "../types/assistan
 import { DEFAULT_STREAMING_ANIMATION_MODE } from "../types/streaming-animation-mode.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { UserMessage as UserMessageType } from "../types/user-message.js";
+import { AgentPanelConversationEntry } from "@acepe/ui";
 import { AskMessage, AssistantMessage, UserMessage } from "./messages/index.js";
-import { ToolCallRouter } from "./tool-calls/index.js";
+import { mapToolCallToSceneEntry } from "./agent-panel/scene/desktop-agent-panel-scene.js";
 import { estimateSessionEntryHeight, SESSION_LIST_OVERSCAN } from "./virtualization-tuning.js";
 
 interface Props {
@@ -129,7 +130,8 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 						{:else if entry.type === "ask"}
 							<AskMessage message={entry.message as AskMessageType} />
 						{:else if entry.type === "tool_call"}
-							<ToolCallRouter toolCall={entry.message as ToolCall} {turnState} {projectPath} />
+						{@const sceneEntry = mapToolCallToSceneEntry(entry.message as ToolCall, turnState, false, null)}
+						<AgentPanelConversationEntry entry={sceneEntry} iconBasePath="/svgs/icons" />
 						{/if}
 					</div>
 				</div>
