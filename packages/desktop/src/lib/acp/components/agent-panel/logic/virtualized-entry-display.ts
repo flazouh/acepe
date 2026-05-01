@@ -21,7 +21,16 @@ export type MergedAssistantDisplayEntry = {
 	isStreaming?: boolean;
 };
 
-export type VirtualizedDisplayEntry = SessionEntry | MergedAssistantDisplayEntry | ThinkingEntry;
+type MissingDisplayEntry = {
+	type: "missing";
+	id: string;
+};
+
+export type VirtualizedDisplayEntry =
+	| SessionEntry
+	| MergedAssistantDisplayEntry
+	| ThinkingEntry
+	| MissingDisplayEntry;
 
 export const THINKING_DISPLAY_ENTRY: ThinkingEntry = {
 	type: "thinking",
@@ -233,7 +242,19 @@ export function buildVirtualizedDisplayEntriesFromScene(
 		}
 
 		if (entry.type === "thinking") {
-			merged.push(THINKING_DISPLAY_ENTRY);
+			merged.push({
+				type: THINKING_DISPLAY_ENTRY.type,
+				id: THINKING_DISPLAY_ENTRY.id,
+				startedAtMs: entry.startedAtMs,
+			});
+			continue;
+		}
+
+		if (entry.type === "missing") {
+			merged.push({
+				id: entry.id,
+				type: "missing",
+			});
 		}
 	}
 
@@ -265,6 +286,10 @@ export function getVirtualizedDisplayEntryTimestampMs(
 
 	if (entry.type === "assistant_merged") {
 		return entry.timestamp?.getTime() ?? null;
+	}
+
+	if (entry.type === "missing") {
+		return null;
 	}
 
 	return entry.timestamp?.getTime() ?? null;

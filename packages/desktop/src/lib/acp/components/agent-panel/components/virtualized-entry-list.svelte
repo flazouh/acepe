@@ -1,6 +1,9 @@
 <script lang="ts">
 import { AgentPanelConversationEntry, setIconConfig } from "@acepe/ui";
-import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
+import type {
+	AgentPanelSceneEntryModel,
+	AssistantRenderBlockContext,
+} from "@acepe/ui/agent-panel";
 import { setContext, untrack } from "svelte";
 import { VList, type VListHandle } from "virtua/svelte";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
@@ -8,9 +11,8 @@ import { getChatPreferencesStore } from "../../../store/chat-preferences-store.s
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
-import AssistantMessage from "../../messages/assistant-message.svelte";
+import ContentBlockRouter from "../../messages/content-block-router.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
-import UserMessage from "../../messages/user-message.svelte";
 import {
 	createAutoScroll,
 	type ScrollPositionProvider,
@@ -34,7 +36,6 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
-import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-agent-panel-scene.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
@@ -64,19 +65,9 @@ type VirtualizedEntryListProps = {
 	onNearTopChange?: (isNearTop: boolean) => void;
 };
 
-type AssistantDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "assistant" }>;
-type UserDisplayEntry = Extract<VirtualizedDisplayEntry, { type: "user" }>;
 type IndexedDisplayEntry = {
 	entry: VirtualizedDisplayEntry;
 	index: number;
-};
-
-const EMPTY_ASSISTANT_MESSAGE: AssistantDisplayEntry["message"] = {
-	chunks: [],
-};
-const EMPTY_USER_MESSAGE: UserDisplayEntry["message"] = {
-	content: { type: "text", text: "" },
-	chunks: [],
 };
 
 let {
@@ -242,52 +233,119 @@ function getKey(entry: VirtualizedDisplayEntry | undefined, index?: number): str
 	return getVirtualizedDisplayEntryKey(entry);
 }
 
-function getUserMessage(entry: VirtualizedDisplayEntry | undefined): UserDisplayEntry["message"] {
-	return entry?.type === "user" ? entry.message : EMPTY_USER_MESSAGE;
-}
-
-function getAssistantMessage(
-	entry: VirtualizedDisplayEntry | undefined
-): AssistantDisplayEntry["message"] {
-	return entry?.type === "assistant" ? entry.message : EMPTY_ASSISTANT_MESSAGE;
-}
-
-function getMergedAssistantMessage(
+function createMergedAssistantSceneEntry(
 	entry: VirtualizedDisplayEntry | undefined,
-	thinkingDurationMs: number | null
-): AssistantDisplayEntry["message"] {
+	thinkingDurationMs: number | null,
+	index: number | undefined
+): AgentPanelSceneEntryModel | undefined {
 	if (entry?.type !== "assistant_merged") {
-		return EMPTY_ASSISTANT_MESSAGE;
+		return undefined;
 	}
 
 	return {
-		chunks: entry.message.chunks,
-		model: entry.message.model,
-		displayModel: entry.message.displayModel,
-		receivedAt: entry.message.receivedAt,
-		thinkingDurationMs: thinkingDurationMs ?? entry.message.thinkingDurationMs,
+		id: entry.key,
+		type: "assistant",
+		markdown: assistantMessageToMarkdown(entry.message),
+		message: {
+			chunks: entry.message.chunks,
+			model: entry.message.model,
+			displayModel: entry.message.displayModel,
+			receivedAt: entry.message.receivedAt,
+			thinkingDurationMs: thinkingDurationMs ?? entry.message.thinkingDurationMs,
+		},
+		isStreaming: isStreamingMergedAssistantEntry(entry, index),
+		revealMessageKey: entry.key,
+		timestampMs: entry.timestamp?.getTime(),
+	};
+}
+
+function assistantMessageToMarkdown(
+	message: Extract<AgentPanelSceneEntryModel, { type: "assistant" }>["message"]
+): string {
+	if (!message) {
+		return "";
+	}
+
+	let text = "";
+	for (const chunk of message.chunks) {
+		if (chunk.type !== "message") {
+			continue;
+		}
+
+		const block = chunk.block;
+		if (block.type === "text") {
+			text += block.text;
+			continue;
+		}
+
+		if (block.type === "resource") {
+			text += block.resource.text ?? block.resource.uri;
+			continue;
+		}
+
+		if (block.type === "image") {
+			text += block.uri ?? "[Image]";
+			continue;
+		}
+
+		if (block.type === "audio") {
+			text += "[Audio]";
+		}
+	}
+
+	return text.trim();
+}
+
+function createThinkingSceneEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	thinkingDurationMs: number | null
+): AgentPanelSceneEntryModel | undefined {
+	if (entry?.type !== "thinking") {
+		return undefined;
+	}
+
+	return {
+		id: entry.id,
+		type: "thinking",
+		durationMs: thinkingDurationMs,
+		startedAtMs: entry.startedAtMs,
+	};
+}
+
+function createMissingSceneEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	index: number | undefined
+): AgentPanelSceneEntryModel {
+	const displayKey = entry ? getVirtualizedDisplayEntryKey(entry) : `missing-entry-${String(index ?? "unknown")}`;
+	reportMissingSceneEntry(entry, index, displayKey);
+	return {
+		id: `missing:${displayKey}`,
+		type: "missing",
+		diagnosticLabel: displayKey,
 	};
 }
 
 function getSharedEntry(
 	entry: VirtualizedDisplayEntry | undefined,
-	thinkingDurationMs: number | null
-) {
+	thinkingDurationMs: number | null,
+	index?: number
+): AgentPanelSceneEntryModel {
 	const graphEntry = getGraphSceneEntry(entry);
 	if (graphEntry !== undefined) {
 		return graphEntry;
 	}
-	return mapVirtualizedDisplayEntryToConversationEntry(
-		entry ?? THINKING_DISPLAY_ENTRY,
-		turnState,
-		isStreaming &&
-			entry !== undefined &&
-			entry.type !== "thinking" &&
-			((entry.type === "assistant" && entry.id === (lastAssistantId ?? "")) ||
-				(entry.type === "assistant_merged" && entry.memberIds.includes(lastAssistantId ?? ""))),
-		activeRootToolCallId,
-		thinkingDurationMs ?? undefined
-	);
+
+	const mergedAssistantEntry = createMergedAssistantSceneEntry(entry, thinkingDurationMs, index);
+	if (mergedAssistantEntry !== undefined) {
+		return mergedAssistantEntry;
+	}
+
+	const thinkingEntry = createThinkingSceneEntry(entry, thinkingDurationMs);
+	if (thinkingEntry !== undefined) {
+		return thinkingEntry;
+	}
+
+	return createMissingSceneEntry(entry, index);
 }
 
 function getGraphSceneEntry(
@@ -296,21 +354,9 @@ function getGraphSceneEntry(
 	return findGraphSceneEntryForDisplayEntry(entry, sceneEntriesById);
 }
 
-function isStreamingAssistantEntry(
-	entry: VirtualizedDisplayEntry | undefined,
-	index: number
-): boolean {
-	return (
-		isStreaming &&
-		entry?.type === "assistant" &&
-		entry.id === (lastAssistantId ?? "") &&
-		index === displayEntries.length - 1
-	);
-}
-
 function isStreamingMergedAssistantEntry(
 	entry: VirtualizedDisplayEntry | undefined,
-	index: number
+	index: number | undefined
 ): boolean {
 	return (
 		isStreaming &&
@@ -358,32 +404,32 @@ function reportMissingVirtualizedEntry(index: number | undefined): void {
 	});
 }
 
-const activeRootToolCallId = $derived.by(() => {
-	if (turnState !== "streaming") {
-		return null;
+let warnedMissingSceneEntryKeys = new Set<string>();
+
+function reportMissingSceneEntry(
+	entry: VirtualizedDisplayEntry | undefined,
+	index: number | undefined,
+	displayKey: string
+): void {
+	if (!import.meta.env.DEV) {
+		return;
 	}
 
-	const sceneArr = sceneEntries ?? [];
-	if (sceneArr.length === 0) {
-		return null;
+	const warningKey = `${sessionId ?? "pre-session"}:${displayKey}`;
+	if (warnedMissingSceneEntryKeys.has(warningKey)) {
+		return;
 	}
+	warnedMissingSceneEntryKeys.add(warningKey);
 
-	const lastEntry = sceneArr[sceneArr.length - 1];
-	if (!lastEntry || lastEntry.type !== "tool_call") {
-		return null;
-	}
-
-	// Use AgentToolEntry.status — "done"/"error"/"cancelled" mean the tool call is finished.
-	if (
-		lastEntry.status === "done" ||
-		lastEntry.status === "error" ||
-		lastEntry.status === "cancelled"
-	) {
-		return null;
-	}
-
-	return lastEntry.id;
-});
+	console.warn("[AGENT_PANEL_MISSING_SCENE_ENTRY]", {
+		panelId,
+		sessionId,
+		index,
+		displayKey,
+		displayEntryType: entry?.type,
+		sceneEntryCount: sceneEntries?.length ?? 0,
+	});
+}
 
 // ===== DISPLAY ENTRIES =====
 const mergedEntries = $derived(buildVirtualizedDisplayEntriesFromScene(sceneEntries ?? []));
@@ -749,6 +795,21 @@ export function scrollToTop() {
 	- contain: strict prevents layout recalculation from propagating to parent
 -->
 <div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
+	{#snippet renderAssistantBlock(context: AssistantRenderBlockContext)}
+		{#if context.group.type === "text"}
+			<ContentBlockRouter
+				block={{ type: "text", text: context.group.text }}
+				isStreaming={context.isStreaming}
+				revealKey={context.revealKey}
+				{projectPath}
+				{streamingAnimationMode}
+				onRevealActivityChange={context.onRevealActivityChange}
+			/>
+		{:else}
+			<ContentBlockRouter block={context.group.block} {projectPath} />
+		{/if}
+	{/snippet}
+
 	{#snippet renderEntry(entry: VirtualizedDisplayEntry | undefined, index: number)}
 		{#if entry}
 			{@const mergedThoughtDurationMs = resolveDisplayEntryThinkingDurationMs(
@@ -756,7 +817,7 @@ export function scrollToTop() {
 				index,
 				thinkingNowMs
 			)}
-			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs)}
+			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs, index)}
 			<MessageWrapper
 				entryIndex={index}
 				entryKey={getKey(entry, index)}
@@ -767,27 +828,14 @@ export function scrollToTop() {
 				revealEntryIndex={revealDisplayIndex}
 				{isFullscreen}
 			>
-				{#if entry.type === "user"}
-					<UserMessage message={getUserMessage(entry)} />
-				{:else if entry.type === "assistant"}
-					<AssistantMessage
-						message={getAssistantMessage(entry)}
-						isStreaming={isStreamingAssistantEntry(entry, index)}
-						revealMessageKey={getKey(entry, index)}
-						{projectPath}
-						{streamingAnimationMode}
-					/>
-				{:else if entry.type === "assistant_merged"}
-					<AssistantMessage
-						message={getMergedAssistantMessage(entry, mergedThoughtDurationMs)}
-						isStreaming={isStreamingMergedAssistantEntry(entry, index)}
-						revealMessageKey={getKey(entry, index)}
-						{projectPath}
-						{streamingAnimationMode}
-					/>
-					{:else}
-					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" {editToolTheme} />
-				{/if}
+				<AgentPanelConversationEntry
+					entry={sharedEntry}
+					iconBasePath="/svgs/icons"
+					{editToolTheme}
+					{projectPath}
+					{streamingAnimationMode}
+					renderAssistantBlock={renderAssistantBlock}
+				/>
 			</MessageWrapper>
 		{:else}
 			{@const _missingEntryWarning = reportMissingVirtualizedEntry(index)}

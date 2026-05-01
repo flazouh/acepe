@@ -1130,6 +1130,13 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 		};
 	}
 
+	if (entry.type === "missing") {
+		return {
+			id: entry.id,
+			type: "missing",
+		};
+	}
+
 	const mapped = mapSessionEntryToConversationEntry(entry, turnState, activeToolCallId);
 	if (mapped.type === "assistant") {
 		return {

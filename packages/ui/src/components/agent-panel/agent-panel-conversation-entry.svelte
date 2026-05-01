@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { WorkerPoolManager } from "@pierre/diffs/worker";
+	import type { Snippet } from "svelte";
 	import type { AgentPanelConversationEntry } from "./types.js";
+	import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
+	import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 
 	import AgentAssistantMessage from "./agent-assistant-message.svelte";
 	import AgentToolExecute from "./agent-tool-execute.svelte";
@@ -29,13 +32,32 @@
 		unsafeCSS?: string;
 	}
 
+	export interface AssistantRenderBlockContext {
+		group: ChunkGroup;
+		isStreaming?: boolean;
+		revealKey?: string;
+		projectPath?: string;
+		streamingAnimationMode?: StreamingAnimationMode;
+		onRevealActivityChange?: (active: boolean) => void;
+	}
+
 	interface Props {
 		entry: AgentPanelConversationEntry;
 		iconBasePath?: string;
 		editToolTheme?: EditToolTheme;
+		projectPath?: string;
+		streamingAnimationMode?: StreamingAnimationMode;
+		renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
 	}
 
-	let { entry, iconBasePath = "", editToolTheme }: Props = $props();
+	let {
+		entry,
+		iconBasePath = "",
+		editToolTheme,
+		projectPath,
+		streamingAnimationMode = "smooth",
+		renderAssistantBlock,
+	}: Props = $props();
 
 	function isToolCall(
 		value: AgentPanelConversationEntry,
@@ -56,12 +78,15 @@
 	<AgentUserMessage text={entry.text} />
 {:else if entry.type === "assistant"}
 	<AgentAssistantMessage
-		message={{
+		message={entry.message ?? {
 			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 		}}
 		isStreaming={entry.isStreaming}
 		revealMessageKey={entry.revealMessageKey}
+		{projectPath}
+		{streamingAnimationMode}
 		{iconBasePath}
+		renderBlock={renderAssistantBlock}
 	/>
 {:else if entry.type === "thinking"}
 	<AgentToolRow title={getPlanningPlaceholderLabel(entry.durationMs)} status="running" padded={false} />

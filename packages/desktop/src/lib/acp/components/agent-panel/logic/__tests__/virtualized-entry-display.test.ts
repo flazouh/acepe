@@ -307,6 +307,25 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 		}
 	});
 
+	it("preserves first-class missing scene entries as display rows", () => {
+		const scene: AgentPanelSceneEntryModel[] = [
+			{
+				id: "missing-1",
+				type: "missing",
+				diagnosticLabel: "scene:missing-1",
+			},
+		];
+
+		const result = buildVirtualizedDisplayEntriesFromScene(scene);
+
+		expect(result).toEqual([
+			{
+				id: "missing-1",
+				type: "missing",
+			},
+		]);
+	});
+
 	it("merges consecutive assistant entries into a single MergedAssistantDisplayEntry", () => {
 		const scene: AgentPanelSceneEntryModel[] = [
 			{ type: "assistant", id: "a1", markdown: "first", isStreaming: false },

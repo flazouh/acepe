@@ -2,6 +2,7 @@
  * Presentational types for the shared AgentPanel components.
  * No Tauri, store, or desktop dependencies.
  */
+import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 
 export type AgentSessionStatus =
 	| "empty"
@@ -59,6 +60,7 @@ export interface AgentAssistantEntry {
 	id: string;
 	type: "assistant";
 	markdown: string;
+	message?: AssistantMessage;
 	isStreaming?: boolean;
 	revealMessageKey?: string;
 	timestampMs?: number;

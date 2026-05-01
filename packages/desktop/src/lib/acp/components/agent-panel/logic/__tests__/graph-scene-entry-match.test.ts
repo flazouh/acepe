@@ -117,4 +117,22 @@ describe("findGraphSceneEntryForDisplayEntry", () => {
 			)
 		).toBe(sceneEntry);
 	});
+
+	it("matches first-class missing display rows by scene id without transcript fallback", () => {
+		const sceneEntry: AgentPanelSceneEntryModel = {
+			id: "missing-1",
+			type: "missing",
+			diagnosticLabel: "missing-1",
+		};
+
+		expect(
+			findGraphSceneEntryForDisplayEntry(
+				{
+					id: "missing-1",
+					type: "missing",
+				},
+				createGraphSceneEntryIndex([sceneEntry])
+			)
+		).toBe(sceneEntry);
+	});
 });

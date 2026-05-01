@@ -7,6 +7,7 @@ import type { TurnState } from "../../../../store/types.js";
 
 import {
 	clearHistory,
+	conversationEntryHistory,
 	dataLengthHistory,
 	renderedItemHistory,
 	scrollToIndexCalls,
@@ -127,12 +128,16 @@ vi.mock("virtua/svelte", async () => ({
 	VList: (await import("./fixtures/vlist-stub.svelte")).default,
 }));
 
-vi.mock("../../../messages/user-message.svelte", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
+vi.mock("../../../messages/user-message.svelte", () => {
+	throw new Error("VirtualizedEntryList must render user rows through AgentPanelConversationEntry");
+});
 
-vi.mock("../../../messages/assistant-message.svelte", async () => ({
-	default: (await import("./fixtures/assistant-message-prop-reader.svelte")).default,
+vi.mock("../../../messages/assistant-message.svelte", () => {
+	throw new Error("VirtualizedEntryList must render assistant rows through AgentPanelConversationEntry");
+});
+
+vi.mock("../../../messages/content-block-router.svelte", async () => ({
+	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
 vi.mock("../../../messages/error-message.svelte", async () => ({
@@ -140,7 +145,7 @@ vi.mock("../../../messages/error-message.svelte", async () => ({
 }));
 
 vi.mock("@acepe/ui", async () => ({
-	AgentPanelConversationEntry: (await import("./fixtures/user-message-stub.svelte")).default,
+	AgentPanelConversationEntry: (await import("./fixtures/agent-panel-conversation-entry-stub.svelte")).default,
 	AgentPanelSceneEntry: (await import("./fixtures/user-message-stub.svelte")).default,
 	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
@@ -243,7 +248,7 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		expect(view.queryByTestId("native-fallback")).not.toBeNull();
 		expect(view.queryByTestId("vlist-stub")).toBeNull();
 
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
 
@@ -271,8 +276,34 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 		await tick();
 
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("routes user, assistant, tool, and thinking rows through AgentPanelConversationEntry", async () => {
+		renderList({
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createAssistantSceneEntry("assistant-1", "world"),
+				createToolCallSceneEntry("tool-1"),
+			],
+			isWaitingForResponse: true,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(conversationEntryHistory.map((entry) => entry.type)).toEqual([
+			"user",
+			"assistant",
+			"tool_call",
+			"thinking",
+		]);
+		expect(conversationEntryHistory[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			revealMessageKey: "assistant-1",
+		});
 	});
 
 	it("ignores transient undefined rows from Virtua during data churn", async () => {
@@ -302,7 +333,7 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 
 		expect(renderedItemHistory.some((item) => item.index === 0 && item.isUndefined)).toBe(true);
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		expect(stubs.length).toBe(0);
 		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
 	});
@@ -345,7 +376,7 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 		await tick();
 
-		expect(view.queryByTestId("assistant-message-stub")).not.toBeNull();
+		expect(view.queryByTestId("agent-panel-conversation-entry-stub")).not.toBeNull();
 
 		setUndefinedRenderedIndexes([0]);
 
@@ -374,8 +405,8 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 
 		// The thinking entry is appended to displayEntries when isWaitingForResponse is true
-		// It renders via the TextShimmer stub (which uses user-message-stub)
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		// It renders through the shared conversation entry stub.
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		// user entry + thinking entry = at least 2 stubs
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
@@ -596,8 +627,8 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 		await tick();
 
-		// Tool calls render via AgentPanelConversationEntry (stubbed with user-message-stub)
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		// Tool calls render via AgentPanelConversationEntry.
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		expect(stubs.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -707,7 +738,7 @@ describe("VirtualizedEntryList auto-scroll", () => {
 		await tick();
 		await tick();
 
-		const stubs = view.container.querySelectorAll("[data-testid='user-message-stub']");
+		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
 		// user entry + thinking entry = at least 2 stubs
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});

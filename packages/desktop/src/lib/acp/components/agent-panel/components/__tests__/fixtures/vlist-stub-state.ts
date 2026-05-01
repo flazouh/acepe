@@ -1,3 +1,5 @@
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
+
 export const dataLengthHistory: number[] = [];
 
 export const scrollToIndexCalls: Array<{
@@ -8,6 +10,7 @@ export const renderedItemHistory: Array<{
 	index: number;
 	isUndefined: boolean;
 }> = [];
+export const conversationEntryHistory: AgentPanelSceneEntryModel[] = [];
 
 let defaultViewportSize = 100;
 let suppressRenderedChildren = false;
@@ -18,6 +21,7 @@ export function clearHistory(): void {
 	dataLengthHistory.length = 0;
 	scrollToIndexCalls.length = 0;
 	renderedItemHistory.length = 0;
+	conversationEntryHistory.length = 0;
 	defaultViewportSize = 100;
 	suppressRenderedChildren = false;
 	undefinedRenderedIndexes = new Set<number>();
@@ -26,6 +30,10 @@ export function clearHistory(): void {
 
 export function recordRenderedItem(index: number, isUndefined: boolean): void {
 	renderedItemHistory.push({ index, isUndefined });
+}
+
+export function recordConversationEntry(entry: AgentPanelSceneEntryModel): void {
+	conversationEntryHistory.push(entry);
 }
 
 export function getDefaultViewportSize(): number {

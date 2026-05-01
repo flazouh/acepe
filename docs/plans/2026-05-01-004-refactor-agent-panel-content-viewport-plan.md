@@ -258,7 +258,7 @@ Target split:
 - Shared UI has real rendering coverage for all row kinds needed by the desktop viewport.
 - No desktop stores, Tauri APIs, or app-specific logic are introduced into `packages/ui`.
 
-- [ ] **Unit 3: Remove desktop-local message branches from the content viewport**
+- [x] **Unit 3: Remove desktop-local message branches from the content viewport**
 
 **Goal:** Make the main agent-panel viewport render every row through scene entries and remove silent transcript-derived fallback.
 
