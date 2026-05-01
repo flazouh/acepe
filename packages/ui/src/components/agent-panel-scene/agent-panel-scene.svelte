@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "../agent-panel/types.js";
+	import type { EditToolTheme } from "../agent-panel/agent-panel-conversation-entry.svelte";
 
 	import AgentPanelShell from "../agent-panel/agent-panel-shell.svelte";
 import AgentPanelComposer from "../agent-panel/agent-panel-composer.svelte";
@@ -19,6 +20,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		iconBasePath?: string;
 		widthStyle?: string;
 		centerColumnStyle?: string;
+		editToolTheme?: EditToolTheme;
 		headerControls?: Snippet;
 		topBarOverride?: Snippet;
 		conversationBody?: Snippet;
@@ -37,6 +39,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		iconBasePath = "",
 		widthStyle = "",
 		centerColumnStyle = "",
+		editToolTheme,
 		headerControls,
 		topBarOverride,
 		conversationBody,
@@ -83,7 +86,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		{#if conversationBody}
 			{@render conversationBody()}
 		{:else}
-			<AgentPanelSceneConversation conversation={scene.conversation} {iconBasePath} />
+			<AgentPanelSceneConversation conversation={scene.conversation} {iconBasePath} {editToolTheme} />
 		{/if}
 	{/snippet}
 

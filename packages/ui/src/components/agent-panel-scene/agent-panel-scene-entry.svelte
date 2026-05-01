@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { WorkerPoolManager } from "@pierre/diffs/worker";
 	import type {
 		AgentPanelConversationEntry as AgentPanelConversationEntryModel,
 		AnyAgentEntry,
@@ -20,13 +21,15 @@
 	import AgentToolWebSearch from "../agent-panel/agent-tool-web-search.svelte";
 	import AgentUserMessage from "../agent-panel/agent-user-message.svelte";
 	import { getPlanningPlaceholderLabel } from "../agent-panel/planning-label.js";
+	import type { EditToolTheme } from "../agent-panel/agent-panel-conversation-entry.svelte";
 
 	interface Props {
 		entry: AgentPanelConversationEntryModel;
 		iconBasePath?: string;
+		editToolTheme?: EditToolTheme;
 	}
 
-	let { entry, iconBasePath = "" }: Props = $props();
+	let { entry, iconBasePath = "", editToolTheme }: Props = $props();
 
 	function isToolCall(
 		value: AgentPanelConversationEntryModel
@@ -196,6 +199,11 @@
 		applied={entry.status === "done"}
 		awaitingApproval={entry.presentationState === "pending_operation"}
 		iconBasePath={iconBasePath}
+		theme={editToolTheme?.theme}
+		themeNames={editToolTheme?.themeNames}
+		workerPool={editToolTheme?.workerPool}
+		onBeforeRender={editToolTheme?.onBeforeRender}
+		unsafeCSS={editToolTheme?.unsafeCSS}
 	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
@@ -248,9 +256,9 @@
 	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
 		<p class="text-sm font-medium text-destructive">{entry.title}</p>
 		{#if entry.subtitle}
-			<p class="mt-1 text-[11px] text-muted-foreground">{entry.subtitle}</p>
+			<p class="mt-1 text-sm text-muted-foreground">{entry.subtitle}</p>
 		{/if}
-		<p class="mt-2 whitespace-pre-wrap text-xs text-foreground">{entry.resultText}</p>
+		<p class="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.resultText}</p>
 	</div>
 {:else if isToolCall(entry)}
 	<AgentToolOther

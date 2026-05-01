@@ -20,6 +20,12 @@ import {
 	isPermissionRepresentedByToolCall,
 	visiblePermissionsForSessionBar,
 } from "./permission-visibility.js";
+import { useTheme } from "../../../components/theme/context.svelte.js";
+import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
+import {
+	pierreDiffsUnsafeCSS,
+	registerCursorThemeForPierreDiffs,
+} from "../../utils/pierre-diffs-theme.js";
 
 interface Props {
 	sessionId: string;
@@ -77,6 +83,10 @@ const currentToolCall = $derived.by((): ToolCall | null => {
 const showEditPreview = $derived(
 	showCompactEditPreview && currentToolCall !== null && currentToolCall.kind === "edit"
 );
+
+// ===== EDIT TOOL THEME =====
+const themeState = useTheme();
+const editTheme = $derived(themeState.effectiveTheme);
 </script>
 
 
@@ -132,6 +142,11 @@ const showEditPreview = $derived(
 						awaitingApproval={true}
 						defaultExpanded={false}
 						iconBasePath="/svgs/icons"
+						theme={editTheme}
+						themeNames={{ dark: "Cursor Dark", light: "pierre-light" }}
+						workerPool={getWorkerPool()}
+						onBeforeRender={registerCursorThemeForPierreDiffs}
+						unsafeCSS={pierreDiffsUnsafeCSS}
 					/>
 				{/if}
 			{/if}

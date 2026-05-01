@@ -11,6 +11,12 @@ import type { UserMessage as UserMessageType } from "../types/user-message.js";
 import { AgentPanelConversationEntry } from "@acepe/ui";
 import { AskMessage, AssistantMessage, UserMessage } from "./messages/index.js";
 import { mapToolCallToSceneEntry } from "./agent-panel/scene/desktop-agent-panel-scene.js";
+import { useTheme } from "../../components/theme/context.svelte.js";
+import { getWorkerPool } from "../utils/worker-pool-singleton.js";
+import {
+	pierreDiffsUnsafeCSS,
+	registerCursorThemeForPierreDiffs,
+} from "../utils/pierre-diffs-theme.js";
 import { estimateSessionEntryHeight, SESSION_LIST_OVERSCAN } from "./virtualization-tuning.js";
 
 interface Props {
@@ -26,6 +32,16 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
+
+// ===== EDIT TOOL THEME =====
+const themeState = useTheme();
+const editToolTheme = $derived({
+	theme: themeState.effectiveTheme,
+	themeNames: { dark: "Cursor Dark", light: "pierre-light" },
+	workerPool: getWorkerPool(),
+	onBeforeRender: registerCursorThemeForPierreDiffs,
+	unsafeCSS: pierreDiffsUnsafeCSS,
+});
 const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
 	count: 0,
 	getScrollElement: () => scrollElement,
@@ -131,7 +147,7 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 							<AskMessage message={entry.message as AskMessageType} />
 						{:else if entry.type === "tool_call"}
 						{@const sceneEntry = mapToolCallToSceneEntry(entry.message as ToolCall, turnState, false, null)}
-						<AgentPanelConversationEntry entry={sceneEntry} iconBasePath="/svgs/icons" />
+						<AgentPanelConversationEntry entry={sceneEntry} iconBasePath="/svgs/icons" {editToolTheme} />
 						{/if}
 					</div>
 				</div>

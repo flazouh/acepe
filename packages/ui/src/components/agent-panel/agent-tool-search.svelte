@@ -234,7 +234,7 @@
 		width: 100%;
 		min-width: max-content;
 		border-collapse: collapse;
-		font-size: 0.8125rem;
+		font-size: 0.875rem;
 		line-height: 1.4;
 	}
 

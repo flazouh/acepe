@@ -35,6 +35,12 @@ import {
 	type VirtualizedDisplayEntry,
 } from "../logic/virtualized-entry-display.js";
 import { mapVirtualizedDisplayEntryToConversationEntry } from "../scene/desktop-agent-panel-scene.js";
+import { useTheme } from "../../../../components/theme/context.svelte.js";
+import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
+import {
+	pierreDiffsUnsafeCSS,
+	registerCursorThemeForPierreDiffs,
+} from "../../../utils/pierre-diffs-theme.js";
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
@@ -93,6 +99,16 @@ const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
 const sceneEntriesById = $derived(createGraphSceneEntryIndex(sceneEntries));
+
+// ===== EDIT TOOL THEME =====
+const themeState = useTheme();
+const editToolTheme = $derived({
+	theme: themeState.effectiveTheme,
+	themeNames: { dark: "Cursor Dark", light: "pierre-light" },
+	workerPool: getWorkerPool(),
+	onBeforeRender: registerCursorThemeForPierreDiffs,
+	unsafeCSS: pierreDiffsUnsafeCSS,
+});
 let thinkingNowMs = $state(Date.now());
 
 $effect(() => {
@@ -770,7 +786,7 @@ export function scrollToTop() {
 						{streamingAnimationMode}
 					/>
 					{:else}
-					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" />
+					<AgentPanelConversationEntry entry={sharedEntry} iconBasePath="/svgs/icons" {editToolTheme} />
 				{/if}
 			</MessageWrapper>
 		{:else}

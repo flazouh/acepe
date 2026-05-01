@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { WorkerPoolManager } from "@pierre/diffs/worker";
 	import type { AgentPanelConversationEntry } from "./types.js";
 
 	import AgentAssistantMessage from "./agent-assistant-message.svelte";
@@ -19,12 +20,21 @@
 	import AgentUserMessage from "./agent-user-message.svelte";
 	import { getPlanningPlaceholderLabel } from "./planning-label.js";
 
+	export interface EditToolTheme {
+		theme?: "light" | "dark";
+		themeNames?: { dark: string; light: string };
+		workerPool?: WorkerPoolManager;
+		onBeforeRender?: () => Promise<void>;
+		unsafeCSS?: string;
+	}
+
 	interface Props {
 		entry: AgentPanelConversationEntry;
 		iconBasePath?: string;
+		editToolTheme?: EditToolTheme;
 	}
 
-	let { entry, iconBasePath = "" }: Props = $props();
+	let { entry, iconBasePath = "", editToolTheme }: Props = $props();
 
 	function isToolCall(
 		value: AgentPanelConversationEntry,
@@ -86,6 +96,11 @@
 		applied={entry.status === "done"}
 		awaitingApproval={entry.presentationState === "pending_operation"}
 		iconBasePath={iconBasePath}
+		theme={editToolTheme?.theme}
+		themeNames={editToolTheme?.themeNames}
+		workerPool={editToolTheme?.workerPool}
+		onBeforeRender={editToolTheme?.onBeforeRender}
+		unsafeCSS={editToolTheme?.unsafeCSS}
 	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
