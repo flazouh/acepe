@@ -162,6 +162,58 @@ const features = [
 		],
 	},
 	{
+		id: "parallel",
+		icon: ArrowsOutSimple,
+		label: "Parallel Sessions & Focus",
+		tag: "workflow",
+		description:
+			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
+		usecases: [
+			"Run agents on separate tasks and see all of them making progress at once",
+			"Work across multiple repos at the same time without losing track",
+			"Have 10 agents working across different projects with full visibility into each",
+		],
+	},
+	{
+		id: "queue",
+		icon: Queue,
+		label: "Attention Queue",
+		tag: "triage",
+		description:
+			"Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
+		usecases: [
+			"Answer-needed sessions stay at the top until you respond",
+			"See errors and active work before idle sessions",
+			"Switch context quickly without hunting through terminals",
+		],
+	},
+	{
+		id: "kanban",
+		icon: Kanban,
+		label: "Kanban Board",
+		tag: "view",
+		description:
+			"See every session as a card across columns: Working, Needs review, Done. Drag-and-drop, batch actions, project grouping — without leaving the app.",
+		usecases: [
+			"Triage dozens of sessions at a glance",
+			"Group by project, status, or attention level",
+			"Move sessions through your pipeline like JIRA tickets",
+		],
+	},
+	{
+		id: "review",
+		icon: Check,
+		label: "Review Workspace",
+		tag: "verify",
+		description:
+			"Inspect every modified file before you ship. Side-by-side diffs, accept/reject per hunk, and PR card preview — the gate between agent output and main.",
+		usecases: [
+			"Step through every file the agent touched",
+			"Accept or reject changes hunk by hunk",
+			"Preview the PR card before opening it",
+		],
+	},
+	{
 		id: "plan-mode",
 		icon: Lightning,
 		label: "Plan Mode",
@@ -185,71 +237,6 @@ const features = [
 			"Auto-checkpoints capture state after each tool run",
 			"Revert entire project or individual files to any checkpoint",
 			"Roll back to any checkpoint when the agent goes in the wrong direction",
-		],
-	},
-	{
-		id: "sessions",
-		icon: ClockCounterClockwise,
-		label: "Session Management",
-		tag: "history",
-		description:
-			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
-		usecases: [
-			"Search and filter across all your agent interactions",
-			"Recover context from previous sessions instantly",
-			"Organize sessions by project for easy reference",
-		],
-	},
-	{
-		id: "keyboard",
-		icon: Command,
-		label: "Keyboard-First",
-		tag: "input",
-		description:
-			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
-		usecases: [
-			"Navigate entirely with keyboard shortcuts for flow state",
-			"Customize shortcuts to match your muscle memory",
-			"Discover new shortcuts with the searchable command palette",
-		],
-	},
-	{
-		id: "queue",
-		icon: Queue,
-		label: "Attention Queue",
-		tag: "triage",
-		description:
-			"Sessions sorted by urgency. Questions waiting for you, active errors, and running agents rise to the top. Idle sessions stay out of the way.",
-		usecases: [
-			"Answer-needed sessions stay at the top until you respond",
-			"See errors and active work before idle sessions",
-			"Switch context quickly without hunting through terminals",
-		],
-	},
-	{
-		id: "parallel",
-		icon: ArrowsOutSimple,
-		label: "Parallel Sessions & Focus",
-		tag: "workflow",
-		description:
-			"Split your screen between agents working on different tasks. Tab between sessions like a browser. Go full-screen on one when you need to dig in.",
-		usecases: [
-			"Run agents on separate tasks and see all of them making progress at once",
-			"Work across multiple repos at the same time without losing track",
-			"Have 10 agents working across different projects with full visibility into each",
-		],
-	},
-	{
-		id: "kanban",
-		icon: Kanban,
-		label: "Kanban Board",
-		tag: "view",
-		description:
-			"See every session as a card across columns: Working, Needs review, Done. Drag-and-drop, batch actions, project grouping — without leaving the app.",
-		usecases: [
-			"Triage dozens of sessions at a glance",
-			"Group by project, status, or attention level",
-			"Move sessions through your pipeline like JIRA tickets",
 		],
 	},
 	{
@@ -279,16 +266,29 @@ const features = [
 		],
 	},
 	{
-		id: "review",
-		icon: Check,
-		label: "Review Workspace",
-		tag: "verify",
+		id: "sessions",
+		icon: ClockCounterClockwise,
+		label: "Session Management",
+		tag: "history",
 		description:
-			"Inspect every modified file before you ship. Side-by-side diffs, accept/reject per hunk, and PR card preview — the gate between agent output and main.",
+			"The CLI doesn't track your history across projects. Acepe indexes every session, searchable and filterable. Find that solution you wrote last week.",
 		usecases: [
-			"Step through every file the agent touched",
-			"Accept or reject changes hunk by hunk",
-			"Preview the PR card before opening it",
+			"Search and filter across all your agent interactions",
+			"Recover context from previous sessions instantly",
+			"Organize sessions by project for easy reference",
+		],
+	},
+	{
+		id: "keyboard",
+		icon: Command,
+		label: "Keyboard-First",
+		tag: "input",
+		description:
+			"⌘K command palette. ⌘L switch agent. ⌘/ change model. ⌘N new thread. Every action has a shortcut. Your mouse can rest.",
+		usecases: [
+			"Navigate entirely with keyboard shortcuts for flow state",
+			"Customize shortcuts to match your muscle memory",
+			"Discover new shortcuts with the searchable command palette",
 		],
 	},
 	{
@@ -315,19 +315,6 @@ const features = [
 			"Tail logs while the agent is mid-task",
 			"Run quick scripts without leaving the session",
 			"Multiple terminal tabs per agent panel",
-		],
-	},
-	{
-		id: "voice",
-		icon: Microphone,
-		label: "Voice Input",
-		tag: "input",
-		description:
-			"Dictate prompts with your voice. Real-time transcription, push-to-talk, and language model selection — for when typing slows you down.",
-		usecases: [
-			"Brain-dump a task at the speed of speech",
-			"Switch transcription models for accuracy or latency",
-			"Hands-free prompting while reviewing code",
 		],
 	},
 	{
@@ -367,6 +354,19 @@ const features = [
 			"Connect to local or remote databases with saved connections",
 			"Browse schemas and tables, run queries, inspect results",
 			"Execute data-changing SQL with explicit write mode control",
+		],
+	},
+	{
+		id: "voice",
+		icon: Microphone,
+		label: "Voice Input",
+		tag: "input",
+		description:
+			"Dictate prompts with your voice. Real-time transcription, push-to-talk, and language model selection — for when typing slows you down.",
+		usecases: [
+			"Brain-dump a task at the speed of speech",
+			"Switch transcription models for accuracy or latency",
+			"Hands-free prompting while reviewing code",
 		],
 	},
 ];
@@ -525,55 +525,61 @@ class:md:[direction:rtl]={i % 2 === 1}
 {#if feature.id === "multi-agent"}
 <AgentSelectionGrid agents={mockGridAgents} selectedAgentId="claude-code" />
 {:else if feature.id === "parallel"}
-<div class="parallel-illustration relative flex w-full flex-col items-center justify-center gap-4 py-2">
-<!-- Three stacked agent panel cards, offset like a deck -->
-<div class="relative h-32 w-full">
-<div class="parallel-card absolute left-[8%] top-2 w-[44%] rotate-[-4deg]">
-<div class="rounded-md border border-border/60 bg-card shadow-xl">
-<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/30 px-2 py-1">
-<span class="h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
-<span class="font-mono text-[9px] text-foreground/70">claude · auth</span>
-</div>
-<div class="space-y-1 p-2">
-<div class="h-1 w-full rounded-full bg-muted-foreground/20"></div>
-<div class="h-1 w-3/4 rounded-full bg-muted-foreground/20"></div>
-<div class="h-1 w-5/6 rounded-full bg-primary/50"></div>
-</div>
-</div>
-</div>
-<div class="parallel-card absolute right-[8%] top-2 w-[44%] rotate-[4deg]">
-<div class="rounded-md border border-border/60 bg-card shadow-xl">
-<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/30 px-2 py-1">
-<span class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
-<span class="font-mono text-[9px] text-foreground/70">codex · api</span>
-</div>
-<div class="space-y-1 p-2">
-<div class="h-1 w-full rounded-full bg-muted-foreground/20"></div>
-<div class="h-1 w-2/3 rounded-full bg-success/60"></div>
-<div class="h-1 w-4/5 rounded-full bg-muted-foreground/20"></div>
-</div>
-</div>
-</div>
-<div class="parallel-card absolute left-1/2 top-8 -translate-x-1/2 w-[48%]">
-<div class="rounded-md border-2 border-primary/60 bg-card shadow-2xl ring-2 ring-primary/30">
-<div class="flex items-center gap-1.5 border-b border-border/40 bg-primary/10 px-2 py-1">
-<span class="h-1.5 w-1.5 rounded-full bg-warning animate-pulse"></span>
-<span class="font-mono text-[9px] font-semibold text-foreground">cursor · ui</span>
-</div>
-<div class="space-y-1 p-2">
-<div class="h-1 w-full rounded-full bg-muted-foreground/20"></div>
-<div class="h-1 w-5/6 rounded-full bg-warning/60"></div>
-<div class="h-1 w-3/5 rounded-full bg-muted-foreground/20"></div>
-<div class="h-1 w-4/5 rounded-full bg-primary/50"></div>
-</div>
-</div>
-</div>
-</div>
-<div class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-<span>3 sessions</span>
-<span class="text-primary">·</span>
-<span>1 focused</span>
-</div>
+<div class="parallel-illustration flex h-full w-full items-stretch gap-2 p-2">
+	<!-- Left agent panel -->
+	<div class="parallel-panel parallel-panel-muted relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
+		<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1.5">
+			<img src="/svgs/agents/claude/claude-icon-dark.svg" alt="Claude" class="h-3 w-3" />
+			<span class="font-mono text-[8px] font-medium text-foreground/70">claude · auth</span>
+			<span class="ml-auto h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
+		</div>
+		<div class="flex flex-1 flex-col gap-1.5 p-2">
+			<div class="h-1 w-full rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-3/4 rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-5/6 rounded-full bg-muted-foreground/20"></div>
+			<div class="mt-1 h-1 w-2/3 rounded-full bg-primary/40"></div>
+			<div class="h-1 w-4/5 rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-3/5 rounded-full bg-muted-foreground/20"></div>
+		</div>
+	</div>
+
+	<!-- Middle agent panel (focused) -->
+	<div class="parallel-panel parallel-panel-active relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
+		<div class="flex items-center gap-1.5 border-b border-border/50 px-2 py-1.5" style="background: color-mix(in srgb, #9858FF 12%, transparent);">
+			<img src="/svgs/agents/cursor/cursor-icon-dark.svg" alt="Cursor" class="h-3 w-3" />
+			<span class="font-mono text-[8px] font-semibold text-foreground">cursor · ui</span>
+			<span class="ml-auto flex h-1.5 w-1.5">
+				<span class="absolute inline-flex h-1.5 w-1.5 animate-ping rounded-full opacity-75" style="background: #22C55E;"></span>
+				<span class="relative inline-flex h-1.5 w-1.5 rounded-full" style="background: #22C55E;"></span>
+			</span>
+		</div>
+		<div class="flex flex-1 flex-col gap-1.5 p-2">
+			<div class="h-1 w-full rounded-full bg-muted-foreground/25"></div>
+			<div class="h-1 w-5/6 rounded-full bg-muted-foreground/25"></div>
+			<div class="mt-1 h-1 w-3/4 rounded-full" style="background: color-mix(in srgb, #9858FF 60%, transparent);"></div>
+			<div class="h-1 w-4/5 rounded-full" style="background: color-mix(in srgb, #9858FF 50%, transparent);"></div>
+			<div class="h-1 w-2/3 rounded-full bg-muted-foreground/25"></div>
+			<div class="h-1 w-5/6 rounded-full bg-muted-foreground/25"></div>
+			<div class="mt-1 h-1 w-3/5 rounded-full" style="background: color-mix(in srgb, #9858FF 60%, transparent);"></div>
+		</div>
+	</div>
+
+	<!-- Right agent panel -->
+	<div class="parallel-panel parallel-panel-muted relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
+		<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1.5">
+			<img src="/svgs/agents/codex/codex-icon-dark.svg" alt="Codex" class="h-3 w-3" />
+			<span class="font-mono text-[8px] font-medium text-foreground/70">codex · api</span>
+			<span class="ml-auto h-1.5 w-1.5 rounded-full bg-warning animate-pulse"></span>
+		</div>
+		<div class="flex flex-1 flex-col gap-1.5 p-2">
+			<div class="h-1 w-full rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-2/3 rounded-full bg-success/40"></div>
+			<div class="h-1 w-4/5 rounded-full bg-muted-foreground/20"></div>
+			<div class="mt-1 h-1 w-3/4 rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-1/2 rounded-full bg-muted-foreground/20"></div>
+			<div class="h-1 w-5/6 rounded-full bg-muted-foreground/20"></div>
+		</div>
+	</div>
 </div>
 {:else if feature.id === "plan-mode"}
 <div class="overflow-hidden rounded-lg bg-card shadow-2xl">
@@ -584,7 +590,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <CheckpointTimeline checkpoints={mockCheckpoints.slice(0, 4)} showRevertButtons={false} />
 </div>
 {:else if feature.id === "sessions"}
-<div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur">
+<div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur" style="width: 303px;">
 <div class="border-b border-border/50 px-3 py-2">
 <div class="flex h-7 items-center gap-2 rounded-md border border-border/40 bg-background px-2.5 font-mono text-[11px] text-muted-foreground/70">
 <MagnifyingGlass size={11} />
@@ -736,7 +742,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 </div>
 </div>
 {:else if feature.id === "terminal"}
-<div class="overflow-hidden rounded-lg border border-border/50 bg-[#0a0a0a] shadow-2xl">
+<div class="overflow-hidden rounded-lg border border-border/50 bg-[#0a0a0a] shadow-2xl" style="width: 253px;">
 <div class="flex items-center gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
 <Terminal size={11} class="text-muted-foreground" />
 <span class="font-mono text-[10px] text-muted-foreground">Terminal 1 · zsh</span>
@@ -770,7 +776,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 </div>
 </div>
 {:else if feature.id === "permissions"}
-<div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl">
+<div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl" style="width: 192px;">
 <div class="border-b border-border/50 px-3 py-2 flex items-center gap-2">
 <ShieldCheck size={12} class="text-success" />
 <span class="font-mono text-[11px] font-medium">Session permissions</span>
@@ -1009,6 +1015,22 @@ class:md:[direction:rtl]={i % 2 === 1}
 		backdrop-filter: blur(12px);
 	}
 
+	/* Parallel sessions illustration: tiled agent panels, one focused. */
+	.parallel-panel-active {
+		border-color: #9858FF;
+		box-shadow:
+			0 0 0 1px #9858FF,
+			0 0 22px -4px color-mix(in srgb, #9858FF 55%, transparent),
+			0 10px 28px -10px rgba(0, 0, 0, 0.5);
+		transform: translateY(-2px);
+		z-index: 2;
+	}
+
+	.parallel-panel-muted {
+		border-color: var(--border);
+		opacity: 0.7;
+	}
+
 	/* Render the SQL Studio at its real desktop modal size, then scale to fit the card. */
 	.sql-zoom-frame {
 		container-type: size;
@@ -1017,30 +1039,27 @@ class:md:[direction:rtl]={i % 2 === 1}
 		width: 1180px;
 		height: 820px;
 		transform-origin: top left;
-		transform: scale(calc(100cqw / 1180));
+		/* Render at 2× the natural fit so only the top-left quarter is visible. */
+		transform: scale(calc(100cqw / 590px));
 	}
 	@container (min-aspect-ratio: 1180/820) {
 		.sql-zoom-inner {
-			transform: scale(calc(100cqh / 820));
+			transform: scale(calc(100cqh / 410px));
 		}
 	}
 
 	/* Queue card has its own scroll inside if content overflows. */
 
-	/* Kanban: render at fixed wide size, scale to card. */
+	/* Kanban: render at fixed wide size, scale to card width.
+	 * Source is taller than the 4:3 card so cards crop off the bottom — feels like the top of a real board. */
 	.kanban-zoom-frame {
 		container-type: size;
 	}
 	.kanban-zoom-inner {
-		width: 1280px;
-		height: 720px;
+		width: 1600px;
+		height: 1400px;
 		transform-origin: top left;
-		transform: scale(calc(100cqw / 1280));
-	}
-	@container (min-aspect-ratio: 1280/720) {
-		.kanban-zoom-inner {
-			transform: scale(calc(100cqh / 720));
-		}
+		transform: scale(calc(100cqw / 1600px));
 	}
 
 	/* Git Panel: render at desktop layout size, scale to card. */
@@ -1048,15 +1067,10 @@ class:md:[direction:rtl]={i % 2 === 1}
 		container-type: size;
 	}
 	.git-zoom-inner {
-		width: 1180px;
-		height: 720px;
+		width: 620px;
+		height: 444px;
 		transform-origin: top left;
-		transform: scale(calc(100cqw / 1180));
-	}
-	@container (min-aspect-ratio: 1180/720) {
-		.git-zoom-inner {
-			transform: scale(calc(100cqh / 720));
-		}
+		transform: scale(calc(100cqw / 620px));
 	}
 
 	/* Voice card animated rings + waveform */

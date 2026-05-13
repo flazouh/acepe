@@ -56,10 +56,38 @@ const milestones = [
 const workflowSteps = ["Launch", "Monitor", "Unblock", "Review", "Ship"] as const;
 
 const viewModes = [
-	{ id: "agent", label: "Side by Side", color: "#99FFE4", image: "/images/pitch/pitch-view-agent.webp", w: 2540, h: 1650 },
-	{ id: "by-project", label: "By Project", color: "#FF8D20", image: "/images/pitch/pitch-view-by-project.webp", w: 2540, h: 1650 },
-	{ id: "single", label: "Single Agent", color: "#9858FF", image: "/images/pitch/pitch-view-single.webp", w: 2540, h: 1650 },
-	{ id: "kanban", label: "Kanban", color: "#FF78F7", image: "/images/pitch/pitch-view-kanban.webp", w: 2540, h: 1650 },
+	{
+		id: "agent",
+		label: "Side by Side",
+		color: "#99FFE4",
+		image: "/images/pitch/pitch-view-agent.webp",
+		w: 2540,
+		h: 1650,
+	},
+	{
+		id: "by-project",
+		label: "By Project",
+		color: "#FF8D20",
+		image: "/images/pitch/pitch-view-by-project.webp",
+		w: 2540,
+		h: 1650,
+	},
+	{
+		id: "single",
+		label: "Single Agent",
+		color: "#9858FF",
+		image: "/images/pitch/pitch-view-single.webp",
+		w: 2540,
+		h: 1650,
+	},
+	{
+		id: "kanban",
+		label: "Kanban",
+		color: "#FF78F7",
+		image: "/images/pitch/pitch-view-kanban.webp",
+		w: 2540,
+		h: 1650,
+	},
 ] as const;
 
 let activeView = $state("agent");
@@ -71,8 +99,10 @@ const agentIcons = [
 	{ name: "Copilot", icon: "/svgs/agents/copilot/copilot-icon-dark.svg" },
 	{ name: "OpenCode", icon: "/svgs/agents/opencode/opencode-logo-dark.svg" },
 ] as const;
-const slideTitleClass = "max-w-4xl whitespace-pre-line text-3xl leading-[1.12] font-semibold tracking-[0.015em] sm:text-[2.75rem]";
-const slideDescriptionClass = "text-muted-foreground text-base leading-7 text-pretty sm:text-lg max-w-2xl";
+const slideTitleClass =
+	"max-w-4xl whitespace-pre-line text-3xl leading-[1.12] font-semibold tracking-[0.015em] sm:text-[2.75rem]";
+const slideDescriptionClass =
+	"text-muted-foreground text-base leading-7 text-pretty sm:text-lg max-w-2xl";
 const slideSummaryClass = `max-w-3xl ${slideDescriptionClass}`;
 </script>
 

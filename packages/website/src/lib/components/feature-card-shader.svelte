@@ -40,7 +40,7 @@ onMount(() => {
 				}
 			}
 		},
-		{ rootMargin: "120px 0px" },
+		{ rootMargin: "120px 0px" }
 	);
 
 	observer.observe(host);
@@ -99,7 +99,7 @@ async function init(version: number) {
 			u_worldHeight: h,
 		} satisfies Partial<GrainGradientUniforms>,
 		{ alpha: false, premultipliedAlpha: false },
-		0.35,
+		0.35
 	);
 
 	if (version !== initVersion) {

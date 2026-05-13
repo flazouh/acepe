@@ -29,7 +29,7 @@ onMount(() => {
 				return;
 			}
 		},
-		{ rootMargin: "720px 0px" },
+		{ rootMargin: "720px 0px" }
 	);
 
 	observer.observe(host);
