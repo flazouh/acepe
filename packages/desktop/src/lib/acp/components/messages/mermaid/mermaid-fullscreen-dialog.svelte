@@ -205,6 +205,6 @@ $effect(() => {
 		min-width: 3rem;
 		font-size: 0.6875rem;
 		font-weight: 500;
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 	}
 </style>

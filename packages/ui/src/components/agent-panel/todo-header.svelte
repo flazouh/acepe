@@ -6,7 +6,6 @@
 	import { untrack } from "svelte";
 
 	import { SegmentedProgress } from "../segmented-progress/index.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import TodoNumberIcon from "./todo-number-icon.svelte";
 
 	interface Props {
@@ -65,7 +64,7 @@
 						{@const isInProgress = item.status === "in_progress"}
 						{@const duration = formatDuration(item.duration)}
 						<div
-							class="flex items-center gap-2 px-3 py-1 text-sm leading-tight border-b border-border/30 last:border-b-0 {isInProgress
+							class="flex items-center gap-2 border-b border-border/30 px-3 py-1 text-sm last:border-b-0 {isInProgress
 								? 'bg-muted'
 								: ''}"
 						>
@@ -74,23 +73,17 @@
 							</span>
 
 							{#if isInProgress && isLive}
-								<TextShimmer class="flex-1 truncate text-foreground text-sm">
+								<span class="flex-1 truncate text-sm">
 									{item.content}
-								</TextShimmer>
+								</span>
 							{:else}
-								<span
-									class="flex-1 truncate {item.status === 'completed'
-										? 'text-muted-foreground/60 line-through'
-										: item.status === 'cancelled'
-											? 'text-muted-foreground/40 line-through'
-											: 'text-foreground'}"
-								>
+								<span class="flex-1 truncate">
 									{item.content}
 								</span>
 							{/if}
 
 							{#if duration}
-								<span class="shrink-0 text-muted-foreground font-mono text-sm">
+								<span class="shrink-0 text-sm">
 									{duration}
 								</span>
 							{/if}
@@ -104,23 +97,23 @@
 			<div class="w-full flex items-center justify-between px-1.5 py-0.5">
 				<div class="flex items-center gap-1.5 text-sm min-w-0">
 					{#if isLive && currentTask}
-						<TextShimmer class="truncate text-foreground text-sm">
+						<span class="truncate text-sm">
 							{currentTask.activeForm ? currentTask.activeForm : currentTask.content}
-						</TextShimmer>
+						</span>
 					{:else if currentTask}
-						<span class="text-muted-foreground truncate">
+						<span class="truncate">
 							{currentTask.content}
 						</span>
 					{:else if completedCount === totalCount}
-						<span class="text-muted-foreground">{allCompletedLabel}</span>
+						<span>{allCompletedLabel}</span>
 					{:else}
-						<span class="text-muted-foreground">{pausedLabel}</span>
+						<span>{pausedLabel}</span>
 					{/if}
 				</div>
 
 				<div class="flex items-center gap-1.5 shrink-0">
 					<SegmentedProgress current={completedCount} total={totalCount} />
-					<span class="text-sm text-muted-foreground">
+					<span class="text-sm">
 						{completedCount}/{totalCount}
 					</span>
 				</div>
@@ -142,17 +135,17 @@
 			>
 				<div class="flex items-center gap-1.5 text-sm min-w-0">
 					{#if isLive && currentTask}
-						<span class="text-foreground font-medium truncate text-sm">
+						<span class="truncate text-sm">
 							{currentTask.activeForm ? currentTask.activeForm : currentTask.content}
 						</span>
 					{:else if currentTask}
-						<span class="text-muted-foreground truncate">
+						<span class="truncate">
 							{currentTask.content}
 						</span>
 					{:else if completedCount === totalCount}
-						<span class="text-muted-foreground">{allCompletedLabel}</span>
+						<span>{allCompletedLabel}</span>
 					{:else}
-						<span class="text-muted-foreground">{pausedLabel}</span>
+						<span>{pausedLabel}</span>
 					{/if}
 				</div>
 

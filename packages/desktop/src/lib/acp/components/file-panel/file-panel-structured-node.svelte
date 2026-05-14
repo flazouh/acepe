@@ -164,7 +164,7 @@ const keyPrefix = $derived.by(() => {
 
 <style>
 	.structured-node {
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 		font-size: 0.8125rem;
 		line-height: 1.45;
 		padding-top: 0.2rem;

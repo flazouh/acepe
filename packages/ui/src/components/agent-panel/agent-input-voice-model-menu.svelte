@@ -68,13 +68,13 @@
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end" side="top" sideOffset={8} class="min-w-[220px]">
 		<DropdownMenu.Group>
-			<DropdownMenu.GroupHeading>
+			<DropdownMenu.GroupHeading class="text-[10px]">
 				{menuLabel}
 			</DropdownMenu.GroupHeading>
 		</DropdownMenu.Group>
 		<DropdownMenu.Separator />
 		{#if modelsLoading}
-			<div class="px-2 py-1.5 text-sm text-muted-foreground">
+			<div class="px-2 py-1.5 text-xs text-muted-foreground">
 				{loadingLabel}
 			</div>
 		{:else}
@@ -90,20 +90,20 @@
 								weight="bold"
 							/>
 							<div class="flex flex-1 items-center min-w-0">
-								<span class="truncate text-sm font-medium">{model.name}</span>
+								<span class="truncate text-xs font-medium">{model.name}</span>
 							</div>
-							<span class="text-sm text-muted-foreground/40 shrink-0">
+							<span class="shrink-0 text-[10px] leading-none text-muted-foreground/40">
 								{formatBytes(model.sizeBytes)}
 							</span>
 						</div>
 					</DropdownMenu.Item>
 				{:else}
 					<div
-						class="model-row relative z-10 flex items-center gap-2 px-2 py-1 text-sm font-medium select-none border-b border-border/20 last:border-b-0"
+						class="model-row relative z-10 flex items-center gap-2 px-2 py-1 text-xs font-medium select-none border-b border-border/20 last:border-b-0"
 					>
 						<Check class="size-3 shrink-0 text-transparent" weight="bold" />
 						<div class="flex flex-1 items-center min-w-0">
-							<span class="truncate text-sm font-medium text-muted-foreground">
+							<span class="truncate text-xs font-medium text-muted-foreground">
 								{model.name}
 							</span>
 						</div>
@@ -121,14 +121,14 @@
 							<Button
 								variant="headerAction"
 								size="headerAction"
-								class="shrink-0 gap-1 font-mono text-sm"
+								class="h-5 shrink-0 gap-0.5 px-1.5 py-0 text-[10px] leading-none font-mono"
 								onclick={(e: MouseEvent) => {
 									e.stopPropagation();
 									onDownloadModel(model.id);
 								}}
 							>
 								<span>{formatBytes(model.sizeBytes)}</span>
-								<DownloadSimple class="size-2.5" weight="bold" />
+								<DownloadSimple class="size-2" weight="bold" />
 							</Button>
 						{/if}
 					</div>

@@ -37,6 +37,7 @@ import type { SessionStatusUI } from "./session-status-ui";
 export interface AgentPanelHeaderProps {
 	readonly pendingProjectSelection: boolean;
 	readonly isConnecting: boolean;
+	readonly isRetryingConnection?: boolean;
 	readonly sessionId: string | null;
 	readonly sessionTitle: string | null;
 	readonly sessionAgentId: string | null;
@@ -57,6 +58,7 @@ export interface AgentPanelHeaderProps {
 	readonly debugPanelState?: unknown;
 	readonly onClose?: () => void;
 	readonly onToggleFullscreen?: () => void;
+	readonly onRetryConnection?: () => void;
 	readonly onCopyContent?: () => Promise<void>;
 	readonly onOpenInFinder?: () => Promise<void>;
 	readonly onCopyStreamingLogPath?: () => Promise<void>;

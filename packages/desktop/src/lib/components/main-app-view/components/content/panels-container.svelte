@@ -1,5 +1,6 @@
 <script lang="ts">
-import { AgentPanelDeck, ProjectCard } from "@acepe/ui";
+import { AgentPanelDeck } from "@acepe/ui";
+import { ProjectTabBar } from "@acepe/ui/app-layout";
 import { onMount } from "svelte";
 import { BrowserPanel } from "$lib/acp/components/browser-panel/index.js";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
@@ -21,6 +22,7 @@ import {
 } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
 import MultiProjectGroupLabel from "./multi-project-group-label.svelte";
+import { shouldHideAgentPanelProjectBadge } from "./panel-project-badge-visibility.js";
 
 const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContainerPerf" });
 type AgentProjectRef = {
@@ -162,6 +164,27 @@ const isMultiCardsMode = $derived(
 		allGroups.length > 1
 );
 
+// Project tab bar: shown in project mode when there are multiple projects to switch between.
+const projectTabs = $derived.by(() => {
+	const projects = viewModeState.focusedModeAllProjects ?? [];
+	return projects.map((project) => {
+		const group = allGroups.find((candidate) => candidate.projectPath === project.path);
+		return {
+			name: project.name,
+			color: project.color,
+			path: project.path,
+			iconSrc: project.iconSrc,
+			sessionCount: group ? group.agentPanels.length : 0,
+		};
+	});
+});
+const showProjectTabBar = $derived(
+	viewModeState.layout === "cards" &&
+		viewModeState.activeProjectPath != null &&
+		projectTabs.length > 1 &&
+		!viewModeState.isFullscreenMode
+);
+
 // Explicitly-sorted groups for true multi-project rendering. project/single modes keep
 // reading `allGroups` so focused-project switching and fallback semantics stay intact.
 const pinnedMultiProjectPath = $derived.by(() => {
@@ -184,10 +207,13 @@ const sortedGroupsForMulti = $derived(
 	sortProjectGroupsForMultiLayout(allGroups, { pinnedProjectPath: pinnedMultiProjectPath })
 );
 
-// Hide the embedded project badge only when the outer ProjectCard wrapper already
-// provides project identity (project mode with multiple groups). In multi-cards mode
-// the wrapper is gone, so each agent panel header surfaces its own project badge.
-const hideEmbeddedProjectBadge = $derived(allGroups.length > 1 && !isMultiCardsMode);
+// Agent panels now carry their own project identity in project and multi-project views.
+const hideEmbeddedProjectBadge = $derived(
+	shouldHideAgentPanelProjectBadge({
+		groupCount: allGroups.length,
+		isMultiCardsMode,
+	})
+);
 
 function isGroupHidden(group: { projectPath: string }): boolean {
 	return (
@@ -272,6 +298,15 @@ const terminalTabsPanelStore = $derived.by(() => ({
 }));
 </script>
 
+{#if showProjectTabBar}
+	<div class="shrink-0 overflow-hidden">
+		<ProjectTabBar
+			projects={projectTabs}
+			activeProjectPath={viewModeState.activeProjectPath}
+			onSelectProject={(path) => panelStore.setFocusedViewProjectPath(path)}
+		/>
+	</div>
+{/if}
 <AgentPanelDeck fullscreen={viewModeState.isFullscreenMode}>
 	<!-- Tabs are now rendered in parent (main-app-view.svelte) via TabBar -->
 		<!-- Fullscreen top-level panel -->
@@ -436,22 +471,14 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					</div>
 				{/if}
 			{:else}
-			<ProjectCard
-				class="{isAgentFullscreenGroup(group) || !hasAgentPanels
-					? 'flex-1 min-w-0 min-h-0'
-					: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
-					projectName={group.projectName}
-					projectColor={group.projectColor}
-					variant="corner"
-					allProjects={viewModeState.focusedModeAllProjects
-						? [...viewModeState.focusedModeAllProjects]
-						: undefined}
-					activeProjectPath={viewModeState.activeProjectPath}
-					onSelectProject={(path: string) => panelStore.setFocusedViewProjectPath(path)}
+				<div
+					class="flex flex-row items-stretch gap-0.5 {isAgentFullscreenGroup(group) || !hasAgentPanels
+						? 'flex-1 min-w-0 min-h-0'
+						: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
 				>
 					{@render nonAgentPanels()}
 					{@render agentPanels()}
-				</ProjectCard>
+				</div>
 			{/if}
 			{/each}
 		{/if}

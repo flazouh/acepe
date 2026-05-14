@@ -203,12 +203,18 @@ function appendPendingUserRow(
 		return rows;
 	}
 	const nextRows: AgentPanelDisplayRow[] = Array.from(rows);
-	nextRows.push({
+	const pendingRow: AgentPanelDisplayRow = {
 		id: pendingUserEntry.id,
 		type: "user",
 		text: sessionUserText(pendingUserEntry),
 		isOptimistic: true,
-	});
+	};
+	const hasAnyUserRow = nextRows.some((row) => row.type === "user");
+	if (hasAnyUserRow) {
+		nextRows.push(pendingRow);
+		return nextRows;
+	}
+	nextRows.unshift(pendingRow);
 	return nextRows;
 }
 

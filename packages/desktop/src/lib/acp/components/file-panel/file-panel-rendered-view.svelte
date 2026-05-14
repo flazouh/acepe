@@ -91,7 +91,7 @@ function getLineClass(line: string): string {
 	}
 
 	.rendered-text {
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 		font-size: 0.8125rem;
 		line-height: 1.5;
 		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);

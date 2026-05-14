@@ -12,10 +12,14 @@
 		status?: AgentSessionStatus;
 		/** When true, show a spinner (e.g. connecting before session exists) */
 		isConnecting?: boolean;
+		/** When true, show immediate feedback after the user clicks retry */
+		isRetrying?: boolean;
 		/** Size of the indicator icon in pixels */
 		size?: number;
 		/** Tooltip text for warming/connecting state */
 		warmingLabel?: string;
+		/** Tooltip text for retrying state */
+		retryingLabel?: string;
 		/** Tooltip text for connected state */
 		connectedLabel?: string;
 		/** Tooltip text for error state */
@@ -29,25 +33,30 @@
 	let {
 		status = "empty",
 		isConnecting = false,
+		isRetrying = false,
 		size = 14,
 		warmingLabel = "Preparing",
+		retryingLabel = "Retrying",
 		connectedLabel = "Connected",
 		errorLabel = "Error",
 		agentId = null,
 		onRetry,
 	}: Props = $props();
 
-	const shouldShow = $derived(status !== "empty" || isConnecting);
+	const shouldShow = $derived(status !== "empty" || isConnecting || isRetrying);
 </script>
 
 {#if shouldShow}
 	<Tooltip.Provider delayDuration={0}>
 		<div class="flex h-7 w-7 shrink-0 items-center justify-center">
-			{#if isConnecting || status === "warming"}
+			{#if isConnecting || isRetrying || status === "warming"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
 						<div class="animate-in fade-in duration-150">
-							<LoadingIcon style="width: {size}px; height: {size}px;" />
+							<LoadingIcon
+								style="width: {size}px; height: {size}px;"
+								aria-label={isRetrying ? retryingLabel : warmingLabel}
+							/>
 						</div>
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
@@ -55,7 +64,7 @@
 							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
 							sideOffset={4}
 						>
-							{warmingLabel}
+							{isRetrying ? retryingLabel : warmingLabel}
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
@@ -91,13 +100,14 @@
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
-			{:else if status === "error"}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
+				{:else if status === "error"}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
 						<button
 							type="button"
 							class="hover:opacity-80 transition-opacity animate-in fade-in duration-150"
 							style="color: {Colors.red};"
+							aria-label={errorLabel}
 							onclick={() => onRetry?.()}
 						>
 							<IconAlertCircle {size} />

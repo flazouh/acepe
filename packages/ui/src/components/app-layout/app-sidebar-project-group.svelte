@@ -38,7 +38,7 @@
 				/>
 			</div>
 			<div class="flex items-center flex-1 min-w-0 h-7 pl-1.5 pr-2">
-				<span class="text-[11px] font-medium font-mono text-foreground truncate">{group.name}</span>
+				<span class="text-[11px] font-medium text-foreground truncate">{group.name}</span>
 			</div>
 		</div>
 	{/if}

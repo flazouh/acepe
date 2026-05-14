@@ -1198,7 +1198,7 @@ onDestroy(() => {
 					{/if}
 					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
 						{#if showPanelsContainer}
-							<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+							<div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
 								<PanelsContainer
 									{projectManager}
 									state={viewState}

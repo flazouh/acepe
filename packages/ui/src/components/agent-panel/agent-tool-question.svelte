@@ -4,7 +4,6 @@
 	import { XCircle } from "phosphor-svelte";
 	import { DotsThree } from "phosphor-svelte";
 	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import type { AgentQuestion, AgentToolStatus } from "./types.js";
 	import {
 		EmbeddedPanelHeader,
@@ -123,7 +122,7 @@
 			<HeaderTitleCell compactPadding>
 				{#if isCancelled}
 					<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
-					<span class="question-title text-muted-foreground">{cancelledLabel}</span>
+					<span class="question-title">{cancelledLabel}</span>
 				{:else}
 					<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
 					<span class="question-title">
@@ -133,7 +132,7 @@
 			</HeaderTitleCell>
 			{#if durationLabel}
 				<HeaderActionCell>
-					<span class="inline-flex items-center px-2 font-sans text-sm text-muted-foreground/70">
+					<span class="inline-flex items-center px-2 text-sm">
 						{durationLabel}
 					</span>
 				</HeaderActionCell>
@@ -142,14 +141,14 @@
 
 		<div class="question-body">
 			{#if isCancelled}
-				<div class="text-sm text-muted-foreground">{cancelledDescription}</div>
+				<div class="text-sm">{cancelledDescription}</div>
 			{:else if questions}
 				{#each questions as question, qIndex (qIndex)}
 					{#if qIndex > 0}
 						<div class="border-t border-border/50 my-2"></div>
 					{/if}
-					<div class="text-sm text-foreground mb-0.5">{question.question}</div>
-					<div class="text-sm text-muted-foreground">{formatAnswerLabels(qIndex)}</div>
+					<div class="mb-0.5 text-sm">{question.question}</div>
+					<div class="text-sm">{formatAnswerLabels(qIndex)}</div>
 				{/each}
 			{/if}
 		</div>
@@ -168,7 +167,7 @@
 			</HeaderTitleCell>
 			{#if durationLabel}
 				<HeaderActionCell>
-					<span class="inline-flex items-center px-2 font-sans text-sm text-muted-foreground/70">
+					<span class="inline-flex items-center px-2 text-sm">
 						{durationLabel}
 					</span>
 				</HeaderActionCell>
@@ -182,7 +181,7 @@
 					<div class="border-t border-border/50 my-2"></div>
 				{/if}
 
-				<div class="text-sm text-foreground mb-2">{question.question}</div>
+				<div class="mb-2 text-sm">{question.question}</div>
 				<div class="space-y-1">
 					{#if question.options && question.options.length > 0}
 						{#each question.options as option, i (i)}
@@ -219,9 +218,9 @@
 										<Check size={14} class="text-foreground shrink-0 mt-0.5" />
 									{/if}
 									<div class="flex flex-col min-w-0">
-										<span class="text-sm text-foreground">{option.label}</span>
+										<span class="text-sm">{option.label}</span>
 										{#if option.description}
-											<span class="text-sm text-muted-foreground mt-0.5">{option.description}</span>
+											<span class="mt-0.5 text-sm">{option.description}</span>
 										{/if}
 									</div>
 								</div>
@@ -252,7 +251,7 @@
 								/>
 								<kbd
 									aria-label="Press Enter to submit"
-									class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 font-sans text-sm text-muted-foreground/80"
+									class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 text-sm"
 								>
 									Enter
 								</kbd>
@@ -292,9 +291,9 @@
 {:else if isPending}
 	<!-- Loading state while questions stream in -->
 	<div class="flex w-full items-center justify-between gap-2">
-		<TextShimmer class="text-sm text-muted-foreground font-medium">{waitingLabel}</TextShimmer>
+		<span class="text-sm">{waitingLabel}</span>
 		{#if durationLabel}
-			<span class="shrink-0 font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+			<span class="shrink-0 text-sm">{durationLabel}</span>
 		{/if}
 	</div>
 {/if}
@@ -309,11 +308,7 @@
 
 	.question-title {
 		font-size: 0.875rem;
-		font-weight: 600;
-		font-family: var(--font-sans, system-ui, sans-serif);
-		color: var(--foreground);
 		user-select: none;
-		line-height: 1;
 	}
 
 	.question-badge {
@@ -321,8 +316,6 @@
 		padding: 1px 6px;
 		border-radius: 0.25rem;
 		background: var(--muted);
-		color: var(--muted-foreground);
-		font-family: var(--font-sans, system-ui, sans-serif);
 	}
 
 	.question-body {
@@ -353,19 +346,14 @@
 		padding: 4px 8px;
 		font: inherit;
 		font-size: 0.875rem;
-		font-weight: 500;
-		font-family: var(--font-sans, system-ui, sans-serif);
-		color: var(--muted-foreground);
 		background: transparent;
 		border: none;
 		cursor: pointer;
 		transition:
-			color 0.15s ease,
 			background-color 0.15s ease;
 	}
 
 	.question-footer-btn:hover:not(:disabled) {
-		color: var(--foreground);
 		background: color-mix(in srgb, var(--accent) 50%, transparent);
 	}
 
@@ -374,12 +362,7 @@
 		pointer-events: none;
 	}
 
-	.question-footer-btn--submit {
-		color: var(--foreground);
-	}
-
 	.question-footer-btn--submit:hover:not(:disabled) {
-		color: var(--foreground);
 		background: color-mix(in srgb, var(--accent) 50%, transparent);
 	}
 </style>

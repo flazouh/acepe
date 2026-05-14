@@ -271,6 +271,26 @@ describe("agent panel display model", () => {
 		]);
 	});
 
+	it("places pending user entry before assistant-only rows", () => {
+		const graph = createGraph({
+			entries: [createTranscriptEntry("assistant-1", "assistant", "Tool output arrived first")],
+			turnState: "Running",
+			activity: createAwaitingModelActivity(),
+			canSend: false,
+			lastAgentMessageId: "assistant-1",
+		});
+
+		const model = buildModel(graph, createPendingUserEntry());
+
+		expect(model.rows[0]).toEqual({
+			id: "pending-user-1",
+			type: "user",
+			text: "Pending prompt",
+			isOptimistic: true,
+		});
+		expect(model.rows[1]?.id).toBe("assistant-1");
+	});
+
 	it("keeps display text non-blank during same-key running replacement", () => {
 		const memory = createAgentPanelDisplayMemory();
 		const firstGraph = createGraph({

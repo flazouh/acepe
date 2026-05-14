@@ -53,7 +53,7 @@ onMount(async () => {
 	terminal = new Terminal({
 		cursorBlink: true,
 		cursorStyle: "bar",
-		fontFamily: "JetBrains Mono, Menlo, Monaco, Consolas, monospace",
+		fontFamily: "JetBrains Mono, ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace",
 		fontSize: 13,
 		lineHeight: 1.2,
 		theme: terminalTheme,

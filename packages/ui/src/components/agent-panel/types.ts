@@ -500,6 +500,7 @@ export interface AgentPanelPrCardModel {
 	additions?: number;
 	deletions?: number;
 	descriptionHtml?: string | null;
+	descriptionMarkdown?: string | null;
 	commits?: readonly AgentPanelPrCommitItem[];
 	checks?: readonly PrChecksItem[];
 	isChecksLoading?: boolean;

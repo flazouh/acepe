@@ -431,135 +431,153 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 				<!-- PR action group: open PR + generation settings + link existing -->
 				{#if onCreatePr}
 					<div
-						class="flex items-center rounded border border-border/50 bg-muted overflow-hidden text-[0.6875rem] shrink-0"
-						onclick={(e: MouseEvent) => e.stopPropagation()}
-						role="none"
+						class="flex shrink-0 items-center gap-1"
 					>
-						<Button
-							variant="headerAction"
-							size="headerAction"
-							class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
-							disabled={createPrLoading}
-							onclick={handleCreatePrClick}
+						<div
+							class="flex shrink-0 items-center rounded border border-border/50 bg-muted text-[0.6875rem]"
+							onclick={(e: MouseEvent) => e.stopPropagation()}
+							role="none"
 						>
-							<span class="flex items-center gap-1 shrink-0">
-								{#if createPrLoading}
-									<Spinner class="size-3 shrink-0" />
-									{createPrLabel ? createPrLabel : "Open PR"}
-								{:else}
-									<GitPullRequest size={11} weight="bold" class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success" />
-									{"Open PR"}
-								{/if}
-							</span>
-							<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
-						</Button>
+							<Button
+								variant="headerAction"
+								size="headerAction"
+								class="group/open-pr rounded-none border-0 bg-transparent shadow-none"
+								disabled={createPrLoading}
+								onclick={handleCreatePrClick}
+							>
+								<span class="flex shrink-0 items-center gap-1">
+									{#if createPrLoading}
+										<Spinner class="size-3 shrink-0" />
+										{createPrLabel ? createPrLabel : "Open PR"}
+									{:else}
+										<GitPullRequest size={11} weight="bold" class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success" />
+										{"Open PR"}
+									{/if}
+								</span>
+								<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
+							</Button>
 
-						<!-- Generation settings: agent / model / prompt -->
-						<DropdownMenu.Root>
-							<Tooltip.Provider delayDuration={400}>
-								<Tooltip.Root>
-									<Tooltip.Trigger>
-										{#snippet child({ props })}
-											<DropdownMenu.Trigger
-												{...props}
-												disabled={createPrLoading}
-												class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-												aria-label="PR generation settings"
+							<!-- Generation settings: agent / model / prompt -->
+							<DropdownMenu.Root>
+								<Tooltip.Provider delayDuration={400}>
+									<Tooltip.Root>
+										<Tooltip.Trigger>
+											{#snippet child({ props })}
+												<DropdownMenu.Trigger
+													{...props}
+													disabled={createPrLoading}
+													class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+													aria-label="PR generation settings"
+												>
+													<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
+												</DropdownMenu.Trigger>
+											{/snippet}
+										</Tooltip.Trigger>
+										<Tooltip.Portal>
+											<Tooltip.Content
+												class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md"
+												sideOffset={4}
+												side="top"
 											>
-												<SlidersHorizontal size={11} weight="bold" class="shrink-0" />
-											</DropdownMenu.Trigger>
-										{/snippet}
-									</Tooltip.Trigger>
-									<Tooltip.Portal>
-										<Tooltip.Content
-											class="z-[var(--overlay-z)] rounded-md bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md"
-											sideOffset={4}
-											side="top"
-										>
-											PR generation settings
-										</Tooltip.Content>
-									</Tooltip.Portal>
-								</Tooltip.Root>
-							</Tooltip.Provider>
-							<DropdownMenu.Content align="start" class="w-[260px]" sideOffset={6}>
-								<DropdownMenu.Sub>
-									<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
-										<span class="flex-1">Agent</span>
-										<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
-											{effectiveAgentDisplayName}
-										</span>
-									</DropdownMenu.SubTrigger>
-									<DropdownMenu.SubContent class="w-[220px] max-h-[260px] overflow-y-auto p-0">
-										{#each availableAgents as agent (agent.id)}
-											{@const icon = getAgentIcon(agent.id, effectiveTheme)}
-											{@const isSelected = agent.id === effectiveAgentId}
-											<DropdownMenu.Item
-												onSelect={() => handleAgentPickerChange(agent.id)}
-												class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
-											>
-												<div class="flex w-full min-w-0 items-center gap-1.5">
-													{#if icon}
-														<img src={icon} alt={agent.name} class="h-3.5 w-3.5 shrink-0" />
-													{/if}
-													<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
-													<SelectorCheck visible={isSelected} />
-												</div>
-											</DropdownMenu.Item>
-										{/each}
-									</DropdownMenu.SubContent>
-								</DropdownMenu.Sub>
+												PR generation settings
+											</Tooltip.Content>
+										</Tooltip.Portal>
+									</Tooltip.Root>
+								</Tooltip.Provider>
+								<DropdownMenu.Content align="start" class="w-[260px]" sideOffset={6}>
+									<DropdownMenu.Sub>
+										<DropdownMenu.SubTrigger disabled={availableAgents.length === 0} class="cursor-pointer">
+											<span class="flex-1">Agent</span>
+											<span class="max-w-[100px] truncate text-[10px] text-muted-foreground">
+												{effectiveAgentDisplayName}
+											</span>
+										</DropdownMenu.SubTrigger>
+										<DropdownMenu.SubContent class="w-[220px] max-h-[260px] overflow-y-auto p-0">
+											{#each availableAgents as agent (agent.id)}
+												{@const icon = getAgentIcon(agent.id, effectiveTheme)}
+												{@const isSelected = agent.id === effectiveAgentId}
+												<DropdownMenu.Item
+													onSelect={() => handleAgentPickerChange(agent.id)}
+													class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
+												>
+													<div class="flex w-full min-w-0 items-center gap-1.5">
+														{#if icon}
+															<img src={icon} alt={agent.name} class="h-3.5 w-3.5 shrink-0" />
+														{/if}
+														<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
+														<SelectorCheck visible={isSelected} />
+													</div>
+												</DropdownMenu.Item>
+											{/each}
+										</DropdownMenu.SubContent>
+									</DropdownMenu.Sub>
 
-								<DropdownMenu.Sub>
-									<DropdownMenu.SubTrigger disabled={reactiveModels.length === 0} class="cursor-pointer">
-										<span class="flex-1">Model</span>
-										<span class="max-w-[132px] truncate text-[10px] text-muted-foreground">
-											{effectiveModelDisplayName}
-										</span>
-									</DropdownMenu.SubTrigger>
-									<DropdownMenu.SubContent class="w-[240px] max-h-[280px] overflow-y-auto p-0">
-										{#each reactiveModels as model (model.id)}
-											{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
-											{@const isSelected = model.id === effectiveModelId}
-											<DropdownMenu.Item
-												onSelect={() => handleModelPickerChange(model.id)}
-												class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
-											>
-												<div class="flex w-full min-w-0 items-center gap-1.5">
-													<span class="flex-1 truncate text-[11px]">{displayName}</span>
-													<SelectorCheck visible={isSelected} />
-												</div>
-											</DropdownMenu.Item>
-										{/each}
-									</DropdownMenu.SubContent>
-								</DropdownMenu.Sub>
+									<DropdownMenu.Sub>
+										<DropdownMenu.SubTrigger disabled={reactiveModels.length === 0} class="cursor-pointer">
+											<span class="flex-1">Model</span>
+											<span class="max-w-[132px] truncate text-[10px] text-muted-foreground">
+												{effectiveModelDisplayName}
+											</span>
+										</DropdownMenu.SubTrigger>
+										<DropdownMenu.SubContent class="w-[240px] max-h-[280px] overflow-y-auto p-0">
+											{#each reactiveModels as model (model.id)}
+												{@const displayName = getModelDisplayName(model, effectiveAgentId, reactiveModelsDisplay)}
+												{@const isSelected = model.id === effectiveModelId}
+												<DropdownMenu.Item
+													onSelect={() => handleModelPickerChange(model.id)}
+													class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
+												>
+													<div class="flex w-full min-w-0 items-center gap-1.5">
+														<span class="flex-1 truncate text-[11px]">{displayName}</span>
+														<SelectorCheck visible={isSelected} />
+													</div>
+												</DropdownMenu.Item>
+											{/each}
+										</DropdownMenu.SubContent>
+									</DropdownMenu.Sub>
 
-								<DropdownMenu.Separator />
+									<DropdownMenu.Separator />
 
-								<DropdownMenu.Item
-									onSelect={() => {
-										promptDialogOpen = true;
-									}}
-									class="cursor-pointer"
-								>
-									<span class="flex-1">Prompt</span>
-									<span class="text-[10px] text-muted-foreground">{promptStatusLabel}</span>
-								</DropdownMenu.Item>
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
+									<DropdownMenu.Item
+										onSelect={() => {
+											promptDialogOpen = true;
+										}}
+										class="cursor-pointer"
+									>
+										<span class="flex-1">Prompt</span>
+										<span class="text-[10px] text-muted-foreground">{promptStatusLabel}</span>
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
 
-						<!-- Link existing PR: dedicated picker -->
-						{#if sessionId && projectPath}
-							<PrLinkFooterButton
-								{sessionId}
-								{projectPath}
-								{linkedPr}
-								prLinkMode={prLinkMode ?? "automatic"}
-								{projectSessions}
-								{project}
-								variant="header-icon"
-							/>
-						{/if}
+							<!-- Link existing PR: dedicated picker -->
+							{#if sessionId && projectPath}
+								<PrLinkFooterButton
+									{sessionId}
+									{projectPath}
+									{linkedPr}
+									prLinkMode={prLinkMode ?? "automatic"}
+									{projectSessions}
+									{project}
+									variant="header-icon"
+								/>
+							{/if}
+						</div>
+
+						<SharedAgentPanelModifiedFilesTrailingControls
+							model={trailingControlsModel}
+							isExpanded={false}
+							showToggle={false}
+							compactActions={true}
+						/>
 					</div>
+				{:else}
+					<SharedAgentPanelModifiedFilesTrailingControls
+						model={trailingControlsModel}
+						isExpanded={false}
+						showToggle={false}
+						compactActions={true}
+					/>
 				{/if}
 
 				<!-- Merge split button: shown after PR is created -->
@@ -638,8 +656,13 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 				{/if}
 		{/snippet}
 
-		{#snippet trailingContent(isExpanded: boolean)}
-			<SharedAgentPanelModifiedFilesTrailingControls model={trailingControlsModel} {isExpanded} />
+		{#snippet trailingContent(isExpanded: boolean, onToggle: () => void)}
+			<SharedAgentPanelModifiedFilesTrailingControls
+				model={trailingControlsModel}
+				{isExpanded}
+				{onToggle}
+				showActions={false}
+			/>
 		{/snippet}
 	</SharedAgentPanelModifiedFilesHeader>
 

@@ -74,7 +74,7 @@ const parsedLines = $derived(parseDiff(diff.patch));
 	.diff-table {
 		width: 100%;
 		border-collapse: collapse;
-		font-family: ui-monospace, "SF Mono", Monaco, monospace;
+		font-family: var(--font-mono, ui-monospace, "SF Mono", Monaco, monospace);
 		font-size: 12px;
 		line-height: 1.5;
 	}

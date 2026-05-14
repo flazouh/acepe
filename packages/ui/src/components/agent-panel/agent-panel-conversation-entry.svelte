@@ -136,6 +136,7 @@
 		status={entry.status}
 		applied={entry.status === "done"}
 		awaitingApproval={entry.presentationState === "pending_operation"}
+		defaultExpanded={true}
 		iconBasePath={iconBasePath}
 		theme={editToolTheme?.theme}
 		themeNames={editToolTheme?.themeNames}

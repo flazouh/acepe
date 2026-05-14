@@ -114,7 +114,7 @@ const displayContent = $derived.by(() => {
 		flex: 1;
 		overflow: auto;
 		background-color: var(--background);
-		font-family: ui-monospace, "SF Mono", Monaco, monospace;
+		font-family: var(--font-mono, ui-monospace, "SF Mono", Monaco, monospace);
 		font-size: 12px;
 	}
 

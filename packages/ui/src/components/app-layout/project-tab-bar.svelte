@@ -1,0 +1,60 @@
+<script lang="ts">
+	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+
+	interface ProjectTab {
+		readonly path: string;
+		readonly name: string;
+		readonly color: string;
+		readonly iconSrc?: string | null;
+		readonly sessionCount?: number;
+	}
+
+	interface Props {
+		projects: readonly ProjectTab[];
+		activeProjectPath: string | null;
+		onSelectProject: (path: string) => void;
+	}
+
+	let { projects, activeProjectPath, onSelectProject }: Props = $props();
+</script>
+
+{#if projects.length > 0}
+	<div
+		class="flex w-fit max-w-full shrink-0 items-stretch rounded-lg bg-card px-1 py-1"
+		role="tablist"
+		aria-label="Projects"
+	>
+		<div class="flex min-w-0 items-stretch gap-1 overflow-x-auto">
+			{#each projects as project (project.path)}
+				{@const isActive = project.path === activeProjectPath}
+				<button
+					type="button"
+					role="tab"
+					aria-selected={isActive}
+					class="group/project-tab relative flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors cursor-pointer {isActive
+						? 'bg-accent text-foreground'
+						: 'bg-accent/50 text-muted-foreground hover:bg-accent hover:text-foreground'}"
+					onclick={() => onSelectProject(project.path)}
+					title={project.name}
+				>
+					<ProjectLetterBadge
+						name={project.name}
+						color={project.color}
+						iconSrc={project.iconSrc ?? null}
+						size={14}
+						class="shrink-0"
+					/>
+					<span class="truncate max-w-[160px]">{project.name}</span>
+						{#if project.sessionCount != null}
+							<span
+							class="ml-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-[10px] leading-none text-muted-foreground bg-foreground/10"
+							aria-label="{project.sessionCount} sessions"
+						>
+							{project.sessionCount}
+						</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+	</div>
+{/if}

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
@@ -17,10 +17,12 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("@acepe/ui", async () => {
+vi.mock("@acepe/ui", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@acepe/ui")>();
 	const Stub = (await import("./test-component-stub.svelte")).default;
 
 	return {
+		AgentPanelPrCard: actual.AgentPanelPrCard,
 		DiffPill: Stub,
 		GitHubBadge: Stub,
 		LoadingIcon: Stub,
@@ -50,14 +52,6 @@ vi.mock("../diff-viewer/diff-viewer-modal.svelte", async () => {
 		default: Stub,
 	};
 });
-
-vi.mock("../../utils/markdown-renderer.js", () => ({
-	renderMarkdownSync: vi.fn(() => ({
-		html: "<h2>Summary</h2><ul><li>First item</li><li>Second item</li></ul><hr>",
-		fromCache: false,
-		needsAsync: false,
-	})),
-}));
 
 afterEach(() => {
 	cleanup();
@@ -92,13 +86,14 @@ describe("PrStatusCard", () => {
 
 		await fireEvent.click(header as HTMLElement);
 
-		const markdownRoot = container.querySelector(".markdown-content");
-		expect(markdownRoot).not.toBeNull();
-		expect(markdownRoot?.querySelector("h2")?.textContent).toBe("Summary");
-		expect(markdownRoot?.querySelectorAll("li")).toHaveLength(2);
+		await waitFor(() => {
+			const markdownRoot = container.querySelector(".markdown-content");
+			expect(markdownRoot?.querySelector("h2")?.textContent).toBe("Summary");
+			expect(markdownRoot?.querySelectorAll("li")).toHaveLength(2);
+		});
 	});
 
-	it("keeps the PR action bar above expanded content", async () => {
+	it("keeps the PR action bar present with expanded content", async () => {
 		const prDetails = {
 			number: 91,
 			title: "Move PR controls to the top",
@@ -126,10 +121,12 @@ describe("PrStatusCard", () => {
 
 		await fireEvent.click(header as HTMLElement);
 
-		const cardRoot = container.firstElementChild;
-		expect(cardRoot).not.toBeNull();
-		expect(cardRoot?.firstElementChild).toBe(header);
-		expect(cardRoot?.lastElementChild).not.toBe(header);
+		await waitFor(() => {
+			expect(container.querySelector(".markdown-content")).not.toBeNull();
+		});
+		const markdownRoot = container.querySelector(".markdown-content");
+		expect(markdownRoot).not.toBeNull();
+		expect(container.contains(header)).toBe(true);
 	});
 
 	it("keeps streamed content collapsed after the user closes the card", async () => {

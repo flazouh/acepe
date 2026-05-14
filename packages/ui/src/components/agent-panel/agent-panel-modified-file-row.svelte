@@ -65,7 +65,7 @@
 	/>
 
 	<span
-		class="ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-sm leading-none text-foreground"
+		class="ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[0.6875rem] leading-none text-foreground"
 	>
 		{#if reviewIndicator.icon === "accepted"}
 			<CheckCircle class="h-3 w-3 shrink-0 {reviewIndicator.iconClassName}" weight="fill" />

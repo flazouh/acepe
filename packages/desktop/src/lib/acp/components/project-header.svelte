@@ -64,13 +64,11 @@ const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 			size={16}
 		/>
 	</div>
-	<div class="flex items-center flex-1 min-w-0 h-7 pl-2 cursor-pointer rounded-md transition-colors">
-		<span
-			class="truncate text-[10px] font-semibold tracking-wide text-muted-foreground/70 transition-colors"
-		>
-			{displayName}
-		</span>
-	</div>
+		<div class="flex items-center flex-1 min-w-0 h-7 pl-2 cursor-pointer rounded-md transition-colors">
+			<span class="truncate text-xs font-normal text-foreground transition-colors">
+				{displayName}
+			</span>
+		</div>
 	{#if actions}
 		<div class="flex items-center">
 			{@render actions()}

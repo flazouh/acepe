@@ -176,7 +176,7 @@ function toggleSource(): void {
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		overflow-x: auto;
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 		font-size: 0.6875rem;
 		line-height: 1.6;
 		white-space: pre-wrap;

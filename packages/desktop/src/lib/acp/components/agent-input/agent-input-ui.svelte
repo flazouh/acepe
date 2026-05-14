@@ -470,6 +470,15 @@ const isSlashDropdownVisible = $derived.by(() =>
 // Input is ready when we have a session or project path (loading state no longer blocks input)
 const inputReady = $derived(Boolean(props.sessionId) || Boolean(filePickerProjectPath));
 
+// Stop/cancel state from canonical runtime contract.
+const isStreaming = $derived(
+	props.sessionShowStop ?? sessionRuntimeState?.showStop ?? props.sessionIsStreaming ?? false
+);
+
+// Queue while the runtime contract still allows cancellation.
+// That covers both streaming and the awaiting-response gap used by OpenCode.
+const isAgentBusy = $derived(props.sessionShowStop ?? sessionRuntimeState?.canCancel ?? false);
+
 // Submit is controlled by canonical runtime state when a session exists.
 const isSubmitDisabled = $derived(
 	props.disableSend
@@ -593,14 +602,6 @@ $effect(() => {
 	});
 });
 
-// Stop/cancel state from canonical runtime contract.
-const isStreaming = $derived(
-	props.sessionShowStop ?? sessionRuntimeState?.showStop ?? props.sessionIsStreaming ?? false
-);
-
-// Queue while the runtime contract still allows cancellation.
-// That covers both streaming and the awaiting-response gap used by OpenCode.
-const isAgentBusy = $derived(props.sessionShowStop ?? sessionRuntimeState?.canCancel ?? false);
 const hasDraftInput = $derived(
 	inputState.message.trim().length > 0 || inputState.attachments.length > 0
 );

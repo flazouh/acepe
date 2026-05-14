@@ -63,7 +63,7 @@ function handleCardClick() {
 				/>
 			</div>
 
-			<span class="text-[11px] font-semibold font-mono text-foreground truncate flex-1 min-w-0">
+			<span class="text-[11px] font-semibold text-foreground truncate flex-1 min-w-0">
 				{data.project.name}
 			</span>
 

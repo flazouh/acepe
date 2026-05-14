@@ -91,6 +91,7 @@ export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
+export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
 export { default as ToolKindIcon } from "./tool-kind-icon.svelte";

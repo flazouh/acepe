@@ -2,6 +2,7 @@ export { default as AppMainLayout } from "./app-main-layout.svelte";
 export { default as AppTabBarTab } from "./app-tab-bar-tab.svelte";
 export { default as AppTabBar } from "./app-tab-bar.svelte";
 export { default as AppTabBarGrouped } from "./app-tab-bar-grouped.svelte";
+export { default as ProjectTabBar } from "./project-tab-bar.svelte";
 export { default as AppPanelsGrouped } from "./app-panels-grouped.svelte";
 export { default as AppTopBar } from "./app-top-bar.svelte";
 export { default as AppSearchButton } from "./app-search-button.svelte";

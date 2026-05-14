@@ -10,10 +10,10 @@
  */
 import { type FileContents, FileDiff, parseDiffFromFile } from "@pierre/diffs";
 import { onDestroy, untrack } from "svelte";
+import { MarkdownDisplay } from "@acepe/ui";
 import "@acepe/ui/markdown-prose.css";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import type { FileExplorerPreviewResponse } from "$lib/services/converted-session-types.js";
-import { isMarkdownInitialized, renderMarkdownSync } from "$lib/acp/utils/markdown-renderer.js";
 import {
 	buildPierreDiffOptions,
 	ensurePierreThemeRegistered,
@@ -53,13 +53,6 @@ const isMarkdownPreview = $derived.by(() => {
 	if (props.preview === null || props.preview.kind !== "text") return false;
 	if (props.preview.language_hint === "markdown") return true;
 	return props.preview.file_name.toLowerCase().endsWith(".md");
-});
-
-const markdownHtml = $derived.by(() => {
-	if (props.preview === null || props.preview.kind !== "text" || !isMarkdownPreview) return null;
-	if (!isMarkdownInitialized()) return null;
-	const result = renderMarkdownSync(props.preview.content);
-	return result.html;
 });
 
 const textFallbackContent = $derived.by(() => {
@@ -200,15 +193,14 @@ const fallbackMessage = $derived.by(() => {
 			</p>
 			<p class="text-xs text-muted-foreground/60 font-mono">{props.preview.file_name}</p>
 		</div>
-	{:else if props.preview.kind === "text" && isMarkdownPreview && markdownHtml}
+	{:else if props.preview.kind === "text" && isMarkdownPreview}
 		<div class="flex-1 overflow-auto min-h-0 p-4">
-			<div class="markdown-content prose prose-sm max-w-none">
-				{@html markdownHtml}
-			</div>
-		</div>
-	{:else if props.preview.kind === "text" && isMarkdownPreview && textFallbackContent !== null}
-		<div class="flex-1 overflow-auto min-h-0 p-4">
-			<pre class="text-xs leading-relaxed whitespace-pre-wrap break-words font-mono text-foreground">{textFallbackContent}</pre>
+			<MarkdownDisplay
+				content={props.preview.content}
+				textSize="text-sm"
+				contentPaddingClass="p-0"
+				class="prose prose-sm max-w-none"
+			/>
 		</div>
 	{:else if renderError && textFallbackContent !== null}
 		<div class="flex-1 overflow-auto min-h-0 p-4">

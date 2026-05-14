@@ -18,6 +18,7 @@ const isDev = import.meta.env.DEV;
 let {
 	pendingProjectSelection,
 	isConnecting,
+	isRetryingConnection = false,
 	sessionId,
 	sessionTitle,
 	sessionAgentId,
@@ -35,6 +36,7 @@ let {
 	hideProjectBadge = false,
 	onClose,
 	onToggleFullscreen,
+	onRetryConnection,
 	onCopyStreamingLogPath,
 	onExportRawStreaming,
 	displayTitle = null,
@@ -75,14 +77,17 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 			<AgentPanelStatusIcon
 				status={sessionStatus}
 				{isConnecting}
+				isRetrying={isRetryingConnection}
 				agentId={sessionAgentId}
 				warmingLabel={sessionStatus === "running" ? "Thread is running" : preparingThreadLabel}
+				retryingLabel={"Retrying thread"}
 				connectedLabel={sessionStatus === "idle"
 					? "Thread is detached"
 					: sessionStatus === "done"
 						? "Thread is complete"
 						: "Thread is connected"}
 				errorLabel={"Thread error - click to retry"}
+				onRetry={onRetryConnection}
 			/>
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger

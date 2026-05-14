@@ -197,6 +197,61 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(container.querySelector('img[src="/agent.svg"]')).not.toBeNull();
 	});
 
+	it("shows immediate retry feedback in the header status bubble", async () => {
+		const onRetryConnection = vi.fn();
+		const props = {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			isRetryingConnection: false,
+			sessionId: "session-1",
+			sessionTitle: "Thread",
+			sessionAgentId: "codex",
+			currentAgentId: "codex",
+			availableAgents: [],
+			agentIconSrc: "",
+			agentName: "Codex",
+			isFullscreen: false,
+			sessionStatus: "error",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onRetryConnection,
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: "Thread",
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+			debugPanelState: null,
+		};
+
+		const view = render(AgentPanelHeader, props);
+
+		await fireEvent.click(screen.getByRole("button", { name: "Thread error - click to retry" }));
+
+		expect(onRetryConnection).toHaveBeenCalledTimes(1);
+
+		await view.rerender({
+			...props,
+			isRetryingConnection: true,
+		});
+
+		expect(screen.queryByRole("button", { name: "Thread error - click to retry" })).toBeNull();
+		expect(screen.getByLabelText("Retrying thread")).not.toBeNull();
+	});
+
 	it("keeps the overflow menu limited to copy and export actions", async () => {
 		render(AgentPanelHeader, {
 			pendingProjectSelection: false,

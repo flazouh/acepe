@@ -8,6 +8,7 @@
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
 	import { LoadingIcon } from "../icons/index.js";
+	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
 
@@ -33,7 +34,8 @@
 			Boolean(model.hasResolvedChecks)
 	);
 	const hasExpandedContent = $derived(
-		Boolean(model.descriptionHtml) ||
+		Boolean(model.descriptionMarkdown) ||
+			Boolean(model.descriptionHtml) ||
 			(model.commits?.length ?? 0) > 0 ||
 			model.mode === "streaming"
 	);
@@ -123,10 +125,20 @@
 	{/snippet}
 
 	{#snippet expandedContent()}
-		{#if model.descriptionHtml}
+		{#if model.descriptionMarkdown || model.descriptionHtml}
 			<div class="px-3 pt-0 pb-2 max-h-[200px] overflow-y-auto">
-				<div class="markdown-content text-sm text-foreground leading-relaxed">
-					{@html model.descriptionHtml}
+				<div class="text-sm text-foreground leading-relaxed">
+					{#if model.descriptionMarkdown}
+						<MarkdownDisplay
+							content={model.descriptionMarkdown}
+							textSize="text-sm"
+							contentPaddingClass="p-0"
+						/>
+					{:else}
+						<div class="markdown-content text-sm text-foreground leading-relaxed">
+							{@html model.descriptionHtml}
+						</div>
+					{/if}
 					{#if model.mode === "streaming" && model.isStreaming}
 						<span class="inline-block w-1.5 h-3 bg-foreground/50 animate-pulse ml-0.5 align-text-bottom"></span>
 					{/if}
@@ -135,7 +147,7 @@
 		{/if}
 
 		{#if model.commits && model.commits.length > 0}
-			<div class="flex flex-col px-2 pb-1.5 {model.descriptionHtml ? 'border-t border-border/30 pt-1.5' : 'pt-1.5'}">
+			<div class="flex flex-col px-2 pb-1.5 {model.descriptionMarkdown || model.descriptionHtml ? 'border-t border-border/30 pt-1.5' : 'pt-1.5'}">
 				{#each model.commits as commit (commit.sha)}
 					<div class="flex items-center gap-2 px-1 py-0.5">
 						<GitHubBadge

@@ -35,17 +35,17 @@
 		{/if}
 
 		<div
-			class="w-full flex items-center justify-between pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 {isExpanded
+			class="flex w-full min-w-max items-center gap-3 pl-1 pr-3 py-1 rounded-md border border-border bg-input/30 {isExpanded
 				? 'rounded-t-none border-t-0'
 				: ''}"
 		>
-			{#if leadingContent}
-				<div class="flex items-center gap-2 shrink-0 min-w-0">
+			<div class="flex shrink-0 items-center gap-2">
+				{#if leadingContent}
 					{@render leadingContent()}
-				</div>
-			{/if}
+				{/if}
+			</div>
 
-			<div class="flex items-center gap-3 shrink-0 ml-auto">
+			<div class="ml-auto flex shrink-0 items-center gap-3">
 				{@render trailingContent(isExpanded, toggleExpanded)}
 			</div>
 		</div>

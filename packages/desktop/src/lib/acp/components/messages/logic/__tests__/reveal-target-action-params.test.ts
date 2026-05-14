@@ -7,21 +7,20 @@ import {
 
 function createParams(overrides: Partial<RevealTargetActionParams> = {}): RevealTargetActionParams {
 	return {
-		controller: overrides.controller,
 		entryIndex: overrides.entryIndex ?? 1,
 		entryKey: overrides.entryKey ?? "assistant-1",
 		observeRevealResize: overrides.observeRevealResize ?? true,
-		revealEntryIndex: overrides.revealEntryIndex ?? (() => true),
+		onRevealResize: overrides.onRevealResize ?? (() => undefined),
 	};
 }
 
 describe("shouldRestartRevealTargetAction", () => {
 	it("does not restart when only the wrapper object or reveal callback identity changes", () => {
 		const currentParams = createParams({
-			revealEntryIndex: () => true,
+			onRevealResize: () => undefined,
 		});
 		const nextParams = createParams({
-			revealEntryIndex: () => false,
+			onRevealResize: () => undefined,
 		});
 
 		expect(shouldRestartRevealTargetAction(currentParams, nextParams)).toBe(false);

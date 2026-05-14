@@ -13,6 +13,7 @@ import {
 import {
 	AttentionQueueQuestionCard,
 	AgentToolTask,
+	AgentToolThinking,
 	type ActivityEntryQuestion,
 	type ActivityEntryQuestionOption,
 	type ActivityEntryQuestionProgress,
@@ -24,6 +25,7 @@ import {
 	KanbanCard,
 	PillButton,
 	ProjectLetterBadge,
+	ThinkingDotMatrix,
 	type AgentToolEntry,
 	type AnyAgentEntry,
 	type KanbanCardData,
@@ -61,6 +63,7 @@ const sidebarItems: SidebarItem[] = [
 	{ id: "permission-card", label: "Permission Card", icon: "shield" },
 	{ id: "kanban-card", label: "Kanban Card", icon: "kanban" },
 	{ id: "agent-tool-task", label: "Agent Tool Task", icon: "robot" },
+	{ id: "thinking", label: "Thinking Block", icon: "robot" },
 ];
 
 const demoCardBase: KanbanCardData = {
@@ -1217,6 +1220,97 @@ const kanbanMenuTriggerClass =
 										compact={true}
 										iconBasePath="/svgs/icons"
 									/>
+								</div>
+							</div>
+						</div>
+
+					{:else if activeSection === "thinking"}
+						<div class="mb-1 text-xs font-semibold text-foreground/80">Thinking Block</div>
+						<p class="mb-6 max-w-[420px] text-[11px] text-muted-foreground/60">
+							Assistant reasoning block. Expanded body shows a 2-column dot matrix beside the thought text — one dot cycles clockwise during streaming (CSS-only, honours <code>prefers-reduced-motion</code>). Collapsed state hides the body.
+						</p>
+
+						<div class="flex flex-col gap-6">
+							<div>
+								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+									Streaming — short thought
+								</div>
+								<div class="mx-auto w-full max-w-[420px]">
+									<AgentToolThinking
+										headerLabel="Thinking for 3s"
+										status="running"
+										collapsed={false}
+									>
+										<div class="text-sm leading-[1.5] text-muted-foreground/80">
+											Let me look at the auth middleware first. The race condition probably happens when two tabs refresh the token at the same moment, so I need to add some kind of lock.
+										</div>
+									</AgentToolThinking>
+								</div>
+							</div>
+
+							<div>
+								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+									Streaming — taller body (more matrix rows)
+								</div>
+								<div class="mx-auto w-full max-w-[420px]">
+									<AgentToolThinking
+										headerLabel="Thinking for 11s"
+										status="running"
+										collapsed={false}
+									>
+										<div class="space-y-2 text-sm leading-[1.5] text-muted-foreground/80">
+											<p>The session timeout bug only reproduces with two tabs open. That suggests a write-write race on the refresh token.</p>
+											<p>Options: mutex around the refresh call, a single broadcast channel, or server-side dedupe by request id.</p>
+											<p>Mutex is the smallest diff. Channel is cleaner but adds a runtime dep. Server-side dedupe is most robust but requires a backend change.</p>
+											<p>I'll start with the mutex and add a test that opens two virtual tabs to confirm.</p>
+										</div>
+									</AgentToolThinking>
+								</div>
+							</div>
+
+							<div>
+								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+									Done — expanded (animation off)
+								</div>
+								<div class="mx-auto w-full max-w-[420px]">
+									<AgentToolThinking
+										headerLabel="Thought for 14s"
+										status="done"
+										collapsed={false}
+									>
+										<div class="text-sm leading-[1.5] text-muted-foreground/80">
+											Final plan: add a mutex around <code>refreshAccessToken</code>, add a test that opens two virtual tabs, then verify no duplicate refresh calls hit the server.
+										</div>
+									</AgentToolThinking>
+								</div>
+							</div>
+
+							<div>
+								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+									Done — collapsed (header only)
+								</div>
+								<div class="mx-auto w-full max-w-[420px]">
+									<AgentToolThinking
+										headerLabel="Thought for 14s"
+										status="done"
+										collapsed={true}
+									>
+										<div class="text-sm leading-[1.5] text-muted-foreground/80">
+											(hidden when collapsed)
+										</div>
+									</AgentToolThinking>
+								</div>
+							</div>
+
+							<div>
+								<div class="mb-2 text-[10px] font-mono font-medium uppercase tracking-wider text-muted-foreground/40">
+									ThinkingDotMatrix standalone (height 96px)
+								</div>
+								<div class="mx-auto flex h-24 w-full max-w-[420px] items-stretch gap-3 rounded-md border border-border/40 bg-accent/20 p-2">
+									<ThinkingDotMatrix status="running" />
+									<div class="min-w-0 flex-1 text-[11px] text-muted-foreground/70">
+										Container height drives the row count (≈10px per row). Active dot cycles clockwise: top-left → right column down → bottom-left → left column up.
+									</div>
 								</div>
 							</div>
 						</div>

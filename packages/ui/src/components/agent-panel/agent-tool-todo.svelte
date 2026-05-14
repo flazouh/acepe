@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { ListChecks } from "phosphor-svelte";
 	import { CheckCircle } from "phosphor-svelte";
-	import { TextShimmer } from "../text-shimmer/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import TodoNumberIcon from "./todo-number-icon.svelte";
 	import type { AgentTodoItem } from "./types.js";
@@ -45,14 +44,14 @@
 	<AgentToolCard>
 		<div class="px-3 py-2 space-y-2">
 			<!-- Header with progress -->
-			<div class="mb-1.5 flex items-center justify-between gap-2 text-sm text-muted-foreground">
+			<div class="mb-1.5 flex items-center justify-between gap-2 text-sm">
 				<div class="flex min-w-0 items-center gap-2">
-					<span class="font-medium uppercase tracking-wide">{tasksLabel}</span>
+					<span>{tasksLabel}</span>
 					{#if durationLabel}
-						<span class="font-sans text-sm text-muted-foreground/70">{durationLabel}</span>
+						<span class="text-sm">{durationLabel}</span>
 					{/if}
 				</div>
-				<span class="font-sans">{completedCount}/{totalTasks}</span>
+				<span>{completedCount}/{totalTasks}</span>
 			</div>
 
 			<!-- Progress bar -->
@@ -79,22 +78,16 @@
 						</span>
 
 						<!-- Content -->
-						<span
-							class={todo.status === "completed"
-								? "text-muted-foreground/60 line-through"
-								: todo.status === "cancelled"
-									? "text-muted-foreground/40 line-through"
-									: "text-foreground"}
-						>
+						<span>
 							{#if isCurrentAndLive && todo.activeForm}
-								<TextShimmer class="text-sm">{todo.activeForm}</TextShimmer>
+								<span class="text-sm">{todo.activeForm}</span>
 							{:else}
 								{todo.content}
 							{/if}
 						</span>
 
 						<!-- Duration -->
-						<span class="shrink-0 text-right text-muted-foreground font-sans text-sm">
+						<span class="shrink-0 text-right text-sm">
 							{formatDuration(todo.duration)}
 						</span>
 					</div>
@@ -105,7 +98,7 @@
 {:else}
 	<!-- Fallback when no todos parsed -->
 	<AgentToolCard>
-		<div class="px-3 py-2.5 flex items-center gap-2 text-sm text-muted-foreground">
+		<div class="flex items-center gap-2 px-3 py-2.5 text-sm">
 			<ListChecks size={14} />
 			<span>{fallbackLabel}</span>
 		</div>

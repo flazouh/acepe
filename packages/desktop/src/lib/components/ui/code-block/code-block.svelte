@@ -107,7 +107,7 @@ const highlightedLines = $derived.by(() => {
 		margin: 0.5rem 0;
 		font-size: 0.8125rem;
 		line-height: 1.5;
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 		white-space: pre-wrap;
 		word-break: break-words;
 	}
@@ -121,7 +121,7 @@ const highlightedLines = $derived.by(() => {
 	.code-content {
 		display: inline-block;
 		min-width: 100%;
-		font-family: "Fira Code", "JetBrains Mono", "Consolas", monospace;
+		font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
 		font-size: 0.75rem;
 	}
 

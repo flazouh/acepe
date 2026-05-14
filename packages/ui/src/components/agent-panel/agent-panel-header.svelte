@@ -266,7 +266,7 @@
 			<div class="expansion-inner">
 				<div class="px-3 pt-1.5 pb-1">
 					<p
-						class="m-0 max-h-12 overflow-y-auto scrollbar-thin text-[12px] font-medium font-mono text-foreground"
+							class="m-0 max-h-12 overflow-y-auto scrollbar-thin text-[12px] font-medium text-foreground"
 					>
 						{resolvedTitle}
 					</p>

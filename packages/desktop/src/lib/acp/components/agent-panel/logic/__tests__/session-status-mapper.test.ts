@@ -202,6 +202,30 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		});
 	});
 
+	it("uses cancelled canonical turn state as sendable idle feedback", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			lifecycle: lifecycle("ready", false, false, true),
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: "Cancelled",
+			hasEntries: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "connected",
+			isConnected: true,
+			isStreaming: false,
+			showPlanningIndicator: false,
+			canSubmit: true,
+			showStop: false,
+		});
+	});
+
 	it("uses local pending send intent for immediate in-session planning feedback", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			lifecycle: lifecycle("ready", false, false, true),

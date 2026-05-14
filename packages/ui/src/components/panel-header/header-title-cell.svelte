@@ -12,7 +12,7 @@
 </script>
 
 <div
-	class="h-7 flex items-center flex-1 min-w-0 font-mono {compactPadding ? 'pl-1.5 pr-2' : 'pl-2.5 pr-2'} {hoverable
+	class="h-7 flex items-center flex-1 min-w-0 {compactPadding ? 'pl-1.5 pr-2' : 'pl-2.5 pr-2'} {hoverable
 		? 'hover:bg-accent/50 transition-colors'
 		: ''} {className}"
 >

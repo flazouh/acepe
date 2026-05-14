@@ -1,11 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import { getContext } from "svelte";
 import type { Action } from "svelte/action";
-import {
-	THREAD_FOLLOW_CONTROLLER_CONTEXT,
-	type ThreadFollowController,
-} from "../agent-panel/logic/thread-follow-controller.svelte.js";
 import {
 	shouldRestartRevealTargetAction,
 	type RevealTargetActionParams,
@@ -18,7 +13,7 @@ interface Props {
 	messageId?: string;
 	isFullscreen?: boolean;
 	observeRevealResize?: boolean;
-	revealEntryIndex?: (index: number, force?: boolean) => boolean;
+	onRevealResize?: () => void;
 	children: Snippet;
 }
 
@@ -28,25 +23,18 @@ let {
 	messageId,
 	isFullscreen = false,
 	observeRevealResize = false,
-	revealEntryIndex,
+	onRevealResize,
 	children,
 }: Props = $props();
 
-const followController = getContext<ThreadFollowController | undefined>(
-	THREAD_FOLLOW_CONTROLLER_CONTEXT
-);
-
 const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (node, params) => {
-	let unregister = () => {};
 	let observer: ResizeObserver | null = null;
 	let currentParams = params;
 	const resizeScheduler = createRevealResizeScheduler(() => {
-		currentParams.controller?.requestLatestReveal();
+		currentParams.onRevealResize?.();
 	});
 
 	function stop(): void {
-		unregister();
-		unregister = () => {};
 		observer?.disconnect();
 		observer = null;
 		resizeScheduler.cancel();
@@ -55,17 +43,6 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 	function start(nextParams: RevealTargetActionParams): void {
 		stop();
 		currentParams = nextParams;
-		if (!nextParams.controller || !nextParams.revealEntryIndex) return;
-
-		unregister = nextParams.controller.registerTarget(nextParams.entryKey, {
-			reveal(force?: boolean): boolean {
-				return currentParams.revealEntryIndex?.(currentParams.entryIndex, force) ?? false;
-			},
-			isMounted(): boolean {
-				return node.isConnected;
-			},
-		});
-
 		if (!nextParams.observeRevealResize) {
 			return;
 		}
@@ -95,11 +72,10 @@ const revealTargetAction: Action<HTMLDivElement, RevealTargetActionParams> = (no
 
 <div
 	use:revealTargetAction={{
-		controller: followController,
 		entryIndex,
 		entryKey,
 		observeRevealResize,
-		revealEntryIndex,
+		onRevealResize,
 	}}
 	class="py-1.5 px-3 {isFullscreen ? 'flex justify-center' : ''}"
 	data-entry-index={entryIndex}

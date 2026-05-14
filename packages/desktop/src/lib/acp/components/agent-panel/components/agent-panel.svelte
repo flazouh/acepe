@@ -2207,6 +2207,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 		<AgentPanelHeader
 			{pendingProjectSelection}
 			{isConnecting}
+			{isRetryingConnection}
 			{sessionId}
 			{sessionTitle}
 			{sessionAgentId}
@@ -2227,6 +2228,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{debugPanelState}
 			onClose={handleClose}
 			{onToggleFullscreen}
+			onRetryConnection={handleRetryConnection}
 			onScrollToTop={scrollToTop}
 			{firstMessageAttachments}
 			onCopyContent={handleCopyContent}

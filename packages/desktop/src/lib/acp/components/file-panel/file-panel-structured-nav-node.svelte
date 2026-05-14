@@ -119,7 +119,7 @@ function handleKeyDown(e: KeyboardEvent) {
 		user-select: none;
 		color: var(--muted-foreground);
 		font-size: 0.8125rem;
-		font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
 		line-height: 1.45;
 	}
 

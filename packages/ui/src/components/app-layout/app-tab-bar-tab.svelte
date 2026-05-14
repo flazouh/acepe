@@ -52,10 +52,10 @@
 					onmouseenter={handleMouseEnter}
 					onmouseleave={handleMouseLeave}
 				>
-					<div
-						class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer border-r border-border/30 transition-transform duration-200 {tab.isFocused
-							? 'bg-accent'
-							: 'hover:bg-accent/50'}"
+						<div
+							class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer border-r border-border/30 transition-transform duration-200 {tab.isFocused
+								? 'bg-accent'
+								: 'bg-accent/50 hover:bg-accent'}"
 						onclick={() => onclick?.()}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {

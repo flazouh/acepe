@@ -173,7 +173,7 @@ onDestroy(() => {
 
 	/* @pierre/diffs renders into shadow DOM, so we style the container */
 	:global(.file-container *) {
-		font-family: "Fira Code", "JetBrains Mono", "Consolas", monospace;
+		font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
 	}
 
 	.error-message {
