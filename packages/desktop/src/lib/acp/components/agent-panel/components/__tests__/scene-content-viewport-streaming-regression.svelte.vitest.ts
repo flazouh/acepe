@@ -1,7 +1,11 @@
-import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { cleanup, render, waitFor } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type {
+	AgentPanelSceneEntryModel,
+	TokenRevealCss,
+} from "@acepe/ui/agent-panel";
 
 const storageMock: Storage = {
 	length: 0,
@@ -54,12 +58,6 @@ function createAssistantSceneEntry(
 ): AgentPanelSceneEntryModel {
 	return { id, type: "assistant", markdown, isStreaming, tokenRevealCss };
 }
-
-const renderMarkdownSyncMock = vi.fn((text: string) => ({
-	html: `<p>${text}</p>\n`,
-	fromCache: false,
-	needsAsync: false,
-}));
 
 vi.mock(
 	"svelte",
@@ -127,31 +125,8 @@ vi.mock("$lib/acp/utils/logger.js", () => ({
 	}),
 }));
 
-vi.mock("$lib/acp/components/messages/logic/mount-file-badges.js", () => ({
-	mountFileBadges: () => () => {},
-}));
-
-vi.mock("$lib/acp/components/messages/logic/mount-github-badges.js", () => ({
-	mountGitHubBadges: () => () => {},
-}));
-
-vi.mock("$lib/acp/components/messages/content-block-renderer.svelte", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
-
-vi.mock("../../../messages/content-block-renderer.svelte", async () => ({
-	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
-
 vi.mock("../../../messages/mermaid-diagram.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
-
-vi.mock("$lib/acp/utils/markdown-renderer.js", () => ({
-	renderMarkdown: vi.fn(() => ({
-		match: () => Promise.resolve(undefined),
-	})),
-	renderMarkdownSync: (text: string) => renderMarkdownSyncMock(text),
 }));
 
 import SceneContentViewport from "../scene-content-viewport.svelte";
@@ -160,14 +135,10 @@ describe("SceneContentViewport streaming regression", () => {
 	beforeEach(() => {
 		queuedAnimationFrames = [];
 		nextAnimationFrameId = 1;
-		renderMarkdownSyncMock.mockClear();
-		vi.stubGlobal(
-			"ResizeObserver",
-			class {
-				observe(): void {}
-				disconnect(): void {}
-			}
-		);
+		vi.stubGlobal("ResizeObserver", class {
+			observe(): void {}
+			disconnect(): void {}
+		});
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback): number => {
 			const id = nextAnimationFrameId;
 			nextAnimationFrameId += 1;
@@ -185,7 +156,7 @@ describe("SceneContentViewport streaming regression", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("keeps a visible assistant prefix when thinking-only updates into first-token on native fallback", async () => {
+	it("keeps a visible assistant prefix when thinking-only updates into first-token on healthy Virtua", async () => {
 		const view = render(SceneContentViewport, {
 			panelId: "panel-1",
 			sceneEntries: [createUserSceneEntry("user-1", "Explain umbrellas slowly.")],
@@ -201,7 +172,8 @@ describe("SceneContentViewport streaming regression", () => {
 		await tick();
 		await tick();
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 
 		await view.rerender({
 			panelId: "panel-1",
@@ -232,7 +204,6 @@ describe("SceneContentViewport streaming regression", () => {
 		expect(assistantRow).not.toBeNull();
 
 		await waitFor(() => {
-			expect(renderMarkdownSyncMock.mock.calls.length).toBeGreaterThan(0);
 			expect(assistantRow?.textContent?.trim().length ?? 0).toBeGreaterThan(0);
 			expect(assistantRow?.textContent ?? "").toContain("Umb");
 		});

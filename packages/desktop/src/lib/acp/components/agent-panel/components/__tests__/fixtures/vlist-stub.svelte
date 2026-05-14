@@ -5,6 +5,7 @@ import { onMount } from "svelte";
 import {
 	dataLengthHistory,
 	getDefaultViewportSize,
+	recordScrollOffset,
 	getRenderedItemAt,
 	recordRenderedItem,
 	scrollToIndexCalls,
@@ -36,6 +37,8 @@ let _scrollOffset = 0;
 let _scrollSize = 320;
 let _viewportSize = getDefaultViewportSize();
 
+recordScrollOffset(_scrollOffset);
+
 export function getScrollOffset(): number {
 	return _scrollOffset;
 }
@@ -51,14 +54,17 @@ export function scrollToIndex(
 ): void {
 	scrollToIndexCalls.push({ index, options: opts });
 	_scrollOffset = Math.max(0, _scrollSize - _viewportSize);
+	recordScrollOffset(_scrollOffset);
 	onscroll?.(_scrollOffset);
 }
 export function scrollTo(offset: number): void {
 	_scrollOffset = offset;
+	recordScrollOffset(_scrollOffset);
 	onscroll?.(_scrollOffset);
 }
 export function scrollBy(offset: number): void {
 	_scrollOffset += offset;
+	recordScrollOffset(_scrollOffset);
 	onscroll?.(_scrollOffset);
 }
 export function getCache(): never {
@@ -77,16 +83,19 @@ export function getItemSize(_index: number): number {
 // Test inspection helpers (not part of VListHandle)
 onMount(() => {
 	_scrollSize = getSimulatedScrollSize(data.length, rest.itemSize);
+	recordScrollOffset(_scrollOffset);
 	dataLengthHistory.push(data.length);
 });
 
 $effect(() => {
 	_scrollSize = getSimulatedScrollSize(data.length, rest.itemSize);
+	recordScrollOffset(_scrollOffset);
 	dataLengthHistory.push(data.length);
 });
 
 export function _setScrollOffset(offset: number): void {
 	_scrollOffset = offset;
+	recordScrollOffset(_scrollOffset);
 }
 export function _setScrollSize(size: number): void {
 	_scrollSize = size;

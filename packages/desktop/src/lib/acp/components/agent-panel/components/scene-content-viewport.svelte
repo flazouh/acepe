@@ -16,17 +16,9 @@ import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-anima
 import ContentBlockRouter from "../../messages/content-block-router.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import {
-	createAutoScroll,
-	type ScrollPositionProvider,
-} from "../logic/create-auto-scroll.svelte.js";
-import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,
 } from "../logic/graph-scene-entry-match.js";
-import {
-	THREAD_FOLLOW_CONTROLLER_CONTEXT,
-	ThreadFollowController,
-} from "../logic/thread-follow-controller.svelte.js";
 import {
 	buildSceneDisplayRows,
 	getLatestSceneDisplayRevealTargetKey,
@@ -43,6 +35,24 @@ import {
 	type IndexedViewportEntry,
 	type ViewportFallbackReason,
 } from "../logic/viewport-fallback-controller.svelte.js";
+import {
+	createInitialTranscriptViewportState,
+	reduceTranscriptViewportEvent,
+	type TranscriptViewportState,
+} from "../logic/transcript-viewport-controller.js";
+import type {
+	TranscriptViewportEvent,
+	TranscriptViewportMeasurement,
+} from "../logic/transcript-viewport-events.js";
+import type { TranscriptViewportEffect } from "../logic/transcript-viewport-effects.js";
+import {
+	createNativeTranscriptRendererAdapter,
+	createVirtuaTranscriptRendererAdapter,
+	type TranscriptRendererAdapter,
+	type VirtuaTranscriptHandle,
+} from "../logic/transcript-renderer-adapter.js";
+import { createTranscriptViewportScheduler } from "../logic/transcript-viewport-scheduler.svelte.js";
+import type { TranscriptViewportRowSummary } from "../logic/transcript-viewport-row-summary.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
@@ -53,6 +63,7 @@ import {
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
 const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
+const NEAR_EDGE_THRESHOLD_PX = 24;
 type SceneContentViewportProps = {
 	panelId: string;
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
@@ -117,8 +128,8 @@ setIconConfig({ basePath: "/svgs/icons" });
 // Use getters to ensure reactivity (values update when they change)
 setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	get sessionId() {
-		return sessionId ?? undefined;
-	},
+			return sessionId ?? undefined;
+		},
 	get panelId() {
 		return panelId;
 	},
@@ -145,55 +156,8 @@ let vlistRef: VListHandle | undefined = $state(undefined);
 let wrapperRef: HTMLDivElement | null = $state(null);
 let fallbackViewportRef: HTMLDivElement | null = $state(null);
 let viewportNudgeOffsetPx = $state(0);
-let useNativeFallback = $state(false);
-let nativeFallbackReason = $state<ViewportFallbackReason | null>(null);
 let nativeFallbackRetryCount = $state(0);
 const fallbackRowRefs = new Map<string, HTMLElement>();
-
-// ===== AUTO-SCROLL =====
-const autoScroll = createAutoScroll();
-const followController = new ThreadFollowController({
-	isFollowing: () => autoScroll.following,
-	isNearBottom: () => autoScroll.isNearBottom(),
-	revealListBottom: (force?: boolean) => autoScroll.revealLatest(force),
-	getLatestTargetKey: () => {
-		return getLatestSceneDisplayRevealTargetKey(displayEntries);
-	},
-	getLatestUserTargetKey: () => {
-		for (let i = displayEntries.length - 1; i >= 0; i -= 1) {
-			const entry = displayEntries[i];
-			if (entry?.type === "user") {
-				return getKey(entry);
-			}
-		}
-		return null;
-	},
-});
-setContext(THREAD_FOLLOW_CONTROLLER_CONTEXT, followController);
-
-// Sync VList ref to auto-scroll — Virtua's VListHandle satisfies ScrollPositionProvider directly.
-// Cleanup clears the stale provider and cancels pending RAFs on unmount, preventing
-// "null is not an object (evaluating 'get(ref).getScrollSize')" when virtua's internal
-// ref is disposed before ThreadFollowController's pending RAF fires.
-function createFallbackScrollProvider(viewport: HTMLDivElement): ScrollPositionProvider {
-	return {
-		getScrollSize: () => viewport.scrollHeight,
-		getViewportSize: () => viewport.clientHeight,
-		getScrollOffset: () => viewport.scrollTop,
-		scrollToIndex: (index: number) => {
-			const entry = displayEntries[index];
-			if (!entry) {
-				return;
-			}
-			const row = fallbackRowRefs.get(getKey(entry));
-			if (row) {
-				row.scrollIntoView({ block: "end" });
-				return;
-			}
-			viewport.scrollTop = viewport.scrollHeight;
-		},
-	};
-}
 
 function bindFallbackRow(node: HTMLElement, key: string): { destroy: () => void } {
 	fallbackRowRefs.set(key, node);
@@ -203,27 +167,6 @@ function bindFallbackRow(node: HTMLElement, key: string): { destroy: () => void 
 		},
 	};
 }
-
-$effect(() => {
-	const provider =
-		shouldUseNativeList && fallbackViewportRef
-			? createFallbackScrollProvider(fallbackViewportRef)
-			: vlistRef;
-	autoScroll.setVListRef(provider);
-	return () => {
-		// Detach the autoScroll provider so any in-flight scroll RAF stops
-		// reading the about-to-be-stale provider. Do NOT call followController.reset()
-		// here: provider swap (e.g., VList → native fallback when streaming starts)
-		// is not a session change. Resetting drops `prepareForNextUserReveal` /
-		// pending state set by the user's send click, which produces the visible
-		// "send teleports to top, no streaming" symptom because the freshly
-		// mounted fallback never receives the pending reveal request.
-		// Targets self-clean via their action's destroy hook, and the controller's
-		// generation guard already neutralizes stale RAFs scheduled against the
-		// old provider. Reset remains owned by the session-change effect below.
-		autoScroll.setVListRef(undefined);
-	};
-});
 
 // ===== HELPERS =====
 function getKey(entry: SceneDisplayRow | undefined, index?: number): string {
@@ -292,9 +235,7 @@ function createMissingSceneEntry(
 	entry: SceneDisplayRow | undefined,
 	index: number | undefined
 ): AgentPanelSceneEntryModel {
-	const displayKey = entry
-		? getSceneDisplayRowKey(entry)
-		: `missing-entry-${String(index ?? "unknown")}`;
+	const displayKey = entry ? getSceneDisplayRowKey(entry) : `missing-entry-${String(index ?? "unknown")}`;
 	reportMissingSceneEntry(entry, index, displayKey);
 	return {
 		id: `missing:${displayKey}`,
@@ -331,6 +272,7 @@ function getGraphSceneEntry(
 ): AgentPanelSceneEntryModel | undefined {
 	return findGraphSceneEntryForDisplayEntry(entry, sceneEntriesById);
 }
+
 
 let warnedMissingEntryKeys = new Set<string>();
 
@@ -459,16 +401,43 @@ const hasLiveAssistantDisplayEntry = $derived(
 	)
 );
 
-let holdNativeAfterRevealHandoff = $state(false);
-const hasActiveLiveTail = $derived(
-	isWaitingForResponse || isStreaming || hasLiveAssistantDisplayEntry
+function buildViewportRowSummary(rows: readonly SceneDisplayRow[]): TranscriptViewportRowSummary {
+	let latestUserKey: string | null = null;
+	const anchorEligibleKeys: string[] = [];
+	for (const entry of rows) {
+		const key = getSceneDisplayRowKey(entry);
+		if (entry.type === "user") {
+			latestUserKey = key;
+		}
+		if (entry.type !== "thinking") {
+			anchorEligibleKeys.push(key);
+		}
+	}
+
+	const lastEntry = rows.at(-1);
+	return {
+		version: rows.length,
+		count: rows.length,
+		firstKey: rows[0] === undefined ? null : getSceneDisplayRowKey(rows[0]),
+		lastKey: lastEntry === undefined ? null : getSceneDisplayRowKey(lastEntry),
+		latestUserKey,
+		anchorEligibleKeys,
+		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
+	};
+}
+
+let viewportState: TranscriptViewportState = $state(
+	createInitialTranscriptViewportState({
+		sessionId: untrack(() => sessionId),
+		rows: buildViewportRowSummary([]),
+	})
 );
-const shouldUseNativeListForLiveTail = $derived(useNativeFallback || hasActiveLiveTail);
-const shouldUseNativeList = $derived(
-	shouldUseNativeListForLiveTail || holdNativeAfterRevealHandoff
+const shouldUseNativeList = $derived(viewportState.renderer.type === "fallback");
+const nativeFallbackReason = $derived(
+	viewportState.renderer.type === "fallback"
+		? (viewportState.renderer.reason as ViewportFallbackReason)
+		: null
 );
-let previousShouldUseNativeList = $state(untrack(() => shouldUseNativeList));
-let previousShouldUseNativeListForLiveTail = $state(untrack(() => shouldUseNativeListForLiveTail));
 const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
 	return buildNativeFallbackWindow(displayEntries, NATIVE_FALLBACK_ENTRY_LIMIT);
 });
@@ -476,6 +445,106 @@ const vlistRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferre
 const wrapperStyle = $derived(
 	viewportNudgeOffsetPx === 0 ? "height: 100%;" : `height: calc(100% - ${viewportNudgeOffsetPx}px);`
 );
+
+function getRowKeys(): readonly string[] {
+	return displayEntries.map((entry) => getSceneDisplayRowKey(entry));
+}
+
+function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {
+	if (vlistRef === undefined || !("scrollTo" in vlistRef)) {
+		return undefined;
+	}
+	return vlistRef as VListHandle & { scrollTo(offset: number): void };
+}
+
+const virtuaAdapter = createVirtuaTranscriptRendererAdapter({
+	getHandle: getVirtuaHandle,
+	getRowKeys,
+});
+
+const nativeAdapter = createNativeTranscriptRendererAdapter({
+	getContainer: () => fallbackViewportRef,
+	getRowKeys,
+	getRowElement: (rowKey: string) => fallbackRowRefs.get(rowKey) ?? null,
+});
+
+const transcriptRendererAdapter: TranscriptRendererAdapter = {
+	measureViewport() {
+		return shouldUseNativeList ? nativeAdapter.measureViewport() : virtuaAdapter.measureViewport();
+	},
+	captureAnchor() {
+		return shouldUseNativeList ? nativeAdapter.captureAnchor() : virtuaAdapter.captureAnchor();
+	},
+	measureAnchor(anchorKey) {
+		return shouldUseNativeList
+			? nativeAdapter.measureAnchor(anchorKey)
+			: virtuaAdapter.measureAnchor(anchorKey);
+	},
+	revealRow(effect) {
+		return shouldUseNativeList ? nativeAdapter.revealRow(effect) : virtuaAdapter.revealRow(effect);
+	},
+	revealTail(effect) {
+		return shouldUseNativeList ? nativeAdapter.revealTail(effect) : virtuaAdapter.revealTail(effect);
+	},
+	applyScrollOffset(effect) {
+		return shouldUseNativeList
+			? nativeAdapter.applyScrollOffset(effect)
+			: virtuaAdapter.applyScrollOffset(effect);
+	},
+	probeRendererHealth() {
+		return shouldUseNativeList
+			? nativeAdapter.probeRendererHealth()
+			: virtuaAdapter.probeRendererHealth();
+	},
+	reportEffectOutcome(outcome) {
+		virtuaAdapter.reportEffectOutcome(outcome);
+	},
+};
+
+const viewportScheduler = createTranscriptViewportScheduler({
+	adapter: transcriptRendererAdapter,
+	getGeneration: () => viewportState.generation,
+	getSessionId: () => viewportState.sessionId,
+	dispatchEvent: (event) => dispatchViewportEvent(event),
+});
+
+function scheduleViewportEffects(effects: readonly TranscriptViewportEffect[]): void {
+	viewportScheduler.schedule(effects);
+}
+
+function dispatchViewportEvent(event: TranscriptViewportEvent): void {
+	if (event.type === "UserWheel" || event.type === "UserNavigationScroll") {
+		viewportScheduler.cancel();
+	}
+	const result = reduceTranscriptViewportEvent(viewportState, event);
+	viewportState = result.state;
+	scheduleViewportEffects(result.effects);
+}
+
+function measureCurrentViewport(): TranscriptViewportMeasurement {
+	const measurement = transcriptRendererAdapter.measureViewport();
+	if (measurement.type === "measured") {
+		return measurement.measurement;
+	}
+	return {
+		scrollOffset: 0,
+		scrollSize: 0,
+		viewportSize: 0,
+	};
+}
+
+$effect(() => {
+	const rows = buildViewportRowSummary(displayEntries);
+	const generation = untrack(() => viewportState.generation);
+	untrack(() => {
+		dispatchViewportEvent({
+			type: "RowsChanged",
+			sessionId,
+			generation,
+			rows,
+		});
+	});
+});
 
 $effect(() => {
 	if (initialHydrationComplete || !shouldDeferInitialHydration) {
@@ -507,14 +576,15 @@ $effect(() => {
 		return;
 	}
 
+	const previousSessionId = lastRenderedSessionId;
 	lastRenderedSessionId = sessionId;
 	warnedMissingEntryKeys.clear();
 	warnedMissingSceneEntryKeys.clear();
-	autoScroll.reset();
-	followController.reset();
-	useNativeFallback = false;
-	holdNativeAfterRevealHandoff = false;
-	nativeFallbackReason = null;
+	dispatchViewportEvent({
+		type: "SessionChanged",
+		sessionId,
+		previousSessionId,
+	});
 	nativeFallbackRetryCount = 0;
 	viewportNudgeOffsetPx = 0;
 	historicalScrollApplied = false;
@@ -528,7 +598,12 @@ $effect(() => {
 			return;
 		}
 		sessionSwitchRafId = null;
-		autoScroll.revealLatest(true);
+		dispatchViewportEvent({
+			type: "PublicScrollCommand",
+			sessionId,
+			generation: viewportState.generation,
+			command: "bottom",
+		});
 	};
 
 	if (displayEntries.length > 0) {
@@ -543,7 +618,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!initialHydrationComplete || useNativeFallback || displayEntries.length === 0 || !vlistRef) {
+	if (!initialHydrationComplete || shouldUseNativeList || displayEntries.length === 0 || !vlistRef) {
 		viewportNudgeOffsetPx = 0;
 		return;
 	}
@@ -552,6 +627,7 @@ $effect(() => {
 	let attempts = 0;
 	let recoveryFrameId: number | null = null;
 	const recoverySessionId = sessionId;
+	const recoveryGeneration = untrack(() => viewportState.generation);
 
 	const recoverViewport = () => {
 		if (cancelled || sessionId !== recoverySessionId) {
@@ -574,8 +650,12 @@ $effect(() => {
 					`entries=${displayEntries.length}`
 				);
 			}
-			useNativeFallback = true;
-			nativeFallbackReason = "zero_viewport";
+			dispatchViewportEvent({
+				type: "RendererFailed",
+				sessionId,
+				generation: recoveryGeneration,
+				reason: "zero_viewport",
+			});
 			return;
 		}
 
@@ -598,7 +678,7 @@ $effect(() => {
 $effect(() => {
 	if (
 		!initialHydrationComplete ||
-		useNativeFallback ||
+		shouldUseNativeList ||
 		displayEntries.length === 0 ||
 		!wrapperRef
 	) {
@@ -609,6 +689,7 @@ $effect(() => {
 	let remainingFrames = MAX_EMPTY_RENDER_FRAMES;
 	let probeFrameId: number | null = null;
 	const probeSessionId = sessionId;
+	const probeGeneration = untrack(() => viewportState.generation);
 
 	const probeRenderedEntries = () => {
 		if (cancelled || sessionId !== probeSessionId) {
@@ -630,8 +711,12 @@ $effect(() => {
 					`entries=${displayEntries.length}`
 				);
 			}
-			useNativeFallback = true;
-			nativeFallbackReason = "no_rendered_entries";
+			dispatchViewportEvent({
+				type: "RendererFailed",
+				sessionId,
+				generation: probeGeneration,
+				reason: "no_rendered_entries",
+			});
 			return;
 		}
 
@@ -651,7 +736,7 @@ $effect(() => {
 
 $effect(() => {
 	if (
-		!useNativeFallback ||
+		!shouldUseNativeList ||
 		!shouldRetryNativeFallback({
 			reason: nativeFallbackReason,
 			retryCount: nativeFallbackRetryCount,
@@ -664,6 +749,7 @@ $effect(() => {
 	let frameCount = 0;
 	let retryFrameId: number | null = null;
 	const fallbackSessionId = sessionId;
+	const fallbackGeneration = untrack(() => viewportState.generation);
 
 	const retryVirtuaAfterFallback = () => {
 		if (cancelled || sessionId !== fallbackSessionId) {
@@ -678,8 +764,11 @@ $effect(() => {
 
 		retryFrameId = null;
 		nativeFallbackRetryCount += 1;
-		nativeFallbackReason = null;
-		useNativeFallback = false;
+		dispatchViewportEvent({
+			type: "RendererRecovered",
+			sessionId,
+			generation: fallbackGeneration,
+		});
 	};
 
 	retryFrameId = requestAnimationFrame(retryVirtuaAfterFallback);
@@ -690,107 +779,6 @@ $effect(() => {
 			cancelAnimationFrame(retryFrameId);
 		}
 	};
-});
-
-$effect(() => {
-	const wasUsingNativeListForLiveTail = previousShouldUseNativeListForLiveTail;
-	previousShouldUseNativeListForLiveTail = shouldUseNativeListForLiveTail;
-
-	if (shouldUseNativeListForLiveTail) {
-		holdNativeAfterRevealHandoff = false;
-		return;
-	}
-
-	if (wasUsingNativeListForLiveTail && autoScroll.following && displayEntries.length > 0) {
-		holdNativeAfterRevealHandoff = true;
-	}
-});
-
-$effect(() => {
-	if (holdNativeAfterRevealHandoff && !autoScroll.following) {
-		holdNativeAfterRevealHandoff = false;
-	}
-});
-
-function revealLatestNativeFallbackRow(): boolean {
-	const latestIndex = displayEntries.length - 1;
-	const latestEntry = displayEntries[latestIndex];
-	if (!latestEntry) {
-		return false;
-	}
-
-	const row = fallbackRowRefs.get(getKey(latestEntry, latestIndex));
-	if (row) {
-		row.scrollIntoView({ block: "end" });
-		return true;
-	}
-
-	if (fallbackViewportRef) {
-		fallbackViewportRef.scrollTop = fallbackViewportRef.scrollHeight;
-		return true;
-	}
-
-	return false;
-}
-
-function scheduleRevealLatestAfterListMount(preferNativeFallback: boolean): () => void {
-	let cancelled = false;
-	let frameCount = 0;
-	let revealFrameId: number | null = null;
-
-	const revealAfterMount = () => {
-		if (cancelled) {
-			return;
-		}
-		frameCount += 1;
-		if (frameCount < 2) {
-			revealFrameId = requestAnimationFrame(revealAfterMount);
-			return;
-		}
-		revealFrameId = null;
-		if (preferNativeFallback && revealLatestNativeFallbackRow()) {
-			return;
-		}
-		autoScroll.revealLatest();
-	};
-
-	revealFrameId = requestAnimationFrame(revealAfterMount);
-
-	return () => {
-		cancelled = true;
-		if (revealFrameId !== null) {
-			cancelAnimationFrame(revealFrameId);
-		}
-	};
-}
-
-$effect(() => {
-	if (
-		shouldUseNativeList &&
-		hasActiveLiveTail &&
-		fallbackViewportRef &&
-		initialHydrationComplete &&
-		displayEntries.length > 0 &&
-		autoScroll.following
-	) {
-		return scheduleRevealLatestAfterListMount(true);
-	}
-});
-
-$effect(() => {
-	const wasUsingNativeList = previousShouldUseNativeList;
-	previousShouldUseNativeList = shouldUseNativeList;
-
-	if (
-		!wasUsingNativeList ||
-		shouldUseNativeList ||
-		!initialHydrationComplete ||
-		displayEntries.length === 0
-	) {
-		return;
-	}
-
-	return scheduleRevealLatestAfterListMount(false);
 });
 
 // ===== SCROLL TO BOTTOM ON HISTORICAL SESSION LOAD =====
@@ -815,7 +803,12 @@ $effect(() => {
 			return;
 		}
 		scrollRafId = null;
-		autoScroll.revealLatest(true);
+		dispatchViewportEvent({
+			type: "PublicScrollCommand",
+			sessionId,
+			generation: viewportState.generation,
+			command: "bottom",
+		});
 	};
 	scrollRafId = requestAnimationFrame(scrollAfterSettle);
 
@@ -826,63 +819,121 @@ $effect(() => {
 	};
 });
 
-// Sync item count for scrollToIndex calculations
-const displayEntryCount = $derived(displayEntries.length);
-$effect(() => {
-	autoScroll.setItemCount(displayEntryCount);
-});
-
-function revealDisplayIndex(index: number, force?: boolean): boolean {
-	return autoScroll.revealIndex(index, force);
+function requestRevealForIndex(index: number): void {
+	if (viewportState.follow !== "following") {
+		return;
+	}
+	const entry = displayEntries[index];
+	if (entry === undefined) {
+		return;
+	}
+	dispatchViewportEvent({
+		type: "ExplicitRevealRequested",
+		sessionId,
+		generation: viewportState.generation,
+		targetKey: getSceneDisplayRowKey(entry),
+	});
 }
 
-// Handle VList scroll events — Virtua's onscroll fires with (offset: number)
-// but autoScroll.handleScroll reads from the provider internally
+function getFirstAnchorKey(): string | undefined {
+	return viewportState.rows.anchorEligibleKeys[0];
+}
+
 function handleVListScroll(_offset: number): void {
-	autoScroll.handleScroll();
+	dispatchViewportEvent({
+		type: "UserScroll",
+		sessionId,
+		generation: viewportState.generation,
+		measurement: measureCurrentViewport(),
+		anchorKey: getFirstAnchorKey(),
+	});
 }
 
 function handleFallbackScroll(): void {
-	autoScroll.handleScroll();
+	dispatchViewportEvent({
+		type: "UserScroll",
+		sessionId,
+		generation: viewportState.generation,
+		measurement: measureCurrentViewport(),
+	});
 }
 
-// ===== NEAR-BOTTOM NOTIFICATION =====
-// Read autoScroll.nearBottom (reactive $state) so this $effect re-runs
-// whenever scroll position changes. Using autoScroll.isNearBottom() would
-// only read from the non-reactive provider, giving no reactive dependency.
+function isNearBottom(measurement: TranscriptViewportMeasurement | null): boolean {
+	if (measurement === null) {
+		return true;
+	}
+	const distanceFromBottom =
+		measurement.scrollSize - measurement.viewportSize - measurement.scrollOffset;
+	return distanceFromBottom <= NEAR_EDGE_THRESHOLD_PX;
+}
+
+function isNearTop(measurement: TranscriptViewportMeasurement | null): boolean {
+	return (measurement?.scrollOffset ?? 0) <= NEAR_EDGE_THRESHOLD_PX;
+}
+
 $effect(() => {
-	onNearBottomChange?.(autoScroll.nearBottom);
+	onNearBottomChange?.(
+		viewportState.follow === "following" ? true : isNearBottom(viewportState.lastMeasurement)
+	);
 });
 
 $effect(() => {
-	onNearTopChange?.(autoScroll.nearTop);
+	onNearTopChange?.(isNearTop(viewportState.lastMeasurement));
 });
 
 // ===== PASSIVE WHEEL LISTENER =====
 function wheelAction(node: HTMLElement): { destroy: () => void } {
-	node.addEventListener("wheel", autoScroll.handleWheel, { passive: true });
+	const handleWheel = (event: WheelEvent) => {
+		const measured = measureCurrentViewport();
+		const measurement =
+			event.deltaY < 0
+				? {
+						scrollOffset: measured.scrollOffset,
+						scrollSize: Math.max(measured.scrollSize, measured.viewportSize + NEAR_EDGE_THRESHOLD_PX + 1),
+						viewportSize: measured.viewportSize,
+				  }
+				: measured;
+		dispatchViewportEvent({
+			type: "UserWheel",
+			sessionId,
+			generation: viewportState.generation,
+			measurement,
+			anchorKey: getFirstAnchorKey(),
+		});
+	};
+	node.addEventListener("wheel", handleWheel, { passive: true });
 	return {
 		destroy() {
-			node.removeEventListener("wheel", autoScroll.handleWheel);
+			node.removeEventListener("wheel", handleWheel);
 		},
 	};
 }
 
 // ===== PUBLIC API =====
 export function scrollToBottom(options?: { force?: boolean }) {
-	followController.requestLatestReveal({ force: options?.force });
+	dispatchViewportEvent({
+		type: "PublicScrollCommand",
+		sessionId,
+		generation: viewportState.generation,
+		command: options?.force === false ? "follow" : "bottom",
+	});
 }
 
-export function prepareForNextUserReveal(options?: { force?: boolean }) {
-	followController.prepareForNextUserReveal(options);
+export function prepareForNextUserReveal(_options?: { force?: boolean }) {
+	dispatchViewportEvent({
+		type: "SendStarted",
+		sessionId,
+		generation: viewportState.generation,
+	});
 }
 
 export function scrollToTop() {
-	if (shouldUseNativeList && fallbackViewportRef) {
-		fallbackViewportRef.scrollTop = 0;
-		return;
-	}
-	vlistRef?.scrollToIndex(0);
+	dispatchViewportEvent({
+		type: "PublicScrollCommand",
+		sessionId,
+		generation: viewportState.generation,
+		command: "top",
+	});
 }
 </script>
 
@@ -922,7 +973,7 @@ export function scrollToTop() {
 				observeRevealResize={entry
 					? shouldObserveSceneDisplayRowRevealResize(displayEntries, entry, isStreaming)
 					: false}
-				revealEntryIndex={revealDisplayIndex}
+				onRevealResize={() => requestRevealForIndex(index)}
 				{isFullscreen}
 			>
 				<AgentPanelConversationEntry

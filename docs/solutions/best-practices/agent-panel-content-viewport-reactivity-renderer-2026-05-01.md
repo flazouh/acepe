@@ -17,6 +17,7 @@ tags:
   - viewport
   - svelte-5
   - renderer
+  - transcript-viewport
   - canonical
   - virtualization
   - missing-rows
@@ -24,6 +25,8 @@ tags:
 root_cause: logic_error
 resolution_type: code_fix
 ---
+
+> 2026-05-13 update: the main transcript now routes scroll policy through the deterministic transcript viewport controller. Keep this document for historical renderer/reactivity context, but new main-transcript scroll work should follow `docs/solutions/architectural/deterministic-transcript-viewport-controller-2026-05-13.md`.
 
 # Agent panel content viewport rows should stay scene-owned and timer-local
 
