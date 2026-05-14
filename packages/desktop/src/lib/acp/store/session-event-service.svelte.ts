@@ -463,6 +463,14 @@ export class SessionEventService {
 				});
 				break;
 
+			case "turnCancelled":
+				logger.info("Turn cancelled received on raw lane", {
+					sessionId,
+					updateSessionId: update.session_id,
+					turnId: update.turn_id,
+				});
+				break;
+
 			case "plan":
 				// GOD authority: plan content is now delivered through the canonical
 				// SessionStateEnvelope (kind: "plan") routed via applyPlan command.

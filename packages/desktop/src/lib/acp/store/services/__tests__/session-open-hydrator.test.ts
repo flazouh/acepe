@@ -139,7 +139,7 @@ describe("SessionOpenHydrator", () => {
 		expect(replaceSessionStateGraph).not.toHaveBeenCalled();
 	});
 
-	it("ignores equal revisions for the same canonical session", async () => {
+	it("applies equal revisions for the same canonical session", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
 		await hydrator.hydrateFound("panel-1", requestToken, createFoundResult());
 
@@ -149,9 +149,9 @@ describe("SessionOpenHydrator", () => {
 		expect(second._unsafeUnwrap()).toEqual({
 			canonicalSessionId: "canonical-session",
 			openToken: "open-token",
-			applied: false,
+			applied: true,
 		});
-		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
+		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(2);
 	});
 
 	it("ignores older revisions after a newer snapshot was applied", async () => {

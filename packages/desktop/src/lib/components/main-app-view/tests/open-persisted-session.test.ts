@@ -23,6 +23,7 @@ type SessionOpenHydratorLike = Pick<
 	SessionOpenHydrator,
 	"beginAttempt" | "clearAttempt" | "hydrateFound" | "isCurrentAttempt"
 >;
+type ExistingSession = NonNullable<ReturnType<SessionOpenStore["getSessionCold"]>>;
 
 describe("openPersistedSession", () => {
 	let sessionStore: SessionOpenStore;
@@ -132,6 +133,57 @@ describe("openPersistedSession", () => {
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		await new Promise((resolve) => setTimeout(resolve, 5));
 		expect(sessionStore.setSessionLoaded).toHaveBeenCalledTimes(1);
+	});
+
+	it("dedupes a repeated open while the hydrated reconnect is still claiming its token", async () => {
+		let resolveReconnect: (session: ExistingSession) => void = () => {};
+		sessionStore.connectSession = mock(
+			() =>
+				ResultAsync.fromSafePromise(
+					new Promise<ExistingSession>((resolve) => {
+						resolveReconnect = resolve;
+					})
+				) as unknown as ReturnType<SessionOpenStore["connectSession"]>
+		);
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+		});
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
+
+		resolveReconnect({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "claude-code",
+			sourcePath: "/tmp/session-1.jsonl",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			parentId: null,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
 	it("hydrates and settles snapshot-only after a found result", async () => {

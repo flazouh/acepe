@@ -146,6 +146,53 @@ function findOperationForTranscriptSourceEntry(
 	return index.byTranscriptSourceEntryId.get(entryId) ?? null;
 }
 
+function shouldLogUnresolvedToolDiagnostics(): boolean {
+	if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
+		return false;
+	}
+
+	return localStorage.getItem("acepe:debug:unresolved-tools") === "1";
+}
+
+function logUnresolvedToolDiagnostics(
+	entry: TranscriptEntry,
+	graph: SessionStateGraph,
+	index: OperationIndex
+): void {
+	if (!shouldLogUnresolvedToolDiagnostics()) {
+		return;
+	}
+
+	const transcriptLinkedEntryIds = Array.from(index.byTranscriptSourceEntryId.keys()).slice(0, 40);
+	const operationSummaries = graph.operations.slice(0, 40).map((operation) => {
+		return {
+			id: operation.id,
+			toolCallId: operation.tool_call_id,
+			name: operation.name,
+			title: operation.title,
+			state: operation.operation_state,
+			sourceLink: operation.source_link,
+		};
+	});
+
+	console.warn("[agent-panel] unresolved restored tool row", {
+		sessionId: graph.canonicalSessionId,
+		agentId: graph.agentId,
+		graphRevision: graph.revision.graphRevision,
+		transcriptRevision: graph.revision.transcriptRevision,
+		lastEventSeq: graph.revision.lastEventSeq,
+		turnState: graph.turnState,
+		entryId: entry.entryId,
+		entryText: segmentText(entry),
+		toolTranscriptEntryCount: graph.transcriptSnapshot.entries.filter(
+			(candidate) => candidate.role === "tool"
+		).length,
+		operationCount: graph.operations.length,
+		transcriptLinkedEntryIds,
+		operationSummaries,
+	});
+}
+
 function mapGraphStatus(graph: SessionStateGraph): AgentPanelSessionStatus {
 	const lifecycleStatus = graph.lifecycle.status;
 	if (
@@ -470,6 +517,7 @@ function materializeTranscriptEntry(
 	if (entry.role === "tool") {
 		const operation = findOperationForTranscriptSourceEntry(entry.entryId, index);
 		if (operation === null) {
+			logUnresolvedToolDiagnostics(entry, graph, index);
 			return materializeMissingToolEntry(entry, graph);
 		}
 
@@ -603,6 +651,33 @@ function materializeConversation(graph: SessionStateGraph): {
 	};
 }
 
+function insertOptimisticUserEntryAtTurnBoundary(
+	entries: readonly AgentPanelSceneEntryModel[],
+	entry: AgentPanelSceneEntryModel
+): readonly AgentPanelSceneEntryModel[] {
+	const nextEntries: AgentPanelSceneEntryModel[] = Array.from(entries);
+	let lastUserIndex = -1;
+	for (let index = nextEntries.length - 1; index >= 0; index -= 1) {
+		if (nextEntries[index]?.type === "user") {
+			lastUserIndex = index;
+			break;
+		}
+	}
+	if (lastUserIndex !== -1) {
+		nextEntries.push(entry);
+		return nextEntries;
+	}
+
+	const firstToolIndex = nextEntries.findIndex((candidate) => candidate.type === "tool_call");
+	if (firstToolIndex === -1) {
+		nextEntries.push(entry);
+		return nextEntries;
+	}
+
+	nextEntries.splice(firstToolIndex, 0, entry);
+	return nextEntries;
+}
+
 export function materializeAgentPanelSceneFromGraph(
 	input: AgentPanelGraphMaterializerInput
 ): AgentPanelSceneModel {
@@ -666,7 +741,7 @@ export function materializeAgentPanelSceneFromGraph(
 	const status = mapGraphStatus(input.graph);
 	const conversation = materializeConversation(input.graph);
 
-	const conversationEntries: AgentPanelSceneEntryModel[] = Array.from(conversation.entries);
+	let conversationEntries: readonly AgentPanelSceneEntryModel[] = Array.from(conversation.entries);
 	if (input.optimistic?.pendingUserEntry != null) {
 		const mapped = mapSessionEntryToConversationEntry(
 			input.optimistic.pendingUserEntry,
@@ -674,7 +749,7 @@ export function materializeAgentPanelSceneFromGraph(
 			null,
 			{ isOptimistic: true }
 		);
-		conversationEntries.push(mapped);
+		conversationEntries = insertOptimisticUserEntryAtTurnBoundary(conversationEntries, mapped);
 	}
 	return {
 		panelId: input.panelId,

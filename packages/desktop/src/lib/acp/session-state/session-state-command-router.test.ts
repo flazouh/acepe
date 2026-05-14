@@ -54,7 +54,7 @@ describe("routeSessionStateEnvelope", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
-				lastAgentMessageId: null,
+				lastAgentMessageId: undefined,
 				operationPatches: [],
 				interactionPatches: [],
 			},

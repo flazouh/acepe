@@ -213,7 +213,7 @@ function buildCanonicalUsageTelemetry(
 
 function _mapTurnStateToHotState(
 	turnState: SessionTurnState
-): "idle" | "streaming" | "completed" | "error" {
+): "idle" | "streaming" | "completed" | "interrupted" | "error" {
 	switch (turnState) {
 		case "Idle":
 			return "idle";
@@ -223,6 +223,8 @@ function _mapTurnStateToHotState(
 			return "completed";
 		case "Failed":
 			return "error";
+		case "Cancelled":
+			return "interrupted";
 	}
 }
 
@@ -448,7 +450,7 @@ function graphWithPatches(input: {
 	readonly turnState: SessionTurnState;
 	readonly activeTurnFailure: TurnFailureSnapshot | null;
 	readonly lastTerminalTurnId: string | null;
-	readonly lastAgentMessageId: string | null;
+	readonly lastAgentMessageId: string | null | undefined;
 	readonly operationPatches: readonly OperationSnapshot[];
 	readonly interactionPatches: readonly InteractionSnapshot[];
 }): SessionStateGraph {
@@ -472,7 +474,10 @@ function graphWithPatches(input: {
 				: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
 		turnState: input.turnState,
 		messageCount: input.graph.messageCount,
-		lastAgentMessageId: input.lastAgentMessageId,
+		lastAgentMessageId:
+			input.lastAgentMessageId === undefined
+				? (input.graph.lastAgentMessageId ?? null)
+				: input.lastAgentMessageId,
 		activeTurnFailure: input.activeTurnFailure,
 		lastTerminalTurnId: input.lastTerminalTurnId,
 		lifecycle: input.graph.lifecycle,
@@ -1197,6 +1202,74 @@ function transcriptSnapshotContainsUserAttemptId(
 	return false;
 }
 
+function transcriptSnapshotContentWeight(snapshot: TranscriptSnapshot): number {
+	let weight = snapshot.entries.length;
+	for (const entry of snapshot.entries) {
+		weight += entry.segments.length;
+		for (const segment of entry.segments) {
+			weight += segment.text.length;
+		}
+	}
+	return weight;
+}
+
+function transcriptSnapshotsHaveSameContent(
+	left: TranscriptSnapshot,
+	right: TranscriptSnapshot
+): boolean {
+	if (left.entries.length !== right.entries.length) {
+		return false;
+	}
+
+	for (let entryIndex = 0; entryIndex < left.entries.length; entryIndex += 1) {
+		const leftEntry = left.entries[entryIndex];
+		const rightEntry = right.entries[entryIndex];
+		if (
+			leftEntry === undefined ||
+			rightEntry === undefined ||
+			leftEntry.entryId !== rightEntry.entryId ||
+			leftEntry.role !== rightEntry.role ||
+			leftEntry.attemptId !== rightEntry.attemptId ||
+			leftEntry.segments.length !== rightEntry.segments.length
+		) {
+			return false;
+		}
+
+		for (let segmentIndex = 0; segmentIndex < leftEntry.segments.length; segmentIndex += 1) {
+			const leftSegment = leftEntry.segments[segmentIndex];
+			const rightSegment = rightEntry.segments[segmentIndex];
+			if (
+				leftSegment === undefined ||
+				rightSegment === undefined ||
+				leftSegment.kind !== rightSegment.kind ||
+				leftSegment.segmentId !== rightSegment.segmentId ||
+				leftSegment.text !== rightSegment.text
+			) {
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+function shouldRepairTranscriptSnapshotAtSameRevision(input: {
+	readonly current: TranscriptSnapshot;
+	readonly incoming: TranscriptSnapshot;
+}): boolean {
+	if (input.incoming.entries.length === 0) {
+		return false;
+	}
+	if (transcriptSnapshotsHaveSameContent(input.current, input.incoming)) {
+		return false;
+	}
+
+	return (
+		transcriptSnapshotContentWeight(input.incoming) >=
+		transcriptSnapshotContentWeight(input.current)
+	);
+}
+
 /**
  * Callbacks for handling permission and question requests.
  * These are set during initialization to avoid circular dependencies.
@@ -1850,13 +1923,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			input.activeTurnFailure !== null &&
 			(input.previousProjection?.turnState !== "Failed" ||
 				input.previousProjection.lastTerminalTurnId !== input.lastTerminalTurnId);
-
 		if (isNewCompletedTurn) {
 			this.messagingSvc.handleStreamComplete(
 				input.sessionId,
 				input.lastTerminalTurnId ?? undefined
 			);
 			this.callbacks.onTurnComplete?.(input.sessionId);
+			void this.refreshSessionStateSnapshot(input.sessionId).match(
+				() => undefined,
+				() => undefined
+			);
 		}
 
 		if (!isNewFailedTurn || input.projectedFailure === null) {
@@ -3140,7 +3216,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				const shouldReplaceTranscriptSnapshot =
 					currentTranscriptRevision === undefined ||
 					(!shouldPreserveCurrentTranscript &&
-						incomingTranscriptRevision > currentTranscriptRevision);
+						(incomingTranscriptRevision > currentTranscriptRevision ||
+							(incomingTranscriptRevision === currentTranscriptRevision &&
+								previousGraph !== null &&
+								shouldRepairTranscriptSnapshotAtSameRevision({
+									current: previousGraph.transcriptSnapshot,
+									incoming: graph.transcriptSnapshot,
+								}))));
 				this.operationStore.replaceSessionOperations(sessionId, graph.operations);
 				if (shouldReplaceTranscriptSnapshot) {
 					this.entryStore.replaceTranscriptSnapshot(

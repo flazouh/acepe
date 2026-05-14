@@ -1050,6 +1050,53 @@ describe("agent panel graph materializer", () => {
 			expect(last.isOptimistic).toBe(true);
 		});
 
+		it("inserts the optimistic entry before tool calls when no canonical user has landed", () => {
+			const transcriptSnapshot = createTranscriptSnapshot([
+				createTranscriptEntry("tool-1", "tool", "Searching files"),
+			]);
+			const graph = createGraph({ transcriptSnapshot });
+			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
+
+			const scene = materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: { title: "Session" },
+				optimistic: { pendingUserEntry },
+			});
+
+			expect(scene.conversation.entries).toHaveLength(2);
+			const first = scene.conversation.entries[0] as AgentUserEntry;
+			expect(first.id).toBe("pending-1");
+			expect(first.type).toBe("user");
+			expect(first.text).toBe("New pending message");
+			expect(first.isOptimistic).toBe(true);
+			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
+		});
+
+		it("keeps optimistic entry after prior-turn tool calls when canonical user history exists", () => {
+			const transcriptSnapshot = createTranscriptSnapshot([
+				createTranscriptEntry("user-1", "user", "Previous message"),
+				createTranscriptEntry("tool-1", "tool", "Previous tool result"),
+			]);
+			const graph = createGraph({ transcriptSnapshot });
+			const pendingUserEntry = createOptimisticUserEntry("pending-1", "New pending message");
+
+			const scene = materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: { title: "Session" },
+				optimistic: { pendingUserEntry },
+			});
+
+			expect(scene.conversation.entries).toHaveLength(3);
+			expect(scene.conversation.entries[0]?.type).toBe("user");
+			expect(scene.conversation.entries[1]?.type).toBe("tool_call");
+			const last = scene.conversation.entries[2] as AgentUserEntry;
+			expect(last.id).toBe("pending-1");
+			expect(last.type).toBe("user");
+			expect(last.isOptimistic).toBe(true);
+		});
+
 		it("graph + no optimistic → output identical to today (regression guard)", () => {
 			const transcriptSnapshot = createTranscriptSnapshot([
 				createTranscriptEntry("user-1", "user", "First message"),

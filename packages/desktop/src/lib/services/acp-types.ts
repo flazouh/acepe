@@ -349,7 +349,7 @@ questions: QuestionItem[];
  */
 answers: Partial<{ [key in string]: JsonValue }> }
 
-export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed"
+export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed" | "Cancelled"
 
 export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
 
@@ -674,4 +674,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-

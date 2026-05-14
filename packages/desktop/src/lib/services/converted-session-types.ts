@@ -44,6 +44,11 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  */
 { type: "turnError"; error: TurnErrorData; session_id?: string | null; turn_id?: string | null } |
 /**
+ * Indicates that the current turn/prompt was cancelled by the user.
+ * This is emitted after the provider accepts a cancel/interrupt request.
+ */
+{ type: "turnCancelled"; session_id?: string | null; turn_id?: string | null } |
+/**
  * Usage/cost and token telemetry from the agent (adapter-agnostic).
  * Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
  */
@@ -825,4 +830,3 @@ export type FileExplorerPreviewResponse =
  * Fallback for binary, too-large, deleted, or unsupported files.
  */
 { kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
-

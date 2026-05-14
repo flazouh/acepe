@@ -41,9 +41,7 @@ interface HydratedReconnectOptions {
 	readonly sessionStore: SessionOpenStore;
 }
 
-function isProviderHistoryBackedSession(
-	session: ReturnType<SessionOpenStore["getSessionCold"]>
-): boolean {
+function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
 	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
 }
 
@@ -80,9 +78,8 @@ function reattachLocalCreatedSession(input: {
 		});
 }
 
-function reconnectHydratedSession(input: HydratedReconnectOptions): void {
-	const { source, panelId, requestedSessionId, canonicalSessionId, openToken, sessionStore } =
-		input;
+function reconnectHydratedSession(input: HydratedReconnectOptions): Promise<void> {
+	const { source, panelId, requestedSessionId, canonicalSessionId, openToken, sessionStore } = input;
 	const reconnect = sessionStore
 		.connectSession(canonicalSessionId, {
 			openToken,
@@ -102,7 +99,7 @@ function reconnectHydratedSession(input: HydratedReconnectOptions): void {
 			() => undefined
 		);
 
-	void reconnect;
+	return reconnect;
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -139,6 +136,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	inflightPanelIds.add(panelId);
 	sessionStore.setSessionLoading(sessionId);
 	const requestToken = sessionOpenHydrator.beginAttempt(panelId);
+	let reconnectPromise: Promise<void> | null = null;
 
 	let timeoutId: ReturnType<typeof setTimeout> | null = null;
 	const timeoutPromise = new Promise<never>((_, reject) => {
@@ -210,7 +208,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 
 					sessionStore.setSessionLoaded(hydration.canonicalSessionId);
 					sessionOpenHydrator.clearAttempt(panelId);
-					reconnectHydratedSession({
+					reconnectPromise = reconnectHydratedSession({
 						source,
 						panelId,
 						requestedSessionId: sessionId,
@@ -268,7 +266,13 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			if (timeoutId !== null) {
 				clearTimeout(timeoutId);
 			}
-			inflightPanelIds.delete(panelId);
+			if (reconnectPromise === null) {
+				inflightPanelIds.delete(panelId);
+				return;
+			}
+			reconnectPromise.finally(() => {
+				inflightPanelIds.delete(panelId);
+			});
 		});
 }
 

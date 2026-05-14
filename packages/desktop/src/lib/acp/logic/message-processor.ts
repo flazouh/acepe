@@ -51,6 +51,7 @@ export class MessageProcessor {
 			questionRequest: () => ok(null),
 			turnComplete: () => ok(null), // TurnComplete is handled at the event service layer
 			turnError: () => ok(null), // TurnError is handled at the event service layer
+			turnCancelled: () => ok(null), // TurnCancelled is handled by canonical session-state
 			usageTelemetryUpdate: () => ok(null), // Telemetry is handled at the event service layer
 			connectionComplete: () => ok(null), // Lifecycle event handled at connection manager layer
 			connectionFailed: () => ok(null), // Lifecycle event handled at connection manager layer

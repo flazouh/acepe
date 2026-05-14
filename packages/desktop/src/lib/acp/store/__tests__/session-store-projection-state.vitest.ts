@@ -26,6 +26,7 @@ import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-p
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
+import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
@@ -285,6 +286,17 @@ function materializeStoredScene(store: SessionStore, sessionId = "session-1") {
 
 function getEntryStore(store: SessionStore): SessionEntryStore {
 	return (store as unknown as { entryStore: SessionEntryStore }).entryStore;
+}
+
+function getCanonicalProjection(
+	store: SessionStore,
+	sessionId = "session-1"
+): CanonicalSessionProjection | null {
+	return (
+		store as unknown as {
+			canonicalProjections: Map<string, CanonicalSessionProjection>;
+		}
+	).canonicalProjections.get(sessionId) ?? null;
 }
 
 beforeEach(() => {
@@ -1601,6 +1613,23 @@ describe("SessionStore.applySessionStateGraph", () => {
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "assistantTextDelta",
+				delta: {
+					turnId: "turn-live",
+					rowId: "assistant-1",
+					charOffset: 0,
+					deltaText: " it with code.",
+					producedAtMonotonicMs: 1,
+					revision: 1,
+				},
+			},
+		});
+		expect(getCanonicalProjection(store)?.tokenStream.size).toBe(1);
 
 		store.applySessionStateGraph(
 			createSessionStateGraph({
@@ -1615,9 +1644,148 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(onTurnComplete).toHaveBeenCalledWith("session-1");
 		expect(onTurnComplete).toHaveBeenCalledTimes(1);
 	});
+
+	it("refreshes the canonical snapshot when a known running graph completes", async () => {
+		const store = new SessionStore();
+		const refreshedGraph = createSessionStateGraph({
+			turnState: "Completed",
+			activeTurnFailure: null,
+			lastTerminalTurnId: "turn-live",
+			lifecycle: createGraphLifecycle("ready"),
+			activity: createIdleActivity(),
+			revision: {
+				graphRevision: 9,
+				transcriptRevision: 9,
+				lastEventSeq: 9,
+			},
+			transcriptSnapshot: {
+				revision: 9,
+				entries: [
+					{
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:1",
+								text: "I’m turning the handoff hypothesis into a focused failing viewport regression so we can confirm",
+							},
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:2",
+								text: " it with code.",
+							},
+						],
+					},
+				],
+			},
+		});
+		getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope(refreshedGraph)));
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				turnState: "Running",
+				activeTurnFailure: null,
+				lastTerminalTurnId: null,
+				lifecycle: createGraphLifecycle("ready"),
+			})
+		);
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				turnState: "Completed",
+				activeTurnFailure: null,
+				lastTerminalTurnId: "turn-live",
+				lifecycle: createGraphLifecycle("ready"),
+				activity: createIdleActivity(),
+			})
+		);
+		await Promise.resolve();
+
+		expect(getSessionStateMock).toHaveBeenCalledWith("session-1");
+		const materialized = materializeStoredScene(store);
+		const assistant = materialized.conversation.entries.find((entry) => entry.type === "assistant");
+		expect(assistant).toMatchObject({
+			type: "assistant",
+			markdown:
+				"I’m turning the handoff hypothesis into a focused failing viewport regression so we can confirm it with code.",
+		});
+	});
 });
 
 describe("SessionStore.applySessionStateEnvelope", () => {
+	it("repairs a partial transcript when an authoritative snapshot has the same revision", () => {
+		const store = new SessionStore();
+		const partialGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Completed",
+			lifecycle: createGraphLifecycle("ready"),
+			activity: createIdleActivity(),
+			revision: {
+				graphRevision: 10,
+				transcriptRevision: 10,
+				lastEventSeq: 10,
+			},
+			transcriptSnapshot: {
+				revision: 10,
+				entries: [
+					{
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:block:0",
+								text: "full unwrapped* width of all controls",
+							},
+						],
+					},
+				],
+			},
+			lastAgentMessageId: "assistant-1",
+		});
+		const fullGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Completed",
+			lifecycle: createGraphLifecycle("ready"),
+			activity: createIdleActivity(),
+			revision: {
+				graphRevision: 11,
+				transcriptRevision: 10,
+				lastEventSeq: 10,
+			},
+			transcriptSnapshot: {
+				revision: 10,
+				entries: [
+					{
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:block:0",
+								text: "Tests pass. Changed `min-w-min` -> `min-w-max` on the header row. Now the header refuses to be narrower than the *full unwrapped* width of all controls",
+							},
+						],
+					},
+				],
+			},
+			lastAgentMessageId: "assistant-1",
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(partialGraph));
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(fullGraph));
+
+		const scene = materializeStoredScene(store);
+		const assistantEntry = scene.conversation.entries[0];
+
+		expect(assistantEntry?.type).toBe("assistant");
+		if (assistantEntry?.type !== "assistant") {
+			throw new Error("Expected assistant scene entry");
+		}
+		expect(assistantEntry.markdown).toContain("Tests pass.");
+		expect(assistantEntry.markdown).toContain("full unwrapped* width");
+	});
+
 	it("hydrates snapshot envelopes into transcript, operations, and hot state", () => {
 		const store = new SessionStore();
 		const envelope: SessionStateEnvelope = {

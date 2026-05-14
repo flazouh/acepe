@@ -15,5 +15,7 @@ export function mapCanonicalTurnStateToHotTurnState(turnState: SessionTurnState)
 			return "completed";
 		case "Failed":
 			return "error";
+		case "Cancelled":
+			return "interrupted";
 	}
 }

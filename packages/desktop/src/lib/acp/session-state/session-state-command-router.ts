@@ -60,7 +60,7 @@ export type SessionStateCommand =
 			turnState: SessionTurnState;
 			activeTurnFailure: TurnFailureSnapshot | null;
 			lastTerminalTurnId: string | null;
-			lastAgentMessageId: string | null;
+			lastAgentMessageId: string | null | undefined;
 			operationPatches: OperationSnapshot[];
 			interactionPatches: InteractionSnapshot[];
 	  }
@@ -165,7 +165,9 @@ export function routeSessionStateEnvelope(
 					turnState: envelope.payload.delta.turnState,
 					activeTurnFailure: envelope.payload.delta.activeTurnFailure ?? null,
 					lastTerminalTurnId: envelope.payload.delta.lastTerminalTurnId ?? null,
-					lastAgentMessageId: envelope.payload.delta.lastAgentMessageId ?? null,
+					lastAgentMessageId: includesLastAgentMessageId
+						? (envelope.payload.delta.lastAgentMessageId ?? null)
+						: undefined,
 					operationPatches,
 					interactionPatches,
 				});

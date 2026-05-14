@@ -125,7 +125,7 @@ export class SessionOpenHydrator {
 		if (
 			appliedRevision &&
 			appliedRevision.canonicalSessionId === found.canonicalSessionId &&
-			found.graphRevision <= appliedRevision.graphRevision
+			found.graphRevision < appliedRevision.graphRevision
 		) {
 			return {
 				canonicalSessionId: found.canonicalSessionId,
