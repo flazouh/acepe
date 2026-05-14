@@ -323,6 +323,12 @@ pub fn session_update_to_domain_event(
                 }),
             ))
         }
+        SessionUpdate::TurnCancelled { turn_id, .. } => Some((
+            SessionDomainEventKind::TurnCancelled,
+            Some(SessionDomainEventPayload::TurnCancelled {
+                turn_id: turn_id.clone(),
+            }),
+        )),
 
         // ── usage / telemetry ──────────────────────────────────────────────
         SessionUpdate::UsageTelemetryUpdate { data } => Some((

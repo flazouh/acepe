@@ -26,6 +26,7 @@ use crate::acp::session_open_snapshot::{
     SessionOpenError, SessionOpenErrorReason, SessionOpenFound, SessionOpenMissing,
     SessionOpenResult,
 };
+use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_state_engine::{
     CapabilityPreviewState, SessionGraphActionability, SessionGraphActivity,
     SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -33,7 +34,6 @@ use crate::acp::session_state_engine::{
     SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
     SessionStateSnapshotMaterialization,
 };
-use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
     ConfigOptionUpdateData, ConfigOptionValue, ContentChunk, CurrentModeData, EditEntry,

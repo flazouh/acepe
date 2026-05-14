@@ -121,6 +121,15 @@ pub enum SessionUpdate {
         turn_id: Option<String>,
     },
 
+    /// Indicates that the current turn/prompt was cancelled by the user.
+    /// This is emitted after the provider accepts a cancel/interrupt request.
+    TurnCancelled {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        session_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        turn_id: Option<String>,
+    },
+
     /// Usage/cost and token telemetry from the agent (adapter-agnostic).
     /// Emitted by adapters (e.g. OpenCode step-finish) for spend and context UI.
     UsageTelemetryUpdate { data: UsageTelemetryData },
@@ -171,6 +180,7 @@ impl SessionUpdate {
             SessionUpdate::QuestionRequest { session_id, .. } => session_id.as_deref(),
             SessionUpdate::TurnComplete { session_id, .. } => session_id.as_deref(),
             SessionUpdate::TurnError { session_id, .. } => session_id.as_deref(),
+            SessionUpdate::TurnCancelled { session_id, .. } => session_id.as_deref(),
             SessionUpdate::UsageTelemetryUpdate { data, .. } => Some(data.session_id.as_str()),
             SessionUpdate::ConnectionComplete { session_id, .. } => Some(session_id.as_str()),
             SessionUpdate::ConnectionFailed { session_id, .. } => Some(session_id.as_str()),

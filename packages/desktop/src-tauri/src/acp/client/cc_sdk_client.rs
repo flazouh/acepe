@@ -32,7 +32,8 @@ use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionR
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::session_policy::SessionPolicyRegistry;
-use crate::acp::session_registry::bind_provider_session_id_persisted;
+use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
+use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_update::{
     parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
     ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
@@ -2200,6 +2201,7 @@ async fn should_suppress_update_while_awaiting_stream_only_question(
         | SessionUpdate::AgentThoughtChunk { .. }
         | SessionUpdate::TurnComplete { .. }
         | SessionUpdate::TurnError { .. }
+        | SessionUpdate::TurnCancelled { .. }
         | SessionUpdate::Plan { .. }
         | SessionUpdate::AvailableCommandsUpdate { .. }
         | SessionUpdate::CurrentModeUpdate { .. }
@@ -2333,6 +2335,7 @@ async fn reserve_promoted_claude_session(
     db: &DbConn,
     projection_registry: &ProjectionRegistry,
     session_id: &str,
+    capabilities: SessionGraphCapabilities,
 ) -> AcpResult<()> {
     if let Some(checkpoint) = supervisor.snapshot_for_session(session_id) {
         if checkpoint.lifecycle.status != LifecycleStatus::Reserved {
@@ -2345,7 +2348,7 @@ async fn reserve_promoted_claude_session(
     }
 
     supervisor
-        .reserve(db, projection_registry, session_id)
+        .reserve_with_capabilities(db, projection_registry, session_id, capabilities)
         .await
         .map_err(|error| {
             AcpError::InvalidState(format!(
@@ -2353,6 +2356,41 @@ async fn reserve_promoted_claude_session(
             ))
         })
         .map(|_| ())
+}
+
+fn promoted_claude_session_capabilities(
+    app_handle: Option<&AppHandle>,
+    session_id: &str,
+) -> SessionGraphCapabilities {
+    let Some(app_handle) = app_handle else {
+        return SessionGraphCapabilities::empty();
+    };
+
+    let Some(snapshot) = app_handle
+        .try_state::<SessionRegistry>()
+        .and_then(|registry| registry.get_ready_snapshot(session_id))
+    else {
+        tracing::warn!(
+            session_id = %session_id,
+            "Promoting Claude deferred session without cached ready snapshot capabilities"
+        );
+        return SessionGraphCapabilities::empty();
+    };
+
+    let autonomous_enabled = app_handle
+        .try_state::<Arc<SessionPolicyRegistry>>()
+        .map(|state| state.inner().is_autonomous(session_id))
+        .unwrap_or(false);
+
+    SessionGraphCapabilities {
+        models: Some(snapshot.models),
+        modes: Some(snapshot.modes),
+        available_commands: snapshot.available_commands,
+        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
+            snapshot.config_options,
+        ),
+        autonomous_enabled,
+    }
 }
 
 async fn promote_verified_pending_creation_attempt(
@@ -2406,11 +2444,13 @@ async fn promote_verified_pending_creation_attempt(
         if let Some(supervisor) =
             app_handle.try_state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
         {
+            let capabilities = promoted_claude_session_capabilities(Some(app_handle), session_id);
             reserve_promoted_claude_session(
                 supervisor.inner(),
                 db,
                 projection_registry.as_ref(),
                 session_id,
+                capabilities,
             )
             .await?;
         }
@@ -6595,6 +6635,7 @@ mod tests {
             &db,
             projection_registry.as_ref(),
             session_id,
+            crate::acp::session_state_engine::SessionGraphCapabilities::empty(),
         )
         .await
         .expect("reserved checkpoint should satisfy promotion");
@@ -6612,6 +6653,68 @@ mod tests {
                 .status,
             LifecycleStatus::Reserved
         );
+    }
+
+    #[tokio::test]
+    async fn reserve_promoted_claude_session_preserves_capabilities() {
+        let db = setup_test_db().await;
+        let session_id = "provider-canonical";
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("attempt");
+        SessionMetadataRepository::promote_creation_attempt(&db, &attempt.id, session_id)
+            .await
+            .expect("promote metadata");
+        let projection_registry = Arc::new(ProjectionRegistry::new());
+        let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+        let mut models = default_session_model_state();
+        models.current_model_id = "claude-opus-4-7".to_string();
+        let mut modes = default_modes();
+        modes.current_mode_id = "plan".to_string();
+        let capabilities = SessionGraphCapabilities {
+            models: Some(models),
+            modes: Some(modes),
+            available_commands: Vec::new(),
+            config_options: Vec::new(),
+            autonomous_enabled: true,
+        };
+
+        reserve_promoted_claude_session(
+            supervisor.as_ref(),
+            &db,
+            projection_registry.as_ref(),
+            session_id,
+            capabilities,
+        )
+        .await
+        .expect("promoted session should reserve");
+
+        let checkpoint = supervisor
+            .snapshot_for_session(session_id)
+            .expect("checkpoint exists");
+        assert_eq!(checkpoint.lifecycle.status, LifecycleStatus::Reserved);
+        assert_eq!(
+            checkpoint
+                .capabilities
+                .models
+                .expect("models preserved")
+                .current_model_id,
+            "claude-opus-4-7"
+        );
+        assert_eq!(
+            checkpoint
+                .capabilities
+                .modes
+                .expect("modes preserved")
+                .current_mode_id,
+            "plan"
+        );
+        assert!(checkpoint.capabilities.autonomous_enabled);
     }
 
     #[tokio::test]

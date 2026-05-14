@@ -286,6 +286,9 @@ pub(crate) fn convert_events_to_updates(
                 }
 
                 for tool_request in data.tool_requests {
+                    if is_internal_runtime_tool(&tool_request.name) {
+                        continue;
+                    }
                     let raw = RawToolCallInput {
                         id: tool_request.tool_call_id,
                         name: tool_request.name,
@@ -1001,6 +1004,32 @@ mod tests {
                 );
             }
             other => panic!("expected write_bash tool call entry, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn assistant_tool_requests_filter_internal_report_intent() {
+        let jsonl = r#"
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-report","name":"report_intent","arguments":{"intent":"Exploring scaffold"},"toolTitle":"Report intent"},{"toolCallId":"tool-find","name":"read","arguments":{"path":"/repo","pattern":"packages/**/*agent-panel*"},"intentionSummary":"find agent panel files"}]},"timestamp":"2026-04-10T00:00:02Z"}
+{"type":"tool.execution_complete","data":{"toolCallId":"tool-report","toolName":"report_intent","success":true,"result":{"content":"Intent logged"}},"timestamp":"2026-04-10T00:00:03Z"}
+"#;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 1);
+        match &converted.entries[0] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.id, "tool-find");
+                assert_eq!(message.name, "Find");
+                assert_eq!(
+                    message.kind,
+                    Some(crate::acp::session_update::ToolKind::Glob)
+                );
+            }
+            other => panic!("expected side-effectful tool call entry, got {other:?}"),
         }
     }
 

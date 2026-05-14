@@ -19,8 +19,8 @@ use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::ProjectionRegistry;
 use crate::acp::projections::{
     is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationDegradationCode,
-    OperationDegradationReason, OperationSnapshot, OperationState, SessionTurnState,
-    TurnFailureSnapshot,
+    OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
+    SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
@@ -28,7 +28,7 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::acp::transcript_projection::TranscriptSnapshot;
+use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::DbConn;
@@ -342,6 +342,43 @@ fn sanitize_interactions_for_historical_open(
         .collect()
 }
 
+fn warn_unresolved_tool_rows_in_open_graph(
+    session_id: &str,
+    agent_id: &CanonicalAgentId,
+    transcript_snapshot: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+) {
+    let linked_entry_ids: std::collections::HashSet<&str> = operations
+        .iter()
+        .filter_map(|operation| match &operation.source_link {
+            OperationSourceLink::TranscriptLinked { entry_id } => Some(entry_id.as_str()),
+            OperationSourceLink::Synthetic { .. } | OperationSourceLink::Degraded { .. } => None,
+        })
+        .collect();
+    let unresolved: Vec<&str> = transcript_snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.role == TranscriptEntryRole::Tool)
+        .map(|entry| entry.entry_id.as_str())
+        .filter(|entry_id| !linked_entry_ids.contains(entry_id))
+        .take(20)
+        .collect();
+
+    if unresolved.is_empty() {
+        return;
+    }
+
+    tracing::warn!(
+        session_id,
+        agent_id = %agent_id,
+        transcript_revision = transcript_snapshot.revision,
+        operation_count = operations.len(),
+        unresolved_count = unresolved.len(),
+        unresolved_entry_ids = ?unresolved,
+        "Restored session graph contains transcript tool rows without matching operations"
+    );
+}
+
 pub async fn session_open_result_from_thread_snapshot(
     db: &DbConn,
     hub: &Arc<AcpEventHubState>,
@@ -456,6 +493,12 @@ pub async fn session_open_result_from_thread_snapshot(
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
     let interactions = sanitize_interactions_for_historical_open(interactions);
+    warn_unresolved_tool_rows_in_open_graph(
+        &canonical_session_id,
+        &replay_context.agent_id,
+        &transcript_snapshot,
+        &operations,
+    );
 
     let lifecycle = SessionGraphLifecycle::detached(
         crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,

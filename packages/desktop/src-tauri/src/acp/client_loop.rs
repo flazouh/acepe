@@ -129,7 +129,8 @@ fn enqueue_session_update(
 
     match &update {
         SessionUpdate::TurnComplete { session_id, .. }
-        | SessionUpdate::TurnError { session_id, .. } => {
+        | SessionUpdate::TurnError { session_id, .. }
+        | SessionUpdate::TurnCancelled { session_id, .. } => {
             if let Some(session_id) = session_id.as_deref() {
                 discard_pending_prompt_echo(session_id);
             }

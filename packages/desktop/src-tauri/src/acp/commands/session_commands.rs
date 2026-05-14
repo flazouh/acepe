@@ -1,9 +1,11 @@
 use super::*;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::{CreationFailure, CreationFailureKind};
-use crate::acp::event_hub::AcpEventHubState;
+use crate::acp::event_hub::{AcpEventHubState, OpenTokenClaim};
 use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
-use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
+use crate::acp::projections::{
+    OperationSnapshot, OperationSourceLink, ProjectionRegistry, SessionProjectionSnapshot,
+};
 use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
     SessionCompatibilityInput, SessionReplayContext,
@@ -21,7 +23,9 @@ use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
 use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
-use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
+use crate::acp::transcript_projection::{
+    TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSnapshot,
+};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
@@ -497,7 +501,9 @@ pub async fn acp_get_session_state(
             interactions,
             runtime: _,
         } = lookup.projection;
-        let projection_session = session.as_ref();
+        let mut session = session;
+        let mut operations = operations;
+        let mut interactions = interactions;
         let runtime_snapshot = runtime_snapshot_for_refresh(
             app.try_state::<Arc<SessionGraphRuntimeRegistry>>()
                 .map(|registry| registry.inner().as_ref()),
@@ -522,6 +528,38 @@ pub async fn acp_get_session_state(
             last_event_seq,
         )
         .await?;
+        let unresolved_before_import = unresolved_tool_entry_ids(&transcript_snapshot, &operations);
+        if !unresolved_before_import.is_empty() {
+            if let Some(replay_context) = lookup.replay_context.as_ref() {
+                if let Some(provider_snapshot) =
+                    crate::history::commands::session_loading::load_provider_owned_session_snapshot(
+                        app.clone(),
+                        replay_context,
+                    )
+                    .await
+                    .map_err(SerializableAcpError::from)?
+                {
+                    let imported_projection = ProjectionRegistry::project_thread_snapshot(
+                        &canonical_session_id,
+                        Some(replay_context.agent_id.clone()),
+                        &provider_snapshot,
+                    );
+                    let unresolved_after_import =
+                        unresolved_tool_entry_ids(&transcript_snapshot, &imported_projection.operations);
+                    if unresolved_after_import.len() < unresolved_before_import.len() {
+                        session = imported_projection.session;
+                        operations = imported_projection.operations;
+                        interactions = imported_projection.interactions;
+                    }
+                }
+            }
+        }
+        warn_unresolved_tool_rows_in_state_lookup(
+            &canonical_session_id,
+            &transcript_snapshot,
+            &operations,
+        );
+        let projection_session = session.as_ref();
         let agent_id = lookup
             .replay_context
             .as_ref()
@@ -681,7 +719,7 @@ async fn load_session_projection_lookup(
             message: format!("Failed to resolve replay context for session {session_id}: {error}"),
         })?;
 
-    if projection_has_runtime_state(&runtime_projection) {
+    if projection_has_graph_state(&runtime_projection) {
         return Ok(SessionProjectionLookup {
             projection: runtime_projection,
             metadata,
@@ -1118,7 +1156,13 @@ pub async fn acp_resume_session(
         launch_mode_id,
         attempt_id,
         open_token,
-        |app, session_id, cwd, agent_id_enum, launch_mode_id, resume_descriptor, open_token| async move {
+        |app,
+         session_id,
+         cwd,
+         agent_id_enum,
+         launch_mode_id,
+         resume_descriptor,
+         open_token_claim| async move {
             async_resume_session_work(
                 &app,
                 &session_id,
@@ -1126,7 +1170,7 @@ pub async fn acp_resume_session(
                 agent_id_enum,
                 launch_mode_id,
                 &resume_descriptor,
-                open_token,
+                open_token_claim,
             )
             .await
         },
@@ -1157,7 +1201,7 @@ where
             CanonicalAgentId,
             Option<String>,
             crate::acp::session_descriptor::SessionDescriptor,
-            Option<String>,
+            Option<OpenTokenClaim>,
         ) -> Fut
         + Send
         + 'static,
@@ -1187,6 +1231,8 @@ where
         let agent_id_enum = resume_target.descriptor.agent_id.clone();
         let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
         let projection_registry = app.try_state::<Arc<ProjectionRegistry>>();
+        let open_token_claim =
+            claim_open_token_reservation(app, &session_id, open_token.as_deref())?;
         if let (Some(runtime_registry), Some(projection_registry)) =
             (runtime_registry.as_ref(), projection_registry.as_ref())
         {
@@ -1257,7 +1303,7 @@ where
                     agent_id_enum,
                     launch_mode_id,
                     resume_descriptor,
-                    open_token,
+                    open_token_claim,
                 ),
             )
             .await;
@@ -1362,6 +1408,31 @@ where
         Ok(())
     }
     .await)
+}
+
+fn claim_open_token_reservation<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    session_id: &str,
+    open_token: Option<&str>,
+) -> Result<Option<OpenTokenClaim>, SerializableAcpError> {
+    let Some(raw_open_token) = open_token else {
+        return Ok(None);
+    };
+
+    let token = uuid::Uuid::parse_str(raw_open_token).map_err(|error| {
+        SerializableAcpError::InvalidState {
+            message: format!("Failed to parse open token for session {session_id}: {error}"),
+        }
+    })?;
+    let hub = app.state::<Arc<AcpEventHubState>>();
+    hub.gc_expired_reservations();
+    let Some(claim) = hub.claim_reservation_for_session(token, session_id) else {
+        return Err(SerializableAcpError::InvalidState {
+            message: format!("Session open token is no longer valid for session {session_id}"),
+        });
+    };
+
+    Ok(Some(claim))
 }
 
 /// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
@@ -1594,6 +1665,50 @@ fn projection_snapshot_with_runtime(
     projection_snapshot
 }
 
+fn warn_unresolved_tool_rows_in_state_lookup(
+    session_id: &str,
+    transcript_snapshot: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+) {
+    let unresolved = unresolved_tool_entry_ids(transcript_snapshot, operations);
+
+    if unresolved.is_empty() {
+        return;
+    }
+
+    tracing::warn!(
+        session_id,
+        transcript_revision = transcript_snapshot.revision,
+        operation_count = operations.len(),
+        unresolved_count = unresolved.len(),
+        unresolved_entry_ids = ?unresolved,
+        "Session state lookup graph contains transcript tool rows without matching operations"
+    );
+}
+
+fn unresolved_tool_entry_ids(
+    transcript_snapshot: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+) -> Vec<String> {
+    let linked_entry_ids: std::collections::HashSet<&str> = operations
+        .iter()
+        .filter_map(|operation| match &operation.source_link {
+            OperationSourceLink::TranscriptLinked { entry_id } => Some(entry_id.as_str()),
+            OperationSourceLink::Synthetic { .. } | OperationSourceLink::Degraded { .. } => None,
+        })
+        .collect();
+
+    transcript_snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.role == TranscriptEntryRole::Tool)
+        .map(|entry| entry.entry_id.as_str())
+        .filter(|entry_id| !linked_entry_ids.contains(entry_id))
+        .map(str::to_string)
+        .take(20)
+        .collect()
+}
+
 pub(crate) fn publish_session_state_envelope(
     hub: &Arc<AcpEventHubState>,
     envelope: SessionStateEnvelope,
@@ -1771,7 +1886,7 @@ async fn async_resume_session_work(
     agent_id_enum: CanonicalAgentId,
     launch_mode_id: Option<String>,
     resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
-    open_token: Option<String>,
+    open_token_claim: Option<OpenTokenClaim>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     let registry = app.state::<Arc<AgentRegistry>>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
@@ -1779,23 +1894,6 @@ async fn async_resume_session_work(
     let projection_registry = app.state::<Arc<ProjectionRegistry>>();
     let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
     let db = app.state::<DbConn>();
-    let parsed_open_token = if let Some(raw_open_token) = open_token.as_deref() {
-        let token = uuid::Uuid::parse_str(raw_open_token).map_err(|error| {
-            SerializableAcpError::InvalidState {
-                message: format!("Failed to parse open token for session {session_id}: {error}"),
-            }
-        })?;
-        let hub = app.state::<Arc<AcpEventHubState>>();
-        hub.gc_expired_reservations();
-        if !hub.has_reservation_for_session(token, session_id) {
-            return Err(SerializableAcpError::InvalidState {
-                message: format!("Session open token is no longer valid for session {session_id}"),
-            });
-        }
-        Some(token)
-    } else {
-        None
-    };
 
     let cwd_str = cwd.to_string_lossy().to_string();
     let result = resume_or_create_session_client(
@@ -1850,15 +1948,8 @@ async fn async_resume_session_work(
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
 
-    if let Some(open_token) = parsed_open_token {
+    if let Some(claim) = open_token_claim {
         let hub = app.state::<Arc<AcpEventHubState>>();
-        let claim = if let Some(claim) = hub.claim_reservation_for_session(open_token, session_id) {
-            claim
-        } else {
-            return Err(SerializableAcpError::InvalidState {
-                message: format!("Session open token is no longer valid for session {session_id}"),
-            });
-        };
         replay_buffered_session_state_events(
             hub.inner(),
             session_id,
@@ -2189,11 +2280,10 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
     )
 }
 
-fn projection_has_runtime_state(snapshot: &SessionProjectionSnapshot) -> bool {
+fn projection_has_graph_state(snapshot: &SessionProjectionSnapshot) -> bool {
     snapshot.session.is_some()
         || !snapshot.operations.is_empty()
         || !snapshot.interactions.is_empty()
-        || snapshot.runtime.is_some()
 }
 
 #[cfg(test)]
@@ -2201,11 +2291,15 @@ mod tests {
     use super::{
         load_live_session_graph_revision, load_transcript_snapshot_for_resume,
         load_transcript_snapshot_for_state_lookup, persist_session_metadata_for_cwd,
-        resolve_fork_session_target, resolve_requested_agent_id, resolve_resume_session_target,
-        runtime_snapshot_for_refresh,
+        projection_has_graph_state, resolve_fork_session_target, resolve_requested_agent_id,
+        resolve_resume_session_target, runtime_snapshot_for_refresh, unresolved_tool_entry_ids,
     };
     use crate::acp::error::SerializableAcpError;
-    use crate::acp::projections::{InteractionResponse, InteractionState};
+    use crate::acp::lifecycle::LifecycleCheckpoint;
+    use crate::acp::projections::{
+        InteractionResponse, InteractionState, ProjectionRegistry, SessionProjectionSnapshot,
+        SessionSnapshot,
+    };
     use crate::acp::session_descriptor::{
         SessionCompatibilityInput, SessionDescriptorCompatibility, SessionReplayContext,
     };
@@ -2213,11 +2307,16 @@ mod tests {
         SessionGraphCapabilities, SessionGraphLifecycle,
     };
     use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
-    use crate::acp::session_update::{ContentChunk, PermissionData, SessionUpdate};
-    use crate::acp::transcript_projection::TranscriptProjectionRegistry;
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+    use crate::acp::session_update::{
+        ContentChunk, PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
+        ToolKind,
+    };
+    use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
     use crate::db::migrations::Migrator;
     use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+    use crate::session_jsonl::types::StoredEntry;
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
@@ -2256,6 +2355,96 @@ mod tests {
             SessionGraphLifecycle::reserved(),
             SessionGraphCapabilities::empty(),
         );
+    }
+
+    fn tool_snapshot_with_entry_id(entry_id: &str) -> SessionThreadSnapshot {
+        SessionThreadSnapshot {
+            title: "Tool session".to_string(),
+            created_at: "2026-05-13T00:00:00Z".to_string(),
+            current_mode_id: None,
+            entries: vec![StoredEntry::ToolCall {
+                id: entry_id.to_string(),
+                message: ToolCallData {
+                    id: entry_id.to_string(),
+                    name: "Read".to_string(),
+                    title: Some("Read file".to_string()),
+                    status: ToolCallStatus::Completed,
+                    result: Some(json!({ "content": "ok" })),
+                    kind: Some(ToolKind::Read),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file.rs".to_string()),
+                        source_context: None,
+                    },
+                    raw_input: None,
+                    skill_meta: None,
+                    locations: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                timestamp: Some("2026-05-13T00:00:01Z".to_string()),
+            }],
+        }
+    }
+
+    #[test]
+    fn projection_graph_state_ignores_runtime_only_checkpoint() {
+        let snapshot = SessionProjectionSnapshot {
+            session: None,
+            operations: Vec::new(),
+            interactions: Vec::new(),
+            runtime: Some(LifecycleCheckpoint::from_live_runtime(
+                1,
+                SessionGraphLifecycle::reserved(),
+                SessionGraphCapabilities::empty(),
+            )),
+        };
+
+        assert!(!projection_has_graph_state(&snapshot));
+    }
+
+    #[test]
+    fn projection_graph_state_detects_canonical_session_projection() {
+        let snapshot = SessionProjectionSnapshot {
+            session: Some(SessionSnapshot::new(
+                "session-1".to_string(),
+                Some(CanonicalAgentId::ClaudeCode),
+            )),
+            operations: Vec::new(),
+            interactions: Vec::new(),
+            runtime: None,
+        };
+
+        assert!(projection_has_graph_state(&snapshot));
+    }
+
+    #[test]
+    fn unresolved_tool_entry_ids_detects_transcript_tool_without_operation_link() {
+        let snapshot = tool_snapshot_with_entry_id("tool-1");
+        let transcript = TranscriptSnapshot::from_stored_entries(1, &snapshot.entries);
+
+        assert_eq!(
+            unresolved_tool_entry_ids(&transcript, &[]),
+            vec!["tool-1".to_string()]
+        );
+    }
+
+    #[test]
+    fn unresolved_tool_entry_ids_accepts_matching_provider_projection_link() {
+        let snapshot = tool_snapshot_with_entry_id("tool-1");
+        let transcript = TranscriptSnapshot::from_stored_entries(1, &snapshot.entries);
+        let projection = ProjectionRegistry::project_thread_snapshot(
+            "session-1",
+            Some(CanonicalAgentId::Copilot),
+            &snapshot,
+        );
+
+        assert!(unresolved_tool_entry_ids(&transcript, &projection.operations).is_empty());
     }
 
     #[tokio::test]

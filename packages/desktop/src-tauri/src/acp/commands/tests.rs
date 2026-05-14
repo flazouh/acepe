@@ -1561,6 +1561,88 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
 }
 
 #[tokio::test]
+async fn resume_session_claims_open_token_before_returning() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-open-token-session";
+
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+    projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+    supervisor
+        .reserve(&db, projection_registry.as_ref(), session_id)
+        .await
+        .expect("reserve live pending session");
+
+    let token = uuid::Uuid::new_v4();
+    event_hub.arm_reservation(token, session_id.to_string(), 0, 0);
+
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(Arc::clone(&event_hub))
+        .manage(Arc::clone(&projection_registry))
+        .manage(Arc::clone(&runtime_registry))
+        .manage(Arc::clone(&transcript_projection_registry))
+        .manage(Arc::clone(&session_policy))
+        .manage(Arc::clone(&supervisor))
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.to_string(),
+        temp.path().to_string_lossy().into_owned(),
+        None,
+        None,
+        1,
+        Some(token.to_string()),
+        |_app,
+         _session_id,
+         _cwd,
+         _agent_id_enum,
+         _launch_mode_id,
+         _resume_descriptor,
+         _open_token| async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            Ok(ResumeSessionResponse {
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: vec![],
+                config_options: vec![],
+            })
+        },
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "resume invoke should accept valid open token"
+    );
+    assert!(
+        !event_hub.has_reservation(token),
+        "open token must be claimed before resume returns so a second reconnect cannot race"
+    );
+}
+
+#[tokio::test]
 async fn resume_session_allows_live_pending_claude_session_without_provider_id() {
     let db = setup_test_db().await;
     let temp = tempdir().expect("temp dir");

@@ -481,6 +481,14 @@ impl SessionGraphRuntimeRegistry {
                 if is_transcript_bearing {
                     changed_fields.push("transcriptSnapshot".to_string());
                 }
+                let operation_patches = operation_patches_for_terminal_update(
+                    request.session_id,
+                    request.update,
+                    request.projection_registry,
+                );
+                if !operation_patches.is_empty() {
+                    changed_fields.push("operations".to_string());
+                }
 
                 Some(build_delta_envelope(DeltaEnvelopeParts {
                     session_id: request.session_id,
@@ -491,7 +499,7 @@ impl SessionGraphRuntimeRegistry {
                         request.projection_registry,
                     ),
                     transcript_operations,
-                    operation_patches: Vec::new(),
+                    operation_patches,
                     interaction_patches: Vec::new(),
                     changed_fields,
                 }))
@@ -976,8 +984,22 @@ fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
 fn should_emit_turn_state_delta(update: &SessionUpdate) -> bool {
     matches!(
         update,
-        SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
+        SessionUpdate::TurnComplete { .. }
+            | SessionUpdate::TurnError { .. }
+            | SessionUpdate::TurnCancelled { .. }
     )
+}
+
+fn operation_patches_for_terminal_update(
+    session_id: &str,
+    update: &SessionUpdate,
+    projection_registry: &ProjectionRegistry,
+) -> Vec<crate::acp::projections::OperationSnapshot> {
+    if !matches!(update, SessionUpdate::TurnCancelled { .. }) {
+        return Vec::new();
+    }
+
+    projection_registry.last_cancelled_operation_patches(session_id)
 }
 
 #[cfg(test)]
@@ -1576,6 +1598,13 @@ mod tests {
         }
     }
 
+    fn create_turn_cancelled_update() -> SessionUpdate {
+        SessionUpdate::TurnCancelled {
+            session_id: Some("session-1".to_string()),
+            turn_id: None,
+        }
+    }
+
     fn create_connection_complete_update() -> SessionUpdate {
         SessionUpdate::ConnectionComplete {
             session_id: "session-1".to_string(),
@@ -1925,6 +1954,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn turn_cancelled_delta_carries_cancelled_operation_patch() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let active_tool_call = create_active_tool_call_update();
+        let update = create_turn_cancelled_update();
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &active_tool_call);
+        projection_registry.apply_session_update("session-1", &update);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(7, 6, 7),
+                revision: SessionGraphRevision::new(8, 6, 8),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("turn cancelled delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.operation_patches[0].tool_call_id, "active-tool");
+                assert_eq!(
+                    delta.operation_patches[0].operation_state,
+                    crate::acp::projections::OperationState::Cancelled
+                );
+                assert_eq!(delta.activity.kind, SessionGraphActivityKind::Idle);
+                assert_eq!(
+                    delta.turn_state,
+                    crate::acp::projections::SessionTurnState::Cancelled
+                );
+                assert!(
+                    delta.changed_fields.contains(&"operations".to_string()),
+                    "cancelled operation patches must mark operations as changed"
+                );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
     async fn hot_tool_call_delta_payload_stays_history_independent() {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
@@ -2033,6 +2112,13 @@ mod tests {
             "turn_error",
             create_turn_error_update(),
             1,
+        )
+        .await;
+        assert_turn_state_surface_stays_history_independent(
+            &db,
+            "turn_cancelled",
+            create_turn_cancelled_update(),
+            0,
         )
         .await;
     }

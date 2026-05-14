@@ -518,18 +518,32 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
             .try_state::<Arc<crate::acp::event_hub::AcpEventHubState>>()
             .map(|state| state.inner().clone());
         let update = match &result {
-            Ok(()) => crate::acp::session_update::SessionUpdate::ConnectionComplete {
-                session_id: session_id.clone(),
-                attempt_id: 0,
-                models: crate::acp::client_session::default_session_model_state(),
-                modes: crate::acp::client_session::default_modes(),
-                available_commands: Vec::new(),
-                config_options: Vec::new(),
-                autonomous_enabled: app
-                    .try_state::<Arc<crate::acp::session_policy::SessionPolicyRegistry>>()
-                    .map(|state| state.inner().is_autonomous(&session_id))
-                    .unwrap_or(false),
-            },
+            Ok(()) => {
+                let capabilities = supervisor
+                    .as_ref()
+                    .and_then(|state| state.inner().snapshot_for_session(&session_id))
+                    .map(|checkpoint| checkpoint.capabilities)
+                    .unwrap_or_else(|| {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            "Reserved lifecycle activation missing supervisor checkpoint capabilities"
+                        );
+                        crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty()
+                    });
+                crate::acp::session_update::SessionUpdate::ConnectionComplete {
+                    session_id: session_id.clone(),
+                    attempt_id: 0,
+                    models: capabilities
+                        .models
+                        .unwrap_or_else(crate::acp::client_session::default_session_model_state),
+                    modes: capabilities
+                        .modes
+                        .unwrap_or_else(crate::acp::client_session::default_modes),
+                    available_commands: capabilities.available_commands,
+                    config_options: capabilities.config_options,
+                    autonomous_enabled: capabilities.autonomous_enabled,
+                }
+            }
             Err(error) => crate::acp::session_update::SessionUpdate::ConnectionFailed {
                 session_id: session_id.clone(),
                 attempt_id: 0,
@@ -588,6 +602,7 @@ pub async fn acp_cancel(app: AppHandle, session_id: String) -> CommandResult<()>
     })?;
 
             let mut client_guard = lock_session_client(&client_mutex, "acp_cancel: lock").await?;
+            let cancelled_session_id = session_id.clone();
             let result = timeout(
                 SESSION_CLIENT_OPERATION_TIMEOUT,
                 client_guard.cancel(session_id),
@@ -600,7 +615,17 @@ pub async fn acp_cancel(app: AppHandle, session_id: String) -> CommandResult<()>
                 }
             })?
             .map_err(SerializableAcpError::from);
-            result
+            result?;
+
+            let update = crate::acp::session_update::SessionUpdate::TurnCancelled {
+                session_id: Some(cancelled_session_id),
+                turn_id: None,
+            };
+            let published = publish_direct_session_update(&app, update).await;
+            if !published {
+                tracing::warn!("Canonical cancellation update was not published");
+            }
+            Ok(())
         }
         .await,
     )

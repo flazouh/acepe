@@ -28,6 +28,7 @@ pub enum SessionTurnState {
     Running,
     Completed,
     Failed,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
@@ -117,7 +118,7 @@ pub enum ProvenanceValidationError {
 }
 
 pub const PROVENANCE_KEY_MAX_LEN: usize = 512;
-pub const MAX_SESSION_OPERATIONS: usize = 1000;
+pub const MAX_SESSION_OPERATIONS: usize = 50_000;
 
 pub fn validate_provenance_key(key: &str) -> Result<(), ProvenanceValidationError> {
     if key.is_empty() {
@@ -296,8 +297,10 @@ fn matches_terminal_turn_id(left: Option<&str>, right: Option<&str>) -> bool {
     }
 }
 
-fn preserves_failed_turn(snapshot: &SessionSnapshot) -> bool {
-    snapshot.turn_state == SessionTurnState::Failed && snapshot.active_turn_failure.is_some()
+fn preserves_terminal_turn(snapshot: &SessionSnapshot) -> bool {
+    snapshot.turn_state == SessionTurnState::Cancelled
+        || (snapshot.turn_state == SessionTurnState::Failed
+            && snapshot.active_turn_failure.is_some())
 }
 
 fn start_running_turn(snapshot: &mut SessionSnapshot) {
@@ -311,8 +314,15 @@ fn synthetic_agent_message_id(event_seq: i64) -> String {
 }
 
 fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
-    preserves_failed_turn(snapshot)
-        && (turn_id.is_none()
+    preserves_terminal_turn(snapshot)
+        && (snapshot.last_terminal_turn_id.is_none()
+            || turn_id.is_none()
+            || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
+}
+
+fn should_ignore_late_turn_failure(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
+    preserves_terminal_turn(snapshot)
+        && (snapshot.last_terminal_turn_id.is_none()
             || matches_terminal_turn_id(snapshot.last_terminal_turn_id.as_deref(), turn_id))
 }
 
@@ -322,6 +332,7 @@ pub struct ProjectionRegistry {
     operations_by_id: Arc<DashMap<String, OperationSnapshot>>,
     operation_id_by_tool_key: Arc<DashMap<String, String>>,
     session_operation_ids: Arc<DashMap<String, Vec<String>>>,
+    last_cancelled_operation_ids: Arc<DashMap<String, Vec<String>>>,
     interactions_by_id: Arc<DashMap<String, InteractionSnapshot>>,
     interaction_id_by_request_key: Arc<DashMap<String, String>>,
     session_interaction_ids: Arc<DashMap<String, Vec<String>>>,
@@ -335,6 +346,7 @@ impl ProjectionRegistry {
             operations_by_id: Arc::new(DashMap::new()),
             operation_id_by_tool_key: Arc::new(DashMap::new()),
             session_operation_ids: Arc::new(DashMap::new()),
+            last_cancelled_operation_ids: Arc::new(DashMap::new()),
             interactions_by_id: Arc::new(DashMap::new()),
             interaction_id_by_request_key: Arc::new(DashMap::new()),
             session_interaction_ids: Arc::new(DashMap::new()),
@@ -415,6 +427,7 @@ impl ProjectionRegistry {
 
     pub fn remove_session(&self, session_id: &str) {
         self.snapshots.remove(session_id);
+        self.last_cancelled_operation_ids.remove(session_id);
         if let Some((_, operation_ids)) = self.session_operation_ids.remove(session_id) {
             for operation_id in operation_ids {
                 if let Some((_, operation)) = self.operations_by_id.remove(&operation_id) {
@@ -475,15 +488,18 @@ impl ProjectionRegistry {
                     .or_else(|| snapshot.last_agent_message_id.clone())
                     .unwrap_or_else(|| synthetic_agent_message_id(snapshot.last_event_seq));
                 snapshot.last_agent_message_id = Some(live_message_id);
-                if !preserves_failed_turn(&snapshot) {
+                if !preserves_terminal_turn(&snapshot) {
                     start_running_turn(&mut snapshot);
                 }
             }
-            SessionUpdate::AgentThoughtChunk { .. } if !preserves_failed_turn(&snapshot) => {
+            SessionUpdate::AgentThoughtChunk { .. } if !preserves_terminal_turn(&snapshot) => {
                 start_running_turn(&mut snapshot);
             }
             SessionUpdate::AgentThoughtChunk { .. } => {}
             SessionUpdate::ToolCall { tool_call, .. } => {
+                if preserves_terminal_turn(&snapshot) {
+                    return;
+                }
                 let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
                 if should_skip_unanswered_question_tool_operation(&tool_call) {
                     self.register_converted_question_interaction(
@@ -505,11 +521,12 @@ impl ProjectionRegistry {
                     OperationSourceLink::transcript_linked(tool_call.id.clone()),
                 );
                 self.register_plan_approval_interaction(session_id, &tool_call);
-                if !preserves_failed_turn(&snapshot) {
-                    start_running_turn(&mut snapshot);
-                }
+                start_running_turn(&mut snapshot);
             }
             SessionUpdate::ToolCallUpdate { update, .. } => {
+                if preserves_terminal_turn(&snapshot) {
+                    return;
+                }
                 let update = normalize_tool_call_update_for_operation_ingress(update);
                 upsert_active_tool_call(&mut snapshot.active_tool_call_ids, &update.tool_call_id);
                 if update
@@ -520,9 +537,7 @@ impl ProjectionRegistry {
                     mark_tool_call_completed(&mut snapshot, &update.tool_call_id);
                 }
                 self.apply_tool_call_update_projection(session_id, &update);
-                if !preserves_failed_turn(&snapshot) {
-                    start_running_turn(&mut snapshot);
-                }
+                start_running_turn(&mut snapshot);
             }
             SessionUpdate::PermissionRequest { permission, .. } => {
                 self.register_permission_interaction(permission, snapshot.last_event_seq);
@@ -540,18 +555,23 @@ impl ProjectionRegistry {
                 snapshot.last_terminal_turn_id = turn_id.clone();
             }
             SessionUpdate::TurnError { error, turn_id, .. } => {
-                if preserves_failed_turn(&snapshot)
-                    && matches_terminal_turn_id(
-                        snapshot.last_terminal_turn_id.as_deref(),
-                        turn_id.as_deref(),
-                    )
-                {
+                if should_ignore_late_turn_failure(&snapshot, turn_id.as_deref()) {
                     return;
                 }
                 snapshot.turn_state = SessionTurnState::Failed;
                 snapshot.active_tool_call_ids.clear();
                 snapshot.active_turn_failure =
                     Some(convert_turn_error_snapshot(error, turn_id.clone()));
+                snapshot.last_terminal_turn_id = turn_id.clone();
+            }
+            SessionUpdate::TurnCancelled { turn_id, .. } => {
+                let cancelled_operation_ids =
+                    self.cancel_active_tool_calls(session_id, &snapshot.active_tool_call_ids);
+                self.last_cancelled_operation_ids
+                    .insert(session_id.to_string(), cancelled_operation_ids);
+                snapshot.turn_state = SessionTurnState::Cancelled;
+                snapshot.active_tool_call_ids.clear();
+                snapshot.active_turn_failure = None;
                 snapshot.last_terminal_turn_id = turn_id.clone();
             }
             _ => {}
@@ -645,6 +665,22 @@ impl ProjectionRegistry {
     #[must_use]
     pub fn session_operations(&self, session_id: &str) -> Vec<OperationSnapshot> {
         let Some(operation_ids) = self.session_operation_ids.get(session_id) else {
+            return Vec::new();
+        };
+
+        operation_ids
+            .iter()
+            .filter_map(|operation_id| {
+                self.operations_by_id
+                    .get(operation_id)
+                    .map(|snapshot| snapshot.clone())
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn last_cancelled_operation_patches(&self, session_id: &str) -> Vec<OperationSnapshot> {
+        let Some(operation_ids) = self.last_cancelled_operation_ids.get(session_id) else {
             return Vec::new();
         };
 
@@ -1002,10 +1038,19 @@ impl ProjectionRegistry {
         session_id: &str,
         active_tool_call_ids: &[String],
     ) {
+        let _ = self.cancel_active_tool_calls(session_id, active_tool_call_ids);
+    }
+
+    fn cancel_active_tool_calls(
+        &self,
+        session_id: &str,
+        active_tool_call_ids: &[String],
+    ) -> Vec<String> {
         self.mark_pending_interactions_unresolved_for_historical_boundary(
             session_id,
             active_tool_call_ids,
         );
+        let mut cancelled_operation_ids = Vec::new();
         for tool_call_id in active_tool_call_ids {
             let Some(operation_id) = self
                 .operation_id_by_tool_key
@@ -1017,9 +1062,11 @@ impl ProjectionRegistry {
             if let Some(mut operation) = self.operations_by_id.get_mut(&operation_id) {
                 if !is_terminal_operation_state(&operation.operation_state) {
                     operation.operation_state = OperationState::Cancelled;
+                    cancelled_operation_ids.push(operation_id);
                 }
             }
         }
+        cancelled_operation_ids
     }
 
     fn mark_pending_interactions_unresolved_for_historical_boundary(
@@ -2142,6 +2189,135 @@ mod tests {
                 chunk: ContentChunk {
                     content: ContentBlock::Text {
                         text: "retry".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some("session-1".to_string()),
+                attempt_id: None,
+            },
+        );
+
+        let running_snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected running snapshot");
+        assert_eq!(running_snapshot.turn_state, SessionTurnState::Running);
+        assert!(running_snapshot.active_turn_failure.is_none());
+        assert!(running_snapshot.last_terminal_turn_id.is_none());
+    }
+
+    #[test]
+    fn apply_session_update_cancels_active_operations_for_user_cancel() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("session-1".to_string(), CanonicalAgentId::Codex);
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: create_execute_tool_call(
+                    "tool-1",
+                    "bun run check",
+                    ToolCallStatus::InProgress,
+                ),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnCancelled {
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        );
+
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected cancelled snapshot");
+        assert_eq!(snapshot.turn_state, SessionTurnState::Cancelled);
+        assert!(snapshot.active_tool_call_ids.is_empty());
+        assert!(snapshot.active_turn_failure.is_none());
+        assert_eq!(snapshot.last_terminal_turn_id.as_deref(), Some("turn-1"));
+        let operation = registry
+            .operation_for_tool_call("session-1", "tool-1")
+            .expect("expected cancelled operation");
+        assert_eq!(operation.operation_state, OperationState::Cancelled);
+    }
+
+    #[test]
+    fn apply_session_update_preserves_no_id_cancel_until_new_user_turn() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("session-1".to_string(), CanonicalAgentId::Codex);
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: create_execute_tool_call(
+                    "tool-1",
+                    "bun run check",
+                    ToolCallStatus::InProgress,
+                ),
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnCancelled {
+                session_id: Some("session-1".to_string()),
+                turn_id: None,
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: "tool-1".to_string(),
+                    status: Some(ToolCallStatus::InProgress),
+                    result: None,
+                    content: None,
+                    raw_output: None,
+                    title: None,
+                    locations: None,
+                    streaming_input_delta: None,
+                    normalized_todos: None,
+                    normalized_questions: None,
+                    streaming_arguments: None,
+                    streaming_plan: None,
+                    arguments: None,
+                    failure_reason: None,
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::TurnError {
+                error: crate::acp::session_update::TurnErrorData::Legacy(
+                    "Operation cancelled by user".to_string(),
+                ),
+                session_id: Some("session-1".to_string()),
+                turn_id: Some("late-turn".to_string()),
+            },
+        );
+
+        let cancelled_snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("expected cancelled snapshot after late events");
+        assert_eq!(cancelled_snapshot.turn_state, SessionTurnState::Cancelled);
+        assert!(cancelled_snapshot.active_turn_failure.is_none());
+        assert!(cancelled_snapshot.last_terminal_turn_id.is_none());
+        let cancelled_operation = registry
+            .operation_for_tool_call("session-1", "tool-1")
+            .expect("expected cancelled operation");
+        assert_eq!(
+            cancelled_operation.operation_state,
+            OperationState::Cancelled
+        );
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::UserMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "try again".to_string(),
                     },
                     aggregation_hint: None,
                 },
