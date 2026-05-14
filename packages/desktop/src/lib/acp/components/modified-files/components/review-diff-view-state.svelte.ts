@@ -4,6 +4,7 @@ import {
 	type FileContents,
 	FileDiff,
 	type FileDiffMetadata,
+	parseDiffFromFile,
 } from "@pierre/diffs";
 import { ResultAsync } from "neverthrow";
 import { mount, unmount } from "svelte";
@@ -66,6 +67,10 @@ type CompatibleFileDiffMetadata = FileDiffMetadata & {
 	deletionLines?: string[];
 	additionLines?: string[];
 };
+type CompatibleHunk = FileDiffMetadata["hunks"][number] & {
+	deletionLineIndex?: number;
+	additionLineIndex?: number;
+};
 
 function getLinesForRange(lines: string[], startIndex: number, count: number): string[] {
 	return lines.slice(startIndex, startIndex + count);
@@ -92,6 +97,96 @@ function getChangeDeletionLines(
 		content.deletionLineIndex,
 		content.deletions
 	);
+}
+
+function isLineRangeRenderable(
+	lines: string[],
+	startIndex: number | undefined,
+	count: number
+): boolean {
+	if (count === 0) {
+		return true;
+	}
+
+	if (startIndex === undefined) {
+		return false;
+	}
+
+	return startIndex >= 0 && startIndex + count <= lines.length;
+}
+
+function hasRenderableLineContent(fileDiffMetadata: FileDiffMetadata): boolean {
+	const compatibleMetadata = fileDiffMetadata as CompatibleFileDiffMetadata;
+	const additionLines = compatibleMetadata.additionLines;
+	const deletionLines = compatibleMetadata.deletionLines;
+
+	if (!Array.isArray(additionLines) || !Array.isArray(deletionLines)) {
+		return false;
+	}
+
+	for (const rawHunk of compatibleMetadata.hunks) {
+		const hunk = rawHunk as CompatibleHunk;
+
+		for (const content of hunk.hunkContent as CompatibleHunkContent[]) {
+			if (content.type === "context") {
+				const lineCount = getContentLineCount(content.lines);
+				const additionStartIndex = content.additionLineIndex ?? hunk.additionLineIndex;
+				const deletionStartIndex = content.deletionLineIndex ?? hunk.deletionLineIndex;
+
+				if (!isLineRangeRenderable(additionLines, additionStartIndex, lineCount)) {
+					return false;
+				}
+
+				if (!isLineRangeRenderable(deletionLines, deletionStartIndex, lineCount)) {
+					return false;
+				}
+			} else {
+				const additionCount = getContentLineCount(content.additions);
+				const deletionCount = getContentLineCount(content.deletions);
+
+				if (!isLineRangeRenderable(additionLines, content.additionLineIndex, additionCount)) {
+					return false;
+				}
+
+				if (!isLineRangeRenderable(deletionLines, content.deletionLineIndex, deletionCount)) {
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
+}
+
+function hydrateLineContentFromFiles(diffData: ReviewDiffData): ReviewDiffData {
+	const parsedMetadata = parseDiffFromFile(diffData.oldFile, diffData.newFile);
+	const parsedCompatibleMetadata = parsedMetadata as CompatibleFileDiffMetadata;
+
+	return {
+		oldFile: diffData.oldFile,
+		newFile: diffData.newFile,
+		fileDiffMetadata: Object.assign({}, diffData.fileDiffMetadata, {
+			deletionLines: parsedCompatibleMetadata.deletionLines ?? [],
+			additionLines: parsedCompatibleMetadata.additionLines ?? [],
+		}),
+	};
+}
+
+function ensureRenderableDiffData(diffData: ReviewDiffData): ReviewDiffData {
+	if (hasRenderableLineContent(diffData.fileDiffMetadata)) {
+		return diffData;
+	}
+
+	const hydratedDiffData = hydrateLineContentFromFiles(diffData);
+	if (hasRenderableLineContent(hydratedDiffData.fileDiffMetadata)) {
+		return hydratedDiffData;
+	}
+
+	return {
+		oldFile: diffData.oldFile,
+		newFile: diffData.newFile,
+		fileDiffMetadata: parseDiffFromFile(diffData.oldFile, diffData.newFile),
+	};
 }
 
 /**
@@ -224,16 +319,18 @@ export class ReviewDiffViewState {
 			this.headerControlsComponent = null;
 		}
 
+		const renderableDiffData = ensureRenderableDiffData(diffData);
+
 		this.containerElement = container;
-		this.currentDiffData = diffData;
-		this.totalHunksAtInit = diffData.fileDiffMetadata.hunks.length;
+		this.currentDiffData = renderableDiffData;
+		this.totalHunksAtInit = renderableDiffData.fileDiffMetadata.hunks.length;
 		this.acceptedCount = 0;
 		this.rejectedCount = 0;
 		this.activeHunkIndex = null;
 
 		// Build line annotations for accept/reject UI on each change hunk
 		this.lineAnnotations = this.onHunkAction
-			? this.buildLineAnnotationsFromHunks(diffData.fileDiffMetadata)
+			? this.buildLineAnnotationsFromHunks(renderableDiffData.fileDiffMetadata)
 			: [];
 
 		// Create FileDiff instance with full file rendering options
@@ -260,7 +357,7 @@ export class ReviewDiffViewState {
 		// Render using pre-parsed FileDiffMetadata for optimized rendering
 		if (this.fileDiffInstance) {
 			this.fileDiffInstance.render({
-				fileDiff: diffData.fileDiffMetadata,
+				fileDiff: renderableDiffData.fileDiffMetadata,
 				containerWrapper: container,
 				lineAnnotations: this.lineAnnotations,
 			});
@@ -275,11 +372,13 @@ export class ReviewDiffViewState {
 			return;
 		}
 
-		this.currentDiffData = diffData;
+		const renderableDiffData = ensureRenderableDiffData(diffData);
+
+		this.currentDiffData = renderableDiffData;
 		// Don't pass containerWrapper on updates - it causes DataCloneError
 		// when using WorkerPoolManager. The container is already set.
 		this.fileDiffInstance.render({
-			fileDiff: diffData.fileDiffMetadata,
+			fileDiff: renderableDiffData.fileDiffMetadata,
 		});
 	}
 
@@ -556,30 +655,33 @@ export class ReviewDiffViewState {
 					)
 				: currentDiffData.newFile.contents;
 
-		this.currentDiffData = Object.assign({}, currentDiffData, {
-			fileDiffMetadata: updatedMetadata,
+		const updatedDiffData = ensureRenderableDiffData({
+			oldFile: currentDiffData.oldFile,
 			newFile: Object.assign({}, currentDiffData.newFile, {
 				contents: updatedNewContents,
 			}),
+			fileDiffMetadata: updatedMetadata,
 		});
+
+		this.currentDiffData = updatedDiffData;
 
 		// Clean up existing annotation components before re-rendering
 		this.cleanupAnnotationComponents();
 
 		// Rebuild line annotations for the updated hunks
 		this.lineAnnotations = this.onHunkAction
-			? this.buildLineAnnotationsFromHunks(updatedMetadata)
+			? this.buildLineAnnotationsFromHunks(updatedDiffData.fileDiffMetadata)
 			: [];
 
 		// Re-render with updated metadata and annotations
 		// Don't pass containerWrapper on updates - it causes DataCloneError
 		// when using WorkerPoolManager. The container is already set.
 		this.fileDiffInstance.render({
-			fileDiff: updatedMetadata,
+			fileDiff: updatedDiffData.fileDiffMetadata,
 			lineAnnotations: this.lineAnnotations,
 		});
 
-		return updatedMetadata;
+		return updatedDiffData.fileDiffMetadata;
 	}
 
 	/**

@@ -451,7 +451,7 @@ function getRowKeys(): readonly string[] {
 }
 
 function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {
-	if (vlistRef === undefined || !("scrollTo" in vlistRef)) {
+	if (vlistRef == null || !("scrollTo" in vlistRef)) {
 		return undefined;
 	}
 	return vlistRef as VListHandle & { scrollTo(offset: number): void };

@@ -6,6 +6,7 @@
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import ToolTally from "./tool-tally.svelte";
+	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 
 	interface Props {
 		description: string | null;
@@ -108,7 +109,11 @@
 		<div class={headerContentClass}>
 			<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
 			<span class={titleClass}>
-				<span>{titleText}</span>
+				{#if isPending}
+					<TextShimmer>{titleText}</TextShimmer>
+				{:else}
+					<span>{titleText}</span>
+				{/if}
 			</span>
 		</div>
 		{#if durationLabel}

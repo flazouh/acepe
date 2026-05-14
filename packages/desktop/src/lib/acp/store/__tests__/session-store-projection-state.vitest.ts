@@ -3959,6 +3959,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getHotState("session-1").pendingSendIntent).toEqual({
 			attemptId: expect.any(String),
 			startedAt: expect.any(Number),
+			baselineTranscriptRevision: 0,
 			promptLength: 36,
 			optimisticEntry: {
 				id: expect.any(String),
@@ -4203,6 +4204,139 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						graphRevision: 2,
 						transcriptRevision: 2,
 						lastEventSeq: 2,
+					},
+				})
+			)
+		);
+
+		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+	});
+
+	it("clears stale pending send intent from a completed canonical snapshot that already acknowledged the prompt text", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "copilot",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "copilot",
+					lifecycle: createGraphLifecycle("ready"),
+					turnState: "Completed",
+					messageCount: 2,
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-complete-1",
+					transcriptSnapshot: {
+						revision: 10,
+						entries: [
+							{
+								entryId: "user-previous",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-previous:block:0",
+										text: "previous prompt",
+									},
+								],
+							},
+							{
+								entryId: "assistant-previous",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-previous:block:0",
+										text: "Previous answer.",
+									},
+								],
+							},
+						],
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 10,
+						lastEventSeq: 10,
+					},
+				})
+			)
+		);
+
+		const result = await store.sendMessage("session-1", "copilot acknowledged prompt");
+		expect(result.isOk()).toBe(true);
+		expect(store.getHotState("session-1").pendingSendIntent).not.toBeNull();
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "copilot",
+					lifecycle: createGraphLifecycle("ready"),
+					turnState: "Completed",
+					messageCount: 4,
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-complete-1",
+					transcriptSnapshot: {
+						revision: 20,
+						entries: [
+							{
+								entryId: "user-previous",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-previous:block:0",
+										text: "previous prompt",
+									},
+								],
+							},
+							{
+								entryId: "assistant-previous",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-previous:block:0",
+										text: "Previous answer.",
+									},
+								],
+							},
+							{
+								entryId: "user-current",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-current:block:0",
+										text: "copilot acknowledged prompt",
+									},
+								],
+							},
+							{
+								entryId: "assistant-current",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-current:block:0",
+										text: "Done.",
+									},
+								],
+							},
+						],
+					},
+					revision: {
+						graphRevision: 20,
+						transcriptRevision: 20,
+						lastEventSeq: 20,
 					},
 				})
 			)

@@ -80,7 +80,7 @@ export type VirtuaTranscriptHandle = {
 };
 
 export type VirtuaTranscriptRendererAdapterOptions = {
-	getHandle(): VirtuaTranscriptHandle | undefined;
+	getHandle(): VirtuaTranscriptHandle | null | undefined;
 	getRowKeys(): readonly string[];
 };
 
@@ -120,7 +120,7 @@ export function createVirtuaTranscriptRendererAdapter(
 	return {
 		measureViewport() {
 			const handle = options.getHandle();
-			if (handle === undefined) {
+			if (handle == null) {
 				return missingMeasurement();
 			}
 			return {
@@ -164,7 +164,7 @@ export function createVirtuaTranscriptRendererAdapter(
 		},
 		revealRow(effect) {
 			const handle = options.getHandle();
-			if (handle === undefined) {
+			if (handle == null) {
 				return missingEffect(effect.type);
 			}
 			const index = findRowIndex(options.getRowKeys(), effect.targetKey);
@@ -183,7 +183,7 @@ export function createVirtuaTranscriptRendererAdapter(
 		},
 		revealTail(effect) {
 			const handle = options.getHandle();
-			if (handle === undefined) {
+			if (handle == null) {
 				return missingEffect(effect.type);
 			}
 			const lastIndex = options.getRowKeys().length - 1;
@@ -202,7 +202,7 @@ export function createVirtuaTranscriptRendererAdapter(
 		},
 		applyScrollOffset(effect) {
 			const handle = options.getHandle();
-			if (handle === undefined) {
+			if (handle == null) {
 				return missingEffect(effect.type);
 			}
 			handle.scrollTo(effect.offsetPx);
@@ -213,7 +213,7 @@ export function createVirtuaTranscriptRendererAdapter(
 		},
 		probeRendererHealth() {
 			const handle = options.getHandle();
-			if (handle === undefined) {
+			if (handle == null) {
 				return {
 					type: "unhealthy",
 					reason: "zero_viewport",

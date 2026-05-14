@@ -255,6 +255,18 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(dataLengthHistory.indexOf(0)).toBeLessThan(dataLengthHistory.indexOf(2));
 	});
 
+	it("does not crash when a scheduled scroll flush runs after VList unmounts", async () => {
+		const view = renderList({
+			sceneEntries: createManyUserSceneEntries(3),
+			turnState: "streaming",
+			isWaitingForResponse: true,
+		});
+
+		view.unmount();
+
+		await expect(flushAnimationFrames()).resolves.toBeUndefined();
+	});
+
 	it("switches sessions without re-entering empty hydration and still reveals the latest entry", async () => {
 		const view = renderList({
 			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],

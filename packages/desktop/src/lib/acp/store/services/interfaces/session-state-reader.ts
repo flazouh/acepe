@@ -36,6 +36,12 @@ export interface ISessionStateReader {
 	getSessionLifecycleStatus?(sessionId: string): SessionGraphLifecycle["status"] | null;
 
 	/**
+	 * Canonical transcript revision. Used by local optimistic send cleanup to
+	 * distinguish newly acknowledged text from older identical prompts.
+	 */
+	getGraphTranscriptRevision?(sessionId: string): number | undefined;
+
+	/**
 	 * Canonical autonomous setting. Returns false when no canonical projection has materialized.
 	 */
 	getSessionAutonomousEnabled?(sessionId: string): boolean;

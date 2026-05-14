@@ -61,6 +61,28 @@ describe("TranscriptRendererAdapter", () => {
 		expect(scrollToIndex).not.toHaveBeenCalled();
 	});
 
+	it("treats a null Virtua handle as temporarily missing during teardown", () => {
+		const adapter = createVirtuaTranscriptRendererAdapter({
+			getHandle: () => null as never,
+			getRowKeys: () => ["row-1"],
+		});
+
+		expect(
+			adapter.revealRow({
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "row-1",
+				align: "end",
+				reason: "explicit-reveal",
+			})
+		).toEqual({
+			type: "skipped",
+			effectType: "RevealRow",
+			reason: "missing-adapter",
+		});
+	});
+
 	it("normalizes native viewport measurement", () => {
 		const container = document.createElement("div");
 		Object.defineProperty(container, "scrollTop", {

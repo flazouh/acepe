@@ -95,6 +95,7 @@ import type {
 	SessionIdentity,
 	SessionLinkedPr,
 	SessionMetadata,
+	SessionPendingSendIntent,
 	SessionPrLinkMode,
 	SessionTransientProjection,
 	SessionUsageTelemetry,
@@ -1202,6 +1203,54 @@ function transcriptSnapshotContainsUserAttemptId(
 	return false;
 }
 
+function transcriptEntryText(entry: TranscriptEntry): string {
+	let text = "";
+	for (const segment of entry.segments) {
+		text += segment.text;
+	}
+	return text;
+}
+
+function pendingSendText(pendingSendIntent: SessionPendingSendIntent): string | null {
+	if (pendingSendIntent.optimisticEntry.type !== "user") {
+		return null;
+	}
+	const content = pendingSendIntent.optimisticEntry.message.content;
+	if (content.type !== "text") {
+		return null;
+	}
+	return content.text.trim();
+}
+
+function transcriptSnapshotAcknowledgesPendingSend(
+	snapshot: TranscriptSnapshot,
+	pendingSendIntent: SessionPendingSendIntent
+): boolean {
+	if (transcriptSnapshotContainsUserAttemptId(snapshot, pendingSendIntent.attemptId)) {
+		return true;
+	}
+
+	if (
+		pendingSendIntent.baselineTranscriptRevision === null ||
+		snapshot.revision <= pendingSendIntent.baselineTranscriptRevision
+	) {
+		return false;
+	}
+
+	const expectedText = pendingSendText(pendingSendIntent);
+	if (expectedText === null || expectedText.length === 0) {
+		return false;
+	}
+
+	for (const entry of snapshot.entries) {
+		if (entry.role === "user" && transcriptEntryText(entry).trim() === expectedText) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 function transcriptSnapshotContentWeight(snapshot: TranscriptSnapshot): number {
 	let weight = snapshot.entries.length;
 	for (const entry of snapshot.entries) {
@@ -1884,9 +1933,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (
 			previousHotState.pendingSendIntent !== null &&
 			previousHotState.pendingSendIntent !== undefined &&
-			transcriptSnapshotContainsUserAttemptId(
+			transcriptSnapshotAcknowledgesPendingSend(
 				graph.transcriptSnapshot,
-				previousHotState.pendingSendIntent.attemptId
+				previousHotState.pendingSendIntent
 			)
 		) {
 			updates.pendingSendIntent = null;
@@ -3315,9 +3364,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					hotState.pendingSendIntent !== null &&
 					hotState.pendingSendIntent !== undefined &&
 					previousGraph !== null &&
-					transcriptSnapshotContainsUserAttemptId(
+					transcriptSnapshotAcknowledgesPendingSend(
 						previousGraph.transcriptSnapshot,
-						hotState.pendingSendIntent.attemptId
+						hotState.pendingSendIntent
 					)
 				) {
 					updates.pendingSendIntent = null;
@@ -3458,9 +3507,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					hotState.pendingSendIntent !== null &&
 					hotState.pendingSendIntent !== undefined &&
 					previousGraph !== null &&
-					transcriptSnapshotContainsUserAttemptId(
+					transcriptSnapshotAcknowledgesPendingSend(
 						previousGraph.transcriptSnapshot,
-						hotState.pendingSendIntent.attemptId
+						hotState.pendingSendIntent
 					)
 				) {
 					updates.pendingSendIntent = null;
@@ -3591,7 +3640,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 	}
 
-	private getGraphTranscriptRevision(sessionId: string): number | undefined {
+	getGraphTranscriptRevision(sessionId: string): number | undefined {
 		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.revision;
 	}
 

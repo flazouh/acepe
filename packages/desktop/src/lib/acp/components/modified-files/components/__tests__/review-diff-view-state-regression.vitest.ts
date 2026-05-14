@@ -1,22 +1,63 @@
 import { type FileContents, type FileDiffMetadata, parseDiffFromFile } from "@pierre/diffs";
 import { describe, expect, it, vi } from "vitest";
 
+type RenderArgs = {
+	fileDiff: FileDiffMetadata;
+};
+
+const pierreMockState = vi.hoisted(() => {
+	class MockFileDiff {
+		options: object;
+
+		constructor(options: object) {
+			this.options = options;
+		}
+
+		render(args: RenderArgs): void {
+			pierreMockState.lastRenderArgs = args;
+		}
+
+		cleanUp(): void {}
+
+		setOptions(options: object): void {
+			this.options = options;
+		}
+
+		setThemeType(_themeType: "dark" | "light"): void {}
+
+		rerender(): void {}
+	}
+
+	return {
+		lastRenderArgs: null as RenderArgs | null,
+		MockFileDiff,
+	};
+});
+
 vi.mock("@pierre/diffs", async () => {
 	const actual = await vi.importActual<typeof import("@pierre/diffs")>("@pierre/diffs");
 	const diffAcceptRejectHunk: typeof actual.diffAcceptRejectHunk = (diff, hunkIndex, action) => {
 		const result = actual.diffAcceptRejectHunk(diff, hunkIndex, action);
 		const corruptedResult = Object.assign({}, result);
 		Reflect.deleteProperty(corruptedResult, "newLines");
+		Reflect.deleteProperty(corruptedResult, "additionLines");
+		Reflect.deleteProperty(corruptedResult, "deletionLines");
 		return corruptedResult;
 	};
 
 	return Object.assign({}, actual, {
+		FileDiff: pierreMockState.MockFileDiff,
 		diffAcceptRejectHunk,
 	});
 });
 
 vi.mock("$lib/acp/utils/worker-pool-singleton.js", () => ({
 	getWorkerPool: (): undefined => undefined,
+}));
+
+vi.mock("$lib/acp/utils/pierre-rendering.js", () => ({
+	buildPierreDiffOptions: (): object => ({}),
+	ensurePierreThemeRegistered: (): Promise<void> => Promise.resolve(),
 }));
 
 vi.mock("../diff-hunk-action-buttons.svelte", () => ({
@@ -27,10 +68,6 @@ type ReviewDiffData = {
 	readonly oldFile: FileContents;
 	readonly newFile: FileContents;
 	readonly fileDiffMetadata: FileDiffMetadata;
-};
-
-type RenderArgs = {
-	fileDiff: FileDiffMetadata;
 };
 
 function createSingleHunkDiffData(): ReviewDiffData {
@@ -69,6 +106,31 @@ async function setupState() {
 }
 
 describe("ReviewDiffViewState regression", () => {
+	it("rebuilds render metadata when incoming line arrays are missing", async () => {
+		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
+		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
+		const corruptedMetadata = Object.assign({}, diffData.fileDiffMetadata);
+		Reflect.deleteProperty(corruptedMetadata, "additionLines");
+		Reflect.deleteProperty(corruptedMetadata, "deletionLines");
+
+		const corruptedDiffData: ReviewDiffData = {
+			oldFile: diffData.oldFile,
+			newFile: diffData.newFile,
+			fileDiffMetadata: corruptedMetadata,
+		};
+
+		await expect(
+			state.initializeDiff(corruptedDiffData, document.createElement("div"))
+		).resolves.toBeUndefined();
+
+		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
+		expect(currentData.fileDiffMetadata.additionLines).toBeDefined();
+		expect(currentData.fileDiffMetadata.deletionLines).toBeDefined();
+		expect(pierreMockState.lastRenderArgs?.fileDiff.additionLines).toBeDefined();
+		expect(pierreMockState.lastRenderArgs?.fileDiff.deletionLines).toBeDefined();
+	});
+
 	it("keeps accepted contents when resolved metadata omits newLines", async () => {
 		const { state, diffData } = await setupState();
 		const originalNewContents = diffData.newFile.contents;
@@ -79,6 +141,8 @@ describe("ReviewDiffViewState regression", () => {
 
 		const currentData = Reflect.get(state, "currentDiffData") as ReviewDiffData;
 		expect(currentData.newFile.contents).toBe(originalNewContents);
+		expect(currentData.fileDiffMetadata.additionLines).toBeDefined();
+		expect(currentData.fileDiffMetadata.deletionLines).toBeDefined();
 	});
 
 	it("extracts old content from legacy numeric hunk payloads", async () => {

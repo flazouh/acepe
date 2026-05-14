@@ -77,6 +77,7 @@ export type TurnState = "idle" | "streaming" | "completed" | "interrupted" | "er
 export interface SessionPendingSendIntent {
 	readonly attemptId: string;
 	readonly startedAt: number;
+	readonly baselineTranscriptRevision: number | null;
 	readonly promptLength: number;
 	readonly optimisticEntry: _SessionEntry;
 }

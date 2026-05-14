@@ -38,6 +38,7 @@ describe("SessionTransientProjection", () => {
 			pendingSendIntent: {
 				attemptId: "attempt-1",
 				startedAt: 456,
+				baselineTranscriptRevision: 1,
 				promptLength: 12,
 				optimisticEntry: {
 					id: "optimistic-1",

@@ -193,6 +193,7 @@ describe("SessionMessagingService.sendMessage", () => {
 				pendingSendIntent: {
 					attemptId: expect.any(String),
 					startedAt: expect.any(Number),
+					baselineTranscriptRevision: null,
 					promptLength: 5,
 					optimisticEntry: {
 						id: expect.any(String),
@@ -328,6 +329,7 @@ describe("SessionMessagingService.sendMessage", () => {
 				pendingSendIntent: {
 					attemptId: expect.any(String),
 					startedAt: expect.any(Number),
+					baselineTranscriptRevision: null,
 					promptLength: 5,
 					optimisticEntry: {
 						id: expect.any(String),
