@@ -28,10 +28,7 @@
 		autoLabel?: string;
 		planDescription?: string;
 		buildDescription?: string;
-		autoDescription?: string;
 		autonomousActive?: boolean;
-		autoDisabled?: boolean;
-		autoDisabledReason?: string | null;
 		onModeChange: (modeId: string) => void;
 	}
 
@@ -46,10 +43,7 @@
 		autoLabel = "Auto",
 		planDescription = "Think first.",
 		buildDescription = "Edit directly.",
-		autoDescription = "Keep going automatically.",
 		autonomousActive = false,
-		autoDisabled = false,
-		autoDisabledReason = null,
 		onModeChange,
 	}: Props = $props();
 
@@ -79,15 +73,11 @@
 	function defaultDescription(modeId: string): string | null {
 		if (modeId === planModeId) return planDescription;
 		if (modeId === buildModeId) return buildDescription;
-		if (modeId === autoModeId) return autoDescription;
 		return null;
 	}
 
-	const buildMode = $derived(
-		availableModes.find((mode) => mode.id === buildModeId) ?? null
-	);
 	const modeOptions = $derived.by((): readonly ModeDropdownOption[] => {
-		const baseOptions = availableModes.map((mode) => {
+		return availableModes.map((mode) => {
 			if (mode.id === planModeId) {
 				return {
 					id: mode.id,
@@ -110,25 +100,15 @@
 				description: mode.description ?? defaultDescription(mode.id),
 			};
 		});
-
-		if (!buildMode) {
-			return baseOptions;
-		}
-
-		return [
-			...baseOptions,
-			{
-				id: autoModeId,
-				label: autoLabel,
-				description: defaultDescription(autoModeId),
-				disabled: autoDisabled,
-			},
-		];
 	});
 	const selectedOption = $derived.by(() => {
-		const selectedId = autonomousActive ? autoModeId : currentModeId;
+		// When autonomous is active, show the auto indicator in the trigger even
+		// though auto is not a selectable item in the dropdown.
+		if (autonomousActive) {
+			return { id: autoModeId, label: autoLabel, description: null };
+		}
 		return (
-			modeOptions.find((option) => option.id === selectedId) ??
+			modeOptions.find((option) => option.id === currentModeId) ??
 			modeOptions[0] ?? {
 				id: buildModeId,
 				label: buildLabel,
@@ -189,12 +169,6 @@
 					/>
 					{#if option.id === planModeId}
 						<PlanIcon size="sm" class="mt-0.5 self-start" style={`color: ${modeColor(option.id)}`} />
-					{:else if option.id === autoModeId}
-						<Robot
-							class="mt-0.5 size-3 shrink-0 self-start"
-							style={`color: ${modeColor(option.id)}`}
-							weight="fill"
-						/>
 					{:else}
 						<BuildIcon size="sm" class="mt-0.5 self-start" style={`color: ${modeColor(option.id)}`} />
 					{/if}
@@ -202,11 +176,6 @@
 						<span class="text-xs font-medium">{option.label}</span>
 						{#if option.description}
 							<span class="text-[11px] leading-[1.25] text-muted-foreground">{option.description}</span>
-						{/if}
-						{#if option.id === autoModeId && autoDisabled && autoDisabledReason}
-							<span class="text-[11px] leading-[1.25] text-muted-foreground">
-								{autoDisabledReason}
-							</span>
 						{/if}
 					</div>
 				</div>

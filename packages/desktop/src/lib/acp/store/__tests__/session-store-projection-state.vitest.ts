@@ -723,6 +723,81 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
+	it("preserves restored operations when a reconnect snapshot repeats tool transcript rows without operations", () => {
+		const store = new SessionStore();
+		const transcriptSnapshot = {
+			revision: 12,
+			entries: [
+				{
+					entryId: "tool-1",
+					role: "tool" as const,
+					segments: [
+						{
+							kind: "text" as const,
+							segmentId: "tool-1:tool",
+							text: "Run ls",
+						},
+					],
+				},
+			],
+		};
+		const restoredOperation = createOperationSnapshot({
+			id: "session-1:tool-1",
+			tool_call_id: "tool-1",
+			name: "bash",
+			kind: "execute",
+			provider_status: "completed",
+			title: "Run ls",
+			arguments: {
+				kind: "execute",
+				command: "ls",
+			},
+			result: {
+				content: "README.md",
+				detailedContent: "README.md\npackage.json",
+			},
+			command: "ls",
+			operation_state: "completed",
+		});
+		const restoredGraph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("detached"),
+			transcriptSnapshot,
+			operations: [restoredOperation],
+		});
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(restoredGraph));
+
+		const reconnectGraph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			lifecycle: createGraphLifecycle("ready"),
+			revision: {
+				graphRevision: 13,
+				transcriptRevision: 12,
+				lastEventSeq: 13,
+			},
+			transcriptSnapshot,
+			operations: [],
+		});
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(reconnectGraph));
+
+		const scene = materializeStoredScene(store);
+		expect(scene.conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
+			title: "Run ls",
+			status: "done",
+			presentationState: "resolved",
+		});
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
+			toolCallId: "tool-1",
+			kind: "execute",
+		});
+	});
+
 	it("preserves restored historical scene content across connect lifecycle envelopes", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({
@@ -1579,6 +1654,69 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
 			showStop: false,
 			canCancel: false,
+			canSubmit: true,
+		});
+	});
+
+	it("clears local composer dispatching when canonical turn completion arrives", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+		store.bindComposerSession("session-1");
+		store.composerBeginDispatch("session-1");
+
+		expect(store.getStoreComposerState("session-1")).toMatchObject({
+			isDispatching: true,
+			selectorsDisabled: true,
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: createIdleActivity(),
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity", "turnState", "activeTurnFailure", "lastTerminalTurnId"],
+				},
+			},
+		});
+
+		expect(store.getStoreComposerState("session-1")).toMatchObject({
+			isDispatching: false,
+			selectorsDisabled: false,
 			canSubmit: true,
 		});
 	});

@@ -45,6 +45,9 @@ export type AgentToolKind =
 	| "skill"
 	| "task"
 	| "task_output"
+	| "enter_plan_mode"
+	| "exit_plan_mode"
+	| "create_plan"
 	| "browser"
 	| "sql"
 	| "unclassified"
@@ -123,6 +126,7 @@ export interface AgentToolEntry {
 	status: AgentToolStatus;
 	// Execute-specific
 	command?: string | null;
+	commandHtmls?: readonly string[];
 	stdout?: string | null;
 	stderr?: string | null;
 	exitCode?: number;
@@ -149,6 +153,10 @@ export interface AgentToolEntry {
 	taskPrompt?: string | null;
 	taskResultText?: string | null;
 	taskChildren?: AnyAgentEntry[];
+	// Plan-specific
+	planTitle?: string | null;
+	planContent?: string | null;
+	planStatus?: "streaming" | "interactive" | "approved" | "rejected" | "building";
 	presentationState?: AgentToolPresentationState;
 	degradedReason?: string | null;
 	todos?: AgentTodoItem[];
@@ -236,6 +244,17 @@ export interface AgentPanelQuestionSelectEvent {
 	questionIndex: number;
 	label: string;
 	multiSelect?: boolean;
+}
+
+export interface AgentPanelPlanActionEvent {
+	entryId: string;
+	toolCallId?: string;
+	interactionId?: string;
+}
+
+export interface AgentPanelPlanViewEvent extends AgentPanelPlanActionEvent {
+	title: string;
+	content: string;
 }
 
 /** Single diagnostic entry for Read Lints tool display */

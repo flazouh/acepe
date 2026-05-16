@@ -17,6 +17,7 @@ type SessionOpenStore = Pick<
 	| "setLocalCreatedSessionLoaded"
 	| "getSessionCold"
 	| "connectSession"
+	| "clearSessionEntries"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -42,6 +43,7 @@ describe("openPersistedSession", () => {
 			setSessionLoading: mock(() => {}),
 			setSessionLoaded: mock(() => {}),
 			setLocalCreatedSessionLoaded: mock(() => {}),
+			clearSessionEntries: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
 			getSessionCold: mock(() => ({
 				id: "session-1",
@@ -211,6 +213,21 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.connectSession).toHaveBeenCalledWith("session-1", {
 			openToken: "open-token-1",
 		});
+	});
+
+	it("clears stale restored content before loading a provider-backed session", async () => {
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		expect(sessionStore.clearSessionEntries).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
 	});
 
 	it("hydrates the open snapshot before marking loaded and connecting for manual and startup opens", async () => {

@@ -428,6 +428,41 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("matches restored tool rows by tool call id when source link is not transcript-linked", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run"),
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [
+				createOperationSnapshot({
+					id: "operation-1",
+					tool_call_id: "tool-1",
+					source_link: {
+						kind: "synthetic",
+						reason: "legacy restored operation",
+					},
+				}),
+			],
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Run",
+			presentationState: "resolved",
+		});
+	});
+
 	it("preserves editDiffs through scene text limit filtering for edit tool calls", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "Apply the patch"),

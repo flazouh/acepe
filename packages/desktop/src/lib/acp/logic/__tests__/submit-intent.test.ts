@@ -20,6 +20,19 @@ describe("submit intent", () => {
 		).toBe("send");
 	});
 
+	it("queues on Enter while agent is busy even when direct submit is disabled", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: true,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: false,
+				isSubmitDisabled: true,
+			})
+		).toBe("send");
+	});
+
 	it("steers on Shift+Enter while agent is busy", () => {
 		expect(
 			resolveEnterKeyIntent({
@@ -32,6 +45,19 @@ describe("submit intent", () => {
 		).toBe("steer");
 	});
 
+	it("steers on Shift+Enter while agent is busy even when direct submit is disabled", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: true,
+				shiftKey: true,
+				metaKey: false,
+				ctrlKey: false,
+				isSubmitDisabled: true,
+			})
+		).toBe("steer");
+	});
+
 	it("keeps Shift+Enter as newline when agent is not busy", () => {
 		expect(
 			resolveEnterKeyIntent({
@@ -40,6 +66,19 @@ describe("submit intent", () => {
 				shiftKey: true,
 				metaKey: false,
 				ctrlKey: false,
+			})
+		).toBe("none");
+	});
+
+	it("suppresses Enter submit when idle direct submit is disabled", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: false,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: false,
+				isSubmitDisabled: true,
 			})
 		).toBe("none");
 	});

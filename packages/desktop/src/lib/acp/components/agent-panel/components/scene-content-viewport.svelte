@@ -2,6 +2,8 @@
 import { AgentPanelConversationEntry } from "@acepe/ui/agent-panel";
 import { setIconConfig } from "@acepe/ui/icon-context";
 import type {
+	AgentPanelPlanActionEvent,
+	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
 	AssistantRenderBlockContext,
@@ -89,6 +91,10 @@ type SceneContentViewportProps = {
 	/** Callback fired when near-top state changes */
 	onNearTopChange?: (isNearTop: boolean) => void;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
+	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
+	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
+	onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 };
 
 type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
@@ -106,6 +112,10 @@ let {
 	onNearBottomChange,
 	onNearTopChange,
 	onQuestionSelect,
+	onPlanBuild,
+	onPlanCancel,
+	onPlanViewFull,
+	isPlanActionAvailable,
 }: SceneContentViewportProps = $props();
 
 // Derive isStreaming from turnState for scroll behavior
@@ -1219,6 +1229,10 @@ export function scrollToTop() {
 					{streamingAnimationMode}
 					renderAssistantBlock={renderAssistantBlock}
 					{onQuestionSelect}
+					{onPlanBuild}
+					{onPlanCancel}
+					{onPlanViewFull}
+					{isPlanActionAvailable}
 				/>
 			</MessageWrapper>
 		{:else}

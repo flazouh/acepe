@@ -1,19 +1,15 @@
 /**
- * Single source of truth for inline thinking stream viewport geometry (line budget,
- * line height, snap mode). Consumed by `assistant-message` CSS variables.
+ * Single source of truth for inline thinking stream viewport geometry.
+ * Consumed by `assistant-message` CSS variables.
  */
-export type ThinkingViewportSnapMode = "block-proximity" | "none";
-
 export interface ThinkingViewportPolicy {
 	readonly visibleLineCount: number;
 	readonly lineHeightRem: number;
-	readonly snap: ThinkingViewportSnapMode;
 }
 
 export const DEFAULT_THINKING_VIEWPORT_POLICY: ThinkingViewportPolicy = {
-	visibleLineCount: 4,
-	lineHeightRem: 1.4,
-	snap: "block-proximity",
+	visibleLineCount: 3,
+	lineHeightRem: 1,
 };
 
 /**

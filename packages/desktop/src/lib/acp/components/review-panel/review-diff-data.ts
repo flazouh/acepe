@@ -32,3 +32,22 @@ export function createReviewDiffData(
 		fileDiffMetadata: parseDiffFromFile(oldFile, newFile),
 	};
 }
+
+function hasDiffHunks(diffData: ReviewDiffData | null): boolean {
+	return (diffData?.fileDiffMetadata.hunks.length ?? 0) > 0;
+}
+
+export function selectReviewDiffData(
+	fetchedDiffData: ReviewDiffData | null,
+	embeddedDiffData: ReviewDiffData | null
+): ReviewDiffData | null {
+	if (hasDiffHunks(fetchedDiffData)) {
+		return fetchedDiffData;
+	}
+
+	if (hasDiffHunks(embeddedDiffData)) {
+		return embeddedDiffData;
+	}
+
+	return fetchedDiffData ?? embeddedDiffData;
+}

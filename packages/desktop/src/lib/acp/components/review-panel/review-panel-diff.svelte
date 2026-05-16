@@ -8,7 +8,7 @@ import {
 	ReviewDiffViewState,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
-import { createReviewDiffData } from "./review-diff-data.js";
+import { createReviewDiffData, selectReviewDiffData } from "./review-diff-data.js";
 
 interface Props {
 	file: ModifiedFileEntry;
@@ -42,7 +42,7 @@ const embeddedDiffData = $derived.by(() =>
 	createReviewDiffData(file, file.originalContent, file.finalContent)
 );
 
-const diffData = $derived.by(() => fetchedDiffData ?? embeddedDiffData);
+const diffData = $derived.by(() => selectReviewDiffData(fetchedDiffData, embeddedDiffData));
 
 function handleHunkAction(
 	hunkIndex: number,

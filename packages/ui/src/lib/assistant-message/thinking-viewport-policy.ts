@@ -1,15 +1,11 @@
-export type ThinkingViewportSnapMode = "block-proximity" | "none";
-
 export interface ThinkingViewportPolicy {
 	readonly visibleLineCount: number;
 	readonly lineHeightRem: number;
-	readonly snap: ThinkingViewportSnapMode;
 }
 
 export const DEFAULT_THINKING_VIEWPORT_POLICY: ThinkingViewportPolicy = {
-	visibleLineCount: 4,
-	lineHeightRem: 1.4,
-	snap: "block-proximity",
+	visibleLineCount: 3,
+	lineHeightRem: 1,
 };
 
 export function thinkingViewportCssText(policy: ThinkingViewportPolicy): string {

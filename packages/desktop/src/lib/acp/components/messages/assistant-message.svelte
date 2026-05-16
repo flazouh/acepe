@@ -150,7 +150,7 @@ const thinkingFollowScheduler = createRafDedupeScheduler(() => {
 	if (!container) {
 		return;
 	}
-	scrollTailToVisibleEnd(container, thinkingContentRef);
+	scrollTailToVisibleEnd(container);
 });
 
 function scheduleThinkingFollow(): void {
@@ -287,22 +287,39 @@ $effect(() => {
 {/if}
 
 <style>
-	/* Line budget vars: packages/desktop/.../logic/thinking-viewport-policy.ts (DEFAULT_THINKING_VIEWPORT_POLICY) */	.thinking-content {
-		max-height: calc(var(--thinking-visible-lines) * var(--thinking-line-height));
+	.thinking-content {
 		line-height: var(--thinking-line-height);
-		/* Block-level snap: reduces mid-block clipping at the top when scrolling */
-		scroll-snap-type: y proximity;
-		scroll-padding-block: 0;
-	}
-
-	.thinking-content :global(.markdown-content > *) {
-		scroll-snap-align: start;
-		scroll-snap-stop: normal;
 	}
 
 	.thinking-content :global(.markdown-content),
 	.thinking-content :global(.markdown-content *) {
 		font-size: inherit !important;
 		line-height: var(--thinking-line-height) !important;
+	}
+
+	.thinking-content :global(.markdown-content) {
+		color: inherit !important;
+	}
+
+	.thinking-content :global(.markdown-content p),
+	.thinking-content :global(.markdown-content ul),
+	.thinking-content :global(.markdown-content ol),
+	.thinking-content :global(.markdown-content pre),
+	.thinking-content :global(.markdown-content blockquote),
+	.thinking-content :global(.markdown-content [data-streamdown="code-block"]),
+	.thinking-content :global(.markdown-content [data-streamdown="unordered-list"]),
+	.thinking-content :global(.markdown-content [data-streamdown="ordered-list"]),
+	.thinking-content :global(.markdown-content .streamdown-content > :not(:last-child)) {
+		margin-block-start: 0 !important;
+		margin-block-end: 0.125rem !important;
+	}
+
+	.thinking-content :global(.markdown-content .streamdown-content > * + *) {
+		margin-block-start: 0 !important;
+	}
+
+	.thinking-content :global(.markdown-content li),
+	.thinking-content :global(.markdown-content [data-streamdown="list-item"]) {
+		margin-block-end: 0.0625rem !important;
 	}
 </style>

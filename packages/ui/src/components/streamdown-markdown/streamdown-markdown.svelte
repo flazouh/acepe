@@ -1,6 +1,7 @@
 <script lang="ts" module>
 	import {
 		createElement,
+		isValidElement,
 		useEffect,
 		useRef,
 		useState,
@@ -43,6 +44,7 @@
 		readonly isAnimating: boolean;
 		readonly parseIncompleteMarkdown: boolean;
 		readonly animated: StreamdownMarkdownAnimation;
+		readonly tokenRevealTiming: StreamdownTokenRevealTiming | undefined;
 		readonly remend: AcepeStreamdownConfig["remend"];
 		readonly urlTransform: AcepeStreamdownConfig["urlTransform"];
 		readonly remarkPlugins: NonNullable<StreamdownProps["remarkPlugins"]>;
@@ -72,6 +74,9 @@
 	type CursorCodeThemes = {
 		readonly dark: ThemeRegistrationAny;
 		readonly light: ThemeRegistrationAny;
+	};
+	type ReactNodeWithChildrenProps = {
+		readonly children?: ReactNode;
 	};
 
 	const KNOWN_FILE_EXTENSION_GROUP = Object.keys(extensionToIcon)
@@ -178,6 +183,9 @@
 		}
 		if (Array.isArray(node)) {
 			return node.map(reactNodeToText).join("");
+		}
+		if (isValidElement<ReactNodeWithChildrenProps>(node)) {
+			return reactNodeToText(node.props.children);
 		}
 		return "";
 	}
@@ -416,7 +424,7 @@
 			return undefined;
 		}
 
-		return `${String(tokenRevealTiming.revealedCharCount)}:${String(tokenRevealTiming.revealCount)}`;
+		return `tail:${String(tokenRevealTiming.revealCount)}`;
 	}
 
 	function createTokenRevealStyle(
@@ -431,6 +439,54 @@
 			`--token-reveal-step-ms: ${String(tokenRevealTiming.tokStepMs)}ms`,
 			`--token-reveal-fade-ms: ${String(tokenRevealTiming.tokFadeDurMs)}ms`,
 		].join("; ");
+	}
+
+	function trimTokenRevealAnimationToTail(
+		node: HTMLDivElement,
+		tokenRevealTiming: StreamdownTokenRevealTiming | undefined
+	): void {
+		if (
+			tokenRevealTiming === undefined ||
+			tokenRevealTiming.mode === "instant" ||
+			tokenRevealTiming.revealCount < 1
+		) {
+			return;
+		}
+
+		const animatedElements = Array.from(
+			node.querySelectorAll("[data-sd-animate]")
+		) as HTMLElement[];
+		const tailStartIndex = Math.max(0, animatedElements.length - tokenRevealTiming.revealCount);
+
+		for (let index = 0; index < animatedElements.length; index += 1) {
+			const animatedElement = animatedElements[index];
+			if (animatedElement === undefined) {
+				continue;
+			}
+
+			if (index < tailStartIndex) {
+				animatedElement.removeAttribute("data-sd-animate");
+				animatedElement.removeAttribute("data-acepe-token-reveal-tail");
+				animatedElement.style.setProperty("--sd-duration", "0ms");
+				animatedElement.style.setProperty("--sd-delay", "0ms");
+				continue;
+			}
+
+			animatedElement.setAttribute("data-acepe-token-reveal-tail", "true");
+		}
+	}
+
+	function scheduleTokenRevealTailTrim(
+		node: HTMLDivElement,
+		getTokenRevealTiming: () => StreamdownTokenRevealTiming | undefined
+	): void {
+		const trimLatestTokenRevealTail = () => {
+			trimTokenRevealAnimationToTail(node, getTokenRevealTiming());
+		};
+
+		queueMicrotask(trimLatestTokenRevealTail);
+		window.setTimeout(trimLatestTokenRevealTail, 0);
+		window.setTimeout(trimLatestTokenRevealTail, 16);
 	}
 
 	function createFileChipElement(
@@ -831,7 +887,12 @@
 		};
 	}
 
-	function renderStreamdown(root: Root, options: StreamdownActionOptions): void {
+	function renderStreamdown(
+		root: Root,
+		node: HTMLDivElement,
+		options: StreamdownActionOptions,
+		getTokenRevealTiming: () => StreamdownTokenRevealTiming | undefined
+	): void {
 		root.render(
 			createElement(
 				Streamdown,
@@ -853,6 +914,7 @@
 				options.markdown
 			)
 		);
+		scheduleTokenRevealTailTrim(node, getTokenRevealTiming);
 	}
 
 	function streamdownMarkdown(
@@ -863,11 +925,14 @@
 		destroy: () => void;
 	} {
 		const root = createRoot(node);
-		renderStreamdown(root, options);
+		let currentTokenRevealTiming = options.tokenRevealTiming;
+		const getTokenRevealTiming = () => currentTokenRevealTiming;
+		renderStreamdown(root, node, options, getTokenRevealTiming);
 
 		return {
 			update(nextOptions: StreamdownActionOptions) {
-				renderStreamdown(root, nextOptions);
+				currentTokenRevealTiming = nextOptions.tokenRevealTiming;
+				renderStreamdown(root, node, nextOptions, getTokenRevealTiming);
 			},
 			destroy() {
 				root.unmount();
@@ -922,6 +987,7 @@
 		parseIncompleteMarkdown:
 			parseIncompleteMarkdown ?? acepeConfig.parseIncompleteMarkdown,
 		animated: tokenRevealAnimation ?? animated ?? acepeConfig.animated,
+		tokenRevealTiming,
 		remend: acepeConfig.remend,
 		urlTransform: acepeConfig.urlTransform,
 		remarkPlugins: ACEPE_REMARK_PLUGINS,

@@ -15,6 +15,7 @@ type SessionOpenStore = Pick<
 	| "setLocalCreatedSessionLoaded"
 	| "getSessionCold"
 	| "connectSession"
+	| "clearSessionEntries"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -134,6 +135,9 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	const shouldAttemptLocalReattach = !isProviderHistoryBackedSession(session);
 
 	inflightPanelIds.add(panelId);
+	if (isProviderHistoryBackedSession(session)) {
+		sessionStore.clearSessionEntries(sessionId);
+	}
 	sessionStore.setSessionLoading(sessionId);
 	const requestToken = sessionOpenHydrator.beginAttempt(panelId);
 	let reconnectPromise: Promise<void> | null = null;

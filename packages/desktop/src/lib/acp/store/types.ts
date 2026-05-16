@@ -87,11 +87,6 @@ export interface SessionCapabilityMutationState {
 	readonly previewState: SessionCapabilities["previewState"] | null;
 }
 
-export interface SessionObservedTerminalTurn {
-	readonly turnId: string | null;
-	readonly observedAt: number;
-}
-
 /**
  * Local transient projection for session state that is not canonical graph truth.
  *
@@ -113,8 +108,6 @@ export interface SessionTransientProjection {
 	readonly usageTelemetry?: SessionUsageTelemetry;
 	/** Local send-click affordance only; never lifecycle truth. */
 	readonly pendingSendIntent?: SessionPendingSendIntent | null;
-	/** Local terminal signal from the raw event lane; used only to unstick waiting UI. */
-	readonly observedTerminalTurn?: SessionObservedTerminalTurn | null;
 	/** Local capability mutation progress; never capability truth. */
 	readonly capabilityMutationState?: SessionCapabilityMutationState;
 }
@@ -128,7 +121,6 @@ export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
 	modelPerMode: {},
 	statusChangedAt: Date.now(),
 	pendingSendIntent: null,
-	observedTerminalTurn: null,
 	capabilityMutationState: {
 		pendingMutationId: null,
 		previewState: null,

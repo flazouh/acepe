@@ -59,7 +59,7 @@ function isDispatching(input: { isComposerDispatching?: boolean; isSending?: boo
 }
 
 export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent {
-	if (isBlockingConfig(input) || isDispatching(input) || input.isSubmitDisabled) {
+	if (isBlockingConfig(input) || isDispatching(input)) {
 		return "none";
 	}
 
@@ -73,6 +73,10 @@ export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent 
 
 	if (input.shiftKey) {
 		return input.isAgentBusy ? "steer" : "none";
+	}
+
+	if (input.isSubmitDisabled && !input.isAgentBusy) {
+		return "none";
 	}
 
 	return "send";

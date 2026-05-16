@@ -68,7 +68,7 @@ describe("model-selector-logic", () => {
 		describe("when agentId is claude-code", () => {
 			const agentId = AGENT_IDS.CLAUDE_CODE;
 
-			it("extracts model name from description with separator", () => {
+			it("uses model name instead of parsing provider-specific descriptions", () => {
 				const model: Model = {
 					id: "opus",
 					name: "Opus",
@@ -77,7 +77,7 @@ describe("model-selector-logic", () => {
 
 				const result = getModelDisplayName(model, agentId);
 
-				expect(result).toBe("Opus 4.5");
+				expect(result).toBe("Opus");
 			});
 
 			it("uses model name when description has no separator", () => {
@@ -104,7 +104,7 @@ describe("model-selector-logic", () => {
 				expect(result).toBe("Opus");
 			});
 
-			it("extracts actual model name from default model description", () => {
+			it("uses canonical model name for default choices unless modelsDisplay supplies a display name", () => {
 				const model: Model = {
 					id: "default",
 					name: "Use the default model (currently Sonnet 4.5)",
@@ -114,10 +114,10 @@ describe("model-selector-logic", () => {
 
 				const result = getModelDisplayName(model, agentId);
 
-				expect(result).toBe("Sonnet 4.5 (default)");
+				expect(result).toBe("Use The Default Model (currently Sonnet 4.5)");
 			});
 
-			it("falls back to full first part when default model has no currently pattern", () => {
+			it("does not parse provider-specific description prefixes", () => {
 				const model: Model = {
 					id: "default",
 					name: "Default",
@@ -126,7 +126,7 @@ describe("model-selector-logic", () => {
 
 				const result = getModelDisplayName(model, agentId);
 
-				expect(result).toBe("Default model");
+				expect(result).toBe("Default");
 			});
 
 			it("handles description with empty first part before separator", () => {

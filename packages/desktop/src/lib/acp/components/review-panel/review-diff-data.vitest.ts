@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createReviewDiffData } from "./review-diff-data.js";
+import { createReviewDiffData, selectReviewDiffData } from "./review-diff-data.js";
 
 describe("createReviewDiffData", () => {
 	it("builds whole-file diff data from provided old and new file contents", () => {
@@ -39,5 +39,40 @@ describe("createReviewDiffData", () => {
 		};
 
 		expect(createReviewDiffData(file, null, null)).toBeNull();
+	});
+
+	it("keeps session diff data when fetched git diff has no hunks", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 1,
+			totalRemoved: 1,
+			originalContent: "const before = 1;\n",
+			finalContent: "const after = 2;\n",
+			editCount: 1,
+		};
+		const embedded = createReviewDiffData(file, "const before = 1;\n", "const after = 2;\n");
+		const fetched = createReviewDiffData(file, "const after = 2;\n", "const after = 2;\n");
+
+		expect(embedded?.fileDiffMetadata.hunks.length).toBeGreaterThan(0);
+		expect(fetched?.fileDiffMetadata.hunks.length).toBe(0);
+		expect(selectReviewDiffData(fetched, embedded)).toBe(embedded);
+	});
+
+	it("prefers fetched git diff when it has hunks", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 1,
+			totalRemoved: 1,
+			originalContent: "const before = 1;\n",
+			finalContent: "const after = 2;\n",
+			editCount: 1,
+		};
+		const embedded = createReviewDiffData(file, "before\n", "after\n");
+		const fetched = createReviewDiffData(file, "before\n", "after from disk\n");
+
+		expect(fetched?.fileDiffMetadata.hunks.length).toBeGreaterThan(0);
+		expect(selectReviewDiffData(fetched, embedded)).toBe(fetched);
 	});
 });

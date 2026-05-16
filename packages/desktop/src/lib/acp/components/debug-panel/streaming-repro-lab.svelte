@@ -184,7 +184,6 @@ onDestroy(() => {
 			availableAgents={[]}
 			effectiveTheme={controller.theme}
 			modifiedFilesState={null}
-			turnState={turnState === "Running" ? "streaming" : "completed"}
 			isWaitingForResponse={isWaitingForFirstAssistantText}
 		/>
 	</div>

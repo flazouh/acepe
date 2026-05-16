@@ -50,7 +50,7 @@ describe("buildStreamingReproTokenRevealCss", () => {
 				phaseElapsedMs: 16,
 			})
 		).toEqual({
-			revealCount: 4,
+			revealCount: 2,
 			revealedCharCount: "one two three four".length,
 			baselineMs: -112,
 			tokStepMs: 48,
@@ -82,7 +82,7 @@ describe("buildStreamingReproTokenRevealCss", () => {
 				phaseElapsedMs: 0,
 			})
 		).toMatchObject({
-			revealCount: 4,
+			revealCount: 2,
 			tokStepMs: 48,
 			tokFadeDurMs: 630,
 			mode: "smooth",
@@ -126,7 +126,7 @@ describe("applyStreamingReproTokenReveal", () => {
 			id: "assistant-1",
 			type: "assistant",
 			tokenRevealCss: {
-				revealCount: 4,
+				revealCount: 2,
 				revealedCharCount: "one two three four".length,
 				baselineMs: -112,
 			},

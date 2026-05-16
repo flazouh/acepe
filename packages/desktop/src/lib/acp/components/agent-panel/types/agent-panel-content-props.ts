@@ -1,11 +1,12 @@
 import type {
+	AgentPanelPlanActionEvent,
+	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
 } from "@acepe/ui/agent-panel";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PanelViewState } from "../../../logic/panel-visibility";
 import type { Project } from "../../../logic/project-manager.svelte";
-import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 
 /**
@@ -34,8 +35,11 @@ export interface AgentPanelContentProps {
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";
 	readonly modifiedFilesState?: ModifiedFilesState | null;
-	readonly turnState?: TurnState;
 	readonly isWaitingForResponse?: boolean;
 	readonly waitingLabel?: string | null;
 	readonly onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
+	readonly onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
+	readonly onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
+	readonly onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+	readonly isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 }

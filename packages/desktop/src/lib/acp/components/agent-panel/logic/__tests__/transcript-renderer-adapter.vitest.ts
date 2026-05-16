@@ -77,6 +77,57 @@ describe("TranscriptRendererAdapter", () => {
 		expect(scrollToIndex).not.toHaveBeenCalled();
 	});
 
+	it("preserves horizontal panel-row position around Virtua reveal writes", () => {
+		const deck = document.createElement("div");
+		const container = document.createElement("div");
+		deck.appendChild(container);
+		Object.defineProperty(deck, "clientWidth", {
+			configurable: true,
+			value: 300,
+		});
+		Object.defineProperty(deck, "scrollWidth", {
+			configurable: true,
+			value: 900,
+		});
+		Object.defineProperty(deck, "scrollLeft", {
+			configurable: true,
+			writable: true,
+			value: 120,
+		});
+		const scrollToIndex = vi.fn(() => {
+			deck.scrollLeft = 480;
+		});
+		const adapter = createVirtuaTranscriptRendererAdapter({
+			getHandle: () => {
+				return {
+					getScrollOffset: () => 0,
+					getScrollSize: () => 900,
+					getViewportSize: () => 300,
+					scrollToIndex,
+					scrollTo: vi.fn(),
+				};
+			},
+			getRowKeys: () => ["row-1"],
+			getContainer: () => container,
+		});
+
+		expect(
+			adapter.revealRow({
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "row-1",
+				align: "end",
+				reason: "explicit-reveal",
+			})
+		).toEqual({
+			type: "applied",
+			effectType: "RevealRow",
+		});
+		expect(scrollToIndex).toHaveBeenCalledWith(0, { align: "end" });
+		expect(deck.scrollLeft).toBe(120);
+	});
+
 	it("treats a null Virtua handle as temporarily missing during teardown", () => {
 		const adapter = createVirtuaTranscriptRendererAdapter({
 			getHandle: () => null as never,
@@ -128,6 +179,46 @@ describe("TranscriptRendererAdapter", () => {
 				viewportSize: 300,
 			},
 		});
+	});
+
+	it("reveals native rows by writing only the transcript container vertical scroll", () => {
+		const container = document.createElement("div");
+		const row = document.createElement("div");
+		let scrollTop = 200;
+		Object.defineProperty(container, "scrollTop", {
+			configurable: true,
+			get: () => scrollTop,
+			set: (value: number) => {
+				scrollTop = value;
+			},
+		});
+		defineRect(container, { top: 100, bottom: 300 });
+		defineRect(row, { top: 260, bottom: 360 });
+		vi.spyOn(row, "scrollIntoView").mockImplementation(() => {
+			throw new Error("native transcript reveal must not scroll DOM ancestors");
+		});
+
+		const adapter = createNativeTranscriptRendererAdapter({
+			getContainer: () => container,
+			getRowKeys: () => ["row-1"],
+			getRowElement: () => row,
+		});
+
+		expect(
+			adapter.revealRow({
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "row-1",
+				align: "end",
+				reason: "explicit-reveal",
+			})
+		).toEqual({
+			type: "applied",
+			effectType: "RevealRow",
+		});
+		expect(scrollTop).toBe(260);
+		expect(row.scrollIntoView).not.toHaveBeenCalled();
 	});
 
 	it("captures the first visible native anchor instead of the first row key", () => {

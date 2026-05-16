@@ -519,6 +519,8 @@ export type PreconnectionSlashMode = "startupGlobal" | "projectScoped" | "unsupp
 
 export type PreconnectionCapabilityMode = "startupGlobal" | "projectScoped" | "unsupported";
 
+export type ImplicitSessionCreationMode = "allowed" | "explicitUserAction";
+
 export type ProviderMetadataProjection = {
 	providerBrand: ProviderBrand;
 	displayName: string;
@@ -529,6 +531,7 @@ export type ProviderMetadataProjection = {
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
 	preconnectionCapabilityMode: PreconnectionCapabilityMode;
+	implicitSessionCreationMode?: ImplicitSessionCreationMode;
 };
 
 export type FrontendProviderProjection = ProviderMetadataProjection;
@@ -674,4 +677,3 @@ export function normalizeModelsForDisplay(
 		},
 	};
 }
-

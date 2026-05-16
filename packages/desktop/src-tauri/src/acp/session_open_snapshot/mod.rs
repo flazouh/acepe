@@ -28,7 +28,9 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
-use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
+use crate::acp::transcript_projection::{
+    TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+};
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::DbConn;
@@ -242,12 +244,63 @@ pub(crate) fn default_session_title(session_id: &str) -> String {
 pub(crate) fn resolve_canonical_session_title(
     metadata: Option<&crate::db::repository::SessionMetadataRow>,
     session_id: &str,
+    first_user_title: Option<&str>,
 ) -> String {
-    metadata
-        .map(|row| row.display.trim())
-        .filter(|display| !display.is_empty())
-        .map(std::borrow::ToOwned::to_owned)
-        .unwrap_or_else(|| default_session_title(session_id))
+    if let Some(row) = metadata {
+        if row.title_overridden {
+            let display = row.display.trim();
+            if !display.is_empty() {
+                return display.to_string();
+            }
+        }
+    }
+
+    if let Some(title) = first_user_title {
+        let trimmed = title.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+
+    if let Some(row) = metadata {
+        let display = row.display.trim();
+        if !display.is_empty() {
+            return display.to_string();
+        }
+    }
+
+    default_session_title(session_id)
+}
+
+pub(crate) fn derive_title_from_transcript_snapshot(
+    transcript_snapshot: &TranscriptSnapshot,
+) -> Option<String> {
+    for entry in &transcript_snapshot.entries {
+        if entry.role != TranscriptEntryRole::User {
+            continue;
+        }
+
+        let mut text = String::new();
+        for segment in &entry.segments {
+            match segment {
+                TranscriptSegment::Text {
+                    text: segment_text, ..
+                }
+                | TranscriptSegment::Thought {
+                    text: segment_text, ..
+                } => {
+                    if !text.is_empty() {
+                        text.push('\n');
+                    }
+                    text.push_str(segment_text);
+                }
+            }
+        }
+
+        return crate::history::title_utils::derive_session_title(&text, 100);
+    }
+
+    None
 }
 
 fn build_projection_from_thread_snapshot(
@@ -490,6 +543,7 @@ pub async fn session_open_result_from_thread_snapshot(
     };
     let transcript_snapshot =
         TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries);
+    let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
     let interactions = sanitize_interactions_for_historical_open(interactions);
@@ -529,6 +583,7 @@ pub async fn session_open_result_from_thread_snapshot(
         session_title: resolve_canonical_session_title(
             Some(&session_metadata),
             canonical_session_id,
+            first_user_title.as_deref(),
         ),
         operations,
         interactions,
@@ -589,7 +644,7 @@ pub async fn session_open_result_for_new_session(
         worktree_path: input.worktree_path,
         source_path: input.source_path,
         transcript_snapshot: TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
-        session_title: default_session_title(&session_id),
+        session_title: resolve_canonical_session_title(None, &session_id, None),
         operations: vec![],
         interactions: vec![],
         turn_state: SessionTurnState::Idle,
@@ -1021,6 +1076,79 @@ mod tests {
             operation.operation_state,
             crate::acp::projections::OperationState::Degraded
         );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_titles_placeholder_metadata_from_first_user_message() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "b859c458-ca4f-4c31-a3aa-6c606a1c065f";
+        seed_session_metadata(&db, session_id, "claude-code").await;
+        append_frontier_barrier(&db, session_id).await;
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![make_user_entry(
+                "user-1",
+                "please enable anti alias in acepe.",
+            )],
+            title: "Session b859c458".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.session_title, "please enable anti alias in acepe.");
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_keeps_renamed_title_over_first_user_message() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "renamed-session-title";
+        seed_session_metadata(&db, session_id, "claude-code").await;
+        SessionMetadataRepository::set_title_override(&db, session_id, Some("Renamed by user"))
+            .await
+            .expect("set title override");
+        append_frontier_barrier(&db, session_id).await;
+
+        let snapshot = SessionThreadSnapshot {
+            entries: vec![make_user_entry(
+                "user-1",
+                "please enable anti alias in acepe.",
+            )],
+            title: "please enable anti alias in acepe.".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        assert_eq!(found.session_title, "Renamed by user");
     }
 
     #[tokio::test]

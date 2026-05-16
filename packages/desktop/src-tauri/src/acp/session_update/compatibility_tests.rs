@@ -639,6 +639,21 @@ fn test_tool_arguments_exit_plan_mode() {
 }
 
 #[test]
+fn test_tool_arguments_exit_plan_mode_preserves_plan_payload() {
+    let raw = json!({
+        "plan": "# Fix Plan Card\n\nRender the actual plan body.",
+        "planFilePath": "/repo/.claude/plans/fix-plan-card.md"
+    });
+    let args = ToolArguments::from_raw(ToolKind::ExitPlanMode, raw.clone());
+    match args {
+        ToolArguments::Other { raw: parsed_raw } => {
+            assert_eq!(parsed_raw, raw);
+        }
+        _ => panic!("Expected Other variant with raw plan payload"),
+    }
+}
+
+#[test]
 fn test_tool_arguments_other() {
     let raw = json!({"custom_field": "custom_value"});
     let args = ToolArguments::from_raw(ToolKind::Other, raw.clone());

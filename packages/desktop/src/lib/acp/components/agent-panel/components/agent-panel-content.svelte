@@ -33,10 +33,13 @@ let {
 	availableAgents = [],
 	effectiveTheme = "dark",
 	modifiedFilesState = null,
-	turnState: turnStateProp,
 	isWaitingForResponse: isWaitingProp,
 	waitingLabel = null,
 	onQuestionSelect,
+	onPlanBuild,
+	onPlanCancel,
+	onPlanViewFull,
+	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
 
 const sessionStore = getSessionStore();
@@ -60,9 +63,7 @@ const runtimeState = $derived(
 			: null
 );
 const canonicalProjection = $derived(
-	turnStateProp !== undefined || !sessionId
-		? null
-		: (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null)
+	sessionId ? (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null) : null
 );
 const currentStreamingToolCall = $derived(
 	isWaitingProp !== undefined || !sessionId || operationStore === null
@@ -101,10 +102,7 @@ const sessionWorkProjection = $derived.by(() => {
 });
 
 const turnState = $derived<TurnState>(
-	turnStateProp ??
-		(canonicalProjection != null
-			? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState)
-			: "idle")
+	canonicalProjection != null ? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState) : "idle"
 );
 const isStreaming = $derived(turnState === "streaming");
 const isWaitingForResponse = $derived(
@@ -194,6 +192,10 @@ export function scrollToTop() {
 				{isFullscreen}
 				{modifiedFilesState}
 				{onQuestionSelect}
+				{onPlanBuild}
+				{onPlanCancel}
+				{onPlanViewFull}
+				{isPlanActionAvailable}
 				onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
 				onNearTopChange={(nearTop) => (isAtTop = nearTop)}
 			/>

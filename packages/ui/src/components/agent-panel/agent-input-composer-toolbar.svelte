@@ -5,9 +5,9 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
+	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
-	import AgentInputModeSelector from "./agent-input-mode-selector.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import {
@@ -20,16 +20,11 @@
 	let {
 		inputReady,
 		autonomousStatusMessage,
-		visibleModes,
-		selectedModeMenuOptionId,
 		autonomousToggleActive,
-		autoModeDisabled,
-		autoModeDisabledReason,
-		planModeLabel,
-		buildModeLabel,
-		autoModeLabel = "Auto",
-		onModeMenuChange,
-		selectorsLoading,
+		autonomousDisabled,
+		autonomousBusy,
+		autonomousTooltip,
+		onAutonomousToggle,
 		selectorsDisabledByComposer,
 		toolbarConfigOptions,
 		onConfigOptionChange,
@@ -55,16 +50,11 @@
 	}: {
 		inputReady: boolean;
 		autonomousStatusMessage: string;
-		visibleModes: readonly { id: string; label?: string; description?: string | null }[];
-		selectedModeMenuOptionId: string | null;
 		autonomousToggleActive: boolean;
-		autoModeDisabled: boolean;
-		autoModeDisabledReason: string | null;
-		planModeLabel: string;
-		buildModeLabel: string;
-		autoModeLabel?: string;
-		onModeMenuChange: (modeId: string) => void | Promise<void>;
-		selectorsLoading: boolean;
+		autonomousDisabled: boolean;
+		autonomousBusy: boolean;
+		autonomousTooltip?: string;
+		onAutonomousToggle: () => void;
 		selectorsDisabledByComposer: boolean;
 		toolbarConfigOptions: readonly AgentInputConfigOption[];
 		onConfigOptionChange: (configId: string, value: string) => void | Promise<void>;
@@ -110,25 +100,15 @@
 		class:opacity-0={isVoiceRecordingUi}
 		class:pointer-events-none={isVoiceRecordingUi || selectorsDisabledByComposer}
 	>
-		{#if visibleModes.length > 0}
-			<AgentInputModeSelector
-				availableModes={visibleModes}
-				currentModeId={selectedModeMenuOptionId}
-				planLabel={planModeLabel}
-				buildLabel={buildModeLabel}
-				autoLabel={autoModeLabel}
-				autonomousActive={autonomousToggleActive}
-				autoDisabled={autoModeDisabled}
-				autoDisabledReason={autoModeDisabledReason}
-				onModeChange={(modeId) => {
-					void onModeMenuChange(modeId);
-				}}
-			/>
-			<div class="h-full w-px bg-border/50"></div>
-		{:else if selectorsLoading}
-			<div class="h-7 w-7 rounded-md bg-muted/80 animate-pulse" aria-hidden="true"></div>
-			<div class="h-full w-px bg-border/50"></div>
-		{/if}
+		<AgentInputAutonomousToggle
+			active={autonomousToggleActive}
+			disabled={autonomousDisabled || selectorsDisabledByComposer}
+			busy={autonomousBusy}
+			title={autonomousTooltip ?? "Autonomous"}
+			ariaLabel={autonomousTooltip ?? "Autonomous"}
+			onToggle={onAutonomousToggle}
+		/>
+		<div class="h-full w-px bg-border/50"></div>
 		{@render modelSelector()}
 		{#if toolbarConfigOptions.length > 0}
 			<div class="h-full w-px bg-border/50"></div>

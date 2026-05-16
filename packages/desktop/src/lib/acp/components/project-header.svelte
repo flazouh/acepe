@@ -1,6 +1,5 @@
 <script lang="ts">
 import { ProjectLetterBadge } from "@acepe/ui";
-import { CaretDown } from "phosphor-svelte";
 import type { Snippet } from "svelte";
 
 import type { Project } from "../logic/project-manager.svelte.js";
@@ -30,7 +29,7 @@ let {
 	projectName,
 	projectColor,
 	projectIconSrc = null,
-	expanded = false,
+	expanded: _expanded = false,
 	class: className = "",
 	trailing,
 	actions,
@@ -74,16 +73,6 @@ const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 			{@render actions()}
 		</div>
 	{/if}
-	<button
-		type="button"
-		class="flex items-center justify-center size-5 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-		aria-label={expanded ? "Collapse project" : "Expand project"}
-	>
-		<CaretDown
-			class="h-3 w-3 transition-transform duration-200 {expanded ? 'rotate-180' : ''}"
-			weight="bold"
-		/>
-	</button>
 	{#if trailing}
 		<div
 			class="flex items-center gap-0.5"

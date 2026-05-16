@@ -56,10 +56,74 @@
 		ariaCollapseResults = "Collapse results",
 	}: Props = $props();
 
-	let isCollapsed = $state(true);
+	let isExpanded = $state(false);
 	let showAll = $state(false);
 
 	const COLLAPSED_LIMIT = 5;
+
+	function escapeHtml(value: string): string {
+		return value
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;");
+	}
+
+	function splitQuerySegments(value: string): string[] {
+		const segments: string[] = [];
+		let current = "";
+		let inCharacterClass = false;
+		let escaped = false;
+
+		for (const character of value) {
+			if (escaped) {
+				current += `\\${character}`;
+				escaped = false;
+				continue;
+			}
+
+			if (character === "\\") {
+				escaped = true;
+				continue;
+			}
+
+			if (character === "[") {
+				inCharacterClass = true;
+				current += character;
+				continue;
+			}
+
+			if (character === "]") {
+				inCharacterClass = false;
+				current += character;
+				continue;
+			}
+
+			if (!inCharacterClass && (character === "|" || character === "\n" || character === "\r")) {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				continue;
+			}
+
+			current += character;
+		}
+
+		if (escaped) {
+			current += "\\";
+		}
+
+		const trimmed = current.trim();
+		if (trimmed) segments.push(trimmed);
+		return segments.length > 0 ? segments : [" "];
+	}
+
+	function highlightQuerySegment(segment: string): string {
+		return escapeHtml(segment).replace(
+			/([()[\]{}+*?.^$|\\])/g,
+			'<span class="search-query-token">$1</span>'
+		);
+	}
 
 	const isPending = $derived(status === "pending" || status === "running");
 	const isDone = $derived(status === "done");
@@ -81,20 +145,18 @@
 		if (!isDone) return null;
 		return resultCountLabel(count);
 	});
-	const metadataRows = $derived.by(() => {
-		const rows: Array<{ label: string; value: string }> = [];
-		if (searchPath) rows.push({ label: "Path", value: searchPath });
-		if (searchMode) rows.push({ label: "Mode", value: searchMode });
-		if (searchNumFiles !== undefined) rows.push({ label: "Files", value: String(searchNumFiles) });
-		if (searchNumMatches !== undefined) rows.push({ label: "Matches", value: String(searchNumMatches) });
-		if (resultCount !== undefined) rows.push({ label: "Result count", value: String(resultCount) });
-		return rows;
-	});
-	const hasExpandableContent = $derived(hasFiles || hasMatches || metadataRows.length > 0);
-
-	$effect(() => {
-		isCollapsed = !isPending;
-	});
+	const hasExpandableContent = $derived(hasFiles || hasMatches);
+	const resultAreaClass = $derived(
+		isExpanded ? "search-results-expanded" : "search-results-collapsed"
+	);
+	const querySegments = $derived(
+		query
+			? splitQuerySegments(query).map((segment) => ({
+					raw: segment,
+					html: highlightQuerySegment(segment),
+				}))
+			: []
+	);
 </script>
 
 <AgentToolCard>
@@ -105,10 +167,10 @@
 			class="flex min-w-0 w-full items-center justify-between gap-1.5 border-0 bg-transparent p-0 text-left transition-colors {hasExpandableContent ? 'cursor-pointer hover:text-foreground' : 'cursor-default'}"
 			onclick={() => {
 				if (!hasExpandableContent) return;
-				isCollapsed = !isCollapsed;
+				isExpanded = !isExpanded;
 			}}
-			aria-label={hasExpandableContent ? (isCollapsed ? ariaExpandResults : ariaCollapseResults) : undefined}
-			aria-expanded={hasExpandableContent ? !isCollapsed : undefined}
+			aria-label={hasExpandableContent ? (isExpanded ? ariaCollapseResults : ariaExpandResults) : undefined}
+			aria-expanded={hasExpandableContent ? isExpanded : undefined}
 		>
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
 				<ToolHeaderLeading kind="search" {status}>{headerLabel}</ToolHeaderLeading>
@@ -125,86 +187,62 @@
 					<CaretRight
 						size={9}
 						weight="bold"
-						class="shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+						class="shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 					/>
 				{/if}
 			</div>
 		</button>
 		{#if query}
-			<div class="min-w-0 grid grid-cols-[auto_1fr] gap-x-1.5 gap-y-0.5 text-xs">
-				<span class="text-xs text-muted-foreground/70">Query</span>
-				<code class="text-xs font-sans text-foreground whitespace-pre-wrap break-words">{query}</code>
+			<div class="search-query-block">
+				{#each querySegments as segment, index}
+					<pre class="search-query-line"><span class="search-query-line-number">{index + 1}</span><code>{@html segment.html}</code></pre>
+				{/each}
 			</div>
 		{/if}
 	</div>
 
-	{#if !isCollapsed && hasExpandableContent}
-		<div class="border-t border-border px-2.5 py-2 text-sm">
-			{#if metadataRows.length > 0}
-				<div class="mb-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1">
-					{#each metadataRows as row (row.label)}
-						<span class="font-sans text-muted-foreground/70">{row.label}</span>
-						<code class="truncate font-sans text-foreground" title={row.value}>{row.value}</code>
+	{#if hasExpandableContent}
+		<div
+			class="search-results-area {resultAreaClass}"
+			role="button"
+			tabindex="0"
+			onclick={() => {
+				if (!isExpanded) isExpanded = true;
+			}}
+			onkeydown={(event) => {
+				if (event.key !== "Enter" && event.key !== " ") return;
+				event.preventDefault();
+				isExpanded = !isExpanded;
+			}}
+		>
+			{#if hasMatches}
+				<div class="search-result-list">
+					{#each displayedMatches as match, i (`${match.filePath}:${match.lineNumber}:${i}`)}
+						<div class="search-result-row" class:search-result-context={!match.isMatch}>
+							<div class="search-result-file">
+								<FilePathBadge
+									filePath={match.filePath}
+									fileName={match.fileName}
+									{iconBasePath}
+									interactive={false}
+								/>
+								<span class="search-result-line">:{match.lineNumber}</span>
+							</div>
+							<pre class="search-result-content">{match.content}</pre>
+						</div>
 					{/each}
 				</div>
-			{/if}
-
-			{#if hasMatches}
-				<div class="table-wrapper max-h-56 overflow-auto rounded border border-border/60">
-					<table class="w-full border-collapse text-sm">
-						<thead class="sticky top-0">
-							<tr>
-								<th class="px-2 py-1 text-left font-sans text-muted-foreground/80">File</th>
-								<th class="px-2 py-1 text-left font-sans text-muted-foreground/80">Line</th>
-								<th class="px-2 py-1 text-left font-sans text-muted-foreground/80">Kind</th>
-								<th class="px-2 py-1 text-left font-sans text-muted-foreground/80">Content</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each displayedMatches as match, i (`${match.filePath}:${match.lineNumber}:${i}`)}
-								<tr class="border-t border-border/40">
-									<td class="px-2 py-1">
-										<FilePathBadge
-											filePath={match.filePath}
-											fileName={match.fileName}
-											{iconBasePath}
-											interactive={false}
-										/>
-									</td>
-									<td class="px-2 py-1 font-sans text-muted-foreground">{match.lineNumber}</td>
-									<td class="px-2 py-1 font-sans text-muted-foreground">
-										{match.isMatch ? "match" : "context"}
-									</td>
-									<td class="px-2 py-1 font-sans text-foreground whitespace-pre-wrap break-words">
-										{match.content}
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
 			{:else if hasFiles}
-				<div class="table-wrapper max-h-56 overflow-auto rounded border border-border/60">
-					<table class="w-full border-collapse text-sm">
-						<thead class="sticky top-0">
-							<tr>
-								<th class="px-2 py-1 text-left font-sans text-muted-foreground/80">File</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each displayedFiles as filePath, i (`${filePath}:${i}`)}
-								<tr class="border-t border-border/40">
-									<td class="px-2 py-1">
-										<FilePathBadge
-											{filePath}
-											{iconBasePath}
-											interactive={false}
-										/>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
+				<div class="search-result-list">
+					{#each displayedFiles as filePath, i (`${filePath}:${i}`)}
+						<div class="search-file-row">
+							<FilePathBadge
+								{filePath}
+								{iconBasePath}
+								interactive={false}
+							/>
+						</div>
+					{/each}
 				</div>
 			{/if}
 
@@ -230,55 +268,108 @@
 </AgentToolCard>
 
 <style>
-	.table-wrapper {
-		background: color-mix(in srgb, var(--input) 30%, transparent);
-	}
-
-	.table-wrapper table {
-		width: 100%;
-		min-width: max-content;
-		border-collapse: collapse;
-		font-size: 0.875rem;
-		line-height: 1.4;
-	}
-
-	.table-wrapper thead {
-		background: color-mix(in srgb, var(--muted) 30%, transparent);
-	}
-
-	.table-wrapper th {
-		padding: 0.5rem 0.75rem;
-		text-align: left;
-		font-weight: 500;
-		font-size: 0.6875rem;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--muted-foreground);
-		border-bottom: 1px solid var(--border);
-		border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-		white-space: nowrap;
-	}
-
-	.table-wrapper th:last-child {
-		border-right: none;
-	}
-
-	.table-wrapper td {
-		padding: 0.4rem 0.75rem;
-		border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
-		border-right: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+	.search-query-block {
+		margin-top: 0.125rem;
+		max-height: 7.5rem;
+		overflow: auto;
+		border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+		padding: 0.25rem 0.375rem 0;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
+		line-height: 1.35;
 		color: var(--foreground);
 	}
 
-	.table-wrapper td:last-child {
-		border-right: none;
+	.search-query-block code {
+		font: inherit;
+		min-width: 0;
+		white-space: pre-wrap;
+		word-break: break-all;
 	}
 
-	.table-wrapper tbody tr:last-child td {
-		border-bottom: none;
+	.search-query-line {
+		display: grid;
+		grid-template-columns: max-content minmax(0, 1fr);
+		column-gap: 0.375rem;
+		margin: 0;
+		font: inherit;
+		line-height: inherit;
+		white-space: pre-wrap;
+		word-break: break-all;
 	}
 
-	.table-wrapper tbody tr:hover {
-		background: color-mix(in srgb, var(--muted) 15%, transparent);
+	.search-query-line-number {
+		user-select: none;
+		min-width: 1ch;
+		text-align: right;
+		color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+		border-right: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+		padding-right: 0.375rem;
+	}
+
+	.search-query-line :global(.search-query-token) {
+		color: color-mix(in srgb, var(--primary) 82%, var(--foreground));
+	}
+
+	.search-results-area {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		background: color-mix(in srgb, var(--card) 80%, var(--muted));
+		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+		padding: 0.375rem 0.5rem;
+		overflow-y: auto;
+		outline: none;
+	}
+
+	.search-results-collapsed {
+		max-height: 5.5rem;
+		cursor: pointer;
+	}
+
+	.search-results-expanded {
+		max-height: 17.5rem;
+	}
+
+	.search-result-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.search-result-row,
+	.search-file-row {
+		min-width: 0;
+		border-radius: 0.25rem;
+		background: color-mix(in srgb, var(--muted) 28%, transparent);
+		padding: 0.25rem 0.375rem;
+	}
+
+	.search-result-context {
+		opacity: 0.72;
+	}
+
+	.search-result-file {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		gap: 0.25rem;
+	}
+
+	.search-result-line {
+		flex-shrink: 0;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.6875rem;
+		color: color-mix(in srgb, var(--muted-foreground) 75%, transparent);
+	}
+
+	.search-result-content {
+		margin: 0.25rem 0 0;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		word-break: break-word;
+		color: color-mix(in srgb, var(--foreground) 72%, transparent);
 	}
 </style>

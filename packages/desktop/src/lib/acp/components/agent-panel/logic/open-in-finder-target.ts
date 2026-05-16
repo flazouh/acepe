@@ -1,8 +1,4 @@
-import { getAgentCapabilities } from "../../../constants/agent-capabilities.js";
-
-export type OpenInFinderTarget =
-	| { kind: "reveal"; path: string }
-	| { kind: "claude"; sessionId: string; projectPath: string };
+export type OpenInFinderTarget = { kind: "reveal"; path: string };
 
 type OpenInFinderInput = {
 	sessionId?: string | null;
@@ -25,14 +21,6 @@ export function getOpenInFinderTarget(input: OpenInFinderInput): OpenInFinderTar
 	const projectPath = getNonEmptyValue(input.projectPath);
 	if (!projectPath) {
 		return null;
-	}
-
-	if (getAgentCapabilities(input.agentId).openInFinderTarget === "claude-session") {
-		const sessionId = getNonEmptyValue(input.sessionId);
-		if (!sessionId) {
-			return null;
-		}
-		return { kind: "claude", sessionId, projectPath };
 	}
 
 	return { kind: "reveal", path: projectPath };

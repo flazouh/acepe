@@ -55,8 +55,8 @@ const navBtnClass =
 	<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
 		<button
 			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
-			style="background: color-mix(in srgb, {Colors.red} 8%, transparent); color: {Colors.red};"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
+			style="color: {Colors.red};"
 			disabled={!hasPendingHunks}
 			title={"Reject file"}
 			onclick={onRejectFile}
@@ -67,8 +67,8 @@ const navBtnClass =
 		<div class="w-px bg-border/50"></div>
 		<button
 			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors disabled:opacity-40 disabled:pointer-events-none"
-			style="background: color-mix(in srgb, {Colors.green} 8%, transparent); color: {Colors.green};"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
+			style="color: {Colors.green};"
 			disabled={!hasPendingHunks}
 			title={"Accept file"}
 			onclick={onAcceptFile}

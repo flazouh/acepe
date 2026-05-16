@@ -13,6 +13,8 @@ import { onDestroy, untrack } from "svelte";
 import { MarkdownDisplay } from "@acepe/ui";
 import "@acepe/ui/markdown-prose.css";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
+import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
+import { getLanguageFromFilename } from "$lib/components/ui/codemirror-editor/language-loader.js";
 import type { FileExplorerPreviewResponse } from "$lib/services/converted-session-types.js";
 import {
 	buildPierreDiffOptions,
@@ -22,9 +24,10 @@ import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 
 interface Props {
 	preview: FileExplorerPreviewResponse | null;
+	preferPlainText?: boolean;
 }
 
-const props: Props = $props();
+const { preview, preferPlainText = false }: Props = $props();
 
 let containerRef: HTMLDivElement | null = $state(null);
 let fileDiffInstance: FileDiff<never> | null = $state(null);
@@ -50,34 +53,52 @@ function buildFileDiffOptions(theme: "light" | "dark") {
 }
 
 const isMarkdownPreview = $derived.by(() => {
-	if (props.preview === null || props.preview.kind !== "text") return false;
-	if (props.preview.language_hint === "markdown") return true;
-	return props.preview.file_name.toLowerCase().endsWith(".md");
+	if (preview === null || preview.kind !== "text") return false;
+	if (preview.language_hint === "markdown") return true;
+	return preview.file_name.toLowerCase().endsWith(".md");
 });
 
 const textFallbackContent = $derived.by(() => {
-	if (props.preview === null) return null;
-	if (props.preview.kind === "diff") return props.preview.new_content;
-	if (props.preview.kind !== "text") return null;
-	return props.preview.content;
+	if (preview === null) return null;
+	if (preview.kind === "diff") return preview.new_content;
+	if (preview.kind !== "text") return null;
+	return preview.content;
+});
+
+const shouldRenderPlainText = $derived.by(() => {
+	if (!preferPlainText) return false;
+	if (preview === null) return false;
+	return preview.kind === "text" || preview.kind === "diff";
+});
+
+const codePreviewLanguage = $derived.by(() => {
+	if (preview === null) return "plaintext";
+	if (preview.kind === "text" && preview.language_hint !== null) {
+		return preview.language_hint;
+	}
+	if (preview.kind === "text" || preview.kind === "diff") {
+		return getLanguageFromFilename(preview.file_name);
+	}
+	return "plaintext";
 });
 
 const diffInput = $derived.by((): DiffInput | null => {
-	if (props.preview === null) return null;
+	if (preview === null) return null;
+	if (shouldRenderPlainText) return null;
 	if (isMarkdownPreview) return null;
-	if (props.preview.kind === "diff") {
+	if (preview.kind === "diff") {
 		return {
-			fileName: props.preview.file_name,
-			oldContent: props.preview.old_content !== null ? props.preview.old_content : "",
-			newContent: props.preview.new_content,
+			fileName: preview.file_name,
+			oldContent: preview.old_content !== null ? preview.old_content : "",
+			newContent: preview.new_content,
 		};
 	}
-	if (props.preview.kind === "text") {
+	if (preview.kind === "text") {
 		// Show as diff with identical before/after so Pierre renders with syntax highlighting
 		return {
-			fileName: props.preview.file_name,
-			oldContent: props.preview.content,
-			newContent: props.preview.content,
+			fileName: preview.file_name,
+			oldContent: preview.content,
+			newContent: preview.content,
 		};
 	}
 	return null;
@@ -171,9 +192,9 @@ onDestroy(() => {
 // ---------------------------------------------------------------------------
 
 const fallbackMessage = $derived.by(() => {
-	if (props.preview === null) return null;
-	if (props.preview.kind !== "fallback") return null;
-	const kind = props.preview.preview_kind;
+	if (preview === null) return null;
+	if (preview.kind !== "fallback") return null;
+	const kind = preview.preview_kind;
 	if (kind === "binary") return "Binary file - cannot display preview";
 	if (kind === "large") return "File is too large to preview";
 	if (kind === "deleted") return "File has been deleted";
@@ -182,26 +203,28 @@ const fallbackMessage = $derived.by(() => {
 </script>
 
 <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
-	{#if props.preview === null}
+	{#if preview === null}
 		<div class="flex-1 flex items-center justify-center text-sm text-muted-foreground">
 			Select a file to preview
 		</div>
-	{:else if props.preview.kind === "fallback"}
+	{:else if preview.kind === "fallback"}
 		<div class="flex-1 flex flex-col items-center justify-center gap-2 p-6 text-center">
 			<p class="text-sm text-muted-foreground">
 				{fallbackMessage}
 			</p>
-			<p class="text-xs text-muted-foreground/60 font-mono">{props.preview.file_name}</p>
+			<p class="text-xs text-muted-foreground/60 font-mono">{preview.file_name}</p>
 		</div>
-	{:else if props.preview.kind === "text" && isMarkdownPreview}
+	{:else if preview.kind === "text" && isMarkdownPreview}
 		<div class="flex-1 overflow-auto min-h-0 p-4">
 			<MarkdownDisplay
-				content={props.preview.content}
+				content={preview.content}
 				textSize="text-sm"
 				contentPaddingClass="p-0"
 				class="prose prose-sm max-w-none"
 			/>
 		</div>
+	{:else if shouldRenderPlainText && textFallbackContent !== null}
+		<CodeMirrorEditor value={textFallbackContent} language={codePreviewLanguage} readonly />
 	{:else if renderError && textFallbackContent !== null}
 		<div class="flex-1 overflow-auto min-h-0 p-4">
 			<pre class="text-xs leading-relaxed whitespace-pre-wrap break-words font-mono text-foreground">{textFallbackContent}</pre>

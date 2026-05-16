@@ -270,4 +270,30 @@ describe("TranscriptViewportScheduler", () => {
 			"outcome:applied",
 		]);
 	});
+
+	it("drops queued scroll writes when the scheduler is cancelled before the frame flushes", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: createRecordingAdapter(order),
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "RevealTail",
+				sessionId: "session-1",
+				generation: 0,
+				force: false,
+				reason: "rows-changed-following",
+			},
+		]);
+		scheduler.cancel();
+		frame.flush();
+
+		expect(order).toEqual([]);
+	});
 });

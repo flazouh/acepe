@@ -1,39 +1,7 @@
-const MARKDOWN_BLOCK_SELECTOR = ".markdown-content > *";
-
-export function resolveTailTarget(contentRoot: HTMLElement): HTMLElement | null {
-	const blocks = contentRoot.querySelectorAll(MARKDOWN_BLOCK_SELECTOR);
-	const lastBlock = blocks[blocks.length - 1];
-	if (lastBlock instanceof HTMLElement) {
-		return lastBlock;
-	}
-
-	const fallback = contentRoot.lastElementChild;
-	if (fallback instanceof HTMLElement) {
-		return fallback;
-	}
-
-	return null;
-}
-
-export function scrollTailToVisibleEnd(
-	scrollContainer: HTMLDivElement,
-	contentRoot: HTMLElement | undefined
-): void {
+export function scrollTailToVisibleEnd(scrollContainer: HTMLDivElement): void {
 	const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
 	if (maxScrollTop <= 0) {
 		return;
-	}
-
-	if (contentRoot) {
-		const target = resolveTailTarget(contentRoot);
-		if (target !== null) {
-			target.scrollIntoView({
-				block: "end",
-				behavior: "instant",
-				inline: "nearest",
-			});
-			return;
-		}
 	}
 
 	scrollContainer.scrollTop = maxScrollTop;

@@ -67,6 +67,16 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 
+	if (
+		hasSession &&
+		runtimeState !== null &&
+		runtimeState.contentPhase === "loading" &&
+		!runtimeState.showConversation &&
+		!runtimeState.showReadyPlaceholder
+	) {
+		return { kind: "loading" };
+	}
+
 	// 3. Conversation — entries exist (inline error banner if applicable)
 	if (entriesCount > 0) {
 		return {
@@ -80,16 +90,6 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 			kind: "conversation",
 			errorDetails: null,
 		};
-	}
-
-	if (
-		hasSession &&
-		runtimeState !== null &&
-		runtimeState.contentPhase === "loading" &&
-		!runtimeState.showConversation &&
-		!runtimeState.showReadyPlaceholder
-	) {
-		return { kind: "loading" };
 	}
 
 	// 5. Ready — connected session with no entries, or can start a new one.

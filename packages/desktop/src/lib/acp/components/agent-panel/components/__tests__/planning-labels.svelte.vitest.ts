@@ -61,7 +61,7 @@ describe("shared conversation row coverage", () => {
 		expect(view.getByText("Please inspect src/app.ts")).toBeTruthy();
 	});
 
-	it("renders an assistant entry through the shared conversation dispatcher", () => {
+	it("renders an assistant entry through the shared conversation dispatcher", async () => {
 		const view = render(AgentPanelConversationEntry, {
 			entry: {
 				id: "assistant-entry",
@@ -71,10 +71,10 @@ describe("shared conversation row coverage", () => {
 			},
 		});
 
-		expect(view.getByText("Done with the review.")).toBeTruthy();
+		expect(await view.findByText("Done with the review.")).toBeTruthy();
 	});
 
-	it("accepts a streaming assistant entry in the shared conversation dispatcher", () => {
+	it("accepts a streaming assistant entry in the shared conversation dispatcher", async () => {
 		const view = render(AgentPanelConversationEntry, {
 			entry: {
 				id: "assistant-entry",
@@ -84,7 +84,7 @@ describe("shared conversation row coverage", () => {
 			},
 		});
 
-		expect(view.getByText("Streaming response")).toBeTruthy();
+		expect(await view.findByText("Streaming response")).toBeTruthy();
 	});
 
 	it("renders a degraded missing row through the shared conversation dispatcher", () => {
@@ -114,6 +114,34 @@ describe("shared conversation row coverage", () => {
 		});
 
 		expect(view.getByText("Tool unavailable")).toBeTruthy();
+	});
+
+	it("disables plan approval actions when the backing approval is unavailable", () => {
+		const view = render(AgentPanelConversationEntry, {
+			entry: {
+				id: "plan-entry",
+				type: "tool_call",
+				kind: "exit_plan_mode",
+				title: "Plan ready",
+				status: "pending",
+				toolCallId: "tool-plan-1",
+				planTitle: "Plan ready",
+				planContent: "# Plan ready\n\nDo the work.",
+				planStatus: "interactive",
+			},
+			onPlanBuild: vi.fn(),
+			onPlanCancel: vi.fn(),
+			onPlanViewFull: vi.fn(),
+			isPlanActionAvailable: () => false,
+		});
+
+		const build = view.getByRole("button", { name: "Build" }) as HTMLButtonElement;
+		const cancel = view.getByRole("button", { name: "Cancel" }) as HTMLButtonElement;
+		const open = view.getByRole("button", { name: "Open full plan" }) as HTMLButtonElement;
+
+		expect(build.disabled).toBe(true);
+		expect(cancel.disabled).toBe(true);
+		expect(open.disabled).toBe(false);
 	});
 });
 

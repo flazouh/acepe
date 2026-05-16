@@ -126,6 +126,50 @@ function isRowVisibleInContainer(container: HTMLElement, row: HTMLElement): bool
 	return rowRect.bottom > containerRect.top && rowRect.top < containerRect.bottom;
 }
 
+function collectHorizontalScrollAncestors(element: HTMLElement | null): HTMLElement[] {
+	const ancestors: HTMLElement[] = [];
+	let current = element?.parentElement ?? null;
+	while (current !== null) {
+		if (current.scrollWidth > current.clientWidth) {
+			ancestors.push(current);
+		}
+		current = current.parentElement;
+	}
+	return ancestors;
+}
+
+function preserveHorizontalScroll(container: HTMLElement | null, write: () => void): void {
+	const ancestors = collectHorizontalScrollAncestors(container);
+	const snapshots = ancestors.map((ancestor) => ({
+		ancestor,
+		scrollLeft: ancestor.scrollLeft,
+	}));
+	write();
+	for (const snapshot of snapshots) {
+		snapshot.ancestor.scrollLeft = snapshot.scrollLeft;
+	}
+}
+
+function revealRowInContainer(
+	container: HTMLDivElement,
+	row: HTMLElement,
+	align: "start" | "center" | "end"
+): void {
+	const containerRect = container.getBoundingClientRect();
+	const rowRect = row.getBoundingClientRect();
+	if (align === "start") {
+		container.scrollTop += rowRect.top - containerRect.top;
+		return;
+	}
+	if (align === "center") {
+		const containerCenter = containerRect.top + containerRect.height / 2;
+		const rowCenter = rowRect.top + rowRect.height / 2;
+		container.scrollTop += rowCenter - containerCenter;
+		return;
+	}
+	container.scrollTop += rowRect.bottom - containerRect.bottom;
+}
+
 export function createVirtuaTranscriptRendererAdapter(
 	options: VirtuaTranscriptRendererAdapterOptions
 ): TranscriptRendererAdapter {
@@ -209,7 +253,9 @@ export function createVirtuaTranscriptRendererAdapter(
 					reason: "missing-target",
 				};
 			}
-			handle.scrollToIndex(index, { align: effect.align });
+			preserveHorizontalScroll(options.getContainer?.() ?? null, () => {
+				handle.scrollToIndex(index, { align: effect.align });
+			});
 			return {
 				type: "applied",
 				effectType: effect.type,
@@ -228,7 +274,9 @@ export function createVirtuaTranscriptRendererAdapter(
 					reason: "missing-target",
 				};
 			}
-			handle.scrollToIndex(lastIndex, { align: "end" });
+			preserveHorizontalScroll(options.getContainer?.() ?? null, () => {
+				handle.scrollToIndex(lastIndex, { align: "end" });
+			});
 			return {
 				type: "applied",
 				effectType: effect.type,
@@ -239,7 +287,9 @@ export function createVirtuaTranscriptRendererAdapter(
 			if (handle == null) {
 				return missingEffect(effect.type);
 			}
-			handle.scrollTo(effect.offsetPx);
+			preserveHorizontalScroll(options.getContainer?.() ?? null, () => {
+				handle.scrollTo(effect.offsetPx);
+			});
 			return {
 				type: "applied",
 				effectType: effect.type,
@@ -349,7 +399,11 @@ export function createNativeTranscriptRendererAdapter(
 					reason: "missing-target",
 				};
 			}
-			row.scrollIntoView({ block: effect.align === "start" ? "start" : "end" });
+			const container = options.getContainer();
+			if (container === null) {
+				return missingEffect(effect.type);
+			}
+			revealRowInContainer(container, row, effect.align);
 			return {
 				type: "applied",
 				effectType: effect.type,

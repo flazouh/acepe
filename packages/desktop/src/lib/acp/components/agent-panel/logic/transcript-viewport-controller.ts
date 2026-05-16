@@ -95,6 +95,42 @@ function isNearTail(measurement: TranscriptViewportMeasurement): boolean {
 	return distanceFromTail <= NEAR_TAIL_THRESHOLD_PX;
 }
 
+function areMeasurementsEqual(
+	left: TranscriptViewportMeasurement,
+	right: TranscriptViewportMeasurement
+): boolean {
+	return (
+		left.scrollOffset === right.scrollOffset &&
+		left.scrollSize === right.scrollSize &&
+		left.viewportSize === right.viewportSize
+	);
+}
+
+function createDetachedState(
+	state: TranscriptViewportState,
+	measurement: TranscriptViewportMeasurement,
+	anchorKey: string | undefined,
+	anchorOffsetPx: number | undefined
+): TranscriptViewportState {
+	return {
+		sessionId: state.sessionId,
+		generation: state.generation,
+		renderer: state.renderer,
+		follow: "detached",
+		anchor:
+			anchorKey === undefined
+				? {
+						type: "offset",
+						offsetPx: measurement.scrollOffset,
+				  }
+				: createRowAnchor(anchorKey, anchorOffsetPx ?? measurement.scrollOffset),
+		rows: state.rows,
+		pendingSendReveal: state.pendingSendReveal,
+		programmaticScrollInFlight: false,
+		lastMeasurement: measurement,
+	};
+}
+
 function revealTailEffect(
 	state: TranscriptViewportState,
 	reason: Extract<TranscriptViewportEffect, { type: "RevealTail" }>["reason"],
@@ -267,6 +303,14 @@ function reduceUserScroll(
 ): TranscriptViewportStep {
 	if (state.programmaticScrollInFlight && state.follow === "following") {
 		const settledAtTail = isNearTail(measurement);
+		if (!settledAtTail && state.lastMeasurement !== null) {
+			if (areMeasurementsEqual(state.lastMeasurement, measurement)) {
+				return {
+					state: createDetachedState(state, measurement, anchorKey, anchorOffsetPx),
+					effects: [],
+				};
+			}
+		}
 		return {
 			state: {
 				sessionId: state.sessionId,
@@ -277,7 +321,7 @@ function reduceUserScroll(
 				rows: state.rows,
 				pendingSendReveal: state.pendingSendReveal,
 				programmaticScrollInFlight: !settledAtTail,
-				lastMeasurement: settledAtTail ? measurement : state.lastMeasurement,
+				lastMeasurement: measurement,
 			},
 			effects: [],
 		};
@@ -318,23 +362,7 @@ function reduceUserScroll(
 	}
 
 	return {
-		state: {
-			sessionId: state.sessionId,
-			generation: state.generation,
-			renderer: state.renderer,
-			follow: "detached",
-				anchor:
-				anchorKey === undefined
-					? {
-							type: "offset",
-							offsetPx: measurement.scrollOffset,
-					  }
-					: createRowAnchor(anchorKey, anchorOffsetPx ?? measurement.scrollOffset),
-			rows: state.rows,
-			pendingSendReveal: state.pendingSendReveal,
-			programmaticScrollInFlight: false,
-			lastMeasurement: measurement,
-		},
+		state: createDetachedState(state, measurement, anchorKey, anchorOffsetPx),
 		effects: [],
 	};
 }

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { SegmentedToggleGroup } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
 import { ArrowCounterClockwise } from "phosphor-svelte";
@@ -11,14 +10,10 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { COLOR_NAMES, Colors } from "../utils/colors.js";
 import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
 
-type ProjectViewMode = "sessions" | "files";
-
 interface Props {
 	projectName: string;
 	currentColor?: string;
-	currentViewMode?: ProjectViewMode;
 	onColorChange?: (color: string) => void;
-	onViewModeChange?: (mode: ProjectViewMode) => void;
 	/** When set, shows "Reset to letter badge" and hides color picker */
 	projectIconSrc?: string | null;
 	onResetProjectIcon?: () => void;
@@ -28,9 +23,7 @@ interface Props {
 let {
 	projectName,
 	currentColor,
-	currentViewMode = "sessions",
 	onColorChange,
-	onViewModeChange,
 	projectIconSrc = null,
 	onResetProjectIcon,
 	onRemoveProject,
@@ -56,7 +49,7 @@ const hasIcon = $derived(Boolean(projectIconSrc));
 const hasResetProjectIcon = $derived(Boolean(hasIcon && onResetProjectIcon));
 const showColorPicker = $derived(Boolean(onColorChange && !hasIcon));
 const showSettingsSection = $derived(
-	Boolean(showColorPicker || onViewModeChange || onRemoveProject || hasResetProjectIcon)
+	Boolean(showColorPicker || onRemoveProject || hasResetProjectIcon)
 );
 const displaySectionClass = $derived(
 	`px-2 py-1.5${
@@ -74,10 +67,6 @@ function handleRemoveClick() {
 	showRemoveConfirm = true;
 }
 
-function handleViewModeSelect(mode: ProjectViewMode) {
-	onViewModeChange?.(mode);
-	menuOpen = false;
-}
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>
@@ -110,23 +99,6 @@ function handleViewModeSelect(mode: ProjectViewMode) {
 				>
 					Settings
 				</DropdownMenu.GroupHeading>
-				{#if onViewModeChange}
-					<div class={displaySectionClass}>
-						<div class="flex items-center justify-between gap-2">
-							<div class="text-[11px] text-muted-foreground/60">
-								Display
-							</div>
-							<SegmentedToggleGroup
-								items={[
-									{ id: "sessions", label: "Sessions" },
-									{ id: "files", label: "Files" },
-								]}
-								value={currentViewMode}
-								onChange={(id) => handleViewModeSelect(id as ProjectViewMode)}
-							/>
-						</div>
-					</div>
-				{/if}
 				{#if onColorChange && !hasIcon}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class={colorTriggerClass}>

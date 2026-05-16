@@ -56,14 +56,7 @@ export async function openSessionInFinder(args: {
 		return;
 	}
 
-	if (target.kind === "reveal") {
-		await revealInFinder(target.path).mapErr(() => toast.error("Failed to open thread in Finder"));
-		return;
-	}
-
-	await tauriClient.shell
-		.openInFinder(target.sessionId, target.projectPath)
-		.mapErr(() => toast.error("Failed to open thread in Finder"));
+	await revealInFinder(target.path).mapErr(() => toast.error("Failed to open thread in Finder"));
 }
 
 export async function openStreamingLog(sessionId: string | null): Promise<void> {

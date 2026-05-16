@@ -166,6 +166,7 @@ describe("InitializationManager", () => {
 		} as unknown as SessionStore;
 
 		mockAgentStore = {
+			agents: [],
 			loadAvailableAgents: mock(() => okAsync([])),
 		} as unknown as AgentStore;
 
@@ -1004,7 +1005,7 @@ describe("InitializationManager", () => {
 			expect(mockState.initializationComplete).toBe(false);
 		});
 
-		it("should skip startup session auto-creation for opencode panels", async () => {
+		it("skips startup session auto-creation when provider metadata requires explicit user action", async () => {
 			mockProjectManager.projects = [
 				{
 					path: "/project1",
@@ -1013,6 +1014,25 @@ describe("InitializationManager", () => {
 					color: "blue",
 				},
 			];
+			mockAgentStore.agents = [
+				{
+					id: "quiet-agent",
+					name: "Quiet Agent",
+					icon: "quiet-agent",
+					providerMetadata: {
+						providerBrand: "custom",
+						displayName: "Quiet Agent",
+						displayOrder: 99,
+						supportsModelDefaults: false,
+						variantGroup: "plain",
+						defaultAlias: undefined,
+						reasoningEffortSupport: false,
+						preconnectionSlashMode: "startupGlobal",
+						preconnectionCapabilityMode: "startupGlobal",
+						implicitSessionCreationMode: "explicitUserAction",
+					},
+				},
+			] as unknown as AgentStore["agents"];
 			mockPanelStore.panels = [
 				{
 					id: "panel-1",
@@ -1021,7 +1041,7 @@ describe("InitializationManager", () => {
 					sessionId: null,
 					width: 600,
 					pendingProjectSelection: false,
-					selectedAgentId: "opencode",
+					selectedAgentId: "quiet-agent",
 					projectPath: null,
 					agentId: null,
 					sessionTitle: null,

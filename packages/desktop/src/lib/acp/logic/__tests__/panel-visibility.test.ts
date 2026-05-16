@@ -160,6 +160,22 @@ describe("derivePanelViewState", () => {
 		expect(result.kind).toBe("conversation");
 	});
 
+	it("should return loading instead of showing stale entries while restored content reloads", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 5,
+				hasSession: true,
+				runtimeState: makeRuntimeState({
+					contentPhase: "loading",
+					showConversation: false,
+					showReadyPlaceholder: false,
+				}),
+			})
+		);
+
+		expect(result.kind).toBe("loading");
+	});
+
 	it("should return conversation with null errorDetails when no error", () => {
 		const result = derivePanelViewState(makeInput({ entriesCount: 5 }));
 		expect(result.kind).toBe("conversation");

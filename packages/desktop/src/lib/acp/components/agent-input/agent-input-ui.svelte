@@ -6,6 +6,7 @@ import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnectio
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import {
 	AgentInputComposerToolbar,
+	AgentInputModePill,
 	AgentPanelComposer as SharedAgentPanelComposer,
 	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
@@ -249,7 +250,7 @@ const sessionCurrentModelId = $derived(
 	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
 );
 const sessionAutonomousEnabled = $derived(
-	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : false
+	props.sessionId ? (sessionStore.getSessionAutonomousEnabled(props.sessionId) ?? false) : false
 );
 const sessionConfigOptions = $derived(
 	props.sessionId ? sessionStore.getSessionConfigOptions(props.sessionId) : []
@@ -319,14 +320,6 @@ const effectiveCurrentModeId = $derived.by(() =>
 	})
 );
 
-const autoModeSupportState = $derived.by(() =>
-	resolveAutonomousSupport({
-		agentId: capabilitiesAgentId,
-		connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-		currentUiModeId: CanonicalModeId.BUILD,
-		agents: agentStore.agents,
-	})
-);
 
 const panelProvisionalAutonomousEnabled = $derived.by(() => {
 	if (props.panelId) {
@@ -347,26 +340,21 @@ const autonomousToggleActive = $derived.by(() => {
 	return panelProvisionalAutonomousEnabled;
 });
 
+const autoModeSupportState = $derived.by(() =>
+	resolveAutonomousSupport({
+		agentId: capabilitiesAgentId,
+		connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
+		currentUiModeId: CanonicalModeId.BUILD,
+		agents: agentStore.agents,
+	})
+);
+
 const autonomousToggleBusy = $derived(
 	sessionHotState ? sessionHotState.autonomousTransition !== "idle" : false
 );
 
-const autoModeDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
-const autoModeDisabledReason = $derived.by(() => {
-	if (autoModeSupportState.disabledReason === "unsupported-agent") {
-		return "This agent does not support Auto.";
-	}
+const autonomousDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
 
-	if (autoModeSupportState.disabledReason === "unsupported-mode") {
-		return "Auto is unavailable for this agent.";
-	}
-
-	if (autonomousToggleBusy) {
-		return "Updating Auto…";
-	}
-
-	return null;
-});
 const selectedModeMenuOptionId = $derived(
 	resolveSelectedModeMenuOptionId({
 		currentModeId: effectiveCurrentModeId,
@@ -1178,6 +1166,10 @@ async function setAutonomousEnabled(nextEnabled: boolean): Promise<boolean> {
 	return applyAutonomousEnabledToSession(nextEnabled);
 }
 
+async function handleAutonomousToggle(): Promise<void> {
+	await setAutonomousEnabled(!autonomousToggleActive);
+}
+
 async function handleModeMenuChange(optionId: string): Promise<void> {
 	const resolution = resolveModeMenuAction({
 		selectedOptionId: optionId,
@@ -1800,6 +1792,15 @@ $effect(() => {
 		}
 	}}
 >
+	{#snippet modeControlsSnippet()}
+		<AgentInputModePill
+			modes={visibleModes}
+			currentModeId={effectiveCurrentModeId}
+			disabled={selectorsDisabledByComposer}
+			onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+		/>
+	{/snippet}
+
 	{#if inputState.isDragOver}
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
@@ -1811,6 +1812,7 @@ $effect(() => {
 			{#snippet content()}
 				<AgentInputComposerBody
 					bind:editorRef
+					modeControls={visibleModes.length > 0 ? modeControlsSnippet : undefined}
 					{voiceState}
 					{voiceOverlayActive}
 					{inputReady}
@@ -1874,16 +1876,10 @@ $effect(() => {
 				<AgentInputComposerToolbar
 					{inputReady}
 					{autonomousStatusMessage}
-					{visibleModes}
-					{selectedModeMenuOptionId}
 					{autonomousToggleActive}
-					autoModeDisabled={autoModeDisabled}
-					autoModeDisabledReason={autoModeDisabledReason}
-					planModeLabel={"Plan"}
-					buildModeLabel={"Build"}
-					autoModeLabel="Auto"
-					onModeMenuChange={handleModeMenuChange}
-					{selectorsLoading}
+					autonomousDisabled={autonomousDisabled}
+					autonomousBusy={autonomousToggleBusy}
+					onAutonomousToggle={() => { void handleAutonomousToggle(); }}
 					{selectorsDisabledByComposer}
 					toolbarConfigOptions={toolbarConfigOptions}
 					onConfigOptionChange={handleConfigOptionChange}

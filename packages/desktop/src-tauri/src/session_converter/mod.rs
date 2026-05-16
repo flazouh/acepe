@@ -407,6 +407,50 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_session_preserves_tool_call_position_inside_assistant_message() {
+        let mut full_session = create_test_full_session();
+        full_session.messages[1].content_blocks = vec![
+            ContentBlock::Thinking {
+                thinking: "Need to inspect files first.".to_string(),
+                signature: None,
+            },
+            ContentBlock::ToolUse {
+                id: "tool-1".to_string(),
+                name: "Bash".to_string(),
+                input: serde_json::json!({ "command": "ls -la" }),
+            },
+            ContentBlock::Text {
+                text: "Here is the answer after inspecting files.".to_string(),
+            },
+        ];
+        full_session.messages[0]
+            .content_blocks
+            .push(ContentBlock::ToolResult {
+                tool_use_id: "tool-1".to_string(),
+                content: "README.md".to_string(),
+            });
+        full_session.stats.tool_uses = 1;
+        full_session.stats.tool_results = 1;
+        full_session.stats.thinking_blocks = 1;
+
+        let converted = convert_claude_full_session_to_thread_snapshot(&full_session);
+        let entry_kinds: Vec<&str> = converted
+            .entries
+            .iter()
+            .map(|entry| match entry {
+                StoredEntry::Assistant { .. } => "assistant",
+                StoredEntry::ToolCall { .. } => "tool_call",
+                _ => "other",
+            })
+            .collect();
+
+        assert_eq!(
+            entry_kinds,
+            vec!["other", "assistant", "tool_call", "assistant"]
+        );
+    }
+
+    #[test]
     fn test_convert_session_with_thinking() {
         let mut full_session = create_test_full_session();
 

@@ -125,19 +125,28 @@ impl TaskReconciler {
         }
 
         if self.active_tool_calls.contains_key(&tool_call.id) {
-            let (merged_tool_call, should_cleanup) = {
+            let incoming_has_material_raw_input = has_material_raw_input(&tool_call.raw_input);
+            let (merged_tool_call, should_cleanup, should_reemit_tool_call) = {
                 let existing = self
                     .active_tool_calls
                     .get_mut(&tool_call.id)
                     .expect("tool call should exist when duplicate is detected");
+                let existing_has_material_raw_input = has_material_raw_input(&existing.raw_input);
                 let merged = merge_tool_call(existing.clone(), tool_call);
                 let is_terminal = is_terminal_status(&merged.status);
                 *existing = merged.clone();
-                (merged, is_terminal)
+                (
+                    merged,
+                    is_terminal,
+                    incoming_has_material_raw_input && !existing_has_material_raw_input,
+                )
             };
             if should_cleanup {
                 self.active_tool_calls.remove(&merged_tool_call.id);
                 self.mark_terminal_tool_call(merged_tool_call.id.clone());
+            }
+            if should_reemit_tool_call {
+                return vec![ReconcilerOutput::EmitToolCall(merged_tool_call)];
             }
             return vec![ReconcilerOutput::EmitToolCallUpdate(tool_call_to_update(
                 &merged_tool_call,
@@ -513,6 +522,14 @@ fn is_terminal_status(status: &ToolCallStatus) -> bool {
     matches!(status, ToolCallStatus::Completed | ToolCallStatus::Failed)
 }
 
+fn has_material_raw_input(raw_input: &Option<serde_json::Value>) -> bool {
+    match raw_input {
+        Some(serde_json::Value::Object(object)) => !object.is_empty(),
+        Some(serde_json::Value::Null) | None => false,
+        Some(_) => true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -629,6 +646,56 @@ mod tests {
             question_answer: None,
             awaiting_plan_approval: false,
             plan_approval_request_id: None,
+        }
+    }
+
+    fn make_exit_plan_tool_call(id: &str, raw_input: serde_json::Value) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: "ExitPlanMode".to_string(),
+            arguments: ToolArguments::PlanMode { mode: None },
+            raw_input: Some(raw_input),
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::ExitPlanMode),
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_regular_tool_call_with_late_raw_input_reemits_tool_call() {
+        let mut reconciler = TaskReconciler::new();
+        let initial = make_exit_plan_tool_call("tool-plan-1", serde_json::json!({}));
+        let final_plan = make_exit_plan_tool_call(
+            "tool-plan-1",
+            serde_json::json!({
+                "plan": "# Fix the thing",
+                "planFilePath": "/tmp/plan.md"
+            }),
+        );
+
+        let _ = reconciler.handle_tool_call(initial);
+        let outputs = reconciler.handle_tool_call(final_plan);
+
+        assert_eq!(outputs.len(), 1);
+        match &outputs[0] {
+            ReconcilerOutput::EmitToolCall(tool_call) => {
+                assert_eq!(
+                    tool_call.raw_input.as_ref().and_then(|raw| raw.get("plan")),
+                    Some(&serde_json::json!("# Fix the thing"))
+                );
+            }
+            other => panic!("expected duplicate to re-emit tool call, got {:?}", other),
         }
     }
 

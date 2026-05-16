@@ -42,9 +42,9 @@ export interface ISessionStateReader {
 	getGraphTranscriptRevision?(sessionId: string): number | undefined;
 
 	/**
-	 * Canonical autonomous setting. Returns false when no canonical projection has materialized.
+	 * Canonical autonomous setting. Returns null when no canonical projection has materialized.
 	 */
-	getSessionAutonomousEnabled?(sessionId: string): boolean;
+	getSessionAutonomousEnabled?(sessionId: string): boolean | null;
 
 	/**
 	 * Canonical current mode id. Returns null when no canonical projection or selected mode exists.

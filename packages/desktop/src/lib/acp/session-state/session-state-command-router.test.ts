@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionGraphActivity, SessionStateEnvelope } from "../../services/acp-types.js";
+import type {
+	OperationSnapshot,
+	SessionGraphActivity,
+	SessionStateEnvelope,
+} from "../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "./session-state-command-router.js";
 
 const runningOperationActivity: SessionGraphActivity = {
@@ -12,6 +16,102 @@ const runningOperationActivity: SessionGraphActivity = {
 };
 
 describe("routeSessionStateEnvelope", () => {
+	it("routes operation patches before matching transcript tool rows", () => {
+		const operation: OperationSnapshot = {
+			id: "op:session-1:tool-1",
+			session_id: "session-1",
+			tool_call_id: "tool-1",
+			name: "Bash",
+			kind: "execute",
+			provider_status: "in_progress",
+			title: "Run",
+			arguments: {
+				kind: "execute",
+				command: "pwd",
+			},
+			progressive_arguments: null,
+			result: null,
+			command: "pwd",
+			normalized_todos: null,
+			parent_tool_call_id: null,
+			parent_operation_id: null,
+			child_tool_call_ids: [],
+			child_operation_ids: [],
+			operation_provenance_key: "tool-1",
+			operation_state: "running",
+			locations: null,
+			skill_meta: null,
+			normalized_questions: null,
+			question_answer: null,
+			awaiting_plan_approval: false,
+			plan_approval_request_id: null,
+			started_at_ms: null,
+			completed_at_ms: null,
+			source_link: {
+				kind: "transcript_linked",
+				entry_id: "tool-1",
+			},
+			degradation_reason: null,
+		};
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 8,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "tool-1",
+								role: "tool",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "tool-1:tool",
+										text: "Run",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [operation],
+					interactionPatches: [],
+					changedFields: [
+						"transcriptSnapshot",
+						"operations",
+						"activity",
+						"turnState",
+						"activeTurnFailure",
+						"lastTerminalTurnId",
+					],
+				},
+			},
+		};
+
+		const commands = routeSessionStateEnvelope("session-1", 7, envelope);
+
+		expect(commands.map((command) => command.kind)).toEqual([
+			"applyGraphPatches",
+			"applyTranscriptDelta",
+		]);
+	});
+
 	it("routes graph patch deltas with canonical activity", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",

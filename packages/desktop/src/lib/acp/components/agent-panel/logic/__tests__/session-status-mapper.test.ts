@@ -3,7 +3,6 @@ import { describe, expect, it } from "bun:test";
 import type { SessionGraphLifecycle } from "$lib/services/acp-types.js";
 import {
 	deriveCanonicalAgentPanelSessionState,
-	deriveEffectiveCanonicalTurnPresentation,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,
 } from "../session-status-mapper";
@@ -245,7 +244,7 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		});
 	});
 
-	it("does not let local terminal observation override stale canonical awaiting-model state", () => {
+	it("keeps stale canonical awaiting-model state running until canonical changes", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			lifecycle: lifecycle("ready", false, false, true),
 			activity: {
@@ -257,7 +256,6 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			},
 			turnState: "Running",
 			hasEntries: true,
-			hasLocalObservedTerminalTurn: true,
 		});
 
 		expect(state).toEqual({
@@ -267,52 +265,6 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			showPlanningIndicator: true,
 			canSubmit: false,
 			showStop: true,
-		});
-	});
-});
-
-describe("deriveEffectiveCanonicalTurnPresentation", () => {
-	it("keeps stale awaiting-model graph canonical when local terminal diagnostics exist", () => {
-		const activity = {
-			kind: "awaiting_model" as const,
-			activeOperationCount: 0,
-			activeSubagentCount: 0,
-			dominantOperationId: null,
-			blockingInteractionId: null,
-		};
-		const presentation = deriveEffectiveCanonicalTurnPresentation({
-			lifecycle: lifecycle("ready", false, false, true),
-			activity,
-			turnState: "Running",
-			hasLocalObservedTerminalTurn: true,
-		});
-
-		expect(presentation).toEqual({
-			activity,
-			turnState: "Running",
-			hasTerminalOverride: false,
-		});
-	});
-
-	it("keeps a genuinely running operation running even after terminal observation", () => {
-		const activity = {
-			kind: "running_operation" as const,
-			activeOperationCount: 1,
-			activeSubagentCount: 0,
-			dominantOperationId: "op-1",
-			blockingInteractionId: null,
-		};
-		const presentation = deriveEffectiveCanonicalTurnPresentation({
-			lifecycle: lifecycle("ready", false, false, false),
-			activity,
-			turnState: "Running",
-			hasLocalObservedTerminalTurn: true,
-		});
-
-		expect(presentation).toEqual({
-			activity,
-			turnState: "Running",
-			hasTerminalOverride: false,
 		});
 	});
 });

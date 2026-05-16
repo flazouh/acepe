@@ -17,7 +17,7 @@ describe("getOpenInFinderTarget", () => {
 		});
 	});
 
-	it("uses claude open-in-finder when agent is claude-code and no sourcePath", () => {
+	it("reveals project folder when no sourcePath is available", () => {
 		const target = getOpenInFinderTarget({
 			sessionId: "session-123",
 			projectPath: "/projects/acepe",
@@ -26,9 +26,8 @@ describe("getOpenInFinderTarget", () => {
 		});
 
 		expect(target).toEqual({
-			kind: "claude",
-			sessionId: "session-123",
-			projectPath: "/projects/acepe",
+			kind: "reveal",
+			path: "/projects/acepe",
 		});
 	});
 

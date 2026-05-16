@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
 import {
 	createRafDedupeScheduler,
-	resolveTailTarget,
 	scrollTailToVisibleEnd,
 } from "../thinking-viewport-follow.js";
 
@@ -23,38 +22,6 @@ function flushNextFrame(timestamp: number): void {
 	}
 	frame.callback(timestamp);
 }
-
-describe("resolveTailTarget", () => {
-	it("returns the last .markdown-content child across multiple markdown roots", () => {
-		const root = document.createElement("div");
-		const md1 = document.createElement("div");
-		md1.className = "markdown-content";
-		const p1 = document.createElement("p");
-		const p2 = document.createElement("p");
-		md1.appendChild(p1);
-		md1.appendChild(p2);
-		const md2 = document.createElement("div");
-		md2.className = "markdown-content";
-		const p3 = document.createElement("p");
-		md2.appendChild(p3);
-		root.appendChild(md1);
-		root.appendChild(md2);
-
-		expect(resolveTailTarget(root)).toBe(p3);
-	});
-
-	it("falls back to lastElementChild when no markdown blocks", () => {
-		const root = document.createElement("div");
-		const div = document.createElement("div");
-		root.appendChild(div);
-		expect(resolveTailTarget(root)).toBe(div);
-	});
-
-	it("returns null for empty root", () => {
-		const root = document.createElement("div");
-		expect(resolveTailTarget(root)).toBeNull();
-	});
-});
 
 describe("createRafDedupeScheduler", () => {
 	beforeEach(() => {
@@ -108,7 +75,27 @@ describe("scrollTailToVisibleEnd", () => {
 		Object.defineProperty(container, "scrollHeight", { value: 200, configurable: true });
 		Object.defineProperty(container, "clientHeight", { value: 40, configurable: true });
 
-		scrollTailToVisibleEnd(container, undefined);
+		scrollTailToVisibleEnd(container);
 		expect(container.scrollTop).toBe(160);
+	});
+
+	it("does not ask the page to reveal the thinking tail", () => {
+		const container = document.createElement("div") as HTMLDivElement;
+		const contentRoot = document.createElement("div");
+		const markdownRoot = document.createElement("div");
+		const paragraph = document.createElement("p");
+		markdownRoot.className = "markdown-content";
+		markdownRoot.appendChild(paragraph);
+		contentRoot.appendChild(markdownRoot);
+		container.appendChild(contentRoot);
+		Object.defineProperty(container, "scrollHeight", { value: 120, configurable: true });
+		Object.defineProperty(container, "clientHeight", { value: 40, configurable: true });
+		paragraph.scrollIntoView = () => {
+			throw new Error("thinking follow must not call scrollIntoView");
+		};
+
+		scrollTailToVisibleEnd(container);
+
+		expect(container.scrollTop).toBe(80);
 	});
 });

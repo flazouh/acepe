@@ -17,13 +17,13 @@ function userEntry(content: string): SessionEntry {
 }
 
 describe("deriveAgentPanelHeaderDisplayTitle", () => {
-	it("keeps the first user message as the header title when the session title is generated", () => {
+	it("uses the backend session title without deriving from transcript entries", () => {
 		const displayTitle = deriveAgentPanelHeaderDisplayTitle({
 			sessionTitle: "Session 12ab5783",
 			projectName: "acepe",
 			sessionEntries: [userEntry("diagnostic ping - reply with ok")],
 		});
 
-		expect(displayTitle).toBe("Diagnostic ping - reply with ok");
+		expect(displayTitle).toBe("Session 12ab5783");
 	});
 });

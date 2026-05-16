@@ -17,6 +17,7 @@ import { Browser } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
+import { FolderOpen } from "phosphor-svelte";
 import { ImageSquare } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
 import { Recycle } from "phosphor-svelte";
@@ -29,12 +30,10 @@ import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
-import { Button, buttonVariants } from "$lib/components/ui/button/index.js";
+import { Button } from "$lib/components/ui/button/index.js";
 import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
 import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
-import { Label } from "$lib/components/ui/label/index.js";
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import {
 	ProjectCardSkeleton,
 	SessionListSkeleton,
@@ -43,11 +42,9 @@ import {
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import type { GitRemoteStatus } from "$lib/utils/tauri-client/git.js";
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
-import { createFileTree, flattenFileTree } from "../file-list/file-list-logic.js";
-import type { FileTreeNode } from "../file-list/file-list-types.js";
-import FileTreeItem from "../file-list/file-tree-item.svelte";
+import ProjectFileSystemDialog from "../file-explorer-modal/project-file-system-dialog.svelte";
 import ProjectHeader from "../project-header.svelte";
 import ProjectHeaderOverflowMenu from "../project-header-overflow-menu.svelte";
 import {
@@ -60,8 +57,6 @@ import {
 import type { SessionGroup, SessionListItem } from "./session-list-types.js";
 import VirtualizedSessionList from "./virtualized-session-list.svelte";
 
-type ProjectViewMode = "sessions" | "files";
-
 interface Props {
 	sessionGroups: SessionGroup[];
 	hasResults: boolean;
@@ -73,10 +68,6 @@ interface Props {
 	canCreateSession?: boolean;
 	shortcutKeys?: string[];
 	scanning?: boolean;
-	/** Initial file tree expansion state (projectPath -> expanded folder paths) */
-	initialFileTreeExpansion?: Record<string, string[]>;
-	/** Initial project file view modes (projectPath -> "sessions" | "files") */
-	initialProjectFileViewModes?: Record<string, "sessions" | "files">;
 	/** Initial collapsed project paths for persistence */
 	initialCollapsedProjectPaths?: string[];
 	onProjectColorChange?: (projectPath: string, color: string) => void;
@@ -96,10 +87,6 @@ interface Props {
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
-	/** Called when file tree expansion state changes (for persistence) */
-	onFileTreeExpansionChange?: (expansion: Record<string, string[]>) => void;
-	/** Called when project file view mode changes (for persistence) */
-	onProjectFileViewModeChange?: (modes: Record<string, "sessions" | "files">) => void;
 	/** Called when collapsed project paths change (for persistence) */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
 	/** Called when terminal button is clicked for a project */
@@ -131,8 +118,6 @@ let {
 	canCreateSession: _canCreateSession = false,
 	shortcutKeys: _shortcutKeys = ["⌘", "N"],
 	scanning = false,
-	initialFileTreeExpansion = {},
-	initialProjectFileViewModes = {},
 	initialCollapsedProjectPaths = [],
 	onProjectColorChange,
 	onChangeProjectIcon,
@@ -146,8 +131,6 @@ let {
 	effectiveTheme = "light",
 	onProjectClick,
 	onSelectFile,
-	onFileTreeExpansionChange,
-	onProjectFileViewModeChange,
 	onCollapsedProjectPathsChange,
 	onOpenTerminal,
 	onOpenBrowser,
@@ -170,16 +153,6 @@ const expandedProjects = $derived(
 const projectHeaderFocusTargets = new Map<string, HTMLDivElement>();
 let reorderAnnouncement = $state("");
 
-// Per-project files state
-const filesByProject = new SvelteMap<string, FileTreeNode[]>();
-const loadingFilesProjects = new SvelteSet<string>();
-const filesErrorByProject = new SvelteMap<string, string>();
-
-// Expanded folders (hydrated from persisted state in one-time effect)
-const expandedFolders = new SvelteSet<string>();
-
-// Per-project view mode (hydrated from persisted state in one-time effect)
-const projectViewModes = new SvelteMap<string, ProjectViewMode>();
 const visibleSessionCounts = new SvelteMap<string, number>();
 const sessionListContainers = new Map<string, HTMLDivElement>();
 
@@ -200,19 +173,6 @@ $effect(() => {
 		collapsedProjects.add(path);
 	}
 
-	for (const [projectPath, folderPaths] of Object.entries(initialFileTreeExpansion ?? {})) {
-		for (const folderPath of folderPaths) {
-			expandedFolders.add(`${projectPath}:${folderPath}`);
-		}
-	}
-
-	for (const [projectPath, mode] of Object.entries(initialProjectFileViewModes ?? {})) {
-		projectViewModes.set(projectPath, mode);
-		if (mode === "files") {
-			// Deferred to after loadProjectFiles is defined (function is hoisted)
-			queueMicrotask(() => loadProjectFiles(projectPath));
-		}
-	}
 });
 
 // Sync collapsed state when initialCollapsedProjectPaths changes (e.g. after workspace restore).
@@ -248,18 +208,12 @@ $effect(() => {
 
 // Rename dialog
 
-// New file / New folder dialogs
-let newFileDialogOpen = $state(false);
-let newFileData = $state<{ projectPath: string; parentRelativePath: string } | null>(null);
-let newFileInput = $state("");
-
-let newFolderDialogOpen = $state(false);
-let newFolderData = $state<{ projectPath: string; parentRelativePath: string } | null>(null);
-let newFolderInput = $state("");
-
-function getProjectViewMode(projectPath: string): ProjectViewMode {
-	return projectViewModes.get(projectPath) ?? "sessions";
-}
+let fileExplorerDialogProject = $state<{
+	projectPath: string;
+	projectName: string;
+	projectColor: string | undefined;
+	projectIconSrc: string | null;
+} | null>(null);
 
 function toggleProject(projectPath: string) {
 	if (collapsedProjects.has(projectPath)) {
@@ -307,22 +261,6 @@ function projectHeaderFocusTarget(
 			projectHeaderFocusTargets.delete(currentProjectPath);
 		},
 	};
-}
-
-function setProjectViewMode(projectPath: string, mode: ProjectViewMode) {
-	const currentMode = getProjectViewMode(projectPath);
-	if (currentMode === mode) return;
-
-	projectViewModes.set(projectPath, mode);
-	notifyProjectViewModeChange();
-
-	if (
-		mode === "files" &&
-		!filesByProject.has(projectPath) &&
-		!loadingFilesProjects.has(projectPath)
-	) {
-		loadProjectFiles(projectPath);
-	}
 }
 
 function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
@@ -405,184 +343,6 @@ function sessionListContainer(
 
 function handleSessionListScroll(projectPath: string, totalSessions: number): void {
 	ensureSessionListOverflow(projectPath, totalSessions);
-}
-
-/**
- * Notify parent of project view mode changes for persistence.
- */
-function notifyProjectViewModeChange() {
-	if (!onProjectFileViewModeChange) return;
-
-	const result: Record<string, "sessions" | "files"> = {};
-	for (const [projectPath, mode] of projectViewModes) {
-		// Only persist projects with "files" view (default is sessions)
-		if (mode === "files") {
-			result[projectPath] = mode;
-		}
-	}
-	onProjectFileViewModeChange(result);
-}
-
-function loadProjectFiles(projectPath: string): void {
-	loadingFilesProjects.add(projectPath);
-	filesErrorByProject.delete(projectPath);
-
-	tauriClient.fileIndex
-		.getProjectFiles(projectPath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			(result) => {
-				const tree = createFileTree(result.files);
-				filesByProject.set(projectPath, tree);
-				loadingFilesProjects.delete(projectPath);
-			},
-			(error) => {
-				filesErrorByProject.set(projectPath, error.message);
-				loadingFilesProjects.delete(projectPath);
-			}
-		);
-}
-
-function toggleFolder(projectPath: string, folderPath: string) {
-	const key = `${projectPath}:${folderPath}`;
-	if (expandedFolders.has(key)) {
-		expandedFolders.delete(key);
-	} else {
-		expandedFolders.add(key);
-	}
-	notifyExpansionChange();
-}
-
-/**
- * Notify parent of expansion state change for persistence.
- */
-function notifyExpansionChange() {
-	if (!onFileTreeExpansionChange) return;
-
-	const result: Record<string, string[]> = {};
-	for (const key of expandedFolders) {
-		const colonIndex = key.indexOf(":");
-		if (colonIndex === -1) continue;
-		const projectPath = key.substring(0, colonIndex);
-		const folderPath = key.substring(colonIndex + 1);
-		if (!result[projectPath]) {
-			result[projectPath] = [];
-		}
-		result[projectPath].push(folderPath);
-	}
-	onFileTreeExpansionChange(result);
-}
-
-function handleFileSelect(filePath: string, projectPath: string) {
-	onSelectFile?.(filePath, projectPath);
-}
-
-function handleRevealInFinder(fullPath: string) {
-	revealInFinder(fullPath).match(
-		() => {},
-		() => toast.error("Failed to open in Finder")
-	);
-}
-
-function handleRefreshFileTree(projectPath: string) {
-	tauriClient.fileIndex
-		.invalidateProjectFiles(projectPath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => loadProjectFiles(projectPath),
-			() => {
-				// Still try to reload
-				loadProjectFiles(projectPath);
-			}
-		);
-}
-
-function handleDeleteConfirm(projectPath: string, relativePath: string) {
-	tauriClient.fileIndex
-		.deletePath(projectPath, relativePath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(`Failed to delete: ${err.message}`)
-		);
-}
-
-function handleRenameConfirm(projectPath: string, relativePath: string, newName: string) {
-	const parent = relativePath.includes("/") ? relativePath.replace(/\/[^/]+$/, "") : "";
-	const toRelative = parent ? `${parent}/${newName}` : newName;
-
-	tauriClient.fileIndex
-		.renamePath(projectPath, relativePath, toRelative)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(`Failed to rename: ${err.message}`)
-		);
-}
-
-function handleDuplicateRequest(projectPath: string, relativePath: string) {
-	tauriClient.fileIndex
-		.copyFile(projectPath, relativePath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => handleRefreshFileTree(projectPath),
-			(err) => toast.error(`Failed to duplicate: ${err.message}`)
-		);
-}
-
-function handleNewFileRequest(projectPath: string, parentRelativePath: string) {
-	newFileData = { projectPath, parentRelativePath };
-	newFileInput = "";
-	newFileDialogOpen = true;
-}
-
-function handleNewFileSubmit() {
-	const data = newFileData;
-	if (!data || !newFileInput.trim()) return;
-	const relativePath = data.parentRelativePath
-		? `${data.parentRelativePath}/${newFileInput.trim()}`
-		: newFileInput.trim();
-	newFileDialogOpen = false;
-	newFileData = null;
-
-	tauriClient.fileIndex
-		.createFile(data.projectPath, relativePath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => handleRefreshFileTree(data.projectPath),
-			(err) => toast.error(`Failed to create file: ${err.message}`)
-		);
-}
-
-function handleNewFolderRequest(projectPath: string, parentRelativePath: string) {
-	newFolderData = { projectPath, parentRelativePath };
-	newFolderInput = "";
-	newFolderDialogOpen = true;
-}
-
-function handleNewFolderSubmit() {
-	const data = newFolderData;
-	if (!data || !newFolderInput.trim()) return;
-	const relativePath = data.parentRelativePath
-		? `${data.parentRelativePath}/${newFolderInput.trim()}`
-		: newFolderInput.trim();
-	newFolderDialogOpen = false;
-	newFolderData = null;
-
-	tauriClient.fileIndex
-		.createDirectory(data.projectPath, relativePath)
-		.mapErr((e) => new Error(String(e)))
-		.match(
-			() => handleRefreshFileTree(data.projectPath),
-			(err) => toast.error(`Failed to create folder: ${err.message}`)
-		);
-}
-
-function getFlattenedFiles(
-	projectPath: string
-): Array<{ node: FileTreeNode; projectPath: string }> {
-	const files = filesByProject.get(projectPath) ?? [];
-	return flattenFileTree(files, expandedFolders, projectPath);
 }
 
 // ─── Git overview state (per-project) ──────────────────────────────
@@ -847,7 +607,21 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 }
 
 const projectHeaderHoverActionButtonClass =
-	"flex items-center justify-center size-5 rounded text-muted-foreground transition-all hover:bg-accent hover:text-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100";
+	"flex items-center justify-center size-5 rounded text-muted-foreground transition-all hover:bg-accent hover:text-foreground opacity-50 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100";
+
+function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
+	event.stopPropagation();
+	fileExplorerDialogProject = {
+		projectPath: group.projectPath,
+		projectName: group.projectName,
+		projectColor: group.projectColor,
+		projectIconSrc: group.projectIconSrc,
+	};
+}
+
+function handleCloseFileExplorer(): void {
+	fileExplorerDialogProject = null;
+}
 
 function handleProjectHeaderClick(projectPath: string) {
 	toggleProject(projectPath);
@@ -1078,7 +852,6 @@ function openCreateBranchDialog(projectPath: string): void {
 		{#if sessionGroups.length > 0}
 			<div class="flex flex-col flex-1 min-h-0 gap-0.5">
 				{#each sessionGroups as group, projectIndex (group.projectPath)}
-					{@const viewMode = getProjectViewMode(group.projectPath)}
 					<div class="flex min-w-0 flex-col overflow-hidden rounded-md border border-border/50 bg-card/75">
 						<!-- Real project header (only sessions are loading) -->
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -1111,6 +884,21 @@ function openCreateBranchDialog(projectPath: string): void {
 												onclick={(e) => e.stopPropagation()}
 												onkeydown={(e) => e.stopPropagation()}
 											>
+												<Tooltip.Root>
+													<Tooltip.Trigger>
+														<button
+															type="button"
+															class={projectHeaderHoverActionButtonClass}
+															onclick={(event) => handleOpenFileExplorer(event, group)}
+															aria-label={`Open file system in ${group.projectName}`}
+														>
+															<FolderOpen class="h-3 w-3" weight="fill" />
+														</button>
+													</Tooltip.Trigger>
+													<Tooltip.Content>
+														{`Open file system in ${group.projectName}`}
+													</Tooltip.Content>
+												</Tooltip.Root>
 												{#if shouldShowProjectUtilityActions() && onOpenTerminal}
 													<Tooltip.Root>
 														<Tooltip.Trigger>
@@ -1154,15 +942,13 @@ function openCreateBranchDialog(projectPath: string): void {
 											</div>
 										{/snippet}
 										{#snippet trailing()}
-											<ProjectHeaderOverflowMenu
-												projectName={group.projectName}
-												currentColor={group.projectColor}
-												currentViewMode={viewMode}
-												onColorChange={onProjectColorChange
-													? (color) => onProjectColorChange(group.projectPath, color)
-													: undefined}
-												onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
-												projectIconSrc={group.projectIconSrc}
+												<ProjectHeaderOverflowMenu
+													projectName={group.projectName}
+													currentColor={group.projectColor}
+													onColorChange={onProjectColorChange
+														? (color) => onProjectColorChange(group.projectPath, color)
+														: undefined}
+													projectIconSrc={group.projectIconSrc}
 												onResetProjectIcon={onResetProjectIcon
 													? () => onResetProjectIcon(group.projectPath)
 													: undefined}
@@ -1257,11 +1043,7 @@ function openCreateBranchDialog(projectPath: string): void {
 		<div class="relative flex flex-col flex-1 min-h-0 gap-0.5">
 			{#each sessionGroups as group, projectIndex (group.projectPath)}
 				{@const isExpanded = expandedProjects.has(group.projectPath)}
-				{@const viewMode = getProjectViewMode(group.projectPath)}
-				{@const filesLoading = loadingFilesProjects.has(group.projectPath)}
-				{@const filesError = filesErrorByProject.get(group.projectPath)}
-				{@const flattenedFiles = getFlattenedFiles(group.projectPath)}
-				<div
+					<div
 					class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-card/75"
 					style={isExpanded
 						? `flex: 0 1 auto; max-height: ${maxHeightPercent}%; min-height: 0;`
@@ -1298,6 +1080,21 @@ function openCreateBranchDialog(projectPath: string): void {
 										onclick={(e) => e.stopPropagation()}
 										onkeydown={(e) => e.stopPropagation()}
 									>
+										<Tooltip.Root>
+											<Tooltip.Trigger>
+												<button
+													type="button"
+													class={projectHeaderHoverActionButtonClass}
+													onclick={(event) => handleOpenFileExplorer(event, group)}
+													aria-label={`Open file system in ${group.projectName}`}
+												>
+													<FolderOpen class="h-3 w-3" weight="fill" />
+												</button>
+											</Tooltip.Trigger>
+											<Tooltip.Content>
+												{`Open file system in ${group.projectName}`}
+											</Tooltip.Content>
+										</Tooltip.Root>
 										{#if shouldShowProjectUtilityActions() && onOpenTerminal}
 											<Tooltip.Root>
 												<Tooltip.Trigger>
@@ -1344,11 +1141,9 @@ function openCreateBranchDialog(projectPath: string): void {
 									<ProjectHeaderOverflowMenu
 										projectName={group.projectName}
 										currentColor={group.projectColor}
-										currentViewMode={viewMode}
 										onColorChange={onProjectColorChange
 											? (color) => onProjectColorChange(group.projectPath, color)
 											: undefined}
-										onViewModeChange={(mode) => setProjectViewMode(group.projectPath, mode)}
 										projectIconSrc={group.projectIconSrc}
 										onResetProjectIcon={onResetProjectIcon
 											? () => onResetProjectIcon(group.projectPath)
@@ -1421,10 +1216,8 @@ function openCreateBranchDialog(projectPath: string): void {
 					</ContextMenu.Root>
 				</div>
 
-					<!-- Content area: Sessions OR Files (switched, not both) -->
-					{#if isExpanded}
-						{#if viewMode === "sessions"}
-							<!-- Sessions view - use simple overflow for scrolling -->
+						<!-- Content area: sessions -->
+						{#if isExpanded}
 							{@const sidebarSessions = getSidebarSessions(group.sessions)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
@@ -1447,54 +1240,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									/>
 								{/if}
 							</div>
-						{:else}
-							<!-- Files view -->
-							<ScrollArea class="min-h-0 px-0.5 pb-0.5">
-								{#if filesLoading}
-									<!-- Loading skeleton for files -->
-									<div class="flex flex-col gap-0.5 p-0.5">
-										{#each Array.from({ length: 5 }, (_, i) => i) as index (index)}
-											<div class="px-2 py-1.5 flex items-center gap-2">
-												<Skeleton class="h-3.5 w-3.5 shrink-0 rounded" />
-												<Skeleton class="h-3 w-2/3" />
-											</div>
-										{/each}
-									</div>
-								{:else if filesError}
-									<!-- Error state -->
-									<div class="px-2.5 py-2 text-xs text-destructive">
-										{filesError}
-									</div>
-								{:else if flattenedFiles.length === 0}
-									<!-- Empty files -->
-									<div class="px-2.5 py-2 text-xs text-muted-foreground">
-										{"No files found"}
-									</div>
-								{:else}
-									<!-- File tree -->
-									<div class="flex flex-col gap-0.5 p-0.5">
-										{#each flattenedFiles as { node, projectPath: projPath } (`${projPath}:${node.path}`)}
-											<FileTreeItem
-												{node}
-												projectPath={projPath}
-												isExpanded={expandedFolders.has(`${projPath}:${node.path}`)}
-												onToggleFolder={toggleFolder}
-												onSelectFile={handleFileSelect}
-												onCopyPath={() => {}}
-												onRevealInFinder={handleRevealInFinder}
-												onRefresh={() => handleRefreshFileTree(projPath)}
-												onDeleteConfirm={handleDeleteConfirm}
-												onRename={handleRenameConfirm}
-												onDuplicate={handleDuplicateRequest}
-												onNewFile={handleNewFileRequest}
-												onNewFolder={handleNewFolderRequest}
-											/>
-										{/each}
-									</div>
-								{/if}
-							</ScrollArea>
 						{/if}
-					{/if}
 
 					<!-- Git footer with branch picker -->
 					{#if isExpanded}
@@ -1731,59 +1477,20 @@ function openCreateBranchDialog(projectPath: string): void {
 	<span class="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
 </div>
 
-<!-- New file dialog -->
-<Dialog.Root bind:open={newFileDialogOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title>{"New file"}</Dialog.Title>
-		</Dialog.Header>
-		<form
-			onsubmit={(e) => {
-				e.preventDefault();
-				handleNewFileSubmit();
-			}}
-			class="space-y-4"
-		>
-			<div class="grid gap-2">
-				<Label for="new-file-input">{"File name"}</Label>
-				<Input id="new-file-input" bind:value={newFileInput} class="w-full" />
-			</div>
-			<Dialog.Footer>
-				<Dialog.Close type="button" class={buttonVariants({ variant: "outline" })}>
-					{"Cancel"}
-				</Dialog.Close>
-				<Button type="submit">{"Confirm"}</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
-
-<!-- New folder dialog -->
-<Dialog.Root bind:open={newFolderDialogOpen}>
-	<Dialog.Content>
-		<Dialog.Header>
-			<Dialog.Title>{"New folder"}</Dialog.Title>
-		</Dialog.Header>
-		<form
-			onsubmit={(e) => {
-				e.preventDefault();
-				handleNewFolderSubmit();
-			}}
-			class="space-y-4"
-		>
-			<div class="grid gap-2">
-				<Label for="new-folder-input">{"Folder name"}</Label>
-				<Input id="new-folder-input" bind:value={newFolderInput} class="w-full" />
-			</div>
-			<Dialog.Footer>
-				<Dialog.Close type="button" class={buttonVariants({ variant: "outline" })}>
-					{"Cancel"}
-				</Dialog.Close>
-				<Button type="submit">{"Confirm"}</Button>
-			</Dialog.Footer>
-		</form>
-	</Dialog.Content>
-</Dialog.Root>
+{#if fileExplorerDialogProject !== null}
+	<ProjectFileSystemDialog
+		open={true}
+		projectPath={fileExplorerDialogProject.projectPath}
+		projectName={fileExplorerDialogProject.projectName}
+		projectColor={fileExplorerDialogProject.projectColor}
+		projectIconSrc={fileExplorerDialogProject.projectIconSrc}
+		onClose={handleCloseFileExplorer}
+		onOpenFile={(projectPath, filePath) => {
+			onSelectFile?.(filePath, projectPath);
+			handleCloseFileExplorer();
+		}}
+	/>
+{/if}
 
 <!-- Create branch dialog -->
 <Dialog.Root bind:open={createBranchDialogOpen}>

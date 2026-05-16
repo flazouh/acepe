@@ -1,23 +1,28 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
 import {
-	CloseAction,
 	EmbeddedIconButton,
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
 import { DownloadSimple } from "phosphor-svelte";
-import * as Dialog from "@acepe/ui/dialog";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 
 import { useSessionContext } from "../hooks/use-session-context.js";
 import CopyButton from "./messages/copy-button.svelte";
 import MarkdownText from "./messages/markdown-text.svelte";
 
+interface PlanDialogPlan {
+	title: string;
+	content: string;
+	summary?: string | null;
+}
+
 interface Props {
-	plan: SessionPlanResponse;
+	plan: PlanDialogPlan | SessionPlanResponse;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	projectPath?: string;
@@ -42,12 +47,8 @@ function downloadAsMarkdown() {
 }
 </script>
 
-<Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content
-		showCloseButton={false}
-		class="max-w-5xl w-[90vw] max-h-[85vh] flex flex-col gap-0 !p-0 overflow-hidden rounded-xl border border-border/40 bg-background"
-	>
-		<!-- Header -->
+<WorkspaceDialogFrame {open} title={plan.title} closeLabel="Close plan" {onOpenChange}>
+	<div class="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-border/40 bg-background">
 		<EmbeddedPanelHeader class="bg-muted/10 border-border/30">
 			<HeaderTitleCell>
 				<PlanIcon size="md" class="shrink-0 mr-1.5" />
@@ -68,20 +69,14 @@ function downloadAsMarkdown() {
 					<DownloadSimple size={14} weight="bold" />
 				</EmbeddedIconButton>
 			</HeaderActionCell>
-
-			<HeaderActionCell>
-				<CloseAction onClose={() => onOpenChange(false)} />
-			</HeaderActionCell>
 		</EmbeddedPanelHeader>
 
-		<!-- Summary row -->
 		{#if plan.summary}
 			<div class="px-5 py-2 border-b border-border/20 bg-muted/10">
 				<p class="text-[12px] text-muted-foreground leading-relaxed">{plan.summary}</p>
 			</div>
 		{/if}
 
-		<!-- Content -->
 		<div class="flex-1 overflow-y-auto">
 			<div class="px-6 py-5">
 				<MarkdownText text={plan.content} {projectPath} />
@@ -94,5 +89,5 @@ function downloadAsMarkdown() {
 				{plan.content.length.toLocaleString()} characters
 			</p>
 		</div>
-	</Dialog.Content>
-</Dialog.Root>
+	</div>
+</WorkspaceDialogFrame>

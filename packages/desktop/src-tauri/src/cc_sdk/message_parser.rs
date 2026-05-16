@@ -52,10 +52,34 @@ fn parse_user_message(json: Value) -> Result<Option<Message>> {
     let content = if let Some(content_str) = message.get("content").and_then(|v| v.as_str()) {
         // Simple string content
         content_str.to_string()
-    } else if let Some(_content_array) = message.get("content").and_then(|v| v.as_array()) {
-        // Array content (e.g., tool results) - we'll skip these for now
-        // as they're not standard user messages but tool responses
-        debug!("Skipping user message with array content (likely tool result)");
+    } else if let Some(content_array) = message.get("content").and_then(|v| v.as_array()) {
+        let mut content_blocks = Vec::new();
+
+        for content_item in content_array {
+            if let Some(block) = parse_content_block(content_item)? {
+                content_blocks.push(block);
+            }
+        }
+
+        let has_tool_result = content_blocks
+            .iter()
+            .any(|block| matches!(block, ContentBlock::ToolResult(_)));
+
+        if has_tool_result {
+            // Claude emits tool results as user messages. Carry them through the
+            // assistant translation path so pending tool calls can be completed.
+            return Ok(Some(Message::Assistant {
+                message: AssistantMessage {
+                    content: content_blocks,
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            }));
+        }
+
+        debug!("Skipping user message with non-user array content");
         return Ok(None);
     } else {
         return Err(SdkError::parse_error(
@@ -379,6 +403,43 @@ mod tests {
             assert_eq!(message.content, "Hello, Claude!");
         } else {
             panic!("Expected User message");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_tool_result_message() {
+        let json = json!({
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_bash",
+                        "content": "hello from stdout",
+                        "is_error": false
+                    }
+                ]
+            }
+        });
+
+        let result = parse_message(json).unwrap();
+        assert!(result.is_some());
+
+        if let Some(Message::Assistant { message }) = result {
+            assert_eq!(message.content.len(), 1);
+            if let ContentBlock::ToolResult(tool_result) = &message.content[0] {
+                assert_eq!(tool_result.tool_use_id, "toolu_bash");
+                assert_eq!(
+                    tool_result.content,
+                    Some(ContentValue::Text("hello from stdout".to_string()))
+                );
+                assert_eq!(tool_result.is_error, Some(false));
+            } else {
+                panic!("Expected ToolResult content block");
+            }
+        } else {
+            panic!("Expected tool result carrier message");
         }
     }
 

@@ -307,6 +307,49 @@ function graphWithTranscriptSnapshot(
 	};
 }
 
+function graphWithOperations(
+	graph: SessionStateGraph,
+	operations: OperationSnapshot[]
+): SessionStateGraph {
+	return {
+		requestedSessionId: graph.requestedSessionId,
+		canonicalSessionId: graph.canonicalSessionId,
+		isAlias: graph.isAlias,
+		agentId: graph.agentId,
+		projectPath: graph.projectPath,
+		worktreePath: graph.worktreePath ?? null,
+		sourcePath: graph.sourcePath ?? null,
+		revision: graph.revision,
+		transcriptSnapshot: graph.transcriptSnapshot,
+		operations,
+		interactions: graph.interactions,
+		turnState: graph.turnState,
+		messageCount: graph.messageCount,
+		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activeTurnFailure: graph.activeTurnFailure ?? null,
+		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
+		lifecycle: graph.lifecycle,
+		activity: graph.activity,
+		capabilities: graph.capabilities,
+	};
+}
+
+function shouldPreservePreviousOperations(input: {
+	readonly previousGraph: SessionStateGraph | null;
+	readonly incomingGraph: SessionStateGraph;
+}): boolean {
+	if (input.previousGraph === null) {
+		return false;
+	}
+	if (input.incomingGraph.operations.length > 0) {
+		return false;
+	}
+	if (input.previousGraph.operations.length === 0) {
+		return false;
+	}
+	return input.incomingGraph.transcriptSnapshot.entries.some((entry) => entry.role === "tool");
+}
+
 function graphWithLifecycle(
 	graph: SessionStateGraph,
 	lifecycle: SessionGraphLifecycle,
@@ -1375,7 +1418,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private readonly composerMachineService = new ComposerMachineService((sessionId) => ({
 		modeId: this.getSessionCurrentModeId(sessionId),
 		modelId: this.getSessionCurrentModelId(sessionId),
-		autonomousEnabled: this.getSessionAutonomousEnabled(sessionId),
+		autonomousEnabled: this.getSessionAutonomousEnabled(sessionId) ?? false,
 	}));
 
 	// Repository for CRUD and loading operations
@@ -1627,10 +1670,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical autonomous setting; false means no canonical projection or no autonomous capability.
+	 * Canonical autonomous setting; null means no canonical projection.
 	 */
-	getSessionAutonomousEnabled(sessionId: string): boolean {
-		return this.canonicalProjections.get(sessionId)?.capabilities.autonomousEnabled ?? false;
+	getSessionAutonomousEnabled(sessionId: string): boolean | null {
+		return this.canonicalProjections.get(sessionId)?.capabilities.autonomousEnabled ?? null;
 	}
 
 	/**
@@ -1973,6 +2016,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			(input.previousProjection?.turnState !== "Failed" ||
 				input.previousProjection.lastTerminalTurnId !== input.lastTerminalTurnId);
 		if (isNewCompletedTurn) {
+			this.composerEndDispatch(input.sessionId);
 			this.messagingSvc.handleStreamComplete(
 				input.sessionId,
 				input.lastTerminalTurnId ?? undefined
@@ -1988,6 +2032,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return;
 		}
 
+		this.composerEndDispatch(input.sessionId);
 		const numericCode =
 			input.projectedFailure.code == null || input.projectedFailure.code.trim() === ""
 				? undefined
@@ -3272,11 +3317,19 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 									current: previousGraph.transcriptSnapshot,
 									incoming: graph.transcriptSnapshot,
 								}))));
-				this.operationStore.replaceSessionOperations(sessionId, graph.operations);
+				const shouldPreserveOperations = shouldPreservePreviousOperations({
+					previousGraph,
+					incomingGraph: graph,
+				});
+				const operationGraph =
+					shouldPreserveOperations && previousGraph !== null
+						? graphWithOperations(graph, previousGraph.operations)
+						: graph;
+				this.operationStore.replaceSessionOperations(sessionId, operationGraph.operations);
 				if (shouldReplaceTranscriptSnapshot) {
 					this.entryStore.replaceTranscriptSnapshot(
 						sessionId,
-						graph.transcriptSnapshot,
+						operationGraph.transcriptSnapshot,
 						new Date()
 					);
 				} else {
@@ -3292,8 +3345,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					shouldReplaceTranscriptSnapshot ||
 					currentTranscriptRevision === undefined ||
 					previousGraph === null
-						? graph
-						: graphWithTranscriptSnapshot(graph, previousGraph.transcriptSnapshot);
+						? operationGraph
+						: graphWithTranscriptSnapshot(operationGraph, previousGraph.transcriptSnapshot);
 				this.liveSessionStateGraphConsumer?.replaceSessionStateGraph(projectionGraph);
 				this.applySessionStateGraph(projectionGraph);
 				this.syncAwaitingModelRefreshTimer(
@@ -3613,6 +3666,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			rowId: delta.rowId,
 			accumulatedText: nextText,
 			wordCount: countWordsInMarkdown(nextText),
+			latestWordCount: countWordsInMarkdown(delta.deltaText),
 			firstDeltaProducedAtMonotonicMs:
 				previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
 			lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,

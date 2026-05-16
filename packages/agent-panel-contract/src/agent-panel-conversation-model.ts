@@ -24,6 +24,9 @@ export type AgentPanelToolKind =
 	| "skill"
 	| "task"
 	| "task_output"
+	| "enter_plan_mode"
+	| "exit_plan_mode"
+	| "create_plan"
 	| "browser"
 	| "sql"
 	| "unclassified"
@@ -125,6 +128,9 @@ export interface AgentPanelToolCallEntry {
 	taskPrompt?: string | null;
 	taskResultText?: string | null;
 	taskChildren?: readonly AgentPanelConversationEntry[];
+	planTitle?: string | null;
+	planContent?: string | null;
+	planStatus?: "streaming" | "interactive" | "approved" | "rejected" | "building";
 	presentationState?: AgentPanelToolPresentationState;
 	degradedReason?: string | null;
 	todos?: readonly AgentPanelTodoItem[];

@@ -293,19 +293,26 @@ fn translate_assistant(
                 } else {
                     ToolCallStatus::Completed
                 };
+                let tool_use_id = tr.tool_use_id;
 
-                // Extract text from content, if any
-                let content_blocks = tr.content.map(|cv| match cv {
-                    cc_sdk::ContentValue::Text(s) => {
-                        vec![ContentBlock::Text { text: s }]
+                let (content_blocks, result) = match tr.content {
+                    Some(cc_sdk::ContentValue::Text(text)) => (
+                        Some(vec![ContentBlock::Text { text: text.clone() }]),
+                        Some(serde_json::Value::String(text)),
+                    ),
+                    Some(cc_sdk::ContentValue::Structured(values)) => {
+                        (None, Some(serde_json::Value::Array(values)))
                     }
-                    cc_sdk::ContentValue::Structured(_) => vec![],
-                });
+                    None => (None, None),
+                };
+
+                resolve_pending_tool_call(stream_state, &tool_use_id);
 
                 updates.push(SessionUpdate::ToolCallUpdate {
                     update: ToolCallUpdateData {
-                        tool_call_id: tr.tool_use_id,
+                        tool_call_id: tool_use_id,
                         status: Some(status),
+                        result,
                         content: content_blocks,
                         ..Default::default()
                     },
@@ -2062,5 +2069,110 @@ mod tests {
                 Some(MISSING_TOOL_RESULT_MESSAGE)
             );
         }
+    }
+
+    #[test]
+    fn user_tool_result_completes_pending_bash_and_prevents_missing_result_fallback() {
+        let mut stream_state = CcSdkTurnStreamState::default();
+
+        let _ = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-bash-start".to_string(),
+                session_id: "session-with-result".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_bash_with_result",
+                        "name": "Bash",
+                        "input": {
+                            "command": "printf hello"
+                        }
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("session-with-result".to_string()),
+            &mut stream_state,
+        );
+
+        let _ = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-bash-stop".to_string(),
+                session_id: "session-with-result".to_string(),
+                event: serde_json::json!({
+                    "type": "message_delta",
+                    "delta": {
+                        "stop_reason": "tool_use"
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("session-with-result".to_string()),
+            &mut stream_state,
+        );
+
+        let result_updates = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::Assistant {
+                message: cc_sdk::AssistantMessage {
+                    content: vec![cc_sdk::ContentBlock::ToolResult(
+                        cc_sdk::ToolResultContent {
+                            tool_use_id: "toolu_bash_with_result".to_string(),
+                            content: Some(cc_sdk::ContentValue::Text("hello".to_string())),
+                            is_error: Some(false),
+                        },
+                    )],
+                    model: None,
+                    usage: None,
+                    error: None,
+                    parent_tool_use_id: None,
+                },
+            },
+            Some("session-with-result".to_string()),
+            &mut stream_state,
+        );
+
+        assert!(
+            result_updates.iter().any(|update| matches!(
+                update,
+                SessionUpdate::ToolCallUpdate { update, .. }
+                    if update.tool_call_id == "toolu_bash_with_result"
+                        && update.status == Some(ToolCallStatus::Completed)
+                        && update.result.as_ref().and_then(|result| result.as_str()) == Some("hello")
+            )),
+            "tool result text should be materialized into the tool call result"
+        );
+
+        let resume_updates = super::translate_cc_sdk_message_with_mut_turn_state(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-next-start".to_string(),
+                session_id: "session-with-result".to_string(),
+                event: serde_json::json!({
+                    "type": "message_start",
+                    "message": {
+                        "content": [],
+                        "model": "claude-sonnet-4-6"
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("session-with-result".to_string()),
+            &mut stream_state,
+        );
+
+        assert!(
+            !resume_updates.iter().any(|update| matches!(
+                update,
+                SessionUpdate::ToolCallUpdate { update, .. }
+                    if update.tool_call_id == "toolu_bash_with_result"
+                        && update.result.as_ref().and_then(|result| result.get("stderr")).and_then(|value| value.as_str()) == Some(MISSING_TOOL_RESULT_MESSAGE)
+            )),
+            "resolved tool results must not be replaced by the missing-result fallback"
+        );
     }
 }

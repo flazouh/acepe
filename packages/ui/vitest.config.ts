@@ -6,7 +6,7 @@ export default defineConfig({
 	test: {
 		environment: "happy-dom",
 		globals: true,
-		include: ["src/**/*.svelte.vitest.ts"],
+		include: ["src/**/*.svelte.vitest.ts", "src/**/*.dom.vitest.ts"],
 		exclude: ["**/node_modules/**", "**/dist/**"],
 	},
 });

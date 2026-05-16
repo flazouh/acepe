@@ -14,6 +14,7 @@
     HeaderActionCell,
     HeaderTitleCell,
   } from "../panel-header/index.js";
+  import { Button } from "../button/index.js";
   import { PlanIcon, BuildIcon, LoadingIcon } from "../icons/index.js";
   import { XCircle } from "phosphor-svelte";
   import { ArrowsOut } from "phosphor-svelte";
@@ -42,17 +43,18 @@
     class: className = "",
   }: Props = $props();
 
-  const showBuild = $derived(status === "interactive");
-  const showActions = $derived(status !== "rejected");
+  const showDecisionActions = $derived(
+    (status === "interactive" || status === "building") &&
+      (onCancel !== undefined || onBuild !== undefined),
+  );
   const isBuilding = $derived(status === "building");
-  const disabled = $derived(actionsDisabled || status === "streaming");
 </script>
 
 <div
-  class="plan-card rounded-md border border-border bg-accent/50 overflow-hidden {className}"
+  class="plan-card rounded-md border border-border bg-background/60 overflow-hidden {className}"
 >
   <!-- Header -->
-  <EmbeddedPanelHeader class="bg-accent/50">
+  <EmbeddedPanelHeader class="bg-accent/35">
     <HeaderTitleCell compactPadding>
       <PlanIcon size="sm" class="shrink-0 mr-1" />
       <span
@@ -70,9 +72,10 @@
       <HeaderActionCell>
         <button
           type="button"
-          class="plan-action-btn"
+          class="plan-open-btn"
           onclick={onViewFull}
-          title="Open full screen"
+          title="Open full plan"
+          aria-label="Open full plan"
         >
           <ArrowsOut weight="bold" class="size-3.5 shrink-0" />
         </button>
@@ -93,46 +96,47 @@
     {/if}
   </div>
 
-  <!-- Footer actions -->
-  {#if showActions}
+  {#if showDecisionActions}
     <div class="plan-footer">
-      <div class="plan-footer-right">
-        {#if showBuild && onCancel}
-          <button
-            type="button"
-            class="plan-footer-btn plan-footer-btn--cancel"
-            onclick={onCancel}
-            disabled={isBuilding}
-          >
-            <XCircle weight="fill" class="size-3 shrink-0" />
-            Cancel
-          </button>
-        {/if}
+      {#if onCancel}
+        <Button
+          type="button"
+          variant="headerAction"
+          size="headerAction"
+          onclick={onCancel}
+          disabled={actionsDisabled || isBuilding}
+        >
+          <XCircle weight="fill" class="size-3 shrink-0" />
+          Cancel
+        </Button>
+      {/if}
 
-        {#if showBuild && onBuild}
-          <button
-            type="button"
-            class="plan-footer-btn plan-footer-btn--build"
-            onclick={onBuild}
-            disabled={isBuilding}
-          >
-            {#if isBuilding}
-              <LoadingIcon class="size-3" />
-              Building…
-            {:else}
-              <BuildIcon size="sm" />
-              Build
-            {/if}
-          </button>
-        {/if}
-      </div>
+      {#if onBuild}
+        <Button
+          type="button"
+          variant="headerAction"
+          size="headerAction"
+          onclick={onBuild}
+          disabled={actionsDisabled || isBuilding}
+        >
+          {#if isBuilding}
+            <LoadingIcon class="size-3" />
+            Building…
+          {:else}
+            <BuildIcon size="sm" />
+            Build
+          {/if}
+        </Button>
+      {/if}
     </div>
   {/if}
+
 </div>
 
 <style>
   .plan-preview {
     overflow-y: auto;
+    background: color-mix(in srgb, var(--background) 82%, var(--accent) 18%);
   }
 
   .plan-preview--compact {
@@ -152,56 +156,18 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 1px;
+    gap: 6px;
+    padding: 6px;
     border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--accent) 50%, transparent);
+    background: color-mix(in srgb, var(--background) 76%, var(--accent) 24%);
   }
 
-  .plan-footer-right {
-    display: flex;
-    align-items: center;
-    gap: 1px;
-  }
-
-  .plan-footer-btn {
+  .plan-open-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    padding: 4px 8px;
-    font: inherit;
-    font-size: 0.625rem;
-    font-weight: 500;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--muted-foreground);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition:
-      color 0.15s ease,
-      background-color 0.15s ease;
-  }
-
-  .plan-footer-btn:hover:not(:disabled) {
-    color: var(--foreground);
-    background: color-mix(in srgb, var(--accent) 50%, transparent);
-  }
-
-  .plan-footer-btn:disabled {
-    opacity: 0.4;
-    pointer-events: none;
-  }
-
-  .plan-action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
     padding: 0 8px;
     height: 100%;
-    font: inherit;
-    font-size: 0.625rem;
-    font-weight: 500;
-    font-family: var(--font-mono, ui-monospace, monospace);
     color: var(--muted-foreground);
     background: transparent;
     border: none;
@@ -211,14 +177,9 @@
       background-color 0.15s ease;
   }
 
-  .plan-action-btn:hover {
+  .plan-open-btn:hover {
     color: var(--foreground);
     background: color-mix(in srgb, var(--accent) 50%, transparent);
-  }
-
-  .plan-action-btn:disabled {
-    opacity: 0.5;
-    pointer-events: none;
   }
 
   .plan-skeleton {

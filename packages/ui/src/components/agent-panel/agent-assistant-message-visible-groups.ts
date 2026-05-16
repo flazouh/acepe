@@ -27,10 +27,15 @@ function resolveCurrentStreamingGroupIndex(
 
 export function resolveVisibleAssistantMessageGroups(input: {
 	readonly messageGroups: readonly ChunkGroup[];
+	readonly isStreaming?: boolean;
 	readonly tokenRevealCss?: TokenRevealCss;
 	readonly lastMessageTextGroupIndex: number;
 }): ChunkGroup[] {
-	if (input.lastMessageTextGroupIndex < 0 || input.tokenRevealCss === undefined) {
+	if (
+		input.lastMessageTextGroupIndex < 0 ||
+		input.isStreaming !== true ||
+		input.tokenRevealCss === undefined
+	) {
 		return input.messageGroups.slice();
 	}
 

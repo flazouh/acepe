@@ -65,16 +65,9 @@ onMount(() => {
 		currentThemeMode = mode;
 	});
 
-	// Load initial language and create editor
-	loadLanguageByName(language).match(
-		(langSupport) => {
-			createEditor(langSupport ? [langSupport] : []);
-		},
-		(error) => {
-			console.error("Failed to load initial language:", error.message);
-			createEditor([]);
-		}
-	);
+	// Create immediately as plaintext, then load syntax highlighting async.
+	// This keeps file previews responsive even when a language package is cold.
+	createEditor([]);
 });
 
 function createEditor(languageExtension: Extension[]) {

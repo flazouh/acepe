@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.5.16] - 2026-05-16
+
+### Added
+- Plan cards can now open the full plan in the same modal shell used by review, with the open action placed in the card header and approval actions kept in the footer
+- Project file browsing now opens as a workspace-style dialog with live project file previews
+- Execute and search tool cards now render command/query content with line-based syntax highlighting and compact line numbers
+
+### Changed
+- Project sidebar sessions now expand from the project header directly and use project badge headers consistently
+- Thinking and streaming message rendering now use the deterministic viewport path for more stable text reveal behavior
+- Review, plan, and file-system dialogs now share a common workspace dialog frame
+
+### Fixed
+- Exit-plan cards now preserve and render the actual plan body instead of showing an empty “Plan ready” placeholder
+- Markdown and code previews render consistently in the file-system dialog instead of only rendering Markdown files
+- Search result tool cards now show matched files and line-highlighted query content without table-style metadata noise
+
 ## [2026.5.15] - 2026-05-15
 
 ### Added

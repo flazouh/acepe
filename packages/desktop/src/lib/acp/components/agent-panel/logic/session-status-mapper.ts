@@ -17,13 +17,6 @@ export interface CanonicalAgentPanelSessionStateInput
 	extends CanonicalSessionPresentationStatusInput {
 	readonly hasOptimisticPendingEntry?: boolean;
 	readonly hasLocalPendingSendIntent?: boolean;
-	readonly hasLocalObservedTerminalTurn?: boolean;
-}
-
-export interface EffectiveCanonicalTurnPresentation {
-	readonly activity: SessionGraphActivity | null | undefined;
-	readonly turnState: SessionTurnState | null | undefined;
-	readonly hasTerminalOverride: boolean;
 }
 
 export interface CanonicalAgentPanelSessionState {
@@ -130,22 +123,11 @@ function isCanonicalBusy(
 	);
 }
 
-export function deriveEffectiveCanonicalTurnPresentation(
-	input: CanonicalAgentPanelSessionStateInput
-): EffectiveCanonicalTurnPresentation {
-	return {
-		activity: input.activity,
-		turnState: input.turnState,
-		hasTerminalOverride: false,
-	};
-}
-
 export function deriveCanonicalAgentPanelSessionState(
 	input: CanonicalAgentPanelSessionStateInput
 ): CanonicalAgentPanelSessionState {
-	const effectivePresentation = deriveEffectiveCanonicalTurnPresentation(input);
-	const effectiveActivity = effectivePresentation.activity;
-	const effectiveTurnState = effectivePresentation.turnState;
+	const effectiveActivity = input.activity;
+	const effectiveTurnState = input.turnState;
 	const isBusy = isCanonicalBusy(effectiveActivity, effectiveTurnState);
 	const showPlanningIndicator =
 		input.hasOptimisticPendingEntry === true ||

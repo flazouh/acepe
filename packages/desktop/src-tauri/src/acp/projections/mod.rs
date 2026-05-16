@@ -1418,6 +1418,71 @@ impl ProjectionRegistry {
                 .map(|t| build_canonical_operation_id(&permission.session_id, &t.call_id)),
         };
         self.upsert_interaction(interaction);
+        self.enrich_exit_plan_operation_from_permission(permission);
+    }
+
+    fn enrich_exit_plan_operation_from_permission(&self, permission: &PermissionData) {
+        if !is_exit_plan_permission(permission) {
+            return;
+        }
+
+        let Some(tool_reference) = permission.tool.as_ref() else {
+            return;
+        };
+        let Some(raw_input) = read_exit_plan_raw_input_from_permission(permission) else {
+            return;
+        };
+        let Some(operation_id) =
+            self.lookup_operation_id_by_tool_call(&permission.session_id, &tool_reference.call_id)
+        else {
+            return;
+        };
+        let Some(existing) = self
+            .operations_by_id
+            .get(&operation_id)
+            .map(|operation| operation.clone())
+        else {
+            return;
+        };
+
+        let next_operation_state = if is_terminal_operation_state(&existing.operation_state) {
+            existing.operation_state.clone()
+        } else {
+            OperationState::Blocked
+        };
+        let updated = OperationSnapshot {
+            id: existing.id.clone(),
+            session_id: existing.session_id.clone(),
+            tool_call_id: existing.tool_call_id.clone(),
+            name: existing.name.clone(),
+            kind: Some(ToolKind::ExitPlanMode),
+            provider_status: existing.provider_status.clone(),
+            title: existing.title.clone().or_else(|| Some("Plan ready".to_string())),
+            arguments: ToolArguments::Other { raw: raw_input },
+            progressive_arguments: existing.progressive_arguments.clone(),
+            result: existing.result.clone(),
+            command: existing.command.clone(),
+            normalized_todos: existing.normalized_todos.clone(),
+            parent_tool_call_id: existing.parent_tool_call_id.clone(),
+            parent_operation_id: existing.parent_operation_id.clone(),
+            child_tool_call_ids: existing.child_tool_call_ids.clone(),
+            child_operation_ids: existing.child_operation_ids.clone(),
+            operation_provenance_key: existing.operation_provenance_key.clone(),
+            operation_state: next_operation_state,
+            locations: existing.locations.clone(),
+            skill_meta: existing.skill_meta.clone(),
+            normalized_questions: existing.normalized_questions.clone(),
+            question_answer: existing.question_answer.clone(),
+            awaiting_plan_approval: true,
+            plan_approval_request_id: permission
+                .json_rpc_request_id
+                .or(existing.plan_approval_request_id),
+            started_at_ms: existing.started_at_ms,
+            completed_at_ms: existing.completed_at_ms,
+            source_link: existing.source_link.clone(),
+            degradation_reason: existing.degradation_reason.clone(),
+        };
+        self.operations_by_id.insert(operation_id, updated);
     }
 
     fn register_question_interaction(&self, question: &QuestionData) {
@@ -1562,6 +1627,26 @@ impl ProjectionRegistry {
 
 fn should_skip_unanswered_question_tool_operation(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
+}
+
+fn is_exit_plan_permission(permission: &PermissionData) -> bool {
+    permission.permission == "ExitPlanMode" || permission.permission == "exit_plan_mode"
+}
+
+fn read_exit_plan_raw_input_from_permission(permission: &PermissionData) -> Option<Value> {
+    let raw_input = permission
+        .metadata
+        .get("rawInput")
+        .or_else(|| permission.metadata.get("raw_input"))?;
+    let has_plan_text = raw_input
+        .get("plan")
+        .and_then(Value::as_str)
+        .is_some_and(|plan| !plan.trim().is_empty());
+    if has_plan_text {
+        return Some(raw_input.clone());
+    }
+
+    None
 }
 
 fn create_session_tool_key(session_id: &str, tool_call_id: &str) -> String {
@@ -4158,6 +4243,78 @@ mod tests {
         let interaction = registry.interaction("perm-1").unwrap();
         let expected_id = build_canonical_operation_id("session-1", "tool-1");
         assert_eq!(interaction.canonical_operation_id, Some(expected_id));
+    }
+
+    #[test]
+    fn exit_plan_permission_enriches_linked_operation_arguments_with_plan_payload() {
+        let registry = ProjectionRegistry::new();
+        let plan = "# Fix Plan Card\n\n- Render plan body\n- Show build action";
+        let mut plan_tool_call = create_execute_tool_call(
+            "exit-plan-tool",
+            "exit plan mode",
+            ToolCallStatus::InProgress,
+        );
+        plan_tool_call.name = "ExitPlanMode".to_string();
+        plan_tool_call.kind = Some(ToolKind::ExitPlanMode);
+        plan_tool_call.title = Some("Plan ready".to_string());
+        plan_tool_call.arguments = ToolArguments::Other { raw: json!({}) };
+        plan_tool_call.raw_input = Some(json!({}));
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: plan_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-exit-plan".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(42),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(42)),
+                    permission: "ExitPlanMode".to_string(),
+                    patterns: vec![],
+                    metadata: json!({
+                        "rawInput": {
+                            "plan": plan,
+                            "planFilePath": "/repo/docs/plans/fix-plan-card.md"
+                        },
+                        "parsedArguments": {
+                            "kind": "planMode",
+                            "mode": "default"
+                        },
+                        "options": []
+                    }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: Some(ToolReference {
+                        message_id: String::new(),
+                        call_id: "exit-plan-tool".to_string(),
+                    }),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let operation = registry
+            .operation_for_tool_call("session-1", "exit-plan-tool")
+            .expect("expected exit-plan operation");
+
+        assert_eq!(operation.operation_state, OperationState::Blocked);
+        assert!(operation.awaiting_plan_approval);
+        assert_eq!(operation.plan_approval_request_id, Some(42));
+        assert_eq!(
+            operation.arguments,
+            ToolArguments::Other {
+                raw: json!({
+                    "plan": plan,
+                    "planFilePath": "/repo/docs/plans/fix-plan-card.md"
+                })
+            }
+        );
     }
 
     #[test]

@@ -1,19 +1,19 @@
 <script lang="ts">
 import {
 	AgentPanelShell,
+	type AgentPanelPlanActionEvent,
+	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelSceneEntryModel,
 	type TokenRevealCss,
 } from "@acepe/ui/agent-panel";
-import { Colors } from "@acepe/ui/colors";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import XIcon from "@lucide/svelte/icons/x";
 import { Clock } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
-import type { SessionStateGraph, SessionTurnState } from "../../../../services/acp-types.js";
+import type { SessionTurnState } from "../../../../services/acp-types.js";
 import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
@@ -23,6 +23,7 @@ import { getAgentStore } from "../../../store/index.js";
 import { getConnectionStore } from "../../../store/connection-store.svelte.js";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { getPanelStore } from "../../../store/panel-store.svelte.js";
+import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { api } from "../../../store/api.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
@@ -48,7 +49,6 @@ import {
 	AgentPanelComposerFrame as SharedAgentPanelComposerFrame,
 	AgentPanelPlanHeader as SharedPlanHeader,
 } from "@acepe/ui/agent-panel";
-import * as Dialog from "@acepe/ui/dialog";
 import PlanDialog from "../../plan-dialog.svelte";
 import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
 import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
@@ -66,7 +66,6 @@ import {
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 	deriveCanonicalAgentPanelSessionState,
-	deriveEffectiveCanonicalTurnPresentation,
 	derivePanelErrorInfo,
 	mapCanonicalTurnStateToHotTurnState,
 	matchesWorktreeSetupContext,
@@ -105,6 +104,7 @@ import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
@@ -206,6 +206,7 @@ const panelStore = getPanelStore();
 const chatPreferencesStore = getChatPreferencesStore();
 const connectionStore = getConnectionStore();
 const interactionStore = getInteractionStore();
+const permissionStore = getPermissionStore();
 const operationStore = sessionStore.getOperationStore();
 const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
@@ -260,7 +261,7 @@ function buildTokenRevealCss(
 	const revealMode = reducedMotion ? "instant" : streamingAnimationMode;
 
 	const tokenRevealCss = {
-		revealCount: rowTokenStream.wordCount,
+		revealCount: rowTokenStream.latestWordCount,
 		revealedCharCount: rowTokenStream.accumulatedText.length,
 		baselineMs,
 		tokStepMs: TOKEN_REVEAL_STEP_MS,
@@ -368,7 +369,7 @@ const preSessionPendingUserEntry = $derived(
 	sessionId === null || sessionId === undefined ? (panelHotState?.pendingUserEntry ?? null) : null
 );
 const hasCanonicalUserEntryInGraph = $derived.by(() => {
-	const entries = presentationSessionStateGraph?.transcriptSnapshot.entries ?? [];
+	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
 	return entries.some((entry) => entry.role === "user");
 });
 const optimisticUserEntryForGraph = $derived(
@@ -422,6 +423,7 @@ const sessionCurrentModelId = $derived(
 // ✅ State manager for local UI state only (drag, dialog)
 const panelState = new AgentPanelState();
 const panelBranchLookup = createPanelBranchLookupController();
+let inlinePlanDialogPlan = $state<{ title: string; content: string; summary: null } | null>(null);
 
 // Plan sidebar state from store (centralized, auto-persisted)
 const showPlanSidebar = $derived(panelId ? panelStore.isPlanSidebarExpanded(panelId) : false);
@@ -543,37 +545,10 @@ const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph
 const canonicalSessionTurnState = $derived(
 	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
 );
-const hasObservedTerminalTurn = $derived((sessionHotState?.observedTerminalTurn ?? null) !== null);
-const effectiveTurnPresentation = $derived(
-	deriveEffectiveCanonicalTurnPresentation({
-		lifecycle: canonicalProjection?.lifecycle ?? null,
-		activity: sessionStateGraph?.activity ?? null,
-		turnState: sessionStateGraph?.turnState ?? null,
-		hasLocalObservedTerminalTurn: hasObservedTerminalTurn,
-	})
-);
-const presentationSessionStateGraph = $derived.by((): SessionStateGraph | null => {
-	const graph = sessionStateGraph;
-	if (graph === null || !effectiveTurnPresentation.hasTerminalOverride) {
-		return graph;
-	}
-
-	if (
-		effectiveTurnPresentation.activity === null ||
-		effectiveTurnPresentation.activity === undefined
-	) {
-		return graph;
-	}
-
-	return {
-		...graph,
-		activity: effectiveTurnPresentation.activity,
-		turnState: "Completed",
-	};
-});
 const effectiveCanonicalSessionTurnState = $derived(
-	(effectiveTurnPresentation.turnState ?? canonicalSessionTurnState) as SessionTurnState | null
+	(sessionStateGraph?.turnState ?? canonicalSessionTurnState) as SessionTurnState | null
 );
+const effectiveCanonicalActivity = $derived(sessionStateGraph?.activity ?? canonicalProjection?.activity ?? null);
 const sessionTurnState = $derived(
 	effectiveCanonicalSessionTurnState !== null
 		? mapCanonicalTurnStateToHotTurnState(effectiveCanonicalSessionTurnState)
@@ -619,20 +594,17 @@ const agentName = $derived.by(() => {
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
 		lifecycle: canonicalProjection?.lifecycle ?? null,
-		activity: effectiveTurnPresentation.activity ?? canonicalProjection?.activity ?? null,
+		activity: effectiveCanonicalActivity,
 		turnState: effectiveCanonicalSessionTurnState,
 		hasEntries: sessionEntries.length > 0,
 		hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
 		hasLocalPendingSendIntent: (sessionHotState?.pendingSendIntent ?? null) !== null,
-		hasLocalObservedTerminalTurn: hasObservedTerminalTurn,
 	})
 );
 const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
 const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
 const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
-const isAwaitingModelResponse = $derived(
-	effectiveTurnPresentation.activity?.kind === "awaiting_model"
-);
+const isAwaitingModelResponse = $derived(effectiveCanonicalActivity?.kind === "awaiting_model");
 const showPlanningIndicator = $derived(canonicalPanelSessionState.showPlanningIndicator);
 const sessionCanSubmit = $derived(canonicalPanelSessionState.canSubmit);
 const sessionShowStop = $derived(canonicalPanelSessionState.showStop);
@@ -911,7 +883,7 @@ const agentIconSrc = $derived(getAgentIcon(effectivePanelAgentId, effectiveTheme
 const graphMaterializedScene = $derived(
 	materializeAgentPanelSceneFromGraph({
 		panelId: effectivePanelId,
-		graph: presentationSessionStateGraph,
+		graph: sessionStateGraph,
 		header: {
 			title: graphHeaderTitle,
 			subtitle: sessionTitle,
@@ -932,7 +904,7 @@ const graphMaterializedScene = $derived(
 const agentPanelBaseDisplayModel = $derived(
 	buildAgentPanelBaseModel({
 		panelId: effectivePanelId,
-		graph: presentationSessionStateGraph,
+		graph: sessionStateGraph,
 		header: {
 			title: graphHeaderTitle,
 			agentName,
@@ -2160,7 +2132,7 @@ function handleQueueStripSendNow(messageId: string): void {
 }
 
 function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
-	const graph = presentationSessionStateGraph;
+	const graph = sessionStateGraph;
 	if (graph === null) {
 		toast.error("Question is not ready yet.");
 		return;
@@ -2209,6 +2181,57 @@ function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
 				toast.error(`Failed to answer question: ${error.message}`);
 			}
 		);
+}
+
+function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {
+	if (!sessionId) {
+		return undefined;
+	}
+
+	const toolCallId = event.toolCallId ?? event.entryId;
+	return permissionStore.getForToolCall(sessionId, toolCallId);
+}
+
+function replyToPlanPermission(event: AgentPanelPlanActionEvent, reply: "once" | "reject"): void {
+	const permission = findPermissionForPlanAction(event);
+	if (permission === undefined) {
+		toast.error("Plan approval is no longer available.");
+		return;
+	}
+
+	void permissionStore.reply(permission.id, reply).match(
+		() => {},
+		(error) => {
+			toast.error(`Failed to answer plan approval: ${error.message}`);
+		}
+	);
+}
+
+function handlePlanBuild(event: AgentPanelPlanActionEvent): void {
+	replyToPlanPermission(event, "once");
+}
+
+function handlePlanCancel(event: AgentPanelPlanActionEvent): void {
+	replyToPlanPermission(event, "reject");
+}
+
+function isPlanActionAvailable(event: AgentPanelPlanActionEvent): boolean {
+	return findPermissionForPlanAction(event) !== undefined;
+}
+
+function handlePlanViewFull(event: AgentPanelPlanViewEvent): void {
+	inlinePlanDialogPlan = {
+		title: event.title,
+		content: event.content,
+		summary: null,
+	};
+}
+
+function handleInlinePlanDialogOpenChange(open: boolean): void {
+	if (open) {
+		return;
+	}
+	inlinePlanDialogPlan = null;
 }
 
 async function handlePlanSidebarSendMessage(sid: string, message: string): Promise<void> {
@@ -2354,10 +2377,13 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
-						turnState={agentPanelDisplayModel.turnState}
 						isWaitingForResponse={agentPanelDisplayModel.waiting.show}
 						waitingLabel={agentPanelDisplayModel.waiting.label}
 						onQuestionSelect={handleQuestionSelect}
+						onPlanBuild={handlePlanBuild}
+						onPlanCancel={handlePlanCancel}
+						onPlanViewFull={handlePlanViewFull}
+						{isPlanActionAvailable}
 					/>
 				</div>
 				{#if viewState.kind === "conversation" && !contentIsAtTop}
@@ -2425,7 +2451,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			effectiveProjectPath={effectiveProjectPath ?? null}
 			sessionProjectPath={sessionProjectPath ?? null}
 			sessionEntries={sessionEntries}
-			sessionTurnState={canonicalSessionTurnState}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}
@@ -2656,43 +2681,36 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 </AgentPanelShell>
 
-<Dialog.Root open={reviewDialogOpen} onOpenChange={handleReviewDialogOpenChange}>
-	<Dialog.Content
-		class="h-[min(86vh,860px)] w-[min(94vw,1180px)] max-w-none overflow-visible p-1"
-		showCloseButton={false}
-	>
-		<Dialog.Title class="sr-only">Review changes</Dialog.Title>
-		<Dialog.Close
-			aria-label="Close review"
-			class="review-dialog-close absolute right-0 top-0 z-30 inline-flex size-5 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-			style="--review-dialog-close-hover: {Colors.red};"
-		>
-			<XIcon class="size-3" />
-		</Dialog.Close>
-		{#if reviewDialogFilesState}
-			<AgentPanelReviewWorkspace
-				{sessionId}
-				reviewFilesState={reviewDialogFilesState}
-				selectedFileIndex={clampedReviewDialogFileIndex}
-				projectPath={sessionProjectPath}
-				isActive={reviewDialogOpen}
-				showHeader={false}
-				compact={true}
-				diffDensity="compact"
-				onClose={() => handleReviewDialogOpenChange(false)}
-				onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
-			/>
-		{/if}
-	</Dialog.Content>
-</Dialog.Root>
+<WorkspaceDialogFrame
+	open={reviewDialogOpen}
+	title="Review changes"
+	closeLabel="Close review"
+	onOpenChange={handleReviewDialogOpenChange}
+>
+	{#if reviewDialogFilesState}
+		<AgentPanelReviewWorkspace
+			{sessionId}
+			reviewFilesState={reviewDialogFilesState}
+			selectedFileIndex={clampedReviewDialogFileIndex}
+			projectPath={sessionProjectPath}
+			isActive={reviewDialogOpen}
+			showHeader={false}
+			compact={true}
+			diffDensity="compact"
+			onClose={() => handleReviewDialogOpenChange(false)}
+			onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
+		/>
+	{/if}
+</WorkspaceDialogFrame>
 
-<style>
-	.review-dialog-close:hover {
-		color: var(--review-dialog-close-hover);
-		border-color: color-mix(in srgb, var(--review-dialog-close-hover) 55%, transparent);
-		background-color: color-mix(in srgb, var(--review-dialog-close-hover) 10%, var(--accent));
-	}
-</style>
+{#if inlinePlanDialogPlan}
+	<PlanDialog
+		plan={inlinePlanDialogPlan}
+		open={inlinePlanDialogPlan !== null}
+		onOpenChange={handleInlinePlanDialogOpenChange}
+		projectPath={sessionProjectPath ?? undefined}
+	/>
+{/if}
 
 <AgentPanelWorktreeCloseConfirmPopover
 	bind:open={worktreeCloseConfirming}

@@ -21,10 +21,6 @@ interface Props {
 	canCreateSession?: boolean;
 	isSessionOpen?: (sessionId: string) => boolean;
 	scanning?: boolean;
-	/** Initial file tree expansion state for persistence */
-	initialFileTreeExpansion?: Record<string, string[]>;
-	/** Initial project file view modes for persistence */
-	initialProjectFileViewModes?: Record<string, "sessions" | "files">;
 	/** Initial collapsed project paths for persistence */
 	initialCollapsedProjectPaths?: string[];
 	onSelectSession: (sessionId: string, sessionInfo?: SessionListItem) => void;
@@ -42,10 +38,6 @@ interface Props {
 	onResetProjectIcon?: (projectPath: string) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
-	/** Called when file tree expansion state changes */
-	onFileTreeExpansionChange?: (expansion: Record<string, string[]>) => void;
-	/** Called when project file view mode changes (sessions vs files) */
-	onProjectFileViewModeChange?: (modes: Record<string, "sessions" | "files">) => void;
 	/** Called when collapsed project paths change */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
 	/** Called when terminal button is clicked for a project */
@@ -77,8 +69,6 @@ let {
 	canCreateSession = false,
 	isSessionOpen = () => false,
 	scanning = false,
-	initialFileTreeExpansion = {},
-	initialProjectFileViewModes = {},
 	initialCollapsedProjectPaths = [],
 	onSelectSession,
 	onCreateSession,
@@ -92,8 +82,6 @@ let {
 	onResetProjectIcon,
 	onRemoveProject,
 	onSelectFile,
-	onFileTreeExpansionChange,
-	onProjectFileViewModeChange,
 	onCollapsedProjectPathsChange,
 	onOpenTerminal,
 	onOpenBrowser,
@@ -195,8 +183,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{hasProjects}
 	{selectedSessionId}
 	{scanning}
-	{initialFileTreeExpansion}
-	{initialProjectFileViewModes}
 	{initialCollapsedProjectPaths}
 	onSelectSession={handleSelectSession}
 	onCreateSession={handleCreateSession}
@@ -206,8 +192,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{effectiveTheme}
 	{onProjectClick}
 	{onSelectFile}
-	{onFileTreeExpansionChange}
-	{onProjectFileViewModeChange}
 	{onCollapsedProjectPathsChange}
 	{onOpenTerminal}
 	{onOpenBrowser}

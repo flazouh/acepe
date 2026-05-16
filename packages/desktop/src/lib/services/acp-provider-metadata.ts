@@ -13,6 +13,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 	copilot: {
 		providerBrand: "copilot",
@@ -24,6 +25,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
+		implicitSessionCreationMode: "allowed",
 	},
 	cursor: {
 		providerBrand: "cursor",
@@ -35,6 +37,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 	opencode: {
 		providerBrand: "opencode",
@@ -46,6 +49,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
+		implicitSessionCreationMode: "explicitUserAction",
 	},
 	codex: {
 		providerBrand: "codex",
@@ -57,6 +61,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: true,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 };
 
@@ -74,6 +79,8 @@ function cloneProviderMetadataProjection(
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
 		preconnectionCapabilityMode:
 			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
+		implicitSessionCreationMode:
+			providerMetadata.implicitSessionCreationMode ?? "explicitUserAction",
 	};
 }
 
@@ -101,6 +108,7 @@ export function resolveProviderMetadataProjection(
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "unsupported",
 		preconnectionCapabilityMode: "unsupported",
+		implicitSessionCreationMode: "explicitUserAction",
 	};
 }
 

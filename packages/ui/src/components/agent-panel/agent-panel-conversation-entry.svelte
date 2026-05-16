@@ -3,6 +3,8 @@
 	import type { Snippet } from "svelte";
 	import type {
 		AgentPanelConversationEntry,
+		AgentPanelPlanActionEvent,
+		AgentPanelPlanViewEvent,
 		AgentPanelQuestionSelectEvent,
 		AssistantRenderBlockContext,
 	} from "./types.js";
@@ -26,6 +28,8 @@
 	import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
 	import AgentUserMessage from "./agent-user-message.svelte";
 	import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
+	import { PlanCard } from "../plan-card/index.js";
+	import type { PlanCardStatus } from "../plan-card/types.js";
 
 	export interface EditToolTheme {
 		theme?: "light" | "dark";
@@ -43,6 +47,10 @@
 		streamingAnimationMode?: StreamingAnimationMode;
 		renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
 		onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
+		onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
+		onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
+		onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+		isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	}
 
 	let {
@@ -53,6 +61,10 @@
 		streamingAnimationMode = "smooth",
 		renderAssistantBlock,
 		onQuestionSelect,
+		onPlanBuild,
+		onPlanCancel,
+		onPlanViewFull,
+		isPlanActionAvailable,
 	}: Props = $props();
 
 	function isToolCall(
@@ -68,6 +80,53 @@
 
 		return new Set(entry.lintDiagnostics.map((diagnostic) => diagnostic.filePath ?? "unknown")).size;
 	});
+
+	function resolvePlanStatus(
+		status: Extract<AgentPanelConversationEntry, { type: "tool_call" }>["status"],
+		planStatus: PlanCardStatus | undefined,
+	): PlanCardStatus {
+		if (planStatus !== undefined) {
+			return planStatus;
+		}
+		if (status === "error" || status === "cancelled") {
+			return "rejected";
+		}
+		if (status === "done") {
+			return "approved";
+		}
+		return "streaming";
+	}
+
+	function planActionEvent(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+	): AgentPanelPlanActionEvent {
+		return {
+			entryId: toolEntry.id,
+			toolCallId: toolEntry.toolCallId,
+			interactionId: toolEntry.interactionId,
+		};
+	}
+
+	function planViewEvent(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+	): AgentPanelPlanViewEvent {
+		return {
+			entryId: toolEntry.id,
+			toolCallId: toolEntry.toolCallId,
+			interactionId: toolEntry.interactionId,
+			title: toolEntry.planTitle ?? toolEntry.title,
+			content: toolEntry.planContent ?? "",
+		};
+	}
+
+	function planActionsDisabled(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+	): boolean {
+		if (!isPlanActionAvailable) {
+			return false;
+		}
+		return !isPlanActionAvailable(planActionEvent(toolEntry));
+	}
  </script>
 
 {#if entry.type === "user"}
@@ -148,6 +207,7 @@
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
 		command={entry.command ?? null}
+		commandHtmls={entry.commandHtmls}
 		stdout={entry.stdout}
 		stderr={entry.stderr}
 		exitCode={entry.exitCode}
@@ -209,6 +269,16 @@
 		children={entry.taskChildren}
 		status={entry.status}
 		{iconBasePath}
+	/>
+{:else if isToolCall(entry) && (entry.kind === "exit_plan_mode" || entry.kind === "create_plan")}
+	<PlanCard
+		content={entry.planContent ?? ""}
+		title={entry.planTitle ?? entry.title}
+		status={resolvePlanStatus(entry.status, entry.planStatus)}
+		onBuild={onPlanBuild ? () => onPlanBuild(planActionEvent(entry)) : undefined}
+		onCancel={onPlanCancel ? () => onPlanCancel(planActionEvent(entry)) : undefined}
+		onViewFull={onPlanViewFull ? () => onPlanViewFull(planViewEvent(entry)) : undefined}
+		actionsDisabled={planActionsDisabled(entry)}
 	/>
 {:else if isToolCall(entry) && entry.status === "error" && entry.resultText}
 	<div class="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">

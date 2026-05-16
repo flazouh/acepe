@@ -218,6 +218,147 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("maps Claude Code ExitPlanMode raw input into a plan tool card model", () => {
+		const plan = "# Focused Plan\n\n- [ ] Fix the exit plan display";
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-exit-plan-1",
+				type: "tool_call",
+				message: {
+					id: "tool-exit-plan-1",
+					name: "ExitPlanMode",
+					arguments: {
+						kind: "planMode",
+						mode: null,
+					},
+					rawInput: {
+						plan,
+						planFilePath: "/repo/.claude/plans/focused-plan.md",
+					},
+					status: "completed",
+					result: null,
+					kind: "exit_plan_mode",
+					title: "Exit plan mode",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "completed");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-exit-plan-1",
+			type: "tool_call",
+			kind: "exit_plan_mode",
+			title: "Plan ready",
+			planTitle: "Focused Plan",
+			planContent: plan,
+			planStatus: "approved",
+		});
+	});
+
+	it("keeps an in-progress ExitPlanMode plan interactive when the plan content arrived", () => {
+		const plan = "# Animate the Mode Pill Indicator\n\n## Approach\n\nAdd a sliding highlight.";
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-exit-plan-live",
+				type: "tool_call",
+				message: {
+					id: "tool-exit-plan-live",
+					name: "ExitPlanMode",
+					arguments: {
+						kind: "planMode",
+						mode: null,
+					},
+					rawInput: {
+						plan,
+						planFilePath: "/repo/.claude/plans/make-this-an-animation.md",
+					},
+					status: "in_progress",
+					result: null,
+					kind: "exit_plan_mode",
+					title: "Exit plan mode",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-exit-plan-live",
+			type: "tool_call",
+			kind: "exit_plan_mode",
+			title: "Plan ready",
+			planTitle: "Animate the Mode Pill Indicator",
+			planContent: plan,
+			planStatus: "interactive",
+		});
+	});
+
+	it("reads restored ExitPlanMode plan content from arguments.raw when rawInput is missing", () => {
+		const plan = "# Restored Plan\n\n- [ ] Render from restored arguments";
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-exit-plan-restored",
+				type: "tool_call",
+				message: {
+					id: "tool-exit-plan-restored",
+					name: "ExitPlanMode",
+					arguments: {
+						kind: "other",
+						raw: {
+							plan,
+							planFilePath: "/repo/.claude/plans/restored-plan.md",
+						},
+					},
+					rawInput: null,
+					status: "in_progress",
+					result: null,
+					kind: "exit_plan_mode",
+					title: "Exit plan mode",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "tool-exit-plan-restored",
+			type: "tool_call",
+			kind: "exit_plan_mode",
+			title: "Plan ready",
+			planTitle: "Restored Plan",
+			planContent: plan,
+			planStatus: "interactive",
+		});
+	});
+
 	it("only keeps the trailing incomplete tool call live during streaming", () => {
 		const entries: SessionEntry[] = [
 			{

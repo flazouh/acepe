@@ -11,6 +11,7 @@ import {
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
 } from "@acepe/ui/agent-panel";
+import type { Snippet } from "svelte";
 import type { AvailableCommand } from "../../../types/available-command.js";
 import type { ComposerInteractionState } from "../../../logic/composer-ui-state.js";
 import FilePreview from "../../file-picker/file-preview.svelte";
@@ -64,6 +65,7 @@ let {
 	tooltipSend,
 	slashLabels,
 	filePickerLabels,
+	modeControls,
 }: {
 	voiceState: VoiceInputState | null;
 	voiceOverlayActive: boolean;
@@ -123,6 +125,8 @@ let {
 		selectHint: string;
 		closeHint: string;
 	};
+	/** Renders between the text area and the submit button — used for the mode pill. */
+	modeControls?: Snippet;
 } = $props();
 </script>
 
@@ -192,7 +196,10 @@ let {
 				</div>
 			{/if}
 		</div>
-		<div class="flex items-end shrink-0">
+		<div class="flex items-end gap-1.5 shrink-0">
+			{#if modeControls}
+				{@render modeControls()}
+			{/if}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					{#snippet child({ props: triggerProps })}

@@ -18,6 +18,7 @@ export type RowTokenStream = {
 	readonly rowId: AssistantTextDeltaPayload["rowId"];
 	readonly accumulatedText: string;
 	readonly wordCount: number;
+	readonly latestWordCount: number;
 	readonly firstDeltaProducedAtMonotonicMs: AssistantTextDeltaPayload["producedAtMonotonicMs"];
 	readonly lastDeltaProducedAtMonotonicMs: AssistantTextDeltaPayload["producedAtMonotonicMs"];
 	readonly revision: AssistantTextDeltaPayload["revision"];

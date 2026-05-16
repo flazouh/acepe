@@ -14,6 +14,7 @@ import {
 	PlanIcon,
 	ProjectLetterBadge,
 } from "@acepe/ui";
+import { PlanCard } from "@acepe/ui/plan-card";
 import { XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
@@ -39,6 +40,8 @@ import {
 	buildQueueItemQuestionUiState,
 	type QuestionSelectionReader,
 } from "./queue-item-question-ui-state.js";
+import { buildQueueExitPlanCard } from "./queue-exit-plan-card.js";
+import PlanDialog from "../plan-dialog.svelte";
 
 const QUESTION_COLORS = [
 	Colors[COLOR_NAMES.GREEN],
@@ -59,6 +62,7 @@ const interactionStore = getInteractionStore();
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
 const permissionStore = getPermissionStore();
+let planDialogPlan = $state<{ title: string; content: string; summary: null } | null>(null);
 
 const selectionReader: QuestionSelectionReader = {
 	hasSelections(questionId, questionIndex) {
@@ -119,6 +123,10 @@ const exitPlanDisplayTitle = $derived.by(() => {
 	if (!toolCall) return "Plan";
 	const plan = getExitPlanDisplayPlan(toolCall, pendingPermission, null);
 	return plan ? plan.title : "Plan";
+});
+const exitPlanCard = $derived.by(() => {
+	if (!isExitPlanMode || !pendingPermission) return null;
+	return buildQueueExitPlanCard(effectiveToolCall, pendingPermission);
 });
 
 const permissionCommand = $derived.by(() => {
@@ -336,6 +344,22 @@ function handleExitPlanCancel() {
 	permissionStore.reply(pendingPermission.id, "reject");
 }
 
+function handleExitPlanViewFull(): void {
+	const card = exitPlanCard;
+	planDialogPlan = {
+		title: card?.title ?? exitPlanDisplayTitle,
+		content: card?.content ?? "",
+		summary: null,
+	};
+}
+
+function handlePlanDialogOpenChange(open: boolean): void {
+	if (open) {
+		return;
+	}
+	planDialogPlan = null;
+}
+
 const redColor = Colors[COLOR_NAMES.RED];
 
 function submitAllAnswers() {
@@ -451,29 +475,16 @@ function handleNextQuestion() {
 				<span class="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">{timeAgo}</span>
 			{/if}
 		</div>
-		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
-			<EmbeddedPanelHeader class="!border-b-0">
-				<HeaderTitleCell compactPadding>
-					<PlanIcon size="sm" class="shrink-0 mr-1" />
-					<span
-						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
-					>
-						{exitPlanDisplayTitle}
-					</span>
-				</HeaderTitleCell>
-				<HeaderActionCell withDivider={false}>
-					<button type="button" class="plan-queue-action" onclick={handleExitPlanCancel}>
-						<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
-						Cancel
-					</button>
-				</HeaderActionCell>
-				<HeaderActionCell>
-					<button type="button" class="plan-queue-action" onclick={handleExitPlanBuild}>
-						<BuildIcon size="sm" />
-						{"Build"}
-					</button>
-				</HeaderActionCell>
-			</EmbeddedPanelHeader>
+		<div class="border-t border-border/50 p-1" onclick={(e) => e.stopPropagation()}>
+			<PlanCard
+				title={exitPlanCard?.title ?? exitPlanDisplayTitle}
+				content={exitPlanCard?.content ?? ""}
+				status="interactive"
+				onBuild={handleExitPlanBuild}
+				onCancel={handleExitPlanCancel}
+				onViewFull={handleExitPlanViewFull}
+				class="rounded-sm border-border/70 bg-background/60"
+			/>
 		</div>
 	</div>
 {:else if hasPendingPermission && pendingPermission}
@@ -580,6 +591,15 @@ function handleNextQuestion() {
 		onSubmitAll={submitAllAnswers}
 		onPrevQuestion={handlePrevQuestion}
 		onNextQuestion={handleNextQuestion}
+	/>
+{/if}
+
+{#if planDialogPlan}
+	<PlanDialog
+		plan={planDialogPlan}
+		open={planDialogPlan !== null}
+		onOpenChange={handlePlanDialogOpenChange}
+		projectPath={item.projectPath}
 	/>
 {/if}
 

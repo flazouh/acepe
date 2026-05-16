@@ -187,17 +187,13 @@ fn convert_full_session_impl(
                 }
             }
             "assistant" => {
-                let (assistant_entry, tool_entries) = convert_assistant_message(
+                entries.extend(convert_assistant_message(
                     msg,
                     &tool_results,
                     &skill_metas,
                     &question_answers,
                     agent_type,
-                );
-                if let Some(entry) = assistant_entry {
-                    entries.push(entry);
-                }
-                entries.extend(tool_entries);
+                ));
             }
             _ => {}
         }
@@ -349,16 +345,168 @@ fn parse_question_answer(tool_use_result: &serde_json::Value) -> Option<Question
     Some(QuestionAnswer { questions, answers })
 }
 
-/// Convert an assistant message to StoredEntry plus tool call entries.
+fn assistant_entry_id(message_id: &str, segment_index: usize, split_count: usize) -> String {
+    if split_count == 1 {
+        return message_id.to_string();
+    }
+
+    format!("{message_id}:assistant:{segment_index}")
+}
+
+fn build_assistant_entry(
+    msg: &OrderedMessage,
+    chunks: Vec<StoredAssistantChunk>,
+    segment_index: usize,
+    split_count: usize,
+) -> StoredEntry {
+    StoredEntry::Assistant {
+        id: assistant_entry_id(&msg.uuid, segment_index, split_count),
+        message: StoredAssistantMessage {
+            chunks,
+            model: msg.model.clone(),
+            display_model: msg.model.as_ref().map(|m| format_model_display_name(m)),
+            received_at: Some(msg.timestamp.clone()),
+        },
+        timestamp: Some(msg.timestamp.clone()),
+    }
+}
+
+fn build_tool_entry(
+    msg: &OrderedMessage,
+    id: &str,
+    name: &str,
+    input: &serde_json::Value,
+    tool_results: &HashMap<String, String>,
+    skill_metas: &HashMap<String, SkillMeta>,
+    question_answers: &HashMap<String, QuestionAnswer>,
+    agent_type: AgentType,
+) -> StoredEntry {
+    let normalized_id = normalize_tool_call_id(id);
+    let result = tool_results.get(&normalized_id).cloned();
+    let status = if result.is_some() {
+        "completed"
+    } else {
+        "pending"
+    };
+    let skill_meta = if name == "Skill" {
+        skill_metas.get(&normalized_id).cloned()
+    } else {
+        None
+    };
+    let question_answer = if is_question_tool(name) {
+        question_answers.get(&msg.uuid).cloned()
+    } else {
+        None
+    };
+    let parser = get_parser(agent_type);
+    let classified = classify_raw_tool_call(
+        parser,
+        &normalized_id,
+        input,
+        ToolClassificationHints {
+            name: None,
+            title: Some(name),
+            kind: Some(parser.detect_tool_kind(name)),
+            kind_hint: None,
+            locations: None,
+        },
+    );
+
+    StoredEntry::ToolCall {
+        id: normalized_id.clone(),
+        message: ToolCallData {
+            id: normalized_id,
+            name: classified.name.clone(),
+            title: Some(classified.name.clone()),
+            status: tool_call_status_from_str(status),
+            result: result.map(serde_json::Value::String),
+            kind: Some(classified.kind),
+            arguments: classified.arguments,
+            raw_input: Some(input.clone()),
+            skill_meta,
+            locations: None,
+            normalized_questions: classified.normalized_questions,
+            normalized_todos: classified.normalized_todos,
+            normalized_todo_update: classified.normalized_todo_update,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        },
+        timestamp: Some(msg.timestamp.clone()),
+    }
+}
+
+fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
+    let mut count = 0;
+    let mut has_pending_chunks = false;
+
+    for block in blocks {
+        match block {
+            ContentBlock::Text { text } => {
+                if !text.trim().is_empty() {
+                    has_pending_chunks = true;
+                }
+            }
+            ContentBlock::Thinking { thinking, .. } => {
+                if !thinking.trim().is_empty() {
+                    has_pending_chunks = true;
+                }
+            }
+            ContentBlock::CodeAttachment { .. } => {
+                has_pending_chunks = true;
+            }
+            ContentBlock::ToolUse { .. } => {
+                if has_pending_chunks {
+                    count += 1;
+                    has_pending_chunks = false;
+                }
+            }
+            ContentBlock::ToolResult { .. } => {}
+        }
+    }
+
+    if has_pending_chunks {
+        count += 1;
+    }
+
+    count
+}
+
+fn push_assistant_entry_if_needed(
+    entries: &mut Vec<StoredEntry>,
+    msg: &OrderedMessage,
+    chunks: &mut Vec<StoredAssistantChunk>,
+    segment_index: &mut usize,
+    split_count: usize,
+) {
+    if chunks.is_empty() {
+        return;
+    }
+
+    let entry_chunks = std::mem::take(chunks);
+    entries.push(build_assistant_entry(
+        msg,
+        entry_chunks,
+        *segment_index,
+        split_count,
+    ));
+    *segment_index += 1;
+}
+
+/// Convert an assistant message to stored entries while preserving content block order.
 fn convert_assistant_message(
     msg: &OrderedMessage,
     tool_results: &HashMap<String, String>,
     skill_metas: &HashMap<String, SkillMeta>,
     question_answers: &HashMap<String, QuestionAnswer>,
     agent_type: AgentType,
-) -> (Option<StoredEntry>, Vec<StoredEntry>) {
+) -> Vec<StoredEntry> {
     let mut chunks: Vec<StoredAssistantChunk> = Vec::new();
-    let mut tool_entries: Vec<StoredEntry> = Vec::new();
+    let mut entries: Vec<StoredEntry> = Vec::new();
+    let split_count = count_assistant_text_segments(&msg.content_blocks);
+    let mut segment_index = 0;
 
     for block in &msg.content_blocks {
         match block {
@@ -385,66 +533,23 @@ fn convert_assistant_message(
                 }
             }
             ContentBlock::ToolUse { id, name, input } => {
-                let normalized_id = normalize_tool_call_id(id);
-                let result = tool_results.get(&normalized_id).cloned();
-                let status = if result.is_some() {
-                    "completed"
-                } else {
-                    "pending"
-                };
-
-                // Get skill meta if this is a Skill tool call
-                let skill_meta = if name == "Skill" {
-                    skill_metas.get(&normalized_id).cloned()
-                } else {
-                    None
-                };
-
-                // Get question answer if this is a question tool call
-                // The question_answers map is keyed by the assistant message UUID
-                let question_answer = if is_question_tool(name) {
-                    question_answers.get(&msg.uuid).cloned()
-                } else {
-                    None
-                };
-
-                let parser = get_parser(agent_type);
-                let classified = classify_raw_tool_call(
-                    parser,
-                    &normalized_id,
-                    input,
-                    ToolClassificationHints {
-                        name: None,
-                        title: Some(name),
-                        kind: Some(parser.detect_tool_kind(name)),
-                        kind_hint: None,
-                        locations: None,
-                    },
+                push_assistant_entry_if_needed(
+                    &mut entries,
+                    msg,
+                    &mut chunks,
+                    &mut segment_index,
+                    split_count,
                 );
-                tool_entries.push(StoredEntry::ToolCall {
-                    id: normalized_id.clone(),
-                    message: ToolCallData {
-                        id: normalized_id,
-                        name: classified.name.clone(),
-                        title: Some(classified.name.clone()),
-                        status: tool_call_status_from_str(status),
-                        result: result.map(serde_json::Value::String),
-                        kind: Some(classified.kind),
-                        arguments: classified.arguments,
-                        raw_input: Some(input.clone()),
-                        skill_meta,
-                        locations: None,
-                        normalized_questions: classified.normalized_questions,
-                        normalized_todos: classified.normalized_todos,
-                        normalized_todo_update: classified.normalized_todo_update,
-                        parent_tool_use_id: None,
-                        task_children: None,
-                        question_answer,
-                        awaiting_plan_approval: false,
-                        plan_approval_request_id: None,
-                    },
-                    timestamp: Some(msg.timestamp.clone()),
-                });
+                entries.push(build_tool_entry(
+                    msg,
+                    id,
+                    name,
+                    input,
+                    tool_results,
+                    skill_metas,
+                    question_answers,
+                    agent_type,
+                ));
             }
             ContentBlock::ToolResult { .. } => {
                 // Tool results are handled when processing tool_use
@@ -471,26 +576,22 @@ fn convert_assistant_message(
     }
 
     if let Some(error) = &msg.error {
-        return (
-            Some(assistant_provider_error_entry(msg, error)),
-            tool_entries,
+        let mut error_entries = vec![assistant_provider_error_entry(msg, error)];
+        error_entries.extend(
+            entries
+                .into_iter()
+                .filter(|entry| matches!(entry, StoredEntry::ToolCall { .. })),
         );
+        return error_entries;
     }
 
-    let assistant_entry = if !chunks.is_empty() {
-        Some(StoredEntry::Assistant {
-            id: msg.uuid.clone(),
-            message: StoredAssistantMessage {
-                chunks,
-                model: msg.model.clone(),
-                display_model: msg.model.as_ref().map(|m| format_model_display_name(m)),
-                received_at: Some(msg.timestamp.clone()),
-            },
-            timestamp: Some(msg.timestamp.clone()),
-        })
-    } else {
-        None
-    };
+    push_assistant_entry_if_needed(
+        &mut entries,
+        msg,
+        &mut chunks,
+        &mut segment_index,
+        split_count,
+    );
 
-    (assistant_entry, tool_entries)
+    entries
 }

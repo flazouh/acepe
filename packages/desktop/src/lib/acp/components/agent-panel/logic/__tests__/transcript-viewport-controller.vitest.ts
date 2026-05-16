@@ -209,8 +209,79 @@ describe("TranscriptViewportController", () => {
 
 		expect(intermediateScroll.state.follow).toBe("following");
 		expect(intermediateScroll.state.anchor).toEqual({ type: "tail" });
-		expect(intermediateScroll.state.lastMeasurement).toBeNull();
+		expect(intermediateScroll.state.lastMeasurement).toEqual({
+			scrollOffset: 120,
+			scrollSize: 1200,
+			viewportSize: 300,
+		});
 		expect(intermediateScroll.effects).toEqual([]);
+	});
+
+	it("detaches when a programmatic bottom scroll settles away from the tail", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+		const bottom = reduceTranscriptViewportEvent(initial, {
+			type: "PublicScrollCommand",
+			sessionId: "session-1",
+			generation: initial.generation,
+			command: "bottom",
+		}).state;
+		const stalledMeasurement = {
+			scrollOffset: 120,
+			scrollSize: 1200,
+			viewportSize: 300,
+		};
+		const firstSettlingFrame = reduceTranscriptViewportEvent(bottom, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: bottom.generation,
+			measurement: stalledMeasurement,
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 16,
+		}).state;
+
+		const secondSettlingFrame = reduceTranscriptViewportEvent(firstSettlingFrame, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: firstSettlingFrame.generation,
+			measurement: stalledMeasurement,
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 16,
+		});
+
+		expect(secondSettlingFrame.state.follow).toBe("detached");
+		expect(secondSettlingFrame.state.programmaticScrollInFlight).toBe(false);
+		expect(secondSettlingFrame.state.anchor).toEqual({
+			type: "row",
+			rowKey: "assistant-1",
+			edge: "start",
+			offsetPx: 16,
+		});
+
+		const streamedRows = reduceTranscriptViewportEvent(secondSettlingFrame.state, {
+			type: "RowsChanged",
+			sessionId: "session-1",
+			generation: secondSettlingFrame.state.generation,
+			rows: {
+				version: 2,
+				count: 4,
+				firstKey: "user-1",
+				lastKey: "assistant-2",
+				latestUserKey: "user-1",
+				anchorEligibleKeys: ["user-1", "assistant-1", "assistant-2"],
+			},
+		});
+
+		expect(streamedRows.effects).toContainEqual({
+			type: "PreserveAnchor",
+			sessionId: "session-1",
+			generation: secondSettlingFrame.state.generation,
+			anchorKey: "assistant-1",
+			offsetPx: 16,
+		});
+		expect(streamedRows.effects.map((effect) => effect.type)).not.toContain("RevealTail");
 	});
 
 	it("still lets explicit wheel scroll detach during a programmatic bottom scroll", () => {
@@ -490,5 +561,50 @@ describe("TranscriptViewportController", () => {
 			type: "RevealTail",
 			reason: "send-started",
 		});
+	});
+
+	it("does not reveal the tail when a user wheel and rows changed arrive in the same frame", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+
+		const result = reduceTranscriptViewportBatch(initial, [
+			{
+				type: "RowsChanged",
+				sessionId: "session-1",
+				generation: initial.generation,
+				rows: {
+					version: 2,
+					count: 4,
+					firstKey: "user-1",
+					lastKey: "assistant-2",
+					latestUserKey: "user-1",
+					anchorEligibleKeys: ["user-1", "assistant-1", "assistant-2"],
+				},
+			},
+			{
+				type: "UserWheel",
+				sessionId: "session-1",
+				generation: initial.generation,
+				measurement: {
+					scrollOffset: 120,
+					scrollSize: 1200,
+					viewportSize: 300,
+				},
+				anchorKey: "assistant-1",
+				anchorOffsetPx: 18,
+			},
+		]);
+
+		expect(result.state.follow).toBe("detached");
+		expect(result.effects).toContainEqual({
+			type: "PreserveAnchor",
+			sessionId: "session-1",
+			generation: initial.generation,
+			anchorKey: "assistant-1",
+			offsetPx: 18,
+		});
+		expect(result.effects.map((effect) => effect.type)).not.toContain("RevealTail");
 	});
 });

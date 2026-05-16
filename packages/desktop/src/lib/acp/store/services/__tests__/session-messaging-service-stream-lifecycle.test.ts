@@ -201,25 +201,24 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			sessionId,
 			expect.objectContaining({
 				pendingSendIntent: null,
-				observedTerminalTurn: expect.objectContaining({
-					turnId: null,
-				}),
 			})
 		);
 	});
 
-	it("records the observed terminal turn id for local waiting-state cleanup", () => {
+	it("does not record terminal turn state in the transient projection", () => {
 		service.handleStreamComplete(sessionId, "turn-1");
 
 		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
 				pendingSendIntent: null,
-				observedTerminalTurn: expect.objectContaining({
-					turnId: "turn-1",
-					observedAt: expect.any(Number),
-				}),
 			})
+		);
+		const updates = (deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>).mock.calls.map(
+			(call) => call[1]
+		);
+		expect(updates).not.toContainEqual(
+			expect.objectContaining({ observedTerminalTurn: expect.anything() })
 		);
 	});
 

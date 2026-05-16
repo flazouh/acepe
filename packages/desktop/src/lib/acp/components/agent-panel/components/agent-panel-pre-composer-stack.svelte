@@ -14,7 +14,6 @@ import type {
 import type { SessionCold } from "../../../application/dto/session-cold.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
-import type { SessionTurnState } from "../../../../services/acp-types.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import PrStatusCard from "../../pr-status-card/pr-status-card.svelte";
 import ModifiedFilesHeader from "../../modified-files/modified-files-header.svelte";
@@ -75,7 +74,6 @@ let {
 	effectiveProjectPath,
 	sessionProjectPath,
 	sessionEntries,
-	sessionTurnState,
 	effectivePathForGit,
 	createdPr,
 	createPrRunning,
@@ -144,7 +142,6 @@ let {
 	effectiveProjectPath: string | null;
 	sessionProjectPath: string | null;
 	sessionEntries: SessionEntry[];
-	sessionTurnState: SessionTurnState | null;
 	effectivePathForGit: string | null;
 	createdPr: number | null;
 	createPrRunning: boolean;
@@ -245,7 +242,6 @@ let {
 								sessionId={sessionId}
 								projectPath={effectiveProjectPath ?? sessionProjectPath}
 								entries={sessionEntries}
-								turnState={sessionTurnState}
 							/>
 						{/if}
 						{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}

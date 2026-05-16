@@ -58,7 +58,6 @@ export {
 export { backfillSceneEntryTimestamps } from "./backfill-scene-entry-timestamps.js";
 export {
 	deriveCanonicalAgentPanelSessionState,
-	deriveEffectiveCanonicalTurnPresentation,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,
 } from "./session-status-mapper";

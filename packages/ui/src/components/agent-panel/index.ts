@@ -22,6 +22,7 @@ export { default as AgentInputEditor } from "./agent-input-editor.svelte";
 export { default as AgentInputFilePickerDropdown } from "./agent-input-file-picker-dropdown.svelte";
 export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";
+export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
 export { default as AgentInputModelModeBar } from "./agent-input-model-mode-bar.svelte";
@@ -165,6 +166,8 @@ export type {
 	AgentPanelPlanSidebarModel,
 	AgentPanelPrCardModel,
 	AgentPanelPrCommitItem,
+	AgentPanelPlanActionEvent,
+	AgentPanelPlanViewEvent,
 	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelRecommendedAction,

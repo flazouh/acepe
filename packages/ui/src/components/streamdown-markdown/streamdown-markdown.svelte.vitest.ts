@@ -49,6 +49,12 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
+function getAnimatedTexts(container: HTMLElement): string[] {
+	return Array.from(container.querySelectorAll("[data-sd-animate]"))
+		.map((element) => element.textContent?.trim() ?? "")
+		.filter((text) => text.length > 0);
+}
+
 describe("StreamdownMarkdown", () => {
 	it("renders markdown through Streamdown", async () => {
 		const { container } = render(StreamdownMarkdown, {
@@ -261,6 +267,42 @@ describe("StreamdownMarkdown", () => {
 		expect(secondAnimatedWord?.getAttribute("style")).toContain("--sd-delay: 48ms");
 	});
 
+	it("keeps token reveal animation on the latest streamed tail only", async () => {
+		const firstMarkdown = "alpha beta gamma delta";
+		const secondMarkdown = "alpha beta gamma delta epsilon";
+		const result = render(StreamdownMarkdown, {
+			markdown: firstMarkdown,
+			tokenRevealTiming: {
+				revealCount: 2,
+				revealedCharCount: firstMarkdown.length,
+				baselineMs: -96,
+				tokStepMs: 48,
+				tokFadeDurMs: 630,
+				mode: "smooth",
+			},
+		});
+
+		await waitFor(() => {
+			expect(getAnimatedTexts(result.container)).toEqual(["gamma", "delta"]);
+		});
+
+		await result.rerender({
+			markdown: secondMarkdown,
+			tokenRevealTiming: {
+				revealCount: 2,
+				revealedCharCount: secondMarkdown.length,
+				baselineMs: -96,
+				tokStepMs: 48,
+				tokFadeDurMs: 630,
+				mode: "smooth",
+			},
+		});
+
+		await waitFor(() => {
+			expect(getAnimatedTexts(result.container)).toEqual(["delta", "epsilon"]);
+		});
+	});
+
 	it("routes external link clicks through the host callback", async () => {
 		const onExternalLinkClick = vi.fn();
 		const { container } = render(StreamdownMarkdown, {
@@ -349,5 +391,68 @@ describe("StreamdownMarkdown", () => {
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onExternalLinkClick).toHaveBeenCalledWith("https://github.com/flazouh/acepe/pull/184");
+	});
+
+	it("keeps GitHub PR chips inside streaming list items", async () => {
+		const onExternalLinkClick = vi.fn();
+		const { container } = render(StreamdownMarkdown, {
+			markdown: "- Review flazouh/acepe#184\n- Then open packages/ui/src/index.ts",
+			mode: "streaming",
+			parseIncompleteMarkdown: true,
+			onExternalLinkClick,
+			onFilePathClick: vi.fn(),
+		});
+
+		await waitFor(() => {
+			expect(container.querySelectorAll('[data-streamdown="list-item"]')).toHaveLength(2);
+			expect(container.querySelector(".github-badge")?.textContent).toContain(
+				"flazouh/acepe#184"
+			);
+		});
+
+		expect(container.querySelector(".file-path-badge")?.textContent).toContain("index.ts");
+		expect(container.querySelector(".github-badge")?.getAttribute("href")).toBe(
+			"https://github.com/flazouh/acepe/pull/184"
+		);
+	});
+
+	it("keeps every markdown chip route wired while streaming lists", async () => {
+		const onExternalLinkClick = vi.fn();
+		const onFilePathClick = vi.fn();
+		const { container } = render(StreamdownMarkdown, {
+			markdown: [
+				"- shorthand PR flazouh/acepe#184",
+				"- PR URL https://github.com/flazouh/acepe/pull/185",
+				"- issue URL https://github.com/flazouh/acepe/issues/186",
+				"- inline file `src/app.ts`",
+				"- linked file [open source](src/app.ts#L12)",
+				"- plain file packages/ui/src/index.ts",
+			].join("\n"),
+			mode: "streaming",
+			parseIncompleteMarkdown: true,
+			onExternalLinkClick,
+			onFilePathClick,
+		});
+
+		await waitFor(() => {
+			expect(container.querySelectorAll('[data-streamdown="list-item"]')).toHaveLength(6);
+			expect(container.querySelectorAll(".github-badge")).toHaveLength(3);
+			expect(container.querySelectorAll(".file-path-badge")).toHaveLength(3);
+		});
+
+		expect(
+			Array.from(container.querySelectorAll(".github-badge")).map((chip) =>
+				chip.getAttribute("href")
+			)
+		).toEqual([
+			"https://github.com/flazouh/acepe/pull/184",
+			"https://github.com/flazouh/acepe/pull/185",
+			"https://github.com/flazouh/acepe/issues/186",
+		]);
+		expect(
+			Array.from(container.querySelectorAll(".file-path-badge")).map((chip) =>
+				chip.getAttribute("data-file-path")
+			)
+		).toEqual(["src/app.ts", "src/app.ts:12", "packages/ui/src/index.ts"]);
 	});
 });

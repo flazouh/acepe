@@ -47,16 +47,18 @@ export function buildStreamingReproTokenRevealCss(input: {
 		return undefined;
 	}
 
-	const revealCount = countWordsInMarkdown(input.phase.assistantText);
-	if (revealCount < 1) {
-		return undefined;
-	}
-
 	const previousWordCount = resolvePreviousPhaseWordCount(
 		input.preset,
 		input.phaseIndex,
 		input.phase
 	);
+	const currentWordCount = countWordsInMarkdown(input.phase.assistantText);
+	const revealCount =
+		currentWordCount > previousWordCount ? currentWordCount - previousWordCount : currentWordCount;
+	if (revealCount < 1) {
+		return undefined;
+	}
+
 	const baselineMs = -(previousWordCount * TOKEN_REVEAL_STEP_MS + input.phaseElapsedMs);
 	const revealMode = resolveTokenRevealMode(input.phase);
 	const tokenRevealCss = {

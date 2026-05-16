@@ -143,10 +143,11 @@ export function routeSessionStateEnvelope(
 				currentTranscriptRevision,
 				envelope.payload.delta
 			);
-			const commands = commandFromDeltaResolution(resolution);
+			const transcriptCommands = commandFromDeltaResolution(resolution);
 			if (resolution.kind === "refreshSnapshot") {
-				return commands;
+				return transcriptCommands;
 			}
+			const commands: SessionStateCommand[] = [];
 			const operationPatches = envelope.payload.delta.operationPatches ?? [];
 			const interactionPatches = envelope.payload.delta.interactionPatches ?? [];
 			const includesActivity = envelope.payload.delta.changedFields?.includes("activity") ?? false;
@@ -171,6 +172,9 @@ export function routeSessionStateEnvelope(
 					operationPatches,
 					interactionPatches,
 				});
+			}
+			for (const command of transcriptCommands) {
+				commands.push(command);
 			}
 			return commands;
 		}

@@ -218,8 +218,9 @@ describe("AssistantMessage thinking auto-scroll", () => {
 
 		await flushAnimationFrames();
 
-		expect(scrollWrites).toBe(0);
-		expect(scrollIntoViewCalls).toBe(1);
+		expect(scrollWrites).toBe(1);
+		expect(scrollTopValue).toBe(20);
+		expect(scrollIntoViewCalls).toBe(0);
 	});
 
 	it("keeps following thinking content that grows inside the existing DOM subtree", async () => {
@@ -262,9 +263,25 @@ describe("AssistantMessage thinking auto-scroll", () => {
 			get: () => thinkingContainer.querySelectorAll(".stub-line").length * 20,
 		});
 
-		let scrollIntoViewCalls = 0;
+		let scrollWrites = 0;
 		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {
-			scrollIntoViewCalls += 1;
+			throw new Error("thinking follow must not scroll the outer panel");
+		});
+		Object.defineProperty(thinkingContainer, "clientHeight", {
+			configurable: true,
+			get: () => 20,
+		});
+		Object.defineProperty(thinkingContainer, "scrollHeight", {
+			configurable: true,
+			get: () => thinkingContainer.querySelectorAll(".stub-line").length * 20,
+		});
+		Object.defineProperty(thinkingContainer, "scrollTop", {
+			configurable: true,
+			get: () => scrollTopValue,
+			set: (value: number) => {
+				scrollTopValue = value;
+				scrollWrites += 1;
+			},
 		});
 		expect(thinkingContainer.querySelectorAll(".stub-line")).toHaveLength(1);
 
@@ -274,7 +291,8 @@ describe("AssistantMessage thinking auto-scroll", () => {
 
 		await waitFor(() => {
 			expect(thinkingContainer.querySelectorAll(".stub-line")).toHaveLength(2);
-			expect(scrollIntoViewCalls).toBe(1);
+			expect(scrollWrites).toBe(1);
+			expect(scrollTopValue).toBe(20);
 		});
 
 		await fireEvent.click(view.getByTestId("grow-line"));
@@ -283,7 +301,8 @@ describe("AssistantMessage thinking auto-scroll", () => {
 
 		await waitFor(() => {
 			expect(thinkingContainer.querySelectorAll(".stub-line")).toHaveLength(3);
-			expect(scrollIntoViewCalls).toBe(2);
+			expect(scrollWrites).toBe(2);
+			expect(scrollTopValue).toBe(40);
 		});
 	});
 

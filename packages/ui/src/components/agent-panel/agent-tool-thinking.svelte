@@ -67,13 +67,13 @@
 	{/if}
 
 	{#if !collapsed && children}
-		<div class="mt-2 flex min-w-0 items-stretch gap-2 text-xs leading-relaxed">
+		<div class="mt-1.5 flex min-w-0 items-stretch gap-2 text-xs leading-normal">
 			<div
 				data-testid="thinking-block-line"
 				class="w-px shrink-0 self-stretch rounded-full bg-border/70"
 				aria-hidden="true"
 			></div>
-			<div data-testid="thinking-block-content" class="min-w-0 flex-1 text-xs leading-relaxed">
+			<div data-testid="thinking-block-content" class="min-w-0 flex-1 text-xs leading-normal">
 				{@render children()}
 			</div>
 		</div>

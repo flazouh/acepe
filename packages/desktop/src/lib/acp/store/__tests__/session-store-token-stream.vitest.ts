@@ -175,6 +175,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(firstRow).not.toBeNull();
 		expect(firstRow?.accumulatedText).toBe("**hello world** after");
 		expect(firstRow?.wordCount).toBe(2);
+		expect(firstRow?.latestWordCount).toBe(2);
 		expect(store.getClockAnchor("session-1")).toEqual({
 			rustMonotonicMs: 1_000,
 			browserAnchorMs: 500,
@@ -196,6 +197,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(secondRow).not.toBeNull();
 		expect(secondRow?.accumulatedText).toBe("**hello world** after `pwd`");
 		expect(secondRow?.wordCount).toBe(3);
+		expect(secondRow?.latestWordCount).toBe(1);
 		expect(secondRow?.firstDeltaProducedAtMonotonicMs).toBe(1_000);
 		expect(secondRow?.lastDeltaProducedAtMonotonicMs).toBe(1_012);
 
@@ -259,6 +261,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "hello",
 			wordCount: 1,
+			latestWordCount: 1,
 			revision: 2,
 		});
 
@@ -277,6 +280,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
 			accumulatedText: "hello",
 			wordCount: 1,
+			latestWordCount: 1,
 			revision: 2,
 			lastDeltaProducedAtMonotonicMs: 2_000,
 		});

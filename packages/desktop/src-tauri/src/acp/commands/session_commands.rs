@@ -11,8 +11,9 @@ use crate::acp::session_descriptor::{
     SessionCompatibilityInput, SessionReplayContext,
 };
 use crate::acp::session_open_snapshot::{
-    resolve_canonical_session_title, session_open_result_for_new_session,
-    NewSessionOpenResultInput, SessionOpenFound, SessionOpenResult,
+    derive_title_from_transcript_snapshot, resolve_canonical_session_title,
+    session_open_result_for_new_session, NewSessionOpenResultInput, SessionOpenFound,
+    SessionOpenResult,
 };
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
@@ -583,6 +584,7 @@ pub async fn acp_get_session_state(
             .as_ref()
             .and_then(|context| context.source_path.clone())
             .or_else(|| descriptor.as_ref().and_then(|facts| facts.source_path.clone()));
+        let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
         let found = SessionOpenFound {
             requested_session_id: session_id.clone(),
             canonical_session_id: canonical_session_id.clone(),
@@ -598,6 +600,7 @@ pub async fn acp_get_session_state(
             session_title: resolve_canonical_session_title(
                 canonical_metadata.as_ref(),
                 &canonical_session_id,
+                first_user_title.as_deref(),
             ),
             operations,
             interactions,

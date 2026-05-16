@@ -314,7 +314,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
-			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId),
+			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId) ?? false,
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,

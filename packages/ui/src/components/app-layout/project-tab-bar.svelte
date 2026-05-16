@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { IconPlus } from "@tabler/icons-svelte";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 
 	interface ProjectTab {
@@ -13,9 +14,11 @@
 		projects: readonly ProjectTab[];
 		activeProjectPath: string | null;
 		onSelectProject: (path: string) => void;
+		/** When provided, hovering the session count badge reveals a + to create a new session. */
+		onCreateSession?: (path: string) => void;
 	}
 
-	let { projects, activeProjectPath, onSelectProject }: Props = $props();
+	let { projects, activeProjectPath, onSelectProject, onCreateSession }: Props = $props();
 </script>
 
 {#if projects.length > 0}
@@ -46,13 +49,32 @@
 					/>
 					<span class="truncate max-w-[160px]">{project.name}</span>
 						{#if project.sessionCount != null}
-							<span
-							class="ml-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-[10px] leading-none text-muted-foreground bg-foreground/10"
-							aria-label="{project.sessionCount} sessions"
-						>
-							{project.sessionCount}
-						</span>
-					{/if}
+							{#if onCreateSession}
+								<span class="group/session-badge relative ml-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center">
+									<span
+										class="inline-flex h-4 min-w-4 items-center justify-center rounded px-1 text-[10px] leading-none text-muted-foreground bg-foreground/10 transition-opacity duration-150 group-hover/session-badge:opacity-0"
+										aria-label="{project.sessionCount} sessions"
+									>
+										{project.sessionCount}
+									</span>
+									<button
+										type="button"
+										class="absolute inset-0 flex items-center justify-center rounded opacity-0 transition-opacity duration-150 group-hover/session-badge:opacity-100 bg-foreground/10 text-muted-foreground hover:text-foreground"
+										aria-label="New session in {project.name}"
+										onclick={(e) => { e.stopPropagation(); onCreateSession(project.path); }}
+									>
+										<IconPlus class="h-2.5 w-2.5" />
+									</button>
+								</span>
+							{:else}
+								<span
+									class="ml-0.5 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded px-1 text-[10px] leading-none text-muted-foreground bg-foreground/10"
+									aria-label="{project.sessionCount} sessions"
+								>
+									{project.sessionCount}
+								</span>
+							{/if}
+						{/if}
 				</button>
 			{/each}
 		</div>

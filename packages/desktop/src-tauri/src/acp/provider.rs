@@ -201,6 +201,13 @@ pub enum PreconnectionCapabilityMode {
     ProjectScoped,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ImplicitSessionCreationMode {
+    Allowed,
+    ExplicitUserAction,
+}
+
 /// Display-only provider metadata for frontend capability projection.
 ///
 /// This type is constructed by backend provider adapters, never deserialized
@@ -218,6 +225,7 @@ pub struct FrontendProviderProjection {
     pub reasoning_effort_support: bool,
     pub preconnection_slash_mode: PreconnectionSlashMode,
     pub preconnection_capability_mode: PreconnectionCapabilityMode,
+    pub implicit_session_creation_mode: ImplicitSessionCreationMode,
 }
 
 impl Default for FrontendProviderProjection {
@@ -232,6 +240,7 @@ impl Default for FrontendProviderProjection {
             reasoning_effort_support: false,
             preconnection_slash_mode: PreconnectionSlashMode::Unsupported,
             preconnection_capability_mode: PreconnectionCapabilityMode::Unsupported,
+            implicit_session_creation_mode: ImplicitSessionCreationMode::ExplicitUserAction,
         }
     }
 }

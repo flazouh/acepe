@@ -40,6 +40,8 @@
 		leading?: Snippet;
 		/** Overlay rendered inside the editor area — used for dropdowns (slash command, file picker) and overlays. */
 		overlay?: Snippet;
+		/** Renders between the text area and the submit button — used for the mode pill. */
+		modeControls?: Snippet;
 	}
 
 	let {
@@ -64,6 +66,7 @@
 		oncut,
 		leading,
 		overlay,
+		modeControls,
 	}: Props = $props();
 
 	const showStop = $derived(submitIntent === "stop" || submitIntent === "steer");
@@ -109,8 +112,11 @@
 			</div>
 		{/if}
 	</div>
-	<!-- Submit button: in-flow, bottom-aligned -->
-	<div class="flex items-end shrink-0">
+	<!-- Mode controls (pill) + submit button: in-flow, bottom-aligned -->
+	<div class="flex items-end gap-1.5 shrink-0">
+		{#if modeControls}
+			{@render modeControls()}
+		{/if}
 		{#if showStop}
 			<Button
 				type="button"

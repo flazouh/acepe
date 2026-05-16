@@ -9,7 +9,6 @@
 export type ModeId = string;
 
 export {
-	BuildModeAlias,
 	type CanonicalModeId as CanonicalModeIdType,
 	CanonicalModeId,
 } from "./canonical-mode-id.js";

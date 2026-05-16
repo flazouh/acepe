@@ -33,8 +33,11 @@ import type {
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { ToolKind } from "../../../types/tool-kind.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
+import { bashHighlighter } from "../../../utils/bash-highlighter.svelte.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
+import { readExitPlanRawInput } from "../../../utils/exit-plan-permission.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
+import { parsePlanMarkdown } from "../../../utils/plan-parser.js";
 import { resolveToolCallEditDiffs } from "../../../utils/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
 import type { SceneDisplayRow } from "../logic/scene-display-rows.js";
 
@@ -247,6 +250,9 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 		kind === "skill" ||
 		kind === "task" ||
 		kind === "task_output" ||
+		kind === "enter_plan_mode" ||
+		kind === "exit_plan_mode" ||
+		kind === "create_plan" ||
 		kind === "browser"
 	) {
 		return kind;
@@ -277,7 +283,7 @@ function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): 
 	if (kind === "sql") return "SQL";
 	if (kind === "unclassified") return "Tool";
 	if (kind === "enter_plan_mode") return "Enter plan mode";
-	if (kind === "exit_plan_mode") return "Exit plan mode";
+	if (kind === "exit_plan_mode") return "Plan ready";
 	if (kind === "create_plan") return "Create plan";
 	return "Tool";
 }
@@ -294,6 +300,10 @@ function resolveToolTitle(
 	const rawTitle = toolCall.title?.trim();
 
 	if (!rawTitle) {
+		return semanticTitle;
+	}
+
+	if (kind === "exit_plan_mode" || kind === "create_plan") {
 		return semanticTitle;
 	}
 
@@ -806,6 +816,59 @@ function mapTaskResultText(toolCall: ToolCall): string | null {
 	return typeof toolCall.result === "string" ? toolCall.result : null;
 }
 
+function readStringField(value: JsonValue | null | undefined, key: string): string | null {
+	if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+
+	const field = value[key];
+	return typeof field === "string" && field.trim().length > 0 ? field : null;
+}
+
+function mapPlanPayload(toolCall: ToolCall): {
+	planTitle?: string | null;
+	planContent?: string | null;
+	planStatus?: "streaming" | "interactive" | "approved" | "rejected" | "building";
+} {
+	if (toolCall.kind !== "exit_plan_mode" && toolCall.kind !== "create_plan") {
+		return {};
+	}
+
+	const exitPlanInput = readExitPlanRawInput(toolCall.rawInput ?? undefined);
+	const exitPlanArgumentInput =
+		toolCall.arguments.kind === "other" ? readExitPlanRawInput(toolCall.arguments.raw) : null;
+	const rawPlan =
+		exitPlanInput?.plan ??
+		exitPlanArgumentInput?.plan ??
+		readStringField(toolCall.rawInput, "content") ??
+		readStringField(toolCall.rawInput, "planMarkdown") ??
+		readStringField(toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null, "content") ??
+		readStringField(
+			toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null,
+			"planMarkdown"
+		) ??
+		readStringField(toolCall.result, "plan") ??
+		readStringField(toolCall.result, "content");
+	const planContent = rawPlan !== null && rawPlan !== undefined ? rawPlan : null;
+	const parsedPlan = planContent !== null ? parsePlanMarkdown(planContent) : null;
+
+	return {
+		planTitle: parsedPlan?.title ?? null,
+		planContent,
+		planStatus:
+			toolCall.status === "failed"
+				? "rejected"
+				: toolCall.status === "completed"
+					? "approved"
+					: planContent !== null &&
+						  (toolCall.kind === "exit_plan_mode" || toolCall.awaitingPlanApproval === true)
+						? "interactive"
+					: toolCall.awaitingPlanApproval === true
+						? "interactive"
+						: "streaming",
+	};
+}
+
 function normalizeNullableFilePath(value: string | null | undefined): string | null {
 	if (value === null || value === undefined) {
 		return null;
@@ -844,6 +907,89 @@ function mapEditDiffEntriesForToolCall(toolCall: ToolCall): readonly AgentToolEd
 	});
 }
 
+function splitExecuteCommandSegments(command: string): string[] {
+	const segments: string[] = [];
+	let current = "";
+	let inSingle = false;
+	let inDouble = false;
+	let index = 0;
+
+	while (index < command.length) {
+		const character = command[index];
+
+		if (character === "\\" && index + 1 < command.length) {
+			current += character + command[index + 1];
+			index += 2;
+			continue;
+		}
+
+		if (character === "'" && !inDouble) {
+			inSingle = !inSingle;
+			current += character;
+			index += 1;
+			continue;
+		}
+
+		if (character === '"' && !inSingle) {
+			inDouble = !inDouble;
+			current += character;
+			index += 1;
+			continue;
+		}
+
+		if (!inSingle && !inDouble) {
+			if (character === "&" && index + 1 < command.length && command[index + 1] === "&") {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				index += 2;
+				continue;
+			}
+
+			if (character === "|" && index + 1 < command.length && command[index + 1] === "|") {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				index += 2;
+				continue;
+			}
+
+			if (character === "|") {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				index += 1;
+				continue;
+			}
+
+			if (character === ";" && !(index + 1 < command.length && command[index + 1] === ";")) {
+				const trimmed = current.trim();
+				if (trimmed) segments.push(trimmed);
+				current = "";
+				index += 1;
+				continue;
+			}
+		}
+
+		current += character;
+		index += 1;
+	}
+
+	const trimmed = current.trim();
+	if (trimmed) segments.push(trimmed);
+	return segments;
+}
+
+function mapExecuteCommandHtmls(command: string | null | undefined): readonly string[] | undefined {
+	if (!command) return undefined;
+	const segments = splitExecuteCommandSegments(command);
+	if (!bashHighlighter.ready) return undefined;
+	const highlightedSegments = segments
+		.map((segment) => bashHighlighter.highlight(segment))
+		.filter((html): html is string => html !== null);
+	return highlightedSegments.length > 0 ? highlightedSegments : undefined;
+}
+
 function mapToolCallEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
@@ -861,11 +1007,14 @@ function mapToolCallEntry(
 	const webSearchPayload = mapWebSearchPayload(toolCall);
 	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
+	const planPayload = mapPlanPayload(toolCall);
 	const status =
 		options.canonicalStatus ??
 		mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
+	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
+	const commandHtmls = mapExecuteCommandHtmls(command);
 
 	const entry: AgentToolEntry = {
 		id: toolCall.id,
@@ -887,7 +1036,8 @@ function mapToolCallEntry(
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
-		command: toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null,
+		command,
+		commandHtmls,
 		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
 		stderr: executeResult?.stderr ? stripAnsiCodes(executeResult.stderr) : null,
 		exitCode: executeResult?.exitCode,
@@ -922,6 +1072,9 @@ function mapToolCallEntry(
 		todos: mapTodos(toolCall),
 		question: mapQuestion(toolCall),
 		lintDiagnostics: mapLintDiagnostics(toolCall),
+		planTitle: planPayload.planTitle,
+		planContent: planPayload.planContent,
+		planStatus: planPayload.planStatus,
 	};
 
 	if (normalizeToolKind(kind) === "edit") {

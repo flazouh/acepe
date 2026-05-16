@@ -44,6 +44,10 @@ pub(crate) fn extract_parser_string_list(
     })
 }
 
+fn has_plan_payload(raw_arguments: &serde_json::Value) -> bool {
+    extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]).is_some()
+}
+
 pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
     let file_path = extract_parser_string(raw_arguments, &["file_path", "filePath", "path"]);
     let move_from = extract_parser_string(raw_arguments, &["move_from", "moveFrom"]);
@@ -400,6 +404,11 @@ pub(crate) fn parse_tool_kind_arguments(
                 &["file_paths", "filePaths", "paths"],
             ),
         },
+        ToolKind::ExitPlanMode | ToolKind::CreatePlan if has_plan_payload(raw_arguments) => {
+            ToolArguments::Other {
+                raw: raw_arguments.clone(),
+            }
+        }
         ToolKind::EnterPlanMode | ToolKind::ExitPlanMode | ToolKind::CreatePlan => {
             ToolArguments::PlanMode {
                 mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),

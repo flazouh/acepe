@@ -2,7 +2,7 @@
 /**
  * FileExplorerModal
  *
- * Full-screen Cmd+I file explorer modal. Splits into a left results list and
+ * Cmd+I file explorer dialog. Splits into a left results list and
  * a right preview pane. Manages debounced search and keyboard navigation.
  *
  * Props:
@@ -12,6 +12,7 @@
  */
 import { onMount } from "svelte";
 import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { FileExplorerRow } from "$lib/services/converted-session-types.js";
 import { FileExplorerModalState } from "./file-explorer-modal-state.svelte.js";
@@ -197,29 +198,18 @@ function handleSelect(row: FileExplorerRow) {
 }
 </script>
 
-<!-- Backdrop -->
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div
-	class="fixed inset-0 z-[var(--app-spotlight-z)] flex items-center justify-center bg-black/55 p-4"
-	role="dialog"
-	aria-modal="true"
-	aria-label="File Explorer"
-	tabindex="-1"
-	onclick={(event) => {
-		if (event.target === event.currentTarget) {
-			onClose();
-		}
-	}}
-	onkeydown={(e) => {
-		if (e.key === "Escape") {
-			e.stopPropagation();
+<WorkspaceDialogFrame
+	open={true}
+	title="File Explorer"
+	closeLabel="Close file explorer"
+	onOpenChange={(open) => {
+		if (!open) {
 			onClose();
 		}
 	}}
 >
-	<!-- Modal panel -->
 	<div
-		class="h-[min(600px,calc(100vh-2rem))] w-full max-w-[900px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex flex-col"
+		class="flex h-full min-h-0 w-full overflow-hidden rounded-md border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] flex-col"
 	>
 		<!-- Search input row -->
 		<div class="flex items-center gap-1 px-2.5 py-1.5 border-b shrink-0">
@@ -287,4 +277,4 @@ function handleSelect(row: FileExplorerRow) {
 			</div>
 		</div>
 	</div>
-</div>
+</WorkspaceDialogFrame>

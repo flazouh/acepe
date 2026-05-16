@@ -137,10 +137,13 @@ $effect(() => {
 const visibleMessageGroups = $derived.by(() => {
 	return resolveVisibleAssistantMessageGroups({
 		messageGroups: groupedChunks.messageGroups,
+		isStreaming,
 		tokenRevealCss,
 		lastMessageTextGroupIndex,
 	});
 });
+
+const activeTokenRevealCss = $derived(isStreaming ? tokenRevealCss : undefined);
 
 const thinkingHeaderLabel = $derived.by(() => {
 	const ms = message.thinkingDurationMs;
@@ -163,7 +166,7 @@ const thinkingFollowScheduler = createRafDedupeScheduler(() => {
 	if (!showThinkingBlock || !isStreaming || isCollapsed) return;
 	const container = thinkingContainerRef;
 	if (!container) return;
-	scrollTailToVisibleEnd(container, thinkingContentRef);
+	scrollTailToVisibleEnd(container);
 });
 
 $effect(() => {
@@ -251,9 +254,9 @@ bind:this={thinkingContainerRef}
 				group,
 				isStreaming: shouldStreamAssistantTextContent({
 					isStreaming: isStreaming && isLastTextGroup,
-					tokenRevealCss: isLastTextGroup ? tokenRevealCss : undefined,
+					tokenRevealCss: isLastTextGroup ? activeTokenRevealCss : undefined,
 				}),
-				tokenRevealCss: isLastTextGroup ? tokenRevealCss : undefined,
+				tokenRevealCss: isLastTextGroup ? activeTokenRevealCss : undefined,
 				projectPath,
 				streamingAnimationMode,
 			})}
@@ -297,20 +300,38 @@ line-height: 1.5;
 }
 
 .thinking-content {
-max-height: calc(var(--thinking-visible-lines) * var(--thinking-line-height));
 line-height: var(--thinking-line-height);
-scroll-snap-type: y proximity;
-scroll-padding-block: 0;
-}
-
-.thinking-content :global(.markdown-content > *) {
-scroll-snap-align: start;
-scroll-snap-stop: normal;
 }
 
 .thinking-content :global(.markdown-content),
 .thinking-content :global(.markdown-content *) {
 	font-size: inherit !important;
 	line-height: var(--thinking-line-height) !important;
+}
+
+.thinking-content :global(.markdown-content) {
+	color: inherit !important;
+}
+
+.thinking-content :global(.markdown-content p),
+.thinking-content :global(.markdown-content ul),
+.thinking-content :global(.markdown-content ol),
+.thinking-content :global(.markdown-content pre),
+.thinking-content :global(.markdown-content blockquote),
+.thinking-content :global(.markdown-content [data-streamdown="code-block"]),
+.thinking-content :global(.markdown-content [data-streamdown="unordered-list"]),
+.thinking-content :global(.markdown-content [data-streamdown="ordered-list"]),
+.thinking-content :global(.markdown-content .streamdown-content > :not(:last-child)) {
+	margin-block-start: 0 !important;
+	margin-block-end: 0.125rem !important;
+}
+
+.thinking-content :global(.markdown-content .streamdown-content > * + *) {
+	margin-block-start: 0 !important;
+}
+
+.thinking-content :global(.markdown-content li),
+.thinking-content :global(.markdown-content [data-streamdown="list-item"]) {
+	margin-block-end: 0.0625rem !important;
 }
 </style>

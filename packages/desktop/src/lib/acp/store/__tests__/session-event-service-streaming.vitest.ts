@@ -171,7 +171,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(handler.updateUsageTelemetry).not.toHaveBeenCalled();
 	});
 
-	it("uses raw turnComplete only to clear local waiting state", () => {
+	it("keeps raw turnComplete updates non-authoritative", () => {
 		const onTurnComplete = vi.fn();
 		service.setCallbacks({ onTurnComplete });
 		markHandlerTurnAsStreaming(handler);
@@ -183,7 +183,7 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.handleStreamComplete).toHaveBeenCalledWith("session-123", "turn-123");
+		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 		expect(onTurnComplete).not.toHaveBeenCalled();
 	});
 
@@ -416,7 +416,7 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
-	it("materializes pending creation sessions before handling raw turn completion", () => {
+	it("materializes pending creation sessions before ignoring raw turn completion", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
@@ -431,10 +431,7 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(pendingHandler.materializePendingCreationSession).toHaveBeenCalledWith(
 			"session-pending-creation-1"
 		);
-		expect(pendingHandler.handleStreamComplete).toHaveBeenCalledWith(
-			"session-pending-creation-1",
-			"turn-1"
-		);
+		expect(pendingHandler.handleStreamComplete).not.toHaveBeenCalled();
 	});
 
 	it("does not synthesize assistant transcript chunks from raw session updates", () => {

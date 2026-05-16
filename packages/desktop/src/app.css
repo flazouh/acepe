@@ -185,6 +185,8 @@
 	}
 	body {
 		@apply bg-background text-foreground font-sans;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 	}
 
 	/* Make collapsed sidebar clickable with col-resize cursor */

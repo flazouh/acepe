@@ -102,6 +102,7 @@
 					{:else if entry.kind === "execute"}
 						<AgentToolExecute
 							command={entry.command ?? null}
+							commandHtmls={entry.commandHtmls}
 							stdout={entry.stdout}
 							stderr={entry.stderr}
 							exitCode={entry.exitCode}

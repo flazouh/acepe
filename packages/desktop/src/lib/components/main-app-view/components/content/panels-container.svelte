@@ -23,6 +23,10 @@ import {
 import KanbanView from "./kanban-view.svelte";
 import MultiProjectGroupLabel from "./multi-project-group-label.svelte";
 import { shouldHideAgentPanelProjectBadge } from "./panel-project-badge-visibility.js";
+import {
+	resolveProjectDeckContainerClass,
+	resolveProjectGroupDeckLayout,
+} from "./project-deck-layout.js";
 
 const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContainerPerf" });
 type AgentProjectRef = {
@@ -215,11 +219,9 @@ const hideEmbeddedProjectBadge = $derived(
 	})
 );
 
-function isGroupHidden(group: { projectPath: string }): boolean {
-	return (
-		viewModeState.activeProjectPath != null && group.projectPath !== viewModeState.activeProjectPath
-	);
-}
+const projectDeckContainerClass = $derived(
+	resolveProjectDeckContainerClass(viewModeState.activeProjectPath)
+);
 
 const fullscreenTopLevelPanel = $derived.by(() => {
 	const fullscreenPanelRef = viewModeState.fullscreenPanel;
@@ -304,6 +306,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 			projects={projectTabs}
 			activeProjectPath={viewModeState.activeProjectPath}
 			onSelectProject={(path) => panelStore.setFocusedViewProjectPath(path)}
+			onCreateSession={(path) => state.handleNewThreadForProject(path)}
 		/>
 	</div>
 {/if}
@@ -367,10 +370,17 @@ const terminalTabsPanelStore = $derived.by(() => ({
 		{:else if viewModeState.layout === "kanban"}
 			<KanbanView {projectManager} {state} />
 		{:else}
-			<!-- Project/Multi mode: panels grouped by project; hide inactive in focused view so they stay mounted -->
+			<!-- Project/Multi mode: inactive project panels stay measurable for virtualized transcripts. -->
+		<div class={projectDeckContainerClass}>
 		{#each (isMultiCardsMode ? sortedGroupsForMulti : allGroups) as group (group.projectPath)}
 			{@const hasAgentPanels = group.agentPanels.length > 0}
 			{@const isSingleProject = allGroups.length === 1}
+			{@const groupLayout = resolveProjectGroupDeckLayout({
+				activeProjectPath: viewModeState.activeProjectPath,
+				groupProjectPath: group.projectPath,
+				hasAgentPanels,
+				isAgentFullscreenGroup: isAgentFullscreenGroup(group),
+			})}
 			{#snippet nonAgentPanels()}
 				{#if !isAgentFullscreenActive}
 					<!-- File panels (tabbed per project) -->
@@ -472,14 +482,15 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				{/if}
 			{:else}
 				<div
-					class="flex flex-row items-stretch gap-0.5 {isAgentFullscreenGroup(group) || !hasAgentPanels
-						? 'flex-1 min-w-0 min-h-0'
-						: 'flex-none min-h-0'} {isGroupHidden(group) ? 'hidden' : ''}"
+					class={groupLayout.className}
+					aria-hidden={groupLayout.ariaHidden}
+					inert={groupLayout.inert}
 				>
 					{@render nonAgentPanels()}
 					{@render agentPanels()}
 				</div>
 			{/if}
 			{/each}
+		</div>
 		{/if}
 </AgentPanelDeck>

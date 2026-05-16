@@ -16,7 +16,7 @@
 		status?: AgentToolStatus;
 		durationLabel?: string;
 		/** Pre-highlighted HTML per command segment (e.g. from Shiki). Overrides built-in tokenizer. */
-		commandHtmls?: string[];
+		commandHtmls?: readonly string[];
 		/** Pre-highlighted HTML for stdout (e.g. Shiki log). When a string, replaces plain stdout. */
 		stdoutHtml?: string | null;
 		/** Pre-highlighted HTML for stderr (e.g. Shiki log). When a string, replaces plain stderr. */
@@ -101,7 +101,7 @@
 	}
 </script>
 
-<AgentToolCard>
+<AgentToolCard dataTestid="agent-tool-execute-card">
 	<!-- ── Header ── -->
 	<div class="flex h-6 items-center gap-1.5 px-2">
 		<div class="flex-1 truncate">
@@ -139,13 +139,11 @@
 		</div>
 	</div>
 
-	<!-- ── Command blocks ── -->
+	<!-- ── Command code ── -->
 	{#if displayHtmls.length > 0}
 		<div class="execute-blocks">
-			{#each displayHtmls as html}
-				<div class="execute-block" class:shiki={useShiki}>
-					{@html html}
-				</div>
+			{#each displayHtmls as html, index}
+				<pre class="execute-block" class:shiki={useShiki}><span class="execute-line-number">{index + 1}</span><code>{@html html}</code></pre>
 			{/each}
 		</div>
 	{/if}
@@ -186,24 +184,39 @@
 </AgentToolCard>
 
 <style>
-	/* ── Command blocks ── */
+	/* ── Command code ── */
 	.execute-blocks {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
 		padding: 2px 4px;
 		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+		max-height: 7.5rem;
+		overflow-y: auto;
 	}
 
 	.execute-block {
-		font-family: var(--font-sans, system-ui, sans-serif);
-		font-size: 0.8125rem;
+		display: grid;
+		grid-template-columns: max-content minmax(0, 1fr);
+		column-gap: 0.375rem;
+		margin: 0;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
 		line-height: 1.35;
 		white-space: pre-wrap;
 		word-break: break-all;
 		padding: 1px 6px;
-		border-radius: 3px;
-		background: var(--muted);
+	}
+
+	.execute-line-number {
+		user-select: none;
+		text-align: right;
+		color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+		border-right: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+		padding-right: 0.375rem;
+		min-width: 1ch;
+	}
+
+	.execute-block code {
+		font: inherit;
+		min-width: 0;
 	}
 
 	/* ── Syntax highlight tokens ── */
@@ -234,12 +247,12 @@
 		font-style: italic;
 	}
 
-	/* ── Output area — matches card surface ── */
+	/* ── Output area ── */
 	.execute-output-area {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
-		background: var(--card);
+		background: color-mix(in srgb, var(--card) 80%, var(--muted));
 		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 		padding: 6px 10px;
 		transition: max-height 0.15s ease-out;
@@ -256,8 +269,8 @@
 	}
 
 	.execute-output {
-		font-family: var(--font-sans, system-ui, sans-serif);
-		font-size: 0.875rem;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
 		line-height: 1.5;
 		margin: 0;
 		white-space: pre-wrap;
@@ -279,8 +292,8 @@
 
 	/* Shiki-highlighted streams (log grammar, dual-theme spans) */
 	.execute-output-shiki {
-		font-family: var(--font-sans, system-ui, sans-serif);
-		font-size: 0.875rem;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.75rem;
 		line-height: 1.5;
 		margin: 0;
 		white-space: pre-wrap;

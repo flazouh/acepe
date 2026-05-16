@@ -152,10 +152,6 @@ function handleSelectFile(filePath: string, projectPath: string) {
 	panelStore.openFilePanel(filePath, projectPath);
 }
 
-function handleFileTreeExpansionChange(expansion: Record<string, string[]>) {
-	appState.handleFileTreeExpansionChange(expansion);
-}
-
 function handleOpenTerminal(projectPath: string) {
 	panelStore.toggleTerminalPanel(projectPath);
 }
@@ -459,8 +455,6 @@ const visibleSessions = $derived.by(() => {
 			scanningProjectPaths={sessionStore.scanningProjectPaths}
 			recentProjects={projectManager.projects}
 			canCreateSession={projectManager.projectCount !== null && projectManager.projectCount > 0}
-			initialFileTreeExpansion={appState.fileTreeExpansion}
-			initialProjectFileViewModes={appState.projectFileViewModes}
 			initialCollapsedProjectPaths={appState.collapsedProjectPaths}
 			onSelectSession={handleSelectSession}
 			onCreateSession={handleNewThread}
@@ -474,8 +468,6 @@ const visibleSessions = $derived.by(() => {
 			onRemoveProject={handleRemoveProject}
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}
-			onFileTreeExpansionChange={handleFileTreeExpansionChange}
-			onProjectFileViewModeChange={(modes) => appState.handleProjectFileViewModeChange(modes)}
 			onCollapsedProjectPathsChange={(paths) => appState.handleCollapsedProjectPathsChange(paths)}
 			onOpenTerminal={handleOpenTerminal}
 			onOpenBrowser={handleOpenBrowser}

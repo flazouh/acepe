@@ -19,7 +19,6 @@ import type {
 	UsageMetricsPresentation,
 } from "../../services/acp-types.js";
 import type { Model } from "../application/dto/model.js";
-import { AGENT_IDS } from "../types/agent-id.js";
 
 /**
  * Capitalizes the first letter of each word in a string.
@@ -34,8 +33,7 @@ function capitalizeName(name: string): string {
 /**
  * Gets the display name for a model.
  *
- * For Claude Code: Extracts model name from description format "Model Name · Description text"
- * For other agents: Uses the model name directly with proper capitalization
+ * Uses canonical display metadata when provided, otherwise falls back to model name.
  *
  * @param model - The model to get display name for
  * @param agentId - The agent ID, used to determine extraction behavior
@@ -67,7 +65,7 @@ export function hasUsableModelsDisplayGroups(
 
 export function getModelDisplayName(
 	model: Model,
-	agentId: string | null,
+	_agentId: string | null,
 	modelsDisplay?: ModelsForDisplay | null
 ): string {
 	const displayModel = findDisplayModel(model.id, modelsDisplay);
@@ -75,25 +73,6 @@ export function getModelDisplayName(
 		return displayModel.displayName;
 	}
 
-	// For Claude Code, try to extract model name from description (format: "Model Name · Description")
-	if (agentId === AGENT_IDS.CLAUDE_CODE && model.description) {
-		const parts = model.description.split(" · ");
-		if (parts.length >= 2 && parts[0].trim()) {
-			const firstPart = parts[0].trim();
-
-			// For "default" model, extract actual model name from "Use the default model (currently X)"
-			if (model.id === "default") {
-				const match = firstPart.match(/\(currently\s+(.+?)\)/);
-				if (match?.[1]) {
-					return `${match[1]} (default)`;
-				}
-			}
-
-			return firstPart;
-		}
-	}
-
-	// Use model name directly (capitalize first letter of each word)
 	return capitalizeName(model.name);
 }
 

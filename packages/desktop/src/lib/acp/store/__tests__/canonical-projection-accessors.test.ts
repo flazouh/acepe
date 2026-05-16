@@ -127,16 +127,16 @@ function addColdSession(store: SessionStore): void {
 }
 
 describe("SessionStore canonical projection accessors", () => {
-	it("returns neutral values when no canonical projection exists", () => {
-		const store = new SessionStore();
+		it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
+			const store = new SessionStore();
 
-		expect(store.getSessionTurnState("session-1")).toBeNull();
-		expect(store.getSessionConnectionError("session-1")).toBeNull();
-		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
-		expect(store.getSessionAutonomousEnabled("session-1")).toBe(false);
-		expect(store.getSessionCurrentModeId("session-1")).toBeNull();
-		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
+			expect(store.getSessionTurnState("session-1")).toBeNull();
+			expect(store.getSessionConnectionError("session-1")).toBeNull();
+			expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
+			expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
+			expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+			expect(store.getSessionCurrentModeId("session-1")).toBeNull();
+			expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 		expect(store.getSessionAvailableCommands("session-1")).toEqual([]);
 		expect(store.getSessionConfigOptions("session-1")).toEqual([]);
 		expect(store.getSessionAvailableModels("session-1")).toEqual([]);

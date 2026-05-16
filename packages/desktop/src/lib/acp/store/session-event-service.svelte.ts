@@ -452,7 +452,6 @@ export class SessionEventService {
 					updateSessionId: update.session_id,
 					turnId: update.turn_id,
 				});
-				handler.handleStreamComplete(sessionId, update.turn_id);
 				break;
 
 			case "turnError":
