@@ -49,6 +49,9 @@ export default defineConfig({
 		watch: {
 			// 3. ignore backend sources, generated outputs, and test-only files that should never reload the app UI
 			ignored: ignoredDevWatchPaths,
+			// 4. watch the sibling @acepe/ui package — chokidar only watches under the Vite root
+			//    (packages/desktop/) by default, so edits in packages/ui/ would otherwise be invisible to HMR
+			paths: ["../ui/src"],
 		},
 	},
 

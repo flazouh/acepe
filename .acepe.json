@@ -8,8 +8,6 @@
   },
   "version": 1,
   "worktree": {
-    "setupCommands": [
-      "run a ls command"
-    ]
+    "setupCommands": []
   }
 }

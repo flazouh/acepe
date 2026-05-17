@@ -428,7 +428,7 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
-	it("matches restored tool rows by tool call id when source link is not transcript-linked", () => {
+	it("requires transcript source links even when tool call ids match", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("tool-1", "tool", "Run"),
 		]);
@@ -457,9 +457,9 @@ describe("agent panel graph materializer", () => {
 		expect(scene.conversation.entries[0]).toMatchObject({
 			id: "tool-1",
 			type: "tool_call",
-			kind: "execute",
-			title: "Run",
-			presentationState: "resolved",
+			kind: "other",
+			title: "Unresolved tool",
+			presentationState: "degraded_operation",
 		});
 	});
 
@@ -781,6 +781,43 @@ describe("agent panel graph materializer", () => {
 
 		expect(scene.conversation.entries[0]).toMatchObject({
 			id: "tool-coincidental",
+			type: "tool_call",
+			kind: "other",
+			status: "degraded",
+			title: "Unresolved tool",
+			presentationState: "degraded_operation",
+		});
+	});
+
+	it("does not join transcript rows through matching tool call ids without a source link", () => {
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				createTranscriptEntry("tool-call-only", "tool", "Provider said a tool ran"),
+			]),
+			operations: [
+				createOperationSnapshot({
+					id: "operation-without-transcript-link",
+					tool_call_id: "tool-call-only",
+					operation_provenance_key: "tool-call-only",
+					source_link: {
+						kind: "synthetic",
+						reason: "live_operation_without_transcript_link",
+					},
+				}),
+			],
+			turnState: "Completed",
+		});
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Restored session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "tool-call-only",
 			type: "tool_call",
 			kind: "other",
 			status: "degraded",

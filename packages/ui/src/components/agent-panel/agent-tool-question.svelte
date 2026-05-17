@@ -113,6 +113,19 @@
 		if (!labels || labels.length === 0) return noAnswerLabel;
 		return labels.join(", ");
 	}
+
+	function handleOtherKeydown(
+		event: KeyboardEvent,
+		questionIndex: number,
+		multiSelect?: boolean,
+	): void {
+		if (event.key === "Enter" || event.key === "Escape") {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+
+		onOtherKeydown?.(questionIndex, event.key, multiSelect);
+	}
 </script>
 
 {#if isAnswered || isCancelled}
@@ -246,8 +259,7 @@
 									value={currentOtherText}
 									oninput={(e) =>
 										onOtherInput?.(qIndex, e.currentTarget.value, question.multiSelect)}
-									onkeydown={(e) =>
-										onOtherKeydown?.(qIndex, e.key, question.multiSelect)}
+									onkeydown={(e) => handleOtherKeydown(e, qIndex, question.multiSelect)}
 								/>
 								<kbd
 									aria-label="Press Enter to submit"

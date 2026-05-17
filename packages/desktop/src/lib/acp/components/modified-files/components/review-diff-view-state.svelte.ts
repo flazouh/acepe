@@ -260,8 +260,13 @@ export class ReviewDiffViewState {
 	private isDisposed = $state(false);
 
 	/**
-	 * Promise that tracks theme registration to prevent race conditions.
+	 * Monotonically increasing counter — incremented at the start of each
+	 * initializeDiff call.  After the async theme-registration await we check
+	 * that the stored counter still matches; if a newer call has already started
+	 * we bail out to avoid racing against it.
 	 */
+	private initGeneration = 0;
+
 	/**
 	 * Callback for hunk accept/reject actions.
 	 */
@@ -306,12 +311,22 @@ export class ReviewDiffViewState {
 		onHunkAction?: HunkActionCallback,
 		density: ReviewDiffDensity = "default"
 	): Promise<void> {
+		// Claim this generation before the async pause so we can detect if a
+		// newer call starts while we are awaiting theme registration.
+		const generation = ++this.initGeneration;
+
 		this.onHunkAction = onHunkAction ?? null;
 		// Ensure theme is registered and AWAIT completion before rendering
 		const themeResult = await ResultAsync.fromPromise(
 			ensurePierreThemeRegistered(),
 			(e) => e as Error
 		);
+
+		// A newer initializeDiff call started while we were awaiting — abandon
+		// this invocation to avoid racing against the newer one.
+		if (generation !== this.initGeneration) {
+			return;
+		}
 
 		if (themeResult.isErr()) {
 			console.error(

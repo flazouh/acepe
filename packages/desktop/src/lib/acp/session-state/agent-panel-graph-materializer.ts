@@ -67,7 +67,6 @@ export interface AgentPanelGraphMaterializerInput {
 interface OperationIndex {
 	readonly byOperationId: Map<string, OperationSnapshot>;
 	readonly byTranscriptSourceEntryId: Map<string, OperationSnapshot>;
-	readonly byToolCallId: Map<string, OperationSnapshot>;
 }
 
 function segmentText(entry: TranscriptEntry): string {
@@ -136,11 +135,9 @@ function truncateDisplayText(
 function buildOperationIndex(operations: readonly OperationSnapshot[]): OperationIndex {
 	const byOperationId = new Map<string, OperationSnapshot>();
 	const byTranscriptSourceEntryId = new Map<string, OperationSnapshot>();
-	const byToolCallId = new Map<string, OperationSnapshot>();
 
 	for (const operation of operations) {
 		byOperationId.set(operation.id, operation);
-		byToolCallId.set(operation.tool_call_id, operation);
 		if (operation.source_link.kind === "transcript_linked") {
 			byTranscriptSourceEntryId.set(operation.source_link.entry_id, operation);
 		}
@@ -149,7 +146,6 @@ function buildOperationIndex(operations: readonly OperationSnapshot[]): Operatio
 	return {
 		byOperationId,
 		byTranscriptSourceEntryId,
-		byToolCallId,
 	};
 }
 
@@ -161,20 +157,7 @@ function findOperationForTranscriptSourceEntry(
 	if (linkedOperation !== undefined) {
 		return linkedOperation;
 	}
-
-	const toolCallOperation = index.byToolCallId.get(entryId);
-	if (toolCallOperation === undefined) {
-		return null;
-	}
-
-	if (
-		toolCallOperation.source_link.kind !== "transcript_linked" &&
-		toolCallOperation.id === entryId
-	) {
-		return null;
-	}
-
-	return toolCallOperation;
+	return null;
 }
 
 function shouldLogUnresolvedToolDiagnostics(): boolean {

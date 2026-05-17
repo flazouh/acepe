@@ -81,6 +81,7 @@ hex = "0.4"
 md5 = "0.7"
 base64 = "0.22"
 ignore = "0.4"
+json_comments = "0.2.2"
 git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }
 rayon = "1.10"
 dashmap = "6"

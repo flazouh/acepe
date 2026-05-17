@@ -10,6 +10,7 @@ use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
     SessionCompatibilityInput, SessionReplayContext,
 };
+use crate::acp::session_materialization::ensure_transcript_tool_operations;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title,
     session_open_result_for_new_session, NewSessionOpenResultInput, SessionOpenFound,
@@ -496,15 +497,13 @@ pub async fn acp_get_session_state(
                 })?
         };
         let descriptor = canonical_metadata.as_ref().map(SessionMetadataRow::descriptor_facts);
+        let materialized_transcript_snapshot = lookup.transcript_snapshot.clone();
         let SessionProjectionSnapshot {
             session,
             operations,
             interactions,
             runtime: _,
         } = lookup.projection;
-        let mut session = session;
-        let mut operations = operations;
-        let mut interactions = interactions;
         let runtime_snapshot = runtime_snapshot_for_refresh(
             app.try_state::<Arc<SessionGraphRuntimeRegistry>>()
                 .map(|registry| registry.inner().as_ref()),
@@ -519,42 +518,20 @@ pub async fn acp_get_session_state(
         )
         .await?;
         let last_event_seq = revision.last_event_seq;
-        let transcript_snapshot = load_transcript_snapshot_for_state_lookup_with_app(
-            Some(&app),
-            db.inner(),
-            transcript_registry.inner().as_ref(),
-            &canonical_session_id,
-            &session_id,
-            lookup.replay_context.as_ref(),
-            last_event_seq,
-        )
-        .await?;
-        let unresolved_before_import = unresolved_tool_entry_ids(&transcript_snapshot, &operations);
-        if !unresolved_before_import.is_empty() {
-            if let Some(replay_context) = lookup.replay_context.as_ref() {
-                if let Some(provider_snapshot) =
-                    crate::history::commands::session_loading::load_provider_owned_session_snapshot(
-                        app.clone(),
-                        replay_context,
-                    )
-                    .await
-                    .map_err(SerializableAcpError::from)?
-                {
-                    let imported_projection = ProjectionRegistry::project_thread_snapshot(
-                        &canonical_session_id,
-                        Some(replay_context.agent_id.clone()),
-                        &provider_snapshot,
-                    );
-                    let unresolved_after_import =
-                        unresolved_tool_entry_ids(&transcript_snapshot, &imported_projection.operations);
-                    if unresolved_after_import.len() < unresolved_before_import.len() {
-                        session = imported_projection.session;
-                        operations = imported_projection.operations;
-                        interactions = imported_projection.interactions;
-                    }
-                }
-            }
-        }
+        let transcript_snapshot = if let Some(snapshot) = materialized_transcript_snapshot {
+            snapshot
+        } else {
+            load_transcript_snapshot_for_state_lookup_with_app(
+                Some(&app),
+                db.inner(),
+                transcript_registry.inner().as_ref(),
+                &canonical_session_id,
+                &session_id,
+                lookup.replay_context.as_ref(),
+                last_event_seq,
+            )
+            .await?
+        };
         warn_unresolved_tool_rows_in_state_lookup(
             &canonical_session_id,
             &transcript_snapshot,
@@ -687,6 +664,7 @@ struct SessionProjectionLookup {
     projection: SessionProjectionSnapshot,
     metadata: Option<SessionMetadataRow>,
     replay_context: Option<SessionReplayContext>,
+    transcript_snapshot: Option<TranscriptSnapshot>,
 }
 
 async fn load_session_projection_lookup(
@@ -727,6 +705,7 @@ async fn load_session_projection_lookup(
             projection: runtime_projection,
             metadata,
             replay_context,
+            transcript_snapshot: None,
         });
     }
 
@@ -740,6 +719,7 @@ async fn load_session_projection_lookup(
             },
             metadata,
             replay_context,
+            transcript_snapshot: None,
         });
     };
 
@@ -758,9 +738,12 @@ async fn load_session_projection_lookup(
             projection: runtime_projection,
             metadata,
             replay_context,
+            transcript_snapshot: None,
         });
     };
 
+    let imported_transcript_snapshot =
+        TranscriptSnapshot::from_stored_entries(0, &imported_thread_snapshot.entries);
     let imported_projection = ProjectionRegistry::project_thread_snapshot(
         session_id,
         Some(
@@ -773,12 +756,18 @@ async fn load_session_projection_lookup(
         &imported_thread_snapshot,
     );
     let mut imported_projection = imported_projection;
+    imported_projection.operations = ensure_transcript_tool_operations(
+        session_id,
+        &imported_transcript_snapshot,
+        imported_projection.operations,
+    );
     imported_projection.runtime = None;
 
     Ok(SessionProjectionLookup {
         projection: imported_projection,
         metadata,
         replay_context,
+        transcript_snapshot: Some(imported_transcript_snapshot),
     })
 }
 
@@ -1754,10 +1743,23 @@ fn replay_buffered_session_state_events(
         .into_iter()
         .filter(|event| event.event_name == "acp-session-state")
         .filter(|event| event.session_id.as_deref() == Some(session_id))
-        .filter(|event| {
-            serde_json::from_value::<SessionStateEnvelope>(event.payload.clone())
-                .map(|envelope| envelope.last_event_seq > frontier_last_event_seq)
-                .unwrap_or(false)
+        .filter_map(|event| {
+            let envelope =
+                serde_json::from_value::<SessionStateEnvelope>(event.payload.clone()).ok()?;
+            if envelope.last_event_seq <= frontier_last_event_seq {
+                return None;
+            }
+
+            if !matches!(
+                envelope.payload,
+                crate::acp::session_state_engine::protocol::SessionStatePayload::Delta { .. }
+            ) {
+                return None;
+            }
+
+            let payload = serde_json::to_value(&envelope).ok()?;
+
+            Some(crate::acp::event_hub::AcpEventEnvelope { payload, ..event })
         })
         .collect::<Vec<_>>();
     if replayable.is_empty() {
@@ -1948,8 +1950,24 @@ async fn async_resume_session_work(
     } else {
         load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
     };
+    let materialized_transcript_snapshot = transcript_snapshot.clone();
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
+
+    if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+        let mut projection = ProjectionRegistry::project_thread_snapshot(
+            session_id,
+            Some(replay_context.agent_id.clone()),
+            snapshot,
+        );
+        projection.operations = ensure_transcript_tool_operations(
+            session_id,
+            &materialized_transcript_snapshot,
+            projection.operations,
+        );
+        projection_registry.restore_session_projection(projection);
+    }
+    projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
     if let Some(claim) = open_token_claim {
         let hub = app.state::<Arc<AcpEventHubState>>();
@@ -1960,17 +1978,6 @@ async fn async_resume_session_work(
             claim.buffered_events,
         );
     }
-
-    if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-        projection_registry.restore_session_projection(
-            ProjectionRegistry::project_thread_snapshot(
-                session_id,
-                Some(replay_context.agent_id.clone()),
-                snapshot,
-            ),
-        );
-    }
-    projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
     Ok(result)
 }
@@ -2081,6 +2088,115 @@ mod transcript_buffer_tests {
         assert!(
             receiver.try_recv().is_err(),
             "non-matching events must not replay"
+        );
+    }
+
+    #[test]
+    fn replay_buffered_session_state_events_ignores_post_frontier_snapshot_repair_payloads() {
+        let hub = AcpEventHubState::new();
+        let mut receiver = hub.subscribe();
+
+        replay_buffered_session_state_events(
+            &hub,
+            "session-1",
+            12,
+            vec![AcpEventEnvelope {
+                seq: 13,
+                event_name: "acp-session-state".to_string(),
+                session_id: Some("session-1".to_string()),
+                payload: to_value(SessionStateEnvelope {
+                    session_id: "session-1".to_string(),
+                    graph_revision: 13,
+                    last_event_seq: 13,
+                    payload: SessionStatePayload::Snapshot {
+                        graph: Box::new(crate::acp::session_state_engine::SessionStateGraph {
+                            requested_session_id: "session-1".to_string(),
+                            canonical_session_id: "session-1".to_string(),
+                            is_alias: false,
+                            agent_id: crate::acp::types::CanonicalAgentId::Codex,
+                            project_path: "/repo".to_string(),
+                            worktree_path: None,
+                            source_path: None,
+                            revision: SessionGraphRevision::new(13, 12, 13),
+                            transcript_snapshot: crate::acp::transcript_projection::TranscriptSnapshot {
+                                revision: 12,
+                                entries: vec![
+                                    crate::acp::transcript_projection::TranscriptEntry {
+                                        entry_id: "tool-1".to_string(),
+                                        role: crate::acp::transcript_projection::TranscriptEntryRole::Tool,
+                                        segments: vec![crate::acp::transcript_projection::TranscriptSegment::Text {
+                                            segment_id: "tool-1:segment:0".to_string(),
+                                            text: "Read package".to_string(),
+                                        }],
+                                        attempt_id: None,
+                                    },
+                                    crate::acp::transcript_projection::TranscriptEntry {
+                                        entry_id: "tool-2".to_string(),
+                                        role: crate::acp::transcript_projection::TranscriptEntryRole::Tool,
+                                        segments: vec![crate::acp::transcript_projection::TranscriptSegment::Text {
+                                            segment_id: "tool-2:segment:0".to_string(),
+                                            text: "Run tests".to_string(),
+                                        }],
+                                        attempt_id: None,
+                                    },
+                                ],
+                            },
+                            operations: vec![crate::acp::projections::OperationSnapshot {
+                                id: "session-1:tool-2".to_string(),
+                                session_id: "session-1".to_string(),
+                                tool_call_id: "tool-2".to_string(),
+                                name: "Bash".to_string(),
+                                kind: Some(crate::acp::session_update::ToolKind::Execute),
+                                provider_status: crate::acp::session_update::ToolCallStatus::Completed,
+                                title: Some("Run tests".to_string()),
+                                arguments: crate::acp::session_update::ToolArguments::Execute {
+                                    command: None,
+                                },
+                                progressive_arguments: None,
+                                result: None,
+                                command: None,
+                                normalized_todos: None,
+                                parent_tool_call_id: None,
+                                parent_operation_id: None,
+                                child_tool_call_ids: vec![],
+                                child_operation_ids: vec![],
+                                operation_provenance_key: None,
+                                operation_state: crate::acp::projections::OperationState::Completed,
+                                locations: None,
+                                skill_meta: None,
+                                normalized_questions: None,
+                                question_answer: None,
+                                awaiting_plan_approval: false,
+                                plan_approval_request_id: None,
+                                started_at_ms: None,
+                                completed_at_ms: None,
+                                source_link: crate::acp::projections::OperationSourceLink::TranscriptLinked {
+                                    entry_id: "tool-2".to_string(),
+                                },
+                                degradation_reason: None,
+                            }],
+                            interactions: vec![],
+                            turn_state: crate::acp::projections::SessionTurnState::Running,
+                            message_count: 2,
+                            last_agent_message_id: None,
+                            active_turn_failure: None,
+                            last_terminal_turn_id: None,
+                            lifecycle: crate::acp::session_state_engine::selectors::SessionGraphLifecycle::ready(),
+                            activity: crate::acp::session_state_engine::selectors::SessionGraphActivity::idle(),
+                            capabilities: crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+                        }),
+                    },
+                })
+                .expect("serialize envelope"),
+                priority: "normal".to_string(),
+                droppable: false,
+                emitted_at_ms: 3,
+            }],
+        );
+
+        assert!(
+            receiver.try_recv().is_err(),
+            "historical open replay must not repair or replay full snapshot payloads"
         );
     }
 }

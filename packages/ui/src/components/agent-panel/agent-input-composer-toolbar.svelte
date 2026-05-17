@@ -8,6 +8,7 @@
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
+	import AgentInputModePill from "./agent-input-mode-pill.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import {
@@ -25,6 +26,10 @@
 		autonomousBusy,
 		autonomousTooltip,
 		onAutonomousToggle,
+		modes = [],
+		currentModeId = null,
+		onModeChange,
+		selectorsLoading,
 		selectorsDisabledByComposer,
 		toolbarConfigOptions,
 		onConfigOptionChange,
@@ -55,6 +60,10 @@
 		autonomousBusy: boolean;
 		autonomousTooltip?: string;
 		onAutonomousToggle: () => void;
+		modes?: readonly { id: string; label?: string }[];
+		currentModeId?: string | null;
+		onModeChange?: (modeId: string) => void;
+		selectorsLoading: boolean;
 		selectorsDisabledByComposer: boolean;
 		toolbarConfigOptions: readonly AgentInputConfigOption[];
 		onConfigOptionChange: (configId: string, value: string) => void | Promise<void>;
@@ -100,15 +109,15 @@
 		class:opacity-0={isVoiceRecordingUi}
 		class:pointer-events-none={isVoiceRecordingUi || selectorsDisabledByComposer}
 	>
-		<AgentInputAutonomousToggle
-			active={autonomousToggleActive}
-			disabled={autonomousDisabled || selectorsDisabledByComposer}
-			busy={autonomousBusy}
-			title={autonomousTooltip ?? "Autonomous"}
-			ariaLabel={autonomousTooltip ?? "Autonomous"}
-			onToggle={onAutonomousToggle}
-		/>
-		<div class="h-full w-px bg-border/50"></div>
+		{#if modes.length > 0 && onModeChange}
+			<AgentInputModePill
+				{modes}
+				{currentModeId}
+				disabled={selectorsDisabledByComposer}
+				onModeChange={onModeChange}
+			/>
+			<div class="h-full w-px bg-border/50"></div>
+		{/if}
 		{@render modelSelector()}
 		{#if toolbarConfigOptions.length > 0}
 			<div class="h-full w-px bg-border/50"></div>
@@ -166,6 +175,15 @@
 				{#if checkpointButton}
 					{@render checkpointButton()}
 				{/if}
+				<AgentInputAutonomousToggle
+					active={autonomousToggleActive}
+					disabled={autonomousDisabled || selectorsDisabledByComposer}
+					busy={autonomousBusy}
+					title={autonomousTooltip ?? "Autonomous"}
+					ariaLabel={autonomousTooltip ?? "Autonomous"}
+					tooltipDescription="Skip permission prompts and let the agent run tools automatically."
+					onToggle={onAutonomousToggle}
+				/>
 			</div>
 			{#if currentVoiceState !== null && voiceEnabled}
 				{#if currentVoiceState.phase === "error"}

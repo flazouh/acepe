@@ -25,7 +25,7 @@
 <EmbeddedPanelHeader>
 	<HeaderTitleCell>
 		<PlanIcon size="sm" class="shrink-0 mr-1" />
-		<span class="text-[11px] font-semibold text-foreground select-none truncate leading-none">
+		<span class="text-[11px] text-foreground select-none truncate leading-none">
 			{title}
 		</span>
 	</HeaderTitleCell>

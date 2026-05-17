@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.5.17] - 2026-05-17
+
+### Added
+- Backend session materialization now creates stable degraded operations for transcript tool rows that lack canonical provider evidence, keeping the UI out of tool-link repair work
+- Thinking blocks now support a shared default expand/collapse preference from the agent panel
+- Question tool cards now let users submit a typed “Other” answer with Enter
+
+### Changed
+- Historical session open, reconnect, resume, and state refresh paths now share stricter transcript-operation linking and replay-frontier behavior
+- The composer toolbar now exposes mode selection beside model/config controls and keeps Autonomous as a right-side run control
+- Review file lists now show clearer review status icons and diff pills
+
+### Fixed
+- Copilot config files with managed `//` comments no longer break session startup
+- Claude tool results that arrive without inline payloads can be backfilled from persisted provider history before falling back to an unresolved result
+- Restored Claude local command messages are filtered from converted user-visible transcript history
+- Optimistic user prompts stay visible until the matching canonical pending entry arrives
+
 ## [2026.5.16] - 2026-05-16
 
 ### Added

@@ -67,10 +67,54 @@
 		isPlanActionAvailable,
 	}: Props = $props();
 
+	let questionOtherTextByEntry = $state<Record<string, Record<number, string>>>({});
+
 	function isToolCall(
 		value: AgentPanelConversationEntry,
 	): value is Extract<AgentPanelConversationEntry, { type: "tool_call" }> {
 		return value.type === "tool_call";
+	}
+
+	function questionOtherText(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+	): Record<number, string> {
+		return questionOtherTextByEntry[toolEntry.id] ?? {};
+	}
+
+	function handleQuestionOtherInput(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+		questionIndex: number,
+		text: string,
+	): void {
+		if (questionOtherTextByEntry[toolEntry.id] === undefined) {
+			questionOtherTextByEntry[toolEntry.id] = {};
+		}
+
+		questionOtherTextByEntry[toolEntry.id][questionIndex] = text;
+	}
+
+	function handleQuestionOtherKeydown(
+		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
+		questionIndex: number,
+		key: string,
+		multiSelect?: boolean,
+	): void {
+		if (key !== "Enter") {
+			return;
+		}
+
+		const label = questionOtherTextByEntry[toolEntry.id]?.[questionIndex]?.trim() ?? "";
+		if (label.length === 0) {
+			return;
+		}
+
+		onQuestionSelect?.({
+			entryId: toolEntry.id,
+			interactionId: toolEntry.interactionId,
+			questionIndex,
+			label,
+			multiSelect,
+		});
 	}
 
 	const lintFileCount = $derived.by(() => {
@@ -163,6 +207,7 @@
 		questions={[entry.question]}
 		status={entry.status}
 		isInteractive={entry.status === "running"}
+		otherText={questionOtherText(entry)}
 		onSelect={(questionIndex, label, multiSelect) =>
 			onQuestionSelect?.({
 				entryId: entry.id,
@@ -171,6 +216,10 @@
 				label,
 				multiSelect,
 			})}
+		onOtherInput={(questionIndex, text) =>
+			handleQuestionOtherInput(entry, questionIndex, text)}
+		onOtherKeydown={(questionIndex, key, multiSelect) =>
+			handleQuestionOtherKeydown(entry, questionIndex, key, multiSelect)}
 	/>
 {:else if isToolCall(entry) && (entry.kind === "read_lints" || entry.lintDiagnostics !== undefined)}
 	<AgentToolReadLints

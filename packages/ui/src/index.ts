@@ -415,6 +415,8 @@ export {
 export { getFallbackIconSrc, getFileIconName, getFileIconSrc } from "./lib/file-icon/index.js";
 // Icon context
 export { getIconBasePath, setIconConfig } from "./lib/icon-context.js";
+// Thinking preferences context
+export { getThinkingPreferences, setThinkingPreferences } from "./lib/thinking-preferences-context.js";
 export { getProviderDisplayName, resolveProviderBrand } from "./lib/provider-brand.js";
 export type { ProviderBrand } from "./lib/provider-brand.js";
 export type {

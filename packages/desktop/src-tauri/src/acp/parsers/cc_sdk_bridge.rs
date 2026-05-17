@@ -37,7 +37,7 @@ pub struct PendingToolCallState {
     pub tool_name: String,
 }
 
-const MISSING_TOOL_RESULT_MESSAGE: &str =
+pub(crate) const MISSING_TOOL_RESULT_MESSAGE: &str =
     "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe.";
 
 fn tool_requires_observable_result(tool_name: &str) -> bool {

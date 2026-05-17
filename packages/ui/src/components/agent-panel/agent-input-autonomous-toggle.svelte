@@ -2,12 +2,13 @@
   AgentInputAutonomousToggle - Robot toggle button in the composer toolbar.
 
   Extracted from packages/desktop/src/lib/acp/components/agent-input/components/autonomous-toggle-button.svelte.
-  Uses plain title attribute instead of rich tooltip.
+  Wraps the button in a rich Tooltip when a description is provided.
 -->
 <script lang="ts">
 	import { Robot } from "phosphor-svelte";
 
 	import { Colors } from "../../lib/colors.js";
+	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
 		active: boolean;
@@ -15,6 +16,8 @@
 		busy?: boolean;
 		title?: string;
 		ariaLabel?: string;
+		/** Optional richer description rendered below the title in the tooltip. */
+		tooltipDescription?: string;
 		onToggle: () => void;
 	}
 
@@ -24,6 +27,7 @@
 		busy = false,
 		title = "Autonomous",
 		ariaLabel = "Autonomous",
+		tooltipDescription,
 		onToggle,
 	}: Props = $props();
 
@@ -76,18 +80,32 @@
 	}
 </script>
 
-<button
-	type="button"
-	onclick={handleClick}
-	aria-label={ariaLabel}
-	aria-pressed={active}
-	aria-disabled={disabled || busy}
-	class={buttonClass}
-	style={buttonStyle}
-	{title}
->
-	<Robot class={iconClass} size={14} weight={active ? "fill" : "regular"} />
-</button>
+<Tooltip>
+	<TooltipTrigger>
+		{#snippet child({ props: triggerProps })}
+			<button
+				{...triggerProps}
+				type="button"
+				onclick={handleClick}
+				aria-label={ariaLabel}
+				aria-pressed={active}
+				aria-disabled={disabled || busy}
+				class={buttonClass}
+				style={buttonStyle}
+			>
+				<Robot class={iconClass} size={14} weight={active ? "fill" : "regular"} />
+			</button>
+		{/snippet}
+	</TooltipTrigger>
+	<TooltipContent class="max-w-xs">
+		<div class="flex flex-col gap-0.5">
+			<span class="font-medium">{title}</span>
+			{#if tooltipDescription}
+				<span class="text-muted-foreground">{tooltipDescription}</span>
+			{/if}
+		</div>
+	</TooltipContent>
+</Tooltip>
 
 <style>
 	.autonomous-toggle--active-hover:hover {

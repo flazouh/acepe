@@ -832,7 +832,7 @@ impl ProjectionRegistry {
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                     snapshot.last_agent_message_id = Some(id.clone());
                 }
-                StoredEntry::ToolCall { id, message, .. } => {
+                StoredEntry::ToolCall { message, .. } => {
                     let message = normalize_tool_call_for_operation_ingress(message);
                     if should_skip_unanswered_question_tool_operation(&message) {
                         continue;
@@ -851,7 +851,7 @@ impl ProjectionRegistry {
                         None,
                         message.parent_tool_use_id.clone(),
                         OperationSourceLink::transcript_linked(
-                            normalize_operation_ingress_tool_call_id(id),
+                            normalize_operation_ingress_tool_call_id(&message.id),
                         ),
                     );
                     self.register_plan_approval_interaction(session_id, &message);
@@ -1457,7 +1457,10 @@ impl ProjectionRegistry {
             name: existing.name.clone(),
             kind: Some(ToolKind::ExitPlanMode),
             provider_status: existing.provider_status.clone(),
-            title: existing.title.clone().or_else(|| Some("Plan ready".to_string())),
+            title: existing
+                .title
+                .clone()
+                .or_else(|| Some("Plan ready".to_string())),
             arguments: ToolArguments::Other { raw: raw_input },
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),

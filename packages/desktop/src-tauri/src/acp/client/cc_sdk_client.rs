@@ -1244,6 +1244,7 @@ impl ClaudeCcSdkClient {
         let db = self.db.clone();
         let app_handle = self.app_handle.clone();
         let pending_creation_attempt_id = self.pending_creation_attempt_id.clone();
+        let project_path = self.current_cwd.clone();
         let context = StreamingBridgeContext {
             dispatcher,
             bridge,
@@ -1256,6 +1257,7 @@ impl ClaudeCcSdkClient {
             db,
             app_handle,
             pending_creation_attempt_id,
+            project_path,
         };
 
         let handle = tauri::async_runtime::spawn(async move {
@@ -1486,6 +1488,7 @@ struct StreamingBridgeContext {
     db: Option<DbConn>,
     app_handle: Option<AppHandle>,
     pending_creation_attempt_id: Option<String>,
+    project_path: Option<PathBuf>,
 }
 
 fn terminal_tool_call_id(update: &SessionUpdate) -> Option<&str> {
@@ -1519,6 +1522,7 @@ async fn run_streaming_bridge(
         db,
         app_handle,
         pending_creation_attempt_id,
+        project_path,
     } = context;
 
     tracing::info!(session_id = %session_id, "cc-sdk bridge: started, waiting for messages...");
@@ -1782,6 +1786,23 @@ async fn run_streaming_bridge(
                     }
                     if !pending_creation_promoted {
                         buffered_pending_creation_updates.push(update);
+                        continue;
+                    }
+                    let backfill_request = claude_missing_tool_result_backfill_request(
+                        provider.as_ref(),
+                        &session_id,
+                        observed_provider_session_id.as_deref(),
+                        project_path.as_ref(),
+                        &update,
+                    );
+                    if let Some(backfill_request) = backfill_request {
+                        spawn_claude_history_tool_result_backfill(
+                            dispatcher.clone(),
+                            task_reconciler.clone(),
+                            provider.clone(),
+                            backfill_request,
+                            update,
+                        );
                         continue;
                     }
                     dispatch_cc_sdk_update(
@@ -2320,6 +2341,205 @@ fn dispatch_cc_sdk_update(
         log_emitted_event(&sid, &emitted_update);
         dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ClaudeToolResultBackfillRequest {
+    ui_session_id: String,
+    provider_session_id: String,
+    project_path: PathBuf,
+    tool_call_id: String,
+}
+
+fn claude_missing_tool_result_backfill_request(
+    provider: &dyn AgentProvider,
+    ui_session_id: &str,
+    provider_session_id: Option<&str>,
+    project_path: Option<&PathBuf>,
+    update: &SessionUpdate,
+) -> Option<ClaudeToolResultBackfillRequest> {
+    if provider.id() != "claude-code" {
+        return None;
+    }
+
+    let project_path = project_path?.clone();
+    let tool_call_id = missing_claude_tool_result_id(update)?;
+
+    Some(ClaudeToolResultBackfillRequest {
+        ui_session_id: ui_session_id.to_string(),
+        provider_session_id: provider_session_id.unwrap_or(ui_session_id).to_string(),
+        project_path,
+        tool_call_id,
+    })
+}
+
+fn missing_claude_tool_result_id(update: &SessionUpdate) -> Option<String> {
+    let SessionUpdate::ToolCallUpdate { update, .. } = update else {
+        return None;
+    };
+
+    if update.failure_reason.as_deref()
+        == Some(crate::acp::parsers::cc_sdk_bridge::MISSING_TOOL_RESULT_MESSAGE)
+    {
+        return Some(update.tool_call_id.clone());
+    }
+
+    let stderr = update
+        .result
+        .as_ref()
+        .and_then(|result| result.get("stderr"))
+        .and_then(Value::as_str)?;
+
+    if stderr == crate::acp::parsers::cc_sdk_bridge::MISSING_TOOL_RESULT_MESSAGE {
+        Some(update.tool_call_id.clone())
+    } else {
+        None
+    }
+}
+
+fn spawn_claude_history_tool_result_backfill(
+    dispatcher: AcpUiEventDispatcher,
+    task_reconciler: Arc<std::sync::Mutex<TaskReconciler>>,
+    provider: Arc<dyn AgentProvider>,
+    request: ClaudeToolResultBackfillRequest,
+    fallback_update: SessionUpdate,
+) {
+    tauri::async_runtime::spawn(async move {
+        for attempt in 0..6 {
+            if attempt > 0 {
+                tokio::time::sleep(Duration::from_millis(150)).await;
+            }
+
+            let project_path = request.project_path.to_string_lossy().to_string();
+            match crate::session_jsonl::parser::parse_full_session(
+                &request.provider_session_id,
+                &project_path,
+            )
+            .await
+            {
+                Ok(session) => {
+                    if let Some(update) = claude_history_tool_result_update(
+                        &request.ui_session_id,
+                        &session,
+                        &request.tool_call_id,
+                    ) {
+                        dispatch_cc_sdk_update(
+                            &dispatcher,
+                            &task_reconciler,
+                            provider.as_ref(),
+                            update,
+                        );
+                        return;
+                    }
+                }
+                Err(error) => {
+                    tracing::debug!(
+                        ui_session_id = %request.ui_session_id,
+                        provider_session_id = %request.provider_session_id,
+                        tool_call_id = %request.tool_call_id,
+                        attempt,
+                        error = %error,
+                        "Claude tool result history backfill could not parse session yet"
+                    );
+                }
+            }
+        }
+
+        tracing::warn!(
+            ui_session_id = %request.ui_session_id,
+            provider_session_id = %request.provider_session_id,
+            tool_call_id = %request.tool_call_id,
+            "Claude tool result history backfill did not find a persisted tool result"
+        );
+        dispatch_cc_sdk_update(
+            &dispatcher,
+            &task_reconciler,
+            provider.as_ref(),
+            fallback_update,
+        );
+    });
+}
+
+fn claude_history_tool_result_update(
+    ui_session_id: &str,
+    session: &crate::session_jsonl::types::FullSession,
+    tool_call_id: &str,
+) -> Option<SessionUpdate> {
+    let normalized_tool_call_id =
+        crate::acp::parsers::acp_fields::normalize_tool_call_id(tool_call_id);
+
+    for message in &session.messages {
+        if message.is_meta || message.role != "user" {
+            continue;
+        }
+
+        for block in &message.content_blocks {
+            let crate::session_jsonl::types::ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+            } = block
+            else {
+                continue;
+            };
+            if crate::acp::parsers::acp_fields::normalize_tool_call_id(tool_use_id)
+                != normalized_tool_call_id
+            {
+                continue;
+            }
+
+            return Some(SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: normalized_tool_call_id,
+                    status: Some(ToolCallStatus::Completed),
+                    result: Some(tool_use_result_payload(
+                        content,
+                        message.tool_use_result.as_ref(),
+                    )),
+                    content: tool_result_content_blocks(content),
+                    ..Default::default()
+                },
+                session_id: Some(ui_session_id.to_string()),
+            });
+        }
+    }
+
+    None
+}
+
+fn tool_use_result_payload(content: &str, tool_use_result: Option<&Value>) -> Value {
+    let Some(Value::Object(object)) = tool_use_result else {
+        return Value::String(content.to_string());
+    };
+
+    let mut payload = serde_json::Map::new();
+    for key in [
+        "stdout",
+        "stderr",
+        "interrupted",
+        "isImage",
+        "noOutputExpected",
+        "exitCode",
+    ] {
+        if let Some(value) = object.get(key) {
+            payload.insert(key.to_string(), value.clone());
+        }
+    }
+
+    if !payload.contains_key("stdout") && !content.is_empty() {
+        payload.insert("stdout".to_string(), Value::String(content.to_string()));
+    }
+
+    Value::Object(payload)
+}
+
+fn tool_result_content_blocks(content: &str) -> Option<Vec<ContentBlock>> {
+    if content.is_empty() {
+        return None;
+    }
+
+    Some(vec![ContentBlock::Text {
+        text: content.to_string(),
+    }])
 }
 
 async fn fail_pending_creation_attempt(db: Option<&DbConn>, attempt_id: &str, reason: &str) {
@@ -2981,6 +3201,124 @@ mod tests {
     use std::sync::{LazyLock, Mutex as StdMutex};
 
     static HOME_ENV_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
+
+    #[test]
+    fn claude_history_tool_result_backfill_preserves_stdout_stderr_payload() {
+        let session = crate::session_jsonl::types::FullSession {
+            session_id: "provider-session".to_string(),
+            project_path: "/repo".to_string(),
+            title: "Test".to_string(),
+            created_at: "2026-05-16T00:00:00Z".to_string(),
+            messages: vec![crate::session_jsonl::types::OrderedMessage {
+                uuid: "user-tool-result".to_string(),
+                parent_uuid: Some("assistant-tool-use".to_string()),
+                role: "user".to_string(),
+                timestamp: "2026-05-16T00:00:01Z".to_string(),
+                content_blocks: vec![crate::session_jsonl::types::ContentBlock::ToolResult {
+                    tool_use_id: "toolu_exec".to_string(),
+                    content: "./README.md".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: None,
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: Some(serde_json::json!({
+                    "stdout": "./README.md",
+                    "stderr": "",
+                    "interrupted": false,
+                    "isImage": false,
+                    "noOutputExpected": false
+                })),
+                source_tool_assistant_uuid: Some("assistant-tool-use".to_string()),
+            }],
+            stats: crate::session_jsonl::types::SessionStats {
+                total_messages: 1,
+                user_messages: 1,
+                assistant_messages: 0,
+                tool_uses: 0,
+                tool_results: 1,
+                thinking_blocks: 0,
+                total_input_tokens: 0,
+                total_output_tokens: 0,
+            },
+        };
+
+        let update = claude_history_tool_result_update("ui-session", &session, "toolu_exec")
+            .expect("tool result update");
+
+        match update {
+            SessionUpdate::ToolCallUpdate { update, session_id } => {
+                assert_eq!(session_id.as_deref(), Some("ui-session"));
+                assert_eq!(update.tool_call_id, "toolu_exec");
+                assert_eq!(update.status, Some(ToolCallStatus::Completed));
+                assert_eq!(
+                    update
+                        .result
+                        .as_ref()
+                        .and_then(|result| result.get("stdout"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("./README.md")
+                );
+                assert_eq!(
+                    update
+                        .result
+                        .as_ref()
+                        .and_then(|result| result.get("stderr"))
+                        .and_then(serde_json::Value::as_str),
+                    Some("")
+                );
+                assert!(matches!(
+                    update.content.as_deref(),
+                    Some([crate::acp::types::ContentBlock::Text { text }])
+                        if text == "./README.md"
+                ));
+            }
+            other => panic!("expected tool call update, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn missing_tool_result_backfill_request_is_claude_only_and_uses_provider_session_id() {
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let project_path = PathBuf::from("/repo");
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "toolu_exec".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(serde_json::json!({
+                    "stderr": crate::acp::parsers::cc_sdk_bridge::MISSING_TOOL_RESULT_MESSAGE
+                })),
+                ..Default::default()
+            },
+            session_id: Some("ui-session".to_string()),
+        };
+
+        let request = claude_missing_tool_result_backfill_request(
+            &provider,
+            "ui-session",
+            Some("provider-session"),
+            Some(&project_path),
+            &update,
+        )
+        .expect("missing result should request Claude history backfill");
+
+        assert_eq!(request.ui_session_id, "ui-session");
+        assert_eq!(request.provider_session_id, "provider-session");
+        assert_eq!(request.project_path, project_path);
+        assert_eq!(request.tool_call_id, "toolu_exec");
+
+        let non_claude_provider = crate::acp::providers::codex::CodexProvider;
+        assert!(claude_missing_tool_result_backfill_request(
+            &non_claude_provider,
+            "ui-session",
+            Some("provider-session"),
+            Some(&PathBuf::from("/repo")),
+            &update,
+        )
+        .is_none());
+    }
 
     fn make_task_tool_call(id: &str) -> SessionUpdate {
         SessionUpdate::ToolCall {
@@ -6467,6 +6805,7 @@ mod tests {
             db: None,
             app_handle: None,
             pending_creation_attempt_id: None,
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![
@@ -6591,6 +6930,7 @@ mod tests {
             db: Some(db.clone()),
             app_handle: None,
             pending_creation_attempt_id: Some(attempt.id.clone()),
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![
@@ -6783,6 +7123,7 @@ mod tests {
             db: Some(db.clone()),
             app_handle: None,
             pending_creation_attempt_id: Some(attempt.id.clone()),
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![
@@ -6870,6 +7211,7 @@ mod tests {
             db: Some(db.clone()),
             app_handle: None,
             pending_creation_attempt_id: Some(attempt.id.clone()),
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::StreamEvent {
@@ -6921,6 +7263,7 @@ mod tests {
             db: None,
             app_handle: None,
             pending_creation_attempt_id: None,
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![
@@ -7009,6 +7352,7 @@ mod tests {
             db: None,
             app_handle: None,
             pending_creation_attempt_id: None,
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![
@@ -7156,6 +7500,7 @@ mod tests {
             db: None,
             app_handle: None,
             pending_creation_attempt_id: None,
+            project_path: None,
         };
 
         let stream = futures::stream::iter(vec![Ok(cc_sdk::Message::Result {

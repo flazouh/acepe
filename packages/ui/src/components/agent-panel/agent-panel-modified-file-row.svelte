@@ -47,35 +47,31 @@
 	type="button"
 	onclick={() => file.onSelect?.()}
 	data-selected={isSelected ? "true" : "false"}
-	class="group relative flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-sm transition-colors {isSelected
+	title={reviewIndicator.label}
+	class="group flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-left text-sm transition-colors {isSelected
 		? 'bg-accent text-foreground font-medium'
 		: 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'}"
 >
-	{#if isSelected}
-		<span
-			class="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-foreground/70"
-			aria-hidden="true"
-		></span>
-	{/if}
+	<!-- Status icon left of the file chip -->
+	<span class="shrink-0 {reviewIndicator.iconClassName}" aria-label={reviewIndicator.label}>
+		{#if reviewIndicator.icon === "accepted"}
+			<CheckCircle class="h-3 w-3" weight="fill" />
+		{:else if reviewIndicator.icon === "partial"}
+			<CircleDashed class="h-3 w-3" weight="bold" />
+		{:else if reviewIndicator.icon === "denied"}
+			<XCircle class="h-3 w-3" weight="fill" />
+		{:else}
+			<!-- unreviewed: neutral dot placeholder so column width stays consistent -->
+			<span class="block h-3 w-3 rounded-full border border-current opacity-30"></span>
+		{/if}
+	</span>
+
 	<FilePathBadge
 		filePath={file.filePath}
 		fileName={file.fileName ?? undefined}
 		interactive={false}
-		class="!bg-transparent !border-transparent !px-0"
+		class="!bg-transparent !border-transparent !px-0 min-w-0 flex-1"
 	/>
-
-	<span
-		class="ml-auto inline-flex shrink-0 items-center gap-1 font-mono text-[0.6875rem] leading-none text-foreground"
-	>
-		{#if reviewIndicator.icon === "accepted"}
-			<CheckCircle class="h-3 w-3 shrink-0 {reviewIndicator.iconClassName}" weight="fill" />
-		{:else if reviewIndicator.icon === "partial"}
-			<CircleDashed class="h-3 w-3 shrink-0 {reviewIndicator.iconClassName}" weight="bold" />
-		{:else if reviewIndicator.icon === "denied"}
-			<XCircle class="h-3 w-3 shrink-0 {reviewIndicator.iconClassName}" weight="fill" />
-		{/if}
-		{reviewIndicator.label}
-	</span>
 
 	{#if file.additions > 0 || file.deletions > 0}
 		<span class="shrink-0">

@@ -230,6 +230,10 @@ $effect(() => {
 					onCollapseChange={(next: boolean) => {
 						isCollapsed = next;
 					}}
+					defaultExpanded={chatPrefs ? !chatPrefs.thinkingBlockCollapsedByDefault : false}
+					onToggleDefaultExpand={() => {
+						chatPrefs?.setThinkingBlockCollapsedByDefault(!chatPrefs.thinkingBlockCollapsedByDefault);
+					}}
 				>
 					<div
 						class="thinking-content scrollbar-none overflow-y-auto text-xs opacity-60"

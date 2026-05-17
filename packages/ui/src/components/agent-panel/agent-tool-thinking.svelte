@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CaretRight } from "phosphor-svelte";
+	import { CaretRight, Eye, EyeSlash } from "phosphor-svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
+	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
 
 	interface Props {
 		/** Label to display (e.g. "Thinking", "Thinking for 3s", "Thought for 3s") */
@@ -21,6 +22,10 @@
 		ariaExpandLabel?: string;
 		/** Aria label when expanded */
 		ariaCollapseLabel?: string;
+		/** Whether thinking blocks are expanded by default (global preference) */
+		defaultExpanded?: boolean;
+		/** Callback to toggle the default expand preference */
+		onToggleDefaultExpand?: () => void;
 	}
 
 	let {
@@ -32,7 +37,13 @@
 		children,
 		ariaExpandLabel = "Expand thinking",
 		ariaCollapseLabel = "Collapse thinking",
+		defaultExpanded,
+		onToggleDefaultExpand,
 	}: Props = $props();
+
+	const thinkingPrefs = getThinkingPreferences();
+	const resolvedDefaultExpanded = $derived(defaultExpanded ?? thinkingPrefs?.defaultExpanded ?? false);
+	const resolvedToggle = $derived(onToggleDefaultExpand ?? thinkingPrefs?.onToggleDefaultExpand);
 
 	const hasContent = $derived(children !== undefined);
 
@@ -46,24 +57,52 @@
 
 <div class="flex min-w-0 flex-1 flex-col text-sm">
 	{#if showHeader}
-		<button
-			type="button"
-			class="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
-			onclick={toggleCollapsed}
-			aria-label={collapsed ? ariaExpandLabel : ariaCollapseLabel}
-			aria-expanded={!collapsed}
-		>
-			<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+		<div class="group/thinking-header flex min-w-0 flex-1 items-center gap-1">
+			<!-- Label — click to toggle collapse -->
+			<button
+				type="button"
+				class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
+				onclick={toggleCollapsed}
+				aria-label={collapsed ? ariaExpandLabel : ariaCollapseLabel}
+				aria-expanded={!collapsed}
+			>
 				<ToolLabel {status}>{headerLabel}</ToolLabel>
-			</div>
-			{#if hasContent}
-				<CaretRight
-					size={10}
-					weight="bold"
-					class="shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
-				/>
+			</button>
+
+			<!-- Eye button — show on hover, left of chevron -->
+			{#if resolvedToggle}
+				<button
+					type="button"
+					class="shrink-0 p-0.5 opacity-0 group-hover/thinking-header:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+					onclick={(e) => { e.stopPropagation(); resolvedToggle(); }}
+					title={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+					aria-label={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+				>
+					{#if resolvedDefaultExpanded}
+						<Eye size={11} weight="bold" />
+					{:else}
+						<EyeSlash size={11} weight="bold" />
+					{/if}
+				</button>
 			{/if}
-		</button>
+
+			<!-- Caret — click to toggle collapse -->
+			{#if hasContent}
+				<button
+					type="button"
+					class="shrink-0 cursor-pointer border-0 bg-transparent p-0.5"
+					onclick={toggleCollapsed}
+					tabindex="-1"
+					aria-hidden="true"
+				>
+					<CaretRight
+						size={10}
+						weight="bold"
+						class="text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+					/>
+				</button>
+			{/if}
+		</div>
 	{/if}
 
 	{#if !collapsed && children}

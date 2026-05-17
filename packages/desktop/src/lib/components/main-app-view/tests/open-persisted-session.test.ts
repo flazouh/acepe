@@ -139,14 +139,13 @@ describe("openPersistedSession", () => {
 
 	it("dedupes a repeated open while the hydrated reconnect is still claiming its token", async () => {
 		let resolveReconnect: (session: ExistingSession) => void = () => {};
-		sessionStore.connectSession = mock(
-			() =>
-				ResultAsync.fromSafePromise(
-					new Promise<ExistingSession>((resolve) => {
-						resolveReconnect = resolve;
-					})
-				) as unknown as ReturnType<SessionOpenStore["connectSession"]>
-		);
+		const connectSession: SessionOpenStore["connectSession"] = () =>
+			ResultAsync.fromSafePromise(
+				new Promise<ExistingSession>((resolve) => {
+					resolveReconnect = resolve;
+				})
+			);
+		sessionStore.connectSession = mock(connectSession);
 
 		openPersistedSession({
 			panelId: "panel-1",
@@ -188,7 +187,7 @@ describe("openPersistedSession", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
-	it("hydrates and settles snapshot-only after a found result", async () => {
+	it("hydrates the snapshot and reconnects after a found result", async () => {
 		openPersistedSession({
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -230,7 +229,7 @@ describe("openPersistedSession", () => {
 		expect(sessionStore.setSessionLoading).toHaveBeenCalledWith("session-1");
 	});
 
-	it("hydrates the open snapshot before marking loaded and connecting for manual and startup opens", async () => {
+	it("hydrates the open snapshot before marking loaded and reconnecting for manual and startup opens", async () => {
 		const sources = ["session-handler", "initialization-manager"] as const;
 
 		for (const source of sources) {
@@ -400,8 +399,8 @@ describe("openPersistedSession", () => {
 	// ==========================================================================
 
 	it("[E2E] openToken from found result is threaded verbatim into connectSession", async () => {
-		// Core proof: the token must survive the open → hydrate → connect chain without
-		// being dropped or replaced by any intermediate step.
+		// Core proof: the token must survive the open -> hydrate -> reconnect chain
+		// without being dropped or replaced by any intermediate step.
 		const specificToken = "token-abc-xyz-123";
 		getSessionOpenResultMock.mockImplementation(() =>
 			okAsync(createFoundResult("session-1", { openToken: specificToken }))

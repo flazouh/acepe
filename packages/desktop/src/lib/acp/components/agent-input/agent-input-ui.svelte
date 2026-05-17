@@ -6,7 +6,6 @@ import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnectio
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import {
 	AgentInputComposerToolbar,
-	AgentInputModePill,
 	AgentPanelComposer as SharedAgentPanelComposer,
 	type AgentInputConfigOption,
 } from "@acepe/ui/agent-panel";
@@ -1792,15 +1791,6 @@ $effect(() => {
 		}
 	}}
 >
-	{#snippet modeControlsSnippet()}
-		<AgentInputModePill
-			modes={visibleModes}
-			currentModeId={effectiveCurrentModeId}
-			disabled={selectorsDisabledByComposer}
-			onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-		/>
-	{/snippet}
-
 	{#if inputState.isDragOver}
 		<AgentInputDropZone isDragHovering={inputState.isDragHovering} label="Drop image to attach" />
 	{:else}
@@ -1812,7 +1802,6 @@ $effect(() => {
 			{#snippet content()}
 				<AgentInputComposerBody
 					bind:editorRef
-					modeControls={visibleModes.length > 0 ? modeControlsSnippet : undefined}
 					{voiceState}
 					{voiceOverlayActive}
 					{inputReady}
@@ -1880,6 +1869,10 @@ $effect(() => {
 					autonomousDisabled={autonomousDisabled}
 					autonomousBusy={autonomousToggleBusy}
 					onAutonomousToggle={() => { void handleAutonomousToggle(); }}
+					modes={visibleModes}
+					currentModeId={effectiveCurrentModeId}
+					onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+					{selectorsLoading}
 					{selectorsDisabledByComposer}
 					toolbarConfigOptions={toolbarConfigOptions}
 					onConfigOptionChange={handleConfigOptionChange}

@@ -14,47 +14,22 @@ import MarkdownText from "../messages/markdown-text.svelte";
 interface Props {
 	plan: SessionPlanResponse;
 	projectPath?: string;
-	sessionId?: string;
 	columnWidth?: number;
 	onOpenFullscreen: () => void;
 	onClose?: () => void;
-	onSendMessage?: (sessionId: string, message: string) => Promise<void>;
 }
 
 let {
 	plan,
 	projectPath: propProjectPath,
-	sessionId,
 	columnWidth = 450,
 	onOpenFullscreen,
 	onClose,
-	onSendMessage,
 }: Props = $props();
 
 // Get projectPath from context or use prop (backward compatibility)
 const sessionContext = useSessionContext();
 const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
-
-let isBuilding = $state(false);
-
-async function handleBuildPlan() {
-	if (!sessionId || !onSendMessage) {
-		toast.error("No active session");
-		return;
-	}
-
-	isBuilding = true;
-
-	const message = "Please implement this plan.";
-
-	try {
-		await onSendMessage(sessionId, message);
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		toast.error(`Failed to send message: ${errorMessage}`);
-		isBuilding = false;
-	}
-}
 
 function handleDownloadMarkdown() {
 	const blob = new Blob([plan.content], { type: "text/markdown" });
@@ -78,11 +53,7 @@ function handleDownloadMarkdown() {
 		title={plan.title}
 		slug={plan.slug}
 		content={plan.content}
-		{isBuilding}
-		onBuild={handleBuildPlan}
 		{onClose}
-		buildLabel={"Build"}
-		buildingLabel={"Building"}
 	>
 		{#snippet headerActions()}
 			<CopyButton text={plan.content} variant="embedded" stopPropagation={true} />

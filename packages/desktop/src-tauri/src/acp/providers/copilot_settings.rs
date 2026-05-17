@@ -1,5 +1,6 @@
 use crate::acp::client::{SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
+use json_comments::StripComments;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -98,12 +99,14 @@ fn merge_copilot_settings_from_path(
             path.display()
         ))
     })?;
-    let file = serde_json::from_str::<CopilotSettingsFile>(&raw).map_err(|error| {
-        AcpError::ProtocolError(format!(
-            "Invalid Copilot config at {}: {error}",
-            path.display()
-        ))
-    })?;
+    let file =
+        serde_json::from_reader::<_, CopilotSettingsFile>(StripComments::new(raw.as_bytes()))
+            .map_err(|error| {
+                AcpError::ProtocolError(format!(
+                    "Invalid Copilot config at {}: {error}",
+                    path.display()
+                ))
+            })?;
 
     if let Some(model) = file.model.and_then(normalize_model_id) {
         settings.model = Some(model);

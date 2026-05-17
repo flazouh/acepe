@@ -2,6 +2,7 @@ use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::session_update::{ToolCallData, ToolKind};
 use crate::session_jsonl::types::{StoredAssistantChunk, StoredContentBlock, StoredEntry};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -13,13 +14,21 @@ pub struct TranscriptSnapshot {
 impl TranscriptSnapshot {
     #[must_use]
     pub fn from_stored_entries(revision: i64, stored_entries: &[StoredEntry]) -> Self {
-        Self {
-            revision,
-            entries: stored_entries
-                .iter()
-                .filter_map(TranscriptEntry::from_stored_entry)
-                .collect(),
+        let mut seen_tool_entry_ids = HashSet::new();
+        let mut entries = Vec::new();
+
+        for stored_entry in stored_entries {
+            if let Some(entry) = TranscriptEntry::from_stored_entry(stored_entry) {
+                if entry.role == TranscriptEntryRole::Tool
+                    && !seen_tool_entry_ids.insert(entry.entry_id.clone())
+                {
+                    continue;
+                }
+                entries.push(entry);
+            }
         }
+
+        Self { revision, entries }
     }
 }
 
@@ -55,11 +64,11 @@ impl TranscriptEntry {
                 segments: segments_from_assistant_chunks(id, &message.chunks),
                 attempt_id: None,
             }),
-            StoredEntry::ToolCall { id, message, .. } => {
+            StoredEntry::ToolCall { message, .. } => {
                 if should_skip_unanswered_historical_question_tool(message) {
                     return None;
                 }
-                let entry_id = normalize_tool_call_id(id);
+                let entry_id = normalize_tool_call_id(&message.id);
                 Some(Self {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Tool,
@@ -358,6 +367,123 @@ mod tests {
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
                 segment_id: "tool%25provider%0Acursor:tool".to_string(),
+                text: "Read file".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn transcript_snapshot_uses_provider_tool_call_id_for_tool_row_identity() {
+        let snapshot = TranscriptSnapshot::from_stored_entries(
+            4,
+            &[StoredEntry::ToolCall {
+                id: "jsonl-event-id".to_string(),
+                message: ToolCallData {
+                    id: "provider-tool-id".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file".to_string()),
+                        source_context: None,
+                    },
+                    raw_input: None,
+                    status: ToolCallStatus::Completed,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: Some("Read file".to_string()),
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                timestamp: None,
+            }],
+        );
+
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].entry_id, "provider-tool-id");
+        assert_eq!(
+            snapshot.entries[0].segments,
+            vec![TranscriptSegment::Text {
+                segment_id: "provider-tool-id:tool".to_string(),
+                text: "Read file".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn transcript_snapshot_deduplicates_tool_rows_by_provider_tool_call_id() {
+        let snapshot = TranscriptSnapshot::from_stored_entries(
+            5,
+            &[
+                StoredEntry::ToolCall {
+                    id: "jsonl-event-a".to_string(),
+                    message: ToolCallData {
+                        id: "provider-tool-id".to_string(),
+                        name: "Read".to_string(),
+                        arguments: ToolArguments::Read {
+                            file_path: Some("/tmp/file".to_string()),
+                            source_context: None,
+                        },
+                        raw_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: None,
+                        kind: Some(ToolKind::Read),
+                        title: Some("Read file".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    timestamp: None,
+                },
+                StoredEntry::ToolCall {
+                    id: "jsonl-event-b".to_string(),
+                    message: ToolCallData {
+                        id: "provider-tool-id".to_string(),
+                        name: "Read".to_string(),
+                        arguments: ToolArguments::Read {
+                            file_path: Some("/tmp/file".to_string()),
+                            source_context: None,
+                        },
+                        raw_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: None,
+                        kind: Some(ToolKind::Read),
+                        title: Some("Sparse replay row".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    timestamp: None,
+                },
+            ],
+        );
+
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].entry_id, "provider-tool-id");
+        assert_eq!(
+            snapshot.entries[0].segments,
+            vec![TranscriptSegment::Text {
+                segment_id: "provider-tool-id:tool".to_string(),
                 text: "Read file".to_string(),
             }]
         );

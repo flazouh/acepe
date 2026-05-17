@@ -254,6 +254,10 @@ fn convert_user_message(msg: &OrderedMessage) -> Option<StoredEntry> {
         return None;
     }
 
+    if is_claude_local_command_message(&text_content) {
+        return None;
+    }
+
     Some(StoredEntry::User {
         id: msg.uuid.clone(),
         message: StoredUserMessage {
@@ -267,6 +271,13 @@ fn convert_user_message(msg: &OrderedMessage) -> Option<StoredEntry> {
         },
         timestamp: Some(msg.timestamp.clone()),
     })
+}
+
+fn is_claude_local_command_message(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed.contains("<command-name>")
+        || trimmed.contains("<command-message>")
+        || trimmed.contains("<local-command-stdout>")
 }
 
 /// Check if a tool name is a question tool.

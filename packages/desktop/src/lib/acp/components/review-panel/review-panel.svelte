@@ -5,9 +5,10 @@ import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderTitleCell,
+	ReviewWorkspaceFileList,
+	type ReviewWorkspaceFileItem,
 } from "@acepe/ui";
 import { IconChevronLeft } from "@tabler/icons-svelte";
-import { IconChevronRight } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
@@ -27,7 +28,6 @@ import {
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
 } from "./review-session-state.js";
-import ReviewTabStrip from "./review-tab-strip.svelte";
 
 interface Props {
 	panelId: string;
@@ -72,10 +72,20 @@ let resolvedActionsByFile = new SvelteMap<string, ReadonlyArray<ResolvedHunkActi
 const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
 const files = $derived(modifiedFilesState.files);
 
-// Build file status array for tab strip (denied is stored in fileStatuses)
-const fileStatusArray = $derived.by(
-	(): Array<FileReviewStatus | undefined> =>
-		files.map((f) => fileStatuses.get(createReviewFileRevisionKey(f))?.status)
+// Build file items for the sidebar file list with review status
+const reviewFileItems = $derived.by((): ReviewWorkspaceFileItem[] =>
+	files.map((file) => {
+		const fileKey = createReviewFileRevisionKey(file);
+		const status = fileStatuses.get(fileKey)?.status;
+		return {
+			id: file.filePath,
+			filePath: file.filePath,
+			fileName: file.fileName,
+			reviewStatus: status ?? ("unreviewed" as const),
+			additions: file.totalAdded,
+			deletions: file.totalRemoved,
+		};
+	})
 );
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
@@ -330,68 +340,72 @@ function handlePointerUp() {
 			</EmbeddedIconButton>
 		</HeaderActionCell>
 
-		<HeaderTitleCell compactPadding={true}>
-			<div class="flex-1 min-w-0 overflow-hidden">
-				<ReviewTabStrip
-					{files}
-					selectedIndex={selectedFileIndex}
-					fileStatuses={fileStatusArray}
-					{onSelectFile}
-				/>
-			</div>
+		<HeaderTitleCell>
+			<span class="text-xs font-medium text-foreground">Review</span>
+			{#if fileTotal > 0}
+				<span class="text-xs text-muted-foreground">{fileCurrent}/{fileTotal}</span>
+			{/if}
 		</HeaderTitleCell>
 
 		<HeaderActionCell withDivider={true}>
-			{#if nextFileIdx !== null}
-				<EmbeddedIconButton onclick={handleNextFile} title={"Next"}>
-					<IconChevronRight class="h-4 w-4" />
-				</EmbeddedIconButton>
-			{/if}
 			<CloseAction onClose={onClose} title={"Close"} />
 		</HeaderActionCell>
 	</EmbeddedPanelHeader>
 
-	<!-- Content: Diff view (scrollable) -->
-	<div class="flex-1 min-h-0 overflow-auto">
-		{#if selectedFile}
-			{#key selectedFile.filePath}
-				<ReviewPanelDiff
-					file={selectedFile}
-					{projectPath}
-					onHunkAccept={handleHunkAccept}
-					onHunkReject={handleHunkReject}
-					onDiffStateReady={handleDiffStateReady}
-				/>
-			{/key}
-		{:else}
-			<div class="flex flex-col gap-2 p-4">
-				{#each Array.from({ length: 10 }, (_, i) => i) as index (index)}
-					<Skeleton class="h-4 w-full" />
-				{/each}
-			</div>
-		{/if}
-	</div>
+	<!-- Two-pane body: left file list sidebar + right diff view -->
+	<div class="flex flex-1 min-h-0">
+		<!-- Left sidebar: file list with review status -->
+		<div class="w-44 shrink-0 border-r border-border overflow-y-auto">
+			<ReviewWorkspaceFileList
+				files={reviewFileItems}
+				selectedIndex={selectedFileIndex}
+				emptyStateLabel="No files"
+				onFileSelect={onSelectFile}
+			/>
+		</div>
 
-	<!-- Floating review toolbar — positioned over the panel -->
-	{#if selectedFile}
-		<ReviewBottomWidget
-			hunkCurrent={hunkStats.hunkCurrent}
-			hunkTotal={hunkStats.hunkTotal}
-			{fileCurrent}
-			{fileTotal}
-			hasPrevHunk={hunkStats.hasPrev}
-			hasNextHunk={hunkStats.hasNext}
-			hasPrevPendingFile={prevFileIdx !== null}
-			hasNextPendingFile={nextFileIdx !== null}
-			hasPendingHunks={hunkStats.hasPending}
-			onPrevHunk={handlePrevHunk}
-			onNextHunk={handleNextHunk}
-			onPrevFile={handlePrevFile}
-			onNextFile={handleNextFile}
-			onAcceptFile={handleAcceptFile}
-			onRejectFile={handleRejectFile}
-		/>
-	{/if}
+		<!-- Right pane: diff content + floating toolbar -->
+		<div class="relative flex-1 min-w-0 overflow-auto">
+			{#if selectedFile}
+				{#key selectedFile.filePath}
+					<ReviewPanelDiff
+						file={selectedFile}
+						{projectPath}
+						onHunkAccept={handleHunkAccept}
+						onHunkReject={handleHunkReject}
+						onDiffStateReady={handleDiffStateReady}
+					/>
+				{/key}
+			{:else}
+				<div class="flex flex-col gap-2 p-4">
+					{#each Array.from({ length: 10 }, (_, i) => i) as index (index)}
+						<Skeleton class="h-4 w-full" />
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Floating review toolbar — positioned over the diff pane -->
+			{#if selectedFile}
+				<ReviewBottomWidget
+					hunkCurrent={hunkStats.hunkCurrent}
+					hunkTotal={hunkStats.hunkTotal}
+					{fileCurrent}
+					{fileTotal}
+					hasPrevHunk={hunkStats.hasPrev}
+					hasNextHunk={hunkStats.hasNext}
+					hasPrevPendingFile={prevFileIdx !== null}
+					hasNextPendingFile={nextFileIdx !== null}
+					hasPendingHunks={hunkStats.hasPending}
+					onPrevHunk={handlePrevHunk}
+					onNextHunk={handleNextHunk}
+					onPrevFile={handlePrevFile}
+					onNextFile={handleNextFile}
+					onAcceptFile={handleAcceptFile}
+					onRejectFile={handleRejectFile}
+				/>
+			{/if}
+		</div>
+	</div>
 
 	{#if !isFullscreenEmbedded}
 		<!-- Resize Edge -->

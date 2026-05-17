@@ -25,6 +25,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 			panelPendingUserEntry: panelPending,
 			sessionPendingOptimisticEntry: null,
 			hasCanonicalUserEntry: false,
+			hasCanonicalMatchingPendingUserEntry: false,
 		});
 
 		expect(entry).toBe(panelPending);
@@ -38,6 +39,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 			panelPendingUserEntry: panelPending,
 			sessionPendingOptimisticEntry: sessionPending,
 			hasCanonicalUserEntry: false,
+			hasCanonicalMatchingPendingUserEntry: false,
 		});
 
 		expect(entry).toBe(sessionPending);
@@ -50,6 +52,20 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 			panelPendingUserEntry: panelPending,
 			sessionPendingOptimisticEntry: null,
 			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: false,
+		});
+
+		expect(entry).toBeNull();
+	});
+
+	it("does not keep a session pending entry after its canonical user entry arrives", () => {
+		const sessionPending = createUserEntry("session-pending", "Hello Claude");
+
+		const entry = resolveOptimisticUserEntryForGraph({
+			panelPendingUserEntry: null,
+			sessionPendingOptimisticEntry: sessionPending,
+			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: true,
 		});
 
 		expect(entry).toBeNull();

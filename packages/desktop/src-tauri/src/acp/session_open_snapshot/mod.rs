@@ -23,6 +23,7 @@ use crate::acp::projections::{
     SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_materialization::ensure_transcript_tool_operations;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
@@ -546,6 +547,8 @@ pub async fn session_open_result_from_thread_snapshot(
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
+    let operations =
+        ensure_transcript_tool_operations(canonical_session_id, &transcript_snapshot, operations);
     let interactions = sanitize_interactions_for_historical_open(interactions);
     warn_unresolved_tool_rows_in_open_graph(
         canonical_session_id,
@@ -1024,6 +1027,36 @@ mod tests {
                 ..
             } if file_path == "/provider/README.md"
         ));
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_returns_claimable_reconnect_token() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-snapshot-only-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let token = Uuid::parse_str(&found.open_token).expect("open token must be a UUID");
+        assert!(
+            hub.has_reservation_for_session(token, session_id),
+            "historical provider opens must reserve the reconnect token"
+        );
     }
 
     #[tokio::test]

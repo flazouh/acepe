@@ -86,7 +86,12 @@ fn prompt_display_text(prompt: &[ContentBlock]) -> Option<String> {
         return None;
     }
 
-    Some(blocks.join("\n"))
+    let text = blocks.join("\n");
+    if is_claude_local_command_message(&text) {
+        return None;
+    }
+
+    Some(text)
 }
 
 fn session_text_pair(update: &SessionUpdate) -> Option<(String, String)> {
@@ -101,6 +106,13 @@ fn session_text_pair(update: &SessionUpdate) -> Option<(String, String)> {
         return None;
     };
     Some((session_id, text.clone()))
+}
+
+fn is_claude_local_command_message(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed.contains("<command-name>")
+        || trimmed.contains("<command-message>")
+        || trimmed.contains("<local-command-stdout>")
 }
 
 #[cfg(test)]
@@ -168,6 +180,19 @@ mod tests {
             }
             _ => panic!("expected user message chunk"),
         }
+    }
+
+    #[test]
+    fn skips_synthetic_user_message_for_local_command_prompt() {
+        let update = synthetic_user_message_update(
+            "session-command",
+            &[ContentBlock::Text {
+                text: "<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-sonnet-4-6</command-args>".to_string(),
+            }],
+            Some("attempt-command"),
+        );
+
+        assert!(update.is_none());
     }
 
     #[test]

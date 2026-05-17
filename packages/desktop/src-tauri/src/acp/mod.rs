@@ -43,6 +43,7 @@ pub(crate) mod resume_failure_classifier;
 pub mod runtime_resolver;
 pub mod session_descriptor;
 pub mod session_journal;
+pub(crate) mod session_materialization;
 pub mod session_open_snapshot;
 pub mod session_policy;
 pub mod session_registry;

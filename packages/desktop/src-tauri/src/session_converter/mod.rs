@@ -551,6 +551,68 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_session_skips_claude_local_command_user_messages() {
+        let mut full_session = create_test_full_session();
+
+        full_session.messages.insert(
+            0,
+            OrderedMessage {
+                uuid: "command-user".to_string(),
+                parent_uuid: None,
+                role: "user".to_string(),
+                timestamp: "2025-01-01T00:00:00Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-sonnet-4-6</command-args>".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: None,
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+        );
+        full_session.messages.insert(
+            1,
+            OrderedMessage {
+                uuid: "command-stdout".to_string(),
+                parent_uuid: None,
+                role: "user".to_string(),
+                timestamp: "2025-01-01T00:00:00Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "<local-command-stdout>Set model to claude-sonnet-4-6</local-command-stdout>".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: None,
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+        );
+
+        let converted = convert_claude_full_session_to_thread_snapshot(&full_session);
+
+        assert!(!converted.entries.iter().any(|entry| {
+            matches!(
+                entry,
+                StoredEntry::User { id, .. } if id == "command-user" || id == "command-stdout"
+            )
+        }));
+        assert!(converted.entries.iter().any(|entry| {
+            matches!(
+                entry,
+                StoredEntry::User { message, .. }
+                    if message.content.text.as_deref() == Some("Hello, world!")
+            )
+        }));
+    }
+
+    #[test]
     fn test_detect_tool_kind() {
         assert_eq!(ClaudeCodeParser.detect_tool_kind("read"), ToolKind::Read);
         assert_eq!(

@@ -27,6 +27,7 @@ import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { api } from "../../../store/api.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
+import { setThinkingPreferences } from "@acepe/ui";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
@@ -204,6 +205,17 @@ let {
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const chatPreferencesStore = getChatPreferencesStore();
+
+setThinkingPreferences({
+	get defaultExpanded() {
+		return chatPreferencesStore ? !chatPreferencesStore.thinkingBlockCollapsedByDefault : false;
+	},
+	onToggleDefaultExpand: () => {
+		chatPreferencesStore?.setThinkingBlockCollapsedByDefault(
+			!chatPreferencesStore.thinkingBlockCollapsedByDefault,
+		);
+	},
+});
 const connectionStore = getConnectionStore();
 const interactionStore = getInteractionStore();
 const permissionStore = getPermissionStore();
@@ -357,6 +369,7 @@ const sessionIdentity = $derived(sessionId ? sessionStore.getSessionIdentity(ses
 // Metadata: title, createdAt, updatedAt (rarely changes)
 const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(sessionId) : null);
 const sessionHotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
+const sessionPendingSendIntent = $derived(sessionHotState?.pendingSendIntent ?? null);
 
 // Entries: conversation content (changes frequently during streaming)
 // Merges any optimistic pending entry (shown before session creation) with real entries.
@@ -372,15 +385,24 @@ const hasCanonicalUserEntryInGraph = $derived.by(() => {
 	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
 	return entries.some((entry) => entry.role === "user");
 });
+const hasCanonicalMatchingPendingUserEntry = $derived.by(() => {
+	const pending = sessionPendingSendIntent;
+	if (pending === null) {
+		return false;
+	}
+	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
+	return entries.some((entry) => entry.role === "user" && entry.attemptId === pending.attemptId);
+});
 const optimisticUserEntryForGraph = $derived(
 	resolveOptimisticUserEntryForGraph({
 		panelPendingUserEntry: panelHotState?.pendingUserEntry ?? null,
-		sessionPendingOptimisticEntry: sessionHotState?.pendingSendIntent?.optimisticEntry ?? null,
+		sessionPendingOptimisticEntry: sessionPendingSendIntent?.optimisticEntry ?? null,
 		hasCanonicalUserEntry: hasCanonicalUserEntryInGraph,
+		hasCanonicalMatchingPendingUserEntry: hasCanonicalMatchingPendingUserEntry,
 	})
 );
 const hasImmediatePendingSendIntent = $derived(
-	(sessionHotState?.pendingSendIntent ?? null) !== null || optimisticUserEntryForGraph !== null
+	sessionPendingSendIntent !== null || optimisticUserEntryForGraph !== null
 );
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
 const panelPendingWorktreeEnabled = $derived(
@@ -2642,11 +2664,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 					<PlanSidebar
 						plan={planState.plan!}
 						projectPath={sessionProjectPath ?? undefined}
-						sessionId={sessionId ?? undefined}
 						columnWidth={PLAN_SIDEBAR_COLUMN_WIDTH}
 						onOpenFullscreen={() => panelState.openPlanDialog()}
 						onClose={() => panelStore.setPlanSidebarExpanded(panelId, false)}
-						onSendMessage={handlePlanSidebarSendMessage}
 					/>
 				{/snippet}
 				{#snippet browser()}

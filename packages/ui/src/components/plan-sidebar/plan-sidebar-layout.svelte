@@ -19,18 +19,12 @@
 	} from "../panel-header/index.js";
 	import MarkdownDisplay from "../markdown/markdown-display.svelte";
 	import PlanIcon from "../icons/plan-icon.svelte";
-	import BuildIcon from "../icons/build-icon.svelte";
-	import LoadingIcon from "../icons/loading-icon.svelte";
 
 	interface Props {
 		title: string;
 		slug: string;
 		content?: string;
-		isBuilding?: boolean;
-		onBuild?: () => void;
 		onClose?: () => void;
-		buildLabel?: string;
-		buildingLabel?: string;
 		/** Base path for file type SVG icons. Empty string falls back to colored dots. */
 		iconBasePath?: string;
 		class?: string;
@@ -46,11 +40,7 @@
 		title,
 		slug,
 		content,
-		isBuilding = false,
-		onBuild,
 		onClose,
-		buildLabel = "Build",
-		buildingLabel = "Building…",
 		iconBasePath = "",
 		class: className,
 		headerActions,
@@ -63,29 +53,13 @@
 	<!-- Header -->
 	<EmbeddedPanelHeader class="bg-muted/30">
 		<HeaderTitleCell compactPadding>
-			<PlanIcon size="md" class="shrink-0 mr-1.5" />
-			<span class="text-[11px] font-semibold font-mono text-foreground select-none truncate leading-none">
+			<PlanIcon size="sm" class="shrink-0 mr-1" />
+			<span class="text-[11px] text-foreground select-none truncate leading-none">
 				{title}
 			</span>
 		</HeaderTitleCell>
 
 		<HeaderActionCell>
-			{#if onBuild}
-				<button
-					type="button"
-					class="inline-flex items-center gap-1 px-2 text-[10px] font-medium font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-					onclick={onBuild}
-					disabled={isBuilding}
-			>
-				{#if isBuilding}
-					<LoadingIcon class="size-3 shrink-0 animate-spin" />
-					{buildingLabel}
-				{:else}
-					<BuildIcon size="sm" />
-					{buildLabel}
-				{/if}
-			</button>
-			{/if}
 			{#if headerActions}
 				{@render headerActions()}
 			{/if}

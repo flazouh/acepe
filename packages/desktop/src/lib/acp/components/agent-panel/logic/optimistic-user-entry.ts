@@ -4,7 +4,12 @@ export function resolveOptimisticUserEntryForGraph(input: {
 	readonly panelPendingUserEntry: SessionEntry | null;
 	readonly sessionPendingOptimisticEntry: SessionEntry | null;
 	readonly hasCanonicalUserEntry: boolean;
+	readonly hasCanonicalMatchingPendingUserEntry: boolean;
 }): SessionEntry | null {
+	if (input.hasCanonicalMatchingPendingUserEntry) {
+		return null;
+	}
+
 	if (input.sessionPendingOptimisticEntry !== null) {
 		return input.sessionPendingOptimisticEntry;
 	}
