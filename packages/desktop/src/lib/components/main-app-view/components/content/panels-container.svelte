@@ -152,6 +152,14 @@ const topLevelPanelsWithProject = $derived.by(() => {
 		}
 		topLevelPanels.push({ id: panel.id, projectPath: panel.projectPath });
 	}
+	// Terminal and browser panels are stored outside workspacePanels but are
+	// top-level panels that must be reachable as fullscreen targets in single mode.
+	for (const group of panelStore.terminalPanelGroups) {
+		topLevelPanels.push({ id: group.id, projectPath: group.projectPath });
+	}
+	for (const panel of panelStore.browserPanels) {
+		topLevelPanels.push({ id: panel.id, projectPath: panel.projectPath });
+	}
 	return topLevelPanels;
 });
 

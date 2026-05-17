@@ -100,7 +100,12 @@ export class PanelStore {
 
 	private isTopLevelFullscreenTarget(panelId: string | null): boolean {
 		if (panelId === null) return false;
-		return this.findTopLevelWorkspacePanel(panelId) !== undefined;
+		if (this.findTopLevelWorkspacePanel(panelId) !== undefined) return true;
+		// Terminal and browser panels are stored outside workspacePanels but are
+		// valid top-level fullscreen targets.
+		if (this.terminalPanelGroups.some((g) => g.id === panelId)) return true;
+		if (this.browserPanels.some((p) => p.id === panelId)) return true;
+		return false;
 	}
 
 	private setFullscreenPanelTarget(panelId: string | null): void {
@@ -201,12 +206,25 @@ export class PanelStore {
 			this.switchFullscreen(panelId);
 		}
 		if (this.viewMode !== "multi") {
-			const panel = this.findTopLevelWorkspacePanel(panelId);
-			if (panel?.projectPath) {
-				this.focusedViewProjectPath = panel.projectPath;
+			const projectPath = this.resolveTopLevelPanelProjectPath(panelId);
+			if (projectPath) {
+				this.focusedViewProjectPath = projectPath;
 				this.scrollX = 0;
 			}
 		}
+	}
+
+	/**
+	 * Resolve the project path for any top-level panel (workspace, terminal, or browser).
+	 */
+	private resolveTopLevelPanelProjectPath(panelId: string): string | null {
+		const workspacePanel = this.findTopLevelWorkspacePanel(panelId);
+		if (workspacePanel) return workspacePanel.projectPath;
+		const terminalGroup = this.terminalPanelGroups.find((g) => g.id === panelId);
+		if (terminalGroup) return terminalGroup.projectPath;
+		const browserPanel = this.browserPanels.find((p) => p.id === panelId);
+		if (browserPanel) return browserPanel.projectPath;
+		return null;
 	}
 
 	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): void {
