@@ -607,7 +607,7 @@ function handleOpenGitPanel(event: MouseEvent, projectPath: string) {
 }
 
 const projectHeaderHoverActionButtonClass =
-	"flex items-center justify-center size-5 rounded text-muted-foreground transition-all hover:bg-accent hover:text-foreground opacity-50 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100";
+	"flex items-center justify-center size-5 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 function handleOpenFileExplorer(event: MouseEvent, group: SessionGroup): void {
 	event.stopPropagation();
