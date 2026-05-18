@@ -1182,6 +1182,14 @@ fn ensure_permission_raw_input(
 
 fn enrich_permission_metadata(permission: &str, patterns: &[String], metadata: Value) -> Value {
     let mut metadata_object = metadata.as_object().cloned().unwrap_or_else(Map::new);
+    let diagnostic_raw_input = metadata_object
+        .remove("diagnosticRawInput")
+        .or_else(|| metadata_object.remove("rawInput"));
+
+    if let Some(raw_input) = diagnostic_raw_input.clone() {
+        metadata_object.insert("diagnosticRawInput".to_string(), raw_input);
+    }
+
     if metadata_object.contains_key("parsedArguments") {
         return Value::Object(metadata_object);
     }
@@ -1192,7 +1200,7 @@ fn enrich_permission_metadata(permission: &str, patterns: &[String], metadata: V
     }
 
     let raw_input = ensure_permission_raw_input(
-        metadata_object.get("rawInput").cloned(),
+        diagnostic_raw_input,
         permission,
         patterns,
         kind,
@@ -1283,6 +1291,39 @@ mod tests {
                     json!({
                         "kind": "read",
                         "file_path": "README.md"
+                    })
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn permission_asked_marks_original_payload_as_diagnostic() {
+        let update = convert_permission_asked_to_session_update(&json!({
+            "id": "permission-1",
+            "sessionID": "session-1",
+            "permission": "Bash",
+            "patterns": [],
+            "metadata": {
+                "rawInput": { "command": "echo ok" }
+            },
+            "always": []
+        }))
+        .expect("permission update should parse");
+
+        match update {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert_eq!(
+                    permission.metadata["diagnosticRawInput"],
+                    json!({ "command": "echo ok" })
+                );
+                assert!(permission.metadata.get("rawInput").is_none());
+                assert_eq!(
+                    permission.metadata["parsedArguments"],
+                    json!({
+                        "kind": "execute",
+                        "command": "echo ok"
                     })
                 );
             }
