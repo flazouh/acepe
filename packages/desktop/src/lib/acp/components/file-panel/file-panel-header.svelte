@@ -6,7 +6,7 @@ import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import CopyButton from "../messages/copy-button.svelte";
-import type { FilePanelDisplayMode } from "./file-panel-format.js";
+import type { FilePanelDisplayMode } from "./format/types.js";
 
 interface Props {
 	fileName: string;

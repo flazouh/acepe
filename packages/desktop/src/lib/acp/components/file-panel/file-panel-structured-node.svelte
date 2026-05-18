@@ -7,14 +7,14 @@ import { CircleDashed } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { Colors } from "@acepe/ui/colors";
 
+import type { StructuredData } from "./format/types.js";
 import {
 	formatStructuredPrimitive,
 	getStructuredContainerSummary,
 	isStructuredContainer,
-	type StructuredData,
 	toStructuredEntries,
 	tryParseJsonString,
-} from "./file-panel-format.js";
+} from "./format/parsers/structured.js";
 import FilePanelStructuredNode from "./file-panel-structured-node.svelte";
 
 interface Props {

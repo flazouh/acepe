@@ -1,9 +1,6 @@
 <script lang="ts">
-import {
-	type FilePanelFormatKind,
-	getFilePanelFormatKind,
-	parseStructuredContent,
-} from "./file-panel-format.js";
+import type { FilePanelFormatKind } from "./format/types.js";
+import { getFormatKind, parseStructuredContent } from "./format/registry.js";
 import FilePanelStructuredNode from "./file-panel-structured-node.svelte";
 
 interface Props {
@@ -15,7 +12,7 @@ interface Props {
 let { content, filePath, formatKind }: Props = $props();
 
 const parseResult = $derived.by(() => {
-	const detected = formatKind ?? getFilePanelFormatKind(filePath);
+	const detected = formatKind ?? getFormatKind(filePath);
 	return parseStructuredContent(content, detected);
 });
 

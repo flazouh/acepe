@@ -2,11 +2,8 @@
 import { CaretDown } from "phosphor-svelte";
 import { CaretRight } from "phosphor-svelte";
 
-import {
-	isStructuredContainer,
-	type StructuredData,
-	toStructuredEntries,
-} from "./file-panel-format.js";
+import type { StructuredData } from "./format/types.js";
+import { isStructuredContainer, toStructuredEntries } from "./format/parsers/structured.js";
 import FilePanelStructuredNavNode from "./file-panel-structured-nav-node.svelte";
 
 interface Props {

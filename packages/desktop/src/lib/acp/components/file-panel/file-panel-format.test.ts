@@ -1,60 +1,56 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	getFilePanelDisplayOptions,
-	getFilePanelFormatKind,
-	parseStructuredContent,
-	parseTableContent,
-	tryParseJsonString,
-} from "./file-panel-format";
+import { parseTableContent } from "./format/parsers/delimited";
+import { tryParseJsonString } from "./format/parsers/structured";
+import { getDisplayOptions, getFormatKind, parseStructuredContent } from "./format/registry";
 
-describe("getFilePanelFormatKind", () => {
+describe("getFormatKind", () => {
 	it("detects markdown and mdx", () => {
-		expect(getFilePanelFormatKind("/repo/README.md")).toBe("markdown");
-		expect(getFilePanelFormatKind("/repo/guide.MDX")).toBe("mdx");
+		expect(getFormatKind("/repo/README.md")).toBe("markdown");
+		expect(getFormatKind("/repo/guide.MDX")).toBe("mdx");
 	});
 
 	it("detects structured file types", () => {
-		expect(getFilePanelFormatKind("/repo/package.json")).toBe("json");
-		expect(getFilePanelFormatKind("/repo/config.yml")).toBe("yaml");
-		expect(getFilePanelFormatKind("/repo/layout.xml")).toBe("xml");
-		expect(getFilePanelFormatKind("/repo/app.toml")).toBe("toml");
-		expect(getFilePanelFormatKind("/repo/system.conf")).toBe("ini");
-		expect(getFilePanelFormatKind("/repo/.env.production")).toBe("env");
-		expect(getFilePanelFormatKind("/repo/session.jsonl")).toBe("ndjson");
-		expect(getFilePanelFormatKind("/repo/request.http")).toBe("http");
-		expect(getFilePanelFormatKind("/repo/Dockerfile")).toBe("dockerfile");
-		expect(getFilePanelFormatKind("/repo/.gitignore")).toBe("gitignore");
-		expect(getFilePanelFormatKind("/repo/pnpm-lock.yaml")).toBe("lockfile");
+		expect(getFormatKind("/repo/package.json")).toBe("json");
+		expect(getFormatKind("/repo/config.yml")).toBe("yaml");
+		expect(getFormatKind("/repo/layout.xml")).toBe("xml");
+		expect(getFormatKind("/repo/app.toml")).toBe("toml");
+		expect(getFormatKind("/repo/system.conf")).toBe("ini");
+		expect(getFormatKind("/repo/.env.production")).toBe("env");
+		expect(getFormatKind("/repo/session.jsonl")).toBe("ndjson");
+		expect(getFormatKind("/repo/request.http")).toBe("http");
+		expect(getFormatKind("/repo/Dockerfile")).toBe("dockerfile");
+		expect(getFormatKind("/repo/.gitignore")).toBe("gitignore");
+		expect(getFormatKind("/repo/pnpm-lock.yaml")).toBe("lockfile");
 	});
 
 	it("detects table and rendered file types", () => {
-		expect(getFilePanelFormatKind("/repo/users.csv")).toBe("csv");
-		expect(getFilePanelFormatKind("/repo/users.tsv")).toBe("tsv");
-		expect(getFilePanelFormatKind("/repo/server.log")).toBe("log");
-		expect(getFilePanelFormatKind("/repo/schema.sql")).toBe("sql");
-		expect(getFilePanelFormatKind("/repo/changes.patch")).toBe("diff");
-		expect(getFilePanelFormatKind("/repo/index.html")).toBe("html");
+		expect(getFormatKind("/repo/users.csv")).toBe("csv");
+		expect(getFormatKind("/repo/users.tsv")).toBe("tsv");
+		expect(getFormatKind("/repo/server.log")).toBe("log");
+		expect(getFormatKind("/repo/schema.sql")).toBe("sql");
+		expect(getFormatKind("/repo/changes.patch")).toBe("diff");
+		expect(getFormatKind("/repo/index.html")).toBe("html");
 	});
 
 	it("detects pdf files", () => {
-		expect(getFilePanelFormatKind("/repo/document.pdf")).toBe("pdf");
-		expect(getFilePanelFormatKind("/repo/report.PDF")).toBe("pdf");
+		expect(getFormatKind("/repo/document.pdf")).toBe("pdf");
+		expect(getFormatKind("/repo/report.PDF")).toBe("pdf");
 	});
 
 	it("falls back to other for unsupported files", () => {
-		expect(getFilePanelFormatKind("/repo/notes.txt")).toBe("other");
+		expect(getFormatKind("/repo/notes.txt")).toBe("other");
 	});
 });
 
-describe("getFilePanelDisplayOptions", () => {
+describe("getDisplayOptions", () => {
 	it("uses rendered mode by default for markdown-like preview files", () => {
-		expect(getFilePanelDisplayOptions("/repo/README.md")).toEqual({
+		expect(getDisplayOptions("/repo/README.md")).toEqual({
 			availableModes: ["rendered", "raw"],
 			defaultMode: "rendered",
 			formatKind: "markdown",
 		});
-		expect(getFilePanelDisplayOptions("/repo/index.html")).toEqual({
+		expect(getDisplayOptions("/repo/index.html")).toEqual({
 			availableModes: ["rendered", "raw"],
 			defaultMode: "rendered",
 			formatKind: "html",
@@ -62,12 +58,12 @@ describe("getFilePanelDisplayOptions", () => {
 	});
 
 	it("uses structured mode for inspectable config/data files", () => {
-		expect(getFilePanelDisplayOptions("/repo/package.json")).toEqual({
+		expect(getDisplayOptions("/repo/package.json")).toEqual({
 			availableModes: ["structured", "raw"],
 			defaultMode: "structured",
 			formatKind: "json",
 		});
-		expect(getFilePanelDisplayOptions("/repo/.env")).toEqual({
+		expect(getDisplayOptions("/repo/.env")).toEqual({
 			availableModes: ["structured", "raw"],
 			defaultMode: "structured",
 			formatKind: "env",
@@ -75,12 +71,12 @@ describe("getFilePanelDisplayOptions", () => {
 	});
 
 	it("uses table mode for csv/tsv", () => {
-		expect(getFilePanelDisplayOptions("/repo/users.csv")).toEqual({
+		expect(getDisplayOptions("/repo/users.csv")).toEqual({
 			availableModes: ["table", "raw"],
 			defaultMode: "table",
 			formatKind: "csv",
 		});
-		expect(getFilePanelDisplayOptions("/repo/users.tsv")).toEqual({
+		expect(getDisplayOptions("/repo/users.tsv")).toEqual({
 			availableModes: ["table", "raw"],
 			defaultMode: "table",
 			formatKind: "tsv",
@@ -88,12 +84,12 @@ describe("getFilePanelDisplayOptions", () => {
 	});
 
 	it("uses rendered-only mode for pdf and image files", () => {
-		expect(getFilePanelDisplayOptions("/repo/document.pdf")).toEqual({
+		expect(getDisplayOptions("/repo/document.pdf")).toEqual({
 			availableModes: ["rendered"],
 			defaultMode: "rendered",
 			formatKind: "pdf",
 		});
-		expect(getFilePanelDisplayOptions("/repo/photo.png")).toEqual({
+		expect(getDisplayOptions("/repo/photo.png")).toEqual({
 			availableModes: ["rendered"],
 			defaultMode: "rendered",
 			formatKind: "image",
@@ -101,7 +97,7 @@ describe("getFilePanelDisplayOptions", () => {
 	});
 
 	it("uses raw mode only for unsupported formats", () => {
-		expect(getFilePanelDisplayOptions("/repo/main.ts")).toEqual({
+		expect(getDisplayOptions("/repo/main.ts")).toEqual({
 			availableModes: ["raw"],
 			defaultMode: "raw",
 			formatKind: "other",
