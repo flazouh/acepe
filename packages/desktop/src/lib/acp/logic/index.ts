@@ -11,7 +11,3 @@ export {
 	setSelectorRegistryContext,
 	useSelectorRegistry,
 } from "./selector-registry.svelte.js";
-export {
-	parseSessionDomainEventPayload,
-	SessionDomainEventSubscriber,
-} from "./session-domain-event-subscriber.js";
