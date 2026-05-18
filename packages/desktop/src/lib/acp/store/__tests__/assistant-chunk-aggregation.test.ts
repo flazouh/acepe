@@ -29,7 +29,7 @@ function initStore(): SessionEntryStore {
 }
 
 function getAssistantTextContent(store: SessionEntryStore, sessionId: string): string {
-	const entries = store.getEntries(sessionId);
+	const entries = readCompatibilityEntries(store, sessionId);
 	const assistantEntries = entries.filter((e) => e.type === "assistant");
 
 	return assistantEntries
@@ -78,7 +78,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 				false
 			);
 
-			const entries = store.getEntries("sess-1");
+			const entries = readCompatibilityEntries(store, "sess-1");
 			expect(entries.length).toBe(1);
 
 			const msg = entries[0].message as AssistantMessage;
@@ -149,7 +149,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 				);
 			}
 
-			const entries = store.getEntries("sess-1");
+			const entries = readCompatibilityEntries(store, "sess-1");
 			expect(entries.length).toBe(3);
 			expect(entries[0].type).toBe("assistant");
 			expect(entries[1].type).toBe("tool_call");

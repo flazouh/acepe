@@ -68,7 +68,6 @@ const queueInputs = $derived.by(() => {
 			agentId: identity.agentId,
 			projectPath: identity.projectPath,
 			title: metadata.title,
-			entries: sessionStore.getEntries(sessionId),
 			currentStreamingToolCall: operationStore.getCurrentStreamingToolCall(sessionId),
 			currentToolKind: operationStore.getCurrentToolKind(sessionId),
 			lastToolCall: operationStore.getLastToolCall(sessionId),

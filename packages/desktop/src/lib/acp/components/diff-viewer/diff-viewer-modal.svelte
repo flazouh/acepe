@@ -166,7 +166,7 @@ function findRawFileDiff(path: string) {
 
 			{#if loading}
 				<div class="flex flex-1 flex-col items-center justify-center gap-3">
-					<LoadingIcon class="h-6 w-6" />
+					<LoadingIcon size={24} />
 					<p class="text-sm text-muted-foreground">Loading diff...</p>
 				</div>
 			{:else if error}

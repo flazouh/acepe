@@ -182,7 +182,7 @@ function getSyncStatusForSkill(
 						{store.selectedSkill.skill.name}
 					</span>
 					{#if store.isSaving}
-						<Spinner class="ml-1 h-3 w-3 text-muted-foreground" />
+						<Spinner class="ml-1 text-muted-foreground" size={12} />
 					{/if}
 				{:else}
 					<span class="text-[11px] text-muted-foreground">No skill selected</span>

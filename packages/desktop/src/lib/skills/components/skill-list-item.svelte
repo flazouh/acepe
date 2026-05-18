@@ -99,7 +99,7 @@ const syncStatusInfo = $derived.by(() => {
 					title={syncStatusInfo.tooltip}
 				>
 					{#if syncStatus === "syncing"}
-						<Spinner class="h-3 w-3 shrink-0 {syncStatusInfo.classes}" />
+						<Spinner class="shrink-0 {syncStatusInfo.classes}" size={12} />
 					{:else if syncStatusInfo.icon}
 						<syncStatusInfo.icon
 							class="h-3 w-3 {syncStatusInfo.classes}"

@@ -131,6 +131,29 @@ describe("ReviewDiffViewState regression", () => {
 		expect(pierreMockState.lastRenderArgs?.fileDiff.deletionLines).toBeDefined();
 	});
 
+	it("applies resolved hunks before the first render", async () => {
+		const { ReviewDiffViewState } = await import("../review-diff-view-state.svelte.js");
+		const state = new ReviewDiffViewState();
+		const diffData = createSingleHunkDiffData();
+
+		await state.initializeDiff(
+			diffData,
+			document.createElement("div"),
+			undefined,
+			() => {},
+			"default",
+			[{ hunkIndex: 0, action: "accept" }]
+		);
+
+		const stats = state.getHunkStats();
+		expect(stats.total).toBe(1);
+		expect(stats.accepted).toBe(1);
+		expect(stats.pending).toBe(0);
+		expect(pierreMockState.lastRenderArgs?.fileDiff.hunks[0].hunkContent).not.toEqual(
+			diffData.fileDiffMetadata.hunks[0].hunkContent
+		);
+	});
+
 	it("keeps accepted contents when resolved metadata omits newLines", async () => {
 		const { state, diffData } = await setupState();
 		const originalNewContents = diffData.newFile.contents;

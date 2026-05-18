@@ -129,6 +129,10 @@
       "svelte": "./src/components/agent-panel/index.ts",
       "default": "./src/components/agent-panel/index.ts"
     },
+    "./agent-panel/types": {
+      "svelte": "./src/components/agent-panel/types.ts",
+      "default": "./src/components/agent-panel/types.ts"
+    },
     "./app-layout": {
       "svelte": "./src/components/app-layout/index.ts",
       "default": "./src/components/app-layout/index.ts"

@@ -1,8 +1,7 @@
 <script lang="ts">
 import { AgentPanelTodoHeader as SharedAgentPanelTodoHeader } from "@acepe/ui/agent-panel";
-import type { SessionEntry } from "../application/dto/session-entry.js";
 import type { SessionStatus } from "../application/dto/session-status.js";
-import type { ThreadWithEntries } from "../logic/todo-state.svelte.js";
+import type { ToolCall } from "../types/tool-call.js";
 
 import { getTodoStateManager } from "../logic/todo-state-manager.svelte.js";
 import AnimatedChevron from "./animated-chevron.svelte";
@@ -10,7 +9,7 @@ import CopyButton from "./messages/copy-button.svelte";
 
 interface Props {
 	sessionId: string | null;
-	entries: ReadonlyArray<SessionEntry>;
+	toolCalls: ReadonlyArray<ToolCall>;
 	isConnected: boolean;
 	status: SessionStatus;
 	isStreaming: boolean;
@@ -18,20 +17,20 @@ interface Props {
 	compact?: boolean;
 }
 
-const { sessionId, entries, isConnected, status, isStreaming, compact = false }: Props = $props();
+const { sessionId, toolCalls, isConnected, status, isStreaming, compact = false }: Props = $props();
 
 const manager = getTodoStateManager();
 
 const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 
-	const threadData: ThreadWithEntries = {
-		entries,
+	const threadData = {
+		toolCalls,
 		isConnected,
 		status,
 		isStreaming,
 	};
-	const result = manager.getTodoState(sessionId, threadData);
+	const result = manager.getTodoStateFromToolCalls(sessionId, threadData);
 	if (result.isOk()) {
 		return result.value;
 	} else {

@@ -151,7 +151,7 @@
 						aria-busy={isRetrying ? "true" : undefined}
 					>
 						{#if isRetrying}
-							<LoadingIcon class="shrink-0" style="width: 10px; height: 10px;" />
+							<LoadingIcon class="shrink-0" size={10} />
 							{retryingLabel}
 						{:else}
 							{retryLabel}

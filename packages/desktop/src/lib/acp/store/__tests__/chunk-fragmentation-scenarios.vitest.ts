@@ -63,7 +63,7 @@ async function sendChunk(
 }
 
 function countAssistantEntries(store: SessionEntryStore, sessionId: string): number {
-	return store.getEntries(sessionId).filter((e) => e.type === "assistant").length;
+	return readCompatibilityEntries(store, sessionId).filter((e) => e.type === "assistant").length;
 }
 
 describe("Chunk Fragmentation — sequential chunks", () => {
@@ -79,7 +79,7 @@ describe("Chunk Fragmentation — sequential chunks", () => {
 		await sendChunk(store, "s1", "world", "msg-1");
 
 		expect(countAssistantEntries(store, "s1")).toBe(1);
-		const entry = store.getEntries("s1")[0];
+		const entry = readCompatibilityEntries(store, "s1")[0];
 		if (entry.type === "assistant") {
 			expect(entry.message.chunks).toHaveLength(2);
 		}
@@ -92,7 +92,7 @@ describe("Chunk Fragmentation — sequential chunks", () => {
 		await sendChunk(store, "s1", "D", "msg-1");
 
 		expect(countAssistantEntries(store, "s1")).toBe(1);
-		const entry = store.getEntries("s1")[0];
+		const entry = readCompatibilityEntries(store, "s1")[0];
 		if (entry.type === "assistant") {
 			expect(entry.message.chunks).toHaveLength(4);
 		}
@@ -104,7 +104,7 @@ describe("Chunk Fragmentation — sequential chunks", () => {
 		}
 
 		expect(countAssistantEntries(store, "s1")).toBe(1);
-		const entry = store.getEntries("s1")[0];
+		const entry = readCompatibilityEntries(store, "s1")[0];
 		if (entry.type === "assistant") {
 			expect(entry.message.chunks).toHaveLength(10);
 		}
@@ -168,7 +168,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		await sendChunk(store, "s1", "Result: ", "msg-1");
 		await sendChunk(store, "s1", "done", "msg-1");
 
-		const entries = store.getEntries("s1");
+		const entries = readCompatibilityEntries(store, "s1");
 		expect(entries).toHaveLength(3); // assistant, tool_call, assistant
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -188,7 +188,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		await sendChunk(store, "s1", "Result: ", "msg-1");
 		await sendChunk(store, "s1", "done", "msg-1");
 
-		const entries = store.getEntries("s1");
+		const entries = readCompatibilityEntries(store, "s1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -205,7 +205,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		await sendChunk(store, "s1", "Part 1 ", "msg-1");
 		await sendChunk(store, "s1", "Part 2", "msg-1");
 
-		const entries = store.getEntries("s1");
+		const entries = readCompatibilityEntries(store, "s1");
 		expect(entries).toHaveLength(3);
 
 		// Post-tool chunks should still be ONE entry
@@ -230,7 +230,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		// Phase 3: response after tool 2
 		await sendChunk(store, "s1", "Updated.", "msg-1");
 
-		const entries = store.getEntries("s1");
+		const entries = readCompatibilityEntries(store, "s1");
 		// Expected: assistant(thought), tool-1, assistant(response1), tool-2, assistant(response2)
 		expect(entries).toHaveLength(5);
 		expect(entries.map((e) => e.type)).toEqual([
@@ -253,7 +253,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		// Second chunk should merge via tracker fallback to UUID
 		await sendChunk(store, "s1", "done", undefined);
 
-		const entries = store.getEntries("s1");
+		const entries = readCompatibilityEntries(store, "s1");
 		expect(entries).toHaveLength(3); // assistant, tool_call, assistant
 
 		// Post-tool chunks should be ONE entry
@@ -283,7 +283,7 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 
 		await sendChunk(store, "s1", "After tool", "msg-1");
 
-		const assistantEntries = store.getEntries("s1").filter((e) => e.type === "assistant");
+		const assistantEntries = readCompatibilityEntries(store, "s1").filter((e) => e.type === "assistant");
 		// Only the initial createToolCallEntry boundary should split.
 		expect(assistantEntries).toHaveLength(2);
 	});
@@ -299,7 +299,7 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 
 		await sendChunk(store, "s1", "After tool", "msg-1");
 
-		const assistantEntries = store.getEntries("s1").filter((e) => e.type === "assistant");
+		const assistantEntries = readCompatibilityEntries(store, "s1").filter((e) => e.type === "assistant");
 		expect(assistantEntries).toHaveLength(1);
 	});
 });
@@ -321,7 +321,7 @@ describe("Chunk Fragmentation — user message boundary", () => {
 
 		await sendChunk(store, "s1", "Second response", "msg-1");
 
-		const assistantEntries = store.getEntries("s1").filter((e) => e.type === "assistant");
+		const assistantEntries = readCompatibilityEntries(store, "s1").filter((e) => e.type === "assistant");
 		// Same messageId still found via messageIdIndex — merges into existing entry
 		expect(assistantEntries).toHaveLength(1);
 	});
@@ -335,7 +335,7 @@ describe("Chunk Fragmentation — user message boundary", () => {
 		// Chunk with undefined messageId: tracker returns null, creates new entry
 		await sendChunk(store, "s1", "Second response", undefined);
 
-		const assistantEntries = store.getEntries("s1").filter((e) => e.type === "assistant");
+		const assistantEntries = readCompatibilityEntries(store, "s1").filter((e) => e.type === "assistant");
 		expect(assistantEntries).toHaveLength(2);
 	});
 });

@@ -172,4 +172,40 @@ describe("ReviewDiffViewState", () => {
 		expect(stats.accepted).toBe(0);
 		expect(stats.rejected).toBe(0);
 	}, 20_000);
+
+	it("accepts every pending hunk when accepting the whole file", async () => {
+		const { state } = await setupState();
+		const acceptedHunks: number[] = [];
+
+		Reflect.set(
+			state,
+			"onHunkAction",
+			(hunkIndex: number, action: "accept" | "reject", _oldContent: string) => {
+				if (action === "accept") {
+					acceptedHunks.push(hunkIndex);
+				}
+				state.applyHunkAction(hunkIndex, action);
+			}
+		);
+		Reflect.set(state, "totalHunksAtInit", 2);
+		Reflect.set(state, "lineAnnotations", [
+			{ metadata: { hunkIndex: 0 } },
+			{ metadata: { hunkIndex: 1 } },
+		]);
+
+		const result = state.acceptAllPendingHunks();
+
+		expect(result).toEqual([
+			{ hunkIndex: 0, oldContent: "line-02\n" },
+			{ hunkIndex: 1, oldContent: "line-15\n" },
+		]);
+		expect(acceptedHunks).toEqual([0, 1]);
+		expect(state.getPendingHunkIndices()).toEqual([]);
+		expect(state.getHunkStats()).toEqual({
+			total: 2,
+			pending: 0,
+			accepted: 2,
+			rejected: 0,
+		});
+	}, 20_000);
 });

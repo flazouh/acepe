@@ -14,20 +14,18 @@ afterEach(() => {
 });
 
 describe("LoadingIcon", () => {
-	it("applies caller-provided dimensions to the rendered svg", () => {
+	it("applies caller-provided dimensions to the rendered spinner", () => {
 		const { container } = render(LoadingIcon, {
-			style: "width: 14px; height: 14px;",
+			size: 14,
 		});
 
-		const svg = container.querySelector("svg");
-		const svgStyle = svg?.getAttribute("style");
-		const svgClass = svg?.getAttribute("class");
+		const spinner = container.querySelector(".acepe-dotm-root");
+		const spinnerStyle = spinner?.getAttribute("style");
+		const spinnerClass = spinner?.getAttribute("class");
 
-		expect(svg).not.toBeNull();
-		expect(svgStyle).toContain("width: 14px");
-		expect(svgStyle).toContain("height: 14px");
-		expect(svg?.getAttribute("width")).toBeNull();
-		expect(svg?.getAttribute("height")).toBeNull();
-		expect(svgClass).not.toContain("size-4");
+		expect(spinner).not.toBeNull();
+		expect(spinnerStyle).toContain("width: 14px");
+		expect(spinnerStyle).toContain("height: 14px");
+		expect(spinnerClass).not.toContain("size-4");
 	});
 });

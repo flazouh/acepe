@@ -117,6 +117,16 @@
 				onModeChange={onModeChange}
 			/>
 			<div class="h-full w-px bg-border/50"></div>
+			<AgentInputAutonomousToggle
+				active={autonomousToggleActive}
+				disabled={autonomousDisabled || selectorsDisabledByComposer}
+				busy={autonomousBusy}
+				title={autonomousTooltip ?? "Autonomous"}
+				ariaLabel={autonomousTooltip ?? "Autonomous"}
+				tooltipDescription="Skip permission prompts and let the agent run tools automatically."
+				onToggle={onAutonomousToggle}
+			/>
+			<div class="h-full w-px bg-border/50"></div>
 		{/if}
 		{@render modelSelector()}
 		{#if toolbarConfigOptions.length > 0}
@@ -175,15 +185,6 @@
 				{#if checkpointButton}
 					{@render checkpointButton()}
 				{/if}
-				<AgentInputAutonomousToggle
-					active={autonomousToggleActive}
-					disabled={autonomousDisabled || selectorsDisabledByComposer}
-					busy={autonomousBusy}
-					title={autonomousTooltip ?? "Autonomous"}
-					ariaLabel={autonomousTooltip ?? "Autonomous"}
-					tooltipDescription="Skip permission prompts and let the agent run tools automatically."
-					onToggle={onAutonomousToggle}
-				/>
 			</div>
 			{#if currentVoiceState !== null && voiceEnabled}
 				{#if currentVoiceState.phase === "error"}

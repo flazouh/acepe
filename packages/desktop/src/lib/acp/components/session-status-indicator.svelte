@@ -30,7 +30,7 @@ const shouldShow = $derived(show && status !== "empty");
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<div class="animate-in fade-in duration-150">
-						<Spinner style="width: {size}px; height: {size}px;" />
+						<Spinner {size} />
 					</div>
 				</Tooltip.Trigger>
 				<Tooltip.Content>

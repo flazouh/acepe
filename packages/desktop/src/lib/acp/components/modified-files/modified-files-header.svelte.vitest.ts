@@ -1,7 +1,18 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
+
+interface ReviewHeaderMockState {
+	readonly sessionLoaded: boolean;
+	readonly reviewStatuses: ReadonlyMap<string, FileReviewStatus | undefined>;
+	readonly keepAllApplied: boolean;
+}
+
+declare global {
+	var modifiedFilesHeaderMockState: ReviewHeaderMockState | undefined;
+}
 
 vi.mock(
 	"svelte",
@@ -43,7 +54,7 @@ vi.mock("../../store/review-preference-store.svelte.js", () => ({
 
 vi.mock("../../store/session-review-state-store.svelte.js", () => ({
 	sessionReviewStateStore: {
-		isLoaded: () => false,
+		isLoaded: () => globalThis.modifiedFilesHeaderMockState?.sessionLoaded ?? false,
 		ensureLoaded: vi.fn(),
 		getState: () => null,
 		upsertFileProgress: vi.fn(),
@@ -66,8 +77,10 @@ vi.mock("./logic/pr-generation-preferences.js", () => ({
 }));
 
 vi.mock("./logic/review-progress.js", () => ({
-	getReviewStatusByFilePath: () => new Map<string, undefined>(),
-	hasKeepAllBeenApplied: () => false,
+	getReviewStatusByFilePath: () =>
+		globalThis.modifiedFilesHeaderMockState?.reviewStatuses ??
+		new Map<string, FileReviewStatus | undefined>(),
+	hasKeepAllBeenApplied: () => globalThis.modifiedFilesHeaderMockState?.keepAllApplied ?? false,
 }));
 
 vi.mock("../../utils/string-formatting.js", () => ({
@@ -91,6 +104,14 @@ vi.mock("../shared/pr-link-footer-button.svelte", async () => ({
 }));
 
 import ModifiedFilesHeader from "./modified-files-header.svelte";
+
+beforeEach(() => {
+	globalThis.modifiedFilesHeaderMockState = {
+		sessionLoaded: false,
+		reviewStatuses: new Map<string, FileReviewStatus | undefined>(),
+		keepAllApplied: false,
+	};
+});
 
 afterEach(() => {
 	cleanup();
@@ -234,5 +255,103 @@ describe("ModifiedFilesHeader", () => {
 
 		expect(openReviewDialog).toHaveBeenCalledWith(modifiedFilesState, 0);
 		expect(enterReviewMode).not.toHaveBeenCalled();
+	});
+
+	it("marks the header reviewed when every file has a final review status but keep all was not applied", () => {
+		const acceptedFile = {
+			filePath: "src/accepted.ts",
+			fileName: "accepted.ts",
+			totalAdded: 3,
+			totalRemoved: 1,
+			originalContent: null,
+			finalContent: null,
+			editCount: 1,
+		};
+		const deniedFile = {
+			filePath: "src/denied.ts",
+			fileName: "denied.ts",
+			totalAdded: 4,
+			totalRemoved: 2,
+			originalContent: null,
+			finalContent: null,
+			editCount: 1,
+		};
+		const modifiedFilesState: ModifiedFilesState = {
+			files: [acceptedFile, deniedFile],
+			byPath: new Map([
+				[acceptedFile.filePath, acceptedFile],
+				[deniedFile.filePath, deniedFile],
+			]),
+			fileCount: 2,
+			totalEditCount: 2,
+		};
+
+		globalThis.modifiedFilesHeaderMockState = {
+			sessionLoaded: true,
+			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
+				[acceptedFile.filePath, "accepted"],
+				[deniedFile.filePath, "denied"],
+			]),
+			keepAllApplied: false,
+		};
+
+		render(ModifiedFilesHeader, {
+			modifiedFilesState,
+			sessionId: "session-1",
+		});
+
+		const reviewedButton = screen.getByRole("button", { name: /reviewed/i });
+		expect(reviewedButton).toBeInstanceOf(HTMLButtonElement);
+		expect((reviewedButton as HTMLButtonElement).disabled).toBe(true);
+		expect(screen.queryByRole("button", { name: /^keep$/i })).toBeNull();
+		expect(screen.getByRole("button", { name: /2\/2/i })).toBeTruthy();
+	});
+
+	it("does not count partial files as finished review work", () => {
+		const partialFile = {
+			filePath: "src/partial.ts",
+			fileName: "partial.ts",
+			totalAdded: 3,
+			totalRemoved: 1,
+			originalContent: null,
+			finalContent: null,
+			editCount: 1,
+		};
+		const acceptedFile = {
+			filePath: "src/accepted.ts",
+			fileName: "accepted.ts",
+			totalAdded: 2,
+			totalRemoved: 1,
+			originalContent: null,
+			finalContent: null,
+			editCount: 1,
+		};
+		const modifiedFilesState: ModifiedFilesState = {
+			files: [partialFile, acceptedFile],
+			byPath: new Map([
+				[partialFile.filePath, partialFile],
+				[acceptedFile.filePath, acceptedFile],
+			]),
+			fileCount: 2,
+			totalEditCount: 2,
+		};
+
+		globalThis.modifiedFilesHeaderMockState = {
+			sessionLoaded: true,
+			reviewStatuses: new Map<string, FileReviewStatus | undefined>([
+				[partialFile.filePath, "partial"],
+				[acceptedFile.filePath, "accepted"],
+			]),
+			keepAllApplied: false,
+		};
+
+		render(ModifiedFilesHeader, {
+			modifiedFilesState,
+			sessionId: "session-1",
+		});
+
+		expect(screen.getByRole("button", { name: /^keep$/i })).toBeTruthy();
+		expect(screen.queryByRole("button", { name: /reviewed/i })).toBeNull();
+		expect(screen.getByRole("button", { name: /1\/2/i })).toBeTruthy();
 	});
 });

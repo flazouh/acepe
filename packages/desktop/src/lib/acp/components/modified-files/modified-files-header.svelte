@@ -232,8 +232,20 @@ const reviewedFileCount = $derived.by(() => {
 	if (!modifiedFilesState) return 0;
 	return modifiedFilesState.files.reduce((count, file) => {
 		const status = reviewStatusByFilePath.get(file.filePath);
-		return status ? count + 1 : count;
+		return status === "accepted" || status === "denied" ? count + 1 : count;
 	}, 0);
+});
+
+const isReviewComplete = $derived.by(() => {
+	if (!modifiedFilesState) {
+		return false;
+	}
+
+	if (modifiedFilesState.fileCount === 0) {
+		return false;
+	}
+
+	return reviewedFileCount === modifiedFilesState.fileCount;
 });
 
 const isKeepAllApplied = $derived.by(() => {
@@ -272,9 +284,9 @@ const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	onReview: () => {
 		handleReviewButtonClick(0);
 	},
-	keepState: isKeepAllApplied ? "applied" : canKeepAll ? "enabled" : "disabled",
+	keepState: isReviewComplete ? "applied" : canKeepAll ? "enabled" : "disabled",
 	keepLabel: "Keep",
-	appliedLabel: "Applied",
+	appliedLabel: isKeepAllApplied ? "Applied" : "Reviewed",
 	onKeep: handleKeepAllClick,
 	reviewedCount: reviewedFileCount,
 	totalCount: modifiedFilesState?.fileCount ?? 0,
@@ -454,7 +466,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 							>
 								<span class="flex shrink-0 items-center gap-1">
 									{#if createPrLoading}
-										<Spinner class="size-3 shrink-0" />
+										<Spinner class="shrink-0" size={12} />
 										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
 										<GitPullRequest size={11} weight="bold" class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success" />
@@ -613,7 +625,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 								>
 									{#if merging}
 										<span class="flex items-center gap-1">
-											<Spinner class="size-[11px]" />
+											<Spinner size={11} />
 											{"Merge"}
 										</span>
 									{:else}

@@ -22,7 +22,7 @@ import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.sve
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
 import {
-	copySessionToClipboard,
+	copyCanonicalSessionToClipboard,
 	copyTextToClipboard,
 } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import {
@@ -75,7 +75,7 @@ import type {
 import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
-import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
+import { sessionGraphToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
 import { ResultAsync } from "neverthrow";
@@ -275,7 +275,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
 			title: metadata ? metadata.title : panel.sessionTitle,
-			entries: sessionStore.getEntries(sessionId),
 			currentStreamingToolCall: operationStore.getCurrentStreamingToolCall(sessionId),
 			currentToolKind: operationStore.getCurrentToolKind(sessionId),
 			lastToolCall: operationStore.getLastToolCall(sessionId),
@@ -801,8 +800,12 @@ async function handleOpenInAcepe(item: ThreadBoardItem): Promise<void> {
 }
 
 async function handleExportMarkdown(item: ThreadBoardItem): Promise<void> {
-	const entries = sessionStore.getEntries(item.sessionId);
-	const markdown = sessionEntriesToMarkdown(entries);
+	const graph = sessionStore.getSessionStateGraph(item.sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	const markdown = sessionGraphToMarkdown(graph);
 
 	await ResultAsync.fromPromise(
 		navigator.clipboard.writeText(markdown),
@@ -820,8 +823,12 @@ async function handleExportJson(item: ThreadBoardItem): Promise<void> {
 		return;
 	}
 
-	const entries = sessionStore.getEntries(item.sessionId);
-	await copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
+	const graph = sessionStore.getSessionStateGraph(item.sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	await copyCanonicalSessionToClipboard(cold, graph).match(
 		() => toast.success("Copied to clipboard"),
 		(err) => toast.error(`Failed to export: ${err.message}`)
 	);
@@ -1483,7 +1490,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				{#if item}
 					<TodoHeader
 						sessionId={item.sessionId}
-						entries={sessionStore.getEntries(item.sessionId)}
+						toolCalls={operationStore.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
 						status={selectSessionStatusForPresentation(
 							deriveSessionWorkProjection({

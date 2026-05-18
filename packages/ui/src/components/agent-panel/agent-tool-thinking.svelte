@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { CaretRight, Eye, EyeSlash } from "phosphor-svelte";
+	import { CaretRight, Brain } from "phosphor-svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
+	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
 		/** Label to display (e.g. "Thinking", "Thinking for 3s", "Thought for 3s") */
@@ -69,21 +70,26 @@
 				<ToolLabel {status}>{headerLabel}</ToolLabel>
 			</button>
 
-			<!-- Eye button — show on hover, left of chevron -->
+			<!-- Expand toggle — show on hover, left of chevron -->
 			{#if resolvedToggle}
-				<button
-					type="button"
-					class="shrink-0 p-0.5 opacity-0 group-hover/thinking-header:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
-					onclick={(e) => { e.stopPropagation(); resolvedToggle(); }}
-					title={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
-					aria-label={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
-				>
-					{#if resolvedDefaultExpanded}
-						<Eye size={11} weight="bold" />
-					{:else}
-						<EyeSlash size={11} weight="bold" />
-					{/if}
-				</button>
+				<Tooltip>
+					<TooltipTrigger>
+						{#snippet child({ props: triggerProps })}
+							<button
+								{...triggerProps}
+								type="button"
+								class="shrink-0 p-0.5 opacity-0 group-hover/thinking-header:opacity-100 transition-opacity hover:text-foreground {resolvedDefaultExpanded ? 'text-foreground' : 'text-muted-foreground'}"
+								onclick={(e) => { e.stopPropagation(); resolvedToggle(); }}
+								aria-label={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+							>
+								<Brain size={11} weight={resolvedDefaultExpanded ? "fill" : "regular"} />
+							</button>
+						{/snippet}
+					</TooltipTrigger>
+					<TooltipContent>
+						{resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+					</TooltipContent>
+				</Tooltip>
 			{/if}
 
 			<!-- Caret — click to toggle collapse -->

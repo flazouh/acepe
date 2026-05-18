@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	computeFileReviewStatus,
+	findNextReviewableFileIndex,
 	isPendingFile,
 	nextPendingFileIndex,
 	nextSequentialFileIndex,
@@ -126,6 +127,28 @@ describe("prevPendingFileIndex", () => {
 			makeState({ filePath: "b", pendingHunks: 0, status: "accepted" }),
 		];
 		expect(prevPendingFileIndex(1, states)).toBe(null);
+	});
+});
+
+describe("findNextReviewableFileIndex", () => {
+	it("wraps to earlier pending files when later files are already reviewed", () => {
+		const states: Array<PerFileReviewState | undefined> = [
+			undefined,
+			makeState({ filePath: "b", pendingHunks: 0, status: "accepted" }),
+			makeState({ filePath: "c", pendingHunks: 0, status: "accepted" }),
+		];
+
+		expect(findNextReviewableFileIndex(1, states)).toBe(0);
+	});
+
+	it("returns null when no pending or untracked file remains", () => {
+		const states: Array<PerFileReviewState | undefined> = [
+			makeState({ filePath: "a", pendingHunks: 0, status: "accepted" }),
+			makeState({ filePath: "b", pendingHunks: 0, status: "accepted" }),
+			makeState({ filePath: "c", pendingHunks: 0, status: "accepted" }),
+		];
+
+		expect(findNextReviewableFileIndex(1, states)).toBeNull();
 	});
 });
 

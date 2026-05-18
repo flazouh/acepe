@@ -120,7 +120,7 @@
           disabled={actionsDisabled || isBuilding}
         >
           {#if isBuilding}
-            <LoadingIcon class="size-3" />
+            <LoadingIcon size={12} />
             Building…
           {:else}
             <BuildIcon size="sm" />

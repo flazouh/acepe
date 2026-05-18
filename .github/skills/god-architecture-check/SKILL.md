@@ -1,165 +1,336 @@
 ---
 name: god-architecture-check
-description: "Pre-flight gate for any change in Acepe that touches session lifecycle, turn state, activity, capabilities, or any field that overlaps the canonical SessionStateGraph projection. Use BEFORE editing code that reads or writes hot state, lifecycle status, turn state, connection error, active turn failure, current model, current mode, available commands, autonomous mode, or any session-projection-shaped data. Also use when the user says 'GOD', 'pure GOD', 'canonical authority', 'is this canonical', 'check this against GOD', 'fix this dual-system thing', or when planning a migration that involves removing duplicate state. Steers the agent away from dual-system anti-patterns and toward canonical-only authority."
+description: "Pre-flight gate for any Acepe change that touches canonical session state, transcript order, tool operations, provider history parsing, hot state, lifecycle, turn state, activity, capabilities, or UI state derived from agent sessions. Use BEFORE editing code that reads or writes session-shaped data. Also use when the user says 'GOD', 'pure GOD', 'canonical authority', 'is this canonical', 'check this against GOD', 'green architecture', 'fix this dual-system thing', or when planning a migration that removes duplicate state."
 argument-hint: "[optional: file path, change description, or area to audit]"
 ---
 
 # GOD Architecture Check
 
-**Acepe's canonical SessionStateGraph projection is the SOLE authority for session-shaped state.** This skill exists because partial migration is the disease, and "prefer canonical, fall back to hot state" is partial migration with extra steps.
+Acepe must have one clear source of truth for every kind of agent-session data. This skill blocks quick patches that make the UI look right while the model underneath stays wrong.
 
-Run this skill **before** writing code that touches anything in the canonical-overlap surface. Run it again **before** committing.
+Run this skill before writing code that touches session state, transcript history, tool calls, provider parsing, or UI projections. Run it again before committing.
 
-## The Hard Rule
+## The Green Rule
 
-> If a field exists on the canonical projection (lifecycle, activity, turnState, activeTurnFailure, lastTerminalTurnId, capabilities), it has **exactly one source of truth**: the canonical projection. No reader falls back to hot state. No writer maintains a parallel copy. If canonical is `null`, the session does not exist for that purpose.
+> Raw provider data is input, not product truth. Rust normalizes provider quirks into canonical facts. TypeScript and `packages/ui` read canonical facts only. No reader fallback. No parallel write. No UI repair pass.
 
-If you catch yourself writing `canonical != null ? canonical.X : hotState.X`, you are violating the rule. The fix is upstream — widen canonical, not patch the reader.
+If you catch yourself writing one of these, stop:
 
-## What is canonical?
+- `canonical != null ? canonical.X : hotState.X`
+- `agentId === "claude" ? specialCase : normalCase` in TypeScript UI code
+- "sort the UI rows so they look right"
+- "if the parser got this wrong, patch it in the component"
+- "same provider id means same display entry"
 
-`CanonicalSessionProjection` (`packages/desktop/src/lib/acp/store/canonical-session-projection.ts`) is the projection of the Rust-owned `SessionStateGraph` into the TypeScript store. It is fed exclusively by the envelope router (`session-state-command-router.ts` → `applyXxx` handlers in `session-store.svelte.ts`) which receives `LiveSessionStateEnvelopeRequest` events emitted by Rust (`runtime_registry::build_live_session_state_envelope`).
+The fix belongs upstream: widen or correct the canonical model.
 
-The canonical projection currently includes:
+## Canonical Authority Surfaces
 
-- `lifecycle: SessionGraphLifecycle` — status, errorMessage, actionability.canSend, etc.
-- `activity: SessionGraphActivity` — kind, activeOperationCount, dominantOperationId, blockingInteractionId
+Acepe has several authority surfaces. Each one has a clear owner.
+
+| Surface | Owns | Owner | Consumers may do |
+|---|---|---|---|
+| `SessionStateGraph` | lifecycle, activity, turn state, active failure, terminal turn, capabilities | Rust | Read only |
+| Canonical transcript | message order, transcript identity, text/thought/tool row sequence | Rust provider/history adapters | Project to display only |
+| Operation graph | tool call state, arguments, result, parent/child tool relationships | Rust | Render from canonical operation data |
+| Interaction graph | questions, approvals, blocking user interactions | Rust | Render and submit replies |
+| Transient UI state | local animation, click guards, in-progress UI mutation state | TypeScript | Keep local only if truly not product truth |
+| `packages/ui` props | presentational data | App layer passes props | Render only |
+
+If a value describes what happened in an agent session, it is product truth. Product truth belongs in Rust-owned canonical data, not hot state and not UI components.
+
+## SessionStateGraph Rule
+
+`CanonicalSessionProjection` (`packages/desktop/src/lib/acp/store/canonical-session-projection.ts`) is the TypeScript projection of Rust-owned `SessionStateGraph`. It is fed by the envelope router (`session-state-command-router.ts` -> `applyXxx` handlers in `session-store.svelte.ts`) from Rust `LiveSessionStateEnvelopeRequest` events.
+
+Canonical session state includes:
+
+- `lifecycle: SessionGraphLifecycle`
+- `activity: SessionGraphActivity`
 - `turnState: SessionTurnState`
 - `activeTurnFailure: ActiveTurnFailure | null`
 - `lastTerminalTurnId: string | null`
 - `revision: SessionGraphRevision`
+- `capabilities: SessionGraphCapabilities` once the widening is complete
 
-It **must** also include (widening in progress):
+`SessionTransientProjection` may keep only truly local fields:
 
-- `capabilities: SessionGraphCapabilities` — currentModel, currentMode, availableModels, availableModes, availableCommands, autonomousEnabled, configOptions, providerMetadata, modelsDisplay
+- `acpSessionId`
+- `autonomousTransition`
+- `statusChangedAt`
+- `modelPerMode`
+- `usageTelemetry`
+- `pendingSendIntent`
+- `localPersistedSessionProbeStatus`
+- `capabilityMutationState`
 
-## What hot state is allowed to keep
+Forbidden in hot state:
 
-`SessionTransientProjection` (`packages/desktop/src/lib/acp/store/types.ts`) may keep ONLY truly local/transient fields:
+- `status`
+- `isConnected`
+- `turnState`
+- `activity`
+- `connectionError`
+- `activeTurnFailure`
+- `lastTerminalTurnId`
+- `currentModel`
+- `currentMode`
+- `availableCommands`
+- `availableModels`
+- `availableModes`
+- `modelsDisplay`
+- `providerMetadata`
+- `autonomousEnabled`
+- `configOptions`
 
-- `acpSessionId` — provider-issued session id (truly local mapping)
-- `autonomousTransition` — UI animation state
-- `statusChangedAt` — local timestamp for stable-status display
-- `modelPerMode` — local per-mode model preference cache
-- `usageTelemetry` — local snapshot (also flows via Telemetry envelope)
-- `pendingSendIntent` — local click guard while waiting for canonical acceptance/error
-- `localPersistedSessionProbeStatus` — typed pre-canonical persisted-session reattach probe
-- `capabilityMutationState` — local mode/model mutation UI progress only
+## Transcript And Message Order Rule
 
-Everything else — `status`, `isConnected`, `turnState`, `activity`, `connectionError`, `activeTurnFailure`, `lastTerminalTurnId`, `currentModel`, `currentMode`, `availableCommands`, `availableModels`, `availableModes`, `modelsDisplay`, `providerMetadata`, `autonomousEnabled`, `configOptions` — is **forbidden** in hot state. It belongs to canonical.
+Transcript order is canonical product truth. It must not be guessed in the UI.
+
+Provider history parsers must normalize raw provider rows into ordered semantic transcript facts before anything projects display entries.
+
+Correct flow:
+
+```text
+Provider raw history
+        |
+        v
+Rust provider/history adapter
+        |
+        v
+Canonical transcript facts
+        |
+        v
+Canonical session graph
+        |
+        v
+Pure display projection
+        |
+        v
+UI props
+```
+
+Wrong flow:
+
+```text
+Provider raw history
+        |
+        v
+Parser guesses display rows
+        |
+        v
+UI repairs bad order
+```
+
+### Identity Rules
+
+Provider ids are metadata unless the canonical model says otherwise.
+
+For Claude Code:
+
+```text
+message.id      = provider assistant container id, metadata only
+JSONL uuid      = provider row id
+tool_use.id     = actual tool call id
+Acepe event_seq = canonical order authority
+display_id      = Acepe-owned stable display identity
+```
+
+Never use only `message.id` as:
+
+- display row id
+- grouping key
+- ordering authority
+- proof that text and tool calls belong in one visible chat entry
+
+### The Reused Assistant Id Bug
+
+Claude Code can emit multiple assistant JSONL rows with the same `message.id`:
+
+```text
+row a-text
+  message.id = msg_abc
+  content    = assistant text
+
+row a-tool-1
+  message.id = msg_abc
+  content    = tool_use toolu_111
+
+row a-tool-2
+  message.id = msg_abc
+  content    = tool_use toolu_222
+```
+
+Bad parser behavior:
+
+```text
+same message.id -> merge all blocks
+
+merged blocks:
+  assistant text
+  tool_use toolu_111
+  tool_use toolu_222
+
+display:
+  assistant
+  tool_call
+  tool_call
+```
+
+That leaves tool calls as the last visible chat entries even though the model-facing assistant text was the meaningful closing message.
+
+Green behavior:
+
+```text
+Normalize each provider block/row into canonical ordered transcript facts.
+Use tool_use.id for tool identity.
+Use Acepe-owned ids for display entries.
+Use canonical event order, not provider container id, for display order.
+```
+
+Minimum acceptable bug fix:
+
+```text
+Only merge same-provider-id assistant fragments when they are compatible text/thinking fragments.
+Do not merge tool-use-only fragments into an assistant text fragment.
+```
+
+Preferred architecture:
+
+```text
+CanonicalTranscriptEvent
++------------------------------------------------+
+| session_id                                     |
+| event_seq        // strict canonical order     |
+| source           // claude_code, codex, cursor |
+| provider_row_id  // JSONL uuid / DB row id     |
+| provider_msg_id  // msg_abc, metadata only     |
+| block_index      // order inside provider row  |
+| kind             // user_text / assistant_text |
+|                  // assistant_thought / tool   |
+| display_id       // Acepe-owned stable id      |
+| tool_call_id     // only for tools: toolu_123  |
+| payload          // text, args, result, etc.   |
++------------------------------------------------+
+```
+
+The display projection is then a pure function:
+
+```text
+canonical transcript facts + operation graph -> UI conversation entries
+```
 
 ## Pre-Flight Checklist
 
-Run this against your proposed change. If any answer is "yes" without justification, **stop and pivot to widen canonical instead.**
+Run this against the proposed change. If any answer is "yes", stop and move the fix upstream.
 
-1. **Are you reading `hotState.X` where X is in the canonical-overlap surface?**
-   - YES → canonical-only accessor missing. Add it on `SessionStore` (e.g. `getSessionTurnState(id)`) backed by `canonicalProjections.get(id)?.turnState ?? null`. Reader uses the accessor. No fallback to hot state.
-   - YES + canonical doesn't have the field yet → widen `CanonicalSessionProjection` and the `applyXxx` handlers first. Then add the accessor. Then change the reader.
+1. **Are you reading hot state for a canonical field?**
+   - Add or use a canonical-only accessor. Do not fall back to hot state.
 
-2. **Are you writing `updateHotState(id, { status, turnState, isConnected, connectionError, activeTurnFailure, lastTerminalTurnId, currentModel, currentMode, availableCommands, autonomousEnabled, configOptions, ... })`?**
-   - YES → forbidden. Delete the write. Authority is the envelope from Rust. If Rust isn't emitting the lifecycle event for your case, fix Rust (add the emit at the Rust call site) — do not patch over it client-side.
+2. **Are you writing hot state for status, lifecycle, activity, turn state, connection error, model, mode, commands, or capabilities?**
+   - Delete the write. Rust must emit the canonical envelope.
 
-3. **Are you adding `canonical != null ? canonical.X : hotState.X` (the "fallback" anti-pattern)?**
-   - YES → forbidden. The whole point of canonical is to be the single source. Treat `canonical == null` as "this session doesn't exist for this purpose" and return `null`/empty consistently.
+3. **Are you adding a fallback like `canonical ?? hotState`?**
+   - Forbidden. If canonical is missing, fix the canonical producer.
 
-4. **Are you adding a new field to `SessionTransientProjection`?**
-    - YES → only allowed if the field is genuinely local/transient (UI animation, local cache, local timestamp, provider-issued local id). If the field describes session lifecycle/activity/capabilities, it belongs on canonical.
-    - YES + it clears on canonical lifecycle/activity/capability events → treat it as suspicious by default. The only allowed exceptions are documented local affordances (`pendingSendIntent`, `localPersistedSessionProbeStatus`, `capabilityMutationState`) with narrow writer/clear rules. Do not generalize this pattern.
+4. **Are you adding provider-specific branches in TypeScript UI/store code?**
+   - Push the provider quirk into the Rust adapter or canonical mapper.
 
-5. **Are you doing client-side synthesis of a canonical projection (calling `setCanonicalProjection`, `buildSyntheticFailureProjection`, or similar)?**
-   - YES → forbidden. Canonical projections are emitted by Rust only. Removed in Round 4.
+5. **Are you parsing provider history directly into display rows?**
+   - Prefer canonical transcript facts first, then pure display projection.
 
-6. **Are you branching on `agentId === "cursor" | "copilot" | "claude" | ...`?**
-   - YES → provider-specific quirks belong in Rust adapters, not the TS UI layer. Acceptable in TS only for user-facing localized error copy when no canonical channel exists yet. Document and budget removal.
+6. **Are you using raw provider message ids as display ids or grouping keys?**
+   - Forbidden unless the canonical model explicitly defines that provider id as display identity.
 
-7. **Are you importing Tauri/store/desktop runtime APIs from `@acepe/ui`?**
-   - YES → forbidden. `packages/ui/` is presentational only. Pass canonical-derived data via props.
+7. **Are you fixing message order in a component, Svelte store, or CSS?**
+   - Forbidden. Fix canonical transcript order.
 
-## Steering on a Mid-Flight Change
+8. **Are you importing Tauri, stores, or desktop runtime APIs from `@acepe/ui`?**
+   - Forbidden. `packages/ui` is presentational only.
 
-If the user has already started editing in a way that violates GOD:
-
-1. **Stop the surface patch.** Revert any reader-level fallback patches you made.
-2. **Identify the missing canonical capability.** Which field is the reader actually trying to read? Is it on canonical? If not, widen canonical.
-3. **Plan the wholesale migration.** Not "this one reader." All readers of that field, plus deletion of the dual-write.
-4. **Ask the user whether to proceed with the full widening migration or stop.** Surface patches are technical debt that look like progress.
+9. **Are you keeping two systems alive during a replacement?**
+   - Forbidden by Acepe architecture. Replace cleanly and remove the old path.
 
 ## Output Contract
 
 When invoked, this skill should:
 
-1. Identify the **canonical-overlap surface** in the proposed change.
-2. Classify each touched field as `canonical-owned` | `truly-local` | `to-be-widened` | `must-be-deleted`.
-3. List **violations** (dual-read, dual-write, client synth, provider branching, UI-package coupling).
-4. Recommend **upstream fixes** (widen canonical, add accessor, delete dual-write, push to Rust adapter) — never reader-level patches.
-5. If violations exist, **block the work** and instruct: "Plan widening via `/ce:plan` first. Do not implement reader-level patches."
-6. If no violations, **clear the work** with a one-line attestation.
+1. Identify the authority surface: `SessionStateGraph`, transcript, operation graph, interaction graph, transient UI, or presentational UI.
+2. Classify each touched field or id as `canonical-owned`, `provider-metadata`, `truly-local`, `to-be-widened`, or `must-be-deleted`.
+3. List violations: dual-read, dual-write, UI repair, provider branching, raw provider id as display identity, direct provider-history-to-display parsing, or UI-package coupling.
+4. Recommend upstream fixes: widen canonical, correct Rust adapter, add canonical transcript facts, use operation graph, add accessor, or delete duplicate state.
+5. If violations exist, block work and say: "Plan the canonical widening via `/ce:plan` first. Do not implement reader-level patches."
+6. If no violations exist, clear the work with a one-line attestation.
 
-## Example
+## Examples
 
-> User: "Let's read autonomousEnabled from hotState in kanban-view."
+### Hot State Fallback
 
-Skill output:
+Bad:
 
-> **GOD violation.** `autonomousEnabled` is in the canonical-overlap surface (capabilities). Hot state is forbidden as a source.
->
-> **Field:** `autonomousEnabled` — `to-be-widened`. Canonical projection does not yet expose `capabilities`. Widening required.
->
-> **Required upstream fix:**
-> 1. Extend `CanonicalSessionProjection` with `capabilities: SessionGraphCapabilities`.
-> 2. Populate `capabilities` in `applyLifecycle` / `applySnapshot` / `applyCapabilities` handlers.
-> 3. Add `SessionStore.getSessionAutonomousEnabled(id): boolean | null` reading canonical.
-> 4. Reader in kanban-view uses the accessor. Returns `false` when canonical is `null` (session not yet visible).
-> 5. Delete the `updateHotState({ autonomousEnabled })` writes (10+ sites). Rust capabilities envelope is the only writer.
-> 6. Remove `autonomousEnabled` from `SessionTransientProjection` and `DEFAULT_TRANSIENT_PROJECTION`.
->
-> **Block:** do not edit kanban-view directly. Plan the widening via `/ce:plan` first.
+```ts
+const turnState = canonical != null
+  ? mapCanonicalTurnState(canonical.turnState)
+  : hotState.turnState;
+```
+
+Good:
+
+```ts
+const turnState = sessionStore.getSessionTurnState(sessionId);
+if (turnState === null) {
+  return;
+}
+```
+
+### Claude Transcript Identity
+
+Bad:
+
+```text
+same Claude message.id -> same display entry
+```
+
+Good:
+
+```text
+Claude message.id -> provider metadata
+tool_use.id       -> tool identity
+event_seq         -> order authority
+display_id        -> Acepe-owned display identity
+```
+
+### UI Repair
+
+Bad:
+
+```text
+If final entries are tool calls, move latest assistant row to bottom in Svelte.
+```
+
+Good:
+
+```text
+Fix Rust history parsing so canonical transcript order is correct before UI sees it.
+```
 
 ## Invocation
 
 Call this skill when:
 
-- About to edit any reader of `hotState.{status,isConnected,turnState,activity,connectionError,activeTurnFailure,lastTerminalTurnId,currentModel,currentMode,availableCommands,autonomousEnabled,configOptions}`.
-- About to write `updateHotState({...})` with any of those fields.
-- About to add a new field to `SessionTransientProjection`.
-- Reviewing a PR that touches `session-store.svelte.ts`, `session-messaging-service.ts`, `session-connection-manager.ts`, `session-event-service.svelte.ts`, `live-session-work.ts`, `urgency-tabs-store.svelte.ts`, `queue/utils.ts`, `canonical-session-projection.ts`, `session-state-command-router.ts`.
-- The user mentions "GOD", "canonical", "dual-system", "hot state", "envelope authority", "session lifecycle".
-- After Round 4/5 GOD migration work, before any commit that touches the canonical-overlap surface.
-
-## Anti-Patterns to Block (Quick Reference)
-
-```ts
-// ❌ FORBIDDEN — dual-read fallback
-const turnState = canonical != null
-  ? mapCanonicalTurnState(canonical.turnState)
-  : hotState.turnState;
-
-// ❌ FORBIDDEN — dual-write
-this.hotStateManager.updateHotState(sessionId, {
-  status: "streaming",
-  turnState: "streaming",
-  connectionError: null,
-});
-
-// ❌ FORBIDDEN — client-side canonical synth
-this.canonicalProjections.set(sessionId, buildSyntheticFailureProjection(...));
-
-// ❌ FORBIDDEN — UI package importing Tauri/store
-import { invoke } from "@tauri-apps/api/core"; // inside packages/ui/
-
-// ✅ CORRECT — canonical-only accessor with sensible null behavior
-const turnState = sessionStore.getSessionTurnState(sessionId); // null when no canonical
-if (turnState === null) {
-  return; // session doesn't exist for this purpose
-}
-
-// ✅ CORRECT — Rust emits the lifecycle envelope; TS routes it
-// (no client write, no client synth)
-```
+- Editing `session-store.svelte.ts`, `session-entry-store.svelte.ts`, `session-event-service.svelte.ts`, `session-connection-manager.ts`, `session-messaging-service.ts`, `live-session-work.ts`, `canonical-session-projection.ts`, `session-state-command-router.ts`, `agent-panel-graph-materializer.ts`, or provider/history parsers.
+- Editing Rust code that emits session envelopes, parses provider history, builds transcript snapshots, or builds operation snapshots.
+- Touching hot state, lifecycle, activity, turn state, connection errors, active turn failure, capabilities, current model, current mode, commands, transcript order, tool calls, or display entry identity.
+- The user says "GOD", "green architecture", "canonical", "single source of truth", "provider quirk", "message order", "transcript order", "dual-system", "hot state", or "envelope authority".
+- Reviewing a PR that changes any session-shaped or transcript-shaped data path.
 
 ## Hard No
 
-- "Just for now" fallbacks. They become permanent.
-- "Pre-canonical sentinel" fallbacks. The canonical projection arrives within ms of session creation. If it doesn't, fix the Rust emit, don't paper over it.
-- "Optimistic UI" via lifecycle/capability hot-state writes. `pendingSendIntent` may disable Send immediately, but it must not assert `status`, `turnState`, `isConnected`, model/mode, commands, or any other canonical truth. If Rust is slow, fix Rust.
-- "Provider quirk" branching in TS. Push to Rust adapter.
+- "Just for now" fallbacks.
+- UI order repair.
+- Provider-specific quirks in TypeScript UI.
+- Raw provider ids as product identity without canonical approval.
+- Direct provider-history-to-display conversion for new work.
+- Parallel hot-state writes for canonical fields.
+- `packages/ui` importing Tauri, stores, or desktop runtime APIs.
+- Coexistence plans that keep old and new authority paths alive.

@@ -48,7 +48,7 @@
 </script>
 
 {#if isPending}
-	<LoadingIcon class={className} style={`width: ${size}px; height: ${size}px;`} aria-label="Loading" />
+	<LoadingIcon class={className} {size} aria-label="Loading" />
 {:else}
 	<Icon weight="fill" {size} class={className} style="color: {Colors.purple}" />
 {/if}

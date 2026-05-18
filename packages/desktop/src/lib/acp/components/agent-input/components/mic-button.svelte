@@ -121,7 +121,7 @@ const STOP_RED = "#FF5D5A";
 					/>
 				{:else if visualState === "spinner"}
 					<!-- Loading spinner (uses shared LoadingIcon) -->
-					<Spinner class="h-4 w-4" />
+					<Spinner size={16} />
 				{:else if visualState === "stop"}
 					<!-- Red filled circle with stop square -->
 					<div class="mic-stop-container flex items-center justify-center">

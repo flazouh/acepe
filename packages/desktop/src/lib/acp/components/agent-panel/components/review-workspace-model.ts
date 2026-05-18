@@ -17,18 +17,45 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 	return "unreviewed";
 }
 
+function getReviewStatusOrder(status: AgentPanelFileReviewStatus | undefined): number {
+	if (status === "partial") {
+		return 0;
+	}
+	if (status === "unreviewed" || status === undefined) {
+		return 1;
+	}
+	if (status === "denied") {
+		return 2;
+	}
+
+	return 3;
+}
+
 export function buildReviewWorkspaceFiles(
 	filesState: ModifiedFilesState,
 	statusByFilePath: ReadonlyMap<string, FileReviewStatus | undefined>
 ): ReviewWorkspaceFileItem[] {
-	return filesState.files.map((file) => ({
+	const rows = filesState.files.map((file, sourceIndex) => ({
 		id: file.filePath,
 		filePath: file.filePath,
 		fileName: file.fileName,
+		sourceIndex,
 		reviewStatus: mapReviewStatus(statusByFilePath.get(file.filePath)),
 		additions: file.totalAdded,
 		deletions: file.totalRemoved,
 	}));
+
+	rows.sort((left, right) => {
+		const rankDelta =
+			getReviewStatusOrder(left.reviewStatus) - getReviewStatusOrder(right.reviewStatus);
+		if (rankDelta !== 0) {
+			return rankDelta;
+		}
+
+		return left.sourceIndex - right.sourceIndex;
+	});
+
+	return rows;
 }
 
 export function buildReviewWorkspaceFilesFromSessionState(
@@ -49,9 +76,11 @@ export function resolveInitialReviewWorkspaceIndex(
 	filesState: ModifiedFilesState,
 	sessionId?: string | null
 ): number {
-	return (
-		getReviewWorkspaceDefaultIndex(
-			buildReviewWorkspaceFilesFromSessionState(filesState, sessionId)
-		) ?? 0
-	);
+	const rows = buildReviewWorkspaceFilesFromSessionState(filesState, sessionId);
+	const defaultDisplayIndex = getReviewWorkspaceDefaultIndex(rows);
+	if (defaultDisplayIndex === null) {
+		return 0;
+	}
+
+	return rows[defaultDisplayIndex]?.sourceIndex ?? defaultDisplayIndex;
 }

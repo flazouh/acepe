@@ -1756,8 +1756,8 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		expect(entryStore.getEntries(sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
-		expect(entryStore.getEntries(sessionId)[0]).toMatchObject({
+		expect(readCompatibilityEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
+		expect(readCompatibilityEntries(entryStore, sessionId)[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {
 				chunks: [

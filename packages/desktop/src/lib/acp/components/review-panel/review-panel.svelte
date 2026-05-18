@@ -251,7 +251,7 @@ function handleDiffStateReady(state: ReviewDiffViewState): void {
 
 function handleAcceptFile(): void {
 	if (!diffViewStateRef || !selectedFile || !hunkStats.hasPending) return;
-	diffViewStateRef.acceptActiveHunk();
+	diffViewStateRef.acceptAllPendingHunks();
 }
 
 function handleRejectFile(): void {

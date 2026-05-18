@@ -3,6 +3,24 @@ import type { SessionReviewState } from "../../../store/session-review-state-sto
 import type { ModifiedFileEntry } from "../../../types/modified-file-entry.js";
 import type { FileReviewStatus } from "../../review-panel/review-session-state.js";
 
+function normalizeReviewStatus(
+	progress: SessionReviewState["filesByRevisionKey"][string] | undefined
+): FileReviewStatus | undefined {
+	if (!progress) {
+		return undefined;
+	}
+
+	if (progress.pendingHunks > 0) {
+		return "partial";
+	}
+
+	if (progress.rejectedHunks > 0 || progress.status === "denied") {
+		return "denied";
+	}
+
+	return "accepted";
+}
+
 /**
  * Resolve persisted review status per file path for the current modified-files snapshot.
  * A file is considered reviewed only when the persisted revision key matches the current snapshot.
@@ -16,7 +34,7 @@ export function getReviewStatusByFilePath(
 	return new Map(
 		files.map((file) => {
 			const revisionKey = createReviewFileRevisionKey(file);
-			const status = reviewState[revisionKey]?.status;
+			const status = normalizeReviewStatus(reviewState[revisionKey]);
 			return [file.filePath, status] as const;
 		})
 	);

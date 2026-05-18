@@ -54,6 +54,38 @@ describe("review-workspace selection helpers", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(files, null)).toBe(0);
 	});
 
+	it("skips denied files when choosing the default review file", () => {
+		const files: ReviewWorkspaceFileItem[] = [
+			{
+				id: "file-1",
+				filePath: "src/lib/alpha.ts",
+				fileName: "alpha.ts",
+				reviewStatus: "denied",
+				additions: 12,
+				deletions: 2,
+			},
+			{
+				id: "file-2",
+				filePath: "src/lib/beta.ts",
+				fileName: "beta.ts",
+				reviewStatus: "accepted",
+				additions: 3,
+				deletions: 1,
+			},
+			{
+				id: "file-3",
+				filePath: "src/lib/gamma.ts",
+				fileName: "gamma.ts",
+				reviewStatus: "unreviewed",
+				additions: 1,
+				deletions: 1,
+			},
+		];
+
+		expect(getReviewWorkspaceDefaultIndex(files)).toBe(2);
+		expect(resolveReviewWorkspaceSelectedIndex(files, null)).toBe(2);
+	});
+
 	it("keeps an explicit valid selection", () => {
 		expect(resolveReviewWorkspaceSelectedIndex(createFiles(), 0)).toBe(0);
 	});

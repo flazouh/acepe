@@ -89,7 +89,7 @@
 			<!-- Left side: icon + skill name + args -->
 			<div class="flex min-w-0 flex-1 items-center gap-2">
 				{#if isPending}
-					<LoadingIcon class="shrink-0" style="width: 12px; height: 12px;" aria-label="Loading" />
+					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
 					<TextShimmer class="shrink-0 text-sm">{displayName}</TextShimmer>
 				{:else}
 					<span class="shrink-0 text-sm">{displayName}</span>

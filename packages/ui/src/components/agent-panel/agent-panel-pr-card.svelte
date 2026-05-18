@@ -85,10 +85,10 @@
 				<span class="text-muted-foreground">{model.generatingLabel ?? "Generating PR…"}</span>
 			{/if}
 		{:else if model.mode === "creating"}
-			<LoadingIcon class="size-[13px] shrink-0 animate-spin" />
+			<LoadingIcon class="shrink-0 animate-spin" size={13} />
 			<span class="text-muted-foreground">{model.creatingLabel ?? "Creating PR…"}</span>
 		{:else if model.number !== null && model.number !== undefined}
-			<LoadingIcon class="size-[13px] shrink-0 animate-spin" />
+			<LoadingIcon class="shrink-0 animate-spin" size={13} />
 			<span class="font-medium tabular-nums text-foreground">#{model.number}</span>
 		{/if}
 	{/snippet}
@@ -99,7 +99,7 @@
 		{/if}
 		{#if hasExpandedContent}
 			{#if model.mode === "streaming" && model.isStreaming}
-				<LoadingIcon class="size-3 shrink-0 animate-spin" />
+				<LoadingIcon class="shrink-0 animate-spin" size={12} />
 			{/if}
 			<CaretDown
 				size={12}

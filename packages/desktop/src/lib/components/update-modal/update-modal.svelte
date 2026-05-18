@@ -50,7 +50,7 @@ function formatBytes(bytes: number): string {
 				<div class="flex flex-col gap-3">
 					<p class="text-[15px] font-medium text-white">{"Checking for updates"}</p>
 					<div class="flex items-center gap-2.5">
-						<Spinner class="size-3.5 text-white/40" />
+						<Spinner class="text-white/40" size={14} />
 						<span class="text-xs text-white/40">{"Looking for the latest version..."}</span>
 					</div>
 				</div>

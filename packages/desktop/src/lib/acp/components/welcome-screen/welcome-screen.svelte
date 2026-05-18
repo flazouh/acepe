@@ -602,7 +602,7 @@ function trackPointer(event: PointerEvent) {
 	{:else}
 		<!-- Scanning — unframed. -->
 		<div class="flex flex-col items-center gap-4">
-			<Spinner class="h-7 w-7 text-white/70" />
+			<Spinner class="text-white/70" size={28} />
 			<p class="text-[0.875rem] text-white/55">{onboardingBusyMessage || "Loading…"}</p>
 		</div>
 	{/if}

@@ -67,6 +67,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+	implicitSessionCreationMode: "allowed",
 	};
 
 	const cursorProviderMetadata: ProviderMetadataProjection = {
@@ -79,6 +80,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+	implicitSessionCreationMode: "allowed",
 	};
 
 	const copilotProviderMetadata: ProviderMetadataProjection = {
@@ -91,6 +93,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
+	implicitSessionCreationMode: "explicitUserAction",
 	};
 
 	const agents: Agent[] = [
@@ -143,6 +146,7 @@ describe("getAgentModelDefaultsEntries", () => {
 			reasoningEffortSupport: false,
 			preconnectionSlashMode: "startupGlobal",
 			preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 		};
 
 		const entries = getAgentModelDefaultsEntries(agents, (agentId) =>
@@ -184,6 +188,7 @@ describe("getAgentsByProviderOrder", () => {
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
 						preconnectionCapabilityMode: "startupGlobal",
+					implicitSessionCreationMode: "allowed",
 					},
 				},
 				{
@@ -204,6 +209,7 @@ describe("getAgentsByProviderOrder", () => {
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
 						preconnectionCapabilityMode: "startupGlobal",
+					implicitSessionCreationMode: "allowed",
 					},
 				},
 			],
@@ -245,6 +251,7 @@ describe("resolveSettingsCapabilitySource", () => {
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
 					preconnectionCapabilityMode: "startupGlobal",
+				implicitSessionCreationMode: "allowed",
 				},
 				availableModes: [
 					{ id: "plan", name: "Plan" },
@@ -265,6 +272,7 @@ describe("resolveSettingsCapabilitySource", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
 				preconnectionCapabilityMode: "startupGlobal",
+			implicitSessionCreationMode: "allowed",
 			},
 		});
 
@@ -287,6 +295,7 @@ describe("getProviderDefaultLabel", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
 				preconnectionCapabilityMode: "startupGlobal",
+			implicitSessionCreationMode: "allowed",
 			})
 		).toBe("Auto");
 	});
@@ -303,6 +312,7 @@ describe("getProviderDefaultLabel", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "projectScoped",
 				preconnectionCapabilityMode: "projectScoped",
+			implicitSessionCreationMode: "explicitUserAction",
 			})
 		).toBe("Agent default");
 	});

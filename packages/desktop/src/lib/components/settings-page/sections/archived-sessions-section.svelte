@@ -29,7 +29,7 @@ const allSessions = $derived.by((): SessionSummary[] => {
 		const listState = deriveSessionListStateFromCanonical(
 			sessionStore.getCanonicalSessionProjection(cold.id)
 		);
-		const entryCount = sessionStore.getEntries(cold.id).length;
+		const entryCount = sessionStore.getSessionStateGraph(cold.id)?.messageCount ?? 0;
 		return buildSessionSummaryFromCold({
 			cold,
 			listState,

@@ -7,9 +7,10 @@ import {
 	type AgentPanelSceneEntryModel,
 	type TokenRevealCss,
 } from "@acepe/ui/agent-panel";
+import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import { Clock } from "phosphor-svelte";
+import { Clock, GitPullRequest } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
@@ -27,8 +28,8 @@ import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { api } from "../../../store/api.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
-import { setThinkingPreferences } from "@acepe/ui";
 import { mergeStrategyStore } from "../../../store/merge-strategy-store.svelte.js";
+import { sessionReviewStateStore } from "../../../store/session-review-state-store.svelte.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
@@ -52,7 +53,6 @@ import {
 } from "@acepe/ui/agent-panel";
 import PlanDialog from "../../plan-dialog.svelte";
 import { getMessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
-import type { ThreadWithEntries } from "../../../logic/todo-state.svelte.js";
 import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js";
 import { usePlanLoader } from "../hooks";
 import {
@@ -63,7 +63,6 @@ import {
 	copyTextToClipboard,
 	applyAgentPanelDisplayMemory,
 	applyAgentPanelDisplayModelToSceneEntries,
-	backfillSceneEntryTimestamps,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 	deriveCanonicalAgentPanelSessionState,
@@ -411,23 +410,16 @@ const panelPendingWorktreeEnabled = $derived(
 const panelPreparedWorktreeLaunch = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.preparedWorktreeLaunch ?? null) : null
 );
-const sessionEntries = $derived.by(() => {
-	const pending = preSessionPendingUserEntry;
-	const real = sessionId ? sessionStore.getEntries(sessionId) : [];
-	if (!pending) return real;
-	if (real.length > 0 && real[0]?.type === "user") return real;
-	return [pending, ...real];
-});
-
 const firstMessageAttachments = $derived.by(() => {
-	const firstUserEntry = sessionEntries.find((entry) => entry.type === "user");
+	const firstUserEntry =
+		preSessionPendingUserEntry ?? sessionPendingSendIntent?.optimisticEntry ?? null;
 	if (!firstUserEntry || firstUserEntry.type !== "user") return [];
 	return extractAttachmentsFromChunks(firstUserEntry.message.chunks ?? []);
 });
 
 const visibleEntryCount = $derived(
 	resolveVisibleEntryCount({
-		canonicalEntryCount: sessionEntries.length,
+		canonicalEntryCount: sessionStateGraph?.transcriptSnapshot.entries.length ?? 0,
 		optimisticUserEntry: optimisticUserEntryForGraph,
 	})
 );
@@ -504,9 +496,9 @@ function prepareForNextUserReveal() {
 	logger.info("prepareForNextUserReveal: panel", {
 		panelId: effectivePanelId,
 		sessionId,
-		entryCount: sessionEntries.length,
-		latestEntryId: sessionEntries.at(-1)?.id ?? null,
-		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+		entryCount: visibleEntryCount,
+		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
+		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	contentRef?.prepareForNextUserReveal();
 	return effectivePanelId;
@@ -615,11 +607,11 @@ const agentName = $derived.by(() => {
 });
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
-		lifecycle: canonicalProjection?.lifecycle ?? null,
-		activity: effectiveCanonicalActivity,
-		turnState: effectiveCanonicalSessionTurnState,
-		hasEntries: sessionEntries.length > 0,
-		hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
+			lifecycle: canonicalProjection?.lifecycle ?? null,
+			activity: effectiveCanonicalActivity,
+			turnState: effectiveCanonicalSessionTurnState,
+			hasEntries: visibleEntryCount > 0,
+			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
 		hasLocalPendingSendIntent: (sessionHotState?.pendingSendIntent ?? null) !== null,
 	})
 );
@@ -746,7 +738,7 @@ $effect(() => {
 		sessionId: sessionId ?? null,
 		viewState: viewState.kind,
 		pendingUserEntry: panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false,
-		entriesCount: sessionEntries.length,
+		entriesCount: visibleEntryCount,
 		hasSession: sessionId !== null,
 		t_ms: Math.round(performance.now()),
 	});
@@ -758,9 +750,9 @@ $effect(() => {
 		panelId,
 		sessionId,
 		viewState: viewState.kind,
-		entryCount: sessionEntries.length,
-		latestEntryId: sessionEntries.at(-1)?.id ?? null,
-		latestEntryType: sessionEntries.at(-1)?.type ?? null,
+		entryCount: visibleEntryCount,
+		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
+		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	if (signature === lastPanelTraceSignature) {
 		return;
@@ -888,7 +880,6 @@ const displayTitle = $derived.by(() => {
 	return deriveAgentPanelHeaderDisplayTitle({
 		sessionTitle,
 		projectName: displayProjectName,
-		sessionEntries,
 	});
 });
 const graphHeaderTitle = $derived(displayTitle ?? "");
@@ -931,8 +922,8 @@ const agentPanelBaseDisplayModel = $derived(
 			title: graphHeaderTitle,
 			agentName,
 		},
+		sceneEntries: graphMaterializedScene.conversation.entries,
 		local: {
-			pendingUserEntry: optimisticUserEntryForGraph,
 			pendingSendIntent: hasImmediatePendingSendIntent,
 		},
 	})
@@ -944,13 +935,10 @@ const agentPanelDisplayResult = $derived.by(() => {
 });
 const agentPanelDisplayModel = $derived(agentPanelDisplayResult.model);
 const graphSceneEntries = $derived.by(() => {
-	return backfillSceneEntryTimestamps(
-		applyAgentPanelDisplayModelToSceneEntries(
-			agentPanelDisplayModel,
-			agentPanelDisplayResult.memory,
-			graphMaterializedScene.conversation.entries
-		),
-		sessionEntries
+	return applyAgentPanelDisplayModelToSceneEntries(
+		agentPanelDisplayModel,
+		agentPanelDisplayResult.memory,
+		graphMaterializedScene.conversation.entries
 	);
 });
 const tokenRevealSceneEntries = $derived.by(() => {
@@ -1215,6 +1203,19 @@ const clampedReviewDialogFileIndex = $derived.by(() => {
 	if (fileCount === 0) return 0;
 	return Math.min(Math.max(reviewDialogFileIndex, 0), fileCount - 1);
 });
+const reviewDialogDiffStats = $derived.by(() => {
+	if (!reviewDialogFilesState) {
+		return { insertions: 0, deletions: 0 };
+	}
+
+	return reviewDialogFilesState.files.reduce(
+		(totals, file) => ({
+			insertions: totals.insertions + file.totalAdded,
+			deletions: totals.deletions + file.totalRemoved,
+		}),
+		{ insertions: 0, deletions: 0 }
+	);
+});
 
 // Add embedded pane widths (plan sidebar, review) when expanded
 const effectiveWidth = $derived.by(() =>
@@ -1293,7 +1294,7 @@ const debugPanelState = $derived.by(() => {
 //      across every sibling agent panel.
 //
 // Making this a `$derived` keeps the value synchronously consistent.
-// Reading operationStore instead of sessionEntries prevents unrelated
+// Reading operationStore instead of transcript rows prevents unrelated
 // assistant/transcript updates from rescanning the full conversation.
 const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	if (viewState.kind !== "conversation" || sessionId === null) {
@@ -1311,10 +1312,21 @@ function handleEnterReviewMode(filesState: ModifiedFilesState): void {
 	onEnterReviewMode?.(filesState, resolveInitialReviewWorkspaceIndex(filesState, sessionId));
 }
 
-function handleOpenReviewDialog(filesState: ModifiedFilesState, fileIndex: number): void {
+function openReviewDialogAtInitialFile(filesState: ModifiedFilesState): void {
 	reviewDialogFilesState = filesState;
-	reviewDialogFileIndex = fileIndex;
+	reviewDialogFileIndex = resolveInitialReviewWorkspaceIndex(filesState, sessionId);
 	reviewDialogOpen = true;
+}
+
+function handleOpenReviewDialog(filesState: ModifiedFilesState, _fileIndex: number): void {
+	if (!sessionId) {
+		openReviewDialogAtInitialFile(filesState);
+		return;
+	}
+
+	void sessionReviewStateStore.ensureLoadedAsync(sessionId).then(() => {
+		openReviewDialogAtInitialFile(filesState);
+	});
 }
 
 function handleReviewDialogOpenChange(open: boolean): void {
@@ -1331,7 +1343,7 @@ let lastPanelId = $state<string | undefined>(undefined);
 
 // Restore review mode when session loads (deferred from workspace restore)
 $effect(() => {
-	if (!panelId || !sessionId || sessionEntries.length === 0 || reviewMode) return;
+	if (!panelId || !sessionId || visibleEntryCount === 0 || reviewMode) return;
 
 	const pendingFileIndex = panelStore.consumePendingReviewRestore(panelId);
 	if (pendingFileIndex === null) return;
@@ -1737,7 +1749,7 @@ async function handleCopyContent() {
 	await copyThreadContentToClipboard({
 		sessionId,
 		getSessionCold: (id) => sessionStore.getSessionCold(id),
-		getEntries: (id) => sessionStore.getEntries(id),
+		getSessionStateGraph: (id) => sessionStore.getSessionStateGraph(id),
 	});
 }
 
@@ -1773,8 +1785,12 @@ async function handleOpenInAcepe() {
 
 async function handleExportMarkdown(): Promise<void> {
 	if (!sessionId) return;
-	const entries = sessionStore.getEntries(sessionId);
-	await exportSessionMarkdownToClipboard(entries);
+	const graph = sessionStore.getSessionStateGraph(sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	await exportSessionMarkdownToClipboard(graph);
 }
 
 async function handleExportJson() {
@@ -1782,7 +1798,7 @@ async function handleExportJson() {
 	await exportSessionJsonToClipboard({
 		sessionId,
 		getSessionCold: (id) => sessionStore.getSessionCold(id),
-		getEntries: (id) => sessionStore.getEntries(id),
+		getSessionStateGraph: (id) => sessionStore.getSessionStateGraph(id),
 	});
 }
 
@@ -1932,7 +1948,7 @@ function createInlineErrorIssueDraft() {
 		sessionCreatedAt,
 		sessionUpdatedAt,
 		currentModelId: sessionCurrentModelId,
-		entryCount: sessionEntries.length,
+		entryCount: visibleEntryCount,
 		panelConnectionState: panelConnectionState?.toString() ?? null,
 	});
 }
@@ -1974,13 +1990,13 @@ function handleCheckpointRevertComplete() {
 const todoManager = getTodoStateManager();
 const todoState = $derived.by(() => {
 	if (!sessionId) return null;
-	const threadData: ThreadWithEntries = {
-		entries: sessionEntries,
+	const threadData = {
+		toolCalls: sessionStore.getOperationStore().getSessionToolCalls(sessionId),
 		isConnected: sessionIsConnected,
 		status: panelSessionStatus,
 		isStreaming: sessionIsStreaming,
 	};
-	const result = todoManager.getTodoState(sessionId, threadData);
+	const result = todoManager.getTodoStateFromToolCalls(sessionId, threadData);
 	return result.isOk() ? result.value : null;
 });
 const showTodoHeader = $derived(todoState !== null && todoState.totalCount > 0);
@@ -2472,7 +2488,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{sessionId}
 			effectiveProjectPath={effectiveProjectPath ?? null}
 			sessionProjectPath={sessionProjectPath ?? null}
-			sessionEntries={sessionEntries}
 			{effectivePathForGit}
 			{createdPr}
 			{createPrRunning}
@@ -2705,8 +2720,52 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	open={reviewDialogOpen}
 	title="Review changes"
 	closeLabel="Close review"
+	contentOverflow="hidden"
 	onOpenChange={handleReviewDialogOpenChange}
 >
+	{#snippet topLeft()}
+		<div class="flex min-w-0 items-center gap-1.5">
+			{#if !createdPr}
+				<button
+					type="button"
+					class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+					disabled={createPrRunning || !effectivePathForGit}
+					onclick={() => void handleCreatePr()}
+				>
+					<span class="flex min-w-0 items-center gap-1">
+						<GitPullRequest
+							size={11}
+							weight="bold"
+							class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
+						/>
+						<span class="font-medium text-foreground leading-none">
+							{createPrLabel ?? "Open PR"}
+						</span>
+					</span>
+					<DiffPill
+						insertions={reviewDialogDiffStats.insertions}
+						deletions={reviewDialogDiffStats.deletions}
+						variant="plain"
+					/>
+				</button>
+			{:else}
+				<div
+					class="flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				>
+					<span class="flex min-w-0 items-center gap-1">
+						<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
+						<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
+					</span>
+					<DiffPill
+						insertions={reviewDialogDiffStats.insertions}
+						deletions={reviewDialogDiffStats.deletions}
+						variant="plain"
+					/>
+				</div>
+			{/if}
+		</div>
+	{/snippet}
+
 	{#if reviewDialogFilesState}
 		<AgentPanelReviewWorkspace
 			{sessionId}
@@ -2715,6 +2774,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			projectPath={sessionProjectPath}
 			isActive={reviewDialogOpen}
 			showHeader={false}
+			showCloseButton={false}
 			compact={true}
 			diffDensity="compact"
 			onClose={() => handleReviewDialogOpenChange(false)}

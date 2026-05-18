@@ -126,7 +126,7 @@
 				<div role="group" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} class="opacity-50 group-hover:opacity-100 transition-opacity">
 					{#if isReverting}
 						<PillButton variant="invert" size="xs" disabled>
-							<LoadingIcon class="h-2 w-2 text-background" />
+							<LoadingIcon class="text-background" size={8} />
 							<TextShimmer class="text-[10px]">Reverting…</TextShimmer>
 						</PillButton>
 					{:else if isConfirming}
@@ -160,7 +160,7 @@
 		<div transition:slide={{ duration: 150 }} class="border-t border-border/30">
 			{#if isLoadingFiles}
 				<div class="flex items-center justify-center py-2 text-muted-foreground text-[10px]">
-					<LoadingIcon class="h-3 w-3 mr-1.5" />
+					<LoadingIcon class="mr-1.5" size={12} />
 					{loadingFilesMessage}
 				</div>
 			{:else}

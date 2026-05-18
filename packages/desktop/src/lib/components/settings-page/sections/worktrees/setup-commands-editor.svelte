@@ -91,7 +91,7 @@ function shikiHighlight(code: string): string | null {
 
 {#if status === "loading"}
 	<div class="flex items-center justify-center py-3">
-		<Spinner class="h-3 w-3 text-muted-foreground/50" />
+		<Spinner class="text-muted-foreground/50" size={12} />
 	</div>
 {:else if status === "error"}
 	<button

@@ -7,7 +7,6 @@ import {
 } from "@acepe/ui/agent-panel";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
-import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { Colors, COLOR_NAMES } from "../../utils/colors.js";
@@ -33,7 +32,6 @@ interface Props {
 	projectPath?: string | null;
 	showCommandWhenRepresented?: boolean;
 	showCompactEditPreview?: boolean;
-	entries?: readonly SessionEntry[];
 }
 
 let {
@@ -43,7 +41,6 @@ let {
 	projectPath = null,
 	showCommandWhenRepresented = false,
 	showCompactEditPreview = false,
-	entries: _entriesProp = undefined,
 }: Props = $props();
 
 const permissionStore = getPermissionStore();

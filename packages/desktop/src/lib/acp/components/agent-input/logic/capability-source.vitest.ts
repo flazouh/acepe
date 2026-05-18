@@ -59,7 +59,7 @@ describe("resolveCapabilitySource", () => {
 		expect(resolution.availableModels.map((model) => model.id)).toEqual(["live-model"]);
 	});
 
-	it("fills missing live session models from the cached model catalog", () => {
+	it("does not fill missing live session models from cached capabilities", () => {
 		const resolution = resolveCapabilitySource({
 			sessionCapabilities: {
 				availableModels: [],
@@ -90,13 +90,11 @@ describe("resolveCapabilitySource", () => {
 
 		expect(resolution.source).toBe("liveSession");
 		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build"]);
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["cached-cursor-model"]);
-		expect(resolution.modelsDisplay?.groups[0]?.models.map((model) => model.modelId)).toEqual([
-			"cached-cursor-model",
-		]);
+		expect(resolution.availableModels).toEqual([]);
+		expect(resolution.modelsDisplay).toBeNull();
 	});
 
-	it("ignores empty live modelsDisplay placeholders when selecting fallback capabilities", () => {
+	it("uses canonical empty live session capabilities instead of partial preconnection data", () => {
 		const resolution = resolveCapabilitySource({
 			sessionCapabilities: {
 				availableModels: [],
@@ -123,9 +121,10 @@ describe("resolveCapabilitySource", () => {
 			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
 		});
 
-		expect(resolution.source).toBe("preconnectionPartial");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build", "plan"]);
+		expect(resolution.source).toBe("liveSession");
+		expect(resolution.availableModes).toEqual([]);
 		expect(resolution.availableModels).toEqual([]);
+		expect(resolution.modelsDisplay).toEqual({ groups: [], presentation: undefined });
 	});
 
 	it("keeps persisted cache precedence ahead of partial preconnection capabilities", () => {

@@ -71,7 +71,7 @@
 
 	const buttonStyle = $derived.by(() => {
 		if (!active) return undefined;
-		return `color: ${Colors.purple}; --autonomous-toggle-active-color: ${Colors.purple};`;
+		return `color: ${Colors.red}; --autonomous-toggle-active-color: ${Colors.red};`;
 	});
 
 	function handleClick(): void {

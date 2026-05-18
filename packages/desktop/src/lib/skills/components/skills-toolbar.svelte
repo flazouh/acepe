@@ -64,7 +64,7 @@ function handleDelete() {
 				disabled={!store.isDirty || store.isSaving}
 			>
 				{#if store.isSaving}
-					<Spinner class="h-4 w-4 mr-1" />
+					<Spinner class="mr-1" size={16} />
 				{:else}
 					<Save class="h-4 w-4 mr-1" />
 				{/if}

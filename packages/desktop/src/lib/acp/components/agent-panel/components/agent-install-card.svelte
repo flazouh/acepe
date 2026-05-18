@@ -25,7 +25,7 @@ const installTitle = $derived(`Setting up ${agentName}...`);
 	ariaLabel={`${installTitle} ${stage}`}
 >
 	{#snippet leading()}
-		<Spinner class="size-[13px]" />
+		<Spinner size={13} />
 		<AgentIcon {agentId} class="size-3 shrink-0" size={12} />
 	{/snippet}
 

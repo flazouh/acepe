@@ -35,6 +35,11 @@ export type HunkActionCallback = (
 	hunkOldContent: string
 ) => void;
 
+export type ResolvedReviewHunkAction = {
+	readonly hunkIndex: number;
+	readonly action: "accept" | "reject";
+};
+
 const compactReviewDiffUnsafeCSS = `
 [data-code] {
   font-size: 11px;
@@ -309,7 +314,8 @@ export class ReviewDiffViewState {
 		container: HTMLElement,
 		_onStyleChange?: (style: DiffViewStyle) => void,
 		onHunkAction?: HunkActionCallback,
-		density: ReviewDiffDensity = "default"
+		density: ReviewDiffDensity = "default",
+		initialResolvedActions: ReadonlyArray<ResolvedReviewHunkAction> = []
 	): Promise<void> {
 		// Claim this generation before the async pause so we can detect if a
 		// newer call starts while we are awaiting theme registration.
@@ -348,13 +354,51 @@ export class ReviewDiffViewState {
 			this.headerControlsComponent = null;
 		}
 
-		const renderableDiffData = ensureRenderableDiffData(diffData);
+		let renderableDiffData = ensureRenderableDiffData(diffData);
+		const totalHunksAtInit = renderableDiffData.fileDiffMetadata.hunks.length;
+		let acceptedCountAtInit = 0;
+		let rejectedCountAtInit = 0;
+
+		for (const action of initialResolvedActions) {
+			const currentMetadata = renderableDiffData.fileDiffMetadata;
+			if (action.hunkIndex < 0 || action.hunkIndex >= currentMetadata.hunks.length) {
+				continue;
+			}
+
+			const updatedMetadata = diffAcceptRejectHunk(
+				currentMetadata,
+				action.hunkIndex,
+				action.action
+			);
+			const updatedNewContents =
+				action.action === "reject"
+					? computeRevertedFileContent(
+							renderableDiffData.newFile.contents,
+							currentMetadata,
+							action.hunkIndex
+						)
+					: renderableDiffData.newFile.contents;
+
+			renderableDiffData = ensureRenderableDiffData({
+				oldFile: renderableDiffData.oldFile,
+				newFile: Object.assign({}, renderableDiffData.newFile, {
+					contents: updatedNewContents,
+				}),
+				fileDiffMetadata: updatedMetadata,
+			});
+
+			if (action.action === "accept") {
+				acceptedCountAtInit++;
+			} else {
+				rejectedCountAtInit++;
+			}
+		}
 
 		this.containerElement = container;
 		this.currentDiffData = renderableDiffData;
-		this.totalHunksAtInit = renderableDiffData.fileDiffMetadata.hunks.length;
-		this.acceptedCount = 0;
-		this.rejectedCount = 0;
+		this.totalHunksAtInit = totalHunksAtInit;
+		this.acceptedCount = acceptedCountAtInit;
+		this.rejectedCount = rejectedCountAtInit;
 		this.activeHunkIndex = null;
 
 		// Build line annotations for accept/reject UI on each change hunk
@@ -635,6 +679,28 @@ export class ReviewDiffViewState {
 		const oldContent = this.extractHunkOldContent(hunkIndex);
 		this.onHunkAction(hunkIndex, "accept", oldContent);
 		return { hunkIndex, oldContent };
+	}
+
+	/**
+	 * Accepts every pending hunk in the current file.
+	 */
+	acceptAllPendingHunks(): { hunkIndex: number; oldContent: string }[] {
+		if (!this.onHunkAction) {
+			return [];
+		}
+
+		const acceptedHunks: { hunkIndex: number; oldContent: string }[] = [];
+
+		while (true) {
+			const hunkIndex = this.getFirstPendingHunkIndex();
+			if (hunkIndex === null) {
+				return acceptedHunks;
+			}
+
+			const oldContent = this.extractHunkOldContent(hunkIndex);
+			this.onHunkAction(hunkIndex, "accept", oldContent);
+			acceptedHunks.push({ hunkIndex, oldContent });
+		}
 	}
 
 	/**

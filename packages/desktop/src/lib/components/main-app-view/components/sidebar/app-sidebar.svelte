@@ -2,7 +2,7 @@
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
 import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
-import { copySessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import { copyCanonicalSessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import {
 	buildSessionSummaryFromCold,
@@ -22,7 +22,7 @@ import {
 } from "$lib/acp/store/index.js";
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { sessionEntriesToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
+import { sessionGraphToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
@@ -188,8 +188,12 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 }
 
 function handleExportMarkdown(sessionId: string) {
-	const entries = sessionStore.getEntries(sessionId);
-	const markdown = sessionEntriesToMarkdown(entries);
+	const graph = sessionStore.getSessionStateGraph(sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	const markdown = sessionGraphToMarkdown(graph);
 	ResultAsync.fromPromise(
 		navigator.clipboard.writeText(markdown),
 		(e) => new Error(String(e))
@@ -208,8 +212,12 @@ async function handleExportJson(sessionId: string) {
 		toast.error(`Failed to export: ${"Session not found"}`);
 		return;
 	}
-	const entries = sessionStore.getEntries(sessionId);
-	copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
+	const graph = sessionStore.getSessionStateGraph(sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	copyCanonicalSessionToClipboard(cold, graph).match(
 		() => toast.success("Copied to clipboard"),
 		(err) => {
 			toast.error(`Failed to export: ${err.message}`);
@@ -422,8 +430,8 @@ function handleBrowseProjectIcon() {
 }
 
 // Performance: Only read canonical projection summary state here.
-// Do NOT read sessionStore.getEntries() here — entries change every rAF during streaming,
-// which would mark this derived dirty on every frame, cascading to ALL SessionItem components.
+// Do NOT read compatibility transcript entries here; they change every rAF during streaming,
+// marking this derived dirty on every frame and cascading to ALL SessionItem components.
 const visibleSessions = $derived.by(() => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(sessionStore.sessions);
 	return coldSessions

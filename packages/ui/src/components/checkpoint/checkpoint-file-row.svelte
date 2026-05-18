@@ -123,7 +123,7 @@
 			<div role="group" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
 				{#if isReverting}
 					<PillButton variant="invert" size="xs" disabled>
-						<LoadingIcon class="h-2 w-2 text-background" />
+						<LoadingIcon class="text-background" size={8} />
 						<TextShimmer class="text-[10px]">Reverting…</TextShimmer>
 					</PillButton>
 				{:else}
@@ -148,7 +148,7 @@
 		>
 			{#if isLoadingDiff}
 				<div class="flex items-center justify-center gap-1.5 py-3 text-[10px] text-muted-foreground">
-					<LoadingIcon class="h-3 w-3" />
+					<LoadingIcon size={12} />
 					<span>Loading...</span>
 				</div>
 			{:else if diff}

@@ -490,7 +490,7 @@ describe("Tool Call Event Flow", () => {
 
 			entryStore.recordToolCallTranscriptEntry(sessionId, parentWithChild);
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			const tool = entries[0]?.message as ToolCallData;
 			expect(tool.taskChildren?.length).toBe(1);
@@ -546,7 +546,7 @@ describe("Tool Call Event Flow", () => {
 				],
 			});
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -647,7 +647,7 @@ describe("Tool Call Event Flow", () => {
 			// the UI sees empty data → blank card.
 
 			const streamingArgsAfter = readProgressiveArguments(entryStore, sessionId, toolCallId);
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 
 			// Check entries (what Svelte actually reacts to)
 			const committedEntry = entries[0];
@@ -731,7 +731,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Regression assertion: final merged entry must retain full edit arguments.
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -788,7 +788,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -846,7 +846,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -978,7 +978,7 @@ describe("Tool Call Event Flow", () => {
 				locations: [{ path: filePath }],
 			});
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			expect(entries[0]?.isStreaming).toBe(false);
@@ -1040,7 +1040,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -1070,7 +1070,7 @@ describe("Tool Call Event Flow", () => {
 				locations: null,
 			});
 
-			expect(entryStore.getEntries(sessionId)).toHaveLength(0);
+			expect(readCompatibilityEntries(entryStore, sessionId)).toHaveLength(0);
 
 			// Step 2: Full tool call data arrives with completed status.
 			entryStore.recordToolCallTranscriptEntry(sessionId, {
@@ -1086,7 +1086,7 @@ describe("Tool Call Event Flow", () => {
 				awaitingPlanApproval: false,
 			});
 
-			const afterFullData = entryStore.getEntries(sessionId);
+			const afterFullData = readCompatibilityEntries(entryStore, sessionId);
 			expect(afterFullData.length).toBe(1);
 			expect(afterFullData[0]?.isStreaming).toBe(false);
 			if (afterFullData[0]?.type === "tool_call") {
@@ -1147,8 +1147,8 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			const liveEntry = liveStore.getEntries("live-session")[0];
-			const preloadEntry = preloadStore.getEntries("preload-session")[0];
+			const liveEntry = readCompatibilityEntries(liveStore, "live-session")[0];
+			const preloadEntry = readCompatibilityEntries(preloadStore, "preload-session")[0];
 			expect(liveEntry?.type).toBe("tool_call");
 			expect(preloadEntry?.type).toBe("tool_call");
 			if (liveEntry?.type === "tool_call" && preloadEntry?.type === "tool_call") {
@@ -1209,7 +1209,7 @@ describe("Tool Call Event Flow", () => {
 				" The Grep tool failure gave you a false negative.",
 			]);
 
-			const entries = entryStore.getEntries(sessionId);
+			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.map((entry) => entry.type)).toEqual(["assistant", "tool_call", "assistant"]);
 
 			const firstAssistantText = assistantEntryText(entries[0]);

@@ -5,7 +5,7 @@ import type { TodoState } from "$lib/acp/types/todo.js";
 
 import TodoHeader from "./todo-header.svelte";
 
-const mockGetTodoState = vi.fn();
+const mockGetTodoStateFromToolCalls = vi.fn();
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -21,7 +21,7 @@ vi.mock("svelte", async () => {
 
 vi.mock("$lib/acp/logic/todo-state-manager.svelte.js", () => ({
 	getTodoStateManager: () => ({
-		getTodoState: mockGetTodoState,
+		getTodoStateFromToolCalls: mockGetTodoStateFromToolCalls,
 	}),
 }));
 
@@ -34,6 +34,14 @@ vi.mock("@acepe/ui", async (importOriginal) => {
 		SegmentedProgress: actual.SegmentedProgress,
 		TextShimmer: TextShimmerStub,
 		TodoNumberIcon: Stub,
+	};
+});
+
+vi.mock("@acepe/ui/agent-panel", async () => {
+	const Stub = (await import("./pr-status-card/test-component-stub.svelte")).default;
+
+	return {
+		AgentPanelTodoHeader: Stub,
 	};
 });
 
@@ -63,7 +71,7 @@ vi.mock("phosphor-svelte/lib/CheckCircle", async () => {
 
 afterEach(() => {
 	cleanup();
-	mockGetTodoState.mockReset();
+	mockGetTodoStateFromToolCalls.mockReset();
 });
 
 describe("TodoHeader", () => {
@@ -83,7 +91,7 @@ describe("TodoHeader", () => {
 			lastUpdatedAt: new Date("2026-03-25T00:00:00Z"),
 		};
 
-		mockGetTodoState.mockReturnValue({
+		mockGetTodoStateFromToolCalls.mockReturnValue({
 			isOk: () => true,
 			isErr: () => false,
 			value: todoState,
@@ -91,7 +99,7 @@ describe("TodoHeader", () => {
 
 		const { container } = render(TodoHeader, {
 			sessionId: "session-1",
-			entries: [],
+			toolCalls: [],
 			isConnected: false,
 			status: "idle",
 			isStreaming: false,
@@ -128,7 +136,7 @@ describe("TodoHeader", () => {
 			lastUpdatedAt: new Date("2026-03-25T00:00:00Z"),
 		};
 
-		mockGetTodoState.mockReturnValue({
+		mockGetTodoStateFromToolCalls.mockReturnValue({
 			isOk: () => true,
 			isErr: () => false,
 			value: todoState,
@@ -136,7 +144,7 @@ describe("TodoHeader", () => {
 
 		const { container } = render(TodoHeader, {
 			sessionId: "session-1",
-			entries: [],
+			toolCalls: [],
 			isConnected: true,
 			status: "streaming",
 			isStreaming: true,

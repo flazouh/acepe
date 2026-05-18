@@ -301,7 +301,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.replaceTranscriptSnapshot("session-1", snapshot, new Date("2026-04-16T00:00:00.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -381,7 +381,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			timestamp
 		);
 
-		const [entry] = store.getEntries("session-1");
+		const [entry] = readCompatibilityEntries(store, "session-1");
 		expect(entry?.type).toBe("tool_call");
 		if (entry?.type !== "tool_call") {
 			throw new Error("expected tool call entry");
@@ -523,7 +523,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:01.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -586,7 +586,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "user-1",
 				type: "user",
@@ -660,7 +660,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "optimistic-user-local",
 				type: "user",
@@ -729,12 +729,12 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:03.000Z"));
 
-		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual([
+		expect(readCompatibilityEntries(store, "session-1").map((entry) => entry.id)).toEqual([
 			"optimistic-user-local",
 			"assistant-1",
 			"user-event-7",
 		]);
-		expect(store.getEntries("session-1")[2]).toMatchObject({
+		expect(readCompatibilityEntries(store, "session-1")[2]).toMatchObject({
 			id: "user-event-7",
 			type: "user",
 		});
@@ -783,7 +783,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -835,7 +835,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -884,7 +884,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(2);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
@@ -961,7 +961,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			new Date("2026-04-26T00:00:02.000Z")
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
@@ -1007,7 +1007,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 
@@ -1035,7 +1035,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 			expect((entries[1].message as { content: { text: string } }).content.text).toBe("New");
@@ -1067,7 +1067,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe(
 				"Update 2 - final"
 			);
@@ -1085,7 +1085,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 		});
 
@@ -1157,7 +1157,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1195,7 +1195,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1226,7 +1226,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 		});
 
@@ -1247,7 +1247,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 	});
@@ -1289,7 +1289,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		expect(entries).toHaveLength(1);
 		expect(entries[0].type).toBe("assistant");
@@ -1331,7 +1331,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Should be ONE entry with all 4 chunks
 		expect(entries).toHaveLength(1);
@@ -1357,7 +1357,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Different messageIds should create separate entries
 		expect(entries).toHaveLength(2);

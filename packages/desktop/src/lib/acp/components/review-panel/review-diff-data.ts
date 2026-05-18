@@ -37,10 +37,20 @@ function hasDiffHunks(diffData: ReviewDiffData | null): boolean {
 	return (diffData?.fileDiffMetadata.hunks.length ?? 0) > 0;
 }
 
+interface SelectReviewDiffDataOptions {
+	preferFetchedDiff?: boolean;
+	fetchedDiffSettled?: boolean;
+}
+
 export function selectReviewDiffData(
 	fetchedDiffData: ReviewDiffData | null,
-	embeddedDiffData: ReviewDiffData | null
+	embeddedDiffData: ReviewDiffData | null,
+	options: SelectReviewDiffDataOptions = {}
 ): ReviewDiffData | null {
+	if (options.preferFetchedDiff === true && options.fetchedDiffSettled !== true) {
+		return fetchedDiffData;
+	}
+
 	if (hasDiffHunks(fetchedDiffData)) {
 		return fetchedDiffData;
 	}
