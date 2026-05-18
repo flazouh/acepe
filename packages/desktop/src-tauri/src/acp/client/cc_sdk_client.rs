@@ -2048,7 +2048,7 @@ fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: Age
     .ok();
 
     let mut metadata = serde_json::Map::from_iter([
-        ("rawInput".to_string(), raw_input.clone()),
+        ("diagnosticRawInput".to_string(), raw_input.clone()),
         ("options".to_string(), Value::Array(Vec::new())),
     ]);
 
@@ -3979,6 +3979,21 @@ mod tests {
     }
 
     // --- PermissionBridge tests ---
+
+    #[test]
+    fn permission_metadata_marks_original_payload_as_diagnostic() {
+        let raw_input = serde_json::json!({
+            "command": "echo ok"
+        });
+
+        let metadata =
+            build_permission_metadata("Bash", &raw_input, AgentType::ClaudeCode);
+
+        assert_eq!(metadata["diagnosticRawInput"], raw_input);
+        assert!(metadata.get("rawInput").is_none());
+        assert_eq!(metadata["parsedArguments"]["kind"], "execute");
+        assert_eq!(metadata["options"], serde_json::json!([]));
+    }
 
     #[test]
     fn permission_bridge_next_id_is_sequential() {
