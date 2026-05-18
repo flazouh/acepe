@@ -15,13 +15,18 @@ vi.mock("svelte", async () => {
 
 const openUrlMock = vi.fn();
 const openFilePanelMock = vi.fn();
+const sessionContextState = vi.hoisted((): {
+	current: null | { projectPath: string; turnState: "idle" };
+} => ({
+	current: null,
+}));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
 }));
 
 vi.mock("../../hooks/use-session-context.js", () => ({
-	useSessionContext: () => null,
+	useSessionContext: () => sessionContextState.current,
 }));
 
 vi.mock("../../store/index.js", () => ({
@@ -42,6 +47,7 @@ afterEach(() => {
 	cleanup();
 	openUrlMock.mockReset();
 	openFilePanelMock.mockReset();
+	sessionContextState.current = null;
 });
 
 describe("MarkdownText", () => {
@@ -152,6 +158,23 @@ describe("MarkdownText", () => {
 		expect(openFilePanelMock).toHaveBeenCalledWith("src/app.ts", "/repo", {
 			ownerPanelId: undefined,
 		});
+	});
+
+	it("does not read project path from session context for file chips", async () => {
+		sessionContextState.current = { projectPath: "/repo", turnState: "idle" };
+		const { container } = render(MarkdownText, {
+			text: "Open `src/app.ts`",
+		});
+
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent).toBe("app.ts");
+		});
+
+		container
+			.querySelector(".file-path-badge")
+			?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+		expect(openFilePanelMock).not.toHaveBeenCalled();
 	});
 
 	it("opens plain text file chips in the project file panel", async () => {

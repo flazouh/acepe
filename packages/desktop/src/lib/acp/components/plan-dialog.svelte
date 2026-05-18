@@ -11,7 +11,6 @@ import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 
-import { useSessionContext } from "../hooks/use-session-context.js";
 import CopyButton from "./messages/copy-button.svelte";
 import MarkdownText from "./messages/markdown-text.svelte";
 
@@ -28,10 +27,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let { plan, open, onOpenChange, projectPath: propProjectPath }: Props = $props();
-
-const sessionContext = useSessionContext();
-const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
+let { plan, open, onOpenChange, projectPath }: Props = $props();
 
 function downloadAsMarkdown() {
 	const blob = new Blob([plan.content], { type: "text/markdown" });

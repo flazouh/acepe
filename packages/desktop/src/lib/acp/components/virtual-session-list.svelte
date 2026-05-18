@@ -135,7 +135,7 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 				>
 					<div class="px-4 py-2">
 						{#if entry.type === "user"}
-							<UserMessage message={entry.message as UserMessageType} />
+							<UserMessage message={entry.message as UserMessageType} {projectPath} />
 						{:else if entry.type === "assistant"}
 							<AssistantMessage
 								message={entry.message as AssistantMessageType}

@@ -7,7 +7,6 @@ import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 import type { SessionPlanResponse } from "$lib/services/converted-session-types.js";
 
-import { useSessionContext } from "../../hooks/use-session-context.js";
 import CopyButton from "../messages/copy-button.svelte";
 import MarkdownText from "../messages/markdown-text.svelte";
 
@@ -21,15 +20,11 @@ interface Props {
 
 let {
 	plan,
-	projectPath: propProjectPath,
+	projectPath,
 	columnWidth = 450,
 	onOpenFullscreen,
 	onClose,
 }: Props = $props();
-
-// Get projectPath from context or use prop (backward compatibility)
-const sessionContext = useSessionContext();
-const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
 
 function handleDownloadMarkdown() {
 	const blob = new Blob([plan.content], { type: "text/markdown" });
