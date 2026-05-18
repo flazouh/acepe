@@ -20,8 +20,6 @@ import type {
 	ToolCallData,
 	ToolCallUpdateData,
 } from "../../services/converted-session-types.js";
-import { resolveTranscriptToolCallCreate } from "../session-state/session-state-query-service.js";
-import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
@@ -92,20 +90,20 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			}
 		}
 
-		const fallbackIndex = entries.findIndex(
+		const recoveredIndex = entries.findIndex(
 			(entry) => isToolCallEntry(entry) && entry.message.id === toolCallId
 		);
-		if (fallbackIndex === -1) {
+		if (recoveredIndex === -1) {
 			return null;
 		}
 
-		const fallbackEntry = entries[fallbackIndex];
-		if (!isToolCallEntry(fallbackEntry)) {
+		const recoveredEntry = entries[recoveredIndex];
+		if (!isToolCallEntry(recoveredEntry)) {
 			return null;
 		}
 
-		this.entryIndex.addToolCallId(sessionId, toolCallId, fallbackIndex);
-		return { entry: fallbackEntry, index: fallbackIndex };
+		this.entryIndex.addToolCallId(sessionId, toolCallId, recoveredIndex);
+		return { entry: recoveredEntry, index: recoveredIndex };
 	}
 
 	/**
@@ -149,7 +147,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Product transcript truth must use replaceTranscriptSnapshot/applyTranscriptDelta.
 	 */
 	private preloadEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
-		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
+		const normalizedEntries = this.normalizePreloadedEntries(entries);
 		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
 		this.preloadedIds.add(sessionId);
 	}
@@ -260,127 +258,8 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		};
 	}
 
-	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
-		const seenToolCallIds = new Set<string>();
-		let hasDuplicateToolCall = false;
-		for (const entry of entries) {
-			if (!isToolCallEntry(entry)) {
-				continue;
-			}
-
-			if (seenToolCallIds.has(entry.message.id)) {
-				hasDuplicateToolCall = true;
-				break;
-			}
-
-			seenToolCallIds.add(entry.message.id);
-		}
-
-		let collapsedEntries = entries;
-		if (hasDuplicateToolCall) {
-			const normalizedEntries: SessionEntry[] = [];
-			const normalizedToolCallIds = new Set<string>();
-			for (const entry of entries) {
-				if (!isToolCallEntry(entry)) {
-					normalizedEntries.push(entry);
-					continue;
-				}
-
-				if (!normalizedToolCallIds.has(entry.message.id)) {
-					normalizedToolCallIds.add(entry.message.id);
-					normalizedEntries.push(entry);
-					continue;
-				}
-
-				this.mergeDuplicatePreloadedToolCall(normalizedEntries, entry);
-			}
-
-			collapsedEntries = normalizedEntries;
-		}
-
-		return collapsedEntries.map((entry) => this.normalizeRuntimeEntry(entry));
-	}
-
-	private mergeDuplicatePreloadedToolCall(
-		entries: SessionEntry[],
-		incomingEntry: Extract<SessionEntry, { readonly type: "tool_call" }>
-	): void {
-		const existingIndex = entries.findIndex(
-			(entry) => isToolCallEntry(entry) && entry.message.id === incomingEntry.message.id
-		);
-		const existingEntry = entries[existingIndex];
-		if (!isToolCallEntry(existingEntry)) {
-			entries.push(incomingEntry);
-			return;
-		}
-
-		const incomingData: ToolCallData = {
-			id: incomingEntry.message.id,
-			name: incomingEntry.message.name,
-			arguments: incomingEntry.message.arguments,
-			rawInput: incomingEntry.message.rawInput,
-			status: incomingEntry.message.status,
-			result: incomingEntry.message.result,
-			kind: incomingEntry.message.kind,
-			title: incomingEntry.message.title,
-			locations: incomingEntry.message.locations,
-			skillMeta: incomingEntry.message.skillMeta,
-			normalizedQuestions: incomingEntry.message.normalizedQuestions,
-			normalizedTodos: incomingEntry.message.normalizedTodos,
-			parentToolUseId: incomingEntry.message.parentToolUseId,
-			taskChildren: incomingEntry.message.taskChildren,
-			questionAnswer: incomingEntry.message.questionAnswer,
-			awaitingPlanApproval: incomingEntry.message.awaitingPlanApproval,
-			planApprovalRequestId: incomingEntry.message.planApprovalRequestId,
-		};
-		const existingStartedAtMs = existingEntry.timestamp?.getTime() ?? Date.now();
-		const incomingTimestampMs = incomingEntry.timestamp?.getTime() ?? existingStartedAtMs;
-		const createResolution = resolveTranscriptToolCallCreate(
-			existingEntry.message,
-			incomingData,
-			existingStartedAtMs,
-			incomingTimestampMs
-		);
-		const updatedToolCall: ToolCall = {
-			id: existingEntry.message.id,
-			name: incomingEntry.message.name,
-			arguments: createResolution.nextArguments,
-			rawInput: createResolution.nextRawInput,
-			status: createResolution.nextStatus ?? existingEntry.message.status,
-			result: createResolution.nextResult,
-			kind: createResolution.nextKind,
-			title: incomingEntry.message.title ?? existingEntry.message.title,
-			locations: incomingEntry.message.locations ?? existingEntry.message.locations,
-			skillMeta: incomingEntry.message.skillMeta ?? existingEntry.message.skillMeta,
-			normalizedQuestions:
-				incomingEntry.message.normalizedQuestions ?? existingEntry.message.normalizedQuestions,
-			normalizedTodos:
-				incomingEntry.message.normalizedTodos ?? existingEntry.message.normalizedTodos,
-			normalizedTodoUpdate:
-				incomingEntry.message.normalizedTodoUpdate ?? existingEntry.message.normalizedTodoUpdate,
-			normalizedResult: normalizeToolResult({
-				kind: createResolution.nextKind,
-				arguments: createResolution.nextArguments,
-				result: createResolution.nextResult,
-			}),
-			parentToolUseId: incomingEntry.message.parentToolUseId ?? existingEntry.message.parentToolUseId,
-			taskChildren: incomingEntry.message.taskChildren ?? existingEntry.message.taskChildren,
-			questionAnswer: incomingEntry.message.questionAnswer ?? existingEntry.message.questionAnswer,
-			awaitingPlanApproval: createResolution.nextAwaitingPlanApproval,
-			planApprovalRequestId: createResolution.nextPlanApprovalRequestId,
-			progressiveArguments: createResolution.nextProgressiveArguments,
-			startedAtMs: createResolution.startedAtMs,
-			completedAtMs: createResolution.completedAtMs,
-			presentationStatus: incomingEntry.message.presentationStatus ?? existingEntry.message.presentationStatus,
-		};
-
-		entries[existingIndex] = {
-			id: existingEntry.id,
-			type: "tool_call",
-			message: updatedToolCall,
-			timestamp: existingEntry.timestamp,
-			isStreaming: createResolution.isStreaming,
-		};
+	private normalizePreloadedEntries(entries: SessionEntry[]): SessionEntry[] {
+		return entries.map((entry) => this.normalizeRuntimeEntry(entry));
 	}
 
 	/**
@@ -432,13 +311,16 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const updatedToolCallId = isToolCallEntry(normalizedEntry) ? normalizedEntry.message.id : null;
 		if (previousToolCallId !== null && updatedToolCallId !== null) {
 			if (previousToolCallId !== updatedToolCallId) {
-				// No delete API for tool index; fallback to rebuild when ID changes.
-				this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
-			} else {
+				this.entryIndex.deleteToolCallId(sessionId, previousToolCallId);
+			}
+			this.entryIndex.addToolCallId(sessionId, updatedToolCallId, index);
+		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
+			if (previousToolCallId !== null) {
+				this.entryIndex.deleteToolCallId(sessionId, previousToolCallId);
+			}
+			if (updatedToolCallId !== null) {
 				this.entryIndex.addToolCallId(sessionId, updatedToolCallId, index);
 			}
-		} else if (previousToolCallId !== null || updatedToolCallId !== null) {
-			this.entryIndex.rebuildToolCallIdIndex(sessionId, newEntries);
 		}
 	}
 

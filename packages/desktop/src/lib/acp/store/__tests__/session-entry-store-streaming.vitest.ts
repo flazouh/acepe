@@ -862,7 +862,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 			expect(entries).toHaveLength(1);
 		});
 
-		it("collapses replayed tool-call entries with the same tool id during preload", () => {
+		it("preserves replayed tool-call entries with the same tool id during preload", () => {
 			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1-a",
@@ -902,7 +902,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 			const toolEntries = readStoredEntries(store, "session1")
 				.filter((entry) => entry.type === "tool_call");
-			expect(toolEntries).toHaveLength(1);
+			expect(toolEntries).toHaveLength(2);
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {

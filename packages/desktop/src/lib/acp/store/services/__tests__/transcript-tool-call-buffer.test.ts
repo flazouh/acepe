@@ -37,6 +37,7 @@ function createMockEntryIndex(overrides?: Partial<IEntryIndex>): IEntryIndex {
 		rebuildEntryIdIndex: vi.fn(),
 		getToolCallIdIndex: vi.fn(() => undefined),
 		addToolCallId: vi.fn(),
+		deleteToolCallId: vi.fn(),
 		rebuildToolCallIdIndex: vi.fn(),
 		clearSession: vi.fn(),
 		...overrides,

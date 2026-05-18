@@ -47,6 +47,15 @@ describe("EntryIndexManager", () => {
 			expect(manager.getToolCallIdIndex("s1", "tc-1")).toBe(2);
 		});
 
+		it("deletes a toolCallId index", () => {
+			const manager = new EntryIndexManager();
+			manager.addToolCallId("s1", "tc-1", 2);
+
+			manager.deleteToolCallId("s1", "tc-1");
+
+			expect(manager.getToolCallIdIndex("s1", "tc-1")).toBeUndefined();
+		});
+
 		it("isolates indices per session", () => {
 			const manager = new EntryIndexManager();
 			manager.addToolCallId("s1", "tc-1", 0);

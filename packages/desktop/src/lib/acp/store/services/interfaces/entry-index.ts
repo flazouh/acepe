@@ -16,6 +16,7 @@ export interface IEntryIndex {
 	// ToolCallId index (tool call lookups)
 	getToolCallIdIndex(sessionId: string, toolCallId: string): number | undefined;
 	addToolCallId(sessionId: string, toolCallId: string, index: number): void;
+	deleteToolCallId(sessionId: string, toolCallId: string): void;
 	rebuildToolCallIdIndex(sessionId: string, entries: SessionEntry[]): void;
 
 	// Session cleanup

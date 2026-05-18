@@ -63,6 +63,10 @@ export class EntryIndexManager implements IEntryIndex {
 		sessionIndex.set(toolCallId, index);
 	}
 
+	deleteToolCallId(sessionId: string, toolCallId: string): void {
+		this.toolCallIdIndex.get(sessionId)?.delete(toolCallId);
+	}
+
 	rebuildToolCallIdIndex(sessionId: string, entries: SessionEntry[]): void {
 		const sessionIndex = new Map<string, number>();
 
