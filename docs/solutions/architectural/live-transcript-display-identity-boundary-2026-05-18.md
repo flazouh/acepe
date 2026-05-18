@@ -66,6 +66,17 @@ The old TypeScript `MessageProcessor` raw-event converter is deleted. Do not reb
 
 The old compatibility assistant/user chunk aggregation stack is deleted too. TypeScript must not keep provider-message-id assistant grouping state, message-id entry indexes, or helper names such as `ChunkAggregator`, `chunk-action-resolver`, or `aggregateCompatibilityAssistantChunk(...)`.
 
+## Historical replay boundary
+
+The Claude JSONL history parser may use provider `message.id` as a narrow merge hint only for compatible assistant text/thinking fragments. A tool-use block breaks that merge boundary, even when later assistant rows reuse the same `message.id` and `requestId`.
+
+Historical canonical events must keep two ids separate:
+
+- `provider_msg_id`: copied metadata from the provider row.
+- `display_id`: Acepe-owned display identity from the parser row id, split assistant segment id, or `tool_use.id` for tool rows.
+
+Provider ids may repeat. Display ids must represent the canonical visible row.
+
 ## Regression checks
 
 When touching live transcript projection or compatibility writers, run:
@@ -100,10 +111,19 @@ rg -n "ChunkAggregator|chunk-action-resolver|chunk-aggregation-types|aggregateCo
 
 Expected result: no matches.
 
+Historical replay cleanup scan:
+
+```bash
+rg -n "stable Claude message\\.id|same provider id means same display|provider_msg_id.*display_id" packages/desktop/src-tauri/src docs/solutions -g '!docs/solutions/architectural/live-transcript-display-identity-boundary-2026-05-18.md'
+```
+
+Expected result: no wording that promotes provider message ids to display identity.
+
 ## Related
 
 - `docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md`
 - `docs/plans/2026-05-18-004-refactor-raw-session-update-diagnostic-boundary-plan.md`
 - `docs/plans/2026-05-18-005-refactor-delete-compatibility-chunk-aggregation-plan.md`
+- `docs/plans/2026-05-18-006-refactor-history-parser-provider-id-boundary-plan.md`
 - `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`

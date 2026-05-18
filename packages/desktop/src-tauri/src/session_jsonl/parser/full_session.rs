@@ -152,8 +152,8 @@ fn resolve_uuid_alias(uuid: String, aliases: &HashMap<String, String>) -> String
     current
 }
 
-/// Build a merge key for assistant message fragments.
-/// Prefer the stable Claude message.id, falling back to requestId.
+/// Build a narrow merge hint for compatible assistant text/thinking fragments.
+/// Provider message ids are metadata, not display identity or ordering authority.
 fn assistant_merge_key(message_id: Option<&str>, request_id: Option<&str>) -> Option<String> {
     if let Some(id) = message_id.filter(|id| !id.is_empty()) {
         return Some(format!("message:{id}"));

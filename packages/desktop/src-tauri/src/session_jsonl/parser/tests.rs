@@ -1771,6 +1771,54 @@ async fn test_parse_converted_session_keeps_reused_id_final_text_after_late_tool
     );
 }
 
+/// Parser-level guard: Claude provider message ids are only metadata/grouping
+/// hints. A tool-use boundary must stop text-fragment merging even when later
+/// assistant rows reuse the same provider message id and request id.
+#[allow(clippy::await_holding_lock)]
+#[tokio::test]
+async fn test_parse_full_session_keeps_reused_provider_id_rows_separate_across_tool_boundary() {
+    let lock = claude_home_test_lock().lock().unwrap();
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let project_path = "/Users/test/project";
+    let project_slug = path_to_slug(project_path);
+    let project_dir = claude_dir.join("projects").join(&project_slug);
+    fs::create_dir_all(&project_dir).unwrap();
+
+    let session_id = "33333333-4444-4555-8666-777777777777";
+    let session_file = project_dir.join(format!("{}.jsonl", session_id));
+
+    let content = format!(
+        r#"{{"sessionId":"{}","type":"user","uuid":"u1","message":{{"role":"user","content":"Run it"}},"timestamp":"2026-05-17T13:16:20Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-text","parentUuid":"u1","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"text","text":"I will inspect it first."}}]}},"timestamp":"2026-05-17T13:16:28Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-tool","parentUuid":"a-text","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"tool_use","id":"toolu_read","name":"Read","input":{{"file_path":"/tmp/a"}}}}]}},"timestamp":"2026-05-17T13:16:29Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-later-text","parentUuid":"a-tool","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"text","text":"The file is clean."}}]}},"timestamp":"2026-05-17T13:16:33Z"}}"#,
+        session_id, session_id, session_id, session_id
+    );
+    fs::write(&session_file, content).unwrap();
+    let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
+
+    let full_session = parse_full_session(session_id, project_path)
+        .await
+        .expect("parse_full_session should succeed");
+
+    let assistant_messages: Vec<_> = full_session
+        .messages
+        .iter()
+        .filter(|message| message.role == "assistant")
+        .collect();
+
+    assert_eq!(assistant_messages.len(), 3);
+    assert_eq!(assistant_messages[0].uuid, "a-text");
+    assert_eq!(assistant_messages[1].uuid, "a-tool");
+    assert_eq!(assistant_messages[2].uuid, "a-later-text");
+
+    for message in assistant_messages {
+        assert_eq!(message.provider_message_id.as_deref(), Some("msg-1"));
+        assert_ne!(message.uuid, "msg-1");
+    }
+}
+
 // ============================================
 // Agent ID Normalization Tests
 // ============================================
