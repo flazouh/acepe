@@ -737,7 +737,7 @@ Verification:
 - Red check first: `cd packages/desktop && bun run check` failed on the old broad `getEntries(...)` service calls and test doubles.
 - `cd packages/desktop && bun run check`
 - `cd packages/desktop && bun test ./src/lib/acp/store/services/__tests__/chunk-aggregator.test.ts ./src/lib/acp/store/services/__tests__/transcript-tool-call-buffer.test.ts`
-- `rg "getEntries\\(" packages/desktop/src/lib/acp/store -n --glob '!**/__tests__/**'` now reports only `SessionEntryStore`'s owner method and its local normalization path.
+- `rg "getEntries\\(" packages/desktop/src/lib/acp/store -n --glob '!**/__tests__/**'` showed only the remaining owner method and its local normalization path before the final closure sweep below.
 
 ## Additional GOD Sweep: Make Compatibility Entry Reads Private
 
@@ -751,7 +751,7 @@ Problem:
 
 Fix:
 
-- Made `SessionEntryStore.getEntries(...)` private.
+- Made `SessionEntryStore.getEntries(...)` private first.
 - Added a small test-only helper, `readCompatibilityEntries(...)`, for tests that intentionally inspect compatibility rows.
 - Updated all direct test calls to use the helper, making broad transcript-row reads explicit in tests and unavailable through normal production typing.
 
@@ -760,4 +760,239 @@ Verification:
 - Red check first: `cd packages/desktop && bun run check` failed only where tests still called the now-private method.
 - `cd packages/desktop && bun run check`
 - `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/assistant-chunk-aggregation.test.ts ./src/lib/acp/store/__tests__/chunk-aggregation-bug.test.ts ./src/lib/acp/store/__tests__/chunk-fragmentation-scenarios.vitest.ts ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/session-event-service-streaming.vitest.ts ./src/lib/acp/store/__tests__/tool-call-event-flow.test.ts ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts`
-- `rg "\\.getEntries\\(" packages/desktop/src/lib -n --glob '!**/__tests__/**'` now reports only the private owner-local normalization call.
+- `rg "\\.getEntries\\(" packages/desktop/src/lib -n --glob '!**/__tests__/**'` showed only the private owner-local normalization call before the final closure sweep below.
+
+## Additional GOD Sweep: Remove Compatibility Entry Reader Entirely
+
+Status: completed
+
+Problem:
+
+- After `SessionEntryStore.getEntries(...)` became private, the method still existed solely for tests and one owner-local preload normalization path.
+- The preload normalization path created a second `SessionEntryStore` just to merge duplicate tool-call entries and read rows back.
+- That kept a broad compatibility entry reader alive even though production code no longer needed it.
+
+Fix:
+
+- Deleted `SessionEntryStore.getEntries(...)` entirely.
+- Replaced duplicate tool-call preload normalization with a direct deterministic array reducer.
+- Kept duplicate tool-call merge behavior equivalent by reusing `resolveTranscriptToolCallCreate(...)` and explicit `ToolCall` construction.
+- Updated the test-only helper to read `entriesById` directly as a named break-glass test accessor.
+- Removed stale `getEntries` wording from tests and comments.
+
+Verification:
+
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/chunk-aggregation-bug.test.ts ./src/lib/acp/store/__tests__/tool-call-event-flow.test.ts ./src/lib/acp/store/__tests__/tab-bar-store-non-agent.vitest.ts`
+- `rg "\\.getEntries\\(" packages/desktop/src/lib -n --glob '!**/__tests__/**'` returns no matches.
+- `rg "\\bgetEntries\\b" packages/desktop/src/lib -n` returns no matches.
+
+## Final GOD Closure: Compatibility Entry Reader Removed
+
+Status: completed
+
+Checklist state:
+
+- No app-level `SessionStore.getEntries(...)`.
+- No service-facing `IEntryManager.getEntries(...)`.
+- No compatibility-service `IEntryStoreInternal.getEntries(...)`.
+- No `SessionEntryStore.getEntries(...)`.
+- No production `.getEntries(...)` calls under `packages/desktop/src/lib`.
+- No test-facing method named `getEntries`; tests use `readCompatibilityEntries(...)` as a named break-glass helper.
+- No `getStreamingArguments(...)` facade.
+- No turn-boundary transcript scan.
+- No UI/sidebar/menu/export path reading compatibility transcript rows as product truth.
+
+Verification:
+
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/assistant-chunk-aggregation.test.ts ./src/lib/acp/store/__tests__/chunk-aggregation-bug.test.ts ./src/lib/acp/store/__tests__/chunk-fragmentation-scenarios.vitest.ts ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/session-event-service-streaming.vitest.ts ./src/lib/acp/store/__tests__/tool-call-event-flow.test.ts ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts ./src/lib/acp/store/services/__tests__/chunk-aggregator.test.ts ./src/lib/acp/store/services/__tests__/transcript-tool-call-buffer.test.ts ./src/lib/acp/store/__tests__/tab-bar-store-non-agent.vitest.ts`
+- `rg "\\.getEntries\\(" packages/desktop/src/lib -n --glob '!**/__tests__/**'` returns no matches.
+- `rg "\\bgetEntries\\b" packages/desktop/src/lib -n` returns no matches.
+- `rg "getStreamingArguments|sessionStore\\.getEntries|IEntryStoreInternal.*getEntries|IEntryManager.*getEntries" packages/desktop/src/lib -n` returns no matches.
+- `git diff --check`
+
+## Additional GOD Sweep: Remove Raw Stream Mutation APIs
+
+Status: completed
+
+Problem:
+
+- Raw stream mutation methods still existed after canonical envelopes became the authority.
+- `SessionEventHandler`, `SessionStore`, and `SessionMessagingService` exposed methods that could add stream rows, force streaming state, or handle raw stream errors outside the canonical graph.
+- Some tests were still built around those old raw doors even though production traffic no longer used them.
+
+Fix:
+
+- Removed raw streaming methods from `SessionEventHandler`.
+- Removed public raw stream wrappers from `SessionStore`.
+- Removed dead raw methods from `SessionMessagingService`: raw entry handling, raw stream error handling, forced streaming state, and the assistant chunk proxy.
+- Renamed the remaining terminal-turn side-effect methods to `handleCanonicalTurnComplete(...)` and `handleCanonicalTurnFailure(...)`.
+- Updated tests to assert canonical/raw-lane behavior without keeping obsolete raw APIs alive.
+
+Verification:
+
+- Red check first: `cd packages/desktop && bun run check` failed only on stale test mocks and direct test calls to the removed methods.
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/session-event-service-streaming.vitest.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts`
+- `rg "handleStreamEntry|handleStreamError|ensureStreamingState|handleStreamComplete|handleTurnError" packages/desktop/src/lib/acp -n --glob '!**/__tests__/**'` returns no production method doors.
+
+## Additional GOD Sweep: Require Canonical State Readers
+
+Status: completed
+
+Problem:
+
+- `ISessionStateReader` exposed canonical accessors as optional.
+- Optional canonical readers make it too easy for services to run without canonical truth and silently fall back to older local state.
+
+Fix:
+
+- Made canonical state reader methods required on `ISessionStateReader`.
+- Removed optional-call fallbacks from connection and messaging services.
+- Made `SessionEventHandler.getSessionCanSend(...)` required for the same boundary reason.
+- Updated service test doubles to state their canonical defaults explicitly.
+
+Verification:
+
+- Red check first: `cd packages/desktop && bun run check` failed on mocks missing required canonical readers.
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/services/session-connection-manager.test.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-send-message.test.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts ./src/lib/acp/store/__tests__/session-event-service-streaming.vitest.ts`
+- `rg "getSessionCanSend\\?|getSessionLifecycleStatus\\?|getGraphTranscriptRevision\\?|getSessionAutonomousEnabled\\?|getSessionCurrentModeId\\?|getSessionCapabilities\\?|getCanonicalSessionProjection\\?|getSessionToolCalls\\?" packages/desktop/src/lib/acp -n` returns no optional canonical reader declarations.
+
+## Additional GOD Sweep: Canonical Live Work Projection
+
+Status: completed
+
+Problem:
+
+- `deriveLiveSessionState(...)` still accepted local runtime state and local streaming tool calls.
+- Tab, queue, urgency, and agent-panel content paths could pass local operation/runtime details into the live session state projection.
+- Pending interaction objects could make a session look answer-needed even when canonical graph activity was idle.
+
+Fix:
+
+- Removed `runtimeState` and `currentStreamingToolCall` from `LiveSessionWorkInput`.
+- Made live session activity derive from canonical lifecycle/activity only.
+- Kept local tool objects out of `SessionState.activity.tool`; operation UI can still render operation data explicitly.
+- Gated pending question/permission/plan approval state behind canonical `waiting_for_user` activity.
+- Removed obsolete live-projection inputs from tab, queue, urgency, and agent-panel content paths.
+
+Verification:
+
+- Red check first: `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/live-session-work.test.ts` failed on local tool attachment and stale pending input.
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/live-session-work.test.ts ./src/lib/acp/store/__tests__/tab-bar-utils.test.ts ./src/lib/acp/store/__tests__/tab-bar-store.test.ts ./src/lib/acp/store/queue/__tests__/queue-utils.test.ts`
+- `rg "currentStreamingToolCall" packages/desktop/src/lib/acp/store/tab-bar-utils.ts packages/desktop/src/lib/acp/store/urgency-tabs-store.svelte.ts packages/desktop/src/lib/acp/components/agent-panel/components/agent-panel-content.svelte -n` returns no matches.
+
+## Additional GOD Sweep: Remove First Pending Interaction Fallback
+
+Status: completed
+
+Problem:
+
+- `buildSessionOperationInteractionSnapshot(...)` selected the first pending question, permission, or plan approval when no operation match existed.
+- That made UI state depend on map insertion order instead of a canonical operation/interaction relationship.
+- A stale or unrelated pending interaction could make a session look answer-needed even without a proven operation anchor.
+
+Fix:
+
+- Removed the first-pending fallback for questions, permissions, and plan approvals.
+- The snapshot now reports a pending interaction only when it can be matched to an operation by tool call id or operation provenance key.
+- Added regression tests for unmatched question, permission, and plan approval cases.
+
+Verification:
+
+- Red check first: `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/operation-association.test.ts` failed on unmatched interactions being selected.
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/operation-association.test.ts ./src/lib/acp/store/__tests__/live-session-work.test.ts ./src/lib/acp/store/__tests__/tab-bar-utils.test.ts ./src/lib/acp/store/__tests__/tab-bar-store.test.ts ./src/lib/acp/store/queue/__tests__/queue-utils.test.ts`
+- `rg "firstQuestion|firstPermission|firstPlanApproval|pending.*== null && first" packages/desktop/src/lib/acp/store/operation-association.ts -n` returns no matches.
+
+## Additional GOD Sweep: Hide OperationStore From UI Components
+
+Status: completed
+
+Problem:
+
+- Svelte UI components were reading `OperationStore` directly for modified files, permission visibility, tool-call lookup, tab tool kind, and interaction snapshots.
+- That leaked operation graph access into the UI layer instead of keeping operation truth behind the app/session projection boundary.
+
+Fix:
+
+- Added narrow `SessionStore` projection methods for:
+  - session modified-files state
+  - operation-backed interaction snapshots
+  - tool-call lookup by id
+  - current tool kind
+  - permission visibility/representation
+- Moved permission/operation visibility logic into a store-level helper.
+- Updated agent panel content, agent panel shell, permission bar, tab bar store, and urgency tabs store to call `SessionStore` projections instead of holding `OperationStore`.
+
+Verification:
+
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/components/tool-calls/__tests__/permission-visibility.test.ts ./src/lib/acp/store/__tests__/tab-bar-utils.test.ts ./src/lib/acp/store/__tests__/tab-bar-store.test.ts ./src/lib/acp/store/queue/__tests__/queue-utils.test.ts ./src/lib/acp/store/__tests__/operation-association.test.ts`
+- `rg "getOperationStore\\(|operationStore|getSessionToolCalls\\(" packages/desktop/src/lib/acp/components packages/desktop/src/lib/acp/store/tab-bar-store.svelte.ts packages/desktop/src/lib/acp/store/urgency-tabs-store.svelte.ts -n --glob '!**/__tests__/**'` shows no Svelte component direct `OperationStore` ownership.
+
+## Additional GOD Sweep: Narrow Compatibility Entry Mutation
+
+Status: completed
+
+Problem:
+
+- `IEntryManager` still exposed entry-store concepts that service code should not own.
+- Test doubles kept obsolete row mutation methods alive, which made the boundary look wider than production needs.
+- Internal compatibility row writes were named `addEntry(...)` and `updateEntry(...)`, which made them sound like general transcript authority instead of a projection detail.
+
+Fix:
+
+- Narrowed `IEntryManager` to lifecycle-facing entry operations only: preload mark, clear, assistant-boundary reset, and streaming-finalize.
+- Removed unused public `removeEntry(...)`.
+- Renamed the internal compatibility row writer methods to `appendCompatibilityEntry(...)` and `replaceCompatibilityEntry(...)`.
+- Updated chunk aggregation and transcript tool-call buffering to depend on the renamed internal compatibility row interface.
+- Trimmed service test doubles so tests no longer advertise direct transcript row mutation through `IEntryManager`.
+
+Verification:
+
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/services/session-connection-manager.test.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-send-message.test.ts ./src/lib/acp/store/services/__tests__/session-repository-startup-sessions.test.ts ./src/lib/acp/store/services/__tests__/session-repository-refresh-source-path.test.ts ./src/lib/acp/store/services/__tests__/session-repository-placeholder-title.test.ts ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/services/__tests__/chunk-aggregator.test.ts ./src/lib/acp/store/services/__tests__/transcript-tool-call-buffer.test.ts`
+- `rg "entryManager\\.(hasEntries|unmarkPreloaded|storeEntriesAndBuildIndex|addEntry|removeEntry|updateEntry|aggregateAssistantChunk)" packages/desktop/src/lib/acp -n` returns no production service calls.
+
+## Additional GOD Sweep: Remove Public OperationStore Escape Hatch
+
+Status: completed
+
+Problem:
+
+- `SessionStore.getOperationStore()` exposed the full operation graph to app views.
+- Queue, kanban, review fullscreen, and session-list item code were pulling operation truth directly instead of asking for narrow session projections.
+- The standalone Svelte context helpers `createOperationStore(...)` and `getOperationStore(...)` were unused but still suggested a second operation-store access path.
+
+Fix:
+
+- Added narrow `SessionStore` operation projections for:
+  - current streaming tool call
+  - last tool call
+  - last todo tool call
+  - existing current tool kind, tool lookup, session tool calls, modified-files state, and interaction snapshot projections
+- Updated app queue row, kanban view, review fullscreen, and session item to use those projections.
+- Removed `SessionStore.getOperationStore()`.
+- Removed unused Svelte context helpers from `operation-store.svelte.ts` and stopped exporting them.
+- Updated tests to use public projections or direct injected test-owned stores.
+
+Verification:
+
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/tab-bar-store-non-agent.vitest.ts ./src/lib/acp/store/__tests__/urgency-tabs-store.test.ts ./src/lib/acp/components/tool-calls/__tests__/permission-visibility.test.ts ./src/lib/acp/store/__tests__/tab-bar-store.test.ts ./src/lib/acp/store/__tests__/tab-bar-utils.test.ts`
+- `rg "getOperationStore|createOperationStore|operationStore = sessionStore" packages/desktop/src -n --glob '!**/__tests__/**' --glob '!**/*.test.ts' --glob '!**/*.vitest.ts'` returns no production access path.
+
+Follow-up cleanup in the same slice:
+
+- Removed the component-layer `permission-visibility.ts` wrapper because it accepted `OperationStore`.
+- Removed the exit-plan helper export that accepted `OperationStore`.
+- Tests now target the store-level permission projection helpers directly.
+
+Additional verification:
+
+- `cd packages/desktop && bun test ./src/lib/acp/components/tool-calls/__tests__/permission-visibility.test.ts ./src/lib/acp/components/tool-calls/__tests__/exit-plan-helpers.test.ts`
+- `rg "OperationStore" packages/desktop/src/lib/acp/components packages/desktop/src/lib/components -n --glob '!**/__tests__/**' --glob '!**/*.test.ts' --glob '!**/*.vitest.ts'` returns no component-layer operation-store dependency.

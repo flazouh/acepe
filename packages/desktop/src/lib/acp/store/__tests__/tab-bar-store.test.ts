@@ -4,7 +4,7 @@ import type { LifecycleStatus, SessionGraphActivityKind } from "../../../service
 import type { ToolCall } from "../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { type PanelToTabInput, panelToTab } from "../tab-bar-utils.js";
-import type { Panel, SessionTransientProjection } from "../types.js";
+import type { Panel } from "../types.js";
 
 function makePanel(overrides: Partial<Panel> = {}): Panel {
 	return {
@@ -18,17 +18,6 @@ function makePanel(overrides: Partial<Panel> = {}): Panel {
 		projectPath: null,
 		agentId: null,
 		sessionTitle: null,
-		...overrides,
-	};
-}
-
-function makeHotState(
-	overrides: Partial<SessionTransientProjection> = {}
-): SessionTransientProjection {
-	return {
-		acpSessionId: null,
-		autonomousTransition: "idle",
-		statusChangedAt: Date.now(),
 		...overrides,
 	};
 }
@@ -89,10 +78,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		focusedPanelId: null,
 		agentId: "agent-1",
 		title: "Test Session",
-		hotState: makeHotState(),
-		runtimeState: null,
 		transcriptEntries: [],
-		currentStreamingToolCall: null,
 		currentToolKind: null,
 		pendingQuestion: null,
 		pendingPermission: null,
@@ -197,13 +183,25 @@ describe("panelToTab", () => {
 			expect(tab.currentModeId).toBeNull();
 		});
 
-		it("should return null when hotState is null", () => {
-			const tab = panelToTab(makeInput({ hotState: null }));
+		it("should return null when canonical projection is null", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
 			expect(tab.currentModeId).toBeNull();
 		});
 	});
 
 	describe("state.activity streaming", () => {
+		it("derives ready idle presentation from canonical state without hot-state semantics", () => {
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "idle"),
+				})
+			);
+
+			expect(tab.state.connection).toBe("connected");
+			expect(tab.state.activity.kind).toBe("idle");
+			expect(tab.workBucket).toBe("idle");
+		});
+
 		it("should be thinking when canonical activity is awaiting_model", () => {
 			const tab = panelToTab(
 				makeInput({
@@ -217,18 +215,6 @@ describe("panelToTab", () => {
 			const tab = panelToTab(
 				makeInput({
 					canonicalProjection: makeCanonicalProjection("ready", "awaiting_model"),
-					runtimeState: {
-						connectionPhase: "connected",
-						contentPhase: "loaded",
-						activityPhase: "idle",
-						canSubmit: true,
-						canCancel: false,
-						showStop: false,
-						showThinking: false,
-						showConnectingOverlay: false,
-						showConversation: true,
-						showReadyPlaceholder: false,
-					},
 				})
 			);
 
@@ -239,18 +225,6 @@ describe("panelToTab", () => {
 			const tab = panelToTab(
 				makeInput({
 					canonicalProjection: makeCanonicalProjection("ready", "running_operation"),
-					runtimeState: {
-						connectionPhase: "connected",
-						contentPhase: "loaded",
-						activityPhase: "idle",
-						canSubmit: true,
-						canCancel: false,
-						showStop: false,
-						showThinking: false,
-						showConnectingOverlay: false,
-						showConversation: true,
-						showReadyPlaceholder: false,
-					},
 				})
 			);
 
@@ -266,8 +240,8 @@ describe("panelToTab", () => {
 			expect(tab.state.activity.kind).toBe("idle");
 		});
 
-		it("should be idle when hotState is null", () => {
-			const tab = panelToTab(makeInput({ hotState: null }));
+		it("should be idle when canonical projection is null", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
 			expect(tab.state.activity.kind).toBe("idle");
 		});
 	});
@@ -324,13 +298,47 @@ describe("panelToTab", () => {
 				sessionId: "s-1",
 				questions: [],
 			} as Parameters<typeof panelToTab>[0]["pendingQuestion"];
-			const tab = panelToTab(makeInput({ pendingQuestion: mockQuestion }));
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingQuestion: mockQuestion,
+				})
+			);
 			expect(tab.state.pendingInput.kind).toBe("question");
 		});
 
 		it("should be none when pendingQuestion is null", () => {
 			const tab = panelToTab(makeInput({ pendingQuestion: null }));
 			expect(tab.state.pendingInput.kind).toBe("none");
+		});
+
+		it("keeps operation-backed pending permission visible without runtime state", () => {
+			const pendingPermission = {
+				id: "permission-1",
+				sessionId: "session-1",
+				permission: "Read",
+				patterns: [],
+				metadata: {},
+				always: [],
+				tool: {
+					messageID: "message-1",
+					callID: "tool-1",
+				},
+			} satisfies NonNullable<PanelToTabInput["pendingPermission"]>;
+
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingPermission,
+				})
+			);
+
+			expect(tab.state.pendingInput.kind).toBe("permission");
+			if (tab.state.pendingInput.kind !== "permission") {
+				throw new Error("Expected permission pending input");
+			}
+			expect(tab.state.pendingInput.request).toBe(pendingPermission);
+			expect(tab.currentToolKind).toBeNull();
 		});
 	});
 
@@ -355,7 +363,6 @@ describe("panelToTab", () => {
 		it("should return tool kind from streaming tool call", () => {
 			const tab = panelToTab(
 				makeInput({
-					currentStreamingToolCall: makeToolCall("in_progress"),
 					currentToolKind: "edit",
 				})
 			);
@@ -363,14 +370,14 @@ describe("panelToTab", () => {
 		});
 
 		it("should return null when no tool call is streaming", () => {
-			const tab = panelToTab(makeInput({ currentStreamingToolCall: null }));
+			const tab = panelToTab(makeInput({ currentToolKind: null }));
 			expect(tab.currentToolKind).toBeNull();
 		});
 	});
 
 	describe("status defaults", () => {
-		it("should default to disconnected idle state when hotState is null", () => {
-			const tab = panelToTab(makeInput({ hotState: null }));
+		it("should default to disconnected idle state when canonical projection is null", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
 			expect(tab.state.activity.kind).toBe("idle");
 			expect(tab.state.connection).toBe("disconnected");
 		});

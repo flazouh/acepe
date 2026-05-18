@@ -6,7 +6,7 @@
  */
 
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
-import type { TurnCompleteUpdate, TurnErrorUpdate } from "../types/turn-error.js";
+import type { TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionTransientProjection } from "./types.js";
 
 /**
@@ -30,28 +30,11 @@ export interface SessionEventHandler {
 	 * Get hot state for a session.
 	 */
 	getHotState(sessionId: string): SessionTransientProjection;
-	getSessionCanSend?(sessionId: string): boolean | null;
+	getSessionCanSend(sessionId: string): boolean | null;
 	hasPendingCreationSession?(sessionId: string): boolean;
 	materializePendingCreationSession?(sessionId: string): boolean;
 	failPendingCreationSession?(sessionId: string, update: TurnErrorUpdate): void;
 	ensureSessionFromStateGraph?(graph: SessionStateGraph): boolean;
-
-	/**
-	 * Ensure the session is in streaming state.
-	 */
-	ensureStreamingState(sessionId: string): void;
-
-	/**
-	 * Handle stream completion for a session.
-	 * Called when the agent's turn is complete.
-	 */
-	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void;
-
-	/**
-	 * Handle a turn error for a session.
-	 * Called when the agent's turn fails with an error (e.g., usage limit).
-	 */
-	handleTurnError(sessionId: string, update: TurnErrorUpdate): void;
 
 	/**
 	 * Update usage telemetry for a session (spend + tokens).

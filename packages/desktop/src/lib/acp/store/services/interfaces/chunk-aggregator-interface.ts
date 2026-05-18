@@ -1,8 +1,9 @@
 /**
  * Chunk Aggregator Interface
  *
- * Narrow interface for assistant/user chunk aggregation and boundary management.
- * ChunkAggregator implements this (extends IBoundaryManager); the store facade consumes it.
+ * Narrow compatibility interface for legacy assistant/user chunk aggregation
+ * and boundary management. Canonical transcript snapshots and deltas are the
+ * product path.
  */
 
 import type { ResultAsync } from "neverthrow";
@@ -12,14 +13,14 @@ import type { AppError } from "../../../errors/app-error.js";
 import type { IBoundaryManager } from "./boundary-manager.js";
 
 export interface IChunkAggregator extends IBoundaryManager {
-	aggregateAssistantChunk(
+	aggregateCompatibilityAssistantChunk(
 		sessionId: string,
 		chunk: ContentChunk,
 		messageId: string | undefined,
 		isThought: boolean
 	): ResultAsync<void, AppError>;
 
-	aggregateUserChunk(
+	aggregateCompatibilityUserChunk(
 		sessionId: string,
 		chunk: { content: ContentBlock }
 	): ResultAsync<void, AppError>;

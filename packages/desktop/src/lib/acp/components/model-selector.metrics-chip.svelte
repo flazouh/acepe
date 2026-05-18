@@ -24,7 +24,7 @@ const sessionStore = getSessionStore();
 
 const usageTelemetry = $derived.by(() => {
 	if (!sessionId) return null;
-	return sessionStore.getHotState(sessionId).usageTelemetry ?? null;
+	return sessionStore.getSessionUsageTelemetry(sessionId);
 });
 
 const modelsDisplay = $derived.by(() => {

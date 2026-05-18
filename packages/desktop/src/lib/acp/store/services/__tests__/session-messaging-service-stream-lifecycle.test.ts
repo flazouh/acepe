@@ -1,7 +1,7 @@
 /**
  * Session Messaging Service - Stream Lifecycle Tests
  *
- * Verifies that handleStreamComplete and handleStreamError
+ * Verifies that handleCanonicalTurnComplete and handleCanonicalTurnFailure
  * send the correct machine events without canonical-overlap hot state writes,
  * preventing the UI from getting stuck in "Planning next moves".
  */
@@ -19,7 +19,7 @@ import type { ITransientProjectionManager } from "../interfaces/transient-projec
 
 const createCheckpoint = vi.fn();
 
-// Mock checkpoint store (used by handleStreamComplete → createAutoCheckpointIfNeeded)
+// Mock checkpoint store (used by handleCanonicalTurnComplete → createAutoCheckpointIfNeeded)
 // Must be before dynamic import so the mock is registered first.
 vi.mock("../../checkpoint-store.svelte.js", () => ({
 	checkpointStore: {
@@ -49,6 +49,17 @@ function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeo
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionCanSend: vi.fn().mockReturnValue(null),
+		getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
+		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
+		getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
+		getSessionCurrentModeId: vi.fn().mockReturnValue(null),
+		getSessionCapabilities: vi.fn().mockReturnValue({
+			availableModels: [],
+			availableModes: [],
+			availableCommands: [],
+		}),
+		getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -65,16 +76,9 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -152,7 +156,7 @@ function createCanonicalProjection(
 	};
 }
 
-describe("SessionMessagingService.handleStreamComplete", () => {
+describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	const sessionId = "session-1";
 	let service: InstanceType<typeof SessionMessagingService>;
 	let deps: ReturnType<typeof createMockDeps>;
@@ -187,13 +191,13 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	});
 
 	it("sends sendResponseComplete to transition machine to READY", () => {
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 	});
 
 	it("does not write completed lifecycle state into hot state", () => {
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expectNoCanonicalOverlapHotStateWrites(
 			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
@@ -207,7 +211,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	});
 
 	it("does not record terminal turn state in the transient projection", () => {
-		service.handleStreamComplete(sessionId, "turn-1");
+		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
 		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(
 			sessionId,
@@ -224,7 +228,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	});
 
 	it("does not clear streaming assistant entry on turn complete", () => {
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.entryManager.clearStreamingAssistantEntry).not.toHaveBeenCalled();
 	});
@@ -240,7 +244,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			callOrder.push("updateHotState");
 		});
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(callOrder).toEqual(["updateHotState", "sendResponseComplete"]);
 		expectNoCanonicalOverlapHotStateWrites(
@@ -257,7 +261,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			connection: "streaming",
 		});
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expectNoCanonicalOverlapHotStateWrites(
@@ -275,7 +279,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			connection: "ready",
 		});
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expectNoCanonicalOverlapHotStateWrites(
@@ -292,7 +296,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			connection: "ready",
 		});
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
 		expectNoCanonicalOverlapHotStateWrites(
@@ -306,7 +310,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			lastTerminalTurnId: "turn-1",
 		});
 
-		service.handleStreamComplete(sessionId, "turn-1");
+		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expectNoCanonicalOverlapHotStateWrites(
@@ -329,7 +333,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			})
 		);
 
-		service.handleStreamComplete(sessionId, "turn-1");
+		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
 		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
 		expectNoCanonicalOverlapHotStateWrites(
@@ -344,7 +348,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			lastTerminalTurnId: null,
 		});
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 		expectNoCanonicalOverlapHotStateWrites(
@@ -353,7 +357,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	});
 
 	it("finalizes streaming entries so pending tool calls stop shimmering", () => {
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
 	});
@@ -393,7 +397,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			} satisfies ToolCall,
 		]);
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(createCheckpoint).toHaveBeenCalledWith(
 			sessionId,
@@ -407,94 +411,7 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 	});
 });
 
-describe("SessionMessagingService.handleStreamError", () => {
-	const sessionId = "session-1";
-	let service: InstanceType<typeof SessionMessagingService>;
-	let deps: ReturnType<typeof createMockDeps>;
-
-	beforeAll(async () => {
-		const module = await import("../session-messaging-service.js");
-		SessionMessagingService = module.SessionMessagingService;
-	});
-
-	beforeEach(() => {
-		deps = createMockDeps();
-		service = new SessionMessagingService(
-			deps.stateReader,
-			deps.hotStateManager,
-			deps.entryManager,
-			deps.connectionManager
-		);
-	});
-
-	it("sends sendConnectionError to transition machine to ERROR", () => {
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
-	});
-
-	it("does not write stream errors into canonical-overlap hot state", () => {
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-
-	it("does not treat canonical idle as terminal when a first stream error arrives", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi
-			.fn()
-			.mockReturnValue(createCanonicalProjection({ turnState: "Idle" }));
-
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-
-	it("does not regress canonical failed turns from stale stream errors", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
-			createCanonicalProjection({
-				turnState: "Failed",
-				activeTurnFailure: {
-					turnId: "turn-1",
-					message: "Usage limit reached",
-					code: "429",
-					kind: "recoverable",
-					source: "process",
-				},
-				lastTerminalTurnId: "turn-1",
-			})
-		);
-
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(deps.connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-
-	it("clears streaming assistant entry", () => {
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(deps.entryManager.clearStreamingAssistantEntry).toHaveBeenCalledWith(sessionId);
-	});
-
-	it("sends the machine error event without relying on a hot state write", () => {
-		const callOrder: string[] = [];
-		(deps.connectionManager.sendConnectionError as ReturnType<typeof vi.fn>).mockImplementation(
-			() => {
-				callOrder.push("sendConnectionError");
-			}
-		);
-		(deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>).mockImplementation(() => {
-			callOrder.push("updateHotState");
-		});
-
-		service.handleStreamError(sessionId, new Error("stream broke"));
-
-		expect(callOrder).toEqual(["sendConnectionError"]);
-	});
-});
-
-describe("SessionMessagingService.handleTurnError", () => {
+describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 	const sessionId = "session-1";
 	const turnErrorUpdate = {
 		type: "turnError" as const,
@@ -525,9 +442,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("routes recoverable turn failures through the machine without appending transcript entries", () => {
-		service.handleTurnError(sessionId, turnErrorUpdate);
-
-		expect(deps.entryManager.addEntry).not.toHaveBeenCalled();
+		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith(sessionId, {
 			turnId: "turn-1",
 			message: "You're out of extra usage",
@@ -539,7 +454,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("does not write recoverable turn failures into hot state", () => {
-		service.handleTurnError(sessionId, turnErrorUpdate);
+		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 		expectNoCanonicalOverlapHotStateWrites(
@@ -548,7 +463,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("stringifies numeric turn error codes before routing the canonical failed-turn event", () => {
-		service.handleTurnError(sessionId, {
+		service.handleCanonicalTurnFailure(sessionId, {
 			type: "turnError",
 			session_id: sessionId,
 			turn_id: "turn-1",
@@ -571,7 +486,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 	});
 
 	it("does not populate header-level connectionError for recoverable turn errors", () => {
-		service.handleTurnError(sessionId, turnErrorUpdate);
+		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
 		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith(sessionId, {
 			turnId: "turn-1",
@@ -598,7 +513,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 			})
 		);
 
-		service.handleTurnError(sessionId, turnErrorUpdate);
+		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
@@ -619,7 +534,7 @@ describe("SessionMessagingService.handleTurnError", () => {
 			})
 		);
 
-		service.handleTurnError(sessionId, {
+		service.handleCanonicalTurnFailure(sessionId, {
 			type: "turnError",
 			session_id: sessionId,
 			turn_id: null,
@@ -631,76 +546,6 @@ describe("SessionMessagingService.handleTurnError", () => {
 		});
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-});
-
-describe("SessionMessagingService.ensureStreamingState", () => {
-	const sessionId = "session-1";
-	let service: InstanceType<typeof SessionMessagingService>;
-	let deps: ReturnType<typeof createMockDeps>;
-
-	beforeAll(async () => {
-		const module = await import("../session-messaging-service.js");
-		SessionMessagingService = module.SessionMessagingService;
-	});
-
-	beforeEach(() => {
-		deps = createMockDeps();
-		service = new SessionMessagingService(
-			deps.stateReader,
-			deps.hotStateManager,
-			deps.entryManager,
-			deps.connectionManager
-		);
-	});
-
-	it("does not let stale failed hot state suppress provider streaming updates", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			turnState: "error",
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "Usage limit reached",
-				code: "429",
-				kind: "recoverable",
-				source: "process",
-			},
-		});
-		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
-			connection: "awaitingResponse",
-		});
-
-		service.ensureStreamingState(sessionId);
-
-		expect(deps.connectionManager.sendResponseStarted).toHaveBeenCalledWith(sessionId);
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-
-	it("keeps a canonical failed turn terminal when late provider updates arrive", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
-			createCanonicalProjection({
-				turnState: "Failed",
-				activeTurnFailure: {
-					turnId: "turn-1",
-					message: "Usage limit reached",
-					code: "429",
-					kind: "recoverable",
-					source: "process",
-				},
-				lastTerminalTurnId: "turn-1",
-			})
-		);
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			turnState: "streaming",
-			activeTurnFailure: null,
-		});
-		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
-			connection: "streaming",
-		});
-
-		service.ensureStreamingState(sessionId);
-
-		expect(deps.connectionManager.sendResponseStarted).not.toHaveBeenCalled();
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
 	});
 });
@@ -717,10 +562,21 @@ describe("SessionMessagingService replay regression", () => {
 
 	beforeEach(() => {
 		entryStore = new SessionEntryStore();
-		entryStore.storeEntriesAndBuildIndex(sessionId, []);
+		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
 
 		const stateReader: ISessionStateReader = {
 			getHotState: vi.fn(),
+			getSessionCanSend: vi.fn().mockReturnValue(null),
+			getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
+			getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
+			getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
+			getSessionCurrentModeId: vi.fn().mockReturnValue(null),
+			getSessionCapabilities: vi.fn().mockReturnValue({
+				availableModels: [],
+				availableModes: [],
+				availableCommands: [],
+			}),
+			getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
 			getSessionToolCalls: vi.fn().mockReturnValue([]),
 			isPreloaded: vi.fn(),
 			getSessionsForProject: vi.fn(),
@@ -767,7 +623,7 @@ describe("SessionMessagingService replay regression", () => {
 	});
 
 	it("merges post-turn trailing chunk without message_id into the same assistant entry", async () => {
-		const first = await service.aggregateAssistantChunk(
+		const first = await entryStore.aggregateCompatibilityAssistantChunk(
 			sessionId,
 			{ content: { type: "text", text: "I see the" } },
 			"msg-thread-1",
@@ -775,7 +631,7 @@ describe("SessionMessagingService replay regression", () => {
 		);
 		expect(first.isOk()).toBe(true);
 
-		const second = await service.aggregateAssistantChunk(
+		const second = await entryStore.aggregateCompatibilityAssistantChunk(
 			sessionId,
 			{ content: { type: "text", text: " component." } },
 			"msg-thread-1",
@@ -783,9 +639,9 @@ describe("SessionMessagingService replay regression", () => {
 		);
 		expect(second.isOk()).toBe(true);
 
-		service.handleStreamComplete(sessionId);
+		service.handleCanonicalTurnComplete(sessionId);
 
-		const trailing = await service.aggregateAssistantChunk(
+		const trailing = await entryStore.aggregateCompatibilityAssistantChunk(
 			sessionId,
 			{ content: { type: "text", text: " test it." } },
 			undefined,

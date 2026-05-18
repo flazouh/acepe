@@ -1,7 +1,10 @@
 import type { SessionGraphActivity } from "../../services/acp-types.js";
 import type { CanonicalSessionActivity } from "../logic/session-activity.js";
-import type { SessionRuntimeState } from "../logic/session-ui-state.js";
-import type { ToolCall } from "../types/tool-call.js";
+import type {
+	ActivityPhase,
+	ConnectionPhase,
+	ContentPhase,
+} from "../logic/session-ui-state.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";
@@ -12,18 +15,38 @@ import {
 } from "./session-work-projection.js";
 
 export interface LiveSessionWorkInput {
-	readonly runtimeState: SessionRuntimeState | null;
 	readonly canonicalProjection?: Pick<
 		CanonicalSessionProjection,
 		"lifecycle" | "activity" | "activeTurnFailure"
 	> | null;
 	readonly currentModeId: string | null;
-	readonly currentStreamingToolCall: ToolCall | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
 	>;
 	readonly hasUnseenCompletion: boolean;
+}
+
+export interface LiveSessionLifecyclePresentationInput {
+	readonly canonicalProjection?: Pick<
+		CanonicalSessionProjection,
+		"lifecycle" | "activity" | "activeTurnFailure"
+	> | null;
+	readonly hasEntries: boolean;
+	readonly hasLocalPendingSendIntent: boolean;
+}
+
+export interface LiveSessionLifecyclePresentation {
+	readonly connectionPhase: ConnectionPhase;
+	readonly contentPhase: ContentPhase;
+	readonly activityPhase: ActivityPhase;
+	readonly canSubmit: boolean;
+	readonly canCancel: boolean;
+	readonly showStop: boolean;
+	readonly showThinking: boolean;
+	readonly showConnectingOverlay: boolean;
+	readonly showConversation: boolean;
+	readonly showReadyPlaceholder: boolean;
 }
 
 type LiveConnectionState =
@@ -146,13 +169,23 @@ function deriveLiveConnectionState(input: LiveSessionWorkInput): LiveConnectionS
 }
 
 export function deriveLiveSessionState(input: LiveSessionWorkInput): SessionState {
+	const canonicalActivity = deriveLiveCanonicalActivity(input);
+	const pendingQuestion =
+		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingQuestion : null;
+	const pendingPlanApproval =
+		canonicalActivity === "waiting_for_user"
+			? input.interactionSnapshot.pendingPlanApproval
+			: null;
+	const pendingPermission =
+		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingPermission : null;
+
 	return deriveSessionState({
 		connectionState: deriveLiveConnectionState(input),
 		modeId: input.currentModeId,
-		tool: input.currentStreamingToolCall,
-		pendingQuestion: input.interactionSnapshot.pendingQuestion,
-		pendingPlanApproval: input.interactionSnapshot.pendingPlanApproval,
-		pendingPermission: input.interactionSnapshot.pendingPermission,
+		tool: null,
+		pendingQuestion,
+		pendingPlanApproval,
+		pendingPermission,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
 }
@@ -178,4 +211,97 @@ export function selectLiveCompactActivityKind(
 	input: LiveSessionWorkInput
 ): SessionCompactActivityKind {
 	return deriveLiveSessionWorkProjection(input).compactActivityKind;
+}
+
+function selectPresentationConnectionPhase(
+	input: LiveSessionLifecyclePresentationInput
+): ConnectionPhase {
+	const canonical = input.canonicalProjection;
+	if (canonical == null) {
+		return "disconnected";
+	}
+
+	if (
+		canonical.activeTurnFailure != null ||
+		canonical.lifecycle.status === "failed" ||
+		canonical.lifecycle.errorMessage != null
+	) {
+		return "failed";
+	}
+
+	if (
+		canonical.lifecycle.status === "activating" ||
+		canonical.lifecycle.status === "reconnecting"
+	) {
+		return "connecting";
+	}
+
+	if (
+		canonical.lifecycle.status === "reserved" ||
+		canonical.lifecycle.status === "detached" ||
+		canonical.lifecycle.status === "archived"
+	) {
+		return "disconnected";
+	}
+
+	return "connected";
+}
+
+function selectPresentationActivityPhase(
+	canonicalActivity: CanonicalSessionActivity
+): ActivityPhase {
+	if (canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user") {
+		return "waiting_for_user";
+	}
+
+	if (canonicalActivity === "running_operation" || canonicalActivity === "paused") {
+		return "running";
+	}
+
+	return "idle";
+}
+
+export function deriveLiveSessionLifecyclePresentation(
+	input: LiveSessionLifecyclePresentationInput
+): LiveSessionLifecyclePresentation {
+	const canonicalActivity = deriveLiveCanonicalActivity({
+		canonicalProjection: input.canonicalProjection,
+		currentModeId: null,
+		interactionSnapshot: {
+			pendingPlanApproval: null,
+			pendingPermission: null,
+			pendingQuestion: null,
+		},
+		hasUnseenCompletion: false,
+	});
+	const connectionPhase = selectPresentationConnectionPhase(input);
+	const contentPhase: ContentPhase = input.hasEntries ? "loaded" : "empty";
+	const activityPhase = selectPresentationActivityPhase(canonicalActivity);
+	const canCancel =
+		canonicalActivity === "awaiting_model" ||
+		canonicalActivity === "waiting_for_user" ||
+		canonicalActivity === "running_operation" ||
+		canonicalActivity === "paused";
+	const showThinking =
+		canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user";
+	const canSubmit =
+		input.canonicalProjection?.lifecycle.actionability.canSend === true &&
+		!input.hasLocalPendingSendIntent;
+	const showConversation = contentPhase === "loaded";
+
+	return {
+		connectionPhase,
+		contentPhase,
+		activityPhase,
+		canSubmit,
+		canCancel,
+		showStop: canCancel,
+		showThinking,
+		showConnectingOverlay: connectionPhase === "connecting" && !showConversation,
+		showConversation,
+		showReadyPlaceholder:
+			!showConversation &&
+			input.canonicalProjection?.lifecycle.status === "ready" &&
+			canonicalActivity === "idle",
+	};
 }

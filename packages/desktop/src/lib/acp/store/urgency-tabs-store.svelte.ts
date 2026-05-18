@@ -14,7 +14,6 @@ import { TAG_COLORS } from "../utils/colors.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "./live-session-work.js";
-import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import { selectSessionWorkBucket } from "./session-work-projection.js";
@@ -195,34 +194,16 @@ export class UrgencyTabsStore {
 
 		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
-		const hotState = sessionId
-			? this.sessionStore.getHotState(sessionId)
-			: {
-					status: "idle" as const,
-					currentMode: null,
-					statusChangedAt: Date.now(),
-					connectionError: null,
-					activeTurnFailure: null,
-					activity: null,
-				};
+		const statusChangedAt =
+			sessionId !== null ? this.sessionStore.getSessionStatusChangedAt(sessionId) : Date.now();
 
 		// Get pending question for this session
 		const interactionSnapshot =
 			sessionId !== null
-				? buildSessionOperationInteractionSnapshot(
-						sessionId,
-						this.sessionStore.getOperationStore(),
-						this.interactions
-					)
+				? this.sessionStore.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
-		const currentStreamingToolCall =
-			sessionId !== null
-				? this.sessionStore.getOperationStore().getCurrentStreamingToolCall(sessionId)
-				: null;
-		const runtimeState =
-			sessionId !== null ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 		const canonicalProjection =
 			sessionId !== null ? this.sessionStore.getCanonicalSessionProjection(sessionId) : null;
 
@@ -231,11 +212,9 @@ export class UrgencyTabsStore {
 		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
 		const title = sessionMetadata?.title ?? null;
 		const workProjection = deriveLiveSessionWorkProjection({
-			runtimeState,
 			canonicalProjection,
 			currentModeId:
 				sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null,
-			currentStreamingToolCall,
 			interactionSnapshot: {
 				pendingQuestion,
 				pendingPlanApproval,
@@ -273,7 +252,7 @@ export class UrgencyTabsStore {
 			status: urgencyStatus,
 			hasPendingQuestion: pendingQuestion !== null || pendingPlanApproval !== null,
 			pendingQuestionText: pendingQuestion?.questions[0]?.question ?? null,
-			statusChangedAt: hotState.statusChangedAt,
+			statusChangedAt,
 			connectionError: failureMessage,
 			activeTurnFailure: failureRecord,
 		});

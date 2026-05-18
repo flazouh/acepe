@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionStatus } from "../../../application/dto/session-status.js";
+import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { deriveSessionState } from "../../session-state.js";
@@ -291,6 +292,36 @@ describe("buildQueueItem", () => {
 });
 
 describe("buildQueueSessionSnapshot", () => {
+	it("derives ready idle presentation from canonical state without runtime help", () => {
+		const snapshot = buildQueueSessionSnapshot({
+			id: "session-1",
+			agentId: "opencode",
+			projectPath: "/repo",
+			title: "Queue item",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
+			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
+			currentModeId: "plan",
+			connectionError: null,
+			activeTurnFailure: null,
+			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPermission: null,
+				pendingPlanApproval: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(snapshot.status).toBe("ready");
+		expect(snapshot.state.connection).toBe("connected");
+		expect(snapshot.state.activity.kind).toBe("idle");
+		expect(snapshot.isStreaming).toBe(false);
+		expect(snapshot.isThinking).toBe(false);
+	});
+
 	it("preserves canonical paused activity over running runtime activity", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",
@@ -302,18 +333,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: {
-				connectionPhase: "connected",
-				contentPhase: "loaded",
-				activityPhase: "running",
-				canSubmit: false,
-				canCancel: true,
-				showStop: true,
-				showThinking: false,
-				showConnectingOverlay: false,
-				showConversation: true,
-				showReadyPlaceholder: false,
-			},
 			currentModeId: "plan",
 			connectionError: null,
 			activeTurnFailure: null,
@@ -341,18 +360,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: {
-				connectionPhase: "connected",
-				contentPhase: "loaded",
-				activityPhase: "waiting_for_user",
-				canSubmit: false,
-				canCancel: true,
-				showStop: true,
-				showThinking: true,
-				showConnectingOverlay: false,
-				showConversation: true,
-				showReadyPlaceholder: false,
-			},
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,
@@ -371,6 +378,49 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.status).toBe("ready");
 	});
 
+	it("keeps interaction-backed permission visible without a runtime tool", () => {
+		const permission: PermissionRequest = {
+			id: "permission-1",
+			sessionId: "session-1",
+			permission: "Read",
+			patterns: [],
+			metadata: {},
+			always: [],
+			tool: {
+				messageID: "message-1",
+				callID: "tool-1",
+			},
+		};
+		const snapshot = buildQueueSessionSnapshot({
+			id: "session-1",
+			agentId: "opencode",
+			projectPath: "/repo",
+			title: "Queue item",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastTodoToolCall: null,
+			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
+			currentModeId: "plan",
+			connectionError: null,
+			activeTurnFailure: null,
+			canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+			interactionSnapshot: {
+				pendingQuestion: null,
+				pendingPermission: permission,
+				pendingPlanApproval: null,
+			},
+			hasUnseenCompletion: false,
+		});
+
+		expect(snapshot.state.pendingInput.kind).toBe("permission");
+		if (snapshot.state.pendingInput.kind !== "permission") {
+			throw new Error("Expected permission pending input");
+		}
+		expect(snapshot.state.pendingInput.request).toBe(permission);
+		expect(snapshot.currentStreamingToolCall).toBeNull();
+	});
+
 	it("uses graph-backed running activity when no live tool call is available", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",
@@ -382,18 +432,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: {
-				connectionPhase: "connected",
-				contentPhase: "loaded",
-				activityPhase: "idle",
-				canSubmit: true,
-				canCancel: false,
-				showStop: false,
-				showThinking: false,
-				showConnectingOverlay: false,
-				showConversation: true,
-				showReadyPlaceholder: false,
-			},
 			currentModeId: "build",
 			connectionError: null,
 			activeTurnFailure: null,
@@ -423,7 +461,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: null,
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,
@@ -453,18 +490,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: {
-				connectionPhase: "connected",
-				contentPhase: "loaded",
-				activityPhase: "idle",
-				canSubmit: true,
-				canCancel: false,
-				showStop: false,
-				showThinking: false,
-				showConnectingOverlay: false,
-				showConversation: true,
-				showReadyPlaceholder: false,
-			},
 			currentModeId: null,
 			connectionError: "Resume failed",
 			activeTurnFailure: null,
@@ -492,18 +517,6 @@ describe("buildQueueSessionSnapshot", () => {
 			lastToolCall: null,
 			lastTodoToolCall: null,
 			updatedAt: new Date("2026-03-30T12:00:00.000Z"),
-			runtimeState: {
-				connectionPhase: "connected",
-				contentPhase: "loaded",
-				activityPhase: "idle",
-				canSubmit: true,
-				canCancel: false,
-				showStop: false,
-				showThinking: false,
-				showConnectingOverlay: false,
-				showConversation: true,
-				showReadyPlaceholder: false,
-			},
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,

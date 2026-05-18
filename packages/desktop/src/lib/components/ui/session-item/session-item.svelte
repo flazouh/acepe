@@ -12,7 +12,6 @@ import { Tree } from "phosphor-svelte";
 import { COLOR_NAMES, Colors } from "$lib/acp/utils/colors.js";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
-import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { toast } from "svelte-sonner";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
@@ -102,7 +101,6 @@ const interactionStore = getInteractionStore();
 const questionStore = getQuestionStore();
 const selectionStore = getQuestionSelectionStore();
 const unseenStore = getUnseenStore();
-const operationStore = sessionStore.getOperationStore();
 const worktreeDeleted = $derived(session.worktreeDeleted ?? false);
 const QUESTION_COLORS = [
 	Colors[COLOR_NAMES.GREEN],
@@ -242,35 +240,30 @@ function handleRenameKeydown(event: KeyboardEvent) {
 const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
-const runtimeState = $derived(sessionStore.getSessionRuntimeState(session.id));
 const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
 const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
-const currentStreamingToolCall = $derived(operationStore.getCurrentStreamingToolCall(session.id));
-const lastToolCall = $derived(operationStore.getLastToolCall(session.id));
-const lastTodoToolCall = $derived(operationStore.getLastTodoToolCall(session.id));
-const currentToolKind = $derived(operationStore.getCurrentToolKind(session.id));
+const currentStreamingToolCall = $derived(sessionStore.getSessionCurrentStreamingToolCall(session.id));
+const lastToolCall = $derived(sessionStore.getSessionLastToolCall(session.id));
+const lastTodoToolCall = $derived(sessionStore.getSessionLastTodoToolCall(session.id));
+const currentToolKind = $derived(sessionStore.getSessionCurrentToolKind(session.id));
 const lastToolKind = $derived(lastToolCall ? (lastToolCall.kind ?? "other") : null);
 const activePanel = $derived(panelStore.getPanelBySessionId(session.id));
 const interactionSnapshot = $derived.by(() =>
-	buildSessionOperationInteractionSnapshot(session.id, operationStore, interactionStore)
+	sessionStore.getSessionOperationInteractionSnapshot(session.id, interactionStore)
 );
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({
-		runtimeState,
 		canonicalProjection,
 		currentModeId,
-		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
 	})
 );
 const sessionWorkProjection = $derived.by(() =>
 	deriveLiveSessionWorkProjection({
-		runtimeState,
 		canonicalProjection,
 		currentModeId,
-		currentStreamingToolCall,
 		interactionSnapshot,
 		hasUnseenCompletion,
 	})

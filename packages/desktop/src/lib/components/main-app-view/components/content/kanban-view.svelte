@@ -31,7 +31,6 @@ import {
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
-import { visiblePermissionsForSessionBar } from "$lib/acp/components/tool-calls/permission-visibility.js";
 import TodoHeader from "$lib/acp/components/todo-header.svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
@@ -57,7 +56,7 @@ import {
 } from "$lib/acp/store/index.js";
 import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
-import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
+import type { SessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import {
@@ -213,8 +212,6 @@ const projectColorsByPath = $derived.by(() => {
 	return colors;
 });
 
-const operationStore = sessionStore.getOperationStore();
-
 const SECTION_LABELS: Record<ThreadBoardStatus, () => string> = {
 	answer_needed: () => "Input needed",
 	planning: () => "Planning",
@@ -251,10 +248,8 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 		const identity = sessionStore.getSessionIdentity(sessionId);
 		const metadata = sessionStore.getSessionMetadata(sessionId);
 		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
-		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
-		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			sessionId,
-			operationStore,
 			interactionStore
 		);
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
@@ -275,12 +270,11 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
 			title: metadata ? metadata.title : panel.sessionTitle,
-			currentStreamingToolCall: operationStore.getCurrentStreamingToolCall(sessionId),
-			currentToolKind: operationStore.getCurrentToolKind(sessionId),
-			lastToolCall: operationStore.getLastToolCall(sessionId),
-			lastTodoToolCall: operationStore.getLastTodoToolCall(sessionId),
+			currentStreamingToolCall: sessionStore.getSessionCurrentStreamingToolCall(sessionId),
+			currentToolKind: sessionStore.getSessionCurrentToolKind(sessionId),
+			lastToolCall: sessionStore.getSessionLastToolCall(sessionId),
+			lastTodoToolCall: sessionStore.getSessionLastTodoToolCall(sessionId),
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
-			runtimeState,
 			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
 			connectionError: sessionStore.getSessionConnectionError(sessionId),
 			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
@@ -466,10 +460,8 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
-		visiblePermissionsForSessionBar(
-			permissionStore.getForSession(item.sessionId),
-			sessionStore.getOperationStore()
-		)[0] ?? null;
+		sessionStore.getVisiblePermissionsForSessionBar(permissionStore.getForSession(item.sessionId))[0] ??
+		null;
 	if (visiblePermission) {
 		return visiblePermission;
 	}
@@ -697,7 +689,7 @@ const itemLookup = $derived.by(() => {
 });
 
 const liveInteractionBySessionId = $derived.by(() => {
-	const map = new Map<string, ReturnType<typeof buildSessionOperationInteractionSnapshot>>();
+	const map = new Map<string, SessionOperationInteractionSnapshot>();
 	for (const panel of panelStore.panels) {
 		const sessionId = panel.sessionId;
 		if (sessionId === null) {
@@ -705,7 +697,7 @@ const liveInteractionBySessionId = $derived.by(() => {
 		}
 		map.set(
 			sessionId,
-			buildSessionOperationInteractionSnapshot(sessionId, operationStore, interactionStore)
+			sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
 		);
 	}
 	return map;
@@ -1032,7 +1024,7 @@ function resolveQuestionId(question: QuestionRequest): string {
 function getLiveInteractionSnapshot(item: ThreadBoardItem) {
 	return (
 		liveInteractionBySessionId.get(item.sessionId) ??
-		buildSessionOperationInteractionSnapshot(item.sessionId, operationStore, interactionStore)
+		sessionStore.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
 	);
 }
 
@@ -1490,7 +1482,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 				{#if item}
 					<TodoHeader
 						sessionId={item.sessionId}
-						toolCalls={operationStore.getSessionToolCalls(item.sessionId)}
+						toolCalls={sessionStore.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
 						status={selectSessionStatusForPresentation(
 							deriveSessionWorkProjection({

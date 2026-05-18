@@ -13,7 +13,6 @@ import { getContext, setContext } from "svelte";
 import { extractProjectName } from "../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
-import { buildSessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 
@@ -117,24 +116,19 @@ export class TabBarStore {
 
 		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
-		const hotState = sessionId ? this.sessionStore.getHotState(sessionId) : null;
 		const canonicalProjection = sessionId
 			? this.sessionStore.getCanonicalSessionProjection(sessionId)
 			: null;
-		const runtimeState = sessionId ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
 		const transcriptEntries =
 			sessionId !== null
 				? (this.sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? [])
 				: [];
-		const operationStore = this.sessionStore.getOperationStore();
-		const currentStreamingToolCall =
-			sessionId !== null ? operationStore.getCurrentStreamingToolCall(sessionId) : null;
 		const currentToolKind =
-			sessionId !== null ? operationStore.getCurrentToolKind(sessionId) : null;
+			sessionId !== null ? this.sessionStore.getSessionCurrentToolKind(sessionId) : null;
 
 		const interactionSnapshot =
 			sessionId !== null
-				? buildSessionOperationInteractionSnapshot(sessionId, operationStore, this.interactions)
+				? this.sessionStore.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
@@ -153,11 +147,8 @@ export class TabBarStore {
 			focusedPanelId,
 			agentId,
 			title,
-			hotState,
 			canonicalProjection,
-			runtimeState,
 			transcriptEntries,
-			currentStreamingToolCall,
 			currentToolKind,
 			pendingQuestion,
 			pendingPlanApproval,

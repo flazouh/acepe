@@ -36,9 +36,7 @@ function createMockHandler(): SessionEventHandler {
 		getSessionCold: vi.fn().mockReturnValue({ id: "session-123" } as unknown as SessionCold),
 		isPreloaded: vi.fn().mockReturnValue(true),
 		getHotState: vi.fn(),
-		ensureStreamingState: vi.fn(),
-		handleStreamComplete: vi.fn(),
-		handleTurnError: vi.fn(),
+		getSessionCanSend: vi.fn().mockReturnValue(null),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
@@ -184,7 +182,6 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 		expect(onTurnComplete).not.toHaveBeenCalled();
 	});
 
@@ -202,8 +199,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.handleTurnError).not.toHaveBeenCalled();
 	});
 
 	it("keeps empty string streaming deltas on the raw lane non-authoritative", () => {
@@ -432,7 +427,6 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(pendingHandler.materializePendingCreationSession).toHaveBeenCalledWith(
 			"session-pending-creation-1"
 		);
-		expect(pendingHandler.handleStreamComplete).not.toHaveBeenCalled();
 	});
 
 	it("does not synthesize assistant transcript chunks from raw session updates", () => {
@@ -575,7 +569,6 @@ describe("SessionEventService streaming delta handling", () => {
 
 		service.handleSessionUpdate(update, handler);
 
-		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 		// GOD authority: plan content flows through the canonical SessionStateEnvelope
 		// (kind: "plan") routed via applyPlan command. The raw lane is diagnostic-only
 		// and must not invoke the plan callback.
@@ -597,8 +590,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 	});
 
 	it("keeps streamingArguments updates on the raw lane non-authoritative", () => {
@@ -798,8 +789,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 	});
 
 	it("treats questionRequest updates on the raw lane as observational only", () => {
@@ -835,7 +824,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("does not merge assistant chunks from raw session updates when part_id changes mid-stream", () => {
 		const sessionId = "session-aggregate";
 		const entryStore = new SessionEntryStore();
-		entryStore.storeEntriesAndBuildIndex(sessionId, []);
+		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
 
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi
@@ -843,9 +832,7 @@ describe("SessionEventService streaming delta handling", () => {
 				.mockReturnValue({ id: sessionId, agentId: "claude-code" } as SessionCold),
 			isPreloaded: vi.fn().mockReturnValue(true),
 			getHotState: vi.fn().mockReturnValue({ isConnected: true, status: "streaming" }),
-			ensureStreamingState: vi.fn(),
-			handleStreamComplete: vi.fn(),
-			handleTurnError: vi.fn(),
+			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};
@@ -898,8 +885,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.handleStreamComplete).not.toHaveBeenCalled();
 	});
 
 	it("keeps raw tool calls non-authoritative even when hot state says disconnected", () => {
@@ -1219,8 +1204,6 @@ describe("SessionEventService streaming delta handling", () => {
 		// Frontend no longer suppresses — Cursor pre-tool notifications are
 		// filtered in the Rust backend (is_cursor_extension_pre_tool).
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.ensureStreamingState).not.toHaveBeenCalled();
 	});
 
 	// ==========================================================================
@@ -1676,8 +1659,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
-
-		expect(handler.ensureStreamingState).not.toHaveBeenCalled();
 	});
 
 	it("ignores repeated assistant chunks until canonical envelopes arrive", () => {
@@ -1705,7 +1686,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("treats raw user chunks as coordination-only during reopened sends", () => {
 		const sessionId = "session-reopen-send";
 		const entryStore = new SessionEntryStore();
-		entryStore.storeEntriesAndBuildIndex(sessionId, [
+		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, [
 			{
 				id: "assistant-history-1",
 				type: "assistant",
@@ -1730,9 +1711,7 @@ describe("SessionEventService streaming delta handling", () => {
 			getHotState: vi
 				.fn()
 				.mockReturnValue({ isConnected: true, status: "ready", turnState: "idle" }),
-			ensureStreamingState: vi.fn(),
-			handleStreamComplete: vi.fn(),
-			handleTurnError: vi.fn(),
+			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
 		};

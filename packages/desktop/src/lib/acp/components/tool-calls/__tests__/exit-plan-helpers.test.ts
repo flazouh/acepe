@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { OperationSnapshot } from "../../../../services/acp-types.js";
 import { OperationStore } from "../../../store/operation-store.svelte.js";
+import { shouldHidePermissionBarForExitPlanFromOperations } from "../../../store/permission-operation-projection.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import {
 	findExitPlanPermission,
 	getExitPlanDisplayPlan,
-	shouldHidePermissionBarForExitPlan,
 } from "../exit-plan-helpers.js";
 
 function createExitPlanToolCall(id: string, plan: string, planFilePath: string): ToolCall {
@@ -133,7 +133,7 @@ describe("exit-plan-helpers", () => {
 			42
 		);
 
-		const shouldHide = shouldHidePermissionBarForExitPlan(
+		const shouldHide = shouldHidePermissionBarForExitPlanFromOperations(
 			permission,
 			createOperationStoreWithToolCall(toolCall)
 		);

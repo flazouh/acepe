@@ -73,6 +73,17 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 			availableCommands: [],
 			statusChangedAt: Date.now(),
 		}),
+		getSessionCanSend: () => null,
+		getSessionLifecycleStatus: () => null,
+		getGraphTranscriptRevision: () => undefined,
+		getSessionAutonomousEnabled: () => null,
+		getSessionCurrentModeId: () => null,
+		getSessionCapabilities: () => ({
+			availableModels: [],
+			availableModes: [],
+			availableCommands: [],
+		}),
+		getCanonicalSessionProjection: () => null,
 		getSessionToolCalls: () => [],
 		isPreloaded: () => false,
 		getSessionsForProject: () => [],
@@ -105,18 +116,9 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 }
 
 const entryManager: IEntryManager = {
-	hasEntries: () => false,
 	isPreloaded: () => false,
 	markPreloaded: () => {},
-	unmarkPreloaded: () => {},
-	storeEntriesAndBuildIndex: () => {},
-	addEntry: () => {},
-	removeEntry: () => {},
-	updateEntry: () => {},
 	clearEntries: () => {},
-	aggregateAssistantChunk: () => {
-		throw new Error("Not implemented for test");
-	},
 	clearStreamingAssistantEntry: () => {},
 	startNewAssistantTurn: () => {},
 	finalizeStreamingEntries: () => {},

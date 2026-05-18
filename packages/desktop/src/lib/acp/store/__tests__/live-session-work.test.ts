@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
 import type { LifecycleStatus, SessionGraphActivityKind } from "../../../services/acp-types.js";
-import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import {
 	deriveLiveCanonicalActivity,
+	deriveLiveSessionLifecyclePresentation,
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
 	type LiveSessionWorkInput,
@@ -21,24 +21,6 @@ function makeToolCall(): ToolCall {
 		status: "pending",
 		kind: "other",
 		awaitingPlanApproval: false,
-	};
-}
-
-function makeRuntimeState(
-	activityPhase: SessionRuntimeState["activityPhase"],
-	showThinking: boolean = false
-): SessionRuntimeState {
-	return {
-		connectionPhase: "connected",
-		contentPhase: "loaded",
-		activityPhase,
-		canSubmit: activityPhase === "idle",
-		canCancel: activityPhase !== "idle",
-		showStop: activityPhase !== "idle",
-		showThinking,
-		showConnectingOverlay: false,
-		showConversation: true,
-		showReadyPlaceholder: false,
 	};
 }
 
@@ -103,10 +85,8 @@ function makeCanonicalProjection(
 }
 
 interface MakeInputOptions {
-	readonly runtimeState?: SessionRuntimeState | null;
 	readonly canonicalProjection?: LiveSessionWorkInput["canonicalProjection"];
 	readonly currentModeId?: string | null;
-	readonly currentStreamingToolCall?: ToolCall | null;
 	readonly hasPendingQuestion?: boolean;
 	readonly hasUnseenCompletion?: boolean;
 }
@@ -125,10 +105,8 @@ function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
 		: null;
 
 	return {
-		runtimeState: options.runtimeState ?? null,
 		canonicalProjection,
 		currentModeId: options.currentModeId ?? null,
-		currentStreamingToolCall: options.currentStreamingToolCall ?? null,
 		interactionSnapshot: {
 			pendingQuestion,
 			pendingPlanApproval: null,
@@ -167,7 +145,6 @@ describe("deriveLiveSessionState", () => {
 	it("does not promote canonical idle from runtime thinking details", () => {
 		const state = deriveLiveSessionState(
 			makeInput({
-				runtimeState: makeRuntimeState("running", true),
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
 			})
 		);
@@ -179,14 +156,49 @@ describe("deriveLiveSessionState", () => {
 	it("does not promote canonical idle from live tool-call presence", () => {
 		const state = deriveLiveSessionState(
 			makeInput({
-				runtimeState: makeRuntimeState("running"),
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
 				currentModeId: "plan",
-				currentStreamingToolCall: makeToolCall(),
 			})
 		);
 
 		expect(state.activity.kind).toBe("idle");
+	});
+
+	it("does not attach local tool objects to canonical running activity", () => {
+		const state = deriveLiveSessionState(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection("ready", "running_operation"),
+				currentModeId: "plan",
+			})
+		);
+
+		expect(state.activity.kind).toBe("streaming");
+		if (state.activity.kind !== "streaming") {
+			throw new Error("Expected streaming activity");
+		}
+		expect(state.activity.tool).toBeNull();
+	});
+
+	it("ignores stale pending interaction objects unless canonical activity waits for user", () => {
+		const state = deriveLiveSessionState(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection("ready", "idle"),
+				hasPendingQuestion: true,
+			})
+		);
+
+		expect(state.pendingInput.kind).toBe("none");
+	});
+
+	it("uses interaction graph input when canonical activity waits for user", () => {
+		const state = deriveLiveSessionState(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+				hasPendingQuestion: true,
+			})
+		);
+
+		expect(state.pendingInput.kind).toBe("question");
 	});
 });
 
@@ -218,7 +230,6 @@ describe("deriveLiveCanonicalActivity", () => {
 	it("keeps canonical idle even when runtime reports thinking", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
-				runtimeState: makeRuntimeState("running", true),
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
 			})
 		);
@@ -241,7 +252,6 @@ describe("deriveLiveCanonicalActivity", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
-				currentStreamingToolCall: makeToolCall(),
 			})
 		);
 
@@ -266,9 +276,7 @@ describe("deriveLiveCanonicalActivity", () => {
 	it("returns neutral idle activity while canonical projection is absent", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
-				runtimeState: makeRuntimeState("running", true),
 				canonicalProjection: null,
-				currentStreamingToolCall: makeToolCall(),
 				hasPendingQuestion: true,
 			})
 		);
@@ -306,9 +314,7 @@ describe("deriveLiveSessionWorkProjection", () => {
 	it("stays neutral before the first canonical projection arrives", () => {
 		const projection = deriveLiveSessionWorkProjection(
 			makeInput({
-				runtimeState: makeRuntimeState("running", true),
 				canonicalProjection: null,
-				currentStreamingToolCall: makeToolCall(),
 				hasPendingQuestion: true,
 			})
 		);
@@ -352,5 +358,87 @@ describe("deriveLiveSessionWorkProjection", () => {
 		expect(projection.hasError).toBe(true);
 		expect(projection.canonicalActivity).toBe("error");
 		expect(selectSessionStatusForPresentation(projection)).toBe("error");
+	});
+});
+
+describe("deriveLiveSessionLifecyclePresentation", () => {
+	it("derives ready empty presentation from canonical lifecycle", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			hasEntries: false,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toEqual({
+			connectionPhase: "connected",
+			contentPhase: "empty",
+			activityPhase: "idle",
+			canSubmit: true,
+			canCancel: false,
+			showStop: false,
+			showThinking: false,
+			showConnectingOverlay: false,
+			showConversation: false,
+			showReadyPlaceholder: true,
+		});
+	});
+
+	it("keeps pending local send as a submit affordance only", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			hasEntries: false,
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(presentation.canSubmit).toBe(false);
+		expect(presentation.activityPhase).toBe("idle");
+		expect(presentation.showThinking).toBe(false);
+		expect(presentation.showReadyPlaceholder).toBe(true);
+	});
+
+	it("maps canonical activity to runtime-shaped presentation without machine state", () => {
+		const awaitingModel = deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: makeCanonicalProjection("ready", "awaiting_model"),
+			hasEntries: true,
+			hasLocalPendingSendIntent: false,
+		});
+		const runningOperation = deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: makeCanonicalProjection("ready", "running_operation"),
+			hasEntries: true,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(awaitingModel).toMatchObject({
+			contentPhase: "loaded",
+			activityPhase: "waiting_for_user",
+			canCancel: true,
+			showStop: true,
+			showThinking: true,
+			showConversation: true,
+			showReadyPlaceholder: false,
+		});
+		expect(runningOperation).toMatchObject({
+			activityPhase: "running",
+			canCancel: true,
+			showStop: true,
+			showThinking: false,
+		});
+	});
+
+	it("fails closed while canonical projection is absent", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: null,
+			hasEntries: false,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "disconnected",
+			contentPhase: "empty",
+			activityPhase: "idle",
+			canSubmit: false,
+			showConversation: false,
+			showReadyPlaceholder: false,
+		});
 	});
 });

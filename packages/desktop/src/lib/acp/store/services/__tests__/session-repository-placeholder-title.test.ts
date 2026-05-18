@@ -60,6 +60,17 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 			availableCommands: [],
 			statusChangedAt: Date.now(),
 		}),
+		getSessionCanSend: () => null,
+		getSessionLifecycleStatus: () => null,
+		getGraphTranscriptRevision: () => undefined,
+		getSessionAutonomousEnabled: () => null,
+		getSessionCurrentModeId: () => null,
+		getSessionCapabilities: () => ({
+			availableModels: [],
+			availableModes: [],
+			availableCommands: [],
+		}),
+		getCanonicalSessionProjection: () => null,
 		getSessionToolCalls: () => [],
 		isPreloaded: (sessionId: string) => state.preloadedSessionIds.has(sessionId),
 		getSessionsForProject: () => [],
@@ -103,18 +114,9 @@ function createEntryManager(preloadedSessionIds: Set<string>): IEntryManager {
 		},
 	];
 	return {
-		hasEntries: () => false,
 		isPreloaded: (sessionId: string) => preloadedSessionIds.has(sessionId),
 		markPreloaded: () => {},
-		unmarkPreloaded: () => {},
-		storeEntriesAndBuildIndex: () => {},
-		addEntry: () => {},
-		removeEntry: () => {},
-		updateEntry: () => {},
 		clearEntries: () => {},
-		aggregateAssistantChunk: () => {
-			throw new Error("Not implemented for test");
-		},
 		clearStreamingAssistantEntry: () => {},
 		startNewAssistantTurn: () => {},
 		finalizeStreamingEntries: () => {},

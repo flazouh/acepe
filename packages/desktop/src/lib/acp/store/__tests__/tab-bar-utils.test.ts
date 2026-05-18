@@ -11,7 +11,6 @@ import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
 	Panel,
-	SessionTransientProjection,
 	TerminalWorkspacePanel,
 } from "../types.js";
 
@@ -31,17 +30,6 @@ function makePanel(overrides: Partial<Panel> = {}): Panel {
 		projectPath: null,
 		agentId: null,
 		sessionTitle: null,
-		...overrides,
-	};
-}
-
-function makeHotState(
-	overrides: Partial<SessionTransientProjection> = {}
-): SessionTransientProjection {
-	return {
-		acpSessionId: null,
-		autonomousTransition: "idle",
-		statusChangedAt: Date.now(),
 		...overrides,
 	};
 }
@@ -100,13 +88,10 @@ function makeCanonicalProjection(
 function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 	return {
 		panel: makePanel(),
-		focusedPanelId: null,
-		agentId: "agent-1",
-		title: "Test Session",
-		hotState: makeHotState(),
-		runtimeState: null,
-		transcriptEntries: [],
-		currentStreamingToolCall: null,
+			focusedPanelId: null,
+			agentId: "agent-1",
+			title: "Test Session",
+			transcriptEntries: [],
 		currentToolKind: null,
 		pendingQuestion: null,
 		pendingPlanApproval: null,
@@ -175,13 +160,13 @@ describe("panelToTab", () => {
 			expect(tab.sessionId).toBeNull();
 		});
 
-		it("returns null currentModeId when hotState is null", () => {
-			const tab = panelToTab(makeInput({ hotState: null }));
+		it("returns null currentModeId when canonical projection is null", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
 			expect(tab.currentModeId).toBeNull();
 		});
 
-		it("produces disconnected idle state when hotState is null", () => {
-			const tab = panelToTab(makeInput({ hotState: null }));
+		it("produces disconnected idle state when canonical projection is null", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
 			expect(tab.state.connection).toBe("disconnected");
 			expect(tab.state.activity.kind).toBe("idle");
 		});
@@ -207,19 +192,6 @@ describe("panelToTab", () => {
 			const tab = panelToTab(
 				makeInput({
 					canonicalProjection: makeCanonicalProjection("ready", "running_operation", "build"),
-					runtimeState: {
-						connectionPhase: "connected",
-						contentPhase: "loaded",
-						activityPhase: "idle",
-						canSubmit: true,
-						canCancel: false,
-						showStop: false,
-						showThinking: false,
-						showConnectingOverlay: false,
-						showConversation: true,
-						showReadyPlaceholder: false,
-					},
-					currentStreamingToolCall: null,
 				})
 			);
 
@@ -276,7 +248,12 @@ describe("panelToTab", () => {
 			const question = { id: "q-1", sessionId: "s-1", questions: [] } as Parameters<
 				typeof panelToTab
 			>[0]["pendingQuestion"];
-			const tab = panelToTab(makeInput({ pendingQuestion: question }));
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingQuestion: question,
+				})
+			);
 			expect(tab.state.pendingInput.kind).toBe("question");
 		});
 
@@ -294,7 +271,12 @@ describe("panelToTab", () => {
 				metadata: {},
 				always: [],
 			} as Parameters<typeof panelToTab>[0]["pendingPermission"];
-			const tab = panelToTab(makeInput({ pendingPermission: permission }));
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingPermission: permission,
+				})
+			);
 			expect(tab.state.pendingInput.kind).toBe("permission");
 		});
 
@@ -309,7 +291,12 @@ describe("panelToTab", () => {
 				replyHandler: { kind: "json-rpc" as const, requestId: 7 },
 				status: "pending" as const,
 			};
-			const tab = panelToTab(makeInput({ pendingPlanApproval: planApproval }));
+			const tab = panelToTab(
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingPlanApproval: planApproval,
+				})
+			);
 			expect(tab.state.pendingInput.kind).toBe("plan_approval");
 		});
 
@@ -326,7 +313,11 @@ describe("panelToTab", () => {
 				always: [],
 			} as Parameters<typeof panelToTab>[0]["pendingPermission"];
 			const tab = panelToTab(
-				makeInput({ pendingQuestion: question, pendingPermission: permission })
+				makeInput({
+					canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+					pendingQuestion: question,
+					pendingPermission: permission,
+				})
 			);
 			expect(tab.state.pendingInput.kind).toBe("question");
 		});
@@ -346,18 +337,6 @@ describe("panelToTab", () => {
 		it("does not classify runtime thinking as active work when canonical activity is idle", () => {
 			const tab = panelToTab(
 				makeInput({
-					runtimeState: {
-						connectionPhase: "connected",
-						contentPhase: "loaded",
-						activityPhase: "running",
-						canSubmit: false,
-						canCancel: true,
-						showStop: true,
-						showThinking: true,
-						showConnectingOverlay: false,
-						showConversation: true,
-						showReadyPlaceholder: false,
-					},
 					canonicalProjection: makeCanonicalProjection("ready", "idle"),
 				})
 			);

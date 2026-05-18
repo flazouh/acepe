@@ -22,8 +22,8 @@ function createMockEntryStore(overrides?: Partial<IEntryStoreInternal>): IEntryS
 		hasAssistantEntry: vi.fn(() => false),
 		findLatestUserEntryRef: vi.fn(() => null),
 		findToolCallEntryRef: vi.fn(() => null),
-		addEntry: vi.fn(),
-		updateEntry: vi.fn(),
+		appendCompatibilityEntry: vi.fn(),
+		replaceCompatibilityEntry: vi.fn(),
 		hasSession: vi.fn(() => true),
 		...overrides,
 	};
@@ -118,12 +118,12 @@ function createTrackedManager(initialEntries?: Array<{ sessionId: string; entry:
 			const entry = entries[index];
 			return entry?.type === "tool_call" ? { entry, index } : null;
 		}),
-		addEntry: vi.fn((sessionId: string, entry: SessionEntry) => {
+		appendCompatibilityEntry: vi.fn((sessionId: string, entry: SessionEntry) => {
 			const existingEntries = entriesBySession.get(sessionId) ?? [];
 			existingEntries.push(entry);
 			entriesBySession.set(sessionId, existingEntries);
 		}),
-		updateEntry: vi.fn((sessionId: string, index: number, entry: SessionEntry) => {
+		replaceCompatibilityEntry: vi.fn((sessionId: string, index: number, entry: SessionEntry) => {
 			const existingEntries = entriesBySession.get(sessionId) ?? [];
 			existingEntries[index] = entry;
 			entriesBySession.set(sessionId, existingEntries);
@@ -265,7 +265,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", data);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).toHaveBeenCalledWith(
+			expect(entryStore.appendCompatibilityEntry).toHaveBeenCalledWith(
 				"s1",
 				expect.objectContaining({
 					id: "tc-1",
@@ -294,8 +294,8 @@ describe("TranscriptToolCallBuffer", () => {
 
 			expect(result.isOk()).toBe(true);
 			// Should update the entry, not add a new one
-			expect(entryStore.addEntry).not.toHaveBeenCalled();
-			expect(entryStore.updateEntry).toHaveBeenCalledWith(
+			expect(entryStore.appendCompatibilityEntry).not.toHaveBeenCalled();
+			expect(entryStore.replaceCompatibilityEntry).toHaveBeenCalledWith(
 				"s1",
 				0,
 				expect.objectContaining({
@@ -352,7 +352,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", sparseData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
@@ -409,7 +409,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", sparseData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
@@ -451,7 +451,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", replayedData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.status).toBe("pending");
@@ -493,7 +493,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", syntheticData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.kind).toBe("edit");
@@ -544,7 +544,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", replayedData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.rawInput).toEqual({ prompt: "Ship it?" });
@@ -608,7 +608,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", questionData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.kind).toBe("question");
@@ -647,7 +647,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.createEntry("s1", resolvedData);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.awaitingPlanApproval).toBe(false);
@@ -715,7 +715,7 @@ describe("TranscriptToolCallBuffer", () => {
 			);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.updateEntry).toHaveBeenCalledWith(
+			expect(entryStore.replaceCompatibilityEntry).toHaveBeenCalledWith(
 				"s1",
 				0,
 				expect.objectContaining({
@@ -747,8 +747,8 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).not.toHaveBeenCalled();
-			expect(entryStore.updateEntry).not.toHaveBeenCalled();
+			expect(entryStore.appendCompatibilityEntry).not.toHaveBeenCalled();
+			expect(entryStore.replaceCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("ignores streaming-only updates when the tool call does not exist yet", () => {
@@ -762,8 +762,8 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).not.toHaveBeenCalled();
-			expect(entryStore.updateEntry).not.toHaveBeenCalled();
+			expect(entryStore.appendCompatibilityEntry).not.toHaveBeenCalled();
+			expect(entryStore.replaceCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("ignores raw streaming delta-only updates when the tool call does not exist yet", () => {
@@ -777,8 +777,8 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).not.toHaveBeenCalled();
-			expect(entryStore.updateEntry).not.toHaveBeenCalled();
+			expect(entryStore.appendCompatibilityEntry).not.toHaveBeenCalled();
+			expect(entryStore.replaceCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("updates an existing tool call entry", () => {
@@ -798,7 +798,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.updateEntry).toHaveBeenCalledWith(
+			expect(entryStore.replaceCompatibilityEntry).toHaveBeenCalledWith(
 				"s1",
 				0,
 				expect.objectContaining({
@@ -837,7 +837,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", replayedUpdate);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.status).toBe("in_progress");
@@ -877,7 +877,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.result).toBe("Found 4 files");
@@ -922,7 +922,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
@@ -944,8 +944,8 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			expect(entryStore.addEntry).not.toHaveBeenCalled();
-			expect(entryStore.updateEntry).not.toHaveBeenCalled();
+			expect(entryStore.appendCompatibilityEntry).not.toHaveBeenCalled();
+			expect(entryStore.replaceCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("keeps canonical arguments separate when typed arguments are absent", () => {
@@ -985,7 +985,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 			expect(result.isOk()).toBe(true);
 
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			expect(updatedEntry.type).toBe("tool_call");
 			if (updatedEntry.type === "tool_call") {
@@ -1041,7 +1041,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
@@ -1111,7 +1111,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.title).toBe("Edit File");
@@ -1171,7 +1171,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const result = manager.updateEntry("s1", update);
 
 			expect(result.isOk()).toBe(true);
-			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
+			const updatedEntry = (entryStore.replaceCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
@@ -1217,7 +1217,7 @@ describe("TranscriptToolCallBuffer", () => {
 					const entry = entries[index];
 					return entry?.type === "tool_call" ? { entry, index } : null;
 				}),
-				updateEntry: vi.fn((_, index, entry) => {
+				replaceCompatibilityEntry: vi.fn((_, index, entry) => {
 					entries[index] = entry;
 				}),
 			});
@@ -1229,7 +1229,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const args: ToolArguments = { kind: "read", file_path: "/foo/bar.ts" };
 			applyStreamingArguments(manager, "s1", "tc-1", args);
 
-			expect(entryStore.updateEntry).toHaveBeenCalledWith(
+			expect(entryStore.replaceCompatibilityEntry).toHaveBeenCalledWith(
 				"s1",
 				0,
 				expect.objectContaining({

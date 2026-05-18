@@ -44,7 +44,6 @@ import ProjectSelector from "../../project-selector.svelte";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
-import { aggregateFileEditsFromToolCalls } from "../../modified-files/logic/aggregate-file-edits.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import {
@@ -218,7 +217,6 @@ setThinkingPreferences({
 const connectionStore = getConnectionStore();
 const interactionStore = getInteractionStore();
 const permissionStore = getPermissionStore();
-const operationStore = sessionStore.getOperationStore();
 const agentStore = getAgentStore();
 const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
@@ -367,8 +365,9 @@ const sessionIdentity = $derived(sessionId ? sessionStore.getSessionIdentity(ses
 
 // Metadata: title, createdAt, updatedAt (rarely changes)
 const sessionMetadata = $derived(sessionId ? sessionStore.getSessionMetadata(sessionId) : null);
-const sessionHotState = $derived(sessionId ? sessionStore.getHotState(sessionId) : null);
-const sessionPendingSendIntent = $derived(sessionHotState?.pendingSendIntent ?? null);
+const sessionPendingSendIntent = $derived(
+	sessionId ? sessionStore.getSessionPendingSendIntent(sessionId) : null
+);
 
 // Entries: conversation content (changes frequently during streaming)
 // Merges any optimistic pending entry (shown before session creation) with real entries.
@@ -550,8 +549,10 @@ const showBrowserSidebar = $derived(panelId ? panelStore.isBrowserSidebarExpande
 const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
-// Canonical runtime state from session machine.
-const runtimeState = $derived(sessionId ? sessionStore.getSessionRuntimeState(sessionId) : null);
+// Canonical lifecycle presentation from Rust-owned graph projection.
+const runtimeState = $derived(
+	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
+);
 const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
@@ -612,9 +613,9 @@ const canonicalPanelSessionState = $derived.by(() =>
 			turnState: effectiveCanonicalSessionTurnState,
 			hasEntries: visibleEntryCount > 0,
 			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
-		hasLocalPendingSendIntent: (sessionHotState?.pendingSendIntent ?? null) !== null,
-	})
-);
+			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
+		})
+	);
 const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
 const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
 const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
@@ -1097,7 +1098,7 @@ const agentInstallState = $derived.by(() => {
 });
 
 // Derived from session store — populated from DB on startup, updated in-session after PR creation
-// Also auto-populated when Claude creates a PR autonomously (handleStreamComplete extracts PR# from messages)
+// Also auto-populated when Claude creates a PR autonomously.
 const createdPr = $derived(sessionMetadata?.prNumber ?? null);
 
 function hasStreamingPreviewContent(
@@ -1294,18 +1295,11 @@ const debugPanelState = $derived.by(() => {
 //      across every sibling agent panel.
 //
 // Making this a `$derived` keeps the value synchronously consistent.
-// Reading operationStore instead of transcript rows prevents unrelated
-// assistant/transcript updates from rescanning the full conversation.
 const modifiedFilesState = $derived.by<ModifiedFilesState | null>(() => {
 	if (viewState.kind !== "conversation" || sessionId === null) {
 		return null;
 	}
-	const toolCalls = operationStore.getSessionToolCalls(sessionId);
-	if (toolCalls.length === 0) {
-		return null;
-	}
-	const state = aggregateFileEditsFromToolCalls(toolCalls);
-	return state.fileCount > 0 ? state : null;
+	return sessionStore.getSessionModifiedFilesState(sessionId);
 });
 
 function handleEnterReviewMode(filesState: ModifiedFilesState): void {
@@ -1991,7 +1985,7 @@ const todoManager = getTodoStateManager();
 const todoState = $derived.by(() => {
 	if (!sessionId) return null;
 	const threadData = {
-		toolCalls: sessionStore.getOperationStore().getSessionToolCalls(sessionId),
+		toolCalls: sessionStore.getSessionToolCalls(sessionId),
 		isConnected: sessionIsConnected,
 		status: panelSessionStatus,
 		isStreaming: sessionIsStreaming,

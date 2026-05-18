@@ -1,18 +1,16 @@
 /**
- * Session Messaging Service - Handles message sending and streaming.
+ * Session Messaging Service - Handles message sending and canonical turn side effects.
  *
  * Responsibilities:
  * - Message sending with local pending-send affordances
- * - Streaming response handling
- * - Tool call management
- * - Chunk aggregation
+ * - Canonical terminal-turn side effects
  *
  * This service is extracted from SessionStore to separate concerns
  * and reduce the God class anti-pattern.
  */
 
 import { errAsync, type ResultAsync } from "neverthrow";
-import type { ContentBlock, ContentChunk } from "../../../services/converted-session-types.js";
+import type { ContentBlock } from "../../../services/converted-session-types.js";
 import { isInlineImageAttachment } from "../../components/agent-input/logic/image-attachment.js";
 import type { Attachment } from "../../components/agent-input/types/attachment.js";
 import type { AppError } from "../../errors/app-error.js";
@@ -169,7 +167,7 @@ export class SessionMessagingService {
 				attemptId,
 				startedAt: Date.now(),
 				baselineTranscriptRevision:
-					this.stateReader.getGraphTranscriptRevision?.(sessionId) ?? null,
+					this.stateReader.getGraphTranscriptRevision(sessionId) ?? null,
 				promptLength,
 				optimisticEntry,
 			},
@@ -220,9 +218,9 @@ export class SessionMessagingService {
 	 * Send a message to a session.
 	 *
 	 * Note: This is fire-and-forget. The prompt is sent immediately but the response
-	 * arrives via Tauri events (handleStreamEntry, handleStreamComplete).
-	 * Stream completion is NOT triggered here - it happens when the event system
-	 * signals completion.
+	 * arrives via canonical session-state envelopes.
+	 * Stream completion is NOT triggered here; it happens when Rust emits a
+	 * terminal turn state.
 	 */
 	sendMessage(
 		sessionId: string,
@@ -233,8 +231,8 @@ export class SessionMessagingService {
 		if (!session) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
-		const lifecycleStatus = this.stateReader.getSessionLifecycleStatus?.(sessionId) ?? null;
-		const canonicalCanSend = this.stateReader.getSessionCanSend?.(sessionId) ?? null;
+		const lifecycleStatus = this.stateReader.getSessionLifecycleStatus(sessionId);
+		const canonicalCanSend = this.stateReader.getSessionCanSend(sessionId);
 		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
 			session,
 			lifecycleStatus,
@@ -337,38 +335,12 @@ export class SessionMessagingService {
 			});
 	}
 
-	// ============================================
-	// STREAMING
-	// ============================================
-
 	/**
-	 * Handle incoming stream entry from Tauri events.
+	 * Handle canonical turn completion side effects.
 	 */
-	handleStreamEntry(sessionId: string, entry: SessionEntry): void {
-		// Transition from awaiting response to streaming on ANY entry type.
-		// This hides the "Thinking_" indicator as soon as the agent starts responding
-		// (whether with assistant text, tool calls, or ask prompts).
-		// The machine transition synchronously updates the SvelteMap snapshot cache,
-		// so $derived consumers re-evaluate automatically.
-		const state = this.connectionManager.getState(sessionId);
-		if (state && state.connection === "awaitingResponse") {
-			this.connectionManager.sendResponseStarted(sessionId);
-		}
-
-		this.entryManager.addEntry(sessionId, entry);
-		logger.debug("handleStreamEntry: stream entry added", {
-			sessionId,
-			entryId: entry.id,
-			entryType: entry.type,
-		});
-	}
-
-	/**
-	 * Handle stream complete from Tauri events.
-	 */
-	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
+	handleCanonicalTurnComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
 		const machineState = this.connectionManager.getState(sessionId);
-		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
+		const canonical = this.stateReader.getCanonicalSessionProjection(sessionId);
 		this.recordTerminalTurnForSession(sessionId);
 		if (canonical?.turnState === "Completed") {
 			const connectionState = machineState?.connection ?? null;
@@ -425,7 +397,7 @@ export class SessionMessagingService {
 			return;
 		}
 
-		const toolCalls = this.stateReader.getSessionToolCalls?.(sessionId) ?? [];
+		const toolCalls = this.stateReader.getSessionToolCalls(sessionId);
 		const modifiedFilesState = aggregateFileEditsFromToolCalls(toolCalls);
 		if (modifiedFilesState.fileCount === 0) {
 			logger.info("Auto-checkpoint skipped: no edit entries found", {
@@ -500,36 +472,10 @@ export class SessionMessagingService {
 	}
 
 	/**
-	 * Handle stream error from Tauri events.
+	 * Handle canonical turn failure side effects from the backend.
 	 */
-	handleStreamError(sessionId: string, error: Error): void {
-		this.entryManager.clearStreamingAssistantEntry(sessionId);
-		// Transition machine STREAMING → ERROR
-		this.connectionManager.sendConnectionError(sessionId);
-
-		// GOD authority: if canonical already shows a terminal turnState
-		// (Completed/Failed), don't regress it from a stale stream error.
-		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
-		const canonicalTurnIsTerminal =
-			canonical?.turnState === "Completed" || canonical?.turnState === "Failed";
-		if (canonicalTurnIsTerminal) {
-			logger.warn("handleStreamError: canonical already terminal, skipping stale stream error", {
-				sessionId,
-				canonicalTurnState: canonical.turnState,
-				error: error.message,
-			});
-			return;
-		}
-
-		logger.error("Stream error", { sessionId, error });
-	}
-
-	/**
-	 * Handle turn error from agent (e.g., usage limit reached).
-	 * Uses explicit turn failure semantics from the backend.
-	 */
-	handleTurnError(sessionId: string, update: TurnErrorUpdate): void {
-		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
+	handleCanonicalTurnFailure(sessionId: string, update: TurnErrorUpdate): void {
+		const canonical = this.stateReader.getCanonicalSessionProjection(sessionId);
 		const normalized = normalizeActiveTurnFailure(update);
 
 		if (
@@ -563,40 +509,6 @@ export class SessionMessagingService {
 				turnId: normalized.turnId,
 			});
 		}
-	}
-
-	/**
-	 * Ensure streaming state is set.
-	 */
-	ensureStreamingState(sessionId: string): void {
-		const machineState = this.connectionManager.getState(sessionId);
-		const canonical = this.stateReader.getCanonicalSessionProjection?.(sessionId) ?? null;
-
-		if (canonical?.turnState === "Failed" && canonical.activeTurnFailure !== null) {
-			return;
-		}
-
-		// Transition connection state from awaitingResponse to streaming
-		// This hides the "Thinking_" indicator when response starts
-		if (machineState?.connection === ConnectionState.AWAITING_RESPONSE) {
-			this.connectionManager.sendResponseStarted(sessionId);
-		}
-	}
-
-	// ============================================
-	// CHUNK AGGREGATION
-	// ============================================
-
-	/**
-	 * Aggregate assistant chunk.
-	 */
-	aggregateAssistantChunk(
-		sessionId: string,
-		chunk: ContentChunk,
-		messageId: string | undefined,
-		isThought: boolean
-	): ResultAsync<void, AppError> {
-		return this.entryManager.aggregateAssistantChunk(sessionId, chunk, messageId, isThought);
 	}
 
 	// ============================================

@@ -81,8 +81,13 @@ vi.mock("../../../../store/session-store.svelte.js", () => ({
 		getHotState: () => sessionStoreState.hotState,
 		getCanonicalSessionProjection: () => sessionStoreState.canonicalProjection,
 		getSessionCurrentModeId: () => null,
-		getOperationStore: () => ({
-			getCurrentStreamingToolCall: () => null,
+		getSessionOperationInteractionSnapshot: () => ({
+			pendingQuestion: null,
+			pendingQuestionOperation: null,
+			pendingPermission: null,
+			pendingPermissionOperation: null,
+			pendingPlanApproval: null,
+			pendingPlanApprovalOperation: null,
 		}),
 	}),
 }));

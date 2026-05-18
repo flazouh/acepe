@@ -222,7 +222,7 @@ describe("OperationStore", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
-		entryStore.storeEntriesAndBuildIndex("session-1", [
+		entryStore.preloadCompatibilityEntriesAndBuildIndex("session-1", [
 			createToolCallEntry(createExecuteToolCall("tool-1", "git status")),
 		]);
 
@@ -753,11 +753,11 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
 
-		entryStore.recordToolCallTranscriptEntry(
+		entryStore.recordCompatibilityToolCallTranscriptEntry(
 			"session-1",
 			createExecuteToolCall("tool-1", "pwd", { status: "in_progress" })
 		);
-		entryStore.updateToolCallTranscriptEntry("session-1", {
+		entryStore.updateCompatibilityToolCallTranscriptEntry("session-1", {
 			toolCallId: "tool-1",
 			status: "in_progress",
 			result: null,

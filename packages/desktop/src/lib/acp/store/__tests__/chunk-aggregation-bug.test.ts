@@ -18,7 +18,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.storeEntriesAndBuildIndex("session1", []);
+		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
 	});
 
 	it("should merge all chunks with same messageId into one assistant entry (before flush)", async () => {
@@ -26,32 +26,32 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		// Before the RAF flush, all chunks should be merged into one pending entry
 		const messageId = "msg-streaming-test";
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "The " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "quick " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "brown " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "fox" } },
 			messageId,
 			false
 		);
 
-		// getEntries merges committed + pending, so we can check before any flush
+		// Compatibility rows are synchronous, so we can check before any flush.
 		const entries = readCompatibilityEntries(store, "session1");
 
 		// BUG: This currently creates multiple entries instead of 1
@@ -72,13 +72,13 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		const messageId = "msg-with-tool";
 
 		// Phase 1: pre-tool thought
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Let me " } },
 			messageId,
 			true
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "check this." } },
 			messageId,
@@ -86,7 +86,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		);
 
 		// Tool call creates a boundary
-		store.recordToolCallTranscriptEntry("session1", {
+		store.recordCompatibilityToolCallTranscriptEntry("session1", {
 			id: "tool-1",
 			name: "Run",
 			arguments: { kind: "execute", command: "ls" },
@@ -100,19 +100,19 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		});
 
 		// Phase 2: post-tool response - same messageId, should create NEW entry
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Here " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "are the " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "results." } },
 			messageId,
@@ -137,14 +137,14 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 	});
 
 	it("should create separate entries for different messageIds", async () => {
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Message 1" } },
 			"msg-1",
 			false
 		);
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Message 2" } },
 			"msg-2",

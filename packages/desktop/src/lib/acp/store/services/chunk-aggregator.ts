@@ -62,9 +62,10 @@ export class ChunkAggregator implements IChunkAggregator {
 	// ============================================
 
 	/**
-	 * Aggregate assistant chunk into appropriate entry or create new one.
+	 * Compatibility-only assistant chunk aggregation for legacy display rows.
+	 * Product transcript truth must come from canonical snapshots and deltas.
 	 */
-	aggregateAssistantChunk(
+	aggregateCompatibilityAssistantChunk(
 		sessionId: string,
 		chunk: ContentChunk,
 		messageId: string | undefined,
@@ -85,9 +86,9 @@ export class ChunkAggregator implements IChunkAggregator {
 	}
 
 	/**
-	 * Aggregate user chunk into latest user entry or create a new one.
+	 * Compatibility-only user chunk aggregation for legacy display rows.
 	 */
-	aggregateUserChunk(
+	aggregateCompatibilityUserChunk(
 		sessionId: string,
 		chunk: { content: ContentBlock }
 	): ResultAsync<void, AppError> {
@@ -116,7 +117,7 @@ export class ChunkAggregator implements IChunkAggregator {
 				message: mergedMessage,
 			};
 
-			this.entryStore.updateEntry(sessionId, existingEntry.index, updatedEntry);
+			this.entryStore.replaceCompatibilityEntry(sessionId, existingEntry.index, updatedEntry);
 
 			return okAsync(undefined);
 		}
@@ -131,7 +132,7 @@ export class ChunkAggregator implements IChunkAggregator {
 			timestamp: new Date(),
 		};
 
-		this.entryStore.addEntry(sessionId, newEntry);
+		this.entryStore.appendCompatibilityEntry(sessionId, newEntry);
 		return okAsync(undefined);
 	}
 
@@ -257,7 +258,7 @@ export class ChunkAggregator implements IChunkAggregator {
 			timestamp: new Date(),
 		};
 
-		this.entryStore.addEntry(sessionId, newEntry);
+		this.entryStore.appendCompatibilityEntry(sessionId, newEntry);
 		return okAsync(undefined);
 	}
 
@@ -379,6 +380,6 @@ export class ChunkAggregator implements IChunkAggregator {
 	}
 
 	private writeEntry(sessionId: string, ref: EntryStoreEntryRef, updatedEntry: SessionEntry): void {
-		this.entryStore.updateEntry(sessionId, ref.index, updatedEntry);
+		this.entryStore.replaceCompatibilityEntry(sessionId, ref.index, updatedEntry);
 	}
 }

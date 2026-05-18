@@ -9,7 +9,7 @@
  * 2. Rust backend parses and emits typed SessionUpdate event
  * 3. Frontend EventSubscriber receives the event
  * 4. SessionEventService.handleSessionUpdate processes it
- * 5. SessionEntryStore.recordToolCallTranscriptEntry creates the entry
+ * 5. SessionEntryStore.recordCompatibilityToolCallTranscriptEntry creates the entry
  * 6. UI receives the entry and renders via ToolCallRouter
  */
 
@@ -30,10 +30,10 @@ function applyStreamingArguments(
 	sessionId: string,
 	toolCallId: string,
 	streamingArguments: Parameters<
-		SessionEntryStore["updateToolCallTranscriptEntry"]
+		SessionEntryStore["updateCompatibilityToolCallTranscriptEntry"]
 	>[1]["streamingArguments"]
 ): void {
-	entryStore.updateToolCallTranscriptEntry(sessionId, {
+	entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -150,7 +150,7 @@ describe("Tool Call Event Flow", () => {
 		textChunks: readonly string[]
 	): Promise<void> {
 		for (const text of textChunks) {
-			const result = await entryStore.aggregateAssistantChunk(
+			const result = await entryStore.aggregateCompatibilityAssistantChunk(
 				sessionId,
 				{ content: { type: "text", text } },
 				messageId,
@@ -487,7 +487,7 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: [child],
 			};
 
-			entryStore.recordToolCallTranscriptEntry(sessionId, parentWithChild);
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, parentWithChild);
 
 			const entries = readCompatibilityEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
@@ -500,7 +500,7 @@ describe("Tool Call Event Flow", () => {
 			const sessionId = "sess-123";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -515,7 +515,7 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: null,
 			});
 
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -578,7 +578,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: First tool_call arrives with empty arguments (rawInput: {})
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -612,7 +612,7 @@ describe("Tool Call Event Flow", () => {
 			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)?.kind).toBe("edit");
 
 			// Step 3: Second tool_call arrives with full arguments (re-create path)
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -641,7 +641,7 @@ describe("Tool Call Event Flow", () => {
 			// (b) the entry already has the full arguments
 			//
 			// Entries are written directly to the store (no batching),
-			// so they are immediately available via getEntries().
+			// so they are immediately available through the compatibility row test helper.
 			// If streaming args are cleared AND the entry has old args,
 			// the UI sees empty data → blank card.
 
@@ -670,7 +670,7 @@ describe("Tool Call Event Flow", () => {
 
 			// Step 1: Existing committed placeholder-like entry (mirrors real log timing:
 			// initial tool_call already flushed long before completion arrives).
-			entryStore.storeEntriesAndBuildIndex(sessionId, [
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -695,7 +695,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Step 2: Full tool_call arrives (still pending), but update is RAF-batched.
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -719,7 +719,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Step 3: Completion update arrives immediately (same frame).
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -749,7 +749,7 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/Documents/acepe/README.md";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.storeEntriesAndBuildIndex(sessionId, [
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -773,7 +773,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -807,7 +807,7 @@ describe("Tool Call Event Flow", () => {
 			const explicitTitle = "Read README.md";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.storeEntriesAndBuildIndex(sessionId, [
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -831,7 +831,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -859,7 +859,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Create tool call entry
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Read",
 				arguments: { kind: "read", file_path: "/some/file.ts" },
@@ -880,7 +880,7 @@ describe("Tool Call Event Flow", () => {
 			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeDefined();
 
 			// Tool completes via transcript-only update.
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: "file contents here",
@@ -900,10 +900,10 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/.claude/plans/sample-plan.md";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.storeEntriesAndBuildIndex(sessionId, []);
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
 
 			// Log replay step 1: initial tool_call arrives without parsed arguments.
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -943,7 +943,7 @@ describe("Tool Call Event Flow", () => {
 			}
 
 			// Log replay step 3: full tool_call arrives with authoritative arguments.
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -967,7 +967,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log replay step 4: terminal update marks completion.
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -1005,10 +1005,10 @@ describe("Tool Call Event Flow", () => {
 				"folder,title\\nai-agents-explainer,What Is an AI Agent and Why It Matters";
 			const entryStore = new SessionEntryStore();
 
-			entryStore.storeEntriesAndBuildIndex(sessionId, []);
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
 
 			// Log line 356: initial pending Write arrives with empty edit args.
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -1025,7 +1025,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log line 357: update carries parsed arguments from rawInput including content/file_path.
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: null,
 				result: null,
@@ -1059,7 +1059,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: Update arrives first (no tool_call yet) and is discarded.
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "pending",
 				result: null,
@@ -1072,7 +1072,7 @@ describe("Tool Call Event Flow", () => {
 			expect(readCompatibilityEntries(entryStore, sessionId)).toHaveLength(0);
 
 			// Step 2: Full tool call data arrives with completed status.
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Search",
 				arguments: { kind: "search", query: "branch:main", file_path: null },
@@ -1103,7 +1103,7 @@ describe("Tool Call Event Flow", () => {
 			const liveStore = new SessionEntryStore();
 			const preloadStore = new SessionEntryStore();
 
-			liveStore.recordToolCallTranscriptEntry("live-session", {
+			liveStore.recordCompatibilityToolCallTranscriptEntry("live-session", {
 				id: "tool-execute-1",
 				name: "Bash",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1115,7 +1115,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			liveStore.updateToolCallTranscriptEntry("live-session", {
+			liveStore.updateCompatibilityToolCallTranscriptEntry("live-session", {
 				toolCallId: "tool-execute-1",
 				status: "completed",
 				result: toolCallResult,
@@ -1126,7 +1126,7 @@ describe("Tool Call Event Flow", () => {
 				arguments: { kind: "execute", command: "pwd" },
 			});
 
-			preloadStore.storeEntriesAndBuildIndex("preload-session", [
+			preloadStore.preloadCompatibilityEntriesAndBuildIndex("preload-session", [
 				{
 					id: "tool-execute-1",
 					type: "tool_call",
@@ -1167,7 +1167,7 @@ describe("Tool Call Event Flow", () => {
 			const secondMessageId = "msg_01AP3pFFZtvp9xHniB5MxjrX";
 			const toolCallId = "toolu_01CV29KagTmUQLf1Yd3Ysa7e";
 			const entryStore = new SessionEntryStore();
-			entryStore.storeEntriesAndBuildIndex(sessionId, []);
+			entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
 
 			// Replay lines 460-508 from the streaming log (pre-tool assistant message).
 			await appendAssistantChunks(entryStore, sessionId, firstMessageId, [
@@ -1177,7 +1177,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Replay the tool boundary (lines 509-533).
-			entryStore.recordToolCallTranscriptEntry(sessionId, {
+			entryStore.recordCompatibilityToolCallTranscriptEntry(sessionId, {
 				id: toolCallId,
 				name: "Bash",
 				arguments: {
@@ -1192,7 +1192,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			entryStore.updateToolCallTranscriptEntry(sessionId, {
+			entryStore.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,

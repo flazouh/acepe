@@ -294,7 +294,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 			isStreaming: isToolCallStreaming(data.status),
 		};
 
-		this.entryStore.addEntry(sessionId, newEntry);
+		this.entryStore.appendCompatibilityEntry(sessionId, newEntry);
 
 		// Index children for O(1) lookup during child updates
 		this.indexTaskChildren(sessionId, data.id, data.taskChildren);
@@ -498,7 +498,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		ref: ToolCallEntryRef,
 		updatedEntry: SessionEntry
 	): void {
-		this.entryStore.updateEntry(sessionId, ref.index, updatedEntry);
+		this.entryStore.replaceCompatibilityEntry(sessionId, ref.index, updatedEntry);
 	}
 
 	/**

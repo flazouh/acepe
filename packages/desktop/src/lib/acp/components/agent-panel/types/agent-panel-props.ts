@@ -10,9 +10,8 @@ import type { ModifiedFilesState } from "../../modified-files/types/modified-fil
  * Defines all inputs that the agent panel accepts from its parent.
  * UI state is managed internally via XState PanelUiMachine.
  *
- * Note: Session data is resolved internally using granular accessors
- * (getSessionIdentity, getEntries, getHotState) to enable fine-grained
- * reactivity - only re-renders when specific data changes.
+ * Note: Session data is resolved internally using granular canonical accessors
+ * to enable fine-grained reactivity - only re-renders when specific data changes.
  */
 export interface AgentPanelProps {
 	/**
