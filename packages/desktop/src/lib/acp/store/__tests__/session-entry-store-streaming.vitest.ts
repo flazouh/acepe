@@ -17,10 +17,10 @@ import type { ToolCallUpdate } from "../../types/tool-call.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	preloadCompatibilityEntriesAndBuildIndex,
-	readCompatibilityEntries,
-	recordCompatibilityToolCallTranscriptEntry,
-	updateCompatibilityToolCallTranscriptEntry,
+	preloadLegacyEntriesAndBuildIndex,
+	readStoredEntries,
+	recordTranscriptToolCallEntry,
+	updateTranscriptToolCallEntry,
 } from "./entry-store-test-access.js";
 
 function applyStreamingArguments(
@@ -29,7 +29,7 @@ function applyStreamingArguments(
 	toolCallId: string,
 	streamingArguments: ToolCallUpdate["streamingArguments"]
 ): void {
-	updateCompatibilityToolCallTranscriptEntry(store, sessionId, {
+	updateTranscriptToolCallEntry(store, sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -48,7 +48,7 @@ function readProgressiveArguments(
 	sessionId: string,
 	toolCallId: string
 ): ToolArguments | undefined {
-	const entry = readCompatibilityEntries(store, sessionId)
+	const entry = readStoredEntries(store, sessionId)
 		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
 	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
 }
@@ -60,9 +60,9 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("updateCompatibilityToolCallTranscriptEntry progressive arguments", () => {
+	describe("updateTranscriptToolCallEntry progressive arguments", () => {
 		it("should store and retrieve streaming arguments from transcript-only updates", () => {
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -94,7 +94,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should track tool calls per session", () => {
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -106,7 +106,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool2",
 				name: "Search",
 				arguments: { kind: "search", query: null, file_path: null },
@@ -118,7 +118,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			recordCompatibilityToolCallTranscriptEntry(store, "session2", {
+			recordTranscriptToolCallEntry(store, "session2", {
 				id: "tool3",
 				name: "Read",
 				arguments: { kind: "read", file_path: null },
@@ -152,7 +152,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should overwrite when setting same tool call again", () => {
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -191,7 +191,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearStreamingArguments", () => {
 		it("should clear streaming arguments", () => {
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -221,7 +221,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearEntries", () => {
 		it("should clear all streaming arguments for session", () => {
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -233,7 +233,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			recordCompatibilityToolCallTranscriptEntry(store, "session1", {
+			recordTranscriptToolCallEntry(store, "session1", {
 				id: "tool2",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -245,7 +245,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			recordCompatibilityToolCallTranscriptEntry(store, "session2", {
+			recordTranscriptToolCallEntry(store, "session2", {
 				id: "tool3",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -306,7 +306,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.replaceTranscriptSnapshot("session-1", snapshot, new Date("2026-04-16T00:00:00.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -328,7 +328,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		recordCompatibilityToolCallTranscriptEntry(store, "session-1", {
+		recordTranscriptToolCallEntry(store, "session-1", {
 			id: "tool-1",
 			name: "Edit File",
 			arguments: {
@@ -386,7 +386,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			timestamp
 		);
 
-		const [entry] = readCompatibilityEntries(store, "session-1");
+		const [entry] = readStoredEntries(store, "session-1");
 		expect(entry?.type).toBe("tool_call");
 		if (entry?.type !== "tool_call") {
 			throw new Error("expected tool call entry");
@@ -528,7 +528,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:01.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -591,7 +591,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "user-1",
 				type: "user",
@@ -665,7 +665,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "optimistic-user-local",
 				type: "user",
@@ -734,12 +734,12 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:03.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1").map((entry) => entry.id)).toEqual([
+		expect(readStoredEntries(store, "session-1").map((entry) => entry.id)).toEqual([
 			"optimistic-user-local",
 			"assistant-1",
 			"user-event-7",
 		]);
-		expect(readCompatibilityEntries(store, "session-1")[2]).toMatchObject({
+		expect(readStoredEntries(store, "session-1")[2]).toMatchObject({
 			id: "user-event-7",
 			type: "user",
 		});
@@ -762,7 +762,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 	describe("appendTranscriptEntry", () => {
 		it("should make entries immediately available", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", []);
+			preloadLegacyEntriesAndBuildIndex(store, "session1", []);
 
 			store.appendTranscriptEntry("session1", {
 				id: "e1",
@@ -778,12 +778,12 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 
 		it("should handle updates and additions together", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -806,7 +806,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 			expect((entries[1].message as { content: { text: string } }).content.text).toBe("New");
@@ -815,7 +815,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 	describe("replaceTranscriptEntry", () => {
 		it("should apply multiple updates to same index with last-write-wins", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -838,7 +838,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe(
 				"Update 2 - final"
 			);
@@ -847,7 +847,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 	describe("compatibility entry reads", () => {
 		it("should return stored entries", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -856,12 +856,12 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 		});
 
 		it("collapses replayed tool-call entries with the same tool id during preload", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1-a",
 					type: "tool_call",
@@ -898,13 +898,13 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const toolEntries = readCompatibilityEntries(store, "session1")
+			const toolEntries = readStoredEntries(store, "session1")
 				.filter((entry) => entry.type === "tool_call");
 			expect(toolEntries).toHaveLength(1);
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -927,7 +927,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -942,7 +942,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results for preloaded tools whose canonical kind must be inferred from arguments", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -965,7 +965,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -980,7 +980,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see updates immediately", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -996,12 +996,12 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 		});
 
 		it("should see additions immediately", () => {
-			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
+			preloadLegacyEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1017,7 +1017,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 	});

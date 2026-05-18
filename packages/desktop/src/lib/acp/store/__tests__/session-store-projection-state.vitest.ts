@@ -28,7 +28,7 @@ import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import { readStoredEntries } from "./entry-store-test-access.js";
 import { deliverDiagnosticSessionUpdate } from "./session-store-test-access.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
@@ -292,7 +292,7 @@ function getEntryStore(store: SessionStore): SessionEntryStore {
 }
 
 function getSessionEntries(store: SessionStore, sessionId: string) {
-	return readCompatibilityEntries(getEntryStore(store), sessionId);
+	return readStoredEntries(getEntryStore(store), sessionId);
 }
 
 function getCanonicalProjection(

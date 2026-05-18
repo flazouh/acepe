@@ -70,6 +70,8 @@ The old assistant streaming lifecycle hooks are deleted too. TypeScript must not
 
 Canonical transcript entry writers must use canonical names. TypeScript should call `appendTranscriptEntry(...)` and `replaceTranscriptEntry(...)`, not compatibility-named writer APIs.
 
+Private tool transcript helpers should also use canonical names. Prefer `recordTranscriptToolCallEntry(...)` and `updateTranscriptToolCallEntry(...)`; reserve `legacy` wording for old preloaded `SessionEntry` test/support input.
+
 ## Historical replay boundary
 
 The Claude JSONL history parser may use provider `message.id` as a narrow merge hint only for compatible assistant text/thinking fragments. A tool-use block breaks that merge boundary, even when later assistant rows reuse the same `message.id` and `requestId`.
@@ -115,6 +117,7 @@ Provider-message-id aggregation cleanup scan:
 rg -n "ChunkAggregator|chunk-action-resolver|chunk-aggregation-types|aggregateCompatibilityAssistantChunk|aggregateCompatibilityUserChunk|getMessageIdIndex|addMessageId|deleteMessageId|rebuildMessageIdIndex" packages/desktop/src/lib/acp -g '!**/__tests__/**' -g '!**/*.test.ts' -g '!**/*.vitest.ts'
 rg -n "startNewAssistantTurn|clearStreamingAssistantEntry" packages/desktop/src/lib/acp/store -g '*.ts' -g '*.svelte'
 rg -n "appendCompatibilityEntry|replaceCompatibilityEntry" packages/desktop/src/lib/acp/store -g '*.ts' -g '*.svelte'
+rg -n "preloadCompatibilityEntriesAndBuildIndex|recordCompatibilityToolCallTranscriptEntry|updateCompatibilityToolCallTranscriptEntry" packages/desktop/src/lib/acp/store -g '*.ts' -g '*.svelte'
 ```
 
 Expected result: no matches.
@@ -137,5 +140,6 @@ Expected result: no wording that promotes provider message ids to display identi
 - `docs/plans/2026-05-18-007-refactor-opencode-canonical-display-identity-plan.md`
 - `docs/plans/2026-05-18-008-refactor-delete-obsolete-assistant-streaming-hooks-plan.md`
 - `docs/plans/2026-05-18-009-refactor-rename-canonical-entry-writers-plan.md`
+- `docs/plans/2026-05-18-010-refactor-rename-private-transcript-test-helpers-plan.md`
 - `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`

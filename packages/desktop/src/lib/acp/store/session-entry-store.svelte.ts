@@ -142,10 +142,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// ============================================
 
 	/**
-	 * Compatibility-only preload path for legacy SessionEntry rows.
+	 * Legacy preload path for stored SessionEntry rows.
 	 * Product transcript truth must use replaceTranscriptSnapshot/applyTranscriptDelta.
 	 */
-	private preloadCompatibilityEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
+	private preloadLegacyEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
 		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
 		this.preloadedIds.add(sessionId);
@@ -459,9 +459,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// ============================================
 
 	/**
-	 * Compatibility-only transcript tool-call row writer from full ToolCallData.
+	 * Canonical transcript tool-call row writer from full ToolCallData.
 	 */
-	private recordCompatibilityToolCallTranscriptEntry(sessionId: string, toolCallData: ToolCallData): void {
+	private recordTranscriptToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
 		this.transcriptToolCallBuffer.createEntry(sessionId, toolCallData).match(
 			() => {},
 			(e) =>
@@ -474,11 +474,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	/**
-	 * Compatibility-only transcript tool-call row update.
+	 * Canonical transcript tool-call row update.
 	 * Operation truth is not created here; canonical operation data arrives through
 	 * Rust-authored session graph snapshots and patches.
 	 */
-	private updateCompatibilityToolCallTranscriptEntry(sessionId: string, update: ToolCallUpdate): void {
+	private updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
 		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>

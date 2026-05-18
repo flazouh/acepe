@@ -9,7 +9,7 @@
  * 2. Rust backend parses and emits typed SessionUpdate event
  * 3. Frontend EventSubscriber receives the event
  * 4. SessionEventService.handleSessionUpdate processes it
- * 5. SessionEntryStore.recordCompatibilityToolCallTranscriptEntry creates the entry
+ * 5. SessionEntryStore.recordTranscriptToolCallEntry creates the entry
  * 6. UI receives the entry and renders via ToolCallRouter
  */
 
@@ -25,10 +25,10 @@ import type { ToolCallUpdate } from "../../types/tool-call.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	preloadCompatibilityEntriesAndBuildIndex,
-	readCompatibilityEntries,
-	recordCompatibilityToolCallTranscriptEntry,
-	updateCompatibilityToolCallTranscriptEntry,
+	preloadLegacyEntriesAndBuildIndex,
+	readStoredEntries,
+	recordTranscriptToolCallEntry,
+	updateTranscriptToolCallEntry,
 } from "./entry-store-test-access.js";
 
 function applyStreamingArguments(
@@ -37,7 +37,7 @@ function applyStreamingArguments(
 	toolCallId: string,
 	streamingArguments: ToolCallUpdate["streamingArguments"]
 ): void {
-	updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+	updateTranscriptToolCallEntry(entryStore, sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -56,7 +56,7 @@ function readProgressiveArguments(
 	sessionId: string,
 	toolCallId: string
 ): ToolArguments | undefined {
-	const entry = readCompatibilityEntries(entryStore, sessionId)
+	const entry = readStoredEntries(entryStore, sessionId)
 		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
 	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
 }
@@ -493,9 +493,9 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: [child],
 			};
 
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, parentWithChild);
+			recordTranscriptToolCallEntry(entryStore, sessionId, parentWithChild);
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			const tool = entries[0]?.message as ToolCallData;
 			expect(tool.taskChildren?.length).toBe(1);
@@ -506,7 +506,7 @@ describe("Tool Call Event Flow", () => {
 			const sessionId = "sess-123";
 			const entryStore = new SessionEntryStore();
 
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -521,7 +521,7 @@ describe("Tool Call Event Flow", () => {
 				taskChildren: null,
 			});
 
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: "task-1",
 				name: "Task",
 				arguments: { kind: "think", description: "Do work" },
@@ -551,7 +551,7 @@ describe("Tool Call Event Flow", () => {
 				],
 			});
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -584,7 +584,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: First tool_call arrives with empty arguments (rawInput: {})
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -618,7 +618,7 @@ describe("Tool Call Event Flow", () => {
 			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)?.kind).toBe("edit");
 
 			// Step 3: Second tool_call arrives with full arguments (re-create path)
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -652,7 +652,7 @@ describe("Tool Call Event Flow", () => {
 			// the UI sees empty data → blank card.
 
 			const streamingArgsAfter = readProgressiveArguments(entryStore, sessionId, toolCallId);
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 
 			// Check entries (what Svelte actually reacts to)
 			const committedEntry = entries[0];
@@ -676,7 +676,7 @@ describe("Tool Call Event Flow", () => {
 
 			// Step 1: Existing committed placeholder-like entry (mirrors real log timing:
 			// initial tool_call already flushed long before completion arrives).
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -701,7 +701,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Step 2: Full tool_call arrives (still pending), but update is RAF-batched.
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -725,7 +725,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Step 3: Completion update arrives immediately (same frame).
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -736,7 +736,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Regression assertion: final merged entry must retain full edit arguments.
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -755,7 +755,7 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/Documents/acepe/README.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -779,7 +779,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -793,7 +793,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -813,7 +813,7 @@ describe("Tool Call Event Flow", () => {
 			const explicitTitle = "Read README.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -837,7 +837,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "in_progress",
 				result: null,
@@ -851,7 +851,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -865,7 +865,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Create tool call entry
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Read",
 				arguments: { kind: "read", file_path: "/some/file.ts" },
@@ -886,7 +886,7 @@ describe("Tool Call Event Flow", () => {
 			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeDefined();
 
 			// Tool completes via transcript-only update.
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "completed",
 				result: "file contents here",
@@ -906,10 +906,10 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/.claude/plans/sample-plan.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Log replay step 1: initial tool_call arrives without parsed arguments.
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -949,7 +949,7 @@ describe("Tool Call Event Flow", () => {
 			}
 
 			// Log replay step 3: full tool_call arrives with authoritative arguments.
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Edit",
 				arguments: {
@@ -973,7 +973,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log replay step 4: terminal update marks completion.
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -983,7 +983,7 @@ describe("Tool Call Event Flow", () => {
 				locations: [{ path: filePath }],
 			});
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			expect(entries[0]?.isStreaming).toBe(false);
@@ -1011,10 +1011,10 @@ describe("Tool Call Event Flow", () => {
 				"folder,title\\nai-agents-explainer,What Is an AI Agent and Why It Matters";
 			const entryStore = new SessionEntryStore();
 
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Log line 356: initial pending Write arrives with empty edit args.
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Write",
 				arguments: {
@@ -1031,7 +1031,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Log line 357: update carries parsed arguments from rawInput including content/file_path.
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: null,
 				result: null,
@@ -1045,7 +1045,7 @@ describe("Tool Call Event Flow", () => {
 				},
 			});
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.length).toBe(1);
 			expect(entries[0]?.type).toBe("tool_call");
 			if (entries[0]?.type !== "tool_call") return;
@@ -1065,7 +1065,7 @@ describe("Tool Call Event Flow", () => {
 			const entryStore = new SessionEntryStore();
 
 			// Step 1: Update arrives first (no tool_call yet) and is discarded.
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "pending",
 				result: null,
@@ -1075,10 +1075,10 @@ describe("Tool Call Event Flow", () => {
 				locations: null,
 			});
 
-			expect(readCompatibilityEntries(entryStore, sessionId)).toHaveLength(0);
+			expect(readStoredEntries(entryStore, sessionId)).toHaveLength(0);
 
 			// Step 2: Full tool call data arrives with completed status.
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Search",
 				arguments: { kind: "search", query: "branch:main", file_path: null },
@@ -1091,7 +1091,7 @@ describe("Tool Call Event Flow", () => {
 				awaitingPlanApproval: false,
 			});
 
-			const afterFullData = readCompatibilityEntries(entryStore, sessionId);
+			const afterFullData = readStoredEntries(entryStore, sessionId);
 			expect(afterFullData.length).toBe(1);
 			expect(afterFullData[0]?.isStreaming).toBe(false);
 			if (afterFullData[0]?.type === "tool_call") {
@@ -1109,7 +1109,7 @@ describe("Tool Call Event Flow", () => {
 			const liveStore = new SessionEntryStore();
 			const preloadStore = new SessionEntryStore();
 
-			recordCompatibilityToolCallTranscriptEntry(liveStore, "live-session", {
+			recordTranscriptToolCallEntry(liveStore, "live-session", {
 				id: "tool-execute-1",
 				name: "Bash",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1121,7 +1121,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			updateCompatibilityToolCallTranscriptEntry(liveStore, "live-session", {
+			updateTranscriptToolCallEntry(liveStore, "live-session", {
 				toolCallId: "tool-execute-1",
 				status: "completed",
 				result: toolCallResult,
@@ -1132,7 +1132,7 @@ describe("Tool Call Event Flow", () => {
 				arguments: { kind: "execute", command: "pwd" },
 			});
 
-			preloadCompatibilityEntriesAndBuildIndex(preloadStore, "preload-session", [
+			preloadLegacyEntriesAndBuildIndex(preloadStore, "preload-session", [
 				{
 					id: "tool-execute-1",
 					type: "tool_call",
@@ -1152,8 +1152,8 @@ describe("Tool Call Event Flow", () => {
 				},
 			]);
 
-			const liveEntry = readCompatibilityEntries(liveStore, "live-session")[0];
-			const preloadEntry = readCompatibilityEntries(preloadStore, "preload-session")[0];
+			const liveEntry = readStoredEntries(liveStore, "live-session")[0];
+			const preloadEntry = readStoredEntries(preloadStore, "preload-session")[0];
 			expect(liveEntry?.type).toBe("tool_call");
 			expect(preloadEntry?.type).toBe("tool_call");
 			if (liveEntry?.type === "tool_call" && preloadEntry?.type === "tool_call") {
@@ -1173,7 +1173,7 @@ describe("Tool Call Event Flow", () => {
 			const secondMessageId = "msg_01AP3pFFZtvp9xHniB5MxjrX";
 			const toolCallId = "toolu_01CV29KagTmUQLf1Yd3Ysa7e";
 			const entryStore = new SessionEntryStore();
-			preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Replay lines 460-508 from the streaming log (pre-tool assistant message).
 			await appendAssistantChunks(entryStore, sessionId, firstMessageId, [
@@ -1183,7 +1183,7 @@ describe("Tool Call Event Flow", () => {
 			]);
 
 			// Replay the tool boundary (lines 509-533).
-			recordCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			recordTranscriptToolCallEntry(entryStore, sessionId, {
 				id: toolCallId,
 				name: "Bash",
 				arguments: {
@@ -1198,7 +1198,7 @@ describe("Tool Call Event Flow", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			updateCompatibilityToolCallTranscriptEntry(entryStore, sessionId, {
+			updateTranscriptToolCallEntry(entryStore, sessionId, {
 				toolCallId,
 				status: "completed",
 				result: null,
@@ -1214,7 +1214,7 @@ describe("Tool Call Event Flow", () => {
 				" The Grep tool failure gave you a false negative.",
 			]);
 
-			const entries = readCompatibilityEntries(entryStore, sessionId);
+			const entries = readStoredEntries(entryStore, sessionId);
 			expect(entries.map((entry) => entry.type)).toEqual(["assistant", "tool_call", "assistant"]);
 
 			const firstAssistantText = assistantEntryText(entries[0]);

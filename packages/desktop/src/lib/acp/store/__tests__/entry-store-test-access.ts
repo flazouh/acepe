@@ -3,53 +3,53 @@ import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
 import type { ToolCallUpdate } from "../../types/tool-call.js";
 
-type CompatibilityEntryStorage = {
+type EntryStoreStorage = {
 	entriesById: {
 		get(sessionId: string): SessionEntry[] | undefined;
 	};
 };
 
-export function readCompatibilityEntries(
+export function readStoredEntries(
 	store: SessionEntryStore,
 	sessionId: string
 ): SessionEntry[] {
-	return (store as never as CompatibilityEntryStorage).entriesById.get(sessionId) ?? [];
+	return (store as never as EntryStoreStorage).entriesById.get(sessionId) ?? [];
 }
 
-type CompatibilityEntryMutations = {
-	preloadCompatibilityEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
-	recordCompatibilityToolCallTranscriptEntry(sessionId: string, toolCallData: ToolCallData): void;
-	updateCompatibilityToolCallTranscriptEntry(sessionId: string, update: ToolCallUpdate): void;
+type EntryStoreTestMutations = {
+	preloadLegacyEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
+	recordTranscriptToolCallEntry(sessionId: string, toolCallData: ToolCallData): void;
+	updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdate): void;
 };
 
-export function preloadCompatibilityEntriesAndBuildIndex(
+export function preloadLegacyEntriesAndBuildIndex(
 	store: SessionEntryStore,
 	sessionId: string,
 	entries: SessionEntry[]
 ): void {
-	(store as never as CompatibilityEntryMutations).preloadCompatibilityEntriesAndBuildIndex(
+	(store as never as EntryStoreTestMutations).preloadLegacyEntriesAndBuildIndex(
 		sessionId,
 		entries
 	);
 }
 
-export function recordCompatibilityToolCallTranscriptEntry(
+export function recordTranscriptToolCallEntry(
 	store: SessionEntryStore,
 	sessionId: string,
 	toolCallData: ToolCallData
 ): void {
-	(store as never as CompatibilityEntryMutations).recordCompatibilityToolCallTranscriptEntry(
+	(store as never as EntryStoreTestMutations).recordTranscriptToolCallEntry(
 		sessionId,
 		toolCallData
 	);
 }
 
-export function updateCompatibilityToolCallTranscriptEntry(
+export function updateTranscriptToolCallEntry(
 	store: SessionEntryStore,
 	sessionId: string,
 	update: ToolCallUpdate
 ): void {
-	(store as never as CompatibilityEntryMutations).updateCompatibilityToolCallTranscriptEntry(
+	(store as never as EntryStoreTestMutations).updateTranscriptToolCallEntry(
 		sessionId,
 		update
 	);

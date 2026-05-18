@@ -29,8 +29,8 @@ import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import {
-	preloadCompatibilityEntriesAndBuildIndex,
-	readCompatibilityEntries,
+	preloadLegacyEntriesAndBuildIndex,
+	readStoredEntries,
 } from "./entry-store-test-access.js";
 import type { SessionCold } from "../types.js";
 
@@ -806,7 +806,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("does not merge assistant chunks from raw session updates when part_id changes mid-stream", () => {
 		const sessionId = "session-aggregate";
 		const entryStore = new SessionEntryStore();
-		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
+		preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
 
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi
@@ -851,7 +851,7 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		const assistantEntries = readCompatibilityEntries(entryStore, sessionId)
+		const assistantEntries = readStoredEntries(entryStore, sessionId)
 			.filter((entry) => entry.type === "assistant");
 		expect(assistantEntries).toHaveLength(0);
 	});
@@ -1581,7 +1581,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("treats raw user chunks as coordination-only during reopened sends", () => {
 		const sessionId = "session-reopen-send";
 		const entryStore = new SessionEntryStore();
-		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, [
+		preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
 			{
 				id: "assistant-history-1",
 				type: "assistant",
@@ -1626,8 +1626,8 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		expect(readCompatibilityEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
-		expect(readCompatibilityEntries(entryStore, sessionId)[0]).toMatchObject({
+		expect(readStoredEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
+		expect(readStoredEntries(entryStore, sessionId)[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {
 				chunks: [
