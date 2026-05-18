@@ -3986,8 +3986,7 @@ mod tests {
             "command": "echo ok"
         });
 
-        let metadata =
-            build_permission_metadata("Bash", &raw_input, AgentType::ClaudeCode);
+        let metadata = build_permission_metadata("Bash", &raw_input, AgentType::ClaudeCode);
 
         assert_eq!(metadata["diagnosticRawInput"], raw_input);
         assert!(metadata.get("rawInput").is_none());

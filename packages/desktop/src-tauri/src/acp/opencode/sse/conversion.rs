@@ -1199,12 +1199,7 @@ fn enrich_permission_metadata(permission: &str, patterns: &[String], metadata: V
         return Value::Object(metadata_object);
     }
 
-    let raw_input = ensure_permission_raw_input(
-        diagnostic_raw_input,
-        permission,
-        patterns,
-        kind,
-    );
+    let raw_input = ensure_permission_raw_input(diagnostic_raw_input, permission, patterns, kind);
     let parsed_arguments = ToolArguments::from_raw(kind, raw_input);
     if let Ok(parsed_value) = serde_json::to_value(parsed_arguments) {
         metadata_object.insert("parsedArguments".to_string(), parsed_value);

@@ -263,7 +263,7 @@ fn build_canonical_interaction(
             permission: normalized_tool_label(tool_call),
             patterns: Vec::new(),
             metadata: json!({
-                "rawInput": tool_call.raw_input.clone(),
+                "diagnosticRawInput": tool_call.raw_input.clone(),
                 "parsedArguments": parsed_arguments.cloned(),
                 "options": options,
             }),
@@ -469,6 +469,11 @@ mod tests {
                 assert_eq!(result["outcome"]["optionId"], "allow_once");
                 assert_eq!(synthetic_tool_call.tool_call_data.id, "tc-1");
                 assert!(permission.auto_accepted);
+                assert_eq!(
+                    permission.metadata["diagnosticRawInput"],
+                    json!({ "command": "git status" })
+                );
+                assert!(permission.metadata.get("rawInput").is_none());
             }
             other => panic!("expected auto-respond decision, got {:?}", other),
         }

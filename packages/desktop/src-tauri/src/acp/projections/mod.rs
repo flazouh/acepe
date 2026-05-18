@@ -1429,7 +1429,7 @@ impl ProjectionRegistry {
         let Some(tool_reference) = permission.tool.as_ref() else {
             return;
         };
-        let Some(raw_input) = read_exit_plan_raw_input_from_permission(permission) else {
+        let Some(arguments) = read_exit_plan_arguments_from_permission(permission) else {
             return;
         };
         let Some(operation_id) =
@@ -1461,7 +1461,7 @@ impl ProjectionRegistry {
                 .title
                 .clone()
                 .or_else(|| Some("Plan ready".to_string())),
-            arguments: ToolArguments::from_raw(ToolKind::ExitPlanMode, raw_input),
+            arguments,
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),
             command: existing.command.clone(),
@@ -1636,17 +1636,40 @@ fn is_exit_plan_permission(permission: &PermissionData) -> bool {
     permission.permission == "ExitPlanMode" || permission.permission == "exit_plan_mode"
 }
 
-fn read_exit_plan_raw_input_from_permission(permission: &PermissionData) -> Option<Value> {
-    let raw_input = permission
+fn plan_mode_arguments_have_plan(arguments: &ToolArguments) -> bool {
+    matches!(
+        arguments,
+        ToolArguments::PlanMode {
+            plan: Some(plan),
+            ..
+        } if !plan.trim().is_empty()
+    )
+}
+
+fn read_exit_plan_arguments_from_permission(permission: &PermissionData) -> Option<ToolArguments> {
+    let parsed_arguments = permission
         .metadata
-        .get("rawInput")
+        .get("parsedArguments")
+        .and_then(|value| serde_json::from_value::<ToolArguments>(value.clone()).ok())
+        .filter(plan_mode_arguments_have_plan);
+    if parsed_arguments.is_some() {
+        return parsed_arguments;
+    }
+
+    let diagnostic_raw_input = permission
+        .metadata
+        .get("diagnosticRawInput")
+        .or_else(|| permission.metadata.get("rawInput"))
         .or_else(|| permission.metadata.get("raw_input"))?;
-    let has_plan_text = raw_input
+    let has_plan_text = diagnostic_raw_input
         .get("plan")
         .and_then(Value::as_str)
         .is_some_and(|plan| !plan.trim().is_empty());
     if has_plan_text {
-        return Some(raw_input.clone());
+        return Some(ToolArguments::from_raw(
+            ToolKind::ExitPlanMode,
+            diagnostic_raw_input.clone(),
+        ));
     }
 
     None
@@ -4301,13 +4324,15 @@ mod tests {
                     permission: "ExitPlanMode".to_string(),
                     patterns: vec![],
                     metadata: json!({
-                        "rawInput": {
-                            "plan": plan,
+                        "diagnosticRawInput": {
+                            "plan": "# Raw Plan\n\nThis should not be used.",
                             "planFilePath": "/repo/docs/plans/fix-plan-card.md"
                         },
                         "parsedArguments": {
                             "kind": "planMode",
-                            "mode": "default"
+                            "plan": plan,
+                            "plan_file_path": "/repo/docs/plans/fix-plan-card.md",
+                            "title": "Fix Plan Card"
                         },
                         "options": []
                     }),
