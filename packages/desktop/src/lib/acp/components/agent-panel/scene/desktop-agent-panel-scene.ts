@@ -237,6 +237,10 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 		return "web_search";
 	}
 
+	if (kind === "shell_input") {
+		return "execute";
+	}
+
 	if (
 		kind === "read" ||
 		kind === "read_lints" ||
@@ -262,6 +266,7 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 
 function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): string {
 	if (kind === "execute") return "Run";
+	if (kind === "shell_input") return "Shell input";
 	if (kind === "read") return "Read";
 	if (kind === "read_lints") return "Read lints";
 	if (kind === "edit") return "Edit";
@@ -317,41 +322,13 @@ function resolveToolTitle(
 	return rawTitle;
 }
 
-function getJsonObject(value: JsonValue | null | undefined): { [key: string]: JsonValue } | null {
-	if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
-		return null;
-	}
-
-	return value;
-}
-
-function getJsonScalarLabel(value: JsonValue | undefined): string | null {
-	if (value === undefined || value === null) {
-		return null;
-	}
-
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return trimmed.length > 0 ? trimmed : null;
-	}
-
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-
-	return null;
-}
-
 function getWriteBashSubtitle(toolCall: ToolCall): string | undefined {
-	const rawToolName =
-		toolCall.arguments.kind === "unclassified" ? toolCall.arguments.raw_name : toolCall.name;
-	if (toolCall.name !== "write_bash" && rawToolName !== "write_bash") {
+	if (toolCall.arguments.kind !== "shellInput") {
 		return undefined;
 	}
 
-	const rawInput = getJsonObject(toolCall.rawInput);
-	const shellId = getJsonScalarLabel(rawInput?.shellId);
-	const input = getJsonScalarLabel(rawInput?.input);
+	const shellId = toolCall.arguments.shell_id?.trim() ?? null;
+	const input = toolCall.arguments.input?.trim() ?? null;
 
 	if (shellId && input) {
 		return `Shell ${shellId}: ${input}`;

@@ -23,6 +23,10 @@ function operationTarget(args: ToolArguments): string {
 			return args.edits[0]?.filePath ?? "";
 		case "execute":
 			return args.command ?? "";
+		case "shellInput":
+			return args.shell_id && args.input
+				? `Shell ${args.shell_id}: ${args.input}`
+				: (args.input ?? args.shell_id ?? "");
 		case "search":
 			return args.query ?? args.file_path ?? "";
 		case "glob":

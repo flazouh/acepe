@@ -336,6 +336,10 @@ pub(crate) fn parse_tool_kind_arguments(
         ToolKind::Execute => ToolArguments::Execute {
             command: parse_parser_command_string(raw_arguments, &["command", "cmd"]),
         },
+        ToolKind::ShellInput => ToolArguments::ShellInput {
+            shell_id: extract_parser_string(raw_arguments, &["shellId", "shell_id", "shell"]),
+            input: extract_parser_string(raw_arguments, &["input", "text", "chars"]),
+        },
         ToolKind::Search => ToolArguments::Search {
             query: extract_parser_string(raw_arguments, &["query", "pattern"])
                 .or_else(|| {

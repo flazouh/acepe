@@ -87,6 +87,7 @@ pub fn infer_kind_from_payload_for_agent(
         "read" => Some(ToolKind::Read),
         "edit" => Some(ToolKind::Edit),
         "execute" => Some(ToolKind::Execute),
+        "shell_input" | "shellinput" | "shell-input" => Some(ToolKind::ShellInput),
         "search" => Some(if is_web_search {
             ToolKind::WebSearch
         } else {
@@ -124,6 +125,7 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
         ToolKind::ReadLints => "Read Lints",
         ToolKind::Edit => "Edit",
         ToolKind::Execute => "Run",
+        ToolKind::ShellInput => "Shell Input",
         ToolKind::Search => "Search",
         ToolKind::Glob => "Find",
         ToolKind::Fetch => "Fetch",

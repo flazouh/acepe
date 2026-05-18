@@ -17,6 +17,7 @@ pub enum ToolKind {
     ReadLints,
     Edit,
     Execute,
+    ShellInput,
     Search,
     Glob,
     Fetch,
@@ -47,6 +48,7 @@ impl ToolKind {
             ToolKind::ReadLints => "read_lints",
             ToolKind::Edit => "edit",
             ToolKind::Execute => "execute",
+            ToolKind::ShellInput => "shell_input",
             ToolKind::Search => "search",
             ToolKind::Glob => "glob",
             ToolKind::Fetch => "fetch",
@@ -179,6 +181,12 @@ pub enum ToolArguments {
         #[serde(skip_serializing_if = "Option::is_none")]
         command: Option<String>,
     },
+    ShellInput {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        shell_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input: Option<String>,
+    },
     Search {
         #[serde(skip_serializing_if = "Option::is_none")]
         query: Option<String>,
@@ -289,6 +297,7 @@ impl ToolArguments {
             ToolArguments::ReadLints { .. } => ToolKind::ReadLints,
             ToolArguments::Edit { .. } => ToolKind::Edit,
             ToolArguments::Execute { .. } => ToolKind::Execute,
+            ToolArguments::ShellInput { .. } => ToolKind::ShellInput,
             ToolArguments::Search { .. } => ToolKind::Search,
             ToolArguments::Glob { .. } => ToolKind::Glob,
             ToolArguments::Fetch { .. } => ToolKind::Fetch,

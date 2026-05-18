@@ -187,6 +187,24 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 		},
 	},
 
+	shell_input: {
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? "Writing shell input" : "Wrote shell input";
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "shellInput") {
+				return toolCall.title ?? "";
+			}
+			const shellId = toolCall.arguments.shell_id?.trim();
+			const input = toolCall.arguments.input?.trim();
+			if (shellId && input) return truncateText(`Shell ${shellId}: ${input}`, 50);
+			if (input) return truncateText(`Input: ${input}`, 50);
+			if (shellId) return `Shell ${shellId}`;
+			return toolCall.title ?? "";
+		},
+	},
+
 	search: {
 		title: (toolCall, turnState) => {
 			const status = getToolStatus(toolCall, turnState);

@@ -55,6 +55,9 @@ pub(crate) fn normalize_shared_chat_tool_name(name: &str) -> ToolKind {
     if any_eq(clean_name, &["bash", "execute", "run", "shell", "terminal"]) {
         return ToolKind::Execute;
     }
+    if any_eq(clean_name, &["write_bash", "writebash"]) {
+        return ToolKind::ShellInput;
+    }
     if any_eq(clean_name, &["killshell", "killbash"]) {
         return ToolKind::Execute;
     }
@@ -160,6 +163,14 @@ mod tests {
             ToolKind::Todo
         );
         assert_eq!(normalize_shared_chat_tool_name("mark_todo"), ToolKind::Todo);
+    }
+
+    #[test]
+    fn maps_shell_input_aliases_to_shell_input() {
+        assert_eq!(
+            normalize_shared_chat_tool_name("write_bash"),
+            ToolKind::ShellInput
+        );
     }
 
     #[test]

@@ -924,19 +924,16 @@ describe("desktop agent panel scene adapter", () => {
 					id: "write-bash-1",
 					name: "write_bash",
 					arguments: {
-						kind: "unclassified",
-						raw_name: "write_bash",
-						raw_kind_hint: null,
-						title: "Write shell input",
-						arguments_preview: '{"shellId":"2","input":"{enter}","delay":10}',
-						signals_tried: ["ProviderNameMap", "ArgumentShape"],
+						kind: "shellInput",
+						shell_id: "2",
+						input: "{enter}",
 					},
-					rawInput: { shellId: "2", input: "{enter}", delay: 10 },
+					rawInput: { shellId: "raw-shell", input: "raw input should not be used", delay: 10 },
 					status: "completed",
 					result: {
 						content: "done",
 					},
-					kind: "unclassified",
+					kind: "shell_input",
 					title: "Write shell input",
 					locations: null,
 					skillMeta: null,
@@ -955,10 +952,9 @@ describe("desktop agent panel scene adapter", () => {
 
 		expect(conversation.entries[0]).toMatchObject({
 			type: "tool_call",
-			kind: "other",
+			kind: "execute",
 			title: "Write shell input",
 			subtitle: "Shell 2: {enter}",
-			detailsText: expect.stringContaining('"shellId": "2"'),
 			status: "done",
 		});
 	});

@@ -209,6 +209,7 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
                 || edit.content.is_none()
         }),
         ToolArguments::Execute { command } => command.is_none(),
+        ToolArguments::ShellInput { shell_id, input } => shell_id.is_none() || input.is_none(),
         ToolArguments::Search { query, file_path } => query.is_none() || file_path.is_none(),
         ToolArguments::Glob { pattern, path } => pattern.is_none() || path.is_none(),
         ToolArguments::Fetch { url } => url.is_none(),
@@ -394,6 +395,9 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
                 + usize::from(e.content.is_some())
         }),
         ToolArguments::Execute { command } => usize::from(command.is_some()),
+        ToolArguments::ShellInput { shell_id, input } => {
+            usize::from(shell_id.is_some()) + usize::from(input.is_some())
+        }
         ToolArguments::Search { query, file_path } => {
             usize::from(query.is_some()) + usize::from(file_path.is_some())
         }
