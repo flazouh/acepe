@@ -83,8 +83,6 @@ export type { SessionId } from "./session-id.js";
 export type { SessionModelState } from "./session-model-state.js";
 export type { SessionModes } from "./session-modes.js";
 export type { SessionResponse } from "./session-response.js";
-// Legacy session update types (for backward compatibility)
-export type { AvailableCommandsUpdate, CurrentModeUpdate } from "./session-update.js";
 export { SoundEffect } from "./sounds.js";
 // Terminal types
 export type { TerminalEnvVariable } from "./terminal-env-variable.js";
