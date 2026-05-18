@@ -77,6 +77,8 @@ Historical canonical events must keep two ids separate:
 
 Provider ids may repeat. Display ids must represent the canonical visible row.
 
+This applies to OpenCode too. OpenCode `msg.id` stays in `provider_row_id` and `provider_msg_id`; text rows use Acepe-owned order ids such as `opencode-event-1:assistant`, and tool rows use the promoted `tool_call_id` as display identity.
+
 ## Regression checks
 
 When touching live transcript projection or compatibility writers, run:
@@ -115,6 +117,7 @@ Historical replay cleanup scan:
 
 ```bash
 rg -n "stable Claude message\\.id|same provider id means same display|provider_msg_id.*display_id" packages/desktop/src-tauri/src docs/solutions -g '!docs/solutions/architectural/live-transcript-display-identity-boundary-2026-05-18.md'
+rg -n "opencode:\\{\\}:user|opencode:\\{\\}:assistant|display_id: String::new\\(\\)|opencode:.*:assistant|opencode:.*:user" packages/desktop/src-tauri/src/session_converter packages/desktop/src-tauri/src/acp -g '*.rs'
 ```
 
 Expected result: no wording that promotes provider message ids to display identity.
@@ -125,5 +128,6 @@ Expected result: no wording that promotes provider message ids to display identi
 - `docs/plans/2026-05-18-004-refactor-raw-session-update-diagnostic-boundary-plan.md`
 - `docs/plans/2026-05-18-005-refactor-delete-compatibility-chunk-aggregation-plan.md`
 - `docs/plans/2026-05-18-006-refactor-history-parser-provider-id-boundary-plan.md`
+- `docs/plans/2026-05-18-007-refactor-opencode-canonical-display-identity-plan.md`
 - `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`
