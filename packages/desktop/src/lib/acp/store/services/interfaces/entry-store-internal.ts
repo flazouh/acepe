@@ -18,7 +18,7 @@ export type ToolCallEntryRef = EntryStoreEntryRef & {
 };
 
 export interface IEntryStoreInternal {
-	/** Find a tool-call compatibility entry by canonical tool-call id. */
+	/** Find a canonical tool-call transcript row by canonical tool-call id. */
 	findToolCallEntryRef(sessionId: string, toolCallId: string): ToolCallEntryRef | null;
 
 	/** Append a canonical transcript display row. */
