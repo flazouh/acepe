@@ -508,6 +508,14 @@ export type UserSettingKey =
  */
 "user_theme" |
 /**
+ * Dot-matrix loading indicator variant used across the app
+ */
+"loading_indicator_variant" |
+/**
+ * Color id (Tailwind palette) for the loading indicator
+ */
+"loading_indicator_color" |
+/**
  * Workspace panel layout state (JSON)
  */
 "workspace_state" |
