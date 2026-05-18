@@ -25,7 +25,7 @@ import type { SessionEntry } from "../../application/dto/session-entry.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	preloadLegacyEntriesAndBuildIndex,
+	preloadEntriesAndBuildIndex,
 	readStoredEntries,
 	recordTranscriptToolCallEntry,
 	updateTranscriptToolCallEntry,
@@ -647,7 +647,7 @@ describe("Tool Call Event Flow", () => {
 			// (b) the entry already has the full arguments
 			//
 			// Entries are written directly to the store (no batching),
-			// so they are immediately available through the compatibility row test helper.
+			// so they are immediately available through the entry projection test helper.
 			// If streaming args are cleared AND the entry has old args,
 			// the UI sees empty data → blank card.
 
@@ -676,7 +676,7 @@ describe("Tool Call Event Flow", () => {
 
 			// Step 1: Existing committed placeholder-like entry (mirrors real log timing:
 			// initial tool_call already flushed long before completion arrives).
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -755,7 +755,7 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/Documents/acepe/README.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -813,7 +813,7 @@ describe("Tool Call Event Flow", () => {
 			const explicitTitle = "Read README.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
+			preloadEntriesAndBuildIndex(entryStore, sessionId, [
 				{
 					id: toolCallId,
 					type: "tool_call",
@@ -906,7 +906,7 @@ describe("Tool Call Event Flow", () => {
 			const filePath = "/Users/example/.claude/plans/sample-plan.md";
 			const entryStore = new SessionEntryStore();
 
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Log replay step 1: initial tool_call arrives without parsed arguments.
 			recordTranscriptToolCallEntry(entryStore, sessionId, {
@@ -1011,7 +1011,7 @@ describe("Tool Call Event Flow", () => {
 				"folder,title\\nai-agents-explainer,What Is an AI Agent and Why It Matters";
 			const entryStore = new SessionEntryStore();
 
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Log line 356: initial pending Write arrives with empty edit args.
 			recordTranscriptToolCallEntry(entryStore, sessionId, {
@@ -1132,7 +1132,7 @@ describe("Tool Call Event Flow", () => {
 				arguments: { kind: "execute", command: "pwd" },
 			});
 
-			preloadLegacyEntriesAndBuildIndex(preloadStore, "preload-session", [
+			preloadEntriesAndBuildIndex(preloadStore, "preload-session", [
 				{
 					id: "tool-execute-1",
 					type: "tool_call",
@@ -1173,7 +1173,7 @@ describe("Tool Call Event Flow", () => {
 			const secondMessageId = "msg_01AP3pFFZtvp9xHniB5MxjrX";
 			const toolCallId = "toolu_01CV29KagTmUQLf1Yd3Ysa7e";
 			const entryStore = new SessionEntryStore();
-			preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
+			preloadEntriesAndBuildIndex(entryStore, sessionId, []);
 
 			// Replay lines 460-508 from the streaming log (pre-tool assistant message).
 			await appendAssistantChunks(entryStore, sessionId, firstMessageId, [

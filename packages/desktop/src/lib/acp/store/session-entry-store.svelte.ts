@@ -145,10 +145,10 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// ============================================
 
 	/**
-	 * Legacy preload path for stored SessionEntry rows.
+	 * Preload projected SessionEntry rows for restored transcript state.
 	 * Product transcript truth must use replaceTranscriptSnapshot/applyTranscriptDelta.
 	 */
-	private preloadLegacyEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
+	private preloadEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
 		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
 		this.preloadedIds.add(sessionId);

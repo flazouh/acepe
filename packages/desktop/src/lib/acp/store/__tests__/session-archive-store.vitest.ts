@@ -55,7 +55,7 @@ describe("createArchivedSessionKey", () => {
 });
 
 describe("normalizeThreadListSettings", () => {
-	it("adds archivedSessions when missing (backward compatibility)", () => {
+	it("adds archivedSessions when missing", () => {
 		const normalized = normalizeThreadListSettings({
 			hiddenProjects: ["/repo"],
 		});

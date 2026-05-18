@@ -10,7 +10,7 @@ import {
 } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	preloadLegacyEntriesAndBuildIndex,
+	preloadEntriesAndBuildIndex,
 	recordTranscriptToolCallEntry,
 	updateTranscriptToolCallEntry,
 } from "./entry-store-test-access.js";
@@ -227,7 +227,7 @@ describe("OperationStore", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
-		preloadLegacyEntriesAndBuildIndex(entryStore, "session-1", [
+		preloadEntriesAndBuildIndex(entryStore, "session-1", [
 			createToolCallEntry(createExecuteToolCall("tool-1", "git status")),
 		]);
 

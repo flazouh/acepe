@@ -29,7 +29,7 @@ import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
 import {
-	preloadLegacyEntriesAndBuildIndex,
+	preloadEntriesAndBuildIndex,
 	readStoredEntries,
 } from "./entry-store-test-access.js";
 import type { SessionCold } from "../types.js";
@@ -806,7 +806,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("does not merge assistant chunks from raw session updates when part_id changes mid-stream", () => {
 		const sessionId = "session-aggregate";
 		const entryStore = new SessionEntryStore();
-		preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, []);
+		preloadEntriesAndBuildIndex(entryStore, sessionId, []);
 
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi
@@ -1581,7 +1581,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("treats raw user chunks as coordination-only during reopened sends", () => {
 		const sessionId = "session-reopen-send";
 		const entryStore = new SessionEntryStore();
-		preloadLegacyEntriesAndBuildIndex(entryStore, sessionId, [
+		preloadEntriesAndBuildIndex(entryStore, sessionId, [
 			{
 				id: "assistant-history-1",
 				type: "assistant",

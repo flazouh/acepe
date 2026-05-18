@@ -371,7 +371,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("applies transcript deltas against the current graph frontier, not the compatibility cache", () => {
+	it("applies transcript deltas against the current graph frontier, not the entry projection cache", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		const initialGraph = createSessionStateGraph({
@@ -491,7 +491,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("replaces stale graph snapshots even when the compatibility cache transcript revision is ahead", () => {
+	it("replaces stale graph snapshots even when the entry projection cache transcript revision is ahead", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		const initialGraph = createSessionStateGraph({

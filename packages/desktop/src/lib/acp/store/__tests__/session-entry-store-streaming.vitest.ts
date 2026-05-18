@@ -19,7 +19,7 @@ import type {
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	preloadLegacyEntriesAndBuildIndex,
+	preloadEntriesAndBuildIndex,
 	readStoredEntries,
 	recordTranscriptToolCallEntry,
 	updateTranscriptToolCallEntry,
@@ -764,7 +764,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 	describe("appendTranscriptEntry", () => {
 		it("should make entries immediately available", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", []);
+			preloadEntriesAndBuildIndex(store, "session1", []);
 
 			store.appendTranscriptEntry("session1", {
 				id: "e1",
@@ -785,7 +785,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should handle updates and additions together", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -817,7 +817,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 
 	describe("replaceTranscriptEntry", () => {
 		it("should apply multiple updates to same index with last-write-wins", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -847,9 +847,9 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 	});
 
-	describe("compatibility entry reads", () => {
+	describe("projected entry reads", () => {
 		it("should return stored entries", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -863,7 +863,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("collapses replayed tool-call entries with the same tool id during preload", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1-a",
 					type: "tool_call",
@@ -906,7 +906,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -944,7 +944,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results for preloaded tools whose canonical kind must be inferred from arguments", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -982,7 +982,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see updates immediately", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1003,7 +1003,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see additions immediately", () => {
-			preloadLegacyEntriesAndBuildIndex(store, "session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",

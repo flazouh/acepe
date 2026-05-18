@@ -19,17 +19,17 @@ export function readStoredEntries(
 }
 
 type EntryStoreTestMutations = {
-	preloadLegacyEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
+	preloadEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
 	recordTranscriptToolCallEntry(sessionId: string, toolCallData: ToolCallData): void;
 	updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdateData): void;
 };
 
-export function preloadLegacyEntriesAndBuildIndex(
+export function preloadEntriesAndBuildIndex(
 	store: SessionEntryStore,
 	sessionId: string,
 	entries: SessionEntry[]
 ): void {
-	(store as never as EntryStoreTestMutations).preloadLegacyEntriesAndBuildIndex(
+	(store as never as EntryStoreTestMutations).preloadEntriesAndBuildIndex(
 		sessionId,
 		entries
 	);
