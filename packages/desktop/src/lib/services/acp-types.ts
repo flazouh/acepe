@@ -144,7 +144,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; raw_name: string; raw_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null; plan?: string | null; plan_file_path?: string | null; title?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; raw_name: string; raw_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue }
 
 /**
  * Tool reference for permission/question requests.
@@ -619,7 +619,6 @@ function cloneProviderMetadataProjection(
 			providerMetadata.implicitSessionCreationMode ?? "explicitUserAction",
 	};
 }
-
 export function resolveProviderMetadataProjection(
 	agentId: string,
 	providerMetadata: ProviderMetadataProjection | null | undefined,
@@ -628,6 +627,7 @@ export function resolveProviderMetadataProjection(
 	if (providerMetadata) {
 		return cloneProviderMetadataProjection(providerMetadata);
 	}
+
 	const builtInProviderMetadata = BUILTIN_PROVIDER_METADATA_BY_AGENT_ID[agentId];
 	if (builtInProviderMetadata) {
 		return cloneProviderMetadataProjection(builtInProviderMetadata);

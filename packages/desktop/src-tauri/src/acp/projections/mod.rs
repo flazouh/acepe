@@ -1461,7 +1461,7 @@ impl ProjectionRegistry {
                 .title
                 .clone()
                 .or_else(|| Some("Plan ready".to_string())),
-            arguments: ToolArguments::Other { raw: raw_input },
+            arguments: ToolArguments::from_raw(ToolKind::ExitPlanMode, raw_input),
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),
             command: existing.command.clone(),
@@ -4311,11 +4311,11 @@ mod tests {
         assert_eq!(operation.plan_approval_request_id, Some(42));
         assert_eq!(
             operation.arguments,
-            ToolArguments::Other {
-                raw: json!({
-                    "plan": plan,
-                    "planFilePath": "/repo/docs/plans/fix-plan-card.md"
-                })
+            ToolArguments::PlanMode {
+                mode: None,
+                plan: Some(plan.to_string()),
+                plan_file_path: Some("/repo/docs/plans/fix-plan-card.md".to_string()),
+                title: Some("Fix Plan Card".to_string())
             }
         );
     }

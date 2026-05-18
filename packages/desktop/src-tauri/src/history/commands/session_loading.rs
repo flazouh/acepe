@@ -746,6 +746,9 @@ mod tests {
                 name: kind.as_str().to_string(),
                 arguments: ToolArguments::PlanMode {
                     mode: Some("plan".to_string()),
+                    plan: None,
+                    plan_file_path: None,
+                    title: None,
                 },
                 raw_input: None,
                 status,

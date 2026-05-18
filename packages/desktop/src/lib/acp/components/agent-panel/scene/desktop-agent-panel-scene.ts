@@ -35,7 +35,6 @@ import type { ToolKind } from "../../../types/tool-kind.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { bashHighlighter } from "../../../utils/bash-highlighter.svelte.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
-import { readExitPlanRawInput } from "../../../utils/exit-plan-permission.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import { parsePlanMarkdown } from "../../../utils/plan-parser.js";
 import { resolveToolCallEditDiffs } from "../../../utils/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
@@ -825,6 +824,15 @@ function readStringField(value: JsonValue | null | undefined, key: string): stri
 	return typeof field === "string" && field.trim().length > 0 ? field : null;
 }
 
+function normalizePlanString(value: string | null | undefined): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
 function mapPlanPayload(toolCall: ToolCall): {
 	planTitle?: string | null;
 	planContent?: string | null;
@@ -834,26 +842,19 @@ function mapPlanPayload(toolCall: ToolCall): {
 		return {};
 	}
 
-	const exitPlanInput = readExitPlanRawInput(toolCall.rawInput ?? undefined);
-	const exitPlanArgumentInput =
-		toolCall.arguments.kind === "other" ? readExitPlanRawInput(toolCall.arguments.raw) : null;
 	const rawPlan =
-		exitPlanInput?.plan ??
-		exitPlanArgumentInput?.plan ??
-		readStringField(toolCall.rawInput, "content") ??
-		readStringField(toolCall.rawInput, "planMarkdown") ??
-		readStringField(toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null, "content") ??
-		readStringField(
-			toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null,
-			"planMarkdown"
-		) ??
+		(toolCall.arguments.kind === "planMode" ? normalizePlanString(toolCall.arguments.plan) : null) ??
 		readStringField(toolCall.result, "plan") ??
 		readStringField(toolCall.result, "content");
 	const planContent = rawPlan !== null && rawPlan !== undefined ? rawPlan : null;
 	const parsedPlan = planContent !== null ? parsePlanMarkdown(planContent) : null;
+	const planTitle =
+		toolCall.arguments.kind === "planMode"
+			? (normalizePlanString(toolCall.arguments.title) ?? parsedPlan?.title ?? null)
+			: (parsedPlan?.title ?? null);
 
 	return {
-		planTitle: parsedPlan?.title ?? null,
+		planTitle,
 		planContent,
 		planStatus:
 			toolCall.status === "failed"

@@ -230,7 +230,12 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
         }
         ToolArguments::TaskOutput { task_id, .. } => task_id.is_none(),
         ToolArguments::Move { from, to } => from.is_none() || to.is_none(),
-        ToolArguments::PlanMode { mode } => mode.is_none(),
+        ToolArguments::PlanMode {
+            mode,
+            plan,
+            plan_file_path,
+            title,
+        } => mode.is_none() || plan.is_none() || plan_file_path.is_none() || title.is_none(),
         ToolArguments::ToolSearch { query, max_results } => {
             query.is_none() || max_results.is_none()
         }
@@ -420,7 +425,17 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
         } => usize::from(
             file_path.is_some() || file_paths.as_ref().is_some_and(|paths| !paths.is_empty()),
         ),
-        ToolArguments::PlanMode { mode } => usize::from(mode.is_some()),
+        ToolArguments::PlanMode {
+            mode,
+            plan,
+            plan_file_path,
+            title,
+        } => {
+            usize::from(mode.is_some())
+                + usize::from(plan.is_some())
+                + usize::from(plan_file_path.is_some())
+                + usize::from(title.is_some())
+        }
         ToolArguments::ToolSearch { query, max_results } => {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
         }

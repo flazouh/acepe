@@ -28,11 +28,19 @@ export function readExitPlanPermissionInput(
 }
 
 export function readExitPlanToolInput(toolCall: ToolCall): ExitPlanRawInput | null {
-	if (toolCall.arguments.kind !== "other") {
+	if (toolCall.arguments.kind !== "planMode") {
 		return null;
 	}
 
-	return readExitPlanRawInput(toolCall.arguments.raw);
+	const input: ExitPlanRawInput = {
+		plan: normalizeString(toolCall.arguments.plan),
+		planFilePath: normalizeString(toolCall.arguments.plan_file_path),
+		planPath: null,
+		filePath: null,
+		allowedPrompts: [],
+	};
+
+	return input.plan !== null || input.planFilePath !== null ? input : null;
 }
 
 function getPreferredPlanFilePath(input: ExitPlanRawInput | null): string | null {

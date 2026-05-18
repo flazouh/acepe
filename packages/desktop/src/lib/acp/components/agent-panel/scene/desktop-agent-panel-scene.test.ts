@@ -218,7 +218,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("maps Claude Code ExitPlanMode raw input into a plan tool card model", () => {
+	it("maps canonical ExitPlanMode arguments into a plan tool card model", () => {
 		const plan = "# Focused Plan\n\n- [ ] Fix the exit plan display";
 		const entries: SessionEntry[] = [
 			{
@@ -230,11 +230,10 @@ describe("desktop agent panel scene adapter", () => {
 					arguments: {
 						kind: "planMode",
 						mode: null,
-					},
-					rawInput: {
 						plan,
-						planFilePath: "/repo/.claude/plans/focused-plan.md",
+						plan_file_path: "/repo/.claude/plans/focused-plan.md",
 					},
+					rawInput: null,
 					status: "completed",
 					result: null,
 					kind: "exit_plan_mode",
@@ -277,11 +276,10 @@ describe("desktop agent panel scene adapter", () => {
 					arguments: {
 						kind: "planMode",
 						mode: null,
-					},
-					rawInput: {
 						plan,
-						planFilePath: "/repo/.claude/plans/make-this-an-animation.md",
+						plan_file_path: "/repo/.claude/plans/make-this-an-animation.md",
 					},
+					rawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "exit_plan_mode",
@@ -312,7 +310,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("reads restored ExitPlanMode plan content from arguments.raw when rawInput is missing", () => {
+	it("reads restored ExitPlanMode plan content from canonical arguments when rawInput is missing", () => {
 		const plan = "# Restored Plan\n\n- [ ] Render from restored arguments";
 		const entries: SessionEntry[] = [
 			{
@@ -322,11 +320,10 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-exit-plan-restored",
 					name: "ExitPlanMode",
 					arguments: {
-						kind: "other",
-						raw: {
-							plan,
-							planFilePath: "/repo/.claude/plans/restored-plan.md",
-						},
+						kind: "planMode",
+						mode: null,
+						plan,
+						plan_file_path: "/repo/.claude/plans/restored-plan.md",
 					},
 					rawInput: null,
 					status: "in_progress",

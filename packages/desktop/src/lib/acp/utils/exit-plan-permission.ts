@@ -85,11 +85,19 @@ export function readExitPlanRawInput(value: JsonValue | undefined): ExitPlanRawI
 }
 
 export function readExitPlanToolInput(argumentsValue: ToolArguments): ExitPlanRawInput | null {
-	if (argumentsValue.kind !== "other") {
+	if (argumentsValue.kind !== "planMode") {
 		return null;
 	}
 
-	return readExitPlanRawInput(argumentsValue.raw);
+	const input: ExitPlanRawInput = {
+		plan: normalizeString(argumentsValue.plan),
+		planFilePath: normalizeString(argumentsValue.plan_file_path),
+		planPath: null,
+		filePath: null,
+		allowedPrompts: [],
+	};
+
+	return hasExitPlanFields(input) ? input : null;
 }
 
 export function readExitPlanPermissionInput(

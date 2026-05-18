@@ -66,16 +66,14 @@ describe("buildQueueExitPlanCard", () => {
 		expect(card?.content).toBe(plan);
 	});
 
-	it("can build the card from canonical operation arguments when rawInput is absent", () => {
-		const plan = "# Restored Operation Plan\n\nUse arguments.raw from the graph operation.";
+	it("can build the card from canonical plan-mode arguments when rawInput is absent", () => {
+		const plan = "# Restored Operation Plan\n\nUse canonical plan fields from the graph operation.";
 		const toolCall = makeToolCall(plan);
 		toolCall.rawInput = null;
 		toolCall.arguments = {
-			kind: "other",
-			raw: {
-				plan,
-				planFilePath: "/Users/alex/.claude/plans/restored-operation-plan.md",
-			},
+			kind: "planMode",
+			plan,
+			plan_file_path: "/Users/alex/.claude/plans/restored-operation-plan.md",
 		};
 
 		const card = buildQueueExitPlanCard(toolCall, null);

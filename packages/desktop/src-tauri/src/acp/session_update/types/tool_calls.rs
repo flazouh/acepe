@@ -238,6 +238,12 @@ pub enum ToolArguments {
     PlanMode {
         #[serde(skip_serializing_if = "Option::is_none")]
         mode: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        plan: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        plan_file_path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
     },
     ToolSearch {
         #[serde(skip_serializing_if = "Option::is_none")]

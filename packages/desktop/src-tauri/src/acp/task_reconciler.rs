@@ -653,7 +653,12 @@ mod tests {
         ToolCallData {
             id: id.to_string(),
             name: "ExitPlanMode".to_string(),
-            arguments: ToolArguments::PlanMode { mode: None },
+            arguments: ToolArguments::PlanMode {
+                mode: None,
+                plan: None,
+                plan_file_path: None,
+                title: None,
+            },
             raw_input: Some(raw_input),
             status: ToolCallStatus::InProgress,
             result: None,

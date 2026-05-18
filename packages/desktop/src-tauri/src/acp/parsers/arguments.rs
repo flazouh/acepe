@@ -48,6 +48,50 @@ fn has_plan_payload(raw_arguments: &serde_json::Value) -> bool {
     extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]).is_some()
 }
 
+fn extract_plan_title_from_markdown(plan: &str) -> Option<String> {
+    for line in plan.lines() {
+        let trimmed = line.trim();
+        let heading_level = trimmed.chars().take_while(|ch| *ch == '#').count();
+        if heading_level == 0 || heading_level > 6 {
+            continue;
+        }
+
+        let title = trimmed
+            .get(heading_level..)?
+            .trim()
+            .trim_end_matches('#')
+            .trim();
+        if !title.is_empty() {
+            return Some(title.to_string());
+        }
+    }
+
+    None
+}
+
+fn parse_plan_mode_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
+    let plan = extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]);
+    let title = extract_parser_string(raw_arguments, &["title"])
+        .or_else(|| plan.as_deref().and_then(extract_plan_title_from_markdown));
+
+    ToolArguments::PlanMode {
+        mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),
+        plan,
+        plan_file_path: extract_parser_string(
+            raw_arguments,
+            &[
+                "planFilePath",
+                "planPath",
+                "filePath",
+                "plan_file_path",
+                "file_path",
+                "path",
+            ],
+        ),
+        title,
+    }
+}
+
 pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
     let file_path = extract_parser_string(raw_arguments, &["file_path", "filePath", "path"]);
     let move_from = extract_parser_string(raw_arguments, &["move_from", "moveFrom"]);
@@ -405,14 +449,10 @@ pub(crate) fn parse_tool_kind_arguments(
             ),
         },
         ToolKind::ExitPlanMode | ToolKind::CreatePlan if has_plan_payload(raw_arguments) => {
-            ToolArguments::Other {
-                raw: raw_arguments.clone(),
-            }
+            parse_plan_mode_arguments(raw_arguments)
         }
         ToolKind::EnterPlanMode | ToolKind::ExitPlanMode | ToolKind::CreatePlan => {
-            ToolArguments::PlanMode {
-                mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),
-            }
+            parse_plan_mode_arguments(raw_arguments)
         }
         ToolKind::ToolSearch => ToolArguments::ToolSearch {
             query: extract_parser_string(raw_arguments, &["query"]),
