@@ -9,13 +9,7 @@
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
-import { SessionEntryStore } from "../../session-entry-store.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
-import {
-	aggregateCompatibilityAssistantChunk,
-	preloadCompatibilityEntriesAndBuildIndex,
-	readCompatibilityEntries,
-} from "../../__tests__/entry-store-test-access.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -552,119 +546,5 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-});
-
-describe("SessionMessagingService replay regression", () => {
-	const sessionId = "session-replay";
-	let service: InstanceType<typeof SessionMessagingService>;
-	let entryStore: SessionEntryStore;
-
-	beforeAll(async () => {
-		const module = await import("../session-messaging-service.js");
-		SessionMessagingService = module.SessionMessagingService;
-	});
-
-	beforeEach(() => {
-		entryStore = new SessionEntryStore();
-		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
-
-		const stateReader: ISessionStateReader = {
-			getSessionAcpSessionId: vi.fn().mockReturnValue(null),
-			getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
-			getSessionCanSend: vi.fn().mockReturnValue(null),
-			getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
-			getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
-			getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
-			getSessionCurrentModeId: vi.fn().mockReturnValue(null),
-			getSessionCapabilities: vi.fn().mockReturnValue({
-				availableModels: [],
-				availableModes: [],
-				availableCommands: [],
-			}),
-			getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
-			getSessionToolCalls: vi.fn().mockReturnValue([]),
-			isPreloaded: vi.fn(),
-			getSessionsForProject: vi.fn(),
-			getSessionCold: vi.fn().mockReturnValue(undefined),
-			getAllSessions: vi.fn(),
-		};
-
-		const hotStateManager: ITransientProjectionManager = {
-			getHotState: vi.fn().mockReturnValue({ turnState: "streaming" }),
-			hasHotState: vi.fn(),
-			updateHotState: vi.fn(),
-			removeHotState: vi.fn(),
-			initializeHotState: vi.fn(),
-		};
-
-		const connectionManager: IConnectionManager = {
-			createOrGetMachine: vi.fn(),
-			getMachine: vi.fn(),
-			getState: vi.fn().mockReturnValue(undefined),
-			removeMachine: vi.fn(),
-			isConnecting: vi.fn(),
-			setConnecting: vi.fn(),
-			sendContentLoad: vi.fn(),
-			sendContentLoaded: vi.fn(),
-			sendContentLoadError: vi.fn(),
-			sendConnectionConnect: vi.fn(),
-			sendConnectionSuccess: vi.fn(),
-			sendCapabilitiesLoaded: vi.fn(),
-			sendConnectionError: vi.fn(),
-			sendTurnFailed: vi.fn(),
-			sendDisconnect: vi.fn(),
-			sendMessageSent: vi.fn(),
-			sendResponseStarted: vi.fn(),
-			sendResponseComplete: vi.fn(),
-			initializeConnectedSession: vi.fn(),
-		};
-
-		service = new SessionMessagingService(
-			stateReader,
-			hotStateManager,
-			entryStore,
-			connectionManager
-		);
-	});
-
-	it("merges post-turn trailing chunk without message_id into the same assistant entry", async () => {
-		const first = await aggregateCompatibilityAssistantChunk(entryStore,
-			sessionId,
-			{ content: { type: "text", text: "I see the" } },
-			"msg-thread-1",
-			false
-		);
-		expect(first.isOk()).toBe(true);
-
-		const second = await aggregateCompatibilityAssistantChunk(entryStore,
-			sessionId,
-			{ content: { type: "text", text: " component." } },
-			"msg-thread-1",
-			false
-		);
-		expect(second.isOk()).toBe(true);
-
-		service.handleCanonicalTurnComplete(sessionId);
-
-		const trailing = await aggregateCompatibilityAssistantChunk(entryStore,
-			sessionId,
-			{ content: { type: "text", text: " test it." } },
-			undefined,
-			false
-		);
-		expect(trailing.isOk()).toBe(true);
-
-		const assistantEntries = readCompatibilityEntries(entryStore, sessionId)
-			.filter((entry) => entry.type === "assistant");
-		expect(assistantEntries).toHaveLength(1);
-
-		const onlyEntry = assistantEntries[0];
-		if (onlyEntry.type === "assistant") {
-			const combinedText = onlyEntry.message.chunks
-				.map((chunk) => (chunk.block.type === "text" ? chunk.block.text : ""))
-				.join("");
-			expect(combinedText).toBe("I see the component. test it.");
-		}
 	});
 });

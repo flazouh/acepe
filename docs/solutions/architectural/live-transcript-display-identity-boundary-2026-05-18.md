@@ -64,6 +64,8 @@ The old TypeScript `MessageProcessor` raw-event converter is deleted. Do not reb
 
 `SessionStore` must not expose a public raw `handleSessionUpdate(...)` mutation method. The raw update subscription belongs to `SessionEventService`, and that service treats assistant/user/tool transcript-shaped raw events as diagnostic or coordination input only.
 
+The old compatibility assistant/user chunk aggregation stack is deleted too. TypeScript must not keep provider-message-id assistant grouping state, message-id entry indexes, or helper names such as `ChunkAggregator`, `chunk-action-resolver`, or `aggregateCompatibilityAssistantChunk(...)`.
+
 ## Regression checks
 
 When touching live transcript projection or compatibility writers, run:
@@ -90,9 +92,18 @@ rg -n "MessageProcessor|processUpdate\\(|export \\{ MessageProcessor \\}|store\\
 
 Expected result: no matches.
 
+Provider-message-id aggregation cleanup scan:
+
+```bash
+rg -n "ChunkAggregator|chunk-action-resolver|chunk-aggregation-types|aggregateCompatibilityAssistantChunk|aggregateCompatibilityUserChunk|getMessageIdIndex|addMessageId|deleteMessageId|rebuildMessageIdIndex" packages/desktop/src/lib/acp -g '!**/__tests__/**' -g '!**/*.test.ts' -g '!**/*.vitest.ts'
+```
+
+Expected result: no matches.
+
 ## Related
 
 - `docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md`
 - `docs/plans/2026-05-18-004-refactor-raw-session-update-diagnostic-boundary-plan.md`
+- `docs/plans/2026-05-18-005-refactor-delete-compatibility-chunk-aggregation-plan.md`
 - `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`

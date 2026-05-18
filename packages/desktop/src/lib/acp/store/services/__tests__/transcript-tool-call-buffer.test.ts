@@ -18,9 +18,6 @@ import {
 
 function createMockEntryStore(overrides?: Partial<IEntryStoreInternal>): IEntryStoreInternal {
 	return {
-		findAssistantEntryRef: vi.fn(() => null),
-		hasAssistantEntry: vi.fn(() => false),
-		findLatestUserEntryRef: vi.fn(() => null),
 		findToolCallEntryRef: vi.fn(() => null),
 		appendCompatibilityEntry: vi.fn(),
 		replaceCompatibilityEntry: vi.fn(),
@@ -35,10 +32,6 @@ function createMockEntryIndex(overrides?: Partial<IEntryIndex>): IEntryIndex {
 		addEntryId: vi.fn(),
 		deleteEntryId: vi.fn(),
 		rebuildEntryIdIndex: vi.fn(),
-		getMessageIdIndex: vi.fn(() => undefined),
-		addMessageId: vi.fn(),
-		deleteMessageId: vi.fn(),
-		rebuildMessageIdIndex: vi.fn(),
 		getToolCallIdIndex: vi.fn(() => undefined),
 		addToolCallId: vi.fn(),
 		rebuildToolCallIdIndex: vi.fn(),

@@ -25,7 +25,6 @@ import type { ToolCallUpdate } from "../../types/tool-call.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
-	aggregateCompatibilityAssistantChunk,
 	preloadCompatibilityEntriesAndBuildIndex,
 	readCompatibilityEntries,
 	recordCompatibilityToolCallTranscriptEntry,
@@ -154,15 +153,17 @@ describe("Tool Call Event Flow", () => {
 		messageId: string,
 		textChunks: readonly string[]
 	): Promise<void> {
-		for (const text of textChunks) {
-			const result = await aggregateCompatibilityAssistantChunk(entryStore,
-				sessionId,
-				{ content: { type: "text", text } },
-				messageId,
-				false
-			);
-			expect(result.isOk()).toBe(true);
-		}
+		entryStore.appendCompatibilityEntry(sessionId, {
+			id: messageId,
+			type: "assistant",
+			message: {
+				chunks: textChunks.map((text) => ({
+					type: "message",
+					block: { type: "text", text },
+				})),
+			},
+			timestamp: new Date(),
+		});
 	}
 
 	function assistantEntryText(entry: SessionEntry): string {
