@@ -94,8 +94,6 @@ const entryManager: IEntryManager = {
 	isPreloaded: () => false,
 	markPreloaded: () => {},
 	clearEntries: () => {},
-	clearStreamingAssistantEntry: () => {},
-	startNewAssistantTurn: () => {},
 	finalizeStreamingEntries: () => {},
 };
 

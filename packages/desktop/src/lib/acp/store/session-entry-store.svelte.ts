@@ -497,16 +497,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.transcriptToolCallBuffer.clearStreamingArguments(toolCallId);
 	}
 
-	clearStreamingAssistantEntry(sessionId: string): void {
-		logger.debug("clearStreamingAssistantEntry ignored; assistant chunks are canonical-only", {
-			sessionId,
-		});
-	}
-
-	startNewAssistantTurn(sessionId: string): void {
-		logger.debug("startNewAssistantTurn ignored; assistant chunks are canonical-only", { sessionId });
-	}
-
 	/**
 	 * Mark all still-streaming tool call entries as not streaming.
 	 * Called on turn completion so pending tools stop shimmering.

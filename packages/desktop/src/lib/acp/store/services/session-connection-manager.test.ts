@@ -276,8 +276,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1125,8 +1123,6 @@ describe("SessionConnectionManager.createSession", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1837,8 +1833,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -2273,8 +2267,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -2410,8 +2402,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			isPreloaded: vi.fn(),
 			markPreloaded: vi.fn(),
 			clearEntries: vi.fn(),
-			clearStreamingAssistantEntry: vi.fn(),
-			startNewAssistantTurn: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
 		};
 

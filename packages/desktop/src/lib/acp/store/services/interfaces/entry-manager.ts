@@ -2,8 +2,8 @@
  * Entry Manager Interface
  *
  * Narrow interface for lifecycle-facing entry operations.
- * Services may clear or finalize compatibility rows, but they must not create,
- * remove, or update transcript rows directly.
+ * Services may finalize tool rows, but they must not create, remove, or update
+ * transcript rows directly.
  */
 
 /**
@@ -24,17 +24,6 @@ export interface IEntryManager {
 	 * Clear entries for a session.
 	 */
 	clearEntries(sessionId: string): void;
-
-	/**
-	 * Clear any in-progress assistant aggregation state for a session.
-	 */
-	clearStreamingAssistantEntry(sessionId: string): void;
-
-	/**
-	 * Start a fresh assistant turn. The next assistant chunks must not merge into
-	 * a prior assistant entry, even when a provider reuses or omits message IDs.
-	 */
-	startNewAssistantTurn(sessionId: string): void;
 
 	/**
 	 * Mark all still-streaming tool call entries as not streaming.

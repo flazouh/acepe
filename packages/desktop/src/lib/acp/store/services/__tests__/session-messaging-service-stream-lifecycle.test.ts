@@ -78,8 +78,6 @@ function createMockDeps() {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -224,12 +222,6 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		expect(updates).not.toContainEqual(
 			expect.objectContaining({ observedTerminalTurn: expect.anything() })
 		);
-	});
-
-	it("does not clear streaming assistant entry on turn complete", () => {
-		service.handleCanonicalTurnComplete(sessionId);
-
-		expect(deps.entryManager.clearStreamingAssistantEntry).not.toHaveBeenCalled();
 	});
 
 	it("clears local pending send before sending the machine complete event", () => {

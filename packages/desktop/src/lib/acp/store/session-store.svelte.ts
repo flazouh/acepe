@@ -2488,10 +2488,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return errAsync(new ConnectionError(sessionId));
 	}
 
-	clearStreamingAssistantEntry(sessionId: string): void {
-		this.entryStore.clearStreamingAssistantEntry(sessionId);
-	}
-
 	// ============================================
 	// PR LINKING + STATE REFRESH
 	// ============================================
