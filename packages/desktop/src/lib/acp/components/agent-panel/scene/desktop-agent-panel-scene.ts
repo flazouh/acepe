@@ -457,7 +457,6 @@ function serializeOtherToolDetails(toolCall: ToolCall): string | null {
 			title: toolCall.title,
 			status: toolCall.status,
 			arguments: toolCall.arguments,
-			rawInput: toolCall.rawInput,
 			result: toolCall.result,
 			locations: toolCall.locations,
 			skillMeta: toolCall.skillMeta,

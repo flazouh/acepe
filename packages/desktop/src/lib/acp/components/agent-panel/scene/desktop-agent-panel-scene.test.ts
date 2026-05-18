@@ -957,6 +957,48 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("does not leak provider raw input into visible other tool details", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-raw-details",
+				type: "tool_call",
+				message: {
+					id: "tool-raw-details",
+					name: "report_intent",
+					arguments: { kind: "other", raw: { intent: "Canonical argument" } },
+					rawInput: { secret_provider_payload: "raw input should stay diagnostic" },
+					status: "completed",
+					result: null,
+					kind: "other",
+					title: null,
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+		const entry = conversation.entries[0];
+
+		expect(entry.type).toBe("tool_call");
+		if (entry.type !== "tool_call") {
+			throw new Error("Expected a tool-call entry");
+		}
+		expect(entry.kind).toBe("other");
+		expect(typeof entry.detailsText).toBe("string");
+		const detailsText = entry.detailsText ?? "";
+		expect(detailsText.includes('"arguments"')).toBe(true);
+		expect(detailsText.includes("rawInput")).toBe(false);
+		expect(detailsText.includes("secret_provider_payload")).toBe(false);
+	});
+
 	it("surfaces write_bash shell input metadata on generic tool rows", () => {
 		const entries: SessionEntry[] = [
 			{
