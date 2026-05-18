@@ -4,7 +4,7 @@ import { onDestroy } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import type { GitGutterInput } from "$lib/components/ui/codemirror-editor/git-gutter.js";
 
-import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
+import { getWorkerPool as getHighlighterPool } from "../../utils/worker-pool-singleton.js";
 import {
 	buildPierreDiffOptions,
 	buildPierreFileOptions,

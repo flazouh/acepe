@@ -5,7 +5,7 @@ import { onDestroy } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
-import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
+import { getWorkerPool as getHighlighterPool } from "../../utils/worker-pool-singleton.js";
 import type { FilePickerEntry } from "../../types/file-picker-entry.js";
 import {
 	buildPierreDiffOptions,
