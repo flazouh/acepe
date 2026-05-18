@@ -34,7 +34,6 @@ import { DEFAULT_GIT_PANEL_WIDTH } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
 import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
-import { DEFAULT_TERMINAL_PANEL_WIDTH, MIN_TERMINAL_PANEL_WIDTH } from "./terminal-panel-type.js";
 import type {
 	BrowserWorkspacePanel,
 	FileWorkspacePanel,
@@ -53,6 +52,8 @@ import { DEFAULT_PANEL_HOT_STATE, DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH } from ".
 const PANEL_STORE_KEY = Symbol("panel-store");
 const logger = createLogger({ id: "panel-store", name: "PanelStore" });
 const DEFAULT_ATTACHED_FILE_PANEL_WIDTH = DEFAULT_FILE_PANEL_WIDTH;
+const DEFAULT_TERMINAL_PANEL_WIDTH = 500;
+const MIN_TERMINAL_PANEL_WIDTH = 300;
 
 interface GitDialogState extends GitModalPanel {
 	initialTarget?: GitPanelInitialTarget;
