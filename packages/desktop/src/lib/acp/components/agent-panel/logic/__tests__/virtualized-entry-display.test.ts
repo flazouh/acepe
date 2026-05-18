@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
 import {

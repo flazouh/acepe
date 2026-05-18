@@ -18,7 +18,7 @@ import {
 } from "@acepe/ui/agent-panel/types";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { JsonValue } from "../../../../services/converted-session-types.js";
-import type { SessionStatus } from "../../../application/dto/session.js";
+import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";

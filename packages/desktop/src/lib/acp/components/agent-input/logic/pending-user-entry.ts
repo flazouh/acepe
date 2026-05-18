@@ -1,4 +1,4 @@
-import type { SessionEntry } from "$lib/acp/application/dto/session.js";
+import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
 
 export function createPendingUserEntry(content: string): SessionEntry {
 	const textBlock = { type: "text" as const, text: content };

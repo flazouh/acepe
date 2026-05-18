@@ -7,7 +7,7 @@ import { IconChevronsLeft } from "@tabler/icons-svelte";
 import { IconChevronsRight } from "@tabler/icons-svelte";
 import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
-import type { SessionSummary } from "$lib/acp/application/dto/session.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { cn } from "$lib/utils.js";
 import ActionsCell from "./columns/actions-cell.svelte";

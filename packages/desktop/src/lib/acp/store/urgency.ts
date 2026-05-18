@@ -7,7 +7,7 @@
  * - LOW: Streaming / connecting / working (in progress, no action needed)
  */
 
-import type { SessionStatus } from "../application/dto/session.js";
+import type { SessionStatus } from "../application/dto/session-status.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
 
 /**

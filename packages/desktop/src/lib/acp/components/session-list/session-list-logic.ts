@@ -1,4 +1,5 @@
-import type { SessionEntry, SessionSummary } from "../../application/dto/session.js";
+import type { SessionEntry } from "../../application/dto/session-entry.js";
+import type { SessionSummary } from "../../application/dto/session-summary.js";
 import type { Project } from "../../logic/project-manager.svelte.js";
 import type { Checkpoint } from "../../types/checkpoint.js";
 import { extractProjectName } from "../../utils/path-utils.js";

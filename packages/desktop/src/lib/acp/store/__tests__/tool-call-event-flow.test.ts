@@ -21,7 +21,7 @@ import type {
 	ToolCallData,
 	ToolCallUpdateData,
 } from "../../../services/converted-session-types.js";
-import type { SessionEntry } from "../../application/dto/session.js";
+import type { SessionEntry } from "../../application/dto/session-entry.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {

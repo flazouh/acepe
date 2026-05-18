@@ -1,4 +1,4 @@
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { ErrorMessage } from "../../../types/error-message.js";
 
 interface ResolveVisibleSessionEntriesInput {

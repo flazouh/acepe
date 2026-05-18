@@ -13,7 +13,7 @@ vi.mock("$lib/analytics.js", () => ({
 	setAnalyticsEnabled: vi.fn(),
 }));
 
-import type { SessionCold } from "../../application/dto/session.js";
+import type { SessionCold } from "../../application/dto/session-cold.js";
 import { SessionStore } from "../session-store.svelte.js";
 
 function createSession(overrides: Partial<SessionCold> = {}): SessionCold {

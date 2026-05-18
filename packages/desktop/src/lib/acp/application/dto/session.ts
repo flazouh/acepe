@@ -46,17 +46,3 @@ export interface Session extends SessionIdentity, SessionMetadata, SessionCapabi
 	readonly entryCount: number;
 	readonly taskProgress: TaskProgress | null;
 }
-
-// Re-export all extracted types for backward compatibility
-export type { Mode } from "./mode.js";
-export type { Model } from "./model.js";
-export type { SessionCapabilities } from "./session-capabilities.js";
-export type { SessionCold } from "./session-cold.js";
-export type { SessionEntry } from "./session-entry.js";
-export { isToolCallEntry } from "./session-entry.js";
-export type { SessionIdentity } from "./session-identity.js";
-export type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js";
-export type { SessionMetadata } from "./session-metadata.js";
-export type { SessionStatus } from "./session-status.js";
-export type { SessionSummary } from "./session-summary.js";
-export type { TaskProgress } from "./task-progress.js";

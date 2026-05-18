@@ -1,7 +1,7 @@
 import { okAsync } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SessionCold } from "../../../../application/dto/session.js";
+import type { SessionCold } from "../../../../application/dto/session-cold.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";

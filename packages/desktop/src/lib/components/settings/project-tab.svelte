@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { SessionSummary } from "$lib/acp/application/dto/session.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import {
 	buildSessionSummaryFromCold,
 	deriveSessionListStateFromCanonical,

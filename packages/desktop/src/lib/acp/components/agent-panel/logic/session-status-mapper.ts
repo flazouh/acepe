@@ -3,7 +3,7 @@ import type {
 	SessionGraphLifecycle,
 	SessionTurnState,
 } from "$lib/services/acp-types.js";
-import type { SessionStatus } from "../../../application/dto/session";
+import type { SessionStatus } from "../../../application/dto/session-status";
 import type { SessionStatusUI } from "../types";
 
 export interface CanonicalSessionPresentationStatusInput {

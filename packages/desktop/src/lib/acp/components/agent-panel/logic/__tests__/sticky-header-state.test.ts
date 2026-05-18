@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { StickyHeaderLogic } from "../sticky-header-state.svelte.js";
 import {
 	createAssistantEntry,

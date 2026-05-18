@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 
 import UserMessage from "../../messages/user-message.svelte";
 

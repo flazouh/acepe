@@ -1,4 +1,4 @@
-import type { SessionEntry } from "$lib/acp/application/dto/session.js";
+import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
 import type {
 	TranscriptEntry,
 	TranscriptSegment,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { SessionStatus } from "$lib/acp/application/dto/session.js";
+import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 
 import { Badge } from "$lib/components/ui/badge/index.js";
 interface Props {

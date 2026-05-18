@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
 import { aggregateFileEdits, aggregateFileEditsFromToolCalls } from "../aggregate-file-edits.js";

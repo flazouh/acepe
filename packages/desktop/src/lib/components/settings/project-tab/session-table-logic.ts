@@ -1,4 +1,4 @@
-import type { SessionSummary } from "$lib/acp/application/dto/session.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import { extractProjectName } from "$lib/acp/utils/path-utils.js";
 import { createProjectColorMap, createProjectNameMap } from "$lib/acp/utils/project-utils.js";
 

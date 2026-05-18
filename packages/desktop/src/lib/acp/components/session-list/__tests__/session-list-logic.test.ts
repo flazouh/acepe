@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import {

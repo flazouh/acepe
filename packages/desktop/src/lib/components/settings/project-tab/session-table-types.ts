@@ -1,4 +1,4 @@
-import type { SessionStatus } from "$lib/acp/application/dto/session.js";
+import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 
 /**
  * Row data for the session table.
