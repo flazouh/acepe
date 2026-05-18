@@ -2,9 +2,9 @@ import type { SessionPlanResponse } from "../../../services/converted-session-ty
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import {
-	type ExitPlanRawInput,
+	type ExitPlanInput,
 	isExitPlanPermission,
-	readExitPlanRawInput,
+	readExitPlanPermissionInput,
 } from "../../utils/exit-plan-permission.js";
 import { parsePlanMarkdown } from "../../utils/plan-parser.js";
 
@@ -21,18 +21,12 @@ function normalizeString(value: string | null | undefined): string | null {
 	return trimmed;
 }
 
-export function readExitPlanPermissionInput(
-	permission: PermissionRequest
-): ExitPlanRawInput | null {
-	return readExitPlanRawInput(permission.metadata.rawInput);
-}
-
-export function readExitPlanToolInput(toolCall: ToolCall): ExitPlanRawInput | null {
+export function readExitPlanToolInput(toolCall: ToolCall): ExitPlanInput | null {
 	if (toolCall.arguments.kind !== "planMode") {
 		return null;
 	}
 
-	const input: ExitPlanRawInput = {
+	const input: ExitPlanInput = {
 		plan: normalizeString(toolCall.arguments.plan),
 		planFilePath: normalizeString(toolCall.arguments.plan_file_path),
 		planPath: null,
@@ -43,7 +37,7 @@ export function readExitPlanToolInput(toolCall: ToolCall): ExitPlanRawInput | nu
 	return input.plan !== null || input.planFilePath !== null ? input : null;
 }
 
-function getPreferredPlanFilePath(input: ExitPlanRawInput | null): string | null {
+function getPreferredPlanFilePath(input: ExitPlanInput | null): string | null {
 	if (input === null) {
 		return null;
 	}
@@ -77,7 +71,7 @@ function extractSlug(filePath: string | null): string {
 	return fileName;
 }
 
-function buildPlanFromInput(input: ExitPlanRawInput | null): SessionPlanResponse | null {
+function buildPlanFromInput(input: ExitPlanInput | null): SessionPlanResponse | null {
 	if (input === null || input.plan === null) {
 		return null;
 	}

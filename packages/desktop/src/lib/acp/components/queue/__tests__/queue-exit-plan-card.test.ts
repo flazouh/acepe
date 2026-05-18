@@ -28,12 +28,14 @@ function makePermission(plan: string): PermissionRequest {
 		patterns: [],
 		metadata: {
 			rawInput: {
-				plan,
+				plan: "# Raw Plan\n\nThis should not be used.",
 				planFilePath: "/Users/alex/.claude/plans/focused-plan.md",
 			},
 			parsedArguments: {
 				kind: "planMode",
 				mode: "default",
+				plan,
+				plan_file_path: "/Users/alex/.claude/plans/focused-plan.md",
 			},
 			options: [],
 		},

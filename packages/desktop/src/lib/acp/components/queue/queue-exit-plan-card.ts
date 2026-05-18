@@ -2,7 +2,7 @@ import type { SessionPlanResponse } from "../../../services/converted-session-ty
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import {
-	type ExitPlanRawInput,
+	type ExitPlanInput,
 	readExitPlanPermissionInput,
 } from "../../utils/exit-plan-permission.js";
 import { parsePlanMarkdown } from "../../utils/plan-parser.js";
@@ -21,7 +21,7 @@ function normalized(value: string | null | undefined): string | null {
 	return trimmed.length > 0 ? trimmed : null;
 }
 
-function preferredPath(input: ExitPlanRawInput): string | null {
+function preferredPath(input: ExitPlanInput): string | null {
 	return input.planFilePath ?? input.planPath ?? input.filePath;
 }
 
@@ -57,7 +57,7 @@ function planFromFields(
 	};
 }
 
-function planFromInput(input: ExitPlanRawInput | null): SessionPlanResponse | null {
+function planFromInput(input: ExitPlanInput | null): SessionPlanResponse | null {
 	if (input === null) {
 		return null;
 	}

@@ -40,12 +40,14 @@ function createExitPlanPermission(
 		patterns: [],
 		metadata: {
 			rawInput: {
-				plan,
+				plan: "# Raw Plan\n\nThis should not be used.",
 				planFilePath,
 			},
 			parsedArguments: {
 				kind: "planMode",
 				mode: "default",
+				plan,
+				plan_file_path: planFilePath,
 			},
 			options: [],
 		},
