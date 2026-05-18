@@ -202,6 +202,3 @@ export function useCommandPalette(
 ): UseCommandPalette {
 	return new UseCommandPalette(panelStore, projectManager);
 }
-
-// Legacy alias for backward compatibility
-export { UseCommandPalette as UseCommandPaletteV2, useCommandPalette as useCommandPaletteV2 };
