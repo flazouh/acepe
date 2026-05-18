@@ -5,7 +5,7 @@ import { CaretRight } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
-import { Colors } from "$lib/acp/utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 
 import {
 	formatStructuredPrimitive,

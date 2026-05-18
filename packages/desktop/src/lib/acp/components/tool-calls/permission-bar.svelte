@@ -9,7 +9,7 @@ import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
-import { Colors, COLOR_NAMES } from "../../utils/colors.js";
+import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
 import { mapCanonicalTurnStateToHotTurnState } from "../../store/canonical-turn-state-mapping.js";

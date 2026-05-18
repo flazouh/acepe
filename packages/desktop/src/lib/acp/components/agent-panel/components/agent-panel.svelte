@@ -35,7 +35,7 @@ import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
-import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
+import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";

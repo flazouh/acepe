@@ -9,7 +9,7 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import type { TabBarTab } from "../../store/tab-bar-store.svelte.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
-import { Colors } from "../../utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import AgentIcon from "../agent-icon.svelte";
 
 interface Props {

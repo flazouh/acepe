@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Colors } from "$lib/acp/utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { Robot } from "phosphor-svelte";
 

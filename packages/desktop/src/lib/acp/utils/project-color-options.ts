@@ -1,4 +1,4 @@
-import { COLOR_NAMES, Colors } from "./colors.js";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 
 type ProjectColorLabel = string;
 

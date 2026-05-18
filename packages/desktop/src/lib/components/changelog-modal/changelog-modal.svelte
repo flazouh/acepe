@@ -24,7 +24,7 @@ import { Warning } from "phosphor-svelte";
 import { X } from "phosphor-svelte";
 import { BRAND_SHADER_DARK_PALETTE, type BrandShaderColorTuple } from "@acepe/ui";
 import { type Component, onDestroy, onMount } from "svelte";
-import { Colors } from "$lib/acp/utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import type { ChangelogEntry, ChangeType } from "$lib/changelog/index.js";
 import { groupChangesByType } from "$lib/changelog/index.js";
 import type { Theme } from "$lib/components/theme/context.svelte.js";

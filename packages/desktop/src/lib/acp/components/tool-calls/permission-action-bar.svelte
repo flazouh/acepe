@@ -4,7 +4,7 @@ import { Button } from "@acepe/ui/button";
 import { CheckCircle, ShieldCheck, ShieldWarning, XCircle } from "phosphor-svelte";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
-import { COLOR_NAMES, Colors } from "../../utils/colors.js";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { extractCompactPermissionDisplay } from "./permission-display.js";
 
 interface Props {

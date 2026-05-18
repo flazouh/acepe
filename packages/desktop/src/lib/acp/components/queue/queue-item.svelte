@@ -24,7 +24,7 @@ import { getQuestionStore } from "../../store/question-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
-import { COLOR_NAMES, Colors } from "../../utils/colors.js";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 import { formatTimeAgo } from "../../utils/time-utils.js";
 import AgentIcon from "../agent-icon.svelte";

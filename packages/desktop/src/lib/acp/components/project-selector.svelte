@@ -10,7 +10,7 @@ import { LOGGER_IDS } from "../constants/logger-ids.js";
 
 import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { Project } from "../logic/project-manager.svelte.js";
-import { getProjectColor, TAG_COLORS } from "../utils/colors.js";
+import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
 

@@ -10,7 +10,7 @@ import OpenCodeIcon from "$lib/acp/components/opencode-icon.svelte";
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
-import { Colors } from "$lib/acp/utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import { Button } from "$lib/components/ui/button/index.js";
 const AGENTS = ["opencode", "cursor", "claude-code", "codex"];
 

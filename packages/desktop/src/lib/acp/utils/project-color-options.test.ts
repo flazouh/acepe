@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { COLOR_NAMES, Colors, TAG_COLORS } from "./colors.js";
+import { COLOR_NAMES, Colors, TAG_COLORS } from "@acepe/ui/colors";
 import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
 
 describe("project color options", () => {

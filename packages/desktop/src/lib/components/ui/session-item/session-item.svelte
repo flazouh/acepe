@@ -9,7 +9,7 @@ import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
-import { COLOR_NAMES, Colors } from "$lib/acp/utils/colors.js";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
