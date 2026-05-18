@@ -20,34 +20,34 @@ function createPermission(metadata: Record<string, unknown>): PermissionRequest 
 }
 
 describe("permission-display", () => {
-	it("extracts file path from rawInput.file_path", () => {
+	it("does not extract file path from rawInput.file_path", () => {
 		const permission = createPermission({
 			rawInput: {
 				file_path: "/tmp/example.ts",
 			},
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/tmp/example.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("extracts file path from rawInput.path", () => {
+	it("does not extract file path from rawInput.path", () => {
 		const permission = createPermission({
 			rawInput: {
 				path: "/tmp/example.ts",
 			},
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/tmp/example.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("extracts file path from rawInput.filePath", () => {
+	it("does not extract file path from rawInput.filePath", () => {
 		const permission = createPermission({
 			rawInput: {
 				filePath: "/tmp/example.ts",
 			},
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/tmp/example.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
 	it("returns null when no path field exists", () => {
@@ -70,14 +70,14 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("extracts command from rawInput.command", () => {
+	it("does not extract command from rawInput.command", () => {
 		const permission = createPermission({
 			rawInput: {
 				command: "git status",
 			},
 		});
 
-		expect(extractPermissionCommand(permission)).toBe("git status");
+		expect(extractPermissionCommand(permission)).toBeNull();
 	});
 
 	// parsedArguments (agent-agnostic) tests
@@ -111,24 +111,24 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBe("/src/main.rs");
 	});
 
-	it("falls back to rawInput when parsedArguments absent", () => {
+	it("does not fall back to rawInput when parsedArguments are absent", () => {
 		const permission = createPermission({
 			rawInput: { file_path: "/fallback.ts" },
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/fallback.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("falls back to rawInput when parsedArguments kind has no file_path", () => {
+	it("does not fall back to rawInput when parsedArguments kind has no file_path", () => {
 		const permission = createPermission({
 			parsedArguments: { kind: "execute", command: "ls" },
 			rawInput: { file_path: "/raw.ts" },
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/raw.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("falls back to rawInput when parsed edit file_path is blank", () => {
+	it("does not fall back to rawInput when parsed edit file_path is blank", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "edit",
@@ -137,7 +137,7 @@ describe("permission-display", () => {
 			rawInput: { file_path: "/raw.ts" },
 		});
 
-		expect(extractPermissionFilePath(permission)).toBe("/raw.ts");
+		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
 	it("falls back to permission label when rawInput path is missing", () => {
