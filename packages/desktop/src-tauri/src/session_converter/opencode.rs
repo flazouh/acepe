@@ -1,7 +1,8 @@
-use crate::acp::parsers::{AgentParser, ClaudeCodeParser, OpenCodeParser};
+use crate::acp::parsers::{AgentParser, AgentType, ClaudeCodeParser, OpenCodeParser};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{tool_call_status_from_str, ToolArguments, ToolCallData};
+use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
@@ -78,6 +79,94 @@ pub fn convert_opencode_messages_to_session(
 ) -> Result<SessionThreadSnapshot, String> {
     let (snapshot, _stats) = convert_opencode_messages(messages)?;
     Ok(snapshot)
+}
+
+pub(crate) fn convert_opencode_messages_to_provider_owned_snapshot(
+    messages: Vec<OpenCodeMessage>,
+) -> Result<ProviderOwnedSessionSnapshot, String> {
+    let canonical_transcript_events = materialize_opencode_canonical_transcript_events(&messages);
+    let thread_snapshot = convert_opencode_messages_to_session(messages)?;
+    Ok(
+        ProviderOwnedSessionSnapshot::with_canonical_transcript_events(
+            thread_snapshot,
+            canonical_transcript_events,
+        ),
+    )
+}
+
+fn materialize_opencode_canonical_transcript_events(
+    messages: &[OpenCodeMessage],
+) -> Vec<CanonicalTranscriptEvent> {
+    let mut events = Vec::new();
+    let mut transcript_seq = 0_u64;
+
+    for msg in messages {
+        for (block_index, part) in msg.parts.iter().enumerate() {
+            let timestamp = msg.timestamp.clone().unwrap_or_default();
+            let maybe_event = match part {
+                OpenCodeMessagePart::Text { text }
+                    if msg.role == "user" && !text.trim().is_empty() =>
+                {
+                    Some(CanonicalTranscriptEvent {
+                        transcript_seq,
+                        source: AgentType::OpenCode,
+                        provider_row_id: msg.id.clone(),
+                        provider_msg_id: Some(msg.id.clone()),
+                        request_id: None,
+                        block_index,
+                        display_id: format!("opencode:{}:user", msg.id),
+                        timestamp,
+                        model: msg.model.clone(),
+                        kind: CanonicalTranscriptEventKind::UserText { text: text.clone() },
+                    })
+                }
+                OpenCodeMessagePart::Text { text }
+                    if msg.role == "assistant" && !text.trim().is_empty() =>
+                {
+                    Some(CanonicalTranscriptEvent {
+                        transcript_seq,
+                        source: AgentType::OpenCode,
+                        provider_row_id: msg.id.clone(),
+                        provider_msg_id: Some(msg.id.clone()),
+                        request_id: None,
+                        block_index,
+                        display_id: format!("opencode:{}:assistant", msg.id),
+                        timestamp,
+                        model: msg.model.clone(),
+                        kind: CanonicalTranscriptEventKind::AssistantText { text: text.clone() },
+                    })
+                }
+                OpenCodeMessagePart::ToolInvocation {
+                    id, name, input, ..
+                } if msg.role == "assistant" => Some(CanonicalTranscriptEvent {
+                    transcript_seq,
+                    source: AgentType::OpenCode,
+                    provider_row_id: msg.id.clone(),
+                    provider_msg_id: Some(msg.id.clone()),
+                    request_id: None,
+                    block_index,
+                    display_id: String::new(),
+                    timestamp,
+                    model: msg.model.clone(),
+                    kind: CanonicalTranscriptEventKind::ToolUse {
+                        tool_call_id: id.clone(),
+                        name: name.clone(),
+                        input: input.clone(),
+                    },
+                }),
+                OpenCodeMessagePart::Text { .. }
+                | OpenCodeMessagePart::ToolInvocation { .. }
+                | OpenCodeMessagePart::ToolResult { .. } => None,
+            };
+
+            if let Some(event) = maybe_event {
+                events.push(event);
+                transcript_seq += 1;
+            }
+        }
+    }
+
+    events
 }
 
 fn convert_opencode_messages(
@@ -343,4 +432,63 @@ fn convert_opencode_assistant_message(
     };
 
     (assistant_entry, tool_entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
+    use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
+    use crate::acp::types::CanonicalAgentId;
+
+    #[test]
+    fn opencode_provider_owned_snapshot_promotes_canonical_transcript_events() {
+        let snapshot = convert_opencode_messages_to_provider_owned_snapshot(vec![
+            OpenCodeMessage {
+                id: "provider-user-message".to_string(),
+                role: "user".to_string(),
+                parts: vec![OpenCodeMessagePart::Text {
+                    text: "Inspect this".to_string(),
+                }],
+                model: None,
+                timestamp: Some("1000".to_string()),
+            },
+            OpenCodeMessage {
+                id: "provider-assistant-message".to_string(),
+                role: "assistant".to_string(),
+                parts: vec![OpenCodeMessagePart::Text {
+                    text: "Looks good".to_string(),
+                }],
+                model: Some("openai/gpt-5".to_string()),
+                timestamp: Some("1001".to_string()),
+            },
+        ])
+        .expect("OpenCode messages should convert");
+
+        assert_eq!(snapshot.canonical_transcript_events.len(), 2);
+
+        let materialized = materialize_provider_owned_thread_snapshot(
+            "session-1",
+            Some(CanonicalAgentId::OpenCode),
+            7,
+            &snapshot,
+        );
+
+        assert_eq!(materialized.transcript_snapshot.entries.len(), 2);
+        assert_eq!(
+            materialized.transcript_snapshot.entries[1].entry_id,
+            "opencode:provider-assistant-message:assistant"
+        );
+        assert_eq!(
+            materialized.transcript_snapshot.entries[1].role,
+            TranscriptEntryRole::Assistant
+        );
+        assert_eq!(
+            materialized.transcript_snapshot.entries[1].segments,
+            vec![TranscriptSegment::Text {
+                segment_id: "opencode:provider-assistant-message:assistant:event:1".to_string(),
+                text: "Looks good".to_string(),
+            }]
+        );
+    }
 }

@@ -16,19 +16,18 @@
 //! `last_event_seq` at claim time (Unit 3) ensures it is not delivered twice.
 
 use crate::acp::event_hub::AcpEventHubState;
-use crate::acp::projections::ProjectionRegistry;
 use crate::acp::projections::{
     is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationDegradationCode,
     OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
     SessionTurnState, TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_materialization::ensure_transcript_tool_operations;
+use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -304,19 +303,6 @@ pub(crate) fn derive_title_from_transcript_snapshot(
     None
 }
 
-fn build_projection_from_thread_snapshot(
-    replay_context: &SessionReplayContext,
-    snapshot: &SessionThreadSnapshot,
-) -> crate::acp::projections::SessionProjectionSnapshot {
-    // Provider restore enters through ProjectionRegistry so historical tool evidence
-    // is normalized to canonical operation_state before the graph reaches TypeScript.
-    ProjectionRegistry::project_thread_snapshot(
-        &replay_context.local_session_id,
-        Some(replay_context.agent_id.clone()),
-        snapshot,
-    )
-}
-
 fn operation_can_be_restored_as_historical(operation: &OperationSnapshot) -> bool {
     is_terminal_operation_state(&operation.operation_state)
 }
@@ -441,6 +427,26 @@ pub async fn session_open_result_from_thread_snapshot(
     requested_session_id: &str,
     snapshot: &SessionThreadSnapshot,
 ) -> SessionOpenResult {
+    let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(snapshot.clone());
+    session_open_result_from_provider_owned_snapshot(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        &provider_snapshot,
+    )
+    .await
+}
+
+pub async fn session_open_result_from_provider_owned_snapshot(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> SessionOpenResult {
     let canonical_session_id = &replay_context.local_session_id;
     let is_alias = requested_session_id != canonical_session_id;
     let last_event_seq =
@@ -486,7 +492,14 @@ pub async fn session_open_result_from_thread_snapshot(
         ));
     };
 
-    let projection = build_projection_from_thread_snapshot(replay_context, snapshot);
+    let materialized = materialize_provider_owned_thread_snapshot(
+        canonical_session_id,
+        Some(replay_context.agent_id.clone()),
+        last_event_seq,
+        snapshot,
+    );
+    let projection = materialized.projection;
+    let transcript_snapshot = materialized.transcript_snapshot;
     let session_snap = projection.session.as_ref();
     let operations = projection.operations;
     let interactions = projection.interactions;
@@ -512,7 +525,7 @@ pub async fn session_open_result_from_thread_snapshot(
     } else if raw_turn_state == SessionTurnState::Failed {
         raw_turn_state
     } else if had_historical_active_state {
-        if snapshot.entries.is_empty() {
+        if snapshot.thread_snapshot.entries.is_empty() {
             SessionTurnState::Idle
         } else {
             SessionTurnState::Completed
@@ -542,13 +555,9 @@ pub async fn session_open_result_from_thread_snapshot(
     } else {
         session_snap.and_then(|session| session.last_agent_message_id.clone())
     };
-    let transcript_snapshot =
-        TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries);
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
-    let operations =
-        ensure_transcript_tool_operations(canonical_session_id, &transcript_snapshot, operations);
     let interactions = sanitize_interactions_for_historical_open(interactions);
     warn_unresolved_tool_rows_in_open_graph(
         canonical_session_id,

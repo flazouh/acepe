@@ -155,6 +155,7 @@ fn apply_transcript_delta(
                         role: role.clone(),
                         segments: vec![segment.clone()],
                         attempt_id: None,
+                        timestamp_ms: None,
                     });
                 }
             }
@@ -209,6 +210,7 @@ mod tests {
                         text: "hello".to_string(),
                     }],
                     attempt_id: None,
+                    timestamp_ms: None,
                 }],
             },
             operations: Vec::new(),
@@ -315,6 +317,7 @@ mod tests {
                     text: "fresh".to_string(),
                 }],
                 attempt_id: None,
+                timestamp_ms: None,
             }],
         };
         let delta = SessionStateDelta {

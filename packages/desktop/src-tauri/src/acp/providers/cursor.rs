@@ -16,7 +16,7 @@ use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
@@ -261,7 +261,7 @@ impl AgentProvider for CursorProvider {
         Box<
             dyn Future<
                     Output = Result<
-                        Option<SessionThreadSnapshot>,
+                        Option<ProviderOwnedSessionSnapshot>,
                         crate::acp::provider::ProviderHistoryLoadError,
                     >,
                 > + Send
@@ -280,7 +280,7 @@ impl AgentProvider for CursorProvider {
                 .await
                 {
                     Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
+                        crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
                             &full_session,
                         ),
                     )),
@@ -289,7 +289,7 @@ impl AgentProvider for CursorProvider {
                             .await
                         {
                             Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
+                                crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
                                     &full_session,
                                 ),
                             )),
@@ -317,7 +317,7 @@ impl AgentProvider for CursorProvider {
                             .await
                         {
                             Ok(Some(full_session)) => Ok(Some(
-                                crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
+                                crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
                                     &full_session,
                                 ),
                             )),
@@ -338,7 +338,7 @@ impl AgentProvider for CursorProvider {
             } else {
                 match crate::cursor_history::parser::find_session_by_id(lookup_session_id).await {
                     Ok(Some(full_session)) => Ok(Some(
-                        crate::session_converter::convert_cursor_full_session_to_thread_snapshot(
+                        crate::session_converter::convert_cursor_full_session_to_provider_owned_snapshot(
                             &full_session,
                         ),
                     )),

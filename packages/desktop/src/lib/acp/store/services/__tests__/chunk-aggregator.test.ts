@@ -10,7 +10,10 @@ import type { IEntryStoreInternal } from "../interfaces/entry-store-internal.js"
 
 function createMockEntryStore(overrides: Partial<IEntryStoreInternal> = {}): IEntryStoreInternal {
 	return {
-		getEntries: vi.fn(() => []),
+		findAssistantEntryRef: vi.fn(() => null),
+		hasAssistantEntry: vi.fn(() => false),
+		findLatestUserEntryRef: vi.fn(() => null),
+		findToolCallEntryRef: vi.fn(() => null),
 		addEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		hasSession: vi.fn(() => true),
@@ -39,7 +42,7 @@ function createMockEntryIndex(overrides: Partial<IEntryIndex> = {}): IEntryIndex
 function createAssistantEntry(
 	id: string,
 	chunks: { type: string; block: { type: "text"; text: string } }[] = []
-): SessionEntry {
+): Extract<SessionEntry, { readonly type: "assistant" }> {
 	return {
 		id,
 		type: "assistant" as const,
@@ -56,7 +59,7 @@ function createAssistantEntry(
 	};
 }
 
-function createUserEntry(id: string): SessionEntry {
+function createUserEntry(id: string): Extract<SessionEntry, { readonly type: "user" }> {
 	return {
 		id,
 		type: "user" as const,
@@ -109,7 +112,16 @@ describe("ChunkAggregator", () => {
 			// Simulate: entry starts absent, then appears in entries after addEntry
 			let entries: SessionEntry[] = [];
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => entries),
+				findAssistantEntryRef: vi.fn((_sessionId: string, entryId: string) => {
+					const index = entries.findIndex(
+						(entry) => entry.type === "assistant" && entry.id === entryId
+					);
+					const entry = entries[index];
+					return entry?.type === "assistant" ? { entry, index } : null;
+				}),
+				hasAssistantEntry: vi.fn((_sessionId: string, entryId: string) =>
+					entries.some((entry) => entry.type === "assistant" && entry.id === entryId)
+				),
 				addEntry: vi.fn((_sid: string, entry: SessionEntry) => {
 					entries = [entry];
 				}),
@@ -177,17 +189,14 @@ describe("ChunkAggregator", () => {
 			}
 		});
 
-		it("recovers when message index points to the wrong entry", async () => {
-			const wrongEntry = createAssistantEntry("wrong-id");
+		it("uses the store's assistant lookup boundary when merging", async () => {
 			const targetEntry = createAssistantEntry("msg-1", [
 				{ type: "message", block: { type: "text", text: "Hello " } },
 			]);
 
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => [wrongEntry, targetEntry]),
-			});
-			mockIndex = createMockEntryIndex({
-				getMessageIdIndex: vi.fn(() => 0),
+				findAssistantEntryRef: vi.fn(() => ({ entry: targetEntry, index: 1 })),
+				hasAssistantEntry: vi.fn(() => true),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
@@ -201,7 +210,7 @@ describe("ChunkAggregator", () => {
 			expect(result.isOk()).toBe(true);
 			expect(mockStore.updateEntry).toHaveBeenCalledTimes(1);
 			expect(mockStore.addEntry).not.toHaveBeenCalled();
-			expect(mockIndex.addMessageId).toHaveBeenCalledWith("session1", "msg-1", 1);
+			expect(mockStore.findAssistantEntryRef).toHaveBeenCalledWith("session1", "msg-1");
 		});
 
 		it("does not reinterpret message chunks from [Thinking] prefixes", async () => {
@@ -245,7 +254,7 @@ describe("ChunkAggregator", () => {
 		it("merges into existing user entry", async () => {
 			const existing = createUserEntry("user-1");
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existing]),
+				findLatestUserEntryRef: vi.fn(() => ({ entry: existing, index: 0 })),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
@@ -269,7 +278,7 @@ describe("ChunkAggregator", () => {
 				timestamp: new Date(),
 			} satisfies SessionEntry;
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existing]),
+				findLatestUserEntryRef: vi.fn(() => ({ entry: existing, index: 0 })),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
@@ -296,7 +305,7 @@ describe("ChunkAggregator", () => {
 				timestamp: new Date(),
 			} satisfies SessionEntry;
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existing]),
+				findLatestUserEntryRef: vi.fn(() => ({ entry: existing, index: 0 })),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
@@ -322,7 +331,7 @@ describe("ChunkAggregator", () => {
 		it("does not merge if latest entry is not a user entry", async () => {
 			const assistant = createAssistantEntry("asst-1");
 			mockStore = createMockEntryStore({
-				getEntries: vi.fn(() => [assistant]),
+				findLatestUserEntryRef: vi.fn(() => null),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
@@ -340,6 +349,14 @@ describe("ChunkAggregator", () => {
 	// ==========================================
 
 	describe("splitAssistantAggregationBoundary", () => {
+		it("does not scan transcript rows when starting a new assistant turn", () => {
+			aggregator.startNewAssistantTurn("session1");
+
+			expect(mockStore.findAssistantEntryRef).not.toHaveBeenCalled();
+			expect(mockStore.findLatestUserEntryRef).not.toHaveBeenCalled();
+			expect(mockStore.findToolCallEntryRef).not.toHaveBeenCalled();
+		});
+
 		it("marks current messageId as boundary", async () => {
 			// Set up state by aggregating a chunk
 			await aggregator.aggregateAssistantChunk(

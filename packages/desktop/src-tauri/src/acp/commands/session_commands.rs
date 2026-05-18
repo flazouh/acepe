@@ -10,7 +10,7 @@ use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
     SessionCompatibilityInput, SessionReplayContext,
 };
-use crate::acp::session_materialization::ensure_transcript_tool_operations;
+use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title,
     session_open_result_for_new_session, NewSessionOpenResultInput, SessionOpenFound,
@@ -648,10 +648,13 @@ async fn load_transcript_snapshot_for_state_lookup_with_app(
                 .await
                 .map_err(SerializableAcpError::from)?
             {
-                return Ok(TranscriptSnapshot::from_stored_entries(
+                let materialized = materialize_provider_owned_thread_snapshot(
+                    canonical_session_id,
+                    Some(replay_context.agent_id.clone()),
                     last_event_seq,
-                    &provider_snapshot.entries,
-                ));
+                    &provider_snapshot,
+                );
+                return Ok(materialized.transcript_snapshot);
             }
         }
     }
@@ -742,9 +745,7 @@ async fn load_session_projection_lookup(
         });
     };
 
-    let imported_transcript_snapshot =
-        TranscriptSnapshot::from_stored_entries(0, &imported_thread_snapshot.entries);
-    let imported_projection = ProjectionRegistry::project_thread_snapshot(
+    let materialized_import = materialize_provider_owned_thread_snapshot(
         session_id,
         Some(
             replay_context
@@ -753,14 +754,11 @@ async fn load_session_projection_lookup(
                 .agent_id
                 .clone(),
         ),
+        0,
         &imported_thread_snapshot,
     );
-    let mut imported_projection = imported_projection;
-    imported_projection.operations = ensure_transcript_tool_operations(
-        session_id,
-        &imported_transcript_snapshot,
-        imported_projection.operations,
-    );
+    let imported_transcript_snapshot = materialized_import.transcript_snapshot;
+    let mut imported_projection = materialized_import.projection;
     imported_projection.runtime = None;
 
     Ok(SessionProjectionLookup {
@@ -1863,10 +1861,13 @@ async fn load_transcript_snapshot_for_resume_with_app(
                 .await
                 .map_err(SerializableAcpError::from)?
             {
-                return Ok(TranscriptSnapshot::from_stored_entries(
+                let materialized = materialize_provider_owned_thread_snapshot(
+                    session_id,
+                    Some(replay_context.agent_id.clone()),
                     journal_max.unwrap_or(0),
-                    &provider_snapshot.entries,
-                ));
+                    &provider_snapshot,
+                );
+                return Ok(materialized.transcript_snapshot);
             }
         }
     }
@@ -1937,7 +1938,7 @@ async fn async_resume_session_work(
         )
         .await
         .map_err(SerializableAcpError::from)?;
-    let transcript_snapshot = if let Some(snapshot) = restored_thread_snapshot.as_ref() {
+    let materialized_restored_snapshot = if let Some(snapshot) = restored_thread_snapshot.as_ref() {
         let last_event_seq = SessionJournalEventRepository::max_event_seq(db.inner(), session_id)
             .await
             .map_err(|error| SerializableAcpError::InvalidState {
@@ -1946,25 +1947,25 @@ async fn async_resume_session_work(
                 ),
             })?
             .unwrap_or(0);
-        TranscriptSnapshot::from_stored_entries(last_event_seq, &snapshot.entries)
+        Some(materialize_provider_owned_thread_snapshot(
+            session_id,
+            Some(replay_context.agent_id.clone()),
+            last_event_seq,
+            snapshot,
+        ))
+    } else {
+        None
+    };
+    let transcript_snapshot = if let Some(materialized) = materialized_restored_snapshot.as_ref() {
+        materialized.transcript_snapshot.clone()
     } else {
         load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
     };
-    let materialized_transcript_snapshot = transcript_snapshot.clone();
     transcript_projection_registry
         .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
 
-    if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-        let mut projection = ProjectionRegistry::project_thread_snapshot(
-            session_id,
-            Some(replay_context.agent_id.clone()),
-            snapshot,
-        );
-        projection.operations = ensure_transcript_tool_operations(
-            session_id,
-            &materialized_transcript_snapshot,
-            projection.operations,
-        );
+    if let Some(materialized) = materialized_restored_snapshot {
+        let projection = materialized.projection;
         projection_registry.restore_session_projection(projection);
     }
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
@@ -2129,6 +2130,7 @@ mod transcript_buffer_tests {
                                             text: "Read package".to_string(),
                                         }],
                                         attempt_id: None,
+                                        timestamp_ms: None,
                                     },
                                     crate::acp::transcript_projection::TranscriptEntry {
                                         entry_id: "tool-2".to_string(),
@@ -2138,6 +2140,7 @@ mod transcript_buffer_tests {
                                             text: "Run tests".to_string(),
                                         }],
                                         attempt_id: None,
+                                        timestamp_ms: None,
                                     },
                                 ],
                             },

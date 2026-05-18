@@ -12,13 +12,6 @@ export function canActivateCreatedSessionWithFirstPrompt(input: {
 	return input.lifecycleStatus === "reserved";
 }
 
-export function isPreCanonicalCreatedSession(input: {
-	readonly session: SessionCold;
-	readonly lifecycleStatus: SessionGraphLifecycle["status"] | null;
-}): boolean {
-	return isCreatedSessionWithoutSource(input.session) && input.lifecycleStatus === null;
-}
-
 function isCreatedSessionWithoutSource(session: SessionCold): boolean {
 	return session.sessionLifecycleState === "created" && !session.sourcePath;
 }

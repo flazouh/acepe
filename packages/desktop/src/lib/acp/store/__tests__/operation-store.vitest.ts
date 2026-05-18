@@ -526,7 +526,7 @@ describe("OperationStore", () => {
 		);
 	});
 
-	it("ignores stale operation patches that would regress terminal state", () => {
+	it("applies canonical operation patches literally after terminal state", () => {
 		const operationStore = new OperationStore();
 		operationStore.applySessionOperationPatches("session-1", [
 			{
@@ -574,9 +574,9 @@ describe("OperationStore", () => {
 		]);
 
 		const operation = operationStore.getByToolCallId("session-1", "tool-1");
-		expect(operation?.operationState).toBe("completed");
-		expect(operation?.status).toBe("completed");
-		expect(operation?.result).toBe("done");
+		expect(operation?.operationState).toBe("running");
+		expect(operation?.status).toBe("in_progress");
+		expect(operation?.result).toBeNull();
 	});
 
 	it("applies canonical blocked resume patches because blocked is not terminal", () => {
@@ -662,7 +662,7 @@ describe("OperationStore", () => {
 		expect(operationStore.getCurrentStreamingToolCall("session-1")?.id).toBe("tool-1");
 	});
 
-	it("keeps terminal states protected from stale non-terminal operation patches", () => {
+	it("lets canonical patches replace terminal states for every operation terminal kind", () => {
 		const cases = [
 			{
 				operationId: "op-completed",
@@ -711,7 +711,7 @@ describe("OperationStore", () => {
 
 		for (const testCase of cases) {
 			expect(operationStore.getByToolCallId("session-1", testCase.toolCallId)?.operationState).toBe(
-				testCase.terminalState
+				"running"
 			);
 		}
 	});

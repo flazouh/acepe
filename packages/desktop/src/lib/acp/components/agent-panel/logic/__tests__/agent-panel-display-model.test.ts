@@ -11,6 +11,7 @@ import type {
 	TranscriptSnapshot,
 } from "$lib/services/acp-types.js";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
+import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/agent-panel-graph-materializer.js";
 import {
 	type AgentPanelDisplayModel,
 	type AgentPanelDisplayRow,
@@ -157,6 +158,19 @@ function buildModel(
 	pendingUserEntry: SessionEntry | null = null,
 	agentName: string | null = null
 ) {
+	const scene = materializeAgentPanelSceneFromGraph({
+		panelId: "panel-1",
+		graph,
+		header: {
+			title: "Session",
+		},
+		optimistic:
+			pendingUserEntry === null
+				? null
+				: {
+						pendingUserEntry,
+					},
+	});
 	return buildAgentPanelBaseModel({
 		panelId: "panel-1",
 		graph,
@@ -164,8 +178,8 @@ function buildModel(
 			title: "Session",
 			agentName,
 		},
+		sceneEntries: scene.conversation.entries,
 		local: {
-			pendingUserEntry,
 			pendingSendIntent: pendingUserEntry !== null,
 		},
 	});
@@ -215,8 +229,12 @@ describe("agent panel display model", () => {
 			header: {
 				title: "Session",
 			},
+			sceneEntries: materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: { title: "Session" },
+			}).conversation.entries,
 			local: {
-				pendingUserEntry: null,
 				pendingSendIntent: false,
 			},
 		});
@@ -245,8 +263,12 @@ describe("agent panel display model", () => {
 			header: {
 				title: "Session",
 			},
+			sceneEntries: materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: { title: "Session" },
+			}).conversation.entries,
 			local: {
-				pendingUserEntry: null,
 				pendingSendIntent: false,
 			},
 		});
@@ -271,7 +293,7 @@ describe("agent panel display model", () => {
 		]);
 	});
 
-	it("places pending user entry before assistant-only rows", () => {
+	it("uses scene materializer ordering for pending user rows", () => {
 		const graph = createGraph({
 			entries: [createTranscriptEntry("assistant-1", "assistant", "Tool output arrived first")],
 			turnState: "Running",
@@ -282,13 +304,13 @@ describe("agent panel display model", () => {
 
 		const model = buildModel(graph, createPendingUserEntry());
 
-		expect(model.rows[0]).toEqual({
+		expect(model.rows[0]?.id).toBe("assistant-1");
+		expect(model.rows[1]).toEqual({
 			id: "pending-user-1",
 			type: "user",
 			text: "Pending prompt",
 			isOptimistic: true,
 		});
-		expect(model.rows[1]?.id).toBe("assistant-1");
 	});
 
 	it("keeps display text non-blank during same-key running replacement", () => {

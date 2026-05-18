@@ -36,7 +36,7 @@ export interface QueueItem {
 	readonly urgency: UrgencyInfo;
 	/** Text to display (question or permission description) */
 	readonly pendingText: string | null;
-	/** Todo progress (if any todos exist in session entries) */
+	/** Todo progress from canonical operation-backed tool calls. */
 	readonly todoProgress: TodoProgressInfo | null;
 	/** Timestamp of last activity */
 	readonly lastActivityAt: number;

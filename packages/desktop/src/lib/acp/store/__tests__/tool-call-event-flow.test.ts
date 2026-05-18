@@ -15,10 +15,15 @@
 
 import { describe, expect, it } from "bun:test";
 
-import type { SessionUpdate, ToolCallData } from "../../../services/converted-session-types.js";
+import type {
+	SessionUpdate,
+	ToolArguments,
+	ToolCallData,
+} from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 function applyStreamingArguments(
 	entryStore: SessionEntryStore,
@@ -40,6 +45,17 @@ function applyStreamingArguments(
 		normalizedQuestions: null,
 		streamingArguments,
 	});
+}
+
+function readProgressiveArguments(
+	entryStore: SessionEntryStore,
+	sessionId: string,
+	toolCallId: string
+): ToolArguments | undefined {
+	const entry = entryStore
+		.getEntries(sessionId)
+		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
+	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
 }
 
 /**
@@ -593,8 +609,8 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// Verify streaming args are available
-			expect(entryStore.getStreamingArguments(toolCallId)).toBeDefined();
-			expect(entryStore.getStreamingArguments(toolCallId)?.kind).toBe("edit");
+			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeDefined();
+			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)?.kind).toBe("edit");
 
 			// Step 3: Second tool_call arrives with full arguments (re-create path)
 			entryStore.recordToolCallTranscriptEntry(sessionId, {
@@ -630,7 +646,7 @@ describe("Tool Call Event Flow", () => {
 			// If streaming args are cleared AND the entry has old args,
 			// the UI sees empty data → blank card.
 
-			const streamingArgsAfter = entryStore.getStreamingArguments(toolCallId);
+			const streamingArgsAfter = readProgressiveArguments(entryStore, sessionId, toolCallId);
 			const entries = entryStore.getEntries(sessionId);
 
 			// Check entries (what Svelte actually reacts to)
@@ -862,7 +878,7 @@ describe("Tool Call Event Flow", () => {
 				kind: "read",
 				file_path: "/some/file.ts",
 			});
-			expect(entryStore.getStreamingArguments(toolCallId)).toBeDefined();
+			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeDefined();
 
 			// Tool completes via transcript-only update.
 			entryStore.updateToolCallTranscriptEntry(sessionId, {
@@ -876,7 +892,7 @@ describe("Tool Call Event Flow", () => {
 			});
 
 			// After completion, streaming args should be cleaned up
-			expect(entryStore.getStreamingArguments(toolCallId)).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeUndefined();
 		});
 
 		it("replays 741d9bee edit sequence with progressive args and final completion", () => {
@@ -921,7 +937,7 @@ describe("Tool Call Event Flow", () => {
 				],
 			});
 
-			const streamingArgs = entryStore.getStreamingArguments(toolCallId);
+			const streamingArgs = readProgressiveArguments(entryStore, sessionId, toolCallId);
 			expect(streamingArgs?.kind).toBe("edit");
 			if (streamingArgs?.kind === "edit") {
 				expect(streamingArgs.edits[0]?.filePath).toBe(filePath);
@@ -977,7 +993,7 @@ describe("Tool Call Event Flow", () => {
 			expect(args.edits[0]?.newString).toContain("This is a test plan");
 
 			// Terminal status should clear progressive cache.
-			expect(entryStore.getStreamingArguments(toolCallId)).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, sessionId, toolCallId)).toBeUndefined();
 		});
 	});
 

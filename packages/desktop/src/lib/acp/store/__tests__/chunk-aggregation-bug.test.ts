@@ -11,6 +11,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries", () => {
 	let store: SessionEntryStore;

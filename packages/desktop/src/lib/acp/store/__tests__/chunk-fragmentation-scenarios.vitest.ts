@@ -23,6 +23,7 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { ToolCallData } from "../../../services/converted-session-types.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 

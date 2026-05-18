@@ -31,6 +31,13 @@ export interface ThreadWithEntries {
 	readonly isConnected?: boolean;
 }
 
+export interface TodoToolCallThread {
+	readonly toolCalls: ReadonlyArray<ToolCall>;
+	readonly status?: string;
+	readonly isStreaming?: boolean;
+	readonly isConnected?: boolean;
+}
+
 const logger = createLogger({
 	id: LOGGER_IDS.TODO_STATE,
 	name: "Todo State",
@@ -137,6 +144,26 @@ function hasTodos(entry: EntryWithMessage): entry is EntryWithMessage & { messag
 	if (entry.type !== "tool_call") return false;
 	const message = entry.message as ToolCall | undefined;
 	return message?.normalizedTodos != null && message.normalizedTodos.length > 0;
+}
+
+function timestampFromToolCall(toolCall: ToolCall): Date | undefined {
+	const timestampMs = toolCall.completedAtMs ?? toolCall.startedAtMs;
+	return timestampMs === undefined ? undefined : new Date(timestampMs);
+}
+
+function entriesFromToolCalls(toolCalls: ReadonlyArray<ToolCall>): EntryWithMessage[] {
+	const entries: EntryWithMessage[] = [];
+
+	for (const toolCall of toolCalls) {
+		entries.push({
+			id: toolCall.id,
+			type: "tool_call",
+			message: toolCall,
+			timestamp: timestampFromToolCall(toolCall),
+		});
+	}
+
+	return entries;
 }
 
 export function createTodoState(
@@ -261,6 +288,21 @@ export function createTodoState(
 		totalCount: items.length,
 		isLive,
 		lastUpdatedAt: lastUpdatedAt ?? new Date(0), // Epoch if no timestamp
+	});
+}
+
+export function createTodoStateFromToolCalls(
+	thread: TodoToolCallThread | null
+): Result<TodoState | null, TodoStateError> {
+	if (!thread) {
+		return ok(null);
+	}
+
+	return createTodoState({
+		entries: entriesFromToolCalls(thread.toolCalls),
+		status: thread.status,
+		isStreaming: thread.isStreaming,
+		isConnected: thread.isConnected,
 	});
 }
 

@@ -67,7 +67,7 @@ struct SessionTranscriptProjection {
     revision: i64,
     entries: Vec<TranscriptEntry>,
     entry_indexes: HashMap<String, usize>,
-    assistant_entry_remaps: HashMap<String, String>,
+    assistant_entry_ids_by_turn_key: HashMap<String, String>,
 }
 
 impl SessionTranscriptProjection {
@@ -80,7 +80,7 @@ impl SessionTranscriptProjection {
             revision: snapshot.revision,
             entries: snapshot.entries,
             entry_indexes,
-            assistant_entry_remaps: HashMap::new(),
+            assistant_entry_ids_by_turn_key: HashMap::new(),
         }
     }
 
@@ -154,75 +154,76 @@ impl SessionTranscriptProjection {
                         text,
                     }],
                     attempt_id: attempt_id.clone(),
+                    timestamp_ms: None,
                 };
                 self.upsert_entry(entry.clone());
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
             }
             SessionUpdate::AgentMessageChunk {
-                chunk, message_id, ..
+                chunk,
+                message_id,
+                part_id,
+                ..
             } => {
                 let text = text_from_block(&chunk.content)?;
-                let entry_id = message_id.clone().unwrap_or_else(|| {
-                    self.synthetic_assistant_entry_id_for_current_turn(event_seq)
-                });
+                let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Text {
                     segment_id: format!("{entry_id}:segment:{event_seq}"),
                     text,
                 };
-                let target_entry_id =
-                    self.resolve_assistant_entry_id_for_event(entry_id.as_str(), event_seq);
-                if self.entry_indexes.contains_key(&target_entry_id) {
+                if self.entry_indexes.contains_key(&entry_id) {
                     self.append_segment(
-                        target_entry_id.clone(),
+                        entry_id.clone(),
                         TranscriptEntryRole::Assistant,
                         segment.clone(),
                     );
                     Some(vec![TranscriptDeltaOperation::AppendSegment {
-                        entry_id: target_entry_id,
+                        entry_id,
                         role: TranscriptEntryRole::Assistant,
                         segment,
                     }])
                 } else {
                     let entry = TranscriptEntry {
-                        entry_id: target_entry_id,
+                        entry_id,
                         role: TranscriptEntryRole::Assistant,
                         segments: vec![segment],
                         attempt_id: None,
+                        timestamp_ms: None,
                     };
                     self.upsert_entry(entry.clone());
                     Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
                 }
             }
             SessionUpdate::AgentThoughtChunk {
-                chunk, message_id, ..
+                chunk,
+                message_id,
+                part_id,
+                ..
             } => {
                 let text = text_from_block(&chunk.content)?;
-                let entry_id = message_id.clone().unwrap_or_else(|| {
-                    self.synthetic_assistant_entry_id_for_current_turn(event_seq)
-                });
+                let entry_id = self.assistant_entry_id_for_chunk(message_id, part_id, event_seq);
                 let segment = TranscriptSegment::Thought {
                     segment_id: format!("{entry_id}:segment:{event_seq}"),
                     text,
                 };
-                let target_entry_id =
-                    self.resolve_assistant_entry_id_for_event(entry_id.as_str(), event_seq);
-                if self.entry_indexes.contains_key(&target_entry_id) {
+                if self.entry_indexes.contains_key(&entry_id) {
                     self.append_segment(
-                        target_entry_id.clone(),
+                        entry_id.clone(),
                         TranscriptEntryRole::Assistant,
                         segment.clone(),
                     );
                     Some(vec![TranscriptDeltaOperation::AppendSegment {
-                        entry_id: target_entry_id,
+                        entry_id,
                         role: TranscriptEntryRole::Assistant,
                         segment,
                     }])
                 } else {
                     let entry = TranscriptEntry {
-                        entry_id: target_entry_id,
+                        entry_id,
                         role: TranscriptEntryRole::Assistant,
                         segments: vec![segment],
                         attempt_id: None,
+                        timestamp_ms: None,
                     };
                     self.upsert_entry(entry.clone());
                     Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
@@ -243,6 +244,7 @@ impl SessionTranscriptProjection {
                             .unwrap_or_else(|| tool_call.name.clone()),
                     }],
                     attempt_id: None,
+                    timestamp_ms: None,
                 };
                 self.upsert_entry(entry.clone());
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
@@ -255,6 +257,7 @@ impl SessionTranscriptProjection {
                     role: TranscriptEntryRole::Error,
                     segments: vec![error_segment(event_seq, error)],
                     attempt_id: None,
+                    timestamp_ms: None,
                 };
                 self.upsert_entry(entry.clone());
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
@@ -263,55 +266,44 @@ impl SessionTranscriptProjection {
         }
     }
 
-    fn upsert_transcript_entry(&mut self, event_seq: i64, mut entry: TranscriptEntry) {
-        if entry.role == TranscriptEntryRole::Assistant {
-            entry.entry_id =
-                self.resolve_assistant_entry_id_for_event(entry.entry_id.as_str(), event_seq);
-        }
-
+    fn upsert_transcript_entry(&mut self, _event_seq: i64, entry: TranscriptEntry) {
         self.upsert_entry(entry);
     }
 
     fn append_transcript_segment(
         &mut self,
-        event_seq: i64,
+        _event_seq: i64,
         entry_id: String,
         role: TranscriptEntryRole,
         segment: TranscriptSegment,
     ) {
-        let target_entry_id = if role == TranscriptEntryRole::Assistant {
-            self.resolve_assistant_entry_id_for_event(entry_id.as_str(), event_seq)
-        } else {
-            entry_id
-        };
-
-        self.append_segment(target_entry_id, role, segment);
+        self.append_segment(entry_id, role, segment);
     }
 
-    fn resolve_assistant_entry_id_for_event(&mut self, entry_id: &str, event_seq: i64) -> String {
-        let Some(last_user_index) = self.last_user_index() else {
-            return entry_id.to_string();
-        };
+    fn assistant_entry_id_for_chunk(
+        &mut self,
+        message_id: &Option<String>,
+        part_id: &Option<String>,
+        event_seq: i64,
+    ) -> String {
+        let provider_key = assistant_provider_key(message_id, part_id);
+        let turn_key = self.current_turn_key();
+        let scoped_key = format!("{turn_key}\u{1f}{provider_key}");
 
-        if let Some(remapped_entry_id) = self.assistant_entry_remaps.get(entry_id) {
-            if self
-                .entry_indexes
-                .get(remapped_entry_id)
-                .is_some_and(|index| *index > last_user_index)
-            {
-                return remapped_entry_id.clone();
-            }
+        if let Some(entry_id) = self.assistant_entry_ids_by_turn_key.get(&scoped_key) {
+            return entry_id.clone();
         }
 
-        match self.entry_indexes.get(entry_id).copied() {
-            Some(existing_index) if existing_index <= last_user_index => {
-                let remapped_entry_id = format!("{entry_id}:turn:{event_seq}");
-                self.assistant_entry_remaps
-                    .insert(entry_id.to_string(), remapped_entry_id.clone());
-                remapped_entry_id
-            }
-            _ => entry_id.to_string(),
+        if self.provider_entry_is_in_current_turn(&provider_key) {
+            self.assistant_entry_ids_by_turn_key
+                .insert(scoped_key, provider_key.clone());
+            return provider_key;
         }
+
+        let entry_id = format!("assistant-event-{event_seq}");
+        self.assistant_entry_ids_by_turn_key
+            .insert(scoped_key, entry_id.clone());
+        entry_id
     }
 
     fn last_user_index(&self) -> Option<usize> {
@@ -320,20 +312,22 @@ impl SessionTranscriptProjection {
             .rposition(|entry| entry.role == TranscriptEntryRole::User)
     }
 
-    fn synthetic_assistant_entry_id_for_current_turn(&self, event_seq: i64) -> String {
-        let Some(last_user_index) = self.last_user_index() else {
-            return format!("assistant-event-{event_seq}");
-        };
-
-        self.entries
-            .iter()
-            .skip(last_user_index + 1)
-            .rev()
-            .find(|entry| entry.role == TranscriptEntryRole::Assistant)
+    fn current_turn_key(&self) -> String {
+        self.last_user_index()
+            .and_then(|index| self.entries.get(index))
             .map_or_else(
-                || format!("assistant-event-{event_seq}"),
+                || "session-start".to_string(),
                 |entry| entry.entry_id.clone(),
             )
+    }
+
+    fn provider_entry_is_in_current_turn(&self, provider_key: &str) -> bool {
+        let Some(existing_index) = self.entry_indexes.get(provider_key).copied() else {
+            return false;
+        };
+
+        self.last_user_index()
+            .map_or(true, |last_user_index| existing_index > last_user_index)
     }
 
     fn upsert_entry(&mut self, entry: TranscriptEntry) {
@@ -361,12 +355,25 @@ impl SessionTranscriptProjection {
             role,
             segments: vec![segment],
             attempt_id: None,
+            timestamp_ms: None,
         });
     }
 }
 
 fn should_skip_unanswered_question_tool_row(tool_call: &ToolCallData) -> bool {
     matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
+}
+
+fn assistant_provider_key(message_id: &Option<String>, part_id: &Option<String>) -> String {
+    if let Some(message_id) = message_id.as_ref().filter(|value| !value.is_empty()) {
+        return message_id.clone();
+    }
+
+    if let Some(part_id) = part_id.as_ref().filter(|value| !value.is_empty()) {
+        return part_id.clone();
+    }
+
+    "assistant".to_string()
 }
 
 fn text_from_block(block: &ContentBlock) -> Option<String> {
@@ -440,12 +447,12 @@ mod tests {
         assert!(matches!(
             &first.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "assistant-1"
+                if entry.entry_id == "assistant-event-7"
         ));
         assert!(matches!(
             &second.operations[0],
             TranscriptDeltaOperation::AppendSegment { entry_id, role, .. }
-                if entry_id == "assistant-1" && role == &TranscriptEntryRole::Assistant
+                if entry_id == "assistant-event-7" && role == &TranscriptEntryRole::Assistant
         ));
     }
 
@@ -492,6 +499,7 @@ mod tests {
                         text: "hello".to_string(),
                     }],
                     attempt_id: None,
+                    timestamp_ms: None,
                 }],
             },
         );
@@ -660,15 +668,15 @@ mod tests {
         assert!(matches!(
             &delta.operations[0],
             TranscriptDeltaOperation::AppendEntry { entry }
-                if entry.entry_id == "assistant-1:turn:3"
+                if entry.entry_id == "assistant-event-3"
         ));
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("runtime snapshot");
         assert_eq!(snapshot.entries.len(), 3);
-        assert_eq!(snapshot.entries[0].entry_id, "assistant-1");
+        assert_eq!(snapshot.entries[0].entry_id, "assistant-event-1");
         assert_eq!(snapshot.entries[1].entry_id, "user-event-2");
-        assert_eq!(snapshot.entries[2].entry_id, "assistant-1:turn:3");
+        assert_eq!(snapshot.entries[2].entry_id, "assistant-event-3");
         assert_eq!(snapshot.entries[0].segments.len(), 1);
         assert_eq!(snapshot.entries[2].segments.len(), 1);
     }
@@ -726,6 +734,7 @@ mod tests {
                         text: "hello".to_string(),
                     }],
                     attempt_id: None,
+                    timestamp_ms: None,
                 },
             }],
         });

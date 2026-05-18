@@ -164,6 +164,17 @@ fn assistant_merge_key(message_id: Option<&str>, request_id: Option<&str>) -> Op
         .map(|id| format!("request:{id}"))
 }
 
+fn assistant_blocks_are_mergeable_fragments(blocks: &[ContentBlock]) -> bool {
+    !blocks
+        .iter()
+        .any(|block| matches!(block, ContentBlock::ToolUse { .. }))
+}
+
+fn assistant_fragments_can_merge(existing: &[ContentBlock], incoming: &[ContentBlock]) -> bool {
+    assistant_blocks_are_mergeable_fragments(existing)
+        && assistant_blocks_are_mergeable_fragments(incoming)
+}
+
 /// Order messages by following the parentUuid chain
 fn order_messages_by_parent(messages: Vec<OrderedMessage>) -> Vec<OrderedMessage> {
     let by_uuid: HashMap<String, OrderedMessage> = messages
@@ -389,47 +400,55 @@ async fn parse_full_session_from_path_with_path(
         if let Some(key) = merge_key {
             if let Some(existing_index) = assistant_message_key_to_index.get(&key).copied() {
                 if let Some(existing) = messages.get_mut(existing_index) {
-                    existing.content_blocks.extend(content_blocks);
+                    if !assistant_fragments_can_merge(&existing.content_blocks, &content_blocks) {
+                        assistant_message_key_to_index.remove(&key);
+                    } else {
+                        existing.content_blocks.extend(content_blocks);
 
-                    if msg_content.model.is_some() {
-                        existing.model = msg_content.model;
-                    }
-                    if usage.is_some() {
-                        existing.usage = usage;
-                    }
-                    if raw.request_id.is_some() {
-                        existing.request_id = raw.request_id.clone();
-                    }
+                        if msg_content.model.is_some() {
+                            existing.model = msg_content.model;
+                        }
+                        if usage.is_some() {
+                            existing.usage = usage;
+                        }
+                        if raw.request_id.is_some() {
+                            existing.request_id = raw.request_id.clone();
+                        }
 
-                    existing.is_meta = existing.is_meta || raw.is_meta.unwrap_or(false);
+                        existing.is_meta = existing.is_meta || raw.is_meta.unwrap_or(false);
 
-                    if raw.source_tool_use_id.is_some() {
-                        existing.source_tool_use_id = raw.source_tool_use_id.clone();
-                    }
-                    if raw.tool_use_result.is_some() {
-                        existing.tool_use_result = raw.tool_use_result.clone();
-                    }
-                    if resolved_source_tool_assistant_uuid.is_some() {
-                        existing.source_tool_assistant_uuid = resolved_source_tool_assistant_uuid;
-                    }
+                        if raw.source_tool_use_id.is_some() {
+                            existing.source_tool_use_id = raw.source_tool_use_id.clone();
+                        }
+                        if raw.tool_use_result.is_some() {
+                            existing.tool_use_result = raw.tool_use_result.clone();
+                        }
+                        if resolved_source_tool_assistant_uuid.is_some() {
+                            existing.source_tool_assistant_uuid =
+                                resolved_source_tool_assistant_uuid;
+                        }
 
-                    let previous_uuid = existing.uuid.clone();
-                    if previous_uuid != raw.uuid {
-                        uuid_aliases.insert(previous_uuid, raw.uuid.clone());
-                        existing.uuid = raw.uuid.clone();
+                        let previous_uuid = existing.uuid.clone();
+                        if previous_uuid != raw.uuid {
+                            uuid_aliases.insert(previous_uuid, raw.uuid.clone());
+                            existing.uuid = raw.uuid.clone();
+                        }
+
+                        continue;
                     }
                 }
-
-                continue;
             }
 
-            assistant_message_key_to_index.insert(key, messages.len());
+            if assistant_blocks_are_mergeable_fragments(&content_blocks) {
+                assistant_message_key_to_index.insert(key, messages.len());
+            }
         }
 
         messages.push(OrderedMessage {
             uuid: raw.uuid,
             parent_uuid: resolved_parent_uuid,
             role: msg_content.role,
+            provider_message_id: msg_content.id,
             timestamp: raw.timestamp,
             content_blocks,
             model: msg_content.model,

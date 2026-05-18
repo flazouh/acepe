@@ -45,7 +45,7 @@ function createMockDeps() {
 		getHotState: vi.fn().mockReturnValue(DEFAULT_TRANSIENT_PROJECTION),
 		getSessionCanSend: vi.fn().mockReturnValue(true),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue("ready"),
-		getEntries: vi.fn().mockReturnValue([]),
+		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue({
@@ -69,7 +69,6 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -231,20 +230,6 @@ describe("SessionMessagingService.sendMessage", () => {
 	it("fails closed when a created session lacks canonical lifecycle projection", async () => {
 		const deps = createMockDeps();
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
-		(deps.stateReader.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
-			{
-				id: "assistant-1",
-				type: "assistant",
-				message: {
-					content: {
-						type: "text",
-						text: "existing response",
-					},
-					chunks: [],
-				},
-				timestamp: new Date(),
-			},
-		]);
 		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue(null);
 		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-1",

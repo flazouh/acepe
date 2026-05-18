@@ -12,8 +12,10 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
+import type { ToolArguments } from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 function applyStreamingArguments(
 	store: SessionEntryStore,
@@ -37,6 +39,17 @@ function applyStreamingArguments(
 	});
 }
 
+function readProgressiveArguments(
+	store: SessionEntryStore,
+	sessionId: string,
+	toolCallId: string
+): ToolArguments | undefined {
+	const entry = store
+		.getEntries(sessionId)
+		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
+	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
+}
+
 describe("SessionEntryStore - Streaming Arguments", () => {
 	let store: SessionEntryStore;
 
@@ -44,7 +57,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("updateToolCallTranscriptEntry / getStreamingArguments", () => {
+	describe("updateToolCallTranscriptEntry progressive arguments", () => {
 		it("should store and retrieve streaming arguments from transcript-only updates", () => {
 			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
@@ -68,7 +81,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				],
 			});
 
-			const result = store.getStreamingArguments("tool1");
+			const result = readProgressiveArguments(store, "session1", "tool1");
 			expect(result).toEqual({
 				kind: "edit",
 				edits: [
@@ -121,9 +134,15 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				file_path: "/tmp/file",
 			});
 
-			expect(store.getStreamingArguments("tool1")).toEqual({ kind: "execute", command: "ls -la" });
-			expect(store.getStreamingArguments("tool2")).toEqual({ kind: "search", query: "test" });
-			expect(store.getStreamingArguments("tool3")).toEqual({
+			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
+				kind: "execute",
+				command: "ls -la",
+			});
+			expect(readProgressiveArguments(store, "session1", "tool2")).toEqual({
+				kind: "search",
+				query: "test",
+			});
+			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
 				kind: "read",
 				file_path: "/tmp/file",
 			});
@@ -154,16 +173,16 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 
-			expect(store.getStreamingArguments("tool1")).toEqual({
+			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
 				kind: "edit",
 				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 		});
 	});
 
-	describe("getStreamingArguments", () => {
+	describe("progressive argument lookup helper", () => {
 		it("should return undefined for unknown tool call", () => {
-			expect(store.getStreamingArguments("unknown")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "unknown")).toBeUndefined();
 		});
 	});
 
@@ -189,11 +208,11 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
 			});
 
-			expect(store.getStreamingArguments("tool1")).toBeDefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeDefined();
 
 			store.clearStreamingArguments("tool1");
 
-			expect(store.getStreamingArguments("tool1")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
 		});
 	});
 
@@ -243,11 +262,14 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			store.clearEntries("session1");
 
 			// session1's tool calls should be cleared
-			expect(store.getStreamingArguments("tool1")).toBeUndefined();
-			expect(store.getStreamingArguments("tool2")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool2")).toBeUndefined();
 
 			// session2's tool calls should remain
-			expect(store.getStreamingArguments("tool3")).toEqual({ kind: "execute", command: "c" });
+			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
+				kind: "execute",
+				command: "c",
+			});
 		});
 	});
 });
@@ -833,7 +855,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 		}
 	});
 
-	it("starts a new assistant entry for a new user turn even when the provider reuses messageId", async () => {
+	it("does not repair provider-reused assistant ids in the compatibility chunk aggregator", async () => {
 		await store.aggregateAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "first answer" } },
@@ -863,35 +885,29 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 		);
 
 		const entries = store.getEntries("session1");
-		expect(entries).toHaveLength(3);
+		expect(entries).toHaveLength(2);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
-		expect(entries[2].type).toBe("assistant");
-		expect(entries[2].id).not.toBe("provider-message");
 
 		const firstAssistant = entries[0];
-		const secondAssistant = entries[2];
 		if (firstAssistant.type === "assistant") {
-			expect(firstAssistant.message.chunks).toHaveLength(1);
+			expect(firstAssistant.message.chunks).toHaveLength(3);
 			expect(firstAssistant.message.chunks[0].block).toEqual({
 				type: "text",
 				text: "first answer",
 			});
-		}
-		if (secondAssistant.type === "assistant") {
-			expect(secondAssistant.message.chunks).toHaveLength(2);
-			expect(secondAssistant.message.chunks[0].block).toEqual({
+			expect(firstAssistant.message.chunks[1].block).toEqual({
 				type: "text",
 				text: "second ",
 			});
-			expect(secondAssistant.message.chunks[1].block).toEqual({
+			expect(firstAssistant.message.chunks[2].block).toEqual({
 				type: "text",
 				text: "answer",
 			});
 		}
 	});
 
-	it("keeps canonical assistant deltas after a new user turn when the provider reuses entryId", () => {
+	it("keeps canonical assistant deltas after a new user turn using Rust-owned entryId", () => {
 		store.applyTranscriptDelta(
 			"session1",
 			{
@@ -932,11 +948,11 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 				operations: [
 					{
 						kind: "appendSegment",
-						entryId: "provider-message",
+						entryId: "assistant-event-2",
 						role: "assistant",
 						segment: {
 							kind: "text",
-							segmentId: "provider-message:segment:2",
+							segmentId: "assistant-event-2:segment:2",
 							text: "second answer",
 						},
 					},
@@ -950,7 +966,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
 		expect(entries[2].type).toBe("assistant");
-		expect(entries[2].id).not.toBe("provider-message");
+		expect(entries[2].id).toBe("assistant-event-2");
 		if (entries[0].type === "assistant") {
 			expect(entries[0].message.chunks[0].block).toEqual({
 				type: "text",

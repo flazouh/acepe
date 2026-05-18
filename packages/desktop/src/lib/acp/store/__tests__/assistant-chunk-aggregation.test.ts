@@ -16,6 +16,7 @@ import { describe, expect, it } from "bun:test";
 import { groupAssistantChunks } from "../../logic/assistant-chunk-grouper.js";
 import type { AssistantMessage } from "../../types/assistant-message.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 // ==========================================
 // Helpers

@@ -26,9 +26,11 @@ import {
 import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
 import type { SessionEntry } from "../types.js";
-import { isToolCallEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
-import type { IEntryStoreInternal } from "./interfaces/entry-store-internal.js";
+import type {
+	IEntryStoreInternal,
+	ToolCallEntryRef,
+} from "./interfaces/entry-store-internal.js";
 import type { ITranscriptToolCallBuffer } from "./interfaces/transcript-tool-call-buffer-interface.js";
 import { normalizeToolResult } from "./tool-result-normalizer.js";
 
@@ -133,7 +135,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
-		private readonly entryIndex: IEntryIndex
+		_entryIndex: IEntryIndex
 	) {}
 
 	private rememberToolCallSession(
@@ -183,7 +185,6 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		if (existingRef) {
 			// Tool call already exists - update it with incoming data
 			const entry = existingRef.entry;
-			if (!isToolCallEntry(entry)) return ok(undefined);
 
 			const existingToolCall = entry.message;
 			const createResolution = resolveTranscriptToolCallCreate(
@@ -338,11 +339,6 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		}
 
 		const entry = entryRef.entry;
-		if (!isToolCallEntry(entry)) {
-			logger.warn("Entry is not a tool call", { sessionId, entryId: entry.id });
-			return ok(undefined);
-		}
-
 		const toolCall = entry.message;
 
 		// Determine the result to use:
@@ -403,34 +399,6 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	// ============================================
 
 	/**
-	 * Get the streaming arguments for a tool call.
-	 */
-	getStreamingArguments(toolCallId: string): ToolArguments | undefined {
-		const sessionId = this.toolCallSessionIndex.get(toolCallId);
-		if (!sessionId) {
-			return undefined;
-		}
-
-		const entryRef = this.findToolCallEntryRef(sessionId, toolCallId);
-		if (entryRef && isToolCallEntry(entryRef.entry)) {
-			return entryRef.entry.message.progressiveArguments;
-		}
-
-		const parentInfo = this.childToParentIndex.get(toolCallId);
-		if (!parentInfo || parentInfo.sessionId !== sessionId) {
-			return undefined;
-		}
-
-		const parentRef = this.findToolCallEntryRef(sessionId, parentInfo.parentId);
-		if (!parentRef || !isToolCallEntry(parentRef.entry) || !parentRef.entry.message.taskChildren) {
-			return undefined;
-		}
-
-		return parentRef.entry.message.taskChildren.find((child) => child.id === toolCallId)
-			?.progressiveArguments;
-	}
-
-	/**
 	 * Clear streaming arguments for a tool call.
 	 */
 	clearStreamingArguments(toolCallId: string): void {
@@ -440,7 +408,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		}
 
 		const entryRef = this.findToolCallEntryRef(sessionId, toolCallId);
-		if (entryRef && isToolCallEntry(entryRef.entry)) {
+		if (entryRef) {
 			if (entryRef.entry.message.progressiveArguments === undefined) {
 				return;
 			}
@@ -463,7 +431,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		}
 
 		const parentRef = this.findToolCallEntryRef(sessionId, parentInfo.parentId);
-		if (!parentRef || !isToolCallEntry(parentRef.entry) || !parentRef.entry.message.taskChildren) {
+		if (!parentRef || !parentRef.entry.message.taskChildren) {
 			return;
 		}
 
@@ -502,6 +470,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 		const toolCallIds = this.sessionToolCallIds.get(sessionId);
 		if (toolCallIds) {
 			for (const toolCallId of toolCallIds) {
+				this.clearStreamingArguments(toolCallId);
 				this.toolCallSessionIndex.delete(toolCallId);
 				this.childToParentIndex.delete(toolCallId);
 			}
@@ -517,31 +486,8 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	 * Find a tool call entry by ID using O(1) index lookup.
 	 * Falls back to linear search if index is stale.
 	 */
-	private findToolCallEntryRef(
-		sessionId: string,
-		toolCallId: string
-	): { entry: SessionEntry; index: number } | null {
-		// O(1) lookup using toolCallId index (mirrors messageIdIndex pattern)
-		const index = this.entryIndex.getToolCallIdIndex(sessionId, toolCallId);
-		if (index !== undefined) {
-			const entries = this.entryStore.getEntries(sessionId);
-			const entry = entries[index];
-			// Verify the entry still matches (defensive check)
-			if (entry && isToolCallEntry(entry) && entry.message.id === toolCallId) {
-				return { entry, index };
-			}
-		}
-
-		// Fallback: linear search (index may be stale after addEntry)
-		const entries = this.entryStore.getEntries(sessionId);
-		const fallbackIndex = entries.findIndex(
-			(entry) => isToolCallEntry(entry) && entry.message.id === toolCallId
-		);
-		if (fallbackIndex !== -1) {
-			return { entry: entries[fallbackIndex], index: fallbackIndex };
-		}
-
-		return null;
+	private findToolCallEntryRef(sessionId: string, toolCallId: string): ToolCallEntryRef | null {
+		return this.entryStore.findToolCallEntryRef(sessionId, toolCallId);
 	}
 
 	/**
@@ -549,7 +495,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	 */
 	private writeToolEntryRef(
 		sessionId: string,
-		ref: { entry: SessionEntry; index: number },
+		ref: ToolCallEntryRef,
 		updatedEntry: SessionEntry
 	): void {
 		this.entryStore.updateEntry(sessionId, ref.index, updatedEntry);

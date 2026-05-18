@@ -7,7 +7,7 @@ use crate::acp::provider::{HistoryReplayFamily, ProviderHistoryLoadError};
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::{SessionOpenError, SessionOpenMissing, SessionOpenResult};
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::transcript_projection::TranscriptSegment;
 use crate::acp::transcript_projection::TranscriptSnapshot;
@@ -51,6 +51,14 @@ fn apply_session_title_metadata(
     session
 }
 
+fn apply_provider_session_title_metadata(
+    mut session: ProviderOwnedSessionSnapshot,
+    metadata: Option<&crate::db::repository::SessionMetadataRow>,
+) -> ProviderOwnedSessionSnapshot {
+    session.thread_snapshot = apply_session_title_metadata(session.thread_snapshot, metadata);
+    session
+}
+
 fn derive_current_mode_id_from_entries(
     entries: &[crate::session_jsonl::types::StoredEntry],
 ) -> Option<String> {
@@ -90,6 +98,13 @@ fn apply_derived_current_mode_metadata(
         session.current_mode_id = derive_current_mode_id_from_entries(&session.entries);
     }
 
+    session
+}
+
+fn apply_provider_derived_current_mode_metadata(
+    mut session: ProviderOwnedSessionSnapshot,
+) -> ProviderOwnedSessionSnapshot {
+    session.thread_snapshot = apply_derived_current_mode_metadata(session.thread_snapshot);
     session
 }
 
@@ -523,7 +538,7 @@ fn history_replay_family(agent: &CanonicalAgentId) -> HistoryReplayFamily {
 async fn load_unified_session_content_with_context(
     app: AppHandle,
     context: crate::history::session_context::SessionContext,
-) -> Result<Option<SessionThreadSnapshot>, ProviderHistoryLoadError> {
+) -> Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError> {
     tracing::info!(
         session_id = %context.local_session_id,
         agent_id = %context.agent_id,
@@ -558,14 +573,16 @@ async fn load_unified_session_content_with_context(
     };
 
     Ok(result
-        .map(apply_derived_current_mode_metadata)
-        .map(|session| apply_session_title_metadata(session, context.session_metadata.as_ref())))
+        .map(apply_provider_derived_current_mode_metadata)
+        .map(|session| {
+            apply_provider_session_title_metadata(session, context.session_metadata.as_ref())
+        }))
 }
 
 pub async fn load_provider_owned_session_snapshot(
     app: AppHandle,
     replay_context: &SessionReplayContext,
-) -> Result<Option<SessionThreadSnapshot>, ProviderHistoryLoadError> {
+) -> Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError> {
     let Some(db) = app.try_state::<DbConn>().map(|s| s.inner().clone()) else {
         return Err(ProviderHistoryLoadError::provider_unavailable(
             "Database unavailable for provider-owned session load",
@@ -669,7 +686,7 @@ pub async fn get_session_open_result(
         .map(|state| state.inner().clone());
 
     Ok(
-        crate::acp::session_open_snapshot::session_open_result_from_thread_snapshot(
+        crate::acp::session_open_snapshot::session_open_result_from_provider_owned_snapshot(
             db.inner(),
             &hub,
             runtime_registry.as_deref(),

@@ -6,7 +6,7 @@
  */
 
 export { mapCanonicalTurnStateToHotTurnState } from "../../../store/canonical-turn-state-mapping";
-export { copySessionToClipboard, copyTextToClipboard } from "./clipboard-manager";
+export { copyCanonicalSessionToClipboard, copyTextToClipboard } from "./clipboard-manager";
 export { derivePanelErrorInfo } from "./connection-ui";
 export { resolveEffectiveProjectPath } from "./effective-project-path";
 export { calculateLoadingProgress, isLoadingComplete } from "./loading-animator";
@@ -55,7 +55,6 @@ export {
 	type AgentPanelDisplayResult,
 	type AgentPanelDisplayRow,
 } from "./agent-panel-display-model.js";
-export { backfillSceneEntryTimestamps } from "./backfill-scene-entry-timestamps.js";
 export {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,

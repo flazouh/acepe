@@ -16,15 +16,10 @@
  */
 
 import { SvelteMap } from "svelte/reactivity";
-import type {
-	TranscriptDelta,
-	TranscriptEntry,
-	TranscriptSnapshot,
-} from "../../services/acp-types.js";
+import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
 import type {
 	ContentBlock,
 	ContentChunk,
-	ToolArguments,
 	ToolCallData,
 } from "../../services/converted-session-types.js";
 import type { ToolCallUpdate } from "../types/tool-call.js";
@@ -32,7 +27,12 @@ import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { ChunkAggregator } from "./services/chunk-aggregator.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
-import type { IEntryStoreInternal } from "./services/interfaces/entry-store-internal.js";
+import type {
+	AssistantEntryRef,
+	IEntryStoreInternal,
+	ToolCallEntryRef,
+	UserEntryRef,
+} from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import {
@@ -73,7 +73,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// Track which sessions have been preloaded
 	private preloadedIds = new Set<string>();
 	private readonly transcriptRevisionBySession = new Map<string, number>();
-	private readonly canonicalAssistantEntryRemaps = new Map<string, Map<string, string>>();
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
@@ -96,8 +95,79 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	/**
 	 * Get entries for a session.
 	 */
-	getEntries(sessionId: string): SessionEntry[] {
+	private getEntries(sessionId: string): SessionEntry[] {
 		return this.entriesById.get(sessionId) ?? [];
+	}
+
+	findAssistantEntryRef(sessionId: string, entryId: string): AssistantEntryRef | null {
+		const entries = this.entriesById.get(sessionId) ?? [];
+		const indexedPosition = this.entryIndex.getMessageIdIndex(sessionId, entryId);
+		if (indexedPosition !== undefined) {
+			const indexedEntry = entries[indexedPosition];
+			if (indexedEntry?.type === "assistant" && indexedEntry.id === entryId) {
+				return { entry: indexedEntry, index: indexedPosition };
+			}
+		}
+
+		const fallbackIndex = entries.findIndex(
+			(entry) => entry.type === "assistant" && entry.id === entryId
+		);
+		if (fallbackIndex === -1) {
+			return null;
+		}
+
+		const fallbackEntry = entries[fallbackIndex];
+		if (fallbackEntry?.type !== "assistant") {
+			return null;
+		}
+
+		this.entryIndex.addMessageId(sessionId, entryId, fallbackIndex);
+		return { entry: fallbackEntry, index: fallbackIndex };
+	}
+
+	hasAssistantEntry(sessionId: string, entryId: string): boolean {
+		return this.findAssistantEntryRef(sessionId, entryId) !== null;
+	}
+
+	findLatestUserEntryRef(sessionId: string): UserEntryRef | null {
+		const entries = this.entriesById.get(sessionId) ?? [];
+		if (entries.length === 0) {
+			return null;
+		}
+
+		const latestIndex = entries.length - 1;
+		const latestEntry = entries[latestIndex];
+		if (latestEntry?.type !== "user") {
+			return null;
+		}
+
+		return { entry: latestEntry, index: latestIndex };
+	}
+
+	findToolCallEntryRef(sessionId: string, toolCallId: string): ToolCallEntryRef | null {
+		const entries = this.entriesById.get(sessionId) ?? [];
+		const indexedPosition = this.entryIndex.getToolCallIdIndex(sessionId, toolCallId);
+		if (indexedPosition !== undefined) {
+			const indexedEntry = entries[indexedPosition];
+			if (isToolCallEntry(indexedEntry) && indexedEntry.message.id === toolCallId) {
+				return { entry: indexedEntry, index: indexedPosition };
+			}
+		}
+
+		const fallbackIndex = entries.findIndex(
+			(entry) => isToolCallEntry(entry) && entry.message.id === toolCallId
+		);
+		if (fallbackIndex === -1) {
+			return null;
+		}
+
+		const fallbackEntry = entries[fallbackIndex];
+		if (!isToolCallEntry(fallbackEntry)) {
+			return null;
+		}
+
+		this.entryIndex.addToolCallId(sessionId, toolCallId, fallbackIndex);
+		return { entry: fallbackEntry, index: fallbackIndex };
 	}
 
 	/**
@@ -146,7 +216,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	private setEntriesAndBuildIndices(sessionId: string, entries: SessionEntry[]): void {
-		this.canonicalAssistantEntryRemaps.delete(sessionId);
 		// SvelteMap provides fine-grained reactivity - only this session's subscribers re-render
 		this.entriesById.set(sessionId, entries);
 
@@ -180,13 +249,8 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			}
 
 			if (operation.kind === "appendEntry") {
-				const appendTarget = this.resolveCanonicalAppendEntryTarget(
-					sessionId,
-					operation.entry,
-					delta.eventSeq
-				);
-				const existingIndex = appendTarget.existingIndex;
-				const convertedEntry = convertTranscriptEntryToSessionEntry(appendTarget.entry, timestamp);
+				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
+				const convertedEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
 				if (existingIndex === undefined) {
 					this.addEntry(sessionId, convertedEntry);
 				} else {
@@ -195,17 +259,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				continue;
 			}
 
-			const segmentTarget = this.resolveCanonicalAppendSegmentTarget(
-				sessionId,
-				operation.entryId,
-				operation.role,
-				delta.eventSeq
-			);
-			const existingIndex = segmentTarget.existingIndex;
+			const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entryId);
 			if (existingIndex === undefined) {
 				const nextEntry = convertTranscriptEntryToSessionEntry(
 					{
-						entryId: segmentTarget.entryId,
+						entryId: operation.entryId,
 						role: operation.role,
 						segments: [operation.segment],
 					},
@@ -262,92 +320,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			timestamp: entry.timestamp,
 			isStreaming: entry.isStreaming,
 		};
-	}
-
-	private resolveCanonicalAppendEntryTarget(
-		sessionId: string,
-		entry: TranscriptEntry,
-		eventSeq: number
-	): { entry: TranscriptEntry; existingIndex: number | undefined } {
-		if (entry.role !== "assistant") {
-			return {
-				entry,
-				existingIndex: this.entryIndex.getEntryIdIndex(sessionId, entry.entryId),
-			};
-		}
-
-		const target = this.resolveCanonicalAssistantTarget(sessionId, entry.entryId, eventSeq);
-		if (target.entryId === entry.entryId) {
-			return {
-				entry,
-				existingIndex: target.existingIndex,
-			};
-		}
-
-		return {
-			entry: {
-				entryId: target.entryId,
-				role: entry.role,
-				segments: entry.segments,
-			},
-			existingIndex: target.existingIndex,
-		};
-	}
-
-	private resolveCanonicalAppendSegmentTarget(
-		sessionId: string,
-		entryId: string,
-		role: TranscriptEntry["role"],
-		eventSeq: number
-	): { entryId: string; existingIndex: number | undefined } {
-		if (role !== "assistant") {
-			return {
-				entryId,
-				existingIndex: this.entryIndex.getEntryIdIndex(sessionId, entryId),
-			};
-		}
-
-		return this.resolveCanonicalAssistantTarget(sessionId, entryId, eventSeq);
-	}
-
-	private resolveCanonicalAssistantTarget(
-		sessionId: string,
-		entryId: string,
-		eventSeq: number
-	): { entryId: string; existingIndex: number | undefined } {
-		const entries = this.getEntries(sessionId);
-		const lastUserIndex = this.findLastUserEntryIndex(entries);
-		const remaps = this.canonicalAssistantEntryRemaps.get(sessionId);
-		const remappedEntryId = remaps?.get(entryId);
-		if (remappedEntryId) {
-			const remappedIndex = this.entryIndex.getEntryIdIndex(sessionId, remappedEntryId);
-			if (remappedIndex !== undefined && remappedIndex > lastUserIndex) {
-				return { entryId: remappedEntryId, existingIndex: remappedIndex };
-			}
-		}
-
-		const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, entryId);
-		if (existingIndex === undefined || existingIndex > lastUserIndex) {
-			return { entryId, existingIndex };
-		}
-
-		const nextEntryId = `${entryId}:turn:${eventSeq}`;
-		let nextRemaps = remaps;
-		if (!nextRemaps) {
-			nextRemaps = new Map<string, string>();
-			this.canonicalAssistantEntryRemaps.set(sessionId, nextRemaps);
-		}
-		nextRemaps.set(entryId, nextEntryId);
-		return { entryId: nextEntryId, existingIndex: undefined };
-	}
-
-	private findLastUserEntryIndex(entries: readonly SessionEntry[]): number {
-		for (let index = entries.length - 1; index >= 0; index -= 1) {
-			if (entries[index]?.type === "user") {
-				return index;
-			}
-		}
-		return -1;
 	}
 
 	private normalizePreloadedEntries(sessionId: string, entries: SessionEntry[]): SessionEntry[] {
@@ -489,7 +461,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.entryIndex.clearSession(sessionId);
 		this.preloadedIds.delete(sessionId);
 		this.transcriptRevisionBySession.delete(sessionId);
-		this.canonicalAssistantEntryRemaps.delete(sessionId);
 
 		// Delegate cleanup to extracted managers
 		this.chunkAggregator.clearSession(sessionId);
@@ -537,13 +508,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 					error: e,
 				})
 		);
-	}
-
-	/**
-	 * Get the streaming arguments for a tool call.
-	 */
-	getStreamingArguments(toolCallId: string): ToolArguments | undefined {
-		return this.transcriptToolCallBuffer.getStreamingArguments(toolCallId);
 	}
 
 	/**

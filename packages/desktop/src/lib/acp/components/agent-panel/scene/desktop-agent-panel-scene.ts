@@ -15,7 +15,7 @@ import {
 	type AgentToolEntry,
 	type AgentToolPresentationState,
 	type AgentToolStatus,
-} from "@acepe/ui/agent-panel";
+} from "@acepe/ui/agent-panel/types";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { JsonValue } from "../../../../services/converted-session-types.js";
 import type { SessionStatus } from "../../../application/dto/session.js";

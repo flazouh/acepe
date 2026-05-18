@@ -1,6 +1,6 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::AgentType;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::ToolCallUpdateData;
 use crate::acp::tool_call_presentation::{
     merge_tool_arguments, synthesize_locations, synthesize_title, title_is_placeholder,
@@ -16,21 +16,38 @@ struct StreamingLogEntry {
 pub(crate) fn convert_cursor_full_session_to_thread_snapshot(
     session: &FullSession,
 ) -> SessionThreadSnapshot {
-    let mut snapshot = super::fullsession::convert_full_session_to_thread_snapshot_with_agent(
-        session,
-        AgentType::Cursor,
+    convert_cursor_full_session_to_provider_owned_snapshot(session).thread_snapshot
+}
+
+pub(crate) fn convert_cursor_full_session_to_provider_owned_snapshot(
+    session: &FullSession,
+) -> ProviderOwnedSessionSnapshot {
+    let mut provider_snapshot =
+        super::fullsession::convert_full_session_to_provider_owned_snapshot_with_agent(
+            session,
+            AgentType::Cursor,
+        );
+    let updates = collect_streaming_tool_updates_for_entries(
+        &session.session_id,
+        &provider_snapshot.thread_snapshot.entries,
     );
-    overlay_streaming_tool_updates(&session.session_id, &mut snapshot);
-    snapshot
+    provider_snapshot.set_canonical_tool_call_updates(updates);
+    provider_snapshot
 }
 
-fn overlay_streaming_tool_updates(session_id: &str, snapshot: &mut SessionThreadSnapshot) {
-    overlay_streaming_tool_updates_for_entries(session_id, &mut snapshot.entries);
-}
-
+#[cfg(test)]
 fn overlay_streaming_tool_updates_for_entries(session_id: &str, entries: &mut [StoredEntry]) {
+    for update in collect_streaming_tool_updates_for_entries(session_id, entries) {
+        apply_tool_call_update(entries, &update);
+    }
+}
+
+fn collect_streaming_tool_updates_for_entries(
+    session_id: &str,
+    entries: &[StoredEntry],
+) -> Vec<ToolCallUpdateData> {
     let Some(log_path) = crate::acp::streaming_log::get_log_file_path(session_id) else {
-        return;
+        return Vec::new();
     };
 
     let Ok(content) = std::fs::read_to_string(&log_path) else {
@@ -39,9 +56,10 @@ fn overlay_streaming_tool_updates_for_entries(session_id: &str, entries: &mut [S
             path = %log_path.display(),
             "Failed to read Cursor streaming log for session overlay"
         );
-        return;
+        return Vec::new();
     };
 
+    let mut updates = Vec::new();
     for line in content
         .lines()
         .map(str::trim)
@@ -70,14 +88,21 @@ fn overlay_streaming_tool_updates_for_entries(session_id: &str, entries: &mut [S
             continue;
         };
 
-        apply_tool_call_update(entries, &update);
+        if let Some(normalized_update) = normalize_streaming_tool_update(entries, &update) {
+            updates.push(normalized_update);
+        }
     }
+
+    updates
 }
 
+#[cfg(test)]
 fn apply_tool_call_update(entries: &mut [StoredEntry], update: &ToolCallUpdateData) {
-    let normalized_tool_call_id = normalize_tool_call_id(&update.tool_call_id);
+    let Some(normalized_update) = normalize_streaming_tool_update(entries, update) else {
+        return;
+    };
     let Some(tool_call) = entries.iter_mut().find_map(|entry| match entry {
-        StoredEntry::ToolCall { id, message, .. } if id == &normalized_tool_call_id => {
+        StoredEntry::ToolCall { id, message, .. } if id == &normalized_update.tool_call_id => {
             Some(message)
         }
         _ => None,
@@ -85,17 +110,34 @@ fn apply_tool_call_update(entries: &mut [StoredEntry], update: &ToolCallUpdateDa
         return;
     };
 
-    let normalized_update =
-        normalize_cursor_tool_call_update(tool_call, update, normalized_tool_call_id);
     super::merge_tool_call_update(tool_call, &normalized_update);
 
     if tool_call.locations.is_none() {
         tool_call.locations = synthesize_locations(&tool_call.arguments);
     }
 
-    if title_is_placeholder(tool_call.title.as_deref()) {
+    if tool_call.title.is_none() {
         tool_call.title = synthesize_title(&tool_call.arguments).or(tool_call.title.clone());
     }
+}
+
+fn normalize_streaming_tool_update(
+    entries: &[StoredEntry],
+    update: &ToolCallUpdateData,
+) -> Option<ToolCallUpdateData> {
+    let normalized_tool_call_id = normalize_tool_call_id(&update.tool_call_id);
+    let tool_call = entries.iter().find_map(|entry| match entry {
+        StoredEntry::ToolCall { id, message, .. } if id == &normalized_tool_call_id => {
+            Some(message)
+        }
+        _ => None,
+    })?;
+
+    Some(normalize_cursor_tool_call_update(
+        tool_call,
+        update,
+        normalized_tool_call_id,
+    ))
 }
 
 fn normalize_cursor_tool_call_update(
@@ -122,9 +164,7 @@ fn normalize_cursor_tool_call_update(
         if normalized.locations.is_none() {
             normalized.locations = synthesize_locations(&merged_arguments);
         }
-        if title_is_placeholder(normalized.title.as_deref())
-            && title_is_placeholder(tool_call.title.as_deref())
-        {
+        if normalized.title.is_some() && title_is_placeholder(normalized.title.as_deref()) {
             normalized.title = synthesize_title(&merged_arguments).or(normalized.title);
         }
 
@@ -150,12 +190,118 @@ fn normalize_cursor_tool_call_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::acp::streaming_log::{clear_session_log, log_emitted_event};
     use crate::session_jsonl::types::{ContentBlock, FullSession, OrderedMessage, SessionStats};
+
+    #[test]
+    fn cursor_streaming_log_updates_materialize_as_provider_owned_operation_facts() {
+        let session_id = "cursor-provider-owned-operation-update-test";
+        let _ = clear_session_log(session_id);
+
+        let emitted_update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "tool-rename-provider-owned".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: None,
+                content: None,
+                raw_output: None,
+                title: Some("Apply Patch".to_string()),
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: Some(ToolArguments::Edit {
+                    edits: vec![crate::acp::session_update::EditEntry {
+                        file_path: Some("/tmp/new.rs".to_string()),
+                        move_from: Some("/tmp/old.rs".to_string()),
+                        old_string: None,
+                        new_string: None,
+                        content: None,
+                    }],
+                }),
+                failure_reason: None,
+            },
+            session_id: Some(session_id.to_string()),
+        };
+
+        log_emitted_event(session_id, &emitted_update);
+
+        let session = FullSession {
+            session_id: session_id.to_string(),
+            project_path: "/tmp/project".to_string(),
+            title: "Cursor Session".to_string(),
+            created_at: "2026-04-30T00:00:00+00:00".to_string(),
+            stats: SessionStats {
+                total_messages: 1,
+                user_messages: 0,
+                assistant_messages: 1,
+                tool_uses: 1,
+                tool_results: 0,
+                thinking_blocks: 0,
+                total_input_tokens: 0,
+                total_output_tokens: 0,
+            },
+            messages: vec![OrderedMessage {
+                uuid: "assistant-1".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: None,
+                timestamp: "2026-04-30T00:00:01+00:00".to_string(),
+                content_blocks: vec![ContentBlock::ToolUse {
+                    id: "tool-rename-provider-owned".to_string(),
+                    name: "Edit".to_string(),
+                    input: serde_json::json!({}),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: None,
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            }],
+        };
+
+        let provider_snapshot = convert_cursor_full_session_to_provider_owned_snapshot(&session);
+        assert_eq!(provider_snapshot.canonical_tool_call_updates.len(), 1);
+        let StoredEntry::ToolCall { message, .. } = &provider_snapshot.thread_snapshot.entries[0]
+        else {
+            panic!("expected restored tool entry");
+        };
+        assert_ne!(
+            message.title.as_deref(),
+            Some("Rename /tmp/old.rs -> /tmp/new.rs")
+        );
+
+        let materialized = materialize_provider_owned_thread_snapshot(
+            session_id,
+            Some(crate::acp::types::CanonicalAgentId::Cursor),
+            1,
+            &provider_snapshot,
+        );
+        let operation = materialized
+            .projection
+            .operations
+            .iter()
+            .find(|operation| operation.tool_call_id == "tool-rename-provider-owned")
+            .expect("operation should be projected");
+
+        assert_eq!(operation.provider_status, ToolCallStatus::Completed);
+        assert_eq!(
+            operation.title.as_deref(),
+            Some("Rename /tmp/old.rs -> /tmp/new.rs")
+        );
+
+        let _ = clear_session_log(session_id);
+    }
 
     #[test]
     fn restored_cursor_tool_call_ids_are_normalized_before_projection() {
@@ -183,6 +329,7 @@ mod tests {
                     uuid: "assistant-1".to_string(),
                     parent_uuid: None,
                     role: "assistant".to_string(),
+                    provider_message_id: None,
                     timestamp: "2026-04-30T00:00:01+00:00".to_string(),
                     content_blocks: vec![ContentBlock::ToolUse {
                         id: raw_id.to_string(),
@@ -205,6 +352,7 @@ mod tests {
                     uuid: "tool-result-1".to_string(),
                     parent_uuid: None,
                     role: "user".to_string(),
+                    provider_message_id: None,
                     timestamp: "2026-04-30T00:00:02+00:00".to_string(),
                     content_blocks: vec![ContentBlock::ToolResult {
                         tool_use_id: raw_id.to_string(),

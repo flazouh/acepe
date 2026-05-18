@@ -222,7 +222,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
 		getSessionCapabilities: vi.fn(),
-		getEntries: vi.fn(),
+		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
@@ -256,7 +256,6 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -693,6 +692,7 @@ describe("SessionConnectionManager.connectSession", () => {
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
 					preconnectionCapabilityMode: "startupGlobal",
+				implicitSessionCreationMode: "allowed",
 				},
 				modelsDisplay: {
 					groups: [],
@@ -1075,7 +1075,7 @@ describe("SessionConnectionManager.createSession", () => {
 		getSessionLifecycleStatus: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getEntries: vi.fn(),
+		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
@@ -1109,7 +1109,6 @@ describe("SessionConnectionManager.createSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -1791,7 +1790,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		getSessionLifecycleStatus: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getEntries: vi.fn(),
+		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
@@ -1825,7 +1824,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -2240,7 +2238,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
-		getEntries: vi.fn(),
+		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
@@ -2274,7 +2272,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -2374,7 +2371,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 					statusChangedAt: Date.now(),
 				})
 			),
-			getEntries: vi.fn(() => []),
+			getSessionToolCalls: vi.fn(() => []),
 			isPreloaded: vi.fn(() => false),
 			getSessionsForProject: vi.fn(() => []),
 			getSessionCold: vi.fn(() => ({
@@ -2416,7 +2413,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		};
 
 		const entryManager: IEntryManager = {
-			getEntries: vi.fn(),
 			hasEntries: vi.fn(),
 			isPreloaded: vi.fn(),
 			markPreloaded: vi.fn(),

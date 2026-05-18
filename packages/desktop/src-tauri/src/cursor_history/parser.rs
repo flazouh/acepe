@@ -1007,6 +1007,7 @@ fn parse_transcript_message(
         uuid: format!("msg-{}", idx),
         parent_uuid: None,
         role: msg.role.clone(),
+        provider_message_id: None,
         timestamp: chrono::Utc::now().to_rfc3339(),
         content_blocks,
         model: None,

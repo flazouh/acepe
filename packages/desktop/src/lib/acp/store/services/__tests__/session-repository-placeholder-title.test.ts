@@ -60,7 +60,7 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 			availableCommands: [],
 			statusChangedAt: Date.now(),
 		}),
-		getEntries: () => [],
+		getSessionToolCalls: () => [],
 		isPreloaded: (sessionId: string) => state.preloadedSessionIds.has(sessionId),
 		getSessionsForProject: () => [],
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
@@ -103,7 +103,6 @@ function createEntryManager(preloadedSessionIds: Set<string>): IEntryManager {
 		},
 	];
 	return {
-		getEntries: () => entries,
 		hasEntries: () => false,
 		isPreloaded: (sessionId: string) => preloadedSessionIds.has(sessionId),
 		markPreloaded: () => {},

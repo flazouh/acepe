@@ -11,8 +11,8 @@ import type {
 	AgentPanelStripModel,
 	AgentToolEntry,
 	AnyAgentEntry,
-} from "@acepe/ui/agent-panel";
-import { AGENT_PANEL_ACTION_IDS } from "@acepe/ui/agent-panel";
+} from "@acepe/ui/agent-panel/types";
+import { AGENT_PANEL_ACTION_IDS } from "@acepe/ui/agent-panel/types";
 import type {
 	InteractionSnapshot,
 	OperationDegradationReason,
@@ -526,6 +526,7 @@ function materializeTranscriptEntry(
 			id: entry.entryId,
 			type: "user",
 			text: segmentText(entry),
+			timestampMs: entry.timestampMs ?? undefined,
 		};
 	}
 
@@ -536,6 +537,7 @@ function materializeTranscriptEntry(
 			markdown: assistantMarkdownText(entry),
 			message: buildAssistantMessageFromTranscriptEntry(entry),
 			isStreaming: isStreaming,
+			timestampMs: entry.timestampMs ?? undefined,
 		};
 	}
 

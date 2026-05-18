@@ -154,6 +154,8 @@ pub struct OrderedMessage {
     pub uuid: String,
     pub parent_uuid: Option<String>,
     pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_message_id: Option<String>,
     pub timestamp: String,
     pub content_blocks: Vec<ContentBlock>,
     #[serde(skip_serializing_if = "Option::is_none")]

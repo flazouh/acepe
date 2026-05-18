@@ -1,3 +1,5 @@
+use crate::acp::session_update::ToolCallUpdateData;
+use crate::acp::transcript_projection::CanonicalTranscriptEvent;
 use crate::session_jsonl::types::StoredEntry;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +23,43 @@ impl SessionThreadSnapshot {
             created_at: chrono::Utc::now().to_rfc3339(),
             current_mode_id: None,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderOwnedSessionSnapshot {
+    pub(crate) thread_snapshot: SessionThreadSnapshot,
+    pub(crate) canonical_transcript_events: Vec<CanonicalTranscriptEvent>,
+    pub(crate) canonical_tool_call_updates: Vec<ToolCallUpdateData>,
+}
+
+impl ProviderOwnedSessionSnapshot {
+    #[must_use]
+    pub(crate) fn from_thread_snapshot(thread_snapshot: SessionThreadSnapshot) -> Self {
+        Self {
+            thread_snapshot,
+            canonical_transcript_events: Vec::new(),
+            canonical_tool_call_updates: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn with_canonical_transcript_events(
+        thread_snapshot: SessionThreadSnapshot,
+        canonical_transcript_events: Vec<CanonicalTranscriptEvent>,
+    ) -> Self {
+        Self {
+            thread_snapshot,
+            canonical_transcript_events,
+            canonical_tool_call_updates: Vec::new(),
+        }
+    }
+
+    pub(crate) fn set_canonical_tool_call_updates(
+        &mut self,
+        canonical_tool_call_updates: Vec<ToolCallUpdateData>,
+    ) {
+        self.canonical_tool_call_updates = canonical_tool_call_updates;
     }
 }
 

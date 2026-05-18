@@ -1,8 +1,5 @@
 import type { SessionGraphActivity } from "../../services/acp-types.js";
-import {
-	type CanonicalSessionActivity,
-	selectCanonicalSessionActivity,
-} from "../logic/session-activity.js";
+import type { CanonicalSessionActivity } from "../logic/session-activity.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
@@ -100,90 +97,21 @@ function canonicalActivityFromGraphActivity(
 	}
 }
 
-function fallbackCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
+export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
 	const canonical = input.canonicalProjection;
 	if (canonical == null) {
 		return "idle";
 	}
 
-	const lifecycle = normalizeLifecycle(input);
-
-	const canonicalHasFailure =
+	if (
 		canonical.activeTurnFailure != null ||
 		canonical.lifecycle.status === "failed" ||
-		canonical.lifecycle.errorMessage != null;
-
-	return selectCanonicalSessionActivity({
-		lifecycle,
-		hasActiveOperation:
-			lifecycle.activityPhase === "running" || input.currentStreamingToolCall !== null,
-		hasPendingInput:
-			input.interactionSnapshot.pendingPlanApproval !== null ||
-			input.interactionSnapshot.pendingPermission !== null ||
-			input.interactionSnapshot.pendingQuestion !== null,
-		hasError: canonicalHasFailure,
-		hasUnseenCompletion: input.hasUnseenCompletion,
-	});
-}
-
-function liveActivityOverride(input: LiveSessionWorkInput): CanonicalSessionActivity | null {
-	const canonical = input.canonicalProjection;
-	if (canonical == null) {
-		return null;
-	}
-
-	const errorActive =
-		canonical.activeTurnFailure != null ||
-		canonical.lifecycle.status === "failed" ||
-		canonical.lifecycle.errorMessage != null;
-
-	if (errorActive) {
+		canonical.lifecycle.errorMessage != null
+	) {
 		return "error";
 	}
 
-	if (canonical.activity.kind === "paused") {
-		return "paused";
-	}
-
-	if (
-		input.interactionSnapshot.pendingPlanApproval !== null ||
-		input.interactionSnapshot.pendingPermission !== null ||
-		input.interactionSnapshot.pendingQuestion !== null
-	) {
-		return "waiting_for_user";
-	}
-
-	if (input.currentStreamingToolCall !== null) {
-		return "running_operation";
-	}
-
-	if (input.runtimeState?.activityPhase === "running") {
-		return input.runtimeState.showThinking ? "awaiting_model" : "running_operation";
-	}
-
-	if (input.runtimeState?.activityPhase === "waiting_for_user") {
-		return "awaiting_model";
-	}
-
-	return null;
-}
-
-export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
-	const graphBackedActivity = canonicalActivityFromGraphActivity(
-		input.canonicalProjection?.activity ?? null
-	);
-	if (graphBackedActivity === "idle") {
-		const overrideActivity = liveActivityOverride(input);
-		if (overrideActivity !== null) {
-			return overrideActivity;
-		}
-	}
-
-	if (graphBackedActivity !== null) {
-		return graphBackedActivity;
-	}
-
-	return fallbackCanonicalActivity(input);
+	return canonicalActivityFromGraphActivity(canonical.activity) ?? "idle";
 }
 
 function deriveLiveConnectionState(input: LiveSessionWorkInput): LiveConnectionState {

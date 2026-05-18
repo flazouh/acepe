@@ -28,7 +28,6 @@ import type {
 	InteractionSnapshot,
 	JsonValue,
 	OperationSnapshot,
-	OperationState,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -106,14 +105,12 @@ import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
 import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
+import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
-import {
-	canActivateCreatedSessionWithFirstPrompt,
-	isPreCanonicalCreatedSession,
-} from "./services/first-send-activation.js";
+import { canActivateCreatedSessionWithFirstPrompt } from "./services/first-send-activation.js";
 import {
 	type CreatedPendingSessionResult,
 	SessionConnectionManager,
@@ -307,49 +304,6 @@ function graphWithTranscriptSnapshot(
 	};
 }
 
-function graphWithOperations(
-	graph: SessionStateGraph,
-	operations: OperationSnapshot[]
-): SessionStateGraph {
-	return {
-		requestedSessionId: graph.requestedSessionId,
-		canonicalSessionId: graph.canonicalSessionId,
-		isAlias: graph.isAlias,
-		agentId: graph.agentId,
-		projectPath: graph.projectPath,
-		worktreePath: graph.worktreePath ?? null,
-		sourcePath: graph.sourcePath ?? null,
-		revision: graph.revision,
-		transcriptSnapshot: graph.transcriptSnapshot,
-		operations,
-		interactions: graph.interactions,
-		turnState: graph.turnState,
-		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
-		activeTurnFailure: graph.activeTurnFailure ?? null,
-		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
-		lifecycle: graph.lifecycle,
-		activity: graph.activity,
-		capabilities: graph.capabilities,
-	};
-}
-
-function shouldPreservePreviousOperations(input: {
-	readonly previousGraph: SessionStateGraph | null;
-	readonly incomingGraph: SessionStateGraph;
-}): boolean {
-	if (input.previousGraph === null) {
-		return false;
-	}
-	if (input.incomingGraph.operations.length > 0) {
-		return false;
-	}
-	if (input.previousGraph.operations.length === 0) {
-		return false;
-	}
-	return input.incomingGraph.transcriptSnapshot.entries.some((entry) => entry.role === "tool");
-}
-
 function graphWithLifecycle(
 	graph: SessionStateGraph,
 	lifecycle: SessionGraphLifecycle,
@@ -407,20 +361,6 @@ function graphWithCapabilities(
 	};
 }
 
-function isTerminalOperationSnapshotState(state: OperationState): boolean {
-	switch (state) {
-		case "completed":
-		case "failed":
-		case "cancelled":
-		case "degraded":
-			return true;
-		case "pending":
-		case "running":
-		case "blocked":
-			return false;
-	}
-}
-
 function mergeOperationSnapshots(
 	current: readonly OperationSnapshot[],
 	patches: readonly OperationSnapshot[]
@@ -435,13 +375,6 @@ function mergeOperationSnapshots(
 
 	for (const patch of patches) {
 		const existing = operationById.get(patch.id);
-		if (
-			existing !== undefined &&
-			isTerminalOperationSnapshotState(existing.operation_state) &&
-			!isTerminalOperationSnapshotState(patch.operation_state)
-		) {
-			continue;
-		}
 		if (existing === undefined) {
 			orderedIds.push(patch.id);
 		}
@@ -580,77 +513,6 @@ function appendTranscriptSegment(
 	return nextEntries;
 }
 
-function findLastUserTranscriptEntryIndex(entries: readonly TranscriptEntry[]): number {
-	for (let index = entries.length - 1; index >= 0; index -= 1) {
-		if (entries[index]?.role === "user") {
-			return index;
-		}
-	}
-	return -1;
-}
-
-function resolveCanonicalTranscriptAssistantEntryId(
-	entries: readonly TranscriptEntry[],
-	entryId: string,
-	eventSeq: number
-): string {
-	const lastUserIndex = findLastUserTranscriptEntryIndex(entries);
-	for (let index = lastUserIndex + 1; index < entries.length; index += 1) {
-		const entry = entries[index];
-		if (entry?.role === "assistant" && entry.entryId === entryId) {
-			return entryId;
-		}
-	}
-
-	for (let index = 0; index <= lastUserIndex; index += 1) {
-		const entry = entries[index];
-		if (entry?.role === "assistant" && entry.entryId === entryId) {
-			return `${entryId}:turn:${eventSeq}`;
-		}
-	}
-
-	return entryId;
-}
-
-function resolveCanonicalTranscriptAppendEntry(
-	entries: readonly TranscriptEntry[],
-	entry: TranscriptEntry,
-	eventSeq: number
-): TranscriptEntry {
-	if (entry.role !== "assistant") {
-		return entry;
-	}
-
-	const resolvedEntryId = resolveCanonicalTranscriptAssistantEntryId(
-		entries,
-		entry.entryId,
-		eventSeq
-	);
-	if (resolvedEntryId === entry.entryId) {
-		return entry;
-	}
-
-	return {
-		entryId: resolvedEntryId,
-		role: entry.role,
-		segments: entry.segments,
-		attemptId: entry.attemptId,
-	};
-}
-
-function resolveCanonicalTranscriptAppendSegmentEntryId(
-	entries: readonly TranscriptEntry[],
-	entryId: string,
-	role: TranscriptEntry["role"],
-	eventSeq: number
-): string {
-	if (role !== "assistant") {
-		return entryId;
-	}
-
-	return resolveCanonicalTranscriptAssistantEntryId(entries, entryId, eventSeq);
-}
-
 function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
@@ -664,21 +526,13 @@ function applyTranscriptDeltaToSnapshot(
 		}
 
 		if (operation.kind === "appendEntry") {
-			entries = replaceTranscriptEntry(
-				entries,
-				resolveCanonicalTranscriptAppendEntry(entries, operation.entry, delta.eventSeq)
-			);
+			entries = replaceTranscriptEntry(entries, operation.entry);
 			continue;
 		}
 
 		entries = appendTranscriptSegment(
 			entries,
-			resolveCanonicalTranscriptAppendSegmentEntryId(
-				entries,
-				operation.entryId,
-				operation.role,
-				delta.eventSeq
-			),
+			operation.entryId,
 			operation.role,
 			operation.segment
 		);
@@ -974,20 +828,6 @@ function sanitizeCanonicalCapabilities(
 	};
 }
 
-function mergeCanonicalCapabilities(
-	incoming: SessionGraphCapabilities,
-	previous: SessionGraphCapabilities | null
-): SessionGraphCapabilities {
-	const sanitizedIncoming = sanitizeCanonicalCapabilities(incoming);
-	return {
-		models: incoming.models == null ? (previous?.models ?? null) : sanitizedIncoming.models,
-		modes: incoming.modes == null ? (previous?.modes ?? null) : sanitizedIncoming.modes,
-		availableCommands: sanitizedIncoming.availableCommands ?? [],
-		configOptions: sanitizedIncoming.configOptions ?? [],
-		autonomousEnabled: sanitizedIncoming.autonomousEnabled ?? false,
-	};
-}
-
 function projectGraphCapabilities(
 	agentId: string,
 	capabilities: SessionGraphCapabilities
@@ -1094,59 +934,6 @@ function cloneSessionGraphActivity(activity: SessionGraphActivity): SessionGraph
 }
 
 type ProjectedGraphCapabilities = ReturnType<typeof projectGraphCapabilities>;
-
-function _mergeProjectedCapabilities(
-	agentId: string,
-	capabilities: SessionGraphCapabilities,
-	previousCapabilities: SessionGraphCapabilities | null
-): ProjectedGraphCapabilities {
-	const projectedCapabilities = projectGraphCapabilities(
-		agentId,
-		sanitizeCanonicalCapabilities(capabilities)
-	);
-	const previousProjectedCapabilities =
-		previousCapabilities === null ? null : projectGraphCapabilities(agentId, previousCapabilities);
-	const shouldPreserveModels =
-		capabilities.models == null &&
-		previousProjectedCapabilities !== null &&
-		previousProjectedCapabilities.availableModels.length > 0;
-	const shouldPreserveModes =
-		capabilities.modes == null &&
-		previousProjectedCapabilities !== null &&
-		previousProjectedCapabilities.availableModes.length > 0;
-
-	return {
-		availableModels: shouldPreserveModels
-			? previousProjectedCapabilities.availableModels.map((model) => ({
-					id: model.id,
-					name: model.name,
-					description: model.description,
-				}))
-			: projectedCapabilities.availableModels,
-		availableModes: shouldPreserveModes
-			? previousProjectedCapabilities.availableModes.map((mode) => ({
-					id: mode.id,
-					name: mode.name,
-					description: mode.description,
-				}))
-			: projectedCapabilities.availableModes,
-		availableCommands: projectedCapabilities.availableCommands,
-		currentModel: shouldPreserveModels
-			? previousProjectedCapabilities.currentModel
-			: projectedCapabilities.currentModel,
-		currentMode: shouldPreserveModes
-			? previousProjectedCapabilities.currentMode
-			: projectedCapabilities.currentMode,
-		modelsDisplay: shouldPreserveModels
-			? previousProjectedCapabilities.modelsDisplay
-			: projectedCapabilities.modelsDisplay,
-		providerMetadata: shouldPreserveModels
-			? previousProjectedCapabilities.providerMetadata
-			: projectedCapabilities.providerMetadata,
-		configOptions: projectedCapabilities.configOptions,
-		autonomousEnabled: projectedCapabilities.autonomousEnabled,
-	};
-}
 
 function emptySessionGraphActivity(kind: SessionGraphActivity["kind"]): SessionGraphActivity {
 	return {
@@ -1292,74 +1079,6 @@ function transcriptSnapshotAcknowledgesPendingSend(
 	}
 
 	return false;
-}
-
-function transcriptSnapshotContentWeight(snapshot: TranscriptSnapshot): number {
-	let weight = snapshot.entries.length;
-	for (const entry of snapshot.entries) {
-		weight += entry.segments.length;
-		for (const segment of entry.segments) {
-			weight += segment.text.length;
-		}
-	}
-	return weight;
-}
-
-function transcriptSnapshotsHaveSameContent(
-	left: TranscriptSnapshot,
-	right: TranscriptSnapshot
-): boolean {
-	if (left.entries.length !== right.entries.length) {
-		return false;
-	}
-
-	for (let entryIndex = 0; entryIndex < left.entries.length; entryIndex += 1) {
-		const leftEntry = left.entries[entryIndex];
-		const rightEntry = right.entries[entryIndex];
-		if (
-			leftEntry === undefined ||
-			rightEntry === undefined ||
-			leftEntry.entryId !== rightEntry.entryId ||
-			leftEntry.role !== rightEntry.role ||
-			leftEntry.attemptId !== rightEntry.attemptId ||
-			leftEntry.segments.length !== rightEntry.segments.length
-		) {
-			return false;
-		}
-
-		for (let segmentIndex = 0; segmentIndex < leftEntry.segments.length; segmentIndex += 1) {
-			const leftSegment = leftEntry.segments[segmentIndex];
-			const rightSegment = rightEntry.segments[segmentIndex];
-			if (
-				leftSegment === undefined ||
-				rightSegment === undefined ||
-				leftSegment.kind !== rightSegment.kind ||
-				leftSegment.segmentId !== rightSegment.segmentId ||
-				leftSegment.text !== rightSegment.text
-			) {
-				return false;
-			}
-		}
-	}
-
-	return true;
-}
-
-function shouldRepairTranscriptSnapshotAtSameRevision(input: {
-	readonly current: TranscriptSnapshot;
-	readonly incoming: TranscriptSnapshot;
-}): boolean {
-	if (input.incoming.entries.length === 0) {
-		return false;
-	}
-	if (transcriptSnapshotsHaveSameContent(input.current, input.incoming)) {
-		return false;
-	}
-
-	return (
-		transcriptSnapshotContentWeight(input.incoming) >=
-		transcriptSnapshotContentWeight(input.current)
-	);
 }
 
 /**
@@ -1816,11 +1535,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return session;
 	}
 
-	/**
-	 * Get entries for a session.
-	 */
-	getEntries(sessionId: string): SessionEntry[] {
-		return this.entryStore.getEntries(sessionId);
+	getSessionToolCalls(sessionId: string): ToolCall[] {
+		return this.operationStore.getSessionToolCalls(sessionId);
 	}
 
 	getOperationStore(): OperationStore {
@@ -2641,7 +2357,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		logger.info("sendMessage: store entrypoint", {
 			sessionId,
 			canSend: this.getSessionCanSend(sessionId) ?? false,
-			entryCountBeforeSend: this.entryStore.getEntries(sessionId).length,
+			transcriptRevisionBeforeSend: this.getGraphTranscriptRevision(sessionId) ?? null,
 			preview: content.trim().slice(0, 120),
 		});
 
@@ -2681,11 +2397,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (canSend || canActivateFirstPrompt) {
 			return send();
 		}
-		if (isPreCanonicalCreatedSession({ session, lifecycleStatus })) {
-			return errAsync(new ConnectionError(sessionId));
-		}
-
-		return this.connectSession(sessionId).andThen(() => send());
+		return errAsync(new ConnectionError(sessionId));
 	}
 
 	// ============================================
@@ -3301,30 +3013,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
 				const currentTranscriptRevision = previousGraph?.transcriptSnapshot.revision;
 				const incomingTranscriptRevision = graph.transcriptSnapshot.revision;
-				const shouldPreserveCurrentTranscript =
-					previousGraph !== null &&
-					currentTranscriptRevision !== undefined &&
-					incomingTranscriptRevision > currentTranscriptRevision &&
-					graph.transcriptSnapshot.entries.length === 0 &&
-					previousGraph.transcriptSnapshot.entries.length > 0;
 				const shouldReplaceTranscriptSnapshot =
 					currentTranscriptRevision === undefined ||
-					(!shouldPreserveCurrentTranscript &&
-						(incomingTranscriptRevision > currentTranscriptRevision ||
-							(incomingTranscriptRevision === currentTranscriptRevision &&
-								previousGraph !== null &&
-								shouldRepairTranscriptSnapshotAtSameRevision({
-									current: previousGraph.transcriptSnapshot,
-									incoming: graph.transcriptSnapshot,
-								}))));
-				const shouldPreserveOperations = shouldPreservePreviousOperations({
-					previousGraph,
-					incomingGraph: graph,
-				});
-				const operationGraph =
-					shouldPreserveOperations && previousGraph !== null
-						? graphWithOperations(graph, previousGraph.operations)
-						: graph;
+					incomingTranscriptRevision > currentTranscriptRevision;
+				const operationGraph = graph;
 				this.operationStore.replaceSessionOperations(sessionId, operationGraph.operations);
 				if (shouldReplaceTranscriptSnapshot) {
 					this.entryStore.replaceTranscriptSnapshot(
@@ -3445,10 +3137,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					continue;
 				}
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
-				const canonicalCapabilities = mergeCanonicalCapabilities(
-					command.capabilities,
-					previousProjection?.capabilities ?? null
-				);
+				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
 				void session;
 				if (previousProjection !== null) {
 					this.canonicalProjections.set(sessionId, {
@@ -3779,15 +3468,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 	// TOOL CALLS (delegated to messaging service)
 	// ============================================
-
-	/**
-	 * Get the streaming arguments for a tool call.
-	 */
-	getStreamingArguments(
-		toolCallId: string
-	): import("$lib/services/converted-session-types.js").ToolArguments | undefined {
-		return this.entryStore.getStreamingArguments(toolCallId);
-	}
 
 	/**
 	 * Ensure streaming state is set.

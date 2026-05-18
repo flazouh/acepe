@@ -9,9 +9,7 @@ import type {
 import type {
 	SessionGraphActivity,
 	SessionStateGraph,
-	TranscriptEntry,
 } from "$lib/services/acp-types.js";
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
@@ -39,8 +37,8 @@ export interface AgentPanelDisplayInput {
 		readonly title: string;
 		readonly agentName?: string | null;
 	};
+	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly local: {
-		readonly pendingUserEntry: SessionEntry | null;
 		readonly pendingSendIntent: boolean;
 	};
 }
@@ -114,124 +112,40 @@ function isBusy(
 	);
 }
 
-function segmentText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		if (text.length > 0 && entry.role !== "assistant") {
-			text += "\n";
-		}
-		text += segment.text;
-	}
-	return text;
-}
-
-function assistantText(entry: TranscriptEntry): string {
-	let text = "";
-	for (const segment of entry.segments) {
-		if (segment.kind === "text") {
-			text += segment.text;
-		}
-	}
-	return text;
-}
-
-function sessionUserText(entry: Extract<SessionEntry, { type: "user" }>): string {
-	const content = entry.message.content;
-	if (content.type === "text") {
-		return content.text;
-	}
-	return "";
-}
-
-function findAssistantEntryIdAfterLatestUser(
-	entries: readonly TranscriptEntry[],
-	entryId: string
-): string | null {
-	for (let i = entries.length - 1; i >= 0; i -= 1) {
-		const entry = entries[i];
-		if (entry?.role === "user") {
-			return null;
-		}
-		if (entry?.role === "assistant" && entry.entryId === entryId) {
-			return entry.entryId;
-		}
-	}
-	return null;
-}
-
-function findLiveAssistantEntryId(graph: SessionStateGraph): string | null {
-	if (graph.turnState !== "Running") {
-		return null;
-	}
-
-	const entries = graph.transcriptSnapshot.entries;
-	const tailEntry = entries[entries.length - 1];
-	if (tailEntry?.role === "assistant") {
-		return tailEntry.entryId;
-	}
-
-	const lastAgentMessageId = graph.lastAgentMessageId ?? null;
-	if (lastAgentMessageId === null) {
-		return null;
-	}
-
-	return findAssistantEntryIdAfterLatestUser(entries, lastAgentMessageId);
-}
-
-function createRowsFromGraph(graph: SessionStateGraph): readonly AgentPanelDisplayRow[] {
+function createRowsFromScene(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	transcriptRevision: number
+): readonly AgentPanelDisplayRow[] {
 	const rows: AgentPanelDisplayRow[] = [];
-	const liveAssistantId = findLiveAssistantEntryId(graph);
-	for (const entry of graph.transcriptSnapshot.entries) {
-		if (entry.role === "user") {
+	for (const entry of sceneEntries) {
+		if (entry.type === "user") {
 			rows.push({
-				id: entry.entryId,
+				id: entry.id,
 				type: "user",
-				text: segmentText(entry),
+				text: entry.text,
+				isOptimistic: entry.isOptimistic,
 			});
 			continue;
 		}
-		if (entry.role === "assistant") {
-			const canonicalText = assistantText(entry);
+		if (entry.type === "assistant") {
 			rows.push({
-				id: entry.entryId,
+				id: entry.id,
 				type: "assistant",
-				canonicalText,
-				displayText: canonicalText,
-				canonicalTextRevision: `${String(graph.revision.transcriptRevision)}:${entry.entryId}`,
-				isLiveTail: entry.entryId === liveAssistantId,
+				canonicalText: entry.markdown,
+				displayText: entry.markdown,
+				canonicalTextRevision: `${String(transcriptRevision)}:${entry.id}`,
+				isLiveTail: entry.isStreaming === true,
 			});
 		}
 	}
 	return rows;
 }
 
-function appendPendingUserRow(
-	rows: readonly AgentPanelDisplayRow[],
-	pendingUserEntry: SessionEntry | null
-): readonly AgentPanelDisplayRow[] {
-	if (pendingUserEntry?.type !== "user") {
-		return rows;
-	}
-	const nextRows: AgentPanelDisplayRow[] = Array.from(rows);
-	const pendingRow: AgentPanelDisplayRow = {
-		id: pendingUserEntry.id,
-		type: "user",
-		text: sessionUserText(pendingUserEntry),
-		isOptimistic: true,
-	};
-	const hasAnyUserRow = nextRows.some((row) => row.type === "user");
-	if (hasAnyUserRow) {
-		nextRows.push(pendingRow);
-		return nextRows;
-	}
-	nextRows.unshift(pendingRow);
-	return nextRows;
-}
-
 export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPanelBaseModel {
 	const graph = input.graph;
+	const transcriptRevision = graph?.revision.transcriptRevision ?? 0;
+	const rows = createRowsFromScene(input.sceneEntries, transcriptRevision);
 	if (graph === null) {
-		const rows = appendPendingUserRow([], input.local.pendingUserEntry);
 		const hasPending = rows.length > 0 || input.local.pendingSendIntent;
 		const pendingLabel = getPreparingThreadLabel(input.header.agentName);
 		return {
@@ -257,7 +171,6 @@ export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPa
 	}
 
 	const busy = isBusy(graph.activity, graph.turnState);
-	const rows = appendPendingUserRow(createRowsFromGraph(graph), input.local.pendingUserEntry);
 	const hasLiveTail = rows.some((row) => row.type === "assistant" && row.isLiveTail);
 	const shouldShowWaiting =
 		input.local.pendingSendIntent || (graph.activity.kind === "awaiting_model" && !hasLiveTail);

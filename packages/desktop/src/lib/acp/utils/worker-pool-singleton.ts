@@ -11,25 +11,11 @@ let workerPool: WorkerPoolManager | null = null;
 let initPromise: Promise<void> | null = null;
 
 /**
- * Languages to preload for faster initial diff rendering.
- * Comprehensive list covering common programming languages.
+ * Keep startup light. Pierre queues highlighting until the pool is initialized,
+ * so eager-loading many languages here delays the first visible highlighted diff.
+ * Missing languages are resolved per task by WorkerPoolManager.
  */
-const PRELOAD_LANGS = [
-	"typescript",
-	"javascript",
-	"svelte",
-	"rust",
-	"json",
-	"css",
-	"html",
-	"markdown",
-	"python",
-	"go",
-	"yaml",
-	"toml",
-	"bash",
-	"sql",
-] as const;
+const EAGER_WORKER_LANGS: readonly string[] = [];
 
 /**
  * Gets the singleton worker pool instance.
@@ -45,11 +31,11 @@ export function getWorkerPool(): WorkerPoolManager {
 	if (!workerPool) {
 		const options: WorkerPoolOptions = {
 			workerFactory,
-			poolSize: 8,
+			poolSize: 4,
 		};
 
 		const initOptions: WorkerInitializationRenderOptions = {
-			langs: [...PRELOAD_LANGS],
+			langs: Array.from(EAGER_WORKER_LANGS),
 			theme: { dark: "Cursor Dark", light: "pierre-light" },
 			lineDiffType: "word-alt",
 			tokenizeMaxLineLength: 1000,
@@ -59,7 +45,7 @@ export function getWorkerPool(): WorkerPoolManager {
 
 		// Start initialization immediately in background
 		// This is non-blocking - pool can be used immediately
-		initPromise = workerPool.initialize([...PRELOAD_LANGS]);
+		initPromise = workerPool.initialize(Array.from(EAGER_WORKER_LANGS));
 		// Handle errors with neverthrow while preserving promise for awaiting
 		ResultAsync.fromPromise(initPromise, (e) => e as Error).mapErr((error) => {
 			console.error("Worker pool initialization failed:", error);
@@ -91,7 +77,7 @@ export function ensureWorkerPoolInitialized(): Promise<void> {
 	}
 	// If we get here, pool exists but initPromise is null (shouldn't happen)
 	// Start initialization now
-	initPromise = pool.initialize([...PRELOAD_LANGS]);
+	initPromise = pool.initialize(Array.from(EAGER_WORKER_LANGS));
 	// Handle errors with neverthrow while preserving promise for awaiting
 	ResultAsync.fromPromise(initPromise, (e) => e as Error).mapErr((error) => {
 		console.error("Worker pool initialization failed:", error);

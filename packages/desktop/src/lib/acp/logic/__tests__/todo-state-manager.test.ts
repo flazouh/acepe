@@ -1,8 +1,35 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { StoredEntry, StoredThread } from "../../infrastructure/storage/ThreadStorage.js";
+import type { ToolCall } from "../../types/tool-call.js";
 
 import { computeTodoSignature, getTodoStateManager } from "../todo-state-manager.svelte.js";
+
+function todoToolCall(input: {
+	readonly id: string;
+	readonly status: "pending" | "in_progress" | "completed" | "failed";
+	readonly todoStatus: "pending" | "in_progress" | "completed" | "cancelled";
+	readonly startedAtMs?: number;
+	readonly completedAtMs?: number;
+}): ToolCall {
+	return {
+		id: input.id,
+		name: "TodoWrite",
+		kind: "todo",
+		status: input.status,
+		arguments: { kind: "think" },
+		awaitingPlanApproval: false,
+		normalizedTodos: [
+			{
+				content: "Task 1",
+				status: input.todoStatus,
+				activeForm: "Working on Task 1",
+			},
+		],
+		startedAtMs: input.startedAtMs,
+		completedAtMs: input.completedAtMs,
+	};
+}
 
 describe("TodoStateManager", () => {
 	let manager: ReturnType<typeof getTodoStateManager>;
@@ -48,8 +75,8 @@ describe("TodoStateManager", () => {
 			];
 
 			const signature = computeTodoSignature(entries);
-			// Signature uses only entry IDs for stability (not timestamps)
-			expect(signature).toBe("1");
+			expect(signature).toContain("1:");
+			expect(signature).toContain("Task 1");
 		});
 
 		it("should create different signatures for different TodoWrites", () => {
@@ -260,6 +287,44 @@ describe("TodoStateManager", () => {
 
 			expect(metrics2.cacheMisses).toBe(metrics1.cacheMisses + 1);
 			expect(result1._unsafeUnwrap()).not.toEqual(result2._unsafeUnwrap());
+		});
+
+		it("should invalidate operation-backed todo cache when canonical todo payload changes", () => {
+			const firstResult = manager.getTodoStateFromToolCalls("thread-operations", {
+				toolCalls: [
+					todoToolCall({
+						id: "todo-op-1",
+						status: "completed",
+						todoStatus: "pending",
+						startedAtMs: 1_000,
+					}),
+				],
+				isConnected: true,
+				status: "connected",
+				isStreaming: false,
+			});
+			const firstMetrics = manager.getMetrics();
+
+			const secondResult = manager.getTodoStateFromToolCalls("thread-operations", {
+				toolCalls: [
+					todoToolCall({
+						id: "todo-op-1",
+						status: "completed",
+						todoStatus: "completed",
+						startedAtMs: 1_000,
+						completedAtMs: 2_000,
+					}),
+				],
+				isConnected: true,
+				status: "connected",
+				isStreaming: false,
+			});
+			const secondMetrics = manager.getMetrics();
+
+			expect(firstResult.isOk()).toBe(true);
+			expect(secondResult.isOk()).toBe(true);
+			expect(secondMetrics.cacheMisses).toBe(firstMetrics.cacheMisses + 1);
+			expect(secondResult._unsafeUnwrap()?.completedCount).toBe(1);
 		});
 	});
 

@@ -2398,6 +2398,7 @@ mod tests {
                                     text: "hello".to_string(),
                                 }],
                                 attempt_id: None,
+                                timestamp_ms: None,
                             },
                         },
                     ],
@@ -2457,6 +2458,7 @@ mod tests {
                         text: "existing answer".to_string(),
                     }],
                     attempt_id: None,
+                    timestamp_ms: None,
                 }],
             },
         );
@@ -2483,6 +2485,7 @@ mod tests {
                                     text: "broken delta".to_string(),
                                 }],
                                 attempt_id: None,
+                                timestamp_ms: None,
                             },
                         },
                     ],

@@ -1,16 +1,18 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{tool_call_status_from_str, SkillMeta, ToolCallData};
+use crate::acp::transcript_projection::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 use crate::session_jsonl::display_names::format_model_display_name;
 use crate::session_jsonl::types::{
-    ContentBlock, FullSession, OrderedMessage, QuestionAnswer, StoredAssistantChunk,
-    StoredAssistantMessage, StoredContentBlock, StoredEntry, StoredUserMessage,
+    ContentBlock, FullSession, QuestionAnswer, StoredAssistantChunk, StoredAssistantMessage,
+    StoredContentBlock, StoredEntry, StoredUserMessage,
 };
 use std::collections::{HashMap, HashSet};
 
-use super::{assistant_provider_error_entry, calculate_todo_timing};
+use super::calculate_todo_timing;
+use crate::session_converter::transcript_events::materialize_canonical_transcript_events;
 
 pub(crate) fn parse_skill_meta_from_content(content: &str) -> SkillMeta {
     let mut file_path: Option<String> = None;
@@ -98,17 +100,17 @@ pub(crate) fn parse_skill_meta_from_content(content: &str) -> SkillMeta {
     }
 }
 
-pub(crate) fn convert_full_session_to_thread_snapshot_with_agent(
+pub(crate) fn convert_full_session_to_provider_owned_snapshot_with_agent(
     session: &FullSession,
     agent_type: AgentType,
-) -> SessionThreadSnapshot {
+) -> ProviderOwnedSessionSnapshot {
     convert_full_session_impl(session, agent_type)
 }
 
 fn convert_full_session_impl(
     session: &FullSession,
     agent_type: AgentType,
-) -> SessionThreadSnapshot {
+) -> ProviderOwnedSessionSnapshot {
     let mut entries: Vec<StoredEntry> = Vec::new();
 
     // First pass: collect tool results from user messages
@@ -174,30 +176,16 @@ fn convert_full_session_impl(
         }
     }
 
-    // Fourth pass: convert messages to entries
-    for msg in &session.messages {
-        if msg.is_meta {
-            continue;
-        }
-
-        match msg.role.as_str() {
-            "user" => {
-                if let Some(entry) = convert_user_message(msg) {
-                    entries.push(entry);
-                }
-            }
-            "assistant" => {
-                entries.extend(convert_assistant_message(
-                    msg,
-                    &tool_results,
-                    &skill_metas,
-                    &question_answers,
-                    agent_type,
-                ));
-            }
-            _ => {}
-        }
-    }
+    // Fourth pass: provider rows become canonical transcript events first.
+    // Display entries are only a projection of those canonical events.
+    let transcript_events = materialize_canonical_transcript_events(session, agent_type);
+    entries.extend(project_canonical_events_to_entries(
+        &transcript_events,
+        &tool_results,
+        &skill_metas,
+        &question_answers,
+        agent_type,
+    ));
 
     // Fifth pass: deduplicate entries by ID (Cursor stores tool calls redundantly
     // across multiple blobs, producing duplicate ToolCall entries with the same toolCallId).
@@ -215,62 +203,17 @@ fn convert_full_session_impl(
     // Sixth pass: calculate todo timing from state transitions
     calculate_todo_timing(&mut entries);
 
-    SessionThreadSnapshot {
+    let thread_snapshot = SessionThreadSnapshot {
         entries,
         title: session.title.clone(),
         created_at: session.created_at.clone(),
         current_mode_id: None,
-    }
-}
+    };
 
-/// Convert a user message to a StoredEntry.
-fn convert_user_message(msg: &OrderedMessage) -> Option<StoredEntry> {
-    // Find text content, skip tool results
-    let mut text_content = String::new();
-    let mut chunks = Vec::new();
-
-    for block in &msg.content_blocks {
-        match block {
-            ContentBlock::Text { text } if !text.trim().is_empty() => {
-                if text_content.is_empty() {
-                    text_content = text.clone();
-                } else {
-                    text_content.push('\n');
-                    text_content.push_str(text);
-                }
-                chunks.push(StoredContentBlock {
-                    block_type: "text".to_string(),
-                    text: Some(text.clone()),
-                });
-            }
-            ContentBlock::ToolResult { .. } => {
-                // Skip tool results in user message display
-            }
-            _ => {}
-        }
-    }
-
-    if text_content.is_empty() {
-        return None;
-    }
-
-    if is_claude_local_command_message(&text_content) {
-        return None;
-    }
-
-    Some(StoredEntry::User {
-        id: msg.uuid.clone(),
-        message: StoredUserMessage {
-            id: Some(msg.uuid.clone()),
-            content: StoredContentBlock {
-                block_type: "text".to_string(),
-                text: Some(text_content),
-            },
-            chunks,
-            sent_at: Some(msg.timestamp.clone()),
-        },
-        timestamp: Some(msg.timestamp.clone()),
-    })
+    ProviderOwnedSessionSnapshot::with_canonical_transcript_events(
+        thread_snapshot,
+        transcript_events,
+    )
 }
 
 fn is_claude_local_command_message(text: &str) -> bool {
@@ -356,35 +299,193 @@ fn parse_question_answer(tool_use_result: &serde_json::Value) -> Option<Question
     Some(QuestionAnswer { questions, answers })
 }
 
-fn assistant_entry_id(message_id: &str, segment_index: usize, split_count: usize) -> String {
-    if split_count == 1 {
-        return message_id.to_string();
+fn project_canonical_events_to_entries(
+    events: &[CanonicalTranscriptEvent],
+    tool_results: &HashMap<String, String>,
+    skill_metas: &HashMap<String, SkillMeta>,
+    question_answers: &HashMap<String, QuestionAnswer>,
+    agent_type: AgentType,
+) -> Vec<StoredEntry> {
+    let mut entries = Vec::new();
+    let mut event_index = 0;
+
+    while event_index < events.len() {
+        let event = &events[event_index];
+        match &event.kind {
+            CanonicalTranscriptEventKind::UserText { .. } => {
+                let (entry, next_index) = project_user_event_group(events, event_index);
+                if let Some(user_entry) = entry {
+                    entries.push(user_entry);
+                }
+                event_index = next_index;
+            }
+            CanonicalTranscriptEventKind::AssistantText { .. }
+            | CanonicalTranscriptEventKind::AssistantThought { .. } => {
+                let (entry, next_index) = project_assistant_event_group(events, event_index);
+                entries.push(entry);
+                event_index = next_index;
+            }
+            CanonicalTranscriptEventKind::AssistantError { text, error } => {
+                entries.push(project_assistant_error_event(event, text, error));
+                event_index += 1;
+            }
+            CanonicalTranscriptEventKind::ToolUse {
+                tool_call_id,
+                name,
+                input,
+            } => {
+                entries.push(project_tool_event(
+                    event,
+                    tool_call_id,
+                    name,
+                    input,
+                    tool_results,
+                    skill_metas,
+                    question_answers,
+                    agent_type,
+                ));
+                event_index += 1;
+            }
+        }
     }
 
-    format!("{message_id}:assistant:{segment_index}")
+    entries
 }
 
-fn build_assistant_entry(
-    msg: &OrderedMessage,
-    chunks: Vec<StoredAssistantChunk>,
-    segment_index: usize,
-    split_count: usize,
-) -> StoredEntry {
-    StoredEntry::Assistant {
-        id: assistant_entry_id(&msg.uuid, segment_index, split_count),
-        message: StoredAssistantMessage {
-            chunks,
-            model: msg.model.clone(),
-            display_model: msg.model.as_ref().map(|m| format_model_display_name(m)),
-            received_at: Some(msg.timestamp.clone()),
+fn project_user_event_group(
+    events: &[CanonicalTranscriptEvent],
+    start_index: usize,
+) -> (Option<StoredEntry>, usize) {
+    let first = &events[start_index];
+    let mut text_content = String::new();
+    let mut chunks = Vec::new();
+    let mut index = start_index;
+
+    while index < events.len() {
+        let event = &events[index];
+        if event.display_id != first.display_id {
+            break;
+        }
+        let CanonicalTranscriptEventKind::UserText { text } = &event.kind else {
+            break;
+        };
+
+        if text_content.is_empty() {
+            text_content = text.clone();
+        } else {
+            text_content.push('\n');
+            text_content.push_str(text);
+        }
+        chunks.push(StoredContentBlock {
+            block_type: "text".to_string(),
+            text: Some(text.clone()),
+        });
+        index += 1;
+    }
+
+    if text_content.is_empty() || is_claude_local_command_message(&text_content) {
+        return (None, index);
+    }
+
+    (
+        Some(StoredEntry::User {
+            id: first.display_id.clone(),
+            message: StoredUserMessage {
+                id: Some(first.display_id.clone()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some(text_content),
+                },
+                chunks,
+                sent_at: Some(first.timestamp.clone()),
+            },
+            timestamp: Some(first.timestamp.clone()),
+        }),
+        index,
+    )
+}
+
+fn project_assistant_event_group(
+    events: &[CanonicalTranscriptEvent],
+    start_index: usize,
+) -> (StoredEntry, usize) {
+    let first = &events[start_index];
+    let mut chunks = Vec::new();
+    let mut index = start_index;
+
+    while index < events.len() {
+        let event = &events[index];
+        if event.display_id != first.display_id {
+            break;
+        }
+
+        match &event.kind {
+            CanonicalTranscriptEventKind::AssistantText { text } => {
+                chunks.push(StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: StoredContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some(text.clone()),
+                    },
+                });
+            }
+            CanonicalTranscriptEventKind::AssistantThought { text } => {
+                chunks.push(StoredAssistantChunk {
+                    chunk_type: "thought".to_string(),
+                    block: StoredContentBlock {
+                        block_type: "text".to_string(),
+                        text: Some(text.clone()),
+                    },
+                });
+            }
+            CanonicalTranscriptEventKind::UserText { .. }
+            | CanonicalTranscriptEventKind::AssistantError { .. }
+            | CanonicalTranscriptEventKind::ToolUse { .. } => break,
+        }
+
+        index += 1;
+    }
+
+    (
+        StoredEntry::Assistant {
+            id: first.display_id.clone(),
+            message: StoredAssistantMessage {
+                chunks,
+                model: first.model.clone(),
+                display_model: first.model.as_ref().map(|m| format_model_display_name(m)),
+                received_at: Some(first.timestamp.clone()),
+            },
+            timestamp: Some(first.timestamp.clone()),
         },
-        timestamp: Some(msg.timestamp.clone()),
+        index,
+    )
+}
+
+fn project_assistant_error_event(
+    event: &CanonicalTranscriptEvent,
+    text: &str,
+    error: &crate::cc_sdk::AssistantMessageError,
+) -> StoredEntry {
+    let content = if text.trim().is_empty() {
+        format!("Claude provider error: {:?}", error)
+    } else {
+        text.to_string()
+    };
+    StoredEntry::Error {
+        id: event.display_id.clone(),
+        message: crate::session_jsonl::types::StoredErrorMessage {
+            code: super::extract_api_error_status_code(&content).map(str::to_string),
+            kind: super::assistant_error_kind(error),
+            source: Some(crate::acp::session_update::TurnErrorSource::Transport),
+            content,
+        },
+        timestamp: Some(event.timestamp.clone()),
     }
 }
 
-fn build_tool_entry(
-    msg: &OrderedMessage,
-    id: &str,
+fn project_tool_event(
+    event: &CanonicalTranscriptEvent,
+    tool_call_id: &str,
     name: &str,
     input: &serde_json::Value,
     tool_results: &HashMap<String, String>,
@@ -392,7 +493,7 @@ fn build_tool_entry(
     question_answers: &HashMap<String, QuestionAnswer>,
     agent_type: AgentType,
 ) -> StoredEntry {
-    let normalized_id = normalize_tool_call_id(id);
+    let normalized_id = normalize_tool_call_id(tool_call_id);
     let result = tool_results.get(&normalized_id).cloned();
     let status = if result.is_some() {
         "completed"
@@ -405,7 +506,7 @@ fn build_tool_entry(
         None
     };
     let question_answer = if is_question_tool(name) {
-        question_answers.get(&msg.uuid).cloned()
+        question_answers.get(&event.provider_row_id).cloned()
     } else {
         None
     };
@@ -445,164 +546,6 @@ fn build_tool_entry(
             awaiting_plan_approval: false,
             plan_approval_request_id: None,
         },
-        timestamp: Some(msg.timestamp.clone()),
+        timestamp: Some(event.timestamp.clone()),
     }
-}
-
-fn count_assistant_text_segments(blocks: &[ContentBlock]) -> usize {
-    let mut count = 0;
-    let mut has_pending_chunks = false;
-
-    for block in blocks {
-        match block {
-            ContentBlock::Text { text } => {
-                if !text.trim().is_empty() {
-                    has_pending_chunks = true;
-                }
-            }
-            ContentBlock::Thinking { thinking, .. } => {
-                if !thinking.trim().is_empty() {
-                    has_pending_chunks = true;
-                }
-            }
-            ContentBlock::CodeAttachment { .. } => {
-                has_pending_chunks = true;
-            }
-            ContentBlock::ToolUse { .. } => {
-                if has_pending_chunks {
-                    count += 1;
-                    has_pending_chunks = false;
-                }
-            }
-            ContentBlock::ToolResult { .. } => {}
-        }
-    }
-
-    if has_pending_chunks {
-        count += 1;
-    }
-
-    count
-}
-
-fn push_assistant_entry_if_needed(
-    entries: &mut Vec<StoredEntry>,
-    msg: &OrderedMessage,
-    chunks: &mut Vec<StoredAssistantChunk>,
-    segment_index: &mut usize,
-    split_count: usize,
-) {
-    if chunks.is_empty() {
-        return;
-    }
-
-    let entry_chunks = std::mem::take(chunks);
-    entries.push(build_assistant_entry(
-        msg,
-        entry_chunks,
-        *segment_index,
-        split_count,
-    ));
-    *segment_index += 1;
-}
-
-/// Convert an assistant message to stored entries while preserving content block order.
-fn convert_assistant_message(
-    msg: &OrderedMessage,
-    tool_results: &HashMap<String, String>,
-    skill_metas: &HashMap<String, SkillMeta>,
-    question_answers: &HashMap<String, QuestionAnswer>,
-    agent_type: AgentType,
-) -> Vec<StoredEntry> {
-    let mut chunks: Vec<StoredAssistantChunk> = Vec::new();
-    let mut entries: Vec<StoredEntry> = Vec::new();
-    let split_count = count_assistant_text_segments(&msg.content_blocks);
-    let mut segment_index = 0;
-
-    for block in &msg.content_blocks {
-        match block {
-            ContentBlock::Text { text } => {
-                if !text.trim().is_empty() {
-                    chunks.push(StoredAssistantChunk {
-                        chunk_type: "message".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some(text.clone()),
-                        },
-                    });
-                }
-            }
-            ContentBlock::Thinking { thinking, .. } => {
-                if !thinking.trim().is_empty() {
-                    chunks.push(StoredAssistantChunk {
-                        chunk_type: "thought".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some(thinking.clone()),
-                        },
-                    });
-                }
-            }
-            ContentBlock::ToolUse { id, name, input } => {
-                push_assistant_entry_if_needed(
-                    &mut entries,
-                    msg,
-                    &mut chunks,
-                    &mut segment_index,
-                    split_count,
-                );
-                entries.push(build_tool_entry(
-                    msg,
-                    id,
-                    name,
-                    input,
-                    tool_results,
-                    skill_metas,
-                    question_answers,
-                    agent_type,
-                ));
-            }
-            ContentBlock::ToolResult { .. } => {
-                // Tool results are handled when processing tool_use
-            }
-            ContentBlock::CodeAttachment {
-                path,
-                lines,
-                content,
-            } => {
-                // Format code attachment as a text block with file info
-                let header = match lines {
-                    Some(l) => format!("File: {} (lines {})", path, l),
-                    None => format!("File: {}", path),
-                };
-                chunks.push(StoredAssistantChunk {
-                    chunk_type: "message".to_string(),
-                    block: StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some(format!("{}\n```\n{}\n```", header, content)),
-                    },
-                });
-            }
-        }
-    }
-
-    if let Some(error) = &msg.error {
-        let mut error_entries = vec![assistant_provider_error_entry(msg, error)];
-        error_entries.extend(
-            entries
-                .into_iter()
-                .filter(|entry| matches!(entry, StoredEntry::ToolCall { .. })),
-        );
-        return error_entries;
-    }
-
-    push_assistant_entry_if_needed(
-        &mut entries,
-        msg,
-        &mut chunks,
-        &mut segment_index,
-        split_count,
-    );
-
-    entries
 }
