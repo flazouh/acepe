@@ -110,7 +110,7 @@ export function toPermissionRequest(
 		permission: request.toolLabel,
 		patterns: [],
 		metadata: {
-			rawInput: request.rawInput,
+			diagnosticRawInput: request.rawInput,
 			parsedArguments: request.parsedArguments,
 			options: request.options,
 		},

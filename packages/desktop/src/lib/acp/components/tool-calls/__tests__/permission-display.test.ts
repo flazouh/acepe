@@ -8,7 +8,7 @@ import {
 	extractPermissionFilePath,
 } from "../permission-display.js";
 
-function createPermission(metadata: Record<string, unknown>): PermissionRequest {
+function createPermission(metadata: PermissionRequest["metadata"]): PermissionRequest {
 	return {
 		id: "permission-1",
 		sessionId: "session-1",
@@ -20,9 +20,9 @@ function createPermission(metadata: Record<string, unknown>): PermissionRequest 
 }
 
 describe("permission-display", () => {
-	it("does not extract file path from rawInput.file_path", () => {
+	it("does not extract file path from diagnosticRawInput.file_path", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				file_path: "/tmp/example.ts",
 			},
 		});
@@ -30,9 +30,9 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("does not extract file path from rawInput.path", () => {
+	it("does not extract file path from diagnosticRawInput.path", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				path: "/tmp/example.ts",
 			},
 		});
@@ -40,9 +40,9 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("does not extract file path from rawInput.filePath", () => {
+	it("does not extract file path from diagnosticRawInput.filePath", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				filePath: "/tmp/example.ts",
 			},
 		});
@@ -52,7 +52,7 @@ describe("permission-display", () => {
 
 	it("returns null when no path field exists", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				command: "ls",
 			},
 		});
@@ -62,7 +62,7 @@ describe("permission-display", () => {
 
 	it("returns null for whitespace-only file_path", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				file_path: "   ",
 			},
 		});
@@ -70,9 +70,9 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("does not extract command from rawInput.command", () => {
+	it("does not extract command from diagnosticRawInput.command", () => {
 		const permission = createPermission({
-			rawInput: {
+			diagnosticRawInput: {
 				command: "git status",
 			},
 		});
@@ -82,19 +82,19 @@ describe("permission-display", () => {
 
 	// parsedArguments (agent-agnostic) tests
 
-	it("prefers parsedArguments over rawInput for file_path", () => {
+	it("prefers parsedArguments over diagnosticRawInput for file_path", () => {
 		const permission = createPermission({
 			parsedArguments: { kind: "read", file_path: "/parsed/path.ts" },
-			rawInput: { file_path: "/raw/path.ts" },
+			diagnosticRawInput: { file_path: "/raw/path.ts" },
 		});
 
 		expect(extractPermissionFilePath(permission)).toBe("/parsed/path.ts");
 	});
 
-	it("prefers parsedArguments over rawInput for command", () => {
+	it("prefers parsedArguments over diagnosticRawInput for command", () => {
 		const permission = createPermission({
 			parsedArguments: { kind: "execute", command: "parsed-cmd" },
-			rawInput: { command: "raw-cmd" },
+			diagnosticRawInput: { command: "raw-cmd" },
 		});
 
 		expect(extractPermissionCommand(permission)).toBe("parsed-cmd");
@@ -111,38 +111,38 @@ describe("permission-display", () => {
 		expect(extractPermissionFilePath(permission)).toBe("/src/main.rs");
 	});
 
-	it("does not fall back to rawInput when parsedArguments are absent", () => {
+	it("does not fall back to diagnosticRawInput when parsedArguments are absent", () => {
 		const permission = createPermission({
-			rawInput: { file_path: "/fallback.ts" },
+			diagnosticRawInput: { file_path: "/fallback.ts" },
 		});
 
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("does not fall back to rawInput when parsedArguments kind has no file_path", () => {
+	it("does not fall back to diagnosticRawInput when parsedArguments kind has no file_path", () => {
 		const permission = createPermission({
 			parsedArguments: { kind: "execute", command: "ls" },
-			rawInput: { file_path: "/raw.ts" },
+			diagnosticRawInput: { file_path: "/raw.ts" },
 		});
 
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("does not fall back to rawInput when parsed edit file_path is blank", () => {
+	it("does not fall back to diagnosticRawInput when parsed edit file_path is blank", () => {
 		const permission = createPermission({
 			parsedArguments: {
 				kind: "edit",
 				edits: [{ filePath: "   ", oldString: null, newString: null, content: null }],
 			},
-			rawInput: { file_path: "/raw.ts" },
+			diagnosticRawInput: { file_path: "/raw.ts" },
 		});
 
 		expect(extractPermissionFilePath(permission)).toBeNull();
 	});
 
-	it("falls back to permission label when rawInput path is missing", () => {
+	it("falls back to permission label when diagnosticRawInput path is missing", () => {
 		const permission = createPermission({
-			rawInput: {},
+			diagnosticRawInput: {},
 		});
 		permission.permission = "Write /tmp/from-title.ts";
 
@@ -151,7 +151,7 @@ describe("permission-display", () => {
 
 	it("extracts relative file path from permission label", () => {
 		const permission = createPermission({
-			rawInput: {},
+			diagnosticRawInput: {},
 		});
 		permission.permission = "Write articles.csv";
 
@@ -195,7 +195,7 @@ describe("permission-display", () => {
 					},
 				],
 			},
-			rawInput: {
+			diagnosticRawInput: {
 				command: "packages/ui/src/kanban-card.svelte",
 			},
 		});

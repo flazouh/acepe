@@ -39,7 +39,7 @@ function createExitPlanPermission(
 		permission: "ExitPlanMode",
 		patterns: [],
 		metadata: {
-			rawInput: {
+			diagnosticRawInput: {
 				plan: "# Raw Plan\n\nThis should not be used.",
 				planFilePath,
 			},

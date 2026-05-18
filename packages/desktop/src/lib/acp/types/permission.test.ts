@@ -11,7 +11,7 @@ describe("createPermissionRequest", () => {
 			permission: "ReadFile",
 			patterns: ["/Users/alex/Documents/acepe/packages/desktop/src"],
 			metadata: {
-				rawInput: { path: "/Users/alex/Documents/acepe/packages/desktop/src" },
+				diagnosticRawInput: { path: "/Users/alex/Documents/acepe/packages/desktop/src" },
 				options: [{ kind: "allow", name: "Allow Once", optionId: "allow" }],
 				extra: "value",
 			},
@@ -27,12 +27,29 @@ describe("createPermissionRequest", () => {
 			permission: "ReadFile",
 			patterns: ["/Users/alex/Documents/acepe/packages/desktop/src"],
 			metadata: {
-				rawInput: { path: "/Users/alex/Documents/acepe/packages/desktop/src" },
+				diagnosticRawInput: { path: "/Users/alex/Documents/acepe/packages/desktop/src" },
 				options: [{ kind: "allow", name: "Allow Once", optionId: "allow" }],
-				extra: "value",
 			},
 			always: ["allow_always"],
 			tool: { messageID: "message-1", callID: "call-1" },
+		});
+	});
+
+	it("normalizes transport rawInput to diagnostic metadata", () => {
+		const permission = createPermissionRequest({
+			id: "permission-raw",
+			sessionId: "session-raw",
+			permission: "ReadFile",
+			patterns: [],
+			metadata: {
+				rawInput: { path: "/tmp/file.ts" },
+				options: [],
+			},
+			always: [],
+		});
+
+		expect(permission.metadata).toEqual({
+			diagnosticRawInput: { path: "/tmp/file.ts" },
 		});
 	});
 
@@ -44,7 +61,7 @@ describe("createPermissionRequest", () => {
 			permission: "Execute tool",
 			patterns: [],
 			metadata: {
-				rawInput: { command: "ls" },
+				diagnosticRawInput: { command: "ls" },
 				parsedArguments: null,
 				options: [{ kind: "allow_always", name: "Always Allow", optionId: "allow_always" }],
 			},
@@ -60,7 +77,7 @@ describe("createPermissionRequest", () => {
 			permission: "Execute tool",
 			patterns: [],
 			metadata: {
-				rawInput: { command: "ls" },
+				diagnosticRawInput: { command: "ls" },
 				parsedArguments: null,
 				options: [{ kind: "allow_always", name: "Always Allow", optionId: "allow_always" }],
 			},

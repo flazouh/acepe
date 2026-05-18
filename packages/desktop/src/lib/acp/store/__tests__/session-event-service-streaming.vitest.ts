@@ -721,7 +721,7 @@ describe("SessionEventService streaming delta handling", () => {
 				jsonRpcRequestId: 42,
 				permission: "WebFetch",
 				patterns: ["https://example.com/*"],
-				metadata: { rawInput: { url: "https://example.com" } },
+				metadata: { diagnosticRawInput: { url: "https://example.com" } },
 				always: [],
 				autoAccepted: false,
 				tool: {
@@ -746,7 +746,7 @@ describe("SessionEventService streaming delta handling", () => {
 				permission: "Edit",
 				patterns: [],
 				metadata: {
-					rawInput: {},
+					diagnosticRawInput: {},
 					parsedArguments: {
 						kind: "edit",
 						edits: [
@@ -939,7 +939,7 @@ describe("SessionEventService streaming delta handling", () => {
 				jsonRpcRequestId: 42,
 				permission: "Write",
 				patterns: ["/tmp/file.txt"],
-				metadata: { rawInput: { file_path: "/tmp/file.txt" } },
+				metadata: { diagnosticRawInput: { file_path: "/tmp/file.txt" } },
 				always: [],
 				autoAccepted: false,
 				tool: {
@@ -1246,7 +1246,7 @@ describe("SessionEventService streaming delta handling", () => {
 				jsonRpcRequestId: 99,
 				permission: "Edit",
 				patterns: ["/repo/src/*.ts"],
-				metadata: { rawInput: { file_path: "/repo/src/main.ts" } },
+				metadata: { diagnosticRawInput: { file_path: "/repo/src/main.ts" } },
 				always: [],
 				autoAccepted: false,
 				tool: { messageId: "", callId: "tool-edit-reconnect" },

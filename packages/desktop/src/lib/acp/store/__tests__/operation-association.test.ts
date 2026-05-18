@@ -53,7 +53,7 @@ function createExecutePermission(
 		permission: "Execute",
 		patterns: [],
 		metadata: {
-			rawInput: { command },
+			diagnosticRawInput: { command },
 			parsedArguments: { kind: "execute", command },
 			options: [],
 		},

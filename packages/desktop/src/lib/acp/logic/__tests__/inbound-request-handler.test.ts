@@ -240,7 +240,7 @@ describe("InboundRequestHandler", () => {
 			expect(permission.permission).toBe("Execute tool");
 		});
 
-		it("should store rawInput in metadata", async () => {
+		it("stores transport rawInput as diagnostic metadata", async () => {
 			await handler.start(permissionCallback);
 
 			const rawInput = { command: "rm -rf /", dangerous: true };
@@ -262,7 +262,7 @@ describe("InboundRequestHandler", () => {
 			eventCallback?.({ payload: request });
 
 			const permission: PermissionRequest = permissionCallback.mock.calls[0][0];
-			expect(permission.metadata).toEqual({ rawInput, options: [] });
+			expect(permission.metadata).toEqual({ diagnosticRawInput: rawInput });
 		});
 	});
 

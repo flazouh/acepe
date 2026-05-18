@@ -14,7 +14,7 @@ function createPermission(toolCallId: string, command = "git status"): Permissio
 		permission: "Execute",
 		patterns: [],
 		metadata: {
-			rawInput: { command },
+			diagnosticRawInput: { command },
 			parsedArguments: { kind: "execute", command },
 		},
 		always: [],

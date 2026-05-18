@@ -122,7 +122,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			permission: "Bash",
 			patterns: [],
 			metadata: {
-				rawInput: { command: "bun test" },
+				diagnosticRawInput: { command: "bun test" },
 				parsedArguments: { command: "bun test" },
 				options: [
 					{ kind: "allow", name: "Allow", optionId: "allow" },
@@ -168,9 +168,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			permission: "Write",
 			patterns: [],
 			metadata: {
-				rawInput: {},
-				parsedArguments: undefined,
-				options: [],
+				diagnosticRawInput: {},
 			},
 			always: [],
 			tool: {
