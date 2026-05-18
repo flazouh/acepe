@@ -738,3 +738,26 @@ Verification:
 - `cd packages/desktop && bun run check`
 - `cd packages/desktop && bun test ./src/lib/acp/store/services/__tests__/chunk-aggregator.test.ts ./src/lib/acp/store/services/__tests__/transcript-tool-call-buffer.test.ts`
 - `rg "getEntries\\(" packages/desktop/src/lib/acp/store -n --glob '!**/__tests__/**'` now reports only `SessionEntryStore`'s owner method and its local normalization path.
+
+## Additional GOD Sweep: Make Compatibility Entry Reads Private
+
+Status: completed
+
+Problem:
+
+- `SessionEntryStore.getEntries(...)` was no longer on service-facing contracts, but it was still a public class method.
+- That meant future production code could accidentally call the broad compatibility transcript reader again.
+- Tests needed broad reads for characterization, but production code should not.
+
+Fix:
+
+- Made `SessionEntryStore.getEntries(...)` private.
+- Added a small test-only helper, `readCompatibilityEntries(...)`, for tests that intentionally inspect compatibility rows.
+- Updated all direct test calls to use the helper, making broad transcript-row reads explicit in tests and unavailable through normal production typing.
+
+Verification:
+
+- Red check first: `cd packages/desktop && bun run check` failed only where tests still called the now-private method.
+- `cd packages/desktop && bun run check`
+- `cd packages/desktop && bun test ./src/lib/acp/store/__tests__/assistant-chunk-aggregation.test.ts ./src/lib/acp/store/__tests__/chunk-aggregation-bug.test.ts ./src/lib/acp/store/__tests__/chunk-fragmentation-scenarios.vitest.ts ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/session-event-service-streaming.vitest.ts ./src/lib/acp/store/__tests__/tool-call-event-flow.test.ts ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts ./src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts`
+- `rg "\\.getEntries\\(" packages/desktop/src/lib -n --glob '!**/__tests__/**'` now reports only the private owner-local normalization call.

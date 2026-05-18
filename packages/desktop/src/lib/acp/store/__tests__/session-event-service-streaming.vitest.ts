@@ -883,8 +883,7 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		const assistantEntries = entryStore
-			.getEntries(sessionId)
+		const assistantEntries = readCompatibilityEntries(entryStore, sessionId)
 			.filter((entry) => entry.type === "assistant");
 		expect(assistantEntries).toHaveLength(0);
 	});

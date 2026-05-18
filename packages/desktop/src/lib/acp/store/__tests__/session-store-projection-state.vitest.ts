@@ -286,11 +286,11 @@ function materializeStoredScene(store: SessionStore, sessionId = "session-1") {
 }
 
 function getEntryStore(store: SessionStore): SessionEntryStore {
-	return (store as unknown as { entryStore: SessionEntryStore }).entryStore;
+	return (store as never as { entryStore: SessionEntryStore }).entryStore;
 }
 
 function getSessionEntries(store: SessionStore, sessionId: string) {
-	return getEntryStore(store).getEntries(sessionId);
+	return readCompatibilityEntries(getEntryStore(store), sessionId);
 }
 
 function getCanonicalProjection(

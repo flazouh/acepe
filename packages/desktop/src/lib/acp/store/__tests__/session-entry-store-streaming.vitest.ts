@@ -44,8 +44,7 @@ function readProgressiveArguments(
 	sessionId: string,
 	toolCallId: string
 ): ToolArguments | undefined {
-	const entry = store
-		.getEntries(sessionId)
+	const entry = readCompatibilityEntries(store, sessionId)
 		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
 	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
 }
@@ -1127,8 +1126,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const toolEntries = store
-				.getEntries("session1")
+			const toolEntries = readCompatibilityEntries(store, "session1")
 				.filter((entry) => entry.type === "tool_call");
 			expect(toolEntries).toHaveLength(1);
 		});

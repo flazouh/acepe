@@ -52,8 +52,7 @@ function readProgressiveArguments(
 	sessionId: string,
 	toolCallId: string
 ): ToolArguments | undefined {
-	const entry = entryStore
-		.getEntries(sessionId)
+	const entry = readCompatibilityEntries(entryStore, sessionId)
 		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
 	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
 }

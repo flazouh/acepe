@@ -793,8 +793,7 @@ describe("SessionMessagingService replay regression", () => {
 		);
 		expect(trailing.isOk()).toBe(true);
 
-		const assistantEntries = entryStore
-			.getEntries(sessionId)
+		const assistantEntries = readCompatibilityEntries(entryStore, sessionId)
 			.filter((entry) => entry.type === "assistant");
 		expect(assistantEntries).toHaveLength(1);
 
