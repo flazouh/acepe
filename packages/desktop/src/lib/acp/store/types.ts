@@ -499,8 +499,6 @@ export interface PersistedWorkspaceState {
 	readonly sqlStudio?: PersistedSqlStudioState;
 	/** Full-screen review overlay state (added in version 5) */
 	readonly reviewFullscreen?: PersistedReviewFullscreenState;
-	/** Open terminal panels persisted across app restarts (added in version 7, legacy flat shape) */
-	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
 	/** Explicit top-level terminal groups persisted across app restarts (added in version 10). */
 	readonly terminalPanelGroups?: ReadonlyArray<PersistedTerminalPanelGroupState>;
 	/** Terminal tabs persisted separately from runtime PTY state (added in version 10). */
@@ -511,17 +509,17 @@ export interface PersistedWorkspaceState {
 	readonly viewMode?: ViewMode;
 	/** Embedded terminal tabs per agent panel (added in version 9) */
 	readonly embeddedTerminalTabs?: ReadonlyArray<PersistedEmbeddedTerminalState>;
-	/** @deprecated Use viewMode instead. Kept for backward-compatible restore. */
-	readonly focusedViewEnabled?: boolean;
 	/** Which project path is focused in focused view */
 	readonly focusedViewProjectPath?: string | null;
 	/** Project paths whose sidebar cards are collapsed */
 	readonly collapsedProjectPaths?: readonly string[];
 	/** Whether the attention queue card is expanded (defaults to true) */
 	readonly queueExpanded?: boolean;
-	/**
-	 * @deprecated Use PersistedPanelState.messageDraft instead. Kept for backward compatibility.
-	 */
+}
+
+export interface PersistedWorkspaceRestoreState extends PersistedWorkspaceState {
+	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
+	readonly focusedViewEnabled?: boolean;
 	readonly messageDrafts?: Record<number, string>;
 }
 
