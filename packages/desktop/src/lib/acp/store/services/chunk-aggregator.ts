@@ -33,7 +33,7 @@ import type {
 const logger = createLogger({ id: "chunk-aggregator", name: "ChunkAggregator" });
 
 import { SessionNotFoundError, ValidationError } from "../../errors/app-error.js";
-import { MessageProcessor } from "../../logic/message-processor.js";
+import { CompatibilityMessageChunkMerger } from "../../logic/compatibility-message-chunk-merger.js";
 import { normalizeChunk } from "../../logic/normalize-chunk.js";
 import {
 	type AssistantChunkInput,
@@ -47,14 +47,14 @@ import {
  */
 export class ChunkAggregator implements IChunkAggregator {
 	private readonly aggregationStates = new Map<string, AggregationState>();
-	private readonly messageProcessor: MessageProcessor;
+	private readonly messageChunkMerger: CompatibilityMessageChunkMerger;
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
 		_entryIndex: IEntryIndex,
-		messageProcessor?: MessageProcessor
+		messageChunkMerger?: CompatibilityMessageChunkMerger
 	) {
-		this.messageProcessor = messageProcessor ?? new MessageProcessor();
+		this.messageChunkMerger = messageChunkMerger ?? new CompatibilityMessageChunkMerger();
 	}
 
 	// ============================================
@@ -107,7 +107,7 @@ export class ChunkAggregator implements IChunkAggregator {
 				return okAsync(undefined);
 			}
 
-			const mergedMessage = this.messageProcessor.mergeUserMessageChunk(
+			const mergedMessage = this.messageChunkMerger.mergeUserMessageChunk(
 				existingEntry.entry.message,
 				{ content: chunk.content }
 			);
@@ -281,7 +281,7 @@ export class ChunkAggregator implements IChunkAggregator {
 		});
 
 		// Append as new chunk
-		const mergedMessage = this.messageProcessor.mergeAssistantMessageChunk(
+		const mergedMessage = this.messageChunkMerger.mergeAssistantMessageChunk(
 			message,
 			{ content: input.content as ContentBlock },
 			input.isThought

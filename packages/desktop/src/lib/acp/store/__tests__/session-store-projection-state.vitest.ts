@@ -22,12 +22,14 @@ import type {
 	SessionStateGraph,
 	TurnFailureSnapshot,
 } from "$lib/services/acp-types.js";
+import type { SessionUpdate } from "$lib/services/converted-session-types.js";
 import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import { deliverDiagnosticSessionUpdate } from "./session-store-test-access.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
@@ -316,6 +318,59 @@ afterEach(() => {
 });
 
 describe("SessionStore.applySessionStateGraph", () => {
+	it("treats raw assistant chunks as diagnostic and leaves transcript entries unchanged", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					transcriptSnapshot: {
+						revision: 1,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: createGraphLifecycle("ready"),
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+				})
+			)
+		);
+
+		const rawAssistantChunk: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-1",
+			message_id: "provider-msg-1",
+			part_id: "provider-part-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "raw lane text",
+				},
+			},
+		};
+
+		deliverDiagnosticSessionUpdate(store, rawAssistantChunk);
+
+		expect(getSessionEntries(store, "session-1")).toEqual([]);
+		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot).toEqual({
+			revision: 1,
+			entries: [],
+		});
+	});
+
 	it("applies transcript deltas against the current graph frontier, not the compatibility cache", () => {
 		const store = new SessionStore();
 		addColdSession(store);

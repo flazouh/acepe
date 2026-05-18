@@ -59,7 +59,6 @@ import { routeSessionStateEnvelope } from "../session-state/session-state-comman
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { PermissionRequest } from "../types/permission.js";
-import type { SessionUpdate } from "../types/session-update";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
 import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
@@ -3047,13 +3046,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		telemetry: import("./types.js").SessionUsageTelemetry
 	): void {
 		this.hotStateStore.updateHotState(sessionId, { usageTelemetry: telemetry });
-	}
-
-	/**
-	 * Handle session update from EventSubscriber.
-	 */
-	handleSessionUpdate(update: SessionUpdate): void {
-		this.eventService.handleSessionUpdate(update, this);
 	}
 
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {

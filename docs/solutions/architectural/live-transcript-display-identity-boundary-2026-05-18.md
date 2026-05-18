@@ -60,6 +60,10 @@ Current rule:
 - Tests that need compatibility behavior must go through explicit helpers in `entry-store-test-access.ts`.
 - Production code should use `replaceTranscriptSnapshot(...)` and `applyTranscriptDelta(...)` for transcript truth.
 
+The old TypeScript `MessageProcessor` raw-event converter is deleted. Do not rebuild a generic `SessionUpdate -> ThreadEntry` path in TypeScript. If compatibility tests need chunk merging, keep that helper narrowly named and scoped to compatibility behavior only.
+
+`SessionStore` must not expose a public raw `handleSessionUpdate(...)` mutation method. The raw update subscription belongs to `SessionEventService`, and that service treats assistant/user/tool transcript-shaped raw events as diagnostic or coordination input only.
+
 ## Regression checks
 
 When touching live transcript projection or compatibility writers, run:
@@ -78,8 +82,17 @@ rg -n "return provider_key|insert\\(scoped_key, provider_key|stateReader\\.getHo
 
 Expected result: no raw provider key fallback in live assistant display identity, no broad `stateReader.getHotState`, and no public production calls to compatibility chunk aggregation.
 
+Raw-lane cleanup scan:
+
+```bash
+rg -n "MessageProcessor|processUpdate\\(|export \\{ MessageProcessor \\}|store\\.handleSessionUpdate\\(" packages/desktop/src/lib/acp -g '!**/__tests__/**' -g '!**/*.test.ts' -g '!**/*.vitest.ts'
+```
+
+Expected result: no matches.
+
 ## Related
 
 - `docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md`
+- `docs/plans/2026-05-18-004-refactor-raw-session-update-diagnostic-boundary-plan.md`
 - `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`
