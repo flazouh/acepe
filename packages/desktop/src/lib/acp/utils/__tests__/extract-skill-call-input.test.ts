@@ -5,7 +5,7 @@ import type { ToolArguments } from "$lib/services/converted-session-types.js";
 import { extractSkillCallInput } from "../extract-skill-call-input.js";
 
 describe("extractSkillCallInput", () => {
-	it("extracts explicit skill name from raw.name", () => {
+	it("does not extract skill name from raw.name", () => {
 		const args: ToolArguments = {
 			kind: "think",
 			skill: null,
@@ -16,17 +16,17 @@ describe("extractSkillCallInput", () => {
 		};
 
 		const result = extractSkillCallInput(args);
-		expect(result.skill).toBe("agent-browser");
+		expect(result.skill).toBeNull();
 		expect(result.args).toBeNull();
 	});
 
-	it("prefers raw args and normalizes object args to JSON string", () => {
+	it("uses canonical skill fields instead of raw payload", () => {
 		const args: ToolArguments = {
 			kind: "think",
-			skill: "fallback-skill",
-			skill_args: "fallback-args",
+			skill: "canonical-skill",
+			skill_args: "canonical-args",
 			raw: {
-				name: "agent-browser",
+				name: "raw-skill",
 				args: {
 					mode: "quick",
 					count: 2,
@@ -35,11 +35,11 @@ describe("extractSkillCallInput", () => {
 		};
 
 		const result = extractSkillCallInput(args);
-		expect(result.skill).toBe("agent-browser");
-		expect(result.args).toBe('{"mode":"quick","count":2}');
+		expect(result.skill).toBe("canonical-skill");
+		expect(result.args).toBe("canonical-args");
 	});
 
-	it("falls back to legacy think fields when raw payload is absent", () => {
+	it("extracts canonical think fields when raw payload is absent", () => {
 		const args: ToolArguments = {
 			kind: "think",
 			skill: "legacy-skill",
