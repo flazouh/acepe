@@ -55,6 +55,7 @@ fn parse_task_children_from_metadata(
             kind: Some(kind),
             arguments: ToolArguments::Other {
                 raw: serde_json::json!({}),
+                intent: None,
             },
             raw_input: None,
             skill_meta: None,

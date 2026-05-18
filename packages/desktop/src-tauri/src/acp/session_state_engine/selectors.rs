@@ -345,7 +345,10 @@ mod tests {
             kind,
             provider_status: status.clone(),
             title: None,
-            arguments: ToolArguments::Other { raw: json!({}) },
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
             progressive_arguments: None,
             result: None,
             command: None,

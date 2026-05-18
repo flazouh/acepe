@@ -398,6 +398,7 @@ fn normalize_cursor_create_plan(
                 name: CURSOR_CREATE_PLAN.to_string(),
                 arguments: ToolArguments::Other {
                     raw: params.clone(),
+                    intent: None,
                 },
                 raw_input: Some(params.clone()),
                 status: ToolCallStatus::Completed,

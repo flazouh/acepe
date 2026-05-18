@@ -263,6 +263,10 @@ fn parse_arguments_once(
             if identity.kind == ToolKind::Other {
                 ToolArguments::Other {
                     raw: raw_arguments.clone(),
+                    intent: crate::acp::parsers::arguments::extract_parser_string(
+                        raw_arguments,
+                        &["intent"],
+                    ),
                 }
             } else {
                 ToolArguments::from_raw(identity.kind, raw_arguments.clone())

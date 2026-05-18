@@ -449,6 +449,7 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
                 raw_input: None,
                 kind: Some(ToolKind::Read),

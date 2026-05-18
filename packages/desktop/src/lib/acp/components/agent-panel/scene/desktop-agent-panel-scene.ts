@@ -368,12 +368,9 @@ function getToolSubtitle(toolCall: ToolCall): string | undefined {
 	}
 
 	if (toolCall.arguments.kind === "other") {
-		const raw = toolCall.arguments.raw;
-		if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-			const intent = raw.intent;
-			if (typeof intent === "string" && intent.trim().length > 0) {
-				return intent.trim();
-			}
+		const intent = toolCall.arguments.intent?.trim();
+		if (intent && intent.length > 0) {
+			return intent;
 		}
 	}
 

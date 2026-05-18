@@ -849,7 +849,10 @@ mod tests {
             message: ToolCallData {
                 id: id.to_string(),
                 name: "create_plan".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
                 raw_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,

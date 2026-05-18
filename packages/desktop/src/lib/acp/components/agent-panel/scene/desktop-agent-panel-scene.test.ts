@@ -884,7 +884,11 @@ describe("desktop agent panel scene adapter", () => {
 				message: {
 					id: "tool-1",
 					name: "report_intent",
-					arguments: { kind: "other", raw: { intent: "Viewing extracted lines" } },
+					arguments: {
+						kind: "other",
+						raw: { intent: "Viewing extracted lines" },
+						intent: "Viewing extracted lines",
+					},
 					rawInput: { intent: "Viewing extracted lines" },
 					status: "completed",
 					result: null,
@@ -911,6 +915,44 @@ describe("desktop agent panel scene adapter", () => {
 			title: "Report Intent",
 			subtitle: "Viewing extracted lines",
 			detailsText: expect.stringContaining('"name": "report_intent"'),
+			status: "done",
+		});
+	});
+
+	it("does not derive other tool subtitles from raw arguments", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-raw-only",
+				type: "tool_call",
+				message: {
+					id: "tool-raw-only",
+					name: "report_intent",
+					arguments: { kind: "other", raw: { intent: "Raw intent should not display" } },
+					rawInput: { intent: "Raw intent should not display" },
+					status: "completed",
+					result: null,
+					kind: "other",
+					title: null,
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "other",
+			title: "Report Intent",
+			subtitle: undefined,
 			status: "done",
 		});
 	});

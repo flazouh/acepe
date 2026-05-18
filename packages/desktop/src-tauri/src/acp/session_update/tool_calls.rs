@@ -783,7 +783,10 @@ mod tests {
             tool_call: ToolCallData {
                 id: tool_call_id.to_string(),
                 name: tool_name.to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
                 raw_input: Some(json!({})),
                 status: ToolCallStatus::Pending,
                 result: None,

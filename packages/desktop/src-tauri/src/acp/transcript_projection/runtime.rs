@@ -975,6 +975,7 @@ mod tests {
                                 "multiSelect": false
                             }]
                         }),
+                        intent: None,
                     },
                     raw_input: None,
                     status: ToolCallStatus::Pending,

@@ -672,7 +672,7 @@ fn test_tool_arguments_other() {
     let raw = json!({"custom_field": "custom_value"});
     let args = ToolArguments::from_raw(ToolKind::Other, raw.clone());
     match args {
-        ToolArguments::Other { raw: raw_data } => {
+        ToolArguments::Other { raw: raw_data, .. } => {
             assert_eq!(raw_data, raw);
         }
         _ => panic!("Expected Other variant"),

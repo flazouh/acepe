@@ -108,8 +108,12 @@ fn translate_tool_started(
     let arguments = match get_non_empty_string(payload.get("argumentsText")) {
         Some(arguments_text) => ToolArguments::Other {
             raw: json!({ "argumentsText": arguments_text }),
+            intent: None,
         },
-        None => ToolArguments::Other { raw: json!({}) },
+        None => ToolArguments::Other {
+            raw: json!({}),
+            intent: None,
+        },
     };
 
     vec![SessionUpdate::ToolCall {

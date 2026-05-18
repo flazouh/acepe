@@ -3328,6 +3328,7 @@ mod tests {
                 name: "Agent".to_string(),
                 arguments: ToolArguments::Other {
                     raw: serde_json::Value::Null,
+                    intent: None,
                 },
                 raw_input: None,
                 status: ToolCallStatus::InProgress,

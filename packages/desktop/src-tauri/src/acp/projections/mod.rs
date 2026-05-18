@@ -2630,7 +2630,10 @@ mod tests {
         let mut parent = ToolCallData {
             id: "task-parent".to_string(),
             name: "task".to_string(),
-            arguments: ToolArguments::Other { raw: json!({}) },
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
             raw_input: None,
             status: ToolCallStatus::Pending,
             result: None,
@@ -3090,7 +3093,10 @@ mod tests {
                     message: ToolCallData {
                         id: "tool-question".to_string(),
                         name: "ask_user".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
                         raw_input: None,
                         status: ToolCallStatus::Completed,
                         result: None,
@@ -3117,7 +3123,10 @@ mod tests {
                     message: ToolCallData {
                         id: "tool-plan".to_string(),
                         name: "create_plan".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
                         raw_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
@@ -3232,6 +3241,7 @@ mod tests {
                                     "multiSelect": false
                                 }]
                             }),
+                            intent: None,
                         },
                         raw_input: None,
                         status: ToolCallStatus::Pending,
@@ -3467,7 +3477,10 @@ mod tests {
                     message: ToolCallData {
                         id: "plan-tool".to_string(),
                         name: "create_plan".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
                         raw_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
@@ -3902,6 +3915,7 @@ mod tests {
             name: "unknown_tool".to_string(),
             arguments: ToolArguments::Other {
                 raw: serde_json::json!({}),
+                intent: None,
             },
             raw_input: None,
             status: ToolCallStatus::Pending,
@@ -4074,7 +4088,10 @@ mod tests {
         let mut parent = ToolCallData {
             id: "task\nparent".to_string(),
             name: "task".to_string(),
-            arguments: ToolArguments::Other { raw: json!({}) },
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
             raw_input: None,
             status: ToolCallStatus::Pending,
             result: None,
@@ -4260,7 +4277,10 @@ mod tests {
         plan_tool_call.name = "ExitPlanMode".to_string();
         plan_tool_call.kind = Some(ToolKind::ExitPlanMode);
         plan_tool_call.title = Some("Plan ready".to_string());
-        plan_tool_call.arguments = ToolArguments::Other { raw: json!({}) };
+        plan_tool_call.arguments = ToolArguments::Other {
+            raw: json!({}),
+            intent: None,
+        };
         plan_tool_call.raw_input = Some(json!({}));
 
         registry.apply_session_update(

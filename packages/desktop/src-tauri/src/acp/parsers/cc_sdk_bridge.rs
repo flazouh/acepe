@@ -486,6 +486,7 @@ fn translate_stream_event(
                 name,
                 arguments: ToolArguments::Other {
                     raw: serde_json::Value::Null,
+                    intent: None,
                 },
                 raw_input: block.get("input").cloned(),
                 status: ToolCallStatus::InProgress,

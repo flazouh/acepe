@@ -989,7 +989,10 @@ mod parse_tool_call_from_acp {
                 assert_eq!(shell_id.as_deref(), Some("2"));
                 assert_eq!(input.as_deref(), Some("{enter}"));
             }
-            other => panic!("Expected shell input arguments, got {:?}", other.tool_kind()),
+            other => panic!(
+                "Expected shell input arguments, got {:?}",
+                other.tool_kind()
+            ),
         }
     }
 

@@ -116,7 +116,10 @@ fn degraded_transcript_tool_operation(session_id: &str, entry_id: &str) -> Opera
         kind: None,
         provider_status: ToolCallStatus::Failed,
         title: Some("Unresolved tool".to_string()),
-        arguments: ToolArguments::Other { raw: Value::Null },
+        arguments: ToolArguments::Other {
+            raw: Value::Null,
+            intent: None,
+        },
         progressive_arguments: None,
         result: None,
         command: None,
@@ -194,7 +197,10 @@ mod tests {
             kind: None,
             provider_status: ToolCallStatus::Completed,
             title: Some("Run".to_string()),
-            arguments: ToolArguments::Other { raw: Value::Null },
+            arguments: ToolArguments::Other {
+                raw: Value::Null,
+                intent: None,
+            },
             progressive_arguments: None,
             result: None,
             command: None,

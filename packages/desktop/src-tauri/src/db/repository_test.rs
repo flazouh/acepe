@@ -291,6 +291,7 @@ mod session_metadata_tests {
                 name: "unknown".to_string(),
                 arguments: crate::acp::session_update::ToolArguments::Other {
                     raw: json!({ "path": "/Users/test/project/README.md" }),
+                    intent: None,
                 },
                 raw_input: None,
                 status: crate::acp::session_update::ToolCallStatus::Pending,

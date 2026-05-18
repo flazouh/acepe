@@ -163,9 +163,7 @@ impl TranscriptEntry {
                 timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
             }),
             StoredEntry::ToolCall {
-                message,
-                timestamp,
-                ..
+                message, timestamp, ..
             } => {
                 if should_skip_unanswered_historical_question_tool(message) {
                     return None;
@@ -437,6 +435,7 @@ mod tests {
                                 "multiSelect": false
                             }]
                         }),
+                        intent: None,
                     },
                     raw_input: None,
                     status: ToolCallStatus::Pending,

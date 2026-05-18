@@ -488,6 +488,7 @@ pub(crate) fn parse_tool_kind_arguments(
         },
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),
+            intent: extract_parser_string(raw_arguments, &["intent"]),
         },
     }
 }
@@ -520,6 +521,23 @@ mod tests {
                 assert_eq!(script.as_deref(), Some("document.body.innerText"));
             }
             other => panic!("expected browser arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_other_display_intent_from_raw_arguments() {
+        let args = parse_tool_kind_arguments(
+            ToolKind::Other,
+            &json!({
+                "intent": "Viewing extracted lines",
+            }),
+        );
+
+        match args {
+            ToolArguments::Other { intent, .. } => {
+                assert_eq!(intent.as_deref(), Some("Viewing extracted lines"));
+            }
+            other => panic!("expected other arguments, got {other:?}"),
         }
     }
 }

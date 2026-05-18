@@ -2954,7 +2954,10 @@ mod tests {
             tool_call: ToolCallData {
                 id: "tool-1".to_string(),
                 name: "create_plan".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
                 raw_input: None,
                 kind: Some(ToolKind::CreatePlan),
                 title: Some("Create plan".to_string()),
@@ -3013,6 +3016,7 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
                 raw_input: None,
                 kind: Some(ToolKind::Read),
@@ -3091,7 +3095,10 @@ mod tests {
             tool_call: ToolCallData {
                 id: "tool-idem-1".to_string(),
                 name: "Edit".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
                 raw_input: None,
                 kind: Some(ToolKind::Edit),
                 title: Some("Edit file".to_string()),
@@ -3156,6 +3163,7 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
                 raw_input: None,
                 kind: Some(ToolKind::Read),

@@ -466,7 +466,10 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
                 + usize::from(arguments_preview.is_some())
                 + usize::from(!signals_tried.is_empty())
         }
-        ToolArguments::Other { raw } => {
+        ToolArguments::Other { raw, intent } => {
+            if intent.is_some() {
+                return 1;
+            }
             if raw.is_null() {
                 return 0;
             }

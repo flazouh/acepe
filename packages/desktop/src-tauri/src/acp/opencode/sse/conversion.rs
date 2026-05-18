@@ -267,6 +267,7 @@ fn parse_opencode_tool_arguments(tool_name: &str, tool_input: &Value) -> ToolArg
         .parse_typed_tool_arguments(Some(tool_name), tool_input, None)
         .unwrap_or(ToolArguments::Other {
             raw: tool_input.clone(),
+            intent: None,
         })
 }
 
