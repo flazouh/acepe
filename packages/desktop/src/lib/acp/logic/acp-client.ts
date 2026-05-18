@@ -218,23 +218,6 @@ export class AcpClient {
 	}
 
 	/**
-	 * Resumes an existing session (fire-and-forget).
-	 * Completion/failure will arrive via connectionComplete/connectionFailed lifecycle events.
-	 *
-	 * @deprecated Use resumeSession() directly — this wrapper no longer adds value
-	 * since resume is now fire-and-forget and doesn't return session response data.
-	 */
-	resumeSessionSafe(
-		sessionId: SessionId,
-		cwd: string,
-		attemptId: number,
-		agentId?: string,
-		launchModeId?: string
-	): ResultAsync<void, AcpError> {
-		return this.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId);
-	}
-
-	/**
 	 * Sets the model for a session.
 	 *
 	 * @param sessionId - The session ID

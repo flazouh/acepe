@@ -112,7 +112,6 @@ export class ConnectionManager {
 	private connect(thread: ThreadState): ResultAsync<ThreadConnection, ConnectionManagerError> {
 		this.logger.info("Connecting thread:", thread.id, "to agent:", thread.agentId);
 
-		// NOTE: resumeSessionSafe is now fire-and-forget (void return).
 		// This legacy ConnectionManager is unused — only createSession path remains functional.
 		const sessionResultAsync = this.acpClient.createSession(thread.projectPath, thread.agentId);
 

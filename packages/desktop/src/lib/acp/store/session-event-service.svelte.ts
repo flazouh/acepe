@@ -273,7 +273,12 @@ export class SessionEventService {
 				return undefined;
 			})
 			.mapErr((error) => {
-				subscriber.unsubscribe();
+				if (this.sessionUpdateSubscriptionId !== null) {
+					subscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
+				}
+				if (this.sessionStateSubscriptionId !== null) {
+					subscriber.unsubscribeById(this.sessionStateSubscriptionId);
+				}
 				this.eventSubscriber = null;
 				this.sessionUpdateSubscriptionId = null;
 				this.sessionStateSubscriptionId = null;
@@ -301,10 +306,13 @@ export class SessionEventService {
 		this.processedSessionUpdateSeqs.clear();
 		this.stopTelemetryReporter();
 
-		if (this.eventSubscriber) {
-			this.eventSubscriber.unsubscribe();
-			this.eventSubscriber = null;
+		if (this.eventSubscriber && this.sessionUpdateSubscriptionId !== null) {
+			this.eventSubscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
 		}
+		if (this.eventSubscriber && this.sessionStateSubscriptionId !== null) {
+			this.eventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
+		}
+		this.eventSubscriber = null;
 		this.sessionUpdateSubscriptionId = null;
 		this.sessionStateSubscriptionId = null;
 	}
