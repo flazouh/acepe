@@ -717,6 +717,40 @@ mod tests {
     }
 
     #[test]
+    fn tool_call_data_serializes_raw_payload_as_diagnostic() {
+        let tool_call = ToolCallData {
+            id: "toolu_raw_input".to_string(),
+            name: "Bash".to_string(),
+            arguments: ToolArguments::Execute {
+                command: Some("echo hi".to_string()),
+            },
+            raw_input: Some(json!({ "command": "echo hi" })),
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Execute),
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let serialized = serde_json::to_value(tool_call).expect("serialize tool call");
+
+        assert_eq!(
+            serialized["diagnosticRawInput"],
+            json!({ "command": "echo hi" })
+        );
+        assert!(serialized.get("rawInput").is_none());
+    }
+
+    #[test]
     fn build_tool_call_from_raw_repairs_missing_read_path_from_title_after_partial_parse() {
         let parser = &CursorParser as &dyn AgentParser;
         let raw = RawToolCallInput {

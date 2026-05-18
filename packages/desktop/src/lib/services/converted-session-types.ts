@@ -82,7 +82,7 @@ export type ContentChunk = { content: ContentBlock; aggregationHint?: ChunkAggre
 /**
  * Tool call data.
  */
-export type ToolCallData = { id: string; name: string; arguments: ToolArguments; rawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null;
+export type ToolCallData = { id: string; name: string; arguments: ToolArguments; diagnosticRawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null;
 /**
  * Normalized questions extracted from question tool calls.
  * This provides a unified format for questions across all agents.

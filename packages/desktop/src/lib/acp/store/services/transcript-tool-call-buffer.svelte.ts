@@ -214,7 +214,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 				...existingToolCall,
 				name: data.name,
 				arguments: createResolution.nextArguments,
-				rawInput: createResolution.nextRawInput,
+				diagnosticRawInput: createResolution.nextDiagnosticRawInput,
 				status: createResolution.nextStatus ?? existingToolCall.status,
 				result: createResolution.nextResult,
 				kind: createResolution.nextKind,

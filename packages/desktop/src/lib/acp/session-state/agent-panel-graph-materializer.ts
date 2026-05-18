@@ -316,7 +316,7 @@ function operationSnapshotToToolCall(operation: OperationSnapshot): ToolCall {
 		id: operation.tool_call_id,
 		name: operation.name,
 		arguments: operation.arguments,
-		rawInput: null,
+		diagnosticRawInput: null,
 		status:
 			operation.provider_status === "pending" ||
 			operation.provider_status === "in_progress" ||

@@ -142,7 +142,7 @@ function isStreamingToolCallStatus(status: ToolCallStatus | null | undefined): b
 export interface TranscriptToolCallCreateResolution {
 	nextStatus: ToolCallStatus | null | undefined;
 	nextArguments: ToolArguments;
-	nextRawInput: ToolCall["rawInput"];
+	nextDiagnosticRawInput: ToolCall["diagnosticRawInput"];
 	nextResult: ToolCall["result"];
 	nextKind: ToolCall["kind"];
 	nextAwaitingPlanApproval: boolean;
@@ -166,7 +166,7 @@ export function resolveTranscriptToolCallCreate(
 	return {
 		nextStatus: data.status,
 		nextArguments: data.arguments,
-		nextRawInput: data.rawInput,
+		nextDiagnosticRawInput: data.diagnosticRawInput,
 		nextResult: data.result,
 		nextKind: data.kind,
 		nextAwaitingPlanApproval,

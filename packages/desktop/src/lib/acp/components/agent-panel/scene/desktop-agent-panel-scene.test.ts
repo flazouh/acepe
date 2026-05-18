@@ -37,7 +37,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-1",
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test src/lib/auth" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: "raw execute payload should not drive the scene entry",
 					kind: "execute",
@@ -133,7 +133,7 @@ describe("desktop agent panel scene adapter", () => {
 							viewRange: { startLine: 443, endLine: 443 },
 						},
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "read",
@@ -181,7 +181,7 @@ describe("desktop agent panel scene adapter", () => {
 							},
 						],
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "edit",
@@ -233,7 +233,7 @@ describe("desktop agent panel scene adapter", () => {
 						plan,
 						plan_file_path: "/repo/.claude/plans/focused-plan.md",
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "exit_plan_mode",
@@ -279,7 +279,7 @@ describe("desktop agent panel scene adapter", () => {
 						plan,
 						plan_file_path: "/repo/.claude/plans/make-this-an-animation.md",
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "exit_plan_mode",
@@ -310,7 +310,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("reads restored ExitPlanMode plan content from canonical arguments when rawInput is missing", () => {
+	it("reads restored ExitPlanMode plan content from canonical arguments when diagnosticRawInput is missing", () => {
 		const plan = "# Restored Plan\n\n- [ ] Render from restored arguments";
 		const entries: SessionEntry[] = [
 			{
@@ -325,7 +325,7 @@ describe("desktop agent panel scene adapter", () => {
 						plan,
 						plan_file_path: "/repo/.claude/plans/restored-plan.md",
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "exit_plan_mode",
@@ -365,7 +365,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-1",
 					name: "search",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "search",
@@ -388,7 +388,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-2",
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "execute",
@@ -429,7 +429,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-1",
 					name: "search",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "search",
@@ -491,7 +491,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "search-1",
 					name: "rg",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: {
 						mode: "files_with_matches",
@@ -524,7 +524,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "fetch-1",
 					name: "fetch",
 					arguments: { kind: "fetch", url: "https://acepe.dev/docs" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: "wrong fetch body",
 					kind: "fetch",
@@ -554,7 +554,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "search-content-1",
 					name: "rg",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: {
 						content: "1:wrong result",
@@ -602,7 +602,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "web-1",
 					name: "webSearch",
 					arguments: { kind: "webSearch", query: "acepe agent panel" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: {
 						summary: "Wrong raw summary",
@@ -633,7 +633,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "lint-1",
 					name: "read_lints",
 					arguments: { kind: "readLints", raw: {} },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: {
 						totalDiagnostics: 1,
@@ -662,7 +662,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "lint-alias-1",
 					name: "read_lints",
 					arguments: { kind: "read", file_path: "/tmp/lints.json" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: {
 						diagnostics: [
@@ -694,7 +694,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "task-output-1",
 					name: "task_output",
 					arguments: { kind: "taskOutput", task_id: "subagent-1", timeout: null },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: "subagent finished",
 					kind: "task_output",
@@ -725,7 +725,7 @@ describe("desktop agent panel scene adapter", () => {
 						skill_args: null,
 						raw: { skill: "frontend-design" },
 					},
-					rawInput: { skill: "frontend-design" },
+					diagnosticRawInput: { skill: "frontend-design" },
 					status: "completed",
 					result: null,
 					kind: "skill",
@@ -818,7 +818,7 @@ describe("desktop agent panel scene adapter", () => {
 						skill_args: null,
 						raw: null,
 					},
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: "done",
 					kind: "task",
@@ -833,7 +833,7 @@ describe("desktop agent panel scene adapter", () => {
 							id: "child-search-1",
 							name: "search",
 							arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-							rawInput: null,
+							diagnosticRawInput: null,
 							status: "in_progress",
 							result: null,
 							kind: "search",
@@ -889,7 +889,7 @@ describe("desktop agent panel scene adapter", () => {
 						raw: { intent: "Viewing extracted lines" },
 						intent: "Viewing extracted lines",
 					},
-					rawInput: { intent: "Viewing extracted lines" },
+					diagnosticRawInput: { intent: "Viewing extracted lines" },
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -928,7 +928,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-raw-only",
 					name: "report_intent",
 					arguments: { kind: "other", raw: { intent: "Raw intent should not display" } },
-					rawInput: { intent: "Raw intent should not display" },
+					diagnosticRawInput: { intent: "Raw intent should not display" },
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -966,7 +966,7 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-raw-details",
 					name: "report_intent",
 					arguments: { kind: "other", raw: { intent: "Canonical argument" } },
-					rawInput: { secret_provider_payload: "raw input should stay diagnostic" },
+					diagnosticRawInput: { secret_provider_payload: "raw input should stay diagnostic" },
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -995,7 +995,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(typeof entry.detailsText).toBe("string");
 		const detailsText = entry.detailsText ?? "";
 		expect(detailsText.includes('"arguments"')).toBe(true);
-		expect(detailsText.includes("rawInput")).toBe(false);
+		expect(detailsText.includes("diagnosticRawInput")).toBe(false);
 		expect(detailsText.includes("secret_provider_payload")).toBe(false);
 	});
 
@@ -1012,7 +1012,7 @@ describe("desktop agent panel scene adapter", () => {
 						shell_id: "2",
 						input: "{enter}",
 					},
-					rawInput: { shellId: "raw-shell", input: "raw input should not be used", delay: 10 },
+					diagnosticRawInput: { shellId: "raw-shell", input: "raw input should not be used", delay: 10 },
 					status: "completed",
 					result: {
 						content: "done",
@@ -1056,7 +1056,7 @@ describe("desktop agent panel scene adapter", () => {
 						query: "UPDATE todos SET status = 'done'",
 						description: "Mark all done",
 					},
-					rawInput: { description: "Mark all done" },
+					diagnosticRawInput: { description: "Mark all done" },
 					status: "completed",
 					result: {
 						rowsAffected: 3,
@@ -1093,7 +1093,7 @@ describe("desktop agent panel scene adapter", () => {
 						arguments_preview: '{"foo":"bar"}',
 						signals_tried: ["provider_name_map", "argument_shape"],
 					},
-					rawInput: { foo: "bar" },
+					diagnosticRawInput: { foo: "bar" },
 					status: "completed",
 					result: null,
 					kind: "unclassified",
@@ -1345,7 +1345,7 @@ describe("desktop agent panel scene adapter", () => {
 					id,
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test" },
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "execute",

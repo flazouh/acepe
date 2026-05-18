@@ -343,7 +343,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					},
 				],
 			},
-			rawInput: {
+			diagnosticRawInput: {
 				edits: [
 					{
 						filePath: "/tmp/example.ts",
@@ -612,7 +612,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					name: "Read file\nstdout ready",
 					arguments: { kind: "other", raw: null },
 					progressiveArguments: undefined,
-					rawInput: null,
+					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "other",

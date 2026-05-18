@@ -383,6 +383,7 @@ pub struct ToolCallData {
     pub id: String,
     pub name: String,
     pub arguments: ToolArguments,
+    #[serde(rename = "diagnosticRawInput")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub raw_input: Option<serde_json::Value>,
     pub status: ToolCallStatus,
@@ -455,6 +456,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             id: String,
             name: String,
             arguments: serde_json::Value,
+            #[serde(alias = "rawInput", rename = "diagnosticRawInput")]
             raw_input: Option<serde_json::Value>,
             status: ToolCallStatus,
             kind: Option<ToolKind>,
