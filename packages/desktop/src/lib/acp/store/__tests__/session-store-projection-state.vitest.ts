@@ -1310,9 +1310,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			acpSessionId: "session-1",
-		});
+		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
@@ -2028,9 +2026,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		store.applySessionStateEnvelope("session-1", envelope);
 
 		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
-		expect(store.getHotState("session-1")).toMatchObject({
-			acpSessionId: "session-1",
-		});
+		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
@@ -2972,7 +2968,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
 			sessionSpendUsd: 0.42,
 			latestStepCostUsd: 0.42,
 			latestTokensTotal: 50000,
@@ -3012,7 +3008,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
 			contextBudget: null,
 			latestTokensTotal: 1200,
 			lastTelemetryEventId: "telemetry-2",
@@ -3072,6 +3068,20 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
 					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-live-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-live-1:block:0",
+										text: "follow-up question",
+									},
+								],
+							},
+						},
 						{
 							kind: "appendEntry",
 							entry: {
@@ -3289,12 +3299,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		await store.aggregateCompatibilityUserChunk("session-1", {
-			content: {
-				type: "text",
-				text: "follow-up question",
-			},
-		});
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
 			graphRevision: 8,
@@ -3318,15 +3322,42 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					lastTerminalTurnId: null,
 					transcriptOperations: [
 						{
-							kind: "appendEntry",
-							entry: {
-								entryId: "assistant-live-1",
-								role: "assistant",
-								segments: [
+							kind: "replaceSnapshot",
+							snapshot: {
+								revision: 8,
+								entries: [
 									{
-										kind: "text",
-										segmentId: "assistant-live-1:block:0",
-										text: "new live answer",
+										entryId: "assistant-history-1",
+										role: "assistant",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "assistant-history-1:block:0",
+												text: "existing answer",
+											},
+										],
+									},
+									{
+										entryId: "user-live-1",
+										role: "user",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "user-live-1:block:0",
+												text: "follow-up question",
+											},
+										],
+									},
+									{
+										entryId: "assistant-live-1",
+										role: "assistant",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "assistant-live-1:block:0",
+												text: "new live answer",
+											},
+										],
 									},
 								],
 							},
@@ -4048,7 +4079,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).toEqual({
+		expect(store.getSessionPendingSendIntent("session-1")).toEqual({
 			attemptId: expect.any(String),
 			startedAt: expect.any(Number),
 			baselineTranscriptRevision: 0,
@@ -4088,7 +4119,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toMatchObject({
+		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId: expect.any(String),
 		});
 	});
@@ -4131,7 +4162,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const result = await store.sendMessage("session-1", "cursor canonical handoff test");
 		expect(result.isOk()).toBe(true);
 
-		const pending = store.getHotState("session-1").pendingSendIntent;
+		const pending = store.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
 		expect(pending).not.toBeUndefined();
 		const attemptId = pending?.attemptId;
@@ -4173,7 +4204,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toMatchObject({
+		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId,
 		});
 
@@ -4213,7 +4244,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears pending send intent when the canonical turn completes without a user attempt id", async () => {
@@ -4253,7 +4284,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "codex terminal cleanup test");
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).not.toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -4301,7 +4332,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears stale pending send intent from a completed canonical snapshot that already acknowledged the prompt text", async () => {
@@ -4364,7 +4395,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "copilot acknowledged prompt");
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).not.toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -4434,7 +4465,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("fails closed for a just-created session before canonical lifecycle hydration arrives", async () => {
@@ -4647,13 +4678,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		await store.aggregateCompatibilityUserChunk("session-1", {
-			content: {
-				type: "text",
-				text: "existing prompt",
-			},
-		});
-
 		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
 		expect(result.isErr()).toBe(true);

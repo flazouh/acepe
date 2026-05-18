@@ -11,7 +11,11 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { SessionEntryStore } from "../../session-entry-store.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
-import { readCompatibilityEntries } from "../../__tests__/entry-store-test-access.js";
+import {
+	aggregateCompatibilityAssistantChunk,
+	preloadCompatibilityEntriesAndBuildIndex,
+	readCompatibilityEntries,
+} from "../../__tests__/entry-store-test-access.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -48,7 +52,8 @@ function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeo
 
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn().mockReturnValue(null),
+		getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
 		getSessionCanSend: vi.fn().mockReturnValue(null),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
 		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
@@ -562,10 +567,11 @@ describe("SessionMessagingService replay regression", () => {
 
 	beforeEach(() => {
 		entryStore = new SessionEntryStore();
-		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
+		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
 
 		const stateReader: ISessionStateReader = {
-			getHotState: vi.fn(),
+			getSessionAcpSessionId: vi.fn().mockReturnValue(null),
+			getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
 			getSessionCanSend: vi.fn().mockReturnValue(null),
 			getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
 			getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
@@ -623,7 +629,7 @@ describe("SessionMessagingService replay regression", () => {
 	});
 
 	it("merges post-turn trailing chunk without message_id into the same assistant entry", async () => {
-		const first = await entryStore.aggregateCompatibilityAssistantChunk(
+		const first = await aggregateCompatibilityAssistantChunk(entryStore,
 			sessionId,
 			{ content: { type: "text", text: "I see the" } },
 			"msg-thread-1",
@@ -631,7 +637,7 @@ describe("SessionMessagingService replay regression", () => {
 		);
 		expect(first.isOk()).toBe(true);
 
-		const second = await entryStore.aggregateCompatibilityAssistantChunk(
+		const second = await aggregateCompatibilityAssistantChunk(entryStore,
 			sessionId,
 			{ content: { type: "text", text: " component." } },
 			"msg-thread-1",
@@ -641,7 +647,7 @@ describe("SessionMessagingService replay regression", () => {
 
 		service.handleCanonicalTurnComplete(sessionId);
 
-		const trailing = await entryStore.aggregateCompatibilityAssistantChunk(
+		const trailing = await aggregateCompatibilityAssistantChunk(entryStore,
 			sessionId,
 			{ content: { type: "text", text: " test it." } },
 			undefined,

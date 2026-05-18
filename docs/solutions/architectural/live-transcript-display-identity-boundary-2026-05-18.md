@@ -1,0 +1,85 @@
+---
+module: acp-live-transcript-projection
+last_updated: 2026-05-18
+tags:
+  - canonical-transcript
+  - display-identity
+  - provider-ids
+  - compatibility-boundary
+  - final-god
+problem_type: architecture
+---
+
+# Live transcript display identity boundary
+
+## Problem
+
+Some providers can reuse the same assistant `message_id` across different content blocks. In a live stream that can look like:
+
+1. assistant text,
+2. tool call,
+3. more assistant text with the same provider message id.
+
+If Acepe uses that raw provider id as the visible assistant row id, the last assistant text can be appended above the tool call. The transcript order becomes wrong even though events arrived in the right order.
+
+## Final invariant
+
+Provider assistant message ids are metadata and grouping hints only. They are not display row identity.
+
+Live assistant rows use Acepe-owned deterministic ids such as `assistant-event-{event_seq}`. A user row, tool row, turn completion, cancellation, or error closes the active assistant boundary. After that boundary, the same provider `message_id` must create a new assistant row.
+
+Canonical transcript deltas may append to an existing canonical entry id. Raw provider updates may not rehydrate display lineage by guessing that `message_id == entry_id`.
+
+This boundary rule applies to both inputs into the live projection:
+
+- direct `SessionUpdate` events,
+- replayed or externally applied `TranscriptDelta` operations.
+
+If a canonical delta appends a user, tool, or error row, it must close any active live assistant boundary before later raw provider chunks are processed.
+
+## Correct flow
+
+```text
+provider live update
+  -> Rust transcript projection
+  -> canonical transcript operation with Acepe-owned entry id
+  -> TypeScript store applies snapshot/delta
+  -> UI renders canonical entries
+```
+
+The UI must not fix transcript order. TypeScript must not decide whether repeated provider ids are one row or two rows. That decision belongs in Rust before display projection.
+
+## Compatibility boundary
+
+Legacy compatibility transcript writers may still exist for tests and old raw-lane coverage, but they must not be public product APIs.
+
+Current rule:
+
+- `SessionStore` exposes canonical snapshot/delta behavior and narrow selectors.
+- `SessionEntryStore` compatibility writers are private.
+- Tests that need compatibility behavior must go through explicit helpers in `entry-store-test-access.ts`.
+- Production code should use `replaceTranscriptSnapshot(...)` and `applyTranscriptDelta(...)` for transcript truth.
+
+## Regression checks
+
+When touching live transcript projection or compatibility writers, run:
+
+```bash
+cd packages/desktop/src-tauri && cargo test transcript_projection --quiet
+cd packages/desktop && bun run check
+cd packages/desktop && bun test ./src/lib/acp/store/__tests__/session-entry-store-streaming.vitest.ts ./src/lib/acp/store/__tests__/session-store-projection-state.vitest.ts src/lib/acp/store/services/__tests__/session-messaging-service-stream-lifecycle.test.ts
+```
+
+Useful scan:
+
+```bash
+rg -n "return provider_key|insert\\(scoped_key, provider_key|stateReader\\.getHotState|\\.aggregateCompatibilityAssistantChunk\\(|\\.aggregateCompatibilityUserChunk\\(" packages/desktop/src packages/desktop/src-tauri/src
+```
+
+Expected result: no raw provider key fallback in live assistant display identity, no broad `stateReader.getHotState`, and no public production calls to compatibility chunk aggregation.
+
+## Related
+
+- `docs/plans/2026-05-18-003-refactor-live-transcript-identity-boundary-plan.md`
+- `docs/solutions/best-practices/canonical-ui-session-selector-boundary-2026-05-18.md`
+- `docs/solutions/architectural/final-god-architecture-2026-04-25.md`

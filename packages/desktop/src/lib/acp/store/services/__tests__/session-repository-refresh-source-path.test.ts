@@ -46,19 +46,8 @@ function createHistoryEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry
 
 function createStateReader(state: SessionStoreState): ISessionStateReader {
 	return {
-		getHotState: () => ({
-			status: "idle",
-			isConnected: false,
-			turnState: "idle" as const,
-			acpSessionId: null,
-			connectionError: null,
-			autonomousEnabled: false,
-			autonomousTransition: "idle",
-			currentModel: null,
-			currentMode: null,
-			availableCommands: [],
-			statusChangedAt: Date.now(),
-		}),
+		getSessionAcpSessionId: () => null,
+		getSessionAutonomousTransitionBusy: () => false,
 		getSessionCanSend: () => null,
 		getSessionLifecycleStatus: () => null,
 		getGraphTranscriptRevision: () => undefined,

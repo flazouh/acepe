@@ -829,8 +829,8 @@ export class SessionConnectionManager {
 		// Disconnect in state machine
 		this.connectionManager.sendDisconnect(sessionId);
 
-		// Read acpSessionId from hot state before clearing it
-		const acpSessionId = this.stateReader.getHotState(sessionId).acpSessionId;
+		// Read provider session id before clearing local transport mapping.
+		const acpSessionId = this.stateReader.getSessionAcpSessionId(sessionId);
 
 		// Pure GOD: Rust emits a Detached(ClosedByClient) lifecycle envelope from
 		// `acp_close_session` before tearing down the subprocess. Canonical
@@ -988,11 +988,10 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 
-		const hotState = this.stateReader.getHotState(sessionId);
 		const targetEnabled =
 			enabled &&
 			this.supportsAutonomousMode(canonicalCurrentModeId(this.stateReader, sessionId) ?? undefined);
-		if (hotState.autonomousTransition !== "idle") {
+		if (this.stateReader.getSessionAutonomousTransitionBusy(sessionId)) {
 			return errAsync(
 				new AgentError(
 					"setAutonomousEnabled",

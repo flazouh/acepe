@@ -11,14 +11,19 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import {
+	aggregateCompatibilityAssistantChunk,
+	preloadCompatibilityEntriesAndBuildIndex,
+	readCompatibilityEntries,
+	recordCompatibilityToolCallTranscriptEntry,
+} from "./entry-store-test-access.js";
 
 describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries", () => {
 	let store: SessionEntryStore;
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "session1", []);
 	});
 
 	it("should merge all chunks with same messageId into one assistant entry (before flush)", async () => {
@@ -26,25 +31,25 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		// Before the RAF flush, all chunks should be merged into one pending entry
 		const messageId = "msg-streaming-test";
 
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "The " } },
 			messageId,
 			false
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "quick " } },
 			messageId,
 			false
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "brown " } },
 			messageId,
 			false
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "fox" } },
 			messageId,
@@ -72,13 +77,13 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		const messageId = "msg-with-tool";
 
 		// Phase 1: pre-tool thought
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "Let me " } },
 			messageId,
 			true
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "check this." } },
 			messageId,
@@ -86,7 +91,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		);
 
 		// Tool call creates a boundary
-		store.recordCompatibilityToolCallTranscriptEntry("session1", {
+		recordCompatibilityToolCallTranscriptEntry(store, "session1", {
 			id: "tool-1",
 			name: "Run",
 			arguments: { kind: "execute", command: "ls" },
@@ -100,19 +105,19 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		});
 
 		// Phase 2: post-tool response - same messageId, should create NEW entry
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "Here " } },
 			messageId,
 			false
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "are the " } },
 			messageId,
 			false
 		);
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "results." } },
 			messageId,
@@ -137,14 +142,14 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 	});
 
 	it("should create separate entries for different messageIds", async () => {
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "Message 1" } },
 			"msg-1",
 			false
 		);
 
-		await store.aggregateCompatibilityAssistantChunk(
+		await aggregateCompatibilityAssistantChunk(store,
 			"session1",
 			{ content: { type: "text", text: "Message 2" } },
 			"msg-2",

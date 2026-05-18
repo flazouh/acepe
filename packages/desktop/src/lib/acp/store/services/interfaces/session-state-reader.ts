@@ -10,7 +10,6 @@ import type { CanonicalSessionProjection } from "../../canonical-session-project
 import type {
 	SessionCapabilities,
 	SessionCold,
-	SessionTransientProjection,
 } from "../../types.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 
@@ -19,9 +18,14 @@ import type { ToolCall } from "../../../types/tool-call.js";
  */
 export interface ISessionStateReader {
 	/**
-	 * Get hot state for a session.
+	 * Local provider session id used only for transport cleanup.
 	 */
-	getHotState(sessionId: string): SessionTransientProjection;
+	getSessionAcpSessionId(sessionId: string): string | null;
+
+	/**
+	 * Local autonomous mutation progress used only to block duplicate toggles.
+	 */
+	getSessionAutonomousTransitionBusy(sessionId: string): boolean;
 
 	/**
 	 * Canonical actionability gate. Returns null before the first canonical graph.

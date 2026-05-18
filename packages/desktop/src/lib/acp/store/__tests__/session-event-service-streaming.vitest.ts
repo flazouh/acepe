@@ -28,14 +28,16 @@ import type { SessionUpdate } from "../../../services/converted-session-types.js
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import {
+	preloadCompatibilityEntriesAndBuildIndex,
+	readCompatibilityEntries,
+} from "./entry-store-test-access.js";
 import type { SessionCold } from "../types.js";
 
 function createMockHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn().mockReturnValue({ id: "session-123" } as unknown as SessionCold),
 		isPreloaded: vi.fn().mockReturnValue(true),
-		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn().mockReturnValue(null),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
@@ -92,18 +94,6 @@ function createIdleActivity(): SessionGraphActivity {
 		dominantOperationId: null,
 		blockingInteractionId: null,
 	};
-}
-
-function markHandlerTurnAsStreaming(handler: SessionEventHandler): void {
-	(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-		turnState: "streaming",
-	});
-}
-
-function markHandlerTurnAsCompleted(handler: SessionEventHandler): void {
-	(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-		turnState: "completed",
-	});
 }
 
 function createTaskReplayChild(
@@ -173,7 +163,6 @@ describe("SessionEventService streaming delta handling", () => {
 	it("keeps raw turnComplete updates non-authoritative", () => {
 		const onTurnComplete = vi.fn();
 		service.setCallbacks({ onTurnComplete });
-		markHandlerTurnAsStreaming(handler);
 		const update: SessionUpdate = {
 			type: "turnComplete",
 			session_id: "session-123",
@@ -186,7 +175,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps raw turnError updates non-authoritative", () => {
-		markHandlerTurnAsStreaming(handler);
 		const update: SessionUpdate = {
 			type: "turnError",
 			session_id: "session-123",
@@ -554,7 +542,6 @@ describe("SessionEventService streaming delta handling", () => {
 	it("does not synthesize turn completion from a plan payload", () => {
 		const onPlanUpdate = vi.fn();
 		service.setCallbacks({ onPlanUpdate });
-		markHandlerTurnAsStreaming(handler);
 		const update: SessionUpdate = {
 			type: "plan",
 			session_id: "session-123",
@@ -576,7 +563,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("still ignores plan payloads when the turn is already completed", () => {
-		markHandlerTurnAsCompleted(handler);
 		const update: SessionUpdate = {
 			type: "plan",
 			session_id: "session-123",
@@ -593,7 +579,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps streamingArguments updates on the raw lane non-authoritative", () => {
-		markHandlerTurnAsStreaming(handler);
 		const firstUpdate: SessionUpdate = {
 			type: "toolCallUpdate",
 			session_id: "session-123",
@@ -618,7 +603,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps streamingArguments updates across multiple tools non-authoritative on the raw lane", () => {
-		markHandlerTurnAsStreaming(handler);
 
 		service.handleSessionUpdate(
 			{
@@ -656,7 +640,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps lifecycle-bearing tool updates non-authoritative on the raw lane", () => {
-		markHandlerTurnAsStreaming(handler);
 		const update: SessionUpdate = {
 			type: "toolCallUpdate",
 			session_id: "session-123",
@@ -672,7 +655,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps later terminal tool updates non-authoritative on the raw lane", () => {
-		markHandlerTurnAsStreaming(handler);
 		service.handleSessionUpdate(
 			{
 				type: "toolCallUpdate",
@@ -824,14 +806,13 @@ describe("SessionEventService streaming delta handling", () => {
 	it("does not merge assistant chunks from raw session updates when part_id changes mid-stream", () => {
 		const sessionId = "session-aggregate";
 		const entryStore = new SessionEntryStore();
-		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
+		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, []);
 
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi
 				.fn()
 				.mockReturnValue({ id: sessionId, agentId: "claude-code" } as SessionCold),
 			isPreloaded: vi.fn().mockReturnValue(true),
-			getHotState: vi.fn().mockReturnValue({ isConnected: true, status: "streaming" }),
 			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
@@ -887,18 +868,13 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, handler);
 	});
 
-	it("keeps raw tool calls non-authoritative even when hot state says disconnected", () => {
+	it("keeps raw tool calls non-authoritative for known sessions before reconnect materializes", () => {
 		const disconnectedHandler = createMockHandler();
 		const session = {
 			id: "session-123",
 			agentId: "claude-code",
 		} as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		// Hot state drives the disconnected guard — cold state isConnected is stale
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -926,10 +902,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "claude-code",
 		} as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -958,10 +930,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "copilot",
 		} as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "permissionRequest",
@@ -994,10 +962,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "copilot",
 		} as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "questionRequest",
@@ -1032,11 +996,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "claude-code",
 		} as unknown as SessionCold;
 		(connectingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		// Hot state drives the disconnected guard
-		(connectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "connecting",
-		});
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -1064,10 +1023,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "claude-code",
 		} as unknown as SessionCold;
 		(reconnectingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "connecting",
-		});
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -1095,10 +1050,6 @@ describe("SessionEventService streaming delta handling", () => {
 			agentId: "claude-code",
 		} as unknown as SessionCold;
 		(reconnectingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(reconnectingHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "connecting",
-		});
 
 		const delta: TranscriptDelta = {
 			sessionId: "session-123",
@@ -1219,12 +1170,8 @@ describe("SessionEventService streaming delta handling", () => {
 		const disconnectedHandler = createMockHandler();
 		const session = { id: "session-123", agentId: "claude-code" } as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
-		// Phase 1: tool call arrives while hot state still says disconnected.
+		// Phase 1: tool call arrives before reconnect materialization.
 		// Frontend no longer buffers known-session updates based on guessed connection truth.
 		const toolCallUpdate: SessionUpdate = {
 			type: "toolCall",
@@ -1242,11 +1189,6 @@ describe("SessionEventService streaming delta handling", () => {
 
 		// Phase 2: reconnect — there is nothing queued to replay because raw tool
 		// events are observational only and canonical envelopes own the state.
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "streaming",
-			turnState: "streaming",
-		});
 		service.flushPendingEvents("session-123", disconnectedHandler);
 
 		// Phase 3: completion update after reconnect applies without duplication
@@ -1266,10 +1208,6 @@ describe("SessionEventService streaming delta handling", () => {
 		const disconnectedHandler = createMockHandler();
 		const session = { id: "session-123", agentId: "claude-code" } as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "toolCall",
@@ -1288,11 +1226,6 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, disconnectedHandler, 77);
 		service.handleSessionUpdate(update, disconnectedHandler, 77);
 
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "streaming",
-		});
 		service.flushPendingEvents("session-123", disconnectedHandler);
 	});
 
@@ -1300,10 +1233,6 @@ describe("SessionEventService streaming delta handling", () => {
 		const disconnectedHandler = createMockHandler();
 		const session = { id: "session-123", agentId: "copilot" } as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		// Permission requests are not buffered for disconnected sessions — they
 		// bypass the disconnected buffer and fire immediately. This invariant
@@ -1325,11 +1254,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 		service.handleSessionUpdate(permUpdate, disconnectedHandler, 80);
 
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
 		service.flushPendingEvents("session-123", disconnectedHandler);
 	});
 
@@ -1337,10 +1261,6 @@ describe("SessionEventService streaming delta handling", () => {
 		const disconnectedHandler = createMockHandler();
 		const session = { id: "session-123", agentId: "copilot" } as unknown as SessionCold;
 		(disconnectedHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(session);
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: false,
-			status: "idle",
-		});
 
 		const questionUpdate: SessionUpdate = {
 			type: "questionRequest",
@@ -1364,11 +1284,6 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 		service.handleSessionUpdate(questionUpdate, disconnectedHandler, 81);
 
-		(disconnectedHandler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
 		service.flushPendingEvents("session-123", disconnectedHandler);
 	});
 
@@ -1594,11 +1509,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("leaves duplicate assistant text chunks to canonical envelopes during active streaming", () => {
-		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "streaming",
-			turnState: "streaming",
-		});
 
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
@@ -1617,11 +1527,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not synthesize replay assistant chunks from raw event replays", () => {
-		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
@@ -1640,11 +1545,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not force streaming state from raw replay assistant chunks", () => {
-		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "idle",
-			turnState: "idle",
-		});
 
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
@@ -1662,11 +1562,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("ignores repeated assistant chunks until canonical envelopes arrive", () => {
-		(handler.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
-			isConnected: true,
-			status: "streaming",
-			turnState: "streaming",
-		});
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -1686,7 +1581,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("treats raw user chunks as coordination-only during reopened sends", () => {
 		const sessionId = "session-reopen-send";
 		const entryStore = new SessionEntryStore();
-		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, [
+		preloadCompatibilityEntriesAndBuildIndex(entryStore, sessionId, [
 			{
 				id: "assistant-history-1",
 				type: "assistant",
@@ -1708,9 +1603,6 @@ describe("SessionEventService streaming delta handling", () => {
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi.fn().mockReturnValue({ id: sessionId, agentId: "cursor" } as SessionCold),
 			isPreloaded: vi.fn().mockReturnValue(true),
-			getHotState: vi
-				.fn()
-				.mockReturnValue({ isConnected: true, status: "ready", turnState: "idle" }),
 			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),
 			applySessionStateEnvelope: vi.fn(),
@@ -1774,7 +1666,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps repeated parent task raw tool calls non-authoritative when child structure grows", () => {
-		markHandlerTurnAsStreaming(handler);
 		const initialParentUpdate: SessionUpdate = {
 			type: "toolCall",
 			session_id: "session-123",
@@ -1839,7 +1730,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps repeated parent task raw tool calls non-authoritative when child count grows", () => {
-		markHandlerTurnAsStreaming(handler);
 		const initialChildren = Array.from({ length: 12 }, (_, index) => createTaskReplayChild(index));
 		const enrichedChildren = initialChildren.concat([createTaskReplayChild(12)]);
 		const initialParentUpdate: SessionUpdate = {
@@ -1892,7 +1782,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps repeated parent task raw tool calls non-authoritative when child payload grows", () => {
-		markHandlerTurnAsStreaming(handler);
 		const initialParentUpdate: SessionUpdate = {
 			type: "toolCall",
 			session_id: "session-123",
@@ -1971,7 +1860,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps repeated raw tool calls non-authoritative when top-level arguments grow", () => {
-		markHandlerTurnAsStreaming(handler);
 		const sharedPrefix = "a".repeat(220);
 		const initialUpdate: SessionUpdate = {
 			type: "toolCall",
@@ -2023,7 +1911,6 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps repeated raw tool calls non-authoritative when top-level results grow", () => {
-		markHandlerTurnAsStreaming(handler);
 		const initialUpdate: SessionUpdate = {
 			type: "toolCall",
 			session_id: "session-123",

@@ -33,7 +33,6 @@ describe("PanelHandler", () => {
 		mockSessionStore = {
 			disconnectSession: mock(() => {}),
 			connectSession: mock(() => ({ mapErr: mock(() => undefined) })),
-			getHotState: mock(() => ({ isConnected: false })),
 		} as unknown as SessionStore;
 
 		mockConnectionStore = {
@@ -144,8 +143,6 @@ describe("PanelHandler", () => {
 		});
 
 		it("does not reconnect an already connected panel session when focused", () => {
-			mockSessionStore.getHotState = mock(() => ({ isConnected: true })) as never;
-
 			handler.focusPanel("panel-1");
 
 			expect(mockSessionStore.connectSession).not.toHaveBeenCalled();

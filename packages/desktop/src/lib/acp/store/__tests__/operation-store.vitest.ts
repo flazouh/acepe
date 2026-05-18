@@ -9,6 +9,11 @@ import {
 	OperationStore,
 } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import {
+	preloadCompatibilityEntriesAndBuildIndex,
+	recordCompatibilityToolCallTranscriptEntry,
+	updateCompatibilityToolCallTranscriptEntry,
+} from "./entry-store-test-access.js";
 
 function createExecuteToolCall(
 	id: string,
@@ -222,7 +227,7 @@ describe("OperationStore", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
-		entryStore.preloadCompatibilityEntriesAndBuildIndex("session-1", [
+		preloadCompatibilityEntriesAndBuildIndex(entryStore, "session-1", [
 			createToolCallEntry(createExecuteToolCall("tool-1", "git status")),
 		]);
 
@@ -753,11 +758,11 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
 
-		entryStore.recordCompatibilityToolCallTranscriptEntry(
+		recordCompatibilityToolCallTranscriptEntry(entryStore,
 			"session-1",
 			createExecuteToolCall("tool-1", "pwd", { status: "in_progress" })
 		);
-		entryStore.updateCompatibilityToolCallTranscriptEntry("session-1", {
+		updateCompatibilityToolCallTranscriptEntry(entryStore, "session-1", {
 			toolCallId: "tool-1",
 			status: "in_progress",
 			result: null,

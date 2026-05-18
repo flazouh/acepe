@@ -43,7 +43,7 @@ import type {
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
-import type { ContentBlock, PlanData } from "../../services/converted-session-types.js";
+import type { PlanData } from "../../services/converted-session-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
@@ -1271,7 +1271,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Get hot state for a session.
 	 */
-	getHotState(sessionId: string): SessionTransientProjection {
+	private getHotState(sessionId: string): SessionTransientProjection {
 		return this.hotStateStore.getHotState(sessionId);
 	}
 
@@ -1344,6 +1344,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getSessionHasLocalPendingSendIntent(sessionId: string): boolean {
 		return this.getSessionPendingSendIntent(sessionId) !== null;
+	}
+
+	getSessionAcpSessionId(sessionId: string): string | null {
+		return this.hotStateStore.getHotState(sessionId).acpSessionId;
 	}
 
 	getSessionUsageTelemetry(sessionId: string): SessionUsageTelemetry | null {
@@ -3515,13 +3519,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			clearTimeout(timerId);
 		}
 		this.awaitingModelRefreshTimers.clear();
-	}
-
-	aggregateCompatibilityUserChunk(
-		sessionId: string,
-		chunk: { content: ContentBlock }
-	): ResultAsync<void, AppError> {
-		return this.entryStore.aggregateCompatibilityUserChunk(sessionId, chunk);
 	}
 
 	// ============================================

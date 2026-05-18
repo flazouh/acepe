@@ -65,6 +65,23 @@ function createResidualHotState(
 	};
 }
 
+function mockResidualStateReader(
+	stateReader: ISessionStateReader,
+	input: {
+		acpSessionId?: string | null;
+		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
+		modelPerMode?: Record<string, string>;
+	} = {}
+): void {
+	const state = createResidualHotState(input);
+	(stateReader.getSessionAcpSessionId as ReturnType<typeof vi.fn>).mockReturnValue(
+		state.acpSessionId
+	);
+	(
+		stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>
+	).mockReturnValue(state.autonomousTransition !== "idle");
+}
+
 function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
 	for (const call of updateHotState.mock.calls) {
 		const updates = call[1];
@@ -128,7 +145,6 @@ function createMockEventHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn(),
 		isPreloaded: vi.fn(),
-		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
@@ -214,7 +230,8 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -289,7 +306,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(baseSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -318,7 +335,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("applies the stored Autonomous profile after reconnecting a disconnected session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -389,7 +406,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -436,7 +453,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -472,7 +489,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -506,7 +523,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			...baseSession,
 			agentId: "custom-agent",
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		getCachedModelsDisplay.mockReturnValue({
 			groups: [],
 			presentation: {
@@ -1062,7 +1079,8 @@ describe("SessionConnectionManager.createSession", () => {
 	const agentId = "codex";
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -1773,7 +1791,8 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -1848,9 +1867,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("ready");
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -1897,7 +1914,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
@@ -1955,9 +1972,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2027,9 +2042,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("rejects Autonomous changes while a local transition is pending", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ autonomousTransition: "enabling" })
-		);
+		mockResidualStateReader(stateReader, { autonomousTransition: "enabling" });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2092,9 +2105,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2130,9 +2141,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("disables backend Autonomous when switching from build into plan mode", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2170,9 +2179,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("does not mutate hot state directly when setting model", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2220,7 +2227,8 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -2295,9 +2303,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(
 			"activating"
 		);
@@ -2346,14 +2352,8 @@ describe("SessionConnectionManager.disconnectSession", () => {
 	it("clears only local hot state when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
-			getHotState: vi.fn(
-				(): SessionTransientProjection => ({
-					acpSessionId: "acp-1",
-					autonomousTransition: "idle",
-					modelPerMode: {},
-					statusChangedAt: Date.now(),
-				})
-			),
+			getSessionAcpSessionId: vi.fn(() => "acp-1"),
+			getSessionAutonomousTransitionBusy: vi.fn(() => false),
 			getSessionCanSend: vi.fn(() => null),
 			getSessionLifecycleStatus: vi.fn(() => null),
 			getGraphTranscriptRevision: vi.fn(() => undefined),

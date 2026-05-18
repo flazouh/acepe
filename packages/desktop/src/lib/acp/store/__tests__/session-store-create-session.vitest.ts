@@ -447,12 +447,6 @@ describe("SessionStore.createSession", () => {
 		});
 
 		expect(store.hasPendingCreationSession("pending-session")).toBe(false);
-		expect(store.getHotState("pending-session")).toEqual(
-			expect.objectContaining({
-				status: "error",
-				turnState: "error",
-			})
-		);
 		expect(store.getCanonicalSessionProjection("pending-session")).toBeNull();
 
 		store.applySessionStateEnvelope(

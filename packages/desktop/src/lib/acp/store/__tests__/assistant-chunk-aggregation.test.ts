@@ -16,7 +16,12 @@ import { describe, expect, it } from "bun:test";
 import { groupAssistantChunks } from "../../logic/assistant-chunk-grouper.js";
 import type { AssistantMessage } from "../../types/assistant-message.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import {
+	aggregateCompatibilityAssistantChunk,
+	preloadCompatibilityEntriesAndBuildIndex,
+	readCompatibilityEntries,
+	recordCompatibilityToolCallTranscriptEntry,
+} from "./entry-store-test-access.js";
 
 // ==========================================
 // Helpers
@@ -24,7 +29,7 @@ import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 function initStore(): SessionEntryStore {
 	const store = new SessionEntryStore();
-	store.preloadCompatibilityEntriesAndBuildIndex("sess-1", []);
+	preloadCompatibilityEntriesAndBuildIndex(store, "sess-1", []);
 	return store;
 }
 
@@ -53,25 +58,25 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 		it("accumulates incremental text chunks without duplication", async () => {
 			const store = initStore();
 
-			await store.aggregateCompatibilityAssistantChunk(
+			await aggregateCompatibilityAssistantChunk(store,
 				"sess-1",
 				{ content: { type: "text", text: "Done. " } },
 				"msg-1",
 				false
 			);
-			await store.aggregateCompatibilityAssistantChunk(
+			await aggregateCompatibilityAssistantChunk(store,
 				"sess-1",
 				{ content: { type: "text", text: "Removed " } },
 				"msg-1",
 				false
 			);
-			await store.aggregateCompatibilityAssistantChunk(
+			await aggregateCompatibilityAssistantChunk(store,
 				"sess-1",
 				{ content: { type: "text", text: "the test section " } },
 				"msg-1",
 				false
 			);
-			await store.aggregateCompatibilityAssistantChunk(
+			await aggregateCompatibilityAssistantChunk(store,
 				"sess-1",
 				{ content: { type: "text", text: "from CLAUDE.md." } },
 				"msg-1",
@@ -96,7 +101,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 			const store = initStore();
 
 			for (const text of ["Done.", " Removed the test section from ", "CLAUDE.md."]) {
-				await store.aggregateCompatibilityAssistantChunk(
+				await aggregateCompatibilityAssistantChunk(store,
 					"sess-1",
 					{ content: { type: "text", text } },
 					"msg-1",
@@ -115,7 +120,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 			const store = initStore();
 
 			// Pre-edit thought
-			await store.aggregateCompatibilityAssistantChunk(
+			await aggregateCompatibilityAssistantChunk(store,
 				"sess-1",
 				{ content: { type: "text", text: "I'll remove that section." } },
 				"msg-1",
@@ -123,7 +128,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 			);
 
 			// Tool call boundary
-			store.recordCompatibilityToolCallTranscriptEntry("sess-1", {
+			recordCompatibilityToolCallTranscriptEntry(store, "sess-1", {
 				id: "tool-edit-1",
 				name: "Edit",
 				arguments: {
@@ -141,7 +146,7 @@ describe("Assistant chunk aggregation — text duplication bug", () => {
 
 			// Post-edit response (this is the text that gets doubled in the bug)
 			for (const text of ["Done.", " Removed the test section from ", "CLAUDE.md."]) {
-				await store.aggregateCompatibilityAssistantChunk(
+				await aggregateCompatibilityAssistantChunk(store,
 					"sess-1",
 					{ content: { type: "text", text } },
 					"msg-1",

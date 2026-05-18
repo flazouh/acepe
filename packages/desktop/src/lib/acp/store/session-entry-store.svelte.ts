@@ -204,7 +204,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Compatibility-only preload path for legacy SessionEntry rows.
 	 * Product transcript truth must use replaceTranscriptSnapshot/applyTranscriptDelta.
 	 */
-	preloadCompatibilityEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
+	private preloadCompatibilityEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void {
 		const normalizedEntries = this.normalizePreloadedEntries(sessionId, entries);
 		this.setEntriesAndBuildIndices(sessionId, normalizedEntries);
 		this.preloadedIds.add(sessionId);
@@ -538,7 +538,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Compatibility-only transcript tool-call row writer from full ToolCallData.
 	 * Splits assistant aggregation boundary before delegating to TranscriptToolCallBuffer.
 	 */
-	recordCompatibilityToolCallTranscriptEntry(sessionId: string, toolCallData: ToolCallData): void {
+	private recordCompatibilityToolCallTranscriptEntry(sessionId: string, toolCallData: ToolCallData): void {
 		this.chunkAggregator.splitAssistantAggregationBoundary(sessionId);
 		this.transcriptToolCallBuffer.createEntry(sessionId, toolCallData).match(
 			() => {},
@@ -556,7 +556,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Operation truth is not created here; canonical operation data arrives through
 	 * Rust-authored session graph snapshots and patches.
 	 */
-	updateCompatibilityToolCallTranscriptEntry(sessionId: string, update: ToolCallUpdate): void {
+	private updateCompatibilityToolCallTranscriptEntry(sessionId: string, update: ToolCallUpdate): void {
 		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>
@@ -579,11 +579,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// CHUNK AGGREGATION (delegated to ChunkAggregator)
 	// ============================================
 
-	aggregateCompatibilityUserChunk(sessionId: string, chunk: { content: ContentBlock }) {
+	private aggregateCompatibilityUserChunk(sessionId: string, chunk: { content: ContentBlock }) {
 		return this.chunkAggregator.aggregateCompatibilityUserChunk(sessionId, chunk);
 	}
 
-	aggregateCompatibilityAssistantChunk(
+	private aggregateCompatibilityAssistantChunk(
 		sessionId: string,
 		chunk: ContentChunk,
 		messageId: string | undefined,

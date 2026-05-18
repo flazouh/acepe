@@ -23,7 +23,13 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { ToolCallData } from "../../../services/converted-session-types.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import {
+	aggregateCompatibilityAssistantChunk,
+	preloadCompatibilityEntriesAndBuildIndex,
+	readCompatibilityEntries,
+	recordCompatibilityToolCallTranscriptEntry,
+	updateCompatibilityToolCallTranscriptEntry,
+} from "./entry-store-test-access.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 
@@ -51,7 +57,7 @@ async function sendChunk(
 	messageId?: string,
 	isThought = false
 ): Promise<void> {
-	const result = await store.aggregateCompatibilityAssistantChunk(
+	const result = await aggregateCompatibilityAssistantChunk(store,
 		sessionId,
 		{ content: { type: "text", text } },
 		messageId,
@@ -71,7 +77,7 @@ describe("Chunk Fragmentation — sequential chunks", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("s1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "s1", []);
 	});
 
 	it("merges sequential chunks with the same messageId", async () => {
@@ -116,7 +122,7 @@ describe("Chunk Fragmentation — undefined messageId with tracker fallback", ()
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("s1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "s1", []);
 	});
 
 	it("merges chunks when all have undefined messageId (tracker fallback)", async () => {
@@ -159,12 +165,12 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("s1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "s1", []);
 	});
 
 	it("creates new entry after tool call boundary", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 		await sendChunk(store, "s1", "Result: ", "msg-1");
 		await sendChunk(store, "s1", "done", "msg-1");
 
@@ -182,7 +188,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("creates new entry after tool call boundary with post-tool chunks", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 
 		// Post-tool chunks arrive after boundary
 		await sendChunk(store, "s1", "Result: ", "msg-1");
@@ -201,7 +207,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("merges post-tool chunks in a tool boundary sequence", async () => {
 		await sendChunk(store, "s1", "Think", "msg-1", true);
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 		await sendChunk(store, "s1", "Part 1 ", "msg-1");
 		await sendChunk(store, "s1", "Part 2", "msg-1");
 
@@ -219,13 +225,13 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 		await sendChunk(store, "s1", "Let me check...", "msg-1", true);
 
 		// Tool 1
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 
 		// Phase 2: response after tool 1
 		await sendChunk(store, "s1", "Found it. ", "msg-1");
 
 		// Tool 2
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-2"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-2"));
 
 		// Phase 3: response after tool 2
 		await sendChunk(store, "s1", "Updated.", "msg-1");
@@ -244,7 +250,7 @@ describe("Chunk Fragmentation — tool call boundary interactions", () => {
 
 	it("handles undefined messageId after tool call boundary", async () => {
 		await sendChunk(store, "s1", "Thinking...", "msg-1", true);
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 
 		// Post-tool chunks with NO messageId — boundary cleared the tracker
 		// First chunk creates new entry, tracker stores its UUID
@@ -268,15 +274,15 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("s1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "s1", []);
 	});
 
 	it("does not split boundary when updating an existing tool call", async () => {
 		await sendChunk(store, "s1", "Before tool", "msg-1");
 
-		store.recordCompatibilityToolCallTranscriptEntry("s1", toolCall("tool-1"));
+		recordCompatibilityToolCallTranscriptEntry(store, "s1", toolCall("tool-1"));
 
-		store.updateCompatibilityToolCallTranscriptEntry("s1", {
+		updateCompatibilityToolCallTranscriptEntry(store, "s1", {
 			toolCallId: "tool-1",
 			status: "completed",
 		});
@@ -292,7 +298,7 @@ describe("Chunk Fragmentation — updateToolCallEntry boundary", () => {
 		await sendChunk(store, "s1", "Before tool", "msg-1");
 
 		// No preceding createToolCallEntry; update-only path is discarded.
-		store.updateCompatibilityToolCallTranscriptEntry("s1", {
+		updateCompatibilityToolCallTranscriptEntry(store, "s1", {
 			toolCallId: "tool-2",
 			status: "completed",
 		});
@@ -309,7 +315,7 @@ describe("Chunk Fragmentation — user message boundary", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("s1", []);
+		preloadCompatibilityEntriesAndBuildIndex(store, "s1", []);
 	});
 
 	it("clearStreamingAssistantEntry clears tracker but same messageId still merges via index", async () => {
