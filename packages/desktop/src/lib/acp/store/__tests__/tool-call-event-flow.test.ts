@@ -153,7 +153,7 @@ describe("Tool Call Event Flow", () => {
 		messageId: string,
 		textChunks: readonly string[]
 	): Promise<void> {
-		entryStore.appendCompatibilityEntry(sessionId, {
+		entryStore.appendTranscriptEntry(sessionId, {
 			id: messageId,
 			type: "assistant",
 			message: {

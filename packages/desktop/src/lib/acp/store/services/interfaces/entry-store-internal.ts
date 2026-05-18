@@ -21,11 +21,11 @@ export interface IEntryStoreInternal {
 	/** Find a tool-call compatibility entry by canonical tool-call id. */
 	findToolCallEntryRef(sessionId: string, toolCallId: string): ToolCallEntryRef | null;
 
-	/** Append a compatibility display row. Canonical transcript order decides when this is allowed. */
-	appendCompatibilityEntry(sessionId: string, entry: SessionEntry): void;
+	/** Append a canonical transcript display row. */
+	appendTranscriptEntry(sessionId: string, entry: SessionEntry): void;
 
-	/** Replace a compatibility display row by index. Canonical transcript order decides when this is allowed. */
-	replaceCompatibilityEntry(sessionId: string, index: number, entry: SessionEntry): void;
+	/** Replace a canonical transcript display row by index. */
+	replaceTranscriptEntry(sessionId: string, index: number, entry: SessionEntry): void;
 
 	/** Check if a session exists in committed or preloaded state. */
 	hasSession(sessionId: string): boolean;

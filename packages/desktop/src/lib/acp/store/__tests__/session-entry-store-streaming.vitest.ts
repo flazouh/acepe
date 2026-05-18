@@ -635,7 +635,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("does not reconcile canonical user append entries by matching optimistic text", () => {
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -691,7 +691,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("appends canonical user entries even when matching optimistic text exists before assistant output", () => {
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -702,7 +702,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			},
 			timestamp: new Date("2026-04-16T00:00:01.000Z"),
 		});
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "assistant-1",
 			type: "assistant",
 			message: {
@@ -760,18 +760,18 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("appendCompatibilityEntry", () => {
+	describe("appendTranscriptEntry", () => {
 		it("should make entries immediately available", () => {
 			preloadCompatibilityEntriesAndBuildIndex(store, "session1", []);
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Hello"),
 				timestamp: new Date(),
 			});
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("World"),
@@ -792,14 +792,14 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
 				timestamp: new Date(),
 			});
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("New"),
@@ -813,7 +813,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 	});
 
-	describe("replaceCompatibilityEntry", () => {
+	describe("replaceTranscriptEntry", () => {
 		it("should apply multiple updates to same index with last-write-wins", () => {
 			preloadCompatibilityEntriesAndBuildIndex(store, "session1", [
 				{
@@ -824,14 +824,14 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 1"),
 				timestamp: new Date(),
 			});
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 2 - final"),
@@ -989,7 +989,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
@@ -1010,7 +1010,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("Second"),

@@ -187,9 +187,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				const existingIndex = this.entryIndex.getEntryIdIndex(sessionId, operation.entry.entryId);
 				const convertedEntry = convertTranscriptEntryToSessionEntry(operation.entry, timestamp);
 				if (existingIndex === undefined) {
-					this.appendCompatibilityEntry(sessionId, convertedEntry);
+					this.appendTranscriptEntry(sessionId, convertedEntry);
 				} else {
-					this.replaceCompatibilityEntry(sessionId, existingIndex, convertedEntry);
+					this.replaceTranscriptEntry(sessionId, existingIndex, convertedEntry);
 				}
 				continue;
 			}
@@ -204,7 +204,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 					},
 					timestamp
 				);
-				this.appendCompatibilityEntry(sessionId, nextEntry);
+				this.appendTranscriptEntry(sessionId, nextEntry);
 				continue;
 			}
 
@@ -217,7 +217,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			if (updatedEntry === null) {
 				continue;
 			}
-			this.replaceCompatibilityEntry(sessionId, existingIndex, updatedEntry);
+			this.replaceTranscriptEntry(sessionId, existingIndex, updatedEntry);
 		}
 
 		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
@@ -381,9 +381,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	/**
-	 * Append a compatibility row derived from canonical transcript state.
+	 * Append a canonical transcript row.
 	 */
-	appendCompatibilityEntry(sessionId: string, entry: SessionEntry): void {
+	appendTranscriptEntry(sessionId: string, entry: SessionEntry): void {
 		const normalizedEntry = this.normalizeRuntimeEntry(entry);
 		const entries = this.entriesById.get(sessionId) ?? [];
 		const newEntries = [...entries, normalizedEntry];
@@ -393,7 +393,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		if (isToolCallEntry(normalizedEntry)) {
 			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
 		}
-		logger.debug("appendCompatibilityEntry: appended entry", {
+		logger.debug("appendTranscriptEntry: appended entry", {
 			sessionId,
 			entryId: normalizedEntry.id,
 			entryType: normalizedEntry.type,
@@ -402,9 +402,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	/**
-	 * Replace a compatibility row derived from canonical transcript state.
+	 * Replace a canonical transcript row.
 	 */
-	replaceCompatibilityEntry(sessionId: string, index: number, updatedEntry: SessionEntry): void {
+	replaceTranscriptEntry(sessionId: string, index: number, updatedEntry: SessionEntry): void {
 		const entries = this.entriesById.get(sessionId);
 		if (!entries || index < 0 || index >= entries.length) return;
 		const previousEntry = entries[index];
@@ -412,7 +412,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const newEntries = [...entries];
 		newEntries[index] = normalizedEntry;
 		this.entriesById.set(sessionId, newEntries);
-		logger.debug("replaceCompatibilityEntry: replaced entry", {
+		logger.debug("replaceTranscriptEntry: replaced entry", {
 			sessionId,
 			index,
 			entryId: normalizedEntry.id,
