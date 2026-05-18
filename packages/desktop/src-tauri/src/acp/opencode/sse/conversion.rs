@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
@@ -1066,14 +1066,14 @@ pub(super) fn convert_question_asked_to_session_update(
 ///
 /// Note: Unlike the ACP JSON-RPC path (which has `toolCall.name` for ToolKind detection),
 /// OpenCode SSE permissions only carry a `permission` description string and raw `metadata`.
-/// Without a tool name, we cannot reliably derive canonical typed tool arguments.
-/// The frontend's legacy rawInput fallback in `merge-permission-args.ts` handles this path.
+/// Derive the best canonical parsed arguments here so the frontend does not read raw metadata.
 pub(super) fn convert_permission_asked_to_session_update(
     properties: &Value,
 ) -> Option<SessionUpdate> {
     let event: PermissionAskedEvent = serde_json::from_value(properties.clone()).ok()?;
 
     let session_id = event.session_id.clone();
+    let metadata = enrich_permission_metadata(&event.permission, &event.patterns, event.metadata);
 
     Some(SessionUpdate::PermissionRequest {
         permission: PermissionData {
@@ -1085,13 +1085,123 @@ pub(super) fn convert_permission_asked_to_session_update(
             )),
             permission: event.permission,
             patterns: event.patterns,
-            metadata: event.metadata,
+            metadata,
             always: event.always,
             auto_accepted: false,
             tool: None,
         },
         session_id: Some(session_id),
     })
+}
+
+fn permission_kind_from_label(permission: &str) -> ToolKind {
+    let first_word = permission.split_whitespace().next().unwrap_or_default();
+    match first_word.to_ascii_lowercase().as_str() {
+        "read" => ToolKind::Read,
+        "edit" | "write" => ToolKind::Edit,
+        "delete" | "remove" => ToolKind::Delete,
+        "execute" | "bash" | "run" => ToolKind::Execute,
+        "search" => ToolKind::Search,
+        "glob" => ToolKind::Glob,
+        "fetch" => ToolKind::Fetch,
+        _ => ToolKind::Other,
+    }
+}
+
+fn permission_label_tail(permission: &str) -> Option<String> {
+    let (_, tail) = permission.split_once(char::is_whitespace)?;
+    let trimmed = tail.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.trim_matches(['"', '\'', '`']).to_string())
+}
+
+fn first_permission_pattern(patterns: &[String]) -> Option<String> {
+    patterns
+        .iter()
+        .map(|pattern| pattern.trim())
+        .find(|pattern| !pattern.is_empty())
+        .map(ToString::to_string)
+}
+
+fn ensure_permission_raw_input(
+    raw_input: Option<Value>,
+    permission: &str,
+    patterns: &[String],
+    kind: ToolKind,
+) -> Value {
+    let mut raw_object = raw_input
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    let label_tail = permission_label_tail(permission);
+    let first_pattern = first_permission_pattern(patterns);
+
+    match kind {
+        ToolKind::Read | ToolKind::Edit | ToolKind::Delete => {
+            if !raw_object.contains_key("file_path") {
+                if let Some(path) = first_pattern.or(label_tail) {
+                    raw_object.insert("file_path".to_string(), Value::String(path));
+                }
+            }
+        }
+        ToolKind::Execute => {
+            if !raw_object.contains_key("command") {
+                if let Some(command) = label_tail.or(first_pattern) {
+                    raw_object.insert("command".to_string(), Value::String(command));
+                }
+            }
+        }
+        ToolKind::Search => {
+            if !raw_object.contains_key("query") {
+                if let Some(query) = label_tail.or(first_pattern) {
+                    raw_object.insert("query".to_string(), Value::String(query));
+                }
+            }
+        }
+        ToolKind::Glob => {
+            if !raw_object.contains_key("pattern") {
+                if let Some(pattern) = first_pattern.or(label_tail) {
+                    raw_object.insert("pattern".to_string(), Value::String(pattern));
+                }
+            }
+        }
+        ToolKind::Fetch => {
+            if !raw_object.contains_key("url") {
+                if let Some(url) = label_tail.or(first_pattern) {
+                    raw_object.insert("url".to_string(), Value::String(url));
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Value::Object(raw_object)
+}
+
+fn enrich_permission_metadata(permission: &str, patterns: &[String], metadata: Value) -> Value {
+    let mut metadata_object = metadata.as_object().cloned().unwrap_or_else(Map::new);
+    if metadata_object.contains_key("parsedArguments") {
+        return Value::Object(metadata_object);
+    }
+
+    let kind = permission_kind_from_label(permission);
+    if kind == ToolKind::Other {
+        return Value::Object(metadata_object);
+    }
+
+    let raw_input = ensure_permission_raw_input(
+        metadata_object.get("rawInput").cloned(),
+        permission,
+        patterns,
+        kind,
+    );
+    let parsed_arguments = ToolArguments::from_raw(kind, raw_input);
+    if let Ok(parsed_value) = serde_json::to_value(parsed_arguments) {
+        metadata_object.insert("parsedArguments".to_string(), parsed_value);
+    }
+
+    Value::Object(metadata_object)
 }
 
 #[cfg(test)]
@@ -1147,6 +1257,32 @@ mod tests {
                     Some(crate::acp::session_update::InteractionReplyHandler::http(
                         "permission-1".to_string()
                     ))
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn permission_asked_derives_canonical_parsed_arguments() {
+        let update = convert_permission_asked_to_session_update(&json!({
+            "id": "permission-1",
+            "sessionID": "session-1",
+            "permission": "Read README.md",
+            "patterns": ["README.md"],
+            "metadata": {},
+            "always": []
+        }))
+        .expect("permission update should parse");
+
+        match update {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert_eq!(
+                    permission.metadata["parsedArguments"],
+                    json!({
+                        "kind": "read",
+                        "file_path": "README.md"
+                    })
                 );
             }
             other => panic!("unexpected update: {other:?}"),

@@ -11,7 +11,7 @@ interface Props {
 
 let { permission }: Props = $props();
 
-// Extract command using agent-agnostic parsed arguments (with rawInput fallback)
+// Extract command from Rust-parsed, agent-agnostic permission arguments.
 const command = $derived(extractPermissionCommand(permission));
 
 // Get the tool name for display
