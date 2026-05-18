@@ -1,27 +1,21 @@
 <script lang="ts">
-import {
-	type AppTab,
-	AppTabBarGrouped,
-	AppTabBarTab,
-	type AppTabMode,
-	type AppTabStatus,
-} from "@acepe/ui/app-layout";
+import { type AppTab, AppTabBarTab, type AppTabMode, type AppTabStatus } from "@acepe/ui/app-layout";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { getAgentIcon } from "../../constants/thread-list-constants.js";
-import type { TabBarTab, TabBarTabGroup } from "../../store/tab-bar-utils.js";
+import type { TabBarTab } from "../../store/tab-bar-utils.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { deriveAppTabStatus } from "./tab-bar-status.js";
 
 interface Props {
-	/** Tabs grouped by project */
-	groupedTabs: TabBarTabGroup[];
+	/** Tabs sorted by project sortOrder ascending */
+	tabs: readonly TabBarTab[];
 	/** Callback when a tab is selected */
 	onSelectTab: (panelId: string) => void;
 	/** Callback when a tab is closed */
 	onCloseTab: (panelId: string) => void;
 }
 
-let { groupedTabs, onSelectTab, onCloseTab }: Props = $props();
+let { tabs, onSelectTab, onCloseTab }: Props = $props();
 
 const themeState = useTheme();
 
@@ -38,6 +32,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		projectName: tab.projectName ?? undefined,
 		projectColor: tab.projectColor ?? undefined,
 		projectIconSrc: tab.projectIconSrc,
+		sequenceId: tab.sequenceId,
 		agentIconSrc: tab.agentId ? getAgentIcon(tab.agentId, themeState.effectiveTheme) : undefined,
 		mode,
 		status,
@@ -45,20 +40,16 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		tooltipText: tab.conversationPreview[0]?.text,
 	};
 }
-
-/** Map desktop groups to the shape AppTabBarGrouped expects, resolving colors */
-const resolvedGroups = $derived(groupedTabs);
 </script>
 
-{#if groupedTabs.length > 0}
-	<AppTabBarGrouped groups={resolvedGroups}>
-		{#snippet tabRenderer(tab: TabBarTab)}
+{#if tabs.length > 0}
+	<div class="flex items-center gap-0.5 overflow-x-auto" role="tablist">
+		{#each tabs as tab (tab.panelId)}
 			<AppTabBarTab
 				tab={tabToAppTab(tab)}
-				hideProjectBadge={true}
 				onclick={() => onSelectTab(tab.panelId)}
 				onclose={() => onCloseTab(tab.panelId)}
 			/>
-		{/snippet}
-	</AppTabBarGrouped>
+		{/each}
+	</div>
 {/if}

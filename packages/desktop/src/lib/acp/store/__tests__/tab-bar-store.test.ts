@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { LifecycleStatus, SessionGraphActivityKind } from "../../../services/acp-types.js";
-import type { SessionEntry } from "../../application/dto/session-entry.js";
+import type { ToolCall } from "../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { type PanelToTabInput, panelToTab } from "../tab-bar-utils.js";
 import type { Panel, SessionTransientProjection } from "../types.js";
@@ -91,7 +91,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		title: "Test Session",
 		hotState: makeHotState(),
 		runtimeState: null,
-		entries: [],
+		transcriptEntries: [],
 		currentStreamingToolCall: null,
 		currentToolKind: null,
 		pendingQuestion: null,
@@ -101,8 +101,20 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		projectColor: null,
 		projectIconSrc: null,
 		projectPath: null,
+		sequenceId: null,
 		...overrides,
 		pendingPlanApproval,
+	};
+}
+
+function makeToolCall(status: ToolCall["status"]): ToolCall {
+	return {
+		id: "tc-1",
+		name: "tool",
+		kind: "edit",
+		arguments: { kind: "other", raw: null },
+		status,
+		awaitingPlanApproval: false,
 	};
 }
 
@@ -336,29 +348,14 @@ describe("panelToTab", () => {
 
 	describe("currentToolKind", () => {
 		it("should return null when entries are empty", () => {
-			const tab = panelToTab(makeInput({ entries: [] }));
+			const tab = panelToTab(makeInput({ transcriptEntries: [] }));
 			expect(tab.currentToolKind).toBeNull();
 		});
 
 		it("should return tool kind from streaming tool call", () => {
-			const entries: SessionEntry[] = [
-				{
-					id: "e-1",
-					type: "tool_call",
-					isStreaming: true,
-					message: {
-						id: "tc-1",
-						name: "tool",
-						kind: "edit",
-						arguments: { kind: "other" },
-						status: "running",
-					},
-				} as unknown as SessionEntry,
-			];
 			const tab = panelToTab(
 				makeInput({
-					entries,
-					currentStreamingToolCall: entries[0]?.type === "tool_call" ? entries[0].message : null,
+					currentStreamingToolCall: makeToolCall("in_progress"),
 					currentToolKind: "edit",
 				})
 			);
@@ -366,21 +363,7 @@ describe("panelToTab", () => {
 		});
 
 		it("should return null when no tool call is streaming", () => {
-			const entries: SessionEntry[] = [
-				{
-					id: "e-1",
-					type: "tool_call",
-					isStreaming: false,
-					message: {
-						id: "tc-1",
-						name: "tool",
-						kind: "edit",
-						arguments: { kind: "other" },
-						status: "complete",
-					},
-				} as unknown as SessionEntry,
-			];
-			const tab = panelToTab(makeInput({ entries }));
+			const tab = panelToTab(makeInput({ currentStreamingToolCall: null }));
 			expect(tab.currentToolKind).toBeNull();
 		});
 	});

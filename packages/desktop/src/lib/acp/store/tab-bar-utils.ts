@@ -2,7 +2,7 @@
  * Tab Bar Utilities - Pure functions for tab bar computation.
  */
 
-import type { SessionEntry } from "../application/dto/session-entry.js";
+import type { TranscriptEntry } from "../../services/acp-types.js";
 import type { SessionRuntimeState } from "../logic/session-ui-state.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
@@ -48,7 +48,7 @@ export interface PanelToTabInput {
 	readonly hotState: SessionTransientProjection | null;
 	readonly canonicalProjection?: CanonicalSessionProjection | null;
 	readonly runtimeState: SessionRuntimeState | null;
-	readonly entries: ReadonlyArray<SessionEntry>;
+	readonly transcriptEntries: ReadonlyArray<TranscriptEntry>;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
@@ -63,6 +63,8 @@ export interface PanelToTabInput {
 	readonly projectIconSrc: string | null;
 	/** Project path for grouping */
 	readonly projectPath: string | null;
+	/** Per-project session sequence number for badge */
+	readonly sequenceId: number | null;
 }
 
 export type NonAgentWorkspacePanel =
@@ -101,6 +103,8 @@ export interface TabBarTab {
 	readonly projectIconSrc: string | null;
 	/** Project path for grouping tabs by project */
 	readonly projectPath: string | null;
+	/** Per-project session sequence number, rendered inside the project badge. */
+	readonly sequenceId: number | null;
 	/** User message previews with tool call counts for tooltip display. */
 	readonly conversationPreview: readonly ConversationTurn[];
 	/**
@@ -113,20 +117,28 @@ export interface TabBarTab {
 /**
  * Extract conversation turns: each user message + count of tool calls until the next user message.
  */
+function transcriptEntryText(entry: TranscriptEntry): string {
+	let text = "";
+	for (const segment of entry.segments) {
+		text += segment.text;
+	}
+	return text;
+}
+
 function extractConversationPreview(
-	entries: ReadonlyArray<SessionEntry>
+	entries: ReadonlyArray<TranscriptEntry>
 ): readonly ConversationTurn[] {
 	const turns: ConversationTurn[] = [];
 	let toolCallCount = 0;
 
 	for (const entry of entries) {
-		if (entry.type === "tool_call") {
+		if (entry.role === "tool") {
 			toolCallCount++;
 			continue;
 		}
-		if (entry.type !== "user" || entry.message.content.type !== "text") continue;
+		if (entry.role !== "user") continue;
 
-		const cleaned = stripArtifactsFromTitle(entry.message.content.text).trim();
+		const cleaned = stripArtifactsFromTitle(transcriptEntryText(entry)).trim();
 		if (cleaned.length === 0) continue;
 		const firstLine = cleaned.split(/\r?\n/u)[0]?.trim() ?? "";
 		if (firstLine.length === 0) continue;
@@ -177,6 +189,33 @@ export interface TabBarTabGroup {
 }
 
 /**
+ * Sort flat tabs by their per-project session sequence number ascending
+ * (smallest to biggest). Tabs without a sequence are pushed to the end.
+ * Tabs with the same sequence are tie-broken by project sortOrder ascending,
+ * then by projectPath for stability.
+ */
+export function sortTabsByProjectSortOrder(
+	tabs: readonly TabBarTab[],
+	getProjectSortOrder?: ((projectPath: string) => number | null) | null
+): TabBarTab[] {
+	return tabs.toSorted((a, b) => {
+		const aSeq = a.sequenceId ?? Number.POSITIVE_INFINITY;
+		const bSeq = b.sequenceId ?? Number.POSITIVE_INFINITY;
+		if (aSeq !== bSeq) return aSeq - bSeq;
+
+		const aOrder = a.projectPath
+			? (getProjectSortOrder?.(a.projectPath) ?? Number.POSITIVE_INFINITY)
+			: Number.POSITIVE_INFINITY;
+		const bOrder = b.projectPath
+			? (getProjectSortOrder?.(b.projectPath) ?? Number.POSITIVE_INFINITY)
+			: Number.POSITIVE_INFINITY;
+		if (aOrder !== bOrder) return aOrder - bOrder;
+
+		return (a.projectPath ?? "").localeCompare(b.projectPath ?? "");
+	});
+}
+
+/**
  * Group flat tabs by project path.
  * Groups are ordered by project creation date DESC (most recently added first).
  */
@@ -223,7 +262,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		title,
 		canonicalProjection,
 		runtimeState,
-		entries,
+		transcriptEntries,
 		currentStreamingToolCall: providedCurrentStreamingToolCall,
 		currentToolKind: providedCurrentToolKind,
 		pendingQuestion,
@@ -234,6 +273,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectColor,
 		projectIconSrc,
 		projectPath,
+		sequenceId,
 	} = input;
 	const currentToolKind = providedCurrentToolKind;
 	const currentStreamingToolCall = providedCurrentStreamingToolCall;
@@ -267,7 +307,8 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectColor,
 		projectIconSrc,
 		projectPath,
-		conversationPreview: extractConversationPreview(entries),
+		sequenceId,
+		conversationPreview: extractConversationPreview(transcriptEntries),
 		state,
 	};
 }
@@ -311,6 +352,7 @@ export function nonAgentPanelToTab(input: NonAgentPanelToTabInput): TabBarTab {
 		projectColor,
 		projectIconSrc,
 		projectPath: panel.projectPath,
+		sequenceId: null,
 		conversationPreview: [],
 		state: deriveSessionState({
 			connectionState: "disconnected",

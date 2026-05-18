@@ -584,6 +584,13 @@ const projectCreatedAtLookup = (projectPath: string) => {
 };
 tabBarStore.setProjectCreatedAtLookup(projectCreatedAtLookup);
 
+// Set up project sort order lookup for flat tab ordering (smallest first)
+const projectSortOrderLookup = (projectPath: string) => {
+	const project = projectManager.projects.find((p) => p.path === projectPath);
+	return project?.sortOrder ?? null;
+};
+tabBarStore.setProjectSortOrderLookup(projectSortOrderLookup);
+
 // Inbound request handler for JSON-RPC requests from ACP subprocess (e.g., requestPermission)
 const inboundRequestHandler = new InboundRequestHandler();
 
@@ -1119,7 +1126,7 @@ onDestroy(() => {
 
 <ThemeProvider class="overflow-hidden h-dvh bg-background">
 	<div
-		class="flex flex-col h-full min-h-0 pt-0.5 pb-0.5 overflow-hidden"
+		class="flex flex-col h-full min-h-0 p-0.5 gap-0.5 overflow-hidden"
 		role="application"
 		aria-label={"Application"}
 		oncontextmenu={handleContextMenu}
@@ -1187,7 +1194,7 @@ onDestroy(() => {
 					{#if showTabBarStrip}
 						<div class="shrink-0 overflow-hidden">
 							<TabBar
-								groupedTabs={tabBarStore.groupedTabs}
+								tabs={tabBarStore.sortedTabs}
 								onSelectTab={(panelId) => {
 									panelStore.focusAndSwitchToPanel(panelId);
 									acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
