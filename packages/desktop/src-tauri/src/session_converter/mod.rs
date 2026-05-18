@@ -4,15 +4,13 @@
 //! - claude/cursor/codex use FullSession conversion
 //! - opencode uses OpenCode message conversion
 
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{
-    TodoStatus, ToolCallData, ToolCallStatus, ToolCallUpdateData, TurnErrorKind, TurnErrorSource,
+    TodoStatus, ToolCallData, ToolCallStatus, ToolCallUpdateData, TurnErrorKind,
 };
 use crate::cc_sdk::AssistantMessageError;
 use crate::opencode_history::types::OpenCodeMessage;
-use crate::session_jsonl::types::{
-    ContentBlock, FullSession, OrderedMessage, StoredEntry, StoredErrorMessage,
-};
+use crate::session_jsonl::types::{FullSession, StoredEntry};
 use std::collections::HashMap;
 
 mod claude;
@@ -20,6 +18,7 @@ mod codex;
 mod cursor;
 mod fullsession;
 mod opencode;
+mod transcript_events;
 
 #[cfg(test)]
 use fullsession::parse_skill_meta_from_content;
@@ -30,10 +29,22 @@ pub fn convert_claude_full_session_to_thread_snapshot(
     claude::convert_claude_full_session_to_thread_snapshot(session)
 }
 
+pub(crate) fn convert_claude_full_session_to_provider_owned_snapshot(
+    session: &FullSession,
+) -> ProviderOwnedSessionSnapshot {
+    claude::convert_claude_full_session_to_provider_owned_snapshot(session)
+}
+
 pub fn convert_cursor_full_session_to_thread_snapshot(
     session: &FullSession,
 ) -> SessionThreadSnapshot {
     cursor::convert_cursor_full_session_to_thread_snapshot(session)
+}
+
+pub(crate) fn convert_cursor_full_session_to_provider_owned_snapshot(
+    session: &FullSession,
+) -> ProviderOwnedSessionSnapshot {
+    cursor::convert_cursor_full_session_to_provider_owned_snapshot(session)
 }
 
 #[allow(dead_code)]
@@ -43,10 +54,24 @@ pub fn convert_codex_full_session_to_thread_snapshot(
     codex::convert_codex_full_session_to_thread_snapshot(session)
 }
 
+#[allow(dead_code)]
+pub(crate) fn convert_codex_full_session_to_provider_owned_snapshot(
+    session: &FullSession,
+) -> ProviderOwnedSessionSnapshot {
+    codex::convert_codex_full_session_to_provider_owned_snapshot(session)
+}
+
+#[allow(dead_code)]
 pub fn convert_opencode_messages_to_session(
     messages: Vec<OpenCodeMessage>,
 ) -> Result<SessionThreadSnapshot, String> {
     opencode::convert_opencode_messages_to_session(messages)
+}
+
+pub(crate) fn convert_opencode_messages_to_provider_owned_snapshot(
+    messages: Vec<OpenCodeMessage>,
+) -> Result<ProviderOwnedSessionSnapshot, String> {
+    opencode::convert_opencode_messages_to_provider_owned_snapshot(messages)
 }
 
 fn parse_timestamp_to_millis(timestamp: &str) -> Option<i64> {
@@ -157,55 +182,6 @@ pub fn calculate_todo_timing(entries: &mut [StoredEntry]) {
     }
 }
 
-pub(crate) fn assistant_provider_error_entry(
-    msg: &OrderedMessage,
-    error: &AssistantMessageError,
-) -> StoredEntry {
-    StoredEntry::Error {
-        id: msg.uuid.clone(),
-        message: StoredErrorMessage {
-            content: assistant_error_content(msg, error),
-            code: assistant_error_status_code(msg),
-            kind: assistant_error_kind(error),
-            source: Some(TurnErrorSource::Transport),
-        },
-        timestamp: Some(msg.timestamp.clone()),
-    }
-}
-
-fn assistant_error_content(msg: &OrderedMessage, error: &AssistantMessageError) -> String {
-    let content = msg
-        .content_blocks
-        .iter()
-        .filter_map(|block| match block {
-            ContentBlock::Text { text } => Some(text.trim()),
-            _ => None,
-        })
-        .filter(|text| !text.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    if content.is_empty() {
-        format!("Claude provider error: {:?}", error)
-    } else {
-        content
-    }
-}
-
-fn assistant_error_status_code(msg: &OrderedMessage) -> Option<String> {
-    let text = msg
-        .content_blocks
-        .iter()
-        .filter_map(|block| match block {
-            ContentBlock::Text { text } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    extract_api_error_status_code(&text).map(str::to_string)
-}
-
 fn extract_api_error_status_code(text: &str) -> Option<&str> {
     let marker = "API Error:";
     let marker_start = text.find(marker)?;
@@ -248,6 +224,7 @@ mod tests {
                     uuid: "user-1".to_string(),
                     parent_uuid: None,
                     role: "user".to_string(),
+                    provider_message_id: None,
                     timestamp: "2025-01-01T00:00:00Z".to_string(),
                     content_blocks: vec![ContentBlock::Text {
                         text: "Hello, world!".to_string(),
@@ -265,6 +242,7 @@ mod tests {
                     uuid: "assistant-1".to_string(),
                     parent_uuid: Some("user-1".to_string()),
                     role: "assistant".to_string(),
+                    provider_message_id: None,
                     timestamp: "2025-01-01T00:00:01Z".to_string(),
                     content_blocks: vec![ContentBlock::Text {
                         text: "Hi there!".to_string(),
@@ -492,6 +470,7 @@ mod tests {
             uuid: "meta-1".to_string(),
             parent_uuid: None,
             role: "user".to_string(),
+            provider_message_id: None,
             timestamp: "2025-01-01T00:00:02Z".to_string(),
             content_blocks: vec![ContentBlock::Text {
                 text: "Meta message".to_string(),
@@ -527,6 +506,7 @@ mod tests {
                 uuid: "empty-user".to_string(),
                 parent_uuid: None,
                 role: "user".to_string(),
+                provider_message_id: None,
                 timestamp: "2025-01-01T00:00:00Z".to_string(),
                 content_blocks: vec![],
                 model: None,
@@ -560,6 +540,7 @@ mod tests {
                 uuid: "command-user".to_string(),
                 parent_uuid: None,
                 role: "user".to_string(),
+            provider_message_id: None,
                 timestamp: "2025-01-01T00:00:00Z".to_string(),
                 content_blocks: vec![ContentBlock::Text {
                     text: "<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-sonnet-4-6</command-args>".to_string(),
@@ -580,6 +561,7 @@ mod tests {
                 uuid: "command-stdout".to_string(),
                 parent_uuid: None,
                 role: "user".to_string(),
+            provider_message_id: None,
                 timestamp: "2025-01-01T00:00:00Z".to_string(),
                 content_blocks: vec![ContentBlock::Text {
                     text: "<local-command-stdout>Set model to claude-sonnet-4-6</local-command-stdout>".to_string(),
@@ -996,6 +978,7 @@ More content here."#;
             uuid: "meta-skill-1".to_string(),
             parent_uuid: None,
             role: "user".to_string(),
+            provider_message_id: None,
             timestamp: "2025-01-01T00:00:02Z".to_string(),
             content_blocks: vec![ContentBlock::Text {
                 text: "Base directory for this skill: /path/to/mgrep\n\n---\nname: mgrep\ndescription: Semantic search tool\n---\n\n## Usage".to_string(),

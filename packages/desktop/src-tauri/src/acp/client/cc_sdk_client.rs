@@ -3213,6 +3213,7 @@ mod tests {
                 uuid: "user-tool-result".to_string(),
                 parent_uuid: Some("assistant-tool-use".to_string()),
                 role: "user".to_string(),
+                provider_message_id: None,
                 timestamp: "2026-05-16T00:00:01Z".to_string(),
                 content_blocks: vec![crate::session_jsonl::types::ContentBlock::ToolResult {
                     tool_use_id: "toolu_exec".to_string(),

@@ -1,15 +1,68 @@
 use crate::acp::projections::{
     build_canonical_operation_id, OperationDegradationCode, OperationDegradationReason,
-    OperationSnapshot, OperationSourceLink, OperationState,
+    OperationSnapshot, OperationSourceLink, OperationState, ProjectionRegistry,
+    SessionProjectionSnapshot,
 };
-use crate::acp::session_update::{ToolArguments, ToolCallStatus};
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
+use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolCallStatus};
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
+use crate::acp::types::CanonicalAgentId;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
 const MISSING_TOOL_OPERATION_DETAIL: &str =
     "No canonical operation evidence was available for this transcript tool row.";
+
+pub(crate) struct MaterializedThreadSnapshot {
+    pub transcript_snapshot: TranscriptSnapshot,
+    pub projection: SessionProjectionSnapshot,
+}
+
+pub(crate) fn materialize_provider_owned_thread_snapshot(
+    session_id: &str,
+    agent_id: Option<CanonicalAgentId>,
+    transcript_revision: i64,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> MaterializedThreadSnapshot {
+    let transcript_snapshot = if snapshot.canonical_transcript_events.is_empty() {
+        TranscriptSnapshot::from_stored_entries(
+            transcript_revision,
+            &snapshot.thread_snapshot.entries,
+        )
+    } else {
+        TranscriptSnapshot::from_canonical_events(
+            transcript_revision,
+            &snapshot.canonical_transcript_events,
+        )
+    };
+    let mut projection = ProjectionRegistry::project_thread_snapshot(
+        session_id,
+        agent_id,
+        &snapshot.thread_snapshot,
+    );
+    if !snapshot.canonical_tool_call_updates.is_empty() {
+        let registry = ProjectionRegistry::new();
+        registry.restore_session_projection(projection);
+        for update in &snapshot.canonical_tool_call_updates {
+            registry.apply_session_update(
+                session_id,
+                &SessionUpdate::ToolCallUpdate {
+                    update: update.clone(),
+                    session_id: Some(session_id.to_string()),
+                },
+            );
+        }
+        projection = registry.session_projection(session_id);
+    }
+    projection.operations =
+        ensure_transcript_tool_operations(session_id, &transcript_snapshot, projection.operations);
+
+    MaterializedThreadSnapshot {
+        transcript_snapshot,
+        projection,
+    }
+}
 
 pub(crate) fn ensure_transcript_tool_operations(
     session_id: &str,
@@ -98,13 +151,21 @@ fn degraded_transcript_tool_provenance_key(entry_id: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::ensure_transcript_tool_operations;
+    use super::{ensure_transcript_tool_operations, materialize_provider_owned_thread_snapshot};
+    use crate::acp::parsers::AgentType;
     use crate::acp::projections::{
         OperationDegradationCode, OperationSnapshot, OperationSourceLink, OperationState,
     };
+    use crate::acp::session_thread_snapshot::{
+        ProviderOwnedSessionSnapshot, SessionThreadSnapshot,
+    };
     use crate::acp::session_update::{ToolArguments, ToolCallStatus};
     use crate::acp::transcript_projection::{
-        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+        CanonicalTranscriptEvent, CanonicalTranscriptEventKind, TranscriptEntry,
+        TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    };
+    use crate::session_jsonl::types::{
+        StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     };
     use serde_json::Value;
 
@@ -119,6 +180,7 @@ mod tests {
                     text: "Run".to_string(),
                 }],
                 attempt_id: None,
+                timestamp_ms: None,
             }],
         }
     }
@@ -216,6 +278,57 @@ mod tests {
         assert_eq!(
             first[0].operation_provenance_key,
             second[0].operation_provenance_key
+        );
+    }
+
+    #[test]
+    fn provider_owned_materialization_uses_canonical_events_before_stored_entries() {
+        let provider_snapshot = ProviderOwnedSessionSnapshot::with_canonical_transcript_events(
+            SessionThreadSnapshot {
+                entries: vec![StoredEntry::Assistant {
+                    id: "legacy-provider-id".to_string(),
+                    message: StoredAssistantMessage {
+                        chunks: vec![StoredAssistantChunk {
+                            chunk_type: "message".to_string(),
+                            block: StoredContentBlock {
+                                block_type: "text".to_string(),
+                                text: Some("canonical answer".to_string()),
+                            },
+                        }],
+                        model: None,
+                        display_model: None,
+                        received_at: Some("2026-05-18T00:00:00Z".to_string()),
+                    },
+                    timestamp: Some("2026-05-18T00:00:00Z".to_string()),
+                }],
+                title: "Session".to_string(),
+                created_at: "2026-05-18T00:00:00Z".to_string(),
+                current_mode_id: None,
+            },
+            vec![CanonicalTranscriptEvent {
+                transcript_seq: 0,
+                source: AgentType::ClaudeCode,
+                provider_row_id: "row-1".to_string(),
+                provider_msg_id: Some("legacy-provider-id".to_string()),
+                request_id: Some("request-1".to_string()),
+                block_index: 0,
+                display_id: "assistant-display-1".to_string(),
+                timestamp: "2026-05-18T00:00:00Z".to_string(),
+                model: None,
+                kind: CanonicalTranscriptEventKind::AssistantText {
+                    text: "canonical answer".to_string(),
+                },
+            }],
+        );
+
+        let materialized =
+            materialize_provider_owned_thread_snapshot("session-1", None, 7, &provider_snapshot);
+
+        assert_eq!(materialized.transcript_snapshot.revision, 7);
+        assert_eq!(materialized.transcript_snapshot.entries.len(), 1);
+        assert_eq!(
+            materialized.transcript_snapshot.entries[0].entry_id,
+            "assistant-display-1"
         );
     }
 }

@@ -133,7 +133,7 @@
 	border: none !important;
 	border-radius: 0 !important;
 	background: transparent !important;
-	padding: 2rem 0.75rem 0.5rem !important;
+	padding: 2rem 0 0 !important;
 	font-size: 0.8125rem !important;
 	line-height: 1.5 !important;
 }

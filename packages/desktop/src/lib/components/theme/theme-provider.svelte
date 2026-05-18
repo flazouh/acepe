@@ -3,6 +3,7 @@ import { ResultAsync } from "neverthrow";
 import { onMount } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";
+import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 import { setTheme, type Theme } from "./context.svelte.js";
@@ -69,6 +70,8 @@ function setThemeValue(value: Theme) {
 let theme = $state<Theme>(defaultThemeProp);
 
 onMount(() => {
+	void loadingIndicatorSettingsStore.initialize();
+
 	// Load stored theme from database (async, but fire-and-forget for initial load)
 	loadStoredTheme().then((storedTheme) => {
 		if (storedTheme !== null) {

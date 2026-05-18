@@ -17,6 +17,7 @@ interface Props {
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
 	showHeader?: boolean;
+	showCloseButton?: boolean;
 	compact?: boolean;
 	diffDensity?: ReviewDiffDensity;
 }
@@ -30,6 +31,7 @@ let {
 	onClose,
 	onFileIndexChange,
 	showHeader = true,
+	showCloseButton = true,
 	compact = false,
 	diffDensity = "default",
 }: Props = $props();
@@ -38,32 +40,63 @@ const reviewWorkspaceFiles = $derived.by(() =>
 	buildReviewWorkspaceFilesFromSessionState(reviewFilesState, sessionId)
 );
 
-const reviewWorkspaceSelectedIndex = $derived.by(() =>
-	resolveReviewWorkspaceSelectedIndex(reviewWorkspaceFiles, selectedFileIndex)
-);
+const reviewWorkspaceSelectedIndex = $derived.by(() => {
+	const displayIndex = reviewWorkspaceFiles.findIndex((file) => file.sourceIndex === selectedFileIndex);
+	if (displayIndex >= 0) {
+		return displayIndex;
+	}
+
+	return resolveReviewWorkspaceSelectedIndex(reviewWorkspaceFiles, null);
+});
+
+const selectedSourceFileIndex = $derived.by(() => {
+	if (reviewWorkspaceSelectedIndex === null) {
+		return selectedFileIndex;
+	}
+
+	const selectedFile = reviewWorkspaceFiles[reviewWorkspaceSelectedIndex];
+	return selectedFile?.sourceIndex ?? reviewWorkspaceSelectedIndex;
+});
+
+let keepCurrentFileAction = $state<(() => void) | null>(null);
+let keepCurrentFileDisabled = $state(true);
+
+function handleKeepActionChange(action: (() => void) | null, disabled: boolean): void {
+	keepCurrentFileAction = action;
+	keepCurrentFileDisabled = disabled;
+}
+
+function handleWorkspaceFileSelect(displayIndex: number): void {
+	const selectedFile = reviewWorkspaceFiles[displayIndex];
+	onFileIndexChange(selectedFile?.sourceIndex ?? displayIndex);
+}
 </script>
 
 <ReviewWorkspace
 	files={reviewWorkspaceFiles}
 	selectedFileIndex={reviewWorkspaceSelectedIndex}
 	{onClose}
-	onFileSelect={onFileIndexChange}
+	onFileSelect={handleWorkspaceFileSelect}
 	headerLabel={"Review Changes"}
 	closeButtonLabel={"Back"}
 	emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
+	onKeepFile={showHeader ? (keepCurrentFileAction ?? undefined) : undefined}
+	keepFileDisabled={showHeader ? keepCurrentFileDisabled : true}
 	{showHeader}
+	{showCloseButton}
 	{compact}
 >
 	{#snippet content()}
 		<AgentPanelReviewContent
 			modifiedFilesState={reviewFilesState}
-			selectedFileIndex={reviewWorkspaceSelectedIndex ?? 0}
+			selectedFileIndex={selectedSourceFileIndex}
 			{sessionId}
 			{projectPath}
 			{isActive}
 			{diffDensity}
 			{onClose}
 			{onFileIndexChange}
+			onKeepActionChange={showHeader ? handleKeepActionChange : undefined}
 		/>
 	{/snippet}
 </ReviewWorkspace>

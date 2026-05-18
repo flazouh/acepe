@@ -1720,6 +1720,57 @@ async fn test_parse_converted_session_merges_fragmented_assistant_response() {
     );
 }
 
+/// Regression test for Claude Code sessions where the SDK/log stream can report
+/// a visible assistant text fragment before later tool-use fragments that reuse
+/// the same assistant message id/request id. The replayed chat should not leave
+/// those later tool calls as the final visible entries when the assistant text is
+/// the message that closed the turn.
+#[allow(clippy::await_holding_lock)]
+#[tokio::test]
+async fn test_parse_converted_session_keeps_reused_id_final_text_after_late_tool_fragments() {
+    let lock = claude_home_test_lock().lock().unwrap();
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let project_path = "/Users/test/project";
+    let project_slug = path_to_slug(project_path);
+    let project_dir = claude_dir.join("projects").join(&project_slug);
+    fs::create_dir_all(&project_dir).unwrap();
+
+    let session_id = "22222222-3333-4444-8555-666666666666";
+    let session_file = project_dir.join(format!("{}.jsonl", session_id));
+
+    let content = format!(
+        r#"{{"sessionId":"{}","type":"user","uuid":"u1","message":{{"role":"user","content":"Open the review"}},"timestamp":"2026-05-17T13:16:20Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-text","parentUuid":"u1","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"text","text":"That clicked the wrong review. Let me navigate back to the right session."}}]}},"timestamp":"2026-05-17T13:16:28Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-tool-1","parentUuid":"a-text","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"tool_use","id":"toolu_click","name":"mcp__tauri__webview_interact","input":{{"action":"click","selector":"please enable","strategy":"text"}}}}]}},"timestamp":"2026-05-17T13:16:29Z"}}
+{{"sessionId":"{}","type":"assistant","uuid":"a-tool-2","parentUuid":"a-tool-1","requestId":"req-1","message":{{"id":"msg-1","type":"message","role":"assistant","content":[{{"type":"tool_use","id":"toolu_screenshot","name":"mcp__tauri__webview_screenshot","input":{{}}}}]}},"timestamp":"2026-05-17T13:16:33Z"}}"#,
+        session_id, session_id, session_id, session_id
+    );
+    fs::write(&session_file, content).unwrap();
+    let _claude_home = ClaudeHomeGuard::set(&claude_dir);
+    drop(lock);
+
+    let converted = parse_converted_session(session_id, project_path)
+        .await
+        .expect("parse_converted_session should succeed");
+
+    let entry_types: Vec<&str> = converted
+        .entries
+        .iter()
+        .map(|entry| match entry {
+            StoredEntry::User { .. } => "user",
+            StoredEntry::Assistant { .. } => "assistant",
+            StoredEntry::ToolCall { .. } => "tool_call",
+            StoredEntry::Error { .. } => "error",
+        })
+        .collect();
+
+    assert_eq!(
+        entry_types,
+        vec!["user", "tool_call", "tool_call", "assistant"],
+        "Final assistant text should remain the last chat entry, not be followed by reused-id tool calls"
+    );
+}
+
 // ============================================
 // Agent ID Normalization Tests
 // ============================================

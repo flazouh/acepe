@@ -154,7 +154,7 @@ async function handleActionButtonClick(button: { onClick: () => void | Promise<v
 		{#if renderButton}
 			{@render renderButton({ item: selectedItem, isLoading })}
 		{:else if isLoading}
-			<Spinner class="h-4 w-4 shrink-0" />
+			<Spinner class="shrink-0" size={16} />
 		{:else if selectedItem?.icon}
 			<img
 				src={selectedItem.icon}

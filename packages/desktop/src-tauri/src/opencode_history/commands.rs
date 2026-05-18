@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::providers::OpenCodeProvider;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::commands::observability::{unexpected_command_result, CommandResult};
 use crate::opencode_history::parser;
 use crate::path_safety::validate_project_directory_from_str;
@@ -68,18 +68,18 @@ fn resolve_project_root_for_history(project_path: &str) -> Result<std::path::Pat
         .map_err(|error| error.message_for(std::path::Path::new(project_path.trim())))
 }
 
-/// Get full OpenCode session via HTTP API (auto-starts server if needed).
+/// Get full provider-owned OpenCode session via HTTP API (auto-starts server if needed).
 ///
 /// This command:
 /// 1. Gets or creates OpenCodeHttpClient
 /// 2. Ensures OpenCode server is running (auto-start)
 /// 3. Fetches session messages via HTTP API
 /// 4. Converts to unified format
-pub(crate) async fn fetch_opencode_session(
+pub(crate) async fn fetch_provider_owned_opencode_session(
     app: &AppHandle,
     session_id: &str,
     directory: &str,
-) -> Result<SessionThreadSnapshot, String> {
+) -> Result<ProviderOwnedSessionSnapshot, String> {
     let mut client = get_or_create_opencode_client(app, directory).await?;
 
     client
@@ -92,8 +92,19 @@ pub(crate) async fn fetch_opencode_session(
         .await
         .map_err(|e| format!("Failed to fetch session messages: {}", e))?;
 
-    session_converter::convert_opencode_messages_to_session(messages)
+    session_converter::convert_opencode_messages_to_provider_owned_snapshot(messages)
         .map_err(|e| format!("Failed to convert session: {}", e))
+}
+
+/// Get full OpenCode session via HTTP API (auto-starts server if needed).
+pub(crate) async fn fetch_opencode_session(
+    app: &AppHandle,
+    session_id: &str,
+    directory: &str,
+) -> Result<SessionThreadSnapshot, String> {
+    fetch_provider_owned_opencode_session(app, session_id, directory)
+        .await
+        .map(|snapshot| snapshot.thread_snapshot)
 }
 
 /// Get OpenCode sessions for a specific project via HTTP API.

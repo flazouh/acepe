@@ -11,7 +11,7 @@ use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
@@ -247,7 +247,7 @@ impl AgentProvider for OpenCodeProvider {
         Box<
             dyn Future<
                     Output = Result<
-                        Option<SessionThreadSnapshot>,
+                        Option<ProviderOwnedSessionSnapshot>,
                         crate::acp::provider::ProviderHistoryLoadError,
                     >,
                 > + Send
@@ -258,11 +258,12 @@ impl AgentProvider for OpenCodeProvider {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
 
-            let disk_result = crate::opencode_history::parser::load_thread_snapshot_from_disk(
-                lookup_session_id,
-                context.source_path.as_deref(),
-            )
-            .await;
+            let disk_result =
+                crate::opencode_history::parser::load_provider_owned_snapshot_from_disk(
+                    lookup_session_id,
+                    context.source_path.as_deref(),
+                )
+                .await;
 
             if let Ok(Some(snapshot)) = disk_result {
                 tracing::info!(
@@ -285,7 +286,7 @@ impl AgentProvider for OpenCodeProvider {
                 _ => unreachable!(),
             }
 
-            match crate::opencode_history::commands::fetch_opencode_session(
+            match crate::opencode_history::commands::fetch_provider_owned_opencode_session(
                 app,
                 lookup_session_id,
                 &context.effective_project_path,

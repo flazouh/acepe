@@ -16,11 +16,6 @@ import type { SessionEntry } from "../../types.js";
  */
 export interface IEntryManager {
 	/**
-	 * Get entries for a session.
-	 */
-	getEntries(sessionId: string): SessionEntry[];
-
-	/**
 	 * Check if a session has entries.
 	 */
 	hasEntries(sessionId: string): boolean;

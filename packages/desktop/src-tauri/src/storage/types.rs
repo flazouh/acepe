@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 pub enum UserSettingKey {
     /// User's preferred theme (light, dark, system)
     UserTheme,
+    /// Dot-matrix loading indicator variant used across the app
+    LoadingIndicatorVariant,
+    /// Color id (Tailwind palette) for the loading indicator
+    LoadingIndicatorColor,
     /// Workspace panel layout state (JSON)
     WorkspaceState,
     /// Custom keybindings (JSON map of command -> key)
@@ -87,6 +91,8 @@ impl UserSettingKey {
     pub fn as_str(&self) -> &'static str {
         match self {
             UserSettingKey::UserTheme => "user_theme",
+            UserSettingKey::LoadingIndicatorVariant => "loading_indicator_variant",
+            UserSettingKey::LoadingIndicatorColor => "loading_indicator_color",
             UserSettingKey::WorkspaceState => "workspace_state",
             UserSettingKey::CustomKeybindings => "custom_keybindings",
             UserSettingKey::ZoomLevel => "zoom_level",
@@ -156,6 +162,7 @@ mod tests {
     fn user_setting_key_accepts_additional_keys() {
         let keys = [
             "agent_default_models",
+            "loading_indicator_variant",
             "agent_favorite_models",
             "agent_available_models_cache",
             "agent_available_models_display_cache",

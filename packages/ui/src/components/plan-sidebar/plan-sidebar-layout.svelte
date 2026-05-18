@@ -73,7 +73,7 @@
 	</EmbeddedPanelHeader>
 
 	<!-- Content -->
-	<div class="min-h-0 flex-1 {contentRenderer ? '' : 'overflow-y-auto px-4 py-3'}">
+	<div class="min-h-0 flex-1 {contentRenderer ? 'overflow-hidden' : 'overflow-y-auto px-4 py-3'}">
 		{#if contentRenderer}
 			{@render contentRenderer()}
 		{:else if content}

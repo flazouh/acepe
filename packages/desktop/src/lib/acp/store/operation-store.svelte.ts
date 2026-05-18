@@ -21,24 +21,6 @@ export function buildCanonicalOperationId(sessionId: string, provenanceKey: stri
 	return `op:${sessionId.length}:${sessionId}:${provenanceKey.length}:${provenanceKey}`;
 }
 
-function isTerminalOperationState(state: OperationState | undefined): boolean {
-	if (state === undefined) {
-		return false;
-	}
-
-	switch (state) {
-		case "completed":
-		case "failed":
-		case "cancelled":
-		case "degraded":
-			return true;
-		case "pending":
-		case "running":
-		case "blocked":
-			return false;
-	}
-}
-
 function isStreamingOperationState(state: OperationState): boolean {
 	return state === "pending" || state === "running" || state === "blocked";
 }
@@ -234,13 +216,6 @@ export class OperationStore {
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			const existingOperation = this.operationsById.get(operation.id);
-			if (
-				existingOperation !== undefined &&
-				isTerminalOperationState(existingOperation.operationState) &&
-				!isTerminalOperationState(operation.operationState)
-			) {
-				continue;
-			}
 			if (existingOperation !== undefined) {
 				this.unindexOperation(existingOperation);
 			}

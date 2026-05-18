@@ -54,7 +54,7 @@
 					<Tooltip.Trigger>
 						<div class="animate-in fade-in duration-150">
 							<LoadingIcon
-								style="width: {size}px; height: {size}px;"
+								{size}
 								aria-label={isRetrying ? retryingLabel : warmingLabel}
 							/>
 						</div>

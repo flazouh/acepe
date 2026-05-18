@@ -6,6 +6,7 @@ import {
 	type ReviewDiffData,
 	type ReviewDiffDensity,
 	ReviewDiffViewState,
+	type ResolvedReviewHunkAction,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
 import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
 import { createReviewDiffData, selectReviewDiffData } from "./review-diff-data.js";
@@ -19,6 +20,7 @@ interface Props {
 	/** Called when diff is ready so parent can wire bottom widget controls. */
 	onDiffStateReady?: (state: ReviewDiffViewState) => void;
 	density?: ReviewDiffDensity;
+	initialResolvedActions?: ReadonlyArray<ResolvedReviewHunkAction>;
 }
 
 let {
@@ -29,10 +31,12 @@ let {
 	onHunkReject,
 	onDiffStateReady,
 	density = "default",
+	initialResolvedActions = [],
 }: Props = $props();
 
 let containerRef: HTMLDivElement | null = $state(null);
 let fetchedDiffData = $state<ReviewDiffData | null>(null);
+let fetchedDiffSettled = $state(false);
 const themeState = useTheme();
 const effectiveTheme = $derived(themeState.effectiveTheme);
 const diffViewState = new ReviewDiffViewState();
@@ -42,7 +46,12 @@ const embeddedDiffData = $derived.by(() =>
 	createReviewDiffData(file, file.originalContent, file.finalContent)
 );
 
-const diffData = $derived.by(() => selectReviewDiffData(fetchedDiffData, embeddedDiffData));
+const diffData = $derived.by(() =>
+	selectReviewDiffData(fetchedDiffData, embeddedDiffData, {
+		preferFetchedDiff: projectPath !== null,
+		fetchedDiffSettled,
+	})
+);
 
 function handleHunkAction(
 	hunkIndex: number,
@@ -71,7 +80,8 @@ function renderDiff(container: HTMLDivElement): void {
 			container,
 			undefined, // onStyleChange
 			handleHunkAction,
-			density
+			density,
+			initialResolvedActions
 		)
 		.then(() => {
 			onDiffStateReady?.(diffViewState);
@@ -84,8 +94,10 @@ $effect(() => {
 	const requestKey = lastRequestedDiffKey + 1;
 	lastRequestedDiffKey = requestKey;
 	fetchedDiffData = null;
+	fetchedDiffSettled = false;
 
 	if (!currentProjectPath) {
+		fetchedDiffSettled = true;
 		return;
 	}
 
@@ -96,6 +108,7 @@ $effect(() => {
 			}
 
 			fetchedDiffData = createReviewDiffData(currentFile, diff.oldContent, diff.newContent);
+			fetchedDiffSettled = true;
 		},
 		(error) => {
 			if (requestKey !== lastRequestedDiffKey) {
@@ -104,6 +117,7 @@ $effect(() => {
 
 			console.error(`Failed to load full diff for ${currentFile.filePath}:`, error.message);
 			fetchedDiffData = null;
+			fetchedDiffSettled = true;
 		}
 	);
 });

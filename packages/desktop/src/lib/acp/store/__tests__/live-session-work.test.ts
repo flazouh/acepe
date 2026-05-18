@@ -164,7 +164,7 @@ describe("deriveLiveSessionState", () => {
 		}
 	});
 
-	it("uses runtime thinking details only after canonical projection is present", () => {
+	it("does not promote canonical idle from runtime thinking details", () => {
 		const state = deriveLiveSessionState(
 			makeInput({
 				runtimeState: makeRuntimeState("running", true),
@@ -173,10 +173,10 @@ describe("deriveLiveSessionState", () => {
 		);
 
 		expect(state.connection).toBe("connected");
-		expect(state.activity.kind).toBe("thinking");
+		expect(state.activity.kind).toBe("idle");
 	});
 
-	it("keeps current mode id from canonical-derived input", () => {
+	it("does not promote canonical idle from live tool-call presence", () => {
 		const state = deriveLiveSessionState(
 			makeInput({
 				runtimeState: makeRuntimeState("running"),
@@ -186,10 +186,7 @@ describe("deriveLiveSessionState", () => {
 			})
 		);
 
-		expect(state.activity.kind).toBe("streaming");
-		if (state.activity.kind === "streaming") {
-			expect(state.activity.modeId).toBe("plan");
-		}
+		expect(state.activity.kind).toBe("idle");
 	});
 });
 
@@ -218,7 +215,7 @@ describe("deriveLiveCanonicalActivity", () => {
 		}
 	});
 
-	it("lets live streaming work override stale idle canonical projection activity", () => {
+	it("keeps canonical idle even when runtime reports thinking", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
 				runtimeState: makeRuntimeState("running", true),
@@ -226,10 +223,10 @@ describe("deriveLiveCanonicalActivity", () => {
 			})
 		);
 
-		expect(canonicalActivity).toBe("awaiting_model");
+		expect(canonicalActivity).toBe("idle");
 	});
 
-	it("keeps pending interaction dominant when canonical activity is idle", () => {
+	it("keeps canonical idle even when interaction snapshot has a pending question", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
@@ -237,10 +234,10 @@ describe("deriveLiveCanonicalActivity", () => {
 			})
 		);
 
-		expect(canonicalActivity).toBe("waiting_for_user");
+		expect(canonicalActivity).toBe("idle");
 	});
 
-	it("keeps active tool work dominant when canonical activity is idle", () => {
+	it("keeps canonical idle even when a tool call is streaming locally", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
 				canonicalProjection: makeCanonicalProjection("ready", "idle"),
@@ -248,7 +245,7 @@ describe("deriveLiveCanonicalActivity", () => {
 			})
 		);
 
-		expect(canonicalActivity).toBe("running_operation");
+		expect(canonicalActivity).toBe("idle");
 	});
 
 	it("treats canonical activeTurnFailure as authoritative", () => {

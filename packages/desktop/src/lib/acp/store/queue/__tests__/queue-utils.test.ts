@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 
-import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
@@ -80,41 +79,13 @@ function createToolCall(
 	};
 }
 
-function createToolEntry(toolCall: ToolCall, isStreaming = false): SessionEntry {
-	return {
-		id: `entry-${toolCall.id}`,
-		type: "tool_call",
-		message: toolCall,
-		isStreaming,
-	};
-}
-
 function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSessionSnapshot {
 	const isStreaming = overrides.isStreaming ?? false;
 	const isThinking = overrides.isThinking ?? false;
 	const currentModeId = overrides.currentModeId ?? "code";
-	const currentStreamingToolCall =
-		overrides.currentStreamingToolCall ??
-		overrides.entries?.findLast(
-			(entry): entry is SessionEntry & { type: "tool_call"; isStreaming: true } =>
-				entry.type === "tool_call" && entry.isStreaming === true
-		)?.message ??
-		null;
-	const lastToolCall =
-		overrides.lastToolCall ??
-		overrides.entries?.findLast(
-			(entry): entry is SessionEntry & { type: "tool_call" } => entry.type === "tool_call"
-		)?.message ??
-		null;
-	const lastTodoToolCall =
-		overrides.lastTodoToolCall ??
-		overrides.entries?.findLast(
-			(entry): entry is SessionEntry & { type: "tool_call" } =>
-				entry.type === "tool_call" &&
-				entry.message.normalizedTodos != null &&
-				entry.message.normalizedTodos.length > 0
-		)?.message ??
-		null;
+	const currentStreamingToolCall = overrides.currentStreamingToolCall ?? null;
+	const lastToolCall = overrides.lastToolCall ?? currentStreamingToolCall;
+	const lastTodoToolCall = overrides.lastTodoToolCall ?? null;
 	const state =
 		overrides.state ??
 		deriveSessionState({
@@ -144,7 +115,6 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		agentId: "opencode",
 		projectPath: "/repo",
 		title: "Queue item",
-		entries: [],
 		currentStreamingToolCall,
 		currentToolKind:
 			overrides.currentToolKind ??
@@ -191,7 +161,7 @@ describe("buildQueueItem", () => {
 			createSession({
 				isThinking: true,
 				status: "ready" as SessionStatus,
-				entries: [createToolEntry(lastToolCall, false)],
+				lastToolCall,
 			}),
 			null,
 			DEFAULT_URGENCY,
@@ -211,7 +181,6 @@ describe("buildQueueItem", () => {
 	it("derives todo progress from canonical lastTodoToolCall without transcript entries", () => {
 		const item = buildQueueItem(
 			createSession({
-				entries: [],
 				lastTodoToolCall: {
 					id: "todo-tool-1",
 					name: "TodoWrite",
@@ -328,7 +297,6 @@ describe("buildQueueSessionSnapshot", () => {
 			agentId: "opencode",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,
@@ -362,13 +330,12 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.currentModeId).toBe("plan");
 	});
 
-	it("maps waiting-for-user runtime to thinking state", () => {
+	it("does not map waiting-for-user runtime to thinking when canonical activity is idle", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",
 			agentId: "opencode",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,
@@ -398,10 +365,10 @@ describe("buildQueueSessionSnapshot", () => {
 			hasUnseenCompletion: false,
 		});
 
-		expect(snapshot.isThinking).toBe(true);
+		expect(snapshot.isThinking).toBe(false);
 		expect(snapshot.isStreaming).toBe(false);
-		expect(snapshot.state.activity.kind).toBe("thinking");
-		expect(snapshot.status).toBe("streaming");
+		expect(snapshot.state.activity.kind).toBe("idle");
+		expect(snapshot.status).toBe("ready");
 	});
 
 	it("uses graph-backed running activity when no live tool call is available", () => {
@@ -410,7 +377,6 @@ describe("buildQueueSessionSnapshot", () => {
 			agentId: "opencode",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,
@@ -452,7 +418,6 @@ describe("buildQueueSessionSnapshot", () => {
 			agentId: "cursor",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,
@@ -483,7 +448,6 @@ describe("buildQueueSessionSnapshot", () => {
 			agentId: "opencode",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,
@@ -523,7 +487,6 @@ describe("buildQueueSessionSnapshot", () => {
 			agentId: "opencode",
 			projectPath: "/repo",
 			title: "Queue item",
-			entries: [],
 			currentStreamingToolCall: null,
 			currentToolKind: null,
 			lastToolCall: null,

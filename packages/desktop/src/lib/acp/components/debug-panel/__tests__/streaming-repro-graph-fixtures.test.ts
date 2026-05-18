@@ -65,8 +65,8 @@ describe("streaming-repro-graph-fixtures", () => {
 			panelId: "panel-debug",
 			graph: firstWordInput.graph,
 			header: { title: preset.name },
+			sceneEntries: materializeAgentPanelSceneFromGraph(firstWordInput).conversation.entries,
 			local: {
-				pendingUserEntry: null,
 				pendingSendIntent: false,
 			},
 		});
@@ -83,8 +83,8 @@ describe("streaming-repro-graph-fixtures", () => {
 			panelId: "panel-debug",
 			graph: fullRewriteInput.graph,
 			header: { title: preset.name },
+			sceneEntries: fullRewriteScene.conversation.entries,
 			local: {
-				pendingUserEntry: null,
 				pendingSendIntent: false,
 			},
 		});

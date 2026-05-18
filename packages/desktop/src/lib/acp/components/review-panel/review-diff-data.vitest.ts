@@ -75,4 +75,44 @@ describe("createReviewDiffData", () => {
 		expect(fetched?.fileDiffMetadata.hunks.length).toBeGreaterThan(0);
 		expect(selectReviewDiffData(fetched, embedded)).toBe(fetched);
 	});
+
+	it("waits for fetched git diff before showing embedded diff when fetched diff is preferred", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 1,
+			totalRemoved: 1,
+			originalContent: "const before = 1;\n",
+			finalContent: "const after = 2;\n",
+			editCount: 1,
+		};
+		const embedded = createReviewDiffData(file, "before\n", "after\n");
+
+		expect(
+			selectReviewDiffData(null, embedded, {
+				preferFetchedDiff: true,
+				fetchedDiffSettled: false,
+			})
+		).toBeNull();
+	});
+
+	it("falls back to embedded diff after preferred fetched diff has settled without hunks", () => {
+		const file = {
+			filePath: "/project/src/example.ts",
+			fileName: "example.ts",
+			totalAdded: 1,
+			totalRemoved: 1,
+			originalContent: "const before = 1;\n",
+			finalContent: "const after = 2;\n",
+			editCount: 1,
+		};
+		const embedded = createReviewDiffData(file, "before\n", "after\n");
+
+		expect(
+			selectReviewDiffData(null, embedded, {
+				preferFetchedDiff: true,
+				fetchedDiffSettled: true,
+			})
+		).toBe(embedded);
+	});
 });

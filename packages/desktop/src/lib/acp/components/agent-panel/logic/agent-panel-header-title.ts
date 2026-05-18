@@ -1,11 +1,8 @@
-import type { SessionEntry } from "$lib/acp/application/dto/session.js";
-
 import { formatSessionTitleForDisplay } from "../../../store/session-title-policy.js";
 
 export function deriveAgentPanelHeaderDisplayTitle(input: {
 	readonly sessionTitle: string | null;
 	readonly projectName: string | null;
-	readonly sessionEntries: readonly SessionEntry[];
 }): string | null {
 	const titleSource = input.sessionTitle;
 	if (titleSource === null && input.projectName === null) {

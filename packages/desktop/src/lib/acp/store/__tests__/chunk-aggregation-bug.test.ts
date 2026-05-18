@@ -11,6 +11,7 @@
 import { beforeEach, describe, expect, it } from "bun:test";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries", () => {
 	let store: SessionEntryStore;
@@ -51,7 +52,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 		);
 
 		// getEntries merges committed + pending, so we can check before any flush
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// BUG: This currently creates multiple entries instead of 1
 		expect(entries).toHaveLength(1);
@@ -118,7 +119,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Should be: [assistant(thought), tool_call, assistant(message)]
 		expect(entries).toHaveLength(3);
@@ -150,7 +151,7 @@ describe("Chunk Aggregation Bug - Rapid streaming chunks create separate entries
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Different messageIds SHOULD create separate entries
 		expect(entries).toHaveLength(2);

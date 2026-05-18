@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { AgentToolEntry, AgentUserEntry } from "@acepe/ui/agent-panel";
+import type { AgentToolEntry, AgentUserEntry } from "@acepe/ui/agent-panel/types";
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -227,6 +227,57 @@ function createGraph(input: {
 }
 
 describe("agent panel graph materializer", () => {
+	it("projects canonical transcript timestamps directly into message scene entries", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			{
+				entryId: "user-1",
+				role: "user",
+				segments: [
+					{
+						kind: "text",
+						segmentId: "user-1-segment-1",
+						text: "Hello",
+					},
+				],
+				attemptId: null,
+				timestampMs: 1_779_062_400_000,
+			},
+			{
+				entryId: "assistant-1",
+				role: "assistant",
+				segments: [
+					{
+						kind: "text",
+						segmentId: "assistant-1-segment-1",
+						text: "Hi",
+					},
+				],
+				attemptId: null,
+				timestampMs: 1_779_062_401_000,
+			},
+		]);
+		const graph = createGraph({ transcriptSnapshot });
+
+		const scene = materializeAgentPanelSceneFromGraph({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Timestamp session",
+			},
+		});
+
+		expect(scene.conversation.entries[0]).toMatchObject({
+			id: "user-1",
+			type: "user",
+			timestampMs: 1_779_062_400_000,
+		});
+		expect(scene.conversation.entries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			timestampMs: 1_779_062_401_000,
+		});
+	});
+
 	it("renders only the blocking pending question interaction when duplicate question records exist", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "Can you retry the AskUserQuestion?"),

@@ -185,7 +185,7 @@
 		>
 			{#snippet renderButton()}
 				{#if isLoading}
-					<LoadingIcon class="size-3.5 text-muted-foreground" aria-label={loadingLabel} />
+					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
 				{:else}
 					{#if !hideTriggerProviderMark}
 						<ProviderMark provider={primaryTriggerProviderSource} class="size-3.5" />
@@ -277,7 +277,7 @@
 		>
 			{#snippet renderButton()}
 				{#if isLoading}
-					<LoadingIcon class="size-3.5 text-muted-foreground" aria-label={loadingLabel} />
+					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
 				{:else}
 					{#if !hideTriggerProviderMark}
 						<ProviderMark provider={triggerProviderSource} class="size-3.5" />

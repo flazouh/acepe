@@ -548,6 +548,7 @@ describe("model-selector-logic", () => {
 						reasoningEffortSupport: true,
 						preconnectionSlashMode: "startupGlobal",
 						preconnectionCapabilityMode: "startupGlobal",
+					implicitSessionCreationMode: "allowed",
 					},
 				},
 			};
@@ -572,6 +573,7 @@ describe("model-selector-logic", () => {
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
 					preconnectionCapabilityMode: "startupGlobal",
+				implicitSessionCreationMode: "allowed",
 				},
 			},
 		};
@@ -596,6 +598,7 @@ describe("model-selector-logic", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
 				preconnectionCapabilityMode: "startupGlobal",
+			implicitSessionCreationMode: "allowed",
 			});
 		});
 	});

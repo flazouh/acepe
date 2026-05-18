@@ -159,6 +159,14 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - Do not frame work as a migration, coexistence plan, or cutover strategy. Assume speed-of-light execution: design and plan for the clean replacement architecture directly, with old paths removed rather than accommodated in parallel.
 - Historical session open MUST reconnect after snapshot hydration. Never fix replay or unresolved-tool bugs by making historical sessions read-only. Correct boundary: provider history/disk parsing owns already-restored transcript content; reconnect attaches live transport and may deliver only post-frontier events through the open-token reservation. If replay is wrong, fix token/frontier/reconciliation in the backend.
 
+#### GOD Architecture Gate
+
+- Always invoke `god-architecture-check` before changing session-shaped or transcript-shaped data paths: session lifecycle, hot state, canonical projections, transcript order, tool operations, provider history parsing, agent-panel projection, or display entry identity.
+- Keep asking during implementation: "Is this change moving truth upstream into canonical Rust-owned data, or patching symptoms downstream?" If it patches downstream, stop and use the GOD check before continuing.
+- Raw provider data is input, not product truth. Provider quirks belong in Rust adapters/history parsers; TypeScript and `packages/ui` must consume canonical facts, not repair provider-specific weirdness.
+- For transcript bugs, never fix order in the UI. Canonical transcript order, identity, and tool-call mapping must be corrected before display projection.
+- Treat raw provider ids, such as Claude `message.id`, as metadata unless the canonical model explicitly promotes them. Use canonical event order and Acepe-owned display ids for UI identity.
+
 ### Debugging
 
 - Separate facts from inference. Label hypotheses. Prefer instrumentation or observed state transitions before claiming causality.

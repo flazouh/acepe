@@ -12,7 +12,7 @@ use super::types::{
     OpenCodeApiModel, OpenCodeApiPart, OpenCodeMessage, OpenCodeMessagePart, OpenCodeProject,
     OpenCodeSession,
 };
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::history::constants::{MAX_PROJECTS_TO_SCAN, MAX_SESSIONS_PER_PROJECT};
 use crate::session_jsonl::types::HistoryEntry;
@@ -330,7 +330,7 @@ fn validate_path_segment(segment: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-/// Load a full OpenCode session from local storage files (no HTTP server needed).
+/// Load a full OpenCode provider-owned session from local storage files (no HTTP server needed).
 ///
 /// Reads messages from `storage/message/{session_id}/` and parts from
 /// `storage/part/{message_id}/`, then converts to `SessionThreadSnapshot` using
@@ -345,11 +345,11 @@ fn validate_path_segment(segment: &str, label: &str) -> Result<()> {
 /// * `source_path` - Optional path to the session metadata file (for title)
 ///
 /// # Returns
-/// `Some(SessionThreadSnapshot)` if messages were found on disk, `None` otherwise
-pub async fn load_session_from_disk(
+/// `Some(ProviderOwnedSessionSnapshot)` if messages were found on disk, `None` otherwise
+pub async fn load_provider_owned_snapshot_from_disk(
     session_id: &str,
     source_path: Option<&str>,
-) -> Result<Option<SessionThreadSnapshot>> {
+) -> Result<Option<ProviderOwnedSessionSnapshot>> {
     validate_path_segment(session_id, "session_id")?;
 
     let storage_dir = get_storage_dir()?;
@@ -533,19 +533,29 @@ pub async fn load_session_from_disk(
         "Loaded OpenCode session from local disk"
     );
 
-    let snapshot = crate::session_converter::convert_opencode_messages_to_session(messages)
-        .map_err(|e| anyhow!("Failed to convert OpenCode disk session: {}", e))?;
+    let mut snapshot =
+        crate::session_converter::convert_opencode_messages_to_provider_owned_snapshot(messages)
+            .map_err(|e| anyhow!("Failed to convert OpenCode disk session: {}", e))?;
 
+    let fallback_title = snapshot.thread_snapshot.title.clone();
     let resolved_title = session_title
         .filter(|t| !t.is_empty())
-        .unwrap_or(snapshot.title);
+        .unwrap_or(fallback_title);
 
-    Ok(Some(SessionThreadSnapshot {
-        entries: snapshot.entries,
-        title: resolved_title,
-        created_at: snapshot.created_at,
-        current_mode_id: snapshot.current_mode_id,
-    }))
+    snapshot.thread_snapshot.title = resolved_title;
+
+    Ok(Some(snapshot))
+}
+
+pub async fn load_session_from_disk(
+    session_id: &str,
+    source_path: Option<&str>,
+) -> Result<Option<SessionThreadSnapshot>> {
+    Ok(
+        load_provider_owned_snapshot_from_disk(session_id, source_path)
+            .await?
+            .map(|snapshot| snapshot.thread_snapshot),
+    )
 }
 
 pub async fn load_thread_snapshot_from_disk(

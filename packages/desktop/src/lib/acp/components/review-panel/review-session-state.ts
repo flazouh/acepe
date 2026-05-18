@@ -70,6 +70,35 @@ export function prevPendingFileIndex(
 }
 
 /**
+ * Returns the next file that still needs review, scanning forward first and
+ * wrapping to earlier files. Undefined entries are files whose diff has not
+ * been opened in this review session yet, so they are still reviewable.
+ */
+export function findNextReviewableFileIndex(
+	currentIndex: number,
+	fileStates: ReadonlyArray<PerFileReviewState | undefined>
+): number | null {
+	function isReviewable(index: number): boolean {
+		const state = fileStates[index];
+		return state === undefined || isPendingFile(state);
+	}
+
+	for (let index = currentIndex + 1; index < fileStates.length; index += 1) {
+		if (isReviewable(index)) {
+			return index;
+		}
+	}
+
+	for (let index = 0; index < currentIndex; index += 1) {
+		if (isReviewable(index)) {
+			return index;
+		}
+	}
+
+	return null;
+}
+
+/**
  * Whether to show the "Review next file" CTA.
  * Shown when current file was just accepted and there is a next pending file.
  */

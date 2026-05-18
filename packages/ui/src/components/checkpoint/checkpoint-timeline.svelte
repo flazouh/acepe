@@ -101,7 +101,7 @@
 		<div class="w-full max-w-4xl">
 			{#if isLoading}
 				<div class="flex items-center justify-center h-24 text-muted-foreground text-sm">
-					<LoadingIcon class="h-4 w-4 mr-2" />
+					<LoadingIcon class="mr-2" size={16} />
 					{loadingMessage}
 				</div>
 			{:else if visibleCheckpoints.length === 0}

@@ -70,7 +70,7 @@ const syncStatus = $derived.by(() => {
 		disabled={store.syncing || !store.selectedSkill || enabledCount === 0}
 	>
 		{#if syncStatus === "syncing"}
-			<Spinner class="mr-1 h-3.5 w-3.5" />
+			<Spinner class="mr-1" size={14} />
 			Syncing
 		{:else if syncStatus === "synced"}
 			<CheckCircle class="mr-1 h-3.5 w-3.5 text-success" weight="fill" />

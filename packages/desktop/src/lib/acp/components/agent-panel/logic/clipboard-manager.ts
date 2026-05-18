@@ -1,7 +1,8 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 
-import type { SessionCold, SessionEntry } from "../../../application/dto/session";
+import type { SessionCold } from "../../../application/dto/session";
+import type { SessionStateGraph } from "../../../../services/acp-types.js";
 import { createLogger } from "../../../utils/logger.js";
 
 import { ClipboardError } from "../errors";
@@ -11,8 +12,12 @@ const logger = createLogger({ id: "clipboard-manager", name: "ClipboardManager" 
 /**
  * Data needed to copy a session to clipboard.
  */
-interface ClipboardSessionData extends SessionCold {
-	readonly entries: ReadonlyArray<SessionEntry>;
+interface CanonicalClipboardSessionData {
+	readonly session: SessionCold;
+	readonly transcriptSnapshot: SessionStateGraph["transcriptSnapshot"];
+	readonly operations: SessionStateGraph["operations"];
+	readonly interactions: SessionStateGraph["interactions"];
+	readonly revision: SessionStateGraph["revision"];
 	readonly entryCount: number;
 }
 
@@ -138,24 +143,19 @@ export function copyTextToClipboard(content: string): ResultAsync<void, Clipboar
 		});
 }
 
-/**
- * Copies session content to clipboard as formatted JSON.
- *
- * @param session - Session cold data + entries to copy
- * @returns Result indicating success or failure
- *
- * @example
- * ```ts
- * copySessionToClipboard({ ...cold, entries, entryCount: entries.length }).match(
- *   () => console.log("Copied!"),
- *   (err) => console.error("Failed:", err)
- * );
- * ```
- */
-export function copySessionToClipboard(
-	session: ClipboardSessionData
+export function copyCanonicalSessionToClipboard(
+	session: SessionCold,
+	graph: SessionStateGraph
 ): ResultAsync<void, ClipboardError> {
-	const content = JSON.stringify(session, null, 2);
+	const payload: CanonicalClipboardSessionData = {
+		session,
+		transcriptSnapshot: graph.transcriptSnapshot,
+		operations: graph.operations,
+		interactions: graph.interactions,
+		revision: graph.revision,
+		entryCount: graph.transcriptSnapshot.entries.length,
+	};
+	const content = JSON.stringify(payload, null, 2);
 
 	return copyTextToClipboard(content);
 }

@@ -289,6 +289,7 @@ fn build_text_message(
         uuid: format!("cursor-msg-{}", uuid::Uuid::new_v4()),
         parent_uuid: None,
         role: role.to_string(),
+        provider_message_id: None,
         timestamp: fallback_timestamp(index),
         content_blocks: vec![ContentBlock::Text { text }],
         model,
@@ -419,6 +420,7 @@ fn convert_cursor_store_message(msg: CursorStoreMessage, index: usize) -> Result
         uuid,
         parent_uuid: None, // Cursor doesn't use parent_uuid threading
         role: msg.role,
+        provider_message_id: None,
         timestamp,
         content_blocks,
         model: msg.model,
@@ -492,6 +494,7 @@ fn convert_cursor_tool_message(msg: CursorStoreMessage, index: usize) -> Result<
         // Tool result messages must have role "user" so that the converter
         // collects their ToolResult blocks into the tool_results map.
         role: "user".to_string(),
+        provider_message_id: None,
         timestamp: extract_timestamp_from_content(&msg.content)
             .unwrap_or_else(|| fallback_timestamp(index)),
         content_blocks,

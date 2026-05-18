@@ -59,7 +59,7 @@
 	const CYCLE_MS_BASE = 1800;
 
 	const isDecorative = $derived(role === undefined && ariaLabel === undefined);
-	const gap = $derived(Math.max(1, Math.floor((size - dotSize * MATRIX_SIZE) / (MATRIX_SIZE - 1))));
+	const gap = $derived(Math.max(0.25, (size - dotSize * MATRIX_SIZE) / (MATRIX_SIZE - 1)));
 	const cycleMs = $derived(`${CYCLE_MS_BASE / (speed > 0 ? speed : 1)}ms`);
 	const rootStyle = $derived(`width:${size}px;height:${size}px;color:${color};${styleAttr}`.trim());
 	const gridStyle = $derived(

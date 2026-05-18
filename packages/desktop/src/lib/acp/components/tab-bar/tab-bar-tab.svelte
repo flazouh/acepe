@@ -126,7 +126,7 @@ function handleClose(e: MouseEvent) {
 							{:else if hasPendingQuestion}
 								<HandPalmIcon class="size-3 text-primary" weight="fill" />
 							{:else if isStreaming || isConnecting}
-								<Spinner class="size-3" />
+								<Spinner size={12} />
 							{:else if isUnseen}
 								<span class="w-2 h-2 rounded-full bg-yellow-500"></span>
 							{/if}

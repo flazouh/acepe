@@ -148,12 +148,12 @@
 	<div class="flex flex-col gap-1">
 		{#if isWaitingForCi}
 			<div class="flex items-center gap-1.5 text-[10.5px] text-muted-foreground leading-none">
-				<LoadingIcon class="size-3 animate-spin shrink-0" />
+				<LoadingIcon class="animate-spin shrink-0" size={12} />
 				<span>Waiting for CI…</span>
 			</div>
 		{:else if isLoading && checks.length === 0}
 			<div class="flex items-center gap-1.5 text-[10.5px] text-muted-foreground leading-none">
-				<LoadingIcon class="size-3 animate-spin shrink-0" />
+				<LoadingIcon class="animate-spin shrink-0" size={12} />
 				<span>Checking CI…</span>
 			</div>
 		{:else if checks.length > 0}
@@ -172,7 +172,7 @@
 										<td>
 											<span class="inline-flex items-center gap-1.5 min-w-0">
 												{#if bucket === "in_progress"}
-													<LoadingIcon class="size-3 animate-spin text-muted-foreground" />
+													<LoadingIcon class="animate-spin text-muted-foreground" size={12} />
 												{:else if bucket === "failure"}
 													<XCircle size={11} weight="fill" class="text-destructive" />
 												{:else if bucket === "neutral"}
@@ -244,7 +244,7 @@
 				{/if}
 				{#if counts.inProgress > 0}
 					<span class="inline-flex items-center gap-1 text-muted-foreground">
-						<LoadingIcon class="size-3 animate-spin" />
+						<LoadingIcon class="animate-spin" size={12} />
 						{counts.inProgress}
 					</span>
 				{/if}

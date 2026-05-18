@@ -73,7 +73,7 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 			availableCommands: [],
 			statusChangedAt: Date.now(),
 		}),
-		getEntries: () => [],
+		getSessionToolCalls: () => [],
 		isPreloaded: () => false,
 		getSessionsForProject: () => [],
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
@@ -105,7 +105,6 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 }
 
 const entryManager: IEntryManager = {
-	getEntries: () => [],
 	hasEntries: () => false,
 	isPreloaded: () => false,
 	markPreloaded: () => {},

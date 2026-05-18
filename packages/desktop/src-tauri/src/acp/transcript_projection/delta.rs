@@ -67,6 +67,7 @@ impl TranscriptDeltaOperation {
                         role: TranscriptEntryRole::User,
                         segments: vec![segment],
                         attempt_id: attempt_id.clone(),
+                        timestamp_ms: None,
                     },
                 }]
             }),
@@ -146,6 +147,7 @@ impl TranscriptDeltaOperation {
                                 .unwrap_or_else(|| tool_call.name.clone()),
                         }],
                         attempt_id: None,
+                        timestamp_ms: None,
                     },
                 }])
             }
@@ -157,6 +159,7 @@ impl TranscriptDeltaOperation {
                     role: TranscriptEntryRole::Error,
                     segments: vec![error_segment(event_seq, error)],
                     attempt_id: None,
+                    timestamp_ms: None,
                 },
             }]),
             _ => None,

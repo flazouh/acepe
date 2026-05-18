@@ -124,7 +124,7 @@ function getDomain(urlString: string): string {
 				class="flex-1 flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-md border border-border/50 min-w-0"
 			>
 				{#if isLoading}
-					<Spinner class="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+					<Spinner class="text-muted-foreground shrink-0" size={14} />
 				{:else if loadError}
 					<WarningCircle class="h-3.5 w-3.5 text-destructive shrink-0" weight="fill" />
 				{/if}
@@ -207,7 +207,7 @@ function getDomain(urlString: string): string {
 				{#if isLoading}
 					<div class="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
 						<div class="flex flex-col items-center gap-3">
-							<Spinner class="h-8 w-8 text-primary" />
+							<Spinner class="text-primary" size={32} />
 							<span class="text-sm text-muted-foreground">{"Loading..."}</span>
 						</div>
 					</div>

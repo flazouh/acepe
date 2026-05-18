@@ -64,7 +64,7 @@ function handleKeyDown(event: KeyboardEvent) {
 		class="h-[60px] w-[60px] shrink-0"
 	>
 		{#if isLoading}
-			<Spinner class="h-5 w-5" />
+			<Spinner size={20} />
 		{:else}
 			<IconSend class="h-5 w-5" />
 		{/if}

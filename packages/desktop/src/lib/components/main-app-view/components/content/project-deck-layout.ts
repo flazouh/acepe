@@ -31,7 +31,7 @@ export function resolveProjectDeckContainerClass(activeProjectPath: string | nul
 		return "contents";
 	}
 
-	return "relative flex flex-1 min-w-0 min-h-0 overflow-hidden";
+	return "relative flex flex-1 min-w-0 min-h-0 overflow-x-auto overflow-y-hidden";
 }
 
 export function resolveProjectGroupDeckLayout(

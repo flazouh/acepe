@@ -15,7 +15,7 @@ use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
@@ -163,7 +163,7 @@ impl AgentProvider for ClaudeCodeProvider {
         Box<
             dyn Future<
                     Output = Result<
-                        Option<SessionThreadSnapshot>,
+                        Option<ProviderOwnedSessionSnapshot>,
                         crate::acp::provider::ProviderHistoryLoadError,
                     >,
                 > + Send
@@ -180,7 +180,7 @@ impl AgentProvider for ClaudeCodeProvider {
             .await
             {
                 Ok(full_session) => Ok(Some(
-                    crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                    crate::session_converter::convert_claude_full_session_to_provider_owned_snapshot(
                         &full_session,
                     ),
                 )),
@@ -192,7 +192,7 @@ impl AgentProvider for ClaudeCodeProvider {
                     .await
                     {
                         Ok(full_session) => Ok(Some(
-                            crate::session_converter::convert_claude_full_session_to_thread_snapshot(
+                            crate::session_converter::convert_claude_full_session_to_provider_owned_snapshot(
                                 &full_session,
                             ),
                         )),

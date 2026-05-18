@@ -7,6 +7,8 @@ export interface AppTab {
   projectName?: string;
   projectColor?: string;
   projectIconSrc?: string | null;
+  /** Per-project session sequence number, rendered inside the project badge. */
+  sequenceId?: number | null;
   agentIconSrc?: string;
   mode?: AppTabMode;
   status?: AppTabStatus;

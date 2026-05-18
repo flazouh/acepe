@@ -59,6 +59,7 @@
 			id: file.id,
 			filePath: file.filePath,
 			fileName: file.fileName,
+			sourceIndex: file.sourceIndex,
 			reviewStatus: file.reviewStatus,
 			additions: file.additions,
 			deletions: file.deletions,
@@ -76,7 +77,7 @@
 			{emptyStateLabel}
 		</div>
 	{:else}
-		<div class="flex-1 overflow-y-auto p-1">
+		<div class="min-h-0 flex-1 overflow-y-auto p-1" data-testid="review-workspace-file-list-scroll">
 			<div class="flex flex-col gap-0.5">
 				{#each files as file, index (file.id)}
 					{@const isSelected = index === selectedIndex}

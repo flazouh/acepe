@@ -289,7 +289,7 @@ export type TranscriptEntryRole = "user" | "assistant" | "tool" | "error"
 
 export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string }
 
-export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null }
+export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 
 export type TranscriptSnapshot = { revision: number; entries: TranscriptEntry[] }
 
@@ -531,7 +531,7 @@ export type ProviderMetadataProjection = {
 	reasoningEffortSupport: boolean;
 	preconnectionSlashMode: PreconnectionSlashMode;
 	preconnectionCapabilityMode: PreconnectionCapabilityMode;
-	implicitSessionCreationMode?: ImplicitSessionCreationMode;
+	implicitSessionCreationMode: ImplicitSessionCreationMode;
 };
 
 export type FrontendProviderProjection = ProviderMetadataProjection;
@@ -549,6 +549,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 	copilot: {
 		providerBrand: "copilot",
@@ -560,6 +561,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
+		implicitSessionCreationMode: "allowed",
 	},
 	cursor: {
 		providerBrand: "cursor",
@@ -571,6 +573,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 	opencode: {
 		providerBrand: "opencode",
@@ -582,6 +585,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
+		implicitSessionCreationMode: "explicitUserAction",
 	},
 	codex: {
 		providerBrand: "codex",
@@ -593,6 +597,7 @@ export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetad
 		reasoningEffortSupport: true,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
+		implicitSessionCreationMode: "allowed",
 	},
 };
 
@@ -610,6 +615,8 @@ function cloneProviderMetadataProjection(
 		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
 		preconnectionCapabilityMode:
 			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
+		implicitSessionCreationMode:
+			providerMetadata.implicitSessionCreationMode ?? "explicitUserAction",
 	};
 }
 
@@ -621,7 +628,6 @@ export function resolveProviderMetadataProjection(
 	if (providerMetadata) {
 		return cloneProviderMetadataProjection(providerMetadata);
 	}
-
 	const builtInProviderMetadata = BUILTIN_PROVIDER_METADATA_BY_AGENT_ID[agentId];
 	if (builtInProviderMetadata) {
 		return cloneProviderMetadataProjection(builtInProviderMetadata);
@@ -637,6 +643,7 @@ export function resolveProviderMetadataProjection(
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "unsupported",
 		preconnectionCapabilityMode: "unsupported",
+		implicitSessionCreationMode: "explicitUserAction",
 	};
 }
 

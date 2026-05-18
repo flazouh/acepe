@@ -78,7 +78,7 @@ onMount(() => {
 				<div class="flex flex-col gap-1.5">
 					<p class="text-[13px] font-medium text-foreground">{"Checking for updates"}</p>
 					<div class="flex items-center gap-2">
-						<Spinner class="size-3 text-muted-foreground/40" />
+						<Spinner class="text-muted-foreground/40" size={12} />
 						<span class="text-[11px] text-muted-foreground/50">{"Looking for the latest version..."}</span>
 					</div>
 				</div>

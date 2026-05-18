@@ -18,7 +18,10 @@ import {
 
 function createMockEntryStore(overrides?: Partial<IEntryStoreInternal>): IEntryStoreInternal {
 	return {
-		getEntries: vi.fn(() => []),
+		findAssistantEntryRef: vi.fn(() => null),
+		hasAssistantEntry: vi.fn(() => false),
+		findLatestUserEntryRef: vi.fn(() => null),
+		findToolCallEntryRef: vi.fn(() => null),
 		addEntry: vi.fn(),
 		updateEntry: vi.fn(),
 		hasSession: vi.fn(() => true),
@@ -78,7 +81,7 @@ function createToolCallUpdate(
 	};
 }
 
-function createToolCallEntry(id: string): SessionEntry {
+function createToolCallEntry(id: string): Extract<SessionEntry, { readonly type: "tool_call" }> {
 	return {
 		id,
 		type: "tool_call" as const,
@@ -107,7 +110,14 @@ function createTrackedManager(initialEntries?: Array<{ sessionId: string; entry:
 	}
 
 	const entryStore = createMockEntryStore({
-		getEntries: vi.fn((sessionId: string) => entriesBySession.get(sessionId) ?? []),
+		findToolCallEntryRef: vi.fn((sessionId: string, toolCallId: string) => {
+			const entries = entriesBySession.get(sessionId) ?? [];
+			const index = entries.findIndex(
+				(entry) => entry.type === "tool_call" && entry.message.id === toolCallId
+			);
+			const entry = entries[index];
+			return entry?.type === "tool_call" ? { entry, index } : null;
+		}),
 		addEntry: vi.fn((sessionId: string, entry: SessionEntry) => {
 			const existingEntries = entriesBySession.get(sessionId) ?? [];
 			existingEntries.push(entry);
@@ -150,6 +160,15 @@ function applyStreamingArguments(
 		})
 	);
 	expect(result.isOk()).toBe(true);
+}
+
+function readProgressiveArguments(
+	entryStore: IEntryStoreInternal,
+	sessionId: string,
+	toolCallId: string
+): ToolArguments | undefined {
+	const entryRef = entryStore.findToolCallEntryRef(sessionId, toolCallId);
+	return entryRef?.entry.message.progressiveArguments;
 }
 
 // ============================================
@@ -259,7 +278,7 @@ describe("TranscriptToolCallBuffer", () => {
 		it("updates an existing tool call entry found in entries", () => {
 			const existingEntry = createToolCallEntry("tc-1");
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -287,7 +306,7 @@ describe("TranscriptToolCallBuffer", () => {
 			);
 		});
 
-		it("preserves richer edit arguments when duplicate create data is sparse", () => {
+		it("uses incoming edit arguments when duplicate create data is sparse", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -314,7 +333,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -340,10 +359,9 @@ describe("TranscriptToolCallBuffer", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/tmp/example.rs",
-							moveFrom: undefined,
-							oldString: "before",
-							newString: "after",
+							filePath: null,
+							oldString: null,
+							newString: null,
 							content: null,
 						},
 					],
@@ -351,7 +369,7 @@ describe("TranscriptToolCallBuffer", () => {
 			}
 		});
 
-		it("preserves richer search arguments when duplicate create data is sparse", () => {
+		it("uses incoming search arguments when duplicate create data is sparse", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -371,7 +389,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -396,13 +414,13 @@ describe("TranscriptToolCallBuffer", () => {
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
 					kind: "search",
-					query: "#\\[tauri::command\\]",
-					file_path: "src/",
+					query: null,
+					file_path: null,
 				});
 			}
 		});
 
-		it("does not downgrade terminal status when replayed create data is pending", () => {
+		it("uses incoming status and result when replayed create data is pending", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -418,7 +436,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: false,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -436,13 +454,13 @@ describe("TranscriptToolCallBuffer", () => {
 			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
-				expect(updatedEntry.message.status).toBe("completed");
-				expect(updatedEntry.message.result).toBe("done");
+				expect(updatedEntry.message.status).toBe("pending");
+				expect(updatedEntry.message.result).toBeNull();
 			}
-			expect(updatedEntry.isStreaming).toBe(false);
+			expect(updatedEntry.isStreaming).toBe(true);
 		});
 
-		it("preserves existing kind when synthetic tool call arrives with different kind", () => {
+		it("uses incoming kind when duplicate create data changes kind", () => {
 			// Simulates: real tool call has kind "delete", then synthetic from permission has kind "edit"
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
@@ -459,7 +477,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -478,7 +496,7 @@ describe("TranscriptToolCallBuffer", () => {
 			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
-				expect(updatedEntry.message.kind).toBe("delete");
+				expect(updatedEntry.message.kind).toBe("edit");
 			}
 		});
 
@@ -501,7 +519,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: false,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -561,7 +579,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -614,7 +632,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -638,18 +656,18 @@ describe("TranscriptToolCallBuffer", () => {
 		});
 
 		it("does NOT clear streaming arguments on create (deferred to completion)", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
 			// Set streaming args first
 			applyStreamingArguments(manager, "s1", "tc-1", { kind: "read", file_path: "/foo" });
-			expect(manager.getStreamingArguments("tc-1")).toBeDefined();
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toBeDefined();
 
 			// Create entry does NOT clear them — streaming args stay as reactive fallback
 			// until the tool completes. Clearing here would cause blank card race condition.
 			manager.createEntry("s1", createToolCallData("tc-1"));
-			expect(manager.getStreamingArguments("tc-1")).toBeDefined();
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toBeDefined();
 		});
 	});
 
@@ -766,7 +784,7 @@ describe("TranscriptToolCallBuffer", () => {
 		it("updates an existing tool call entry", () => {
 			const existingEntry = createToolCallEntry("tc-1");
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -789,7 +807,7 @@ describe("TranscriptToolCallBuffer", () => {
 			);
 		});
 
-		it("does not downgrade terminal status when replayed update is in_progress", () => {
+		it("uses incoming update status when replayed update is in_progress", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -805,7 +823,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: false,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -822,13 +840,13 @@ describe("TranscriptToolCallBuffer", () => {
 			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
-				expect(updatedEntry.message.status).toBe("completed");
+				expect(updatedEntry.message.status).toBe("in_progress");
 				expect(updatedEntry.message.result).toBe("done");
 			}
-			expect(updatedEntry.isStreaming).toBe(false);
+			expect(updatedEntry.isStreaming).toBe(true);
 		});
 
-		it("preserves structured result over text extraction", () => {
+		it("uses extracted text result over previous structured result", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -844,7 +862,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -862,12 +880,11 @@ describe("TranscriptToolCallBuffer", () => {
 			const updatedEntry = (entryStore.updateEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
-				// Structured result should be preserved
-				expect(updatedEntry.message.result).toEqual({ numFiles: 4, pattern: "*.ts" });
+				expect(updatedEntry.message.result).toBe("Found 4 files");
 			}
 		});
 
-		it("preserves richer search arguments when a sparse completion update arrives", () => {
+		it("uses incoming search arguments when a sparse completion update arrives", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -887,7 +904,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -910,8 +927,8 @@ describe("TranscriptToolCallBuffer", () => {
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
 					kind: "search",
-					query: "#\\[tauri::command\\]",
-					file_path: "src/",
+					query: null,
+					file_path: null,
 				});
 			}
 		});
@@ -931,7 +948,7 @@ describe("TranscriptToolCallBuffer", () => {
 			expect(entryStore.updateEntry).not.toHaveBeenCalled();
 		});
 
-		it("persists streaming arguments when typed arguments are absent", () => {
+		it("keeps canonical arguments separate when typed arguments are absent", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -950,7 +967,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -974,13 +991,13 @@ describe("TranscriptToolCallBuffer", () => {
 			if (updatedEntry.type === "tool_call") {
 				expect(updatedEntry.message.arguments).toEqual({
 					kind: "edit",
-					edits: [{ filePath: "/src/app.ts", oldString: "old", newString: "new", content: null }],
+					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
 				});
 				expect(updatedEntry.message.status).toBe("completed");
 			}
 		});
 
-		it("preserves richer edit arguments when update payload is sparse", () => {
+		it("uses incoming edit arguments when update payload is sparse", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-1",
 				type: "tool_call",
@@ -1007,7 +1024,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -1031,10 +1048,9 @@ describe("TranscriptToolCallBuffer", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/tmp/example.rs",
-							moveFrom: undefined,
-							oldString: "before",
-							newString: "after",
+							filePath: null,
+							oldString: null,
+							newString: null,
 							content: null,
 						},
 					],
@@ -1070,7 +1086,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -1103,7 +1119,7 @@ describe("TranscriptToolCallBuffer", () => {
 			}
 		});
 
-		it("preserves moveFrom metadata when update payload is sparse", () => {
+		it("uses incoming move metadata when update payload is sparse", () => {
 			const existingEntry: SessionEntry = {
 				id: "tc-rename",
 				type: "tool_call",
@@ -1130,7 +1146,7 @@ describe("TranscriptToolCallBuffer", () => {
 				isStreaming: true,
 			};
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => [existingEntry]),
+				findToolCallEntryRef: vi.fn(() => ({ entry: existingEntry, index: 0 })),
 			});
 			const entryIndex = createMockEntryIndex({
 				getToolCallIdIndex: vi.fn(() => 0),
@@ -1162,8 +1178,8 @@ describe("TranscriptToolCallBuffer", () => {
 					kind: "edit",
 					edits: [
 						{
-							filePath: "/tmp/new.rs",
-							moveFrom: "/tmp/old.rs",
+							filePath: null,
+							moveFrom: null,
 							oldString: null,
 							newString: null,
 							content: null,
@@ -1180,21 +1196,27 @@ describe("TranscriptToolCallBuffer", () => {
 
 	describe("streaming arguments", () => {
 		it("updates and gets streaming arguments through canonical tool updates", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
 			const args: ToolArguments = { kind: "read", file_path: "/foo/bar.ts" };
 			applyStreamingArguments(manager, "s1", "tc-1", args);
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual(args);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual(args);
 		});
 
 		it("stores progressive arguments on the canonical tool entry", () => {
 			const existingEntry = createToolCallEntry("tc-1");
 			const entries = [existingEntry];
 			const entryStore = createMockEntryStore({
-				getEntries: vi.fn(() => entries),
+				findToolCallEntryRef: vi.fn((_sessionId: string, toolCallId: string) => {
+					const index = entries.findIndex(
+						(entry) => entry.type === "tool_call" && entry.message.id === toolCallId
+					);
+					const entry = entries[index];
+					return entry?.type === "tool_call" ? { entry, index } : null;
+				}),
 				updateEntry: vi.fn((_, index, entry) => {
 					entries[index] = entry;
 				}),
@@ -1219,35 +1241,39 @@ describe("TranscriptToolCallBuffer", () => {
 		});
 
 		it("returns undefined for unknown tool call", () => {
-			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
+			const entryStore = createMockEntryStore();
+			new TranscriptToolCallBuffer(entryStore, createMockEntryIndex());
 
-			expect(manager.getStreamingArguments("unknown")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s1", "unknown")).toBeUndefined();
 		});
 
 		it("clears streaming arguments for a tool call", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
 			applyStreamingArguments(manager, "s1", "tc-1", { kind: "read", file_path: "/foo" });
 			manager.clearStreamingArguments("tc-1");
 
-			expect(manager.getStreamingArguments("tc-1")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toBeUndefined();
 		});
 
 		it("overwrites existing streaming arguments", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
 			applyStreamingArguments(manager, "s1", "tc-1", { kind: "read", file_path: "/first" });
 			applyStreamingArguments(manager, "s1", "tc-1", { kind: "read", file_path: "/second" });
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual({ kind: "read", file_path: "/second" });
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual({
+				kind: "read",
+				file_path: "/second",
+			});
 		});
 
 		it("keeps canonical streaming arguments stable across identical updates", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
@@ -1257,11 +1283,11 @@ describe("TranscriptToolCallBuffer", () => {
 			applyStreamingArguments(manager, "s1", "tc-1", firstArgs);
 			applyStreamingArguments(manager, "s1", "tc-1", identicalArgs);
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual(firstArgs);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual(firstArgs);
 		});
 
 		it("updates canonical streaming arguments when the payload changes", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
@@ -1271,11 +1297,11 @@ describe("TranscriptToolCallBuffer", () => {
 			applyStreamingArguments(manager, "s1", "tc-1", firstArgs);
 			applyStreamingArguments(manager, "s1", "tc-1", changedArgs);
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual(changedArgs);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual(changedArgs);
 		});
 
 		it("supports task output progressive arguments through canonical updates", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 			]);
 
@@ -1293,11 +1319,11 @@ describe("TranscriptToolCallBuffer", () => {
 			applyStreamingArguments(manager, "s1", "tc-1", firstArgs);
 			applyStreamingArguments(manager, "s1", "tc-1", identicalArgs);
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual(firstArgs);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual(firstArgs);
 		});
 
 		it("isolates progressive arguments per tool and session", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 				{ sessionId: "s2", entry: createToolCallEntry("tc-2") },
 				{ sessionId: "s1", entry: createToolCallEntry("tc-3") },
@@ -1311,13 +1337,14 @@ describe("TranscriptToolCallBuffer", () => {
 			applyStreamingArguments(manager, "s2", "tc-2", s2Args);
 			applyStreamingArguments(manager, "s1", "tc-3", otherToolArgs);
 
-			expect(manager.getStreamingArguments("tc-1")).toEqual(s1Args);
-			expect(manager.getStreamingArguments("tc-2")).toEqual(s2Args);
-			expect(manager.getStreamingArguments("tc-3")).toEqual(otherToolArgs);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toEqual(s1Args);
+			expect(readProgressiveArguments(entryStore, "s2", "tc-2")).toEqual(s2Args);
+			expect(readProgressiveArguments(entryStore, "s1", "tc-3")).toEqual(otherToolArgs);
 		});
 
 		it("drops streaming-only updates when session limit exceeded", () => {
-			const manager = new TranscriptToolCallBuffer(createMockEntryStore(), createMockEntryIndex());
+			const entryStore = createMockEntryStore();
+			const manager = new TranscriptToolCallBuffer(entryStore, createMockEntryIndex());
 
 			// Fill up to MAX_SESSIONS (100)
 			for (let i = 0; i < 100; i++) {
@@ -1329,11 +1356,11 @@ describe("TranscriptToolCallBuffer", () => {
 				kind: "other",
 				raw: {},
 			});
-			expect(manager.getStreamingArguments("tc-overflow")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "session-overflow", "tc-overflow")).toBeUndefined();
 		});
 
 		it("allows adding to existing session even when limit is reached", () => {
-			const { manager } = createTrackedManager();
+			const { manager, entryStore } = createTrackedManager();
 
 			// Fill up to MAX_SESSIONS (100)
 			for (let i = 0; i < 100; i++) {
@@ -1347,7 +1374,7 @@ describe("TranscriptToolCallBuffer", () => {
 				kind: "read",
 				file_path: "/new",
 			});
-			expect(manager.getStreamingArguments("tc-extra")).toEqual({
+			expect(readProgressiveArguments(entryStore, "session-0", "tc-extra")).toEqual({
 				kind: "read",
 				file_path: "/new",
 			});
@@ -1392,7 +1419,7 @@ describe("TranscriptToolCallBuffer", () => {
 
 	describe("clearSession", () => {
 		it("clears all state for a session", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 				{ sessionId: "s1", entry: createToolCallEntry("tc-2") },
 			]);
@@ -1404,13 +1431,13 @@ describe("TranscriptToolCallBuffer", () => {
 			// Clear
 			manager.clearSession("s1");
 
-			expect(manager.getStreamingArguments("tc-1")).toBeUndefined();
-			expect(manager.getStreamingArguments("tc-2")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s1", "tc-2")).toBeUndefined();
 			expect(manager.getToolCallIdsForSession("s1").size).toBe(0);
 		});
 
 		it("does not affect other sessions", () => {
-			const { manager } = createTrackedManager([
+			const { manager, entryStore } = createTrackedManager([
 				{ sessionId: "s1", entry: createToolCallEntry("tc-1") },
 				{ sessionId: "s2", entry: createToolCallEntry("tc-2") },
 			]);
@@ -1420,8 +1447,11 @@ describe("TranscriptToolCallBuffer", () => {
 
 			manager.clearSession("s1");
 
-			expect(manager.getStreamingArguments("tc-1")).toBeUndefined();
-			expect(manager.getStreamingArguments("tc-2")).toEqual({ kind: "read", file_path: "/bar" });
+			expect(readProgressiveArguments(entryStore, "s1", "tc-1")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s2", "tc-2")).toEqual({
+				kind: "read",
+				file_path: "/bar",
+			});
 		});
 
 		it("is safe to call on unknown session", () => {
@@ -1447,7 +1477,7 @@ describe("TranscriptToolCallBuffer", () => {
 			// Clear session
 			manager.clearSession("s1");
 
-			expect(manager.getStreamingArguments("parent-1")).toBeUndefined();
+			expect(readProgressiveArguments(entryStore, "s1", "parent-1")).toBeUndefined();
 		});
 	});
 });

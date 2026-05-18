@@ -6,33 +6,32 @@ import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
-import type { SessionCold, SessionEntry } from "../../../application/dto/session";
+import type { SessionCold } from "../../../application/dto/session";
+import type { SessionStateGraph } from "../../../../services/acp-types.js";
 import type { createLogger } from "../../../utils/logger.js";
-import { sessionEntriesToMarkdown } from "../../../utils/session-to-markdown.js";
-import { copySessionToClipboard, copyTextToClipboard } from "../logic/clipboard-manager.js";
+import { sessionGraphToMarkdown } from "../../../utils/session-to-markdown.js";
+import { copyCanonicalSessionToClipboard, copyTextToClipboard } from "../logic/clipboard-manager.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target.js";
 
 type Logger = ReturnType<typeof createLogger>;
 
-type ClipboardSessionPayload = SessionCold & {
-	readonly entries: ReadonlyArray<SessionEntry>;
-	readonly entryCount: number;
-};
-
 export async function copyThreadContentToClipboard(args: {
 	sessionId: string;
 	getSessionCold: (id: string) => SessionCold | null | undefined;
-	getEntries: (id: string) => SessionEntry[];
+	getSessionStateGraph: (id: string) => SessionStateGraph | null;
 }): Promise<void> {
-	const { sessionId, getSessionCold, getEntries } = args;
+	const { sessionId, getSessionCold, getSessionStateGraph } = args;
 	const cold = getSessionCold(sessionId);
 	if (!cold) {
 		toast.error("No thread to copy");
 		return;
 	}
-	const entries = getEntries(sessionId);
-	const payload: ClipboardSessionPayload = { ...cold, entries, entryCount: entries.length };
-	await copySessionToClipboard(payload).match(
+	const graph = getSessionStateGraph(sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	await copyCanonicalSessionToClipboard(cold, graph).match(
 		() => toast.success("Thread content copied to clipboard"),
 		() => toast.error("Failed to copy thread content")
 	);
@@ -147,10 +146,8 @@ export async function openSessionFileInAcepePanel(args: {
 	);
 }
 
-export async function exportSessionMarkdownToClipboard(
-	entries: ReadonlyArray<SessionEntry>
-): Promise<void> {
-	const markdown = sessionEntriesToMarkdown(entries);
+export async function exportSessionMarkdownToClipboard(graph: SessionStateGraph): Promise<void> {
+	const markdown = sessionGraphToMarkdown(graph);
 	await ResultAsync.fromPromise(
 		navigator.clipboard.writeText(markdown),
 		(e) => new Error(String(e))
@@ -163,17 +160,20 @@ export async function exportSessionMarkdownToClipboard(
 export async function exportSessionJsonToClipboard(args: {
 	sessionId: string;
 	getSessionCold: (id: string) => SessionCold | null | undefined;
-	getEntries: (id: string) => SessionEntry[];
+	getSessionStateGraph: (id: string) => SessionStateGraph | null;
 }): Promise<void> {
-	const { sessionId, getSessionCold, getEntries } = args;
+	const { sessionId, getSessionCold, getSessionStateGraph } = args;
 	const cold = getSessionCold(sessionId);
 	if (!cold) {
 		toast.error(`Failed to export: ${"Session not found"}`);
 		return;
 	}
-	const entries = getEntries(sessionId);
-	const payload: ClipboardSessionPayload = { ...cold, entries, entryCount: entries.length };
-	copySessionToClipboard(payload).match(
+	const graph = getSessionStateGraph(sessionId);
+	if (graph === null) {
+		toast.error("Thread content is not loaded");
+		return;
+	}
+	copyCanonicalSessionToClipboard(cold, graph).match(
 		() => toast.success("Copied to clipboard"),
 		(err) => toast.error(`Failed to export: ${err.message}`)
 	);

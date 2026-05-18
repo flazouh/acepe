@@ -18,7 +18,7 @@
 
 <div class={`flex items-center gap-2 min-w-0 ${className}`.trim()}>
 	{#if isPending}
-		<LoadingIcon class="shrink-0" style="width: 12px; height: 12px;" aria-label="Loading" />
+		<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
 	{/if}
 	<ToolLabel {status}>
 		{@render children()}

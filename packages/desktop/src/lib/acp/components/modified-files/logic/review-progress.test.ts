@@ -82,6 +82,31 @@ describe("review progress", () => {
 		expect(statusByFilePath.get(betaFile.filePath)).toBe("partial");
 	});
 
+	it("treats fully resolved rejected progress as denied instead of still reviewable partial", () => {
+		const revisionKey = createReviewFileRevisionKey(betaFile);
+		const state: SessionReviewState = {
+			version: 1,
+			filesByRevisionKey: {
+				[revisionKey]: {
+					filePath: betaFile.filePath,
+					status: "partial",
+					acceptedHunks: 1,
+					rejectedHunks: 1,
+					pendingHunks: 0,
+					totalHunks: 2,
+					resolvedActions: [
+						{ hunkIndex: 0, action: "accept" },
+						{ hunkIndex: 1, action: "reject" },
+					],
+				},
+			},
+		};
+
+		const statusByFilePath = getReviewStatusByFilePath([betaFile], state);
+
+		expect(statusByFilePath.get(betaFile.filePath)).toBe("denied");
+	});
+
 	it("reports keep-all as applied only when every current file revision is accepted", () => {
 		const appliedState = createState([
 			{ file: alphaFile, status: "accepted" },

@@ -10,6 +10,8 @@ import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { SessionEntryStore } from "../../session-entry-store.svelte.js";
+import type { ToolCall } from "../../../types/tool-call.js";
+import { readCompatibilityEntries } from "../../__tests__/entry-store-test-access.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -47,7 +49,7 @@ function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeo
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
-		getEntries: vi.fn().mockReturnValue([]),
+		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue(null),
@@ -63,7 +65,6 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
-		getEntries: vi.fn(),
 		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
@@ -370,25 +371,26 @@ describe("SessionMessagingService.handleStreamComplete", () => {
 			updatedAt: new Date(),
 			parentId: null,
 		});
-		(deps.stateReader.getEntries as ReturnType<typeof vi.fn>).mockReturnValue([
+		(deps.stateReader.getSessionToolCalls as ReturnType<typeof vi.fn>).mockReturnValue([
 			{
 				id: "tool-call-1",
-				type: "tool_call",
-				timestamp: new Date(),
-				message: {
-					id: "tool-call-1",
+				name: "Edit",
+				arguments: {
 					kind: "edit",
-					status: "completed",
-					name: "Edit",
-					title: "Edit file",
-					arguments: {
-						kind: "edit",
-						file_path: "/tmp/project/src/app.ts",
-						old_string: "old",
-						new_string: "new",
-					},
+					edits: [
+						{
+							filePath: "/tmp/project/src/app.ts",
+							oldString: "old",
+							newString: "new",
+							content: null,
+						},
+					],
 				},
-			},
+				status: "completed",
+				kind: "edit",
+				title: "Edit file",
+				awaitingPlanApproval: false,
+			} satisfies ToolCall,
 		]);
 
 		service.handleStreamComplete(sessionId);
@@ -719,7 +721,7 @@ describe("SessionMessagingService replay regression", () => {
 
 		const stateReader: ISessionStateReader = {
 			getHotState: vi.fn(),
-			getEntries: vi.fn().mockImplementation((id: string) => entryStore.getEntries(id)),
+			getSessionToolCalls: vi.fn().mockReturnValue([]),
 			isPreloaded: vi.fn(),
 			getSessionsForProject: vi.fn(),
 			getSessionCold: vi.fn().mockReturnValue(undefined),

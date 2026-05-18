@@ -67,7 +67,7 @@ function formatFileSize(bytes: number): string {
 			<div class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
 				{#if revertingFilePath === file.filePath}
 					<PillButton variant="soft" size="sm" disabled>
-						<Spinner class="h-2.5 w-2.5" />
+						<Spinner size={10} />
 					</PillButton>
 				{:else}
 					<PillButton variant="soft" size="sm" onclick={() => handleRevertFile(file.filePath)}>

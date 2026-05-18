@@ -27,6 +27,7 @@ import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
@@ -286,6 +287,10 @@ function materializeStoredScene(store: SessionStore, sessionId = "session-1") {
 
 function getEntryStore(store: SessionStore): SessionEntryStore {
 	return (store as unknown as { entryStore: SessionEntryStore }).entryStore;
+}
+
+function getSessionEntries(store: SessionStore, sessionId: string) {
+	return getEntryStore(store).getEntries(sessionId);
 }
 
 function getCanonicalProjection(
@@ -616,7 +621,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
-		const entries = store.getEntries("session-1");
+		const entries = getSessionEntries(store, "session-1");
 		expect(entries).toHaveLength(1);
 		const entry = entries[0];
 		expect(entry?.type).toBe("tool_call");
@@ -723,7 +728,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("preserves restored operations when a reconnect snapshot repeats tool transcript rows without operations", () => {
+	it("does not preserve previous operations when a reconnect snapshot omits them", () => {
 		const store = new SessionStore();
 		const transcriptSnapshot = {
 			revision: 12,
@@ -787,15 +792,12 @@ describe("SessionStore.applySessionStateGraph", () => {
 		const scene = materializeStoredScene(store);
 		expect(scene.conversation.entries[0]).toMatchObject({
 			type: "tool_call",
-			kind: "execute",
-			title: "Run ls",
-			status: "done",
-			presentationState: "resolved",
+			kind: "other",
+			title: "Unresolved tool",
+			status: "degraded",
+			presentationState: "degraded_operation",
 		});
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
-			toolCallId: "tool-1",
-			kind: "execute",
-		});
+		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toBeUndefined();
 	});
 
 	it("preserves restored historical scene content across connect lifecycle envelopes", () => {
@@ -1133,6 +1135,72 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(afterGraph?.interactions).toBe(beforeGraph.interactions);
 		expect(afterGraph?.turnState).toBe("Completed");
 		expect(afterGraph?.lastTerminalTurnId).toBe("turn-8");
+	});
+
+	it("applies canonical turn-only graph deltas without requiring activity changes", () => {
+		const store = new SessionStore();
+		store.replaceSessionOpenSnapshot(
+			createSessionOpenFoundFromGraph(
+				createSessionStateGraph({
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: createGraphLifecycle("ready"),
+					activity: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: null,
+					},
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: null,
+					},
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["turnState", "lastTerminalTurnId"],
+				},
+			},
+		});
+
+		const graph = store.getSessionStateGraph("session-1");
+		expect(graph?.turnState).toBe("Completed");
+		expect(graph?.lastTerminalTurnId).toBe("turn-8");
+		expect(store.getCanonicalSessionProjection("session-1")?.turnState).toBe("Completed");
 	});
 
 	it("hydrates canonical failed-turn state from the graph snapshot", () => {
@@ -1493,7 +1561,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("preserves canonical model capabilities when a capabilities envelope omits models and modes", () => {
+	it("treats omitted models and modes in a capability envelope as canonical empty state", () => {
 		const store = new SessionStore();
 		addColdSession(store, "session-1", "cursor");
 
@@ -1550,14 +1618,8 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
-			{
-				id: "cursor-model",
-				name: "Cursor Model",
-				description: undefined,
-			},
-		]);
-		expect(store.getSessionCurrentModelId("session-1")).toBe("cursor-model");
+		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([]);
+		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 	});
 
 	it("reconciles the connection machine from canonical lifecycle and turn state", () => {
@@ -1851,7 +1913,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 });
 
 describe("SessionStore.applySessionStateEnvelope", () => {
-	it("repairs a partial transcript when an authoritative snapshot has the same revision", () => {
+	it("ignores same-revision transcript replacement instead of repairing in TypeScript", () => {
 		const store = new SessionStore();
 		const partialGraph = createSessionStateGraph({
 			activeTurnFailure: null,
@@ -1920,7 +1982,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		if (assistantEntry?.type !== "assistant") {
 			throw new Error("Expected assistant scene entry");
 		}
-		expect(assistantEntry.markdown).toContain("Tests pass.");
+		expect(assistantEntry.markdown).not.toContain("Tests pass.");
 		expect(assistantEntry.markdown).toContain("full unwrapped* width");
 	});
 
@@ -2122,8 +2184,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(restoredGraph));
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(staleReadyGraph));
 
-		expect(store.getEntries("session-1")).toHaveLength(1);
-		expect(store.getEntries("session-1")[0]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")).toHaveLength(1);
+		expect(getSessionEntries(store, "session-1")[0]).toMatchObject({
 			id: "assistant-history-7",
 			type: "assistant",
 			message: {
@@ -3038,8 +3100,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		await Promise.resolve();
 
 		expect(getSessionStateMock).toHaveBeenCalledWith("session-1");
-		expect(store.getEntries("session-1")).toHaveLength(1);
-		expect(store.getEntries("session-1")[0]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")).toHaveLength(1);
+		expect(getSessionEntries(store, "session-1")[0]).toMatchObject({
 			id: "assistant-9",
 			type: "assistant",
 		});
@@ -3088,7 +3150,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual([
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual([
 			"assistant-9",
 			"assistant-10",
 		]);
@@ -3096,7 +3158,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
 
-	it("preserves trusted transcript through empty fallback snapshot and accepts next transcript delta", () => {
+	it("accepts canonical empty snapshots instead of preserving transcript in TypeScript", () => {
 		const store = new SessionStore();
 		const trustedGraph = createSessionStateGraph({
 			revision: {
@@ -3142,10 +3204,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual(["assistant-history-1"]);
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual([]);
 		expect(store.getSessionStateGraph("session-1")?.revision).toEqual({
 			graphRevision: 8,
-			transcriptRevision: 7,
+			transcriptRevision: 8,
 			lastEventSeq: 8,
 		});
 
@@ -3158,7 +3220,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				delta: {
 					fromRevision: {
 						graphRevision: 8,
-						transcriptRevision: 7,
+						transcriptRevision: 8,
 						lastEventSeq: 8,
 					},
 					toRevision: {
@@ -3193,10 +3255,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual([
-			"assistant-history-1",
-			"assistant-live-2",
-		]);
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual(["assistant-live-2"]);
 	});
 
 	it("preserves reopened transcript history across a new user turn and canonical assistant reply", async () => {
@@ -3282,12 +3341,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getEntries("session-1").map((entry) => entry.type)).toEqual([
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.type)).toEqual([
 			"assistant",
 			"user",
 			"assistant",
 		]);
-		expect(store.getEntries("session-1")[0]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {
 				chunks: [
@@ -3299,7 +3358,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		expect(store.getEntries("session-1")[1]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")[1]).toMatchObject({
 			type: "user",
 			message: {
 				content: {
@@ -3307,7 +3366,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				},
 			},
 		});
-		expect(store.getEntries("session-1")[2]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")[2]).toMatchObject({
 			id: "assistant-live-1",
 			message: {
 				chunks: [
@@ -3384,7 +3443,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			timestamp: new Date("2026-04-19T00:00:01.000Z"),
 		});
 
-		expect(store.getEntries("session-1")).toMatchObject([
+		expect(getSessionEntries(store, "session-1")).toMatchObject([
 			{
 				id: "user-1",
 				type: "user",
@@ -3423,7 +3482,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		);
 	});
 
-	it("splits canonical transcript deltas into a new assistant turn when the provider reuses entryId after a user reply", async () => {
+	it("applies canonical assistant turn ids exactly as Rust sends them", async () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		store.applySessionStateEnvelope(
@@ -3494,11 +3553,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						},
 						{
 							kind: "appendSegment",
-							entryId: "provider-message",
+							entryId: "assistant-event-8",
 							role: "assistant",
 							segment: {
 								kind: "text",
-								segmentId: "provider-message:block:1",
+								segmentId: "assistant-event-8:block:1",
 								text: "second answer",
 							},
 						},
@@ -3514,14 +3573,14 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			store
 				.getSessionStateGraph("session-1")
 				?.transcriptSnapshot.entries.map((entry) => entry.entryId)
-		).toEqual(["provider-message", "user-2", expect.stringContaining("provider-message:turn:8")]);
-		expect(store.getEntries("session-1").map((entry) => entry.type)).toEqual([
+		).toEqual(["provider-message", "user-2", "assistant-event-8"]);
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.type)).toEqual([
 			"assistant",
 			"user",
 			"assistant",
 		]);
-		expect(store.getEntries("session-1")[2]).toMatchObject({
-			id: expect.stringContaining("provider-message:turn:8"),
+		expect(getSessionEntries(store, "session-1")[2]).toMatchObject({
+			id: "assistant-event-8",
 			message: {
 				chunks: [
 					{
@@ -3624,8 +3683,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 
 		expect(
-			store
-				.getEntries("session-1")
+			getSessionEntries(store, "session-1")
 				.filter((entry) => entry.type === "assistant")
 				.map((entry) => entry.id)
 		).toEqual(["assistant-1"]);
@@ -4526,7 +4584,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("routes detached restored sessions through connect before sending", async () => {
+	it("fails closed for detached restored sessions until canonical lifecycle is sendable", async () => {
 		const store = new SessionStore();
 		const restoredSession = {
 			id: "session-1",
@@ -4592,13 +4650,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
-		expect(result.isOk()).toBe(true);
-		expect(connectSession).toHaveBeenCalledWith("session-1");
-		expect(sendPromptMock).toHaveBeenCalledWith(
-			"session-1",
-			[{ type: "text", text: "cursor restored follow-up - reply ok" }],
-			expect.any(String)
-		);
+		expect(result.isErr()).toBe(true);
+		expect(connectSession).not.toHaveBeenCalled();
+		expect(sendPromptMock).not.toHaveBeenCalled();
 	});
 
 	it("fails closed for restored local created sessions without canonical lifecycle", async () => {
@@ -4671,8 +4725,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getEntries("session-1")).toHaveLength(1);
-		expect(store.getEntries("session-1")[0]).toMatchObject({
+		expect(getSessionEntries(store, "session-1")).toHaveLength(1);
+		expect(getSessionEntries(store, "session-1")[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {
 				chunks: [

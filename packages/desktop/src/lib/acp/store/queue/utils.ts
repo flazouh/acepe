@@ -2,7 +2,6 @@
  * Queue utilities - Helper functions for building queue items.
  */
 
-import type { SessionEntry } from "../../application/dto/session-entry.js";
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import { extractTodoProgressFromToolCall } from "../../components/session-list/session-list-logic.js";
 import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
@@ -39,7 +38,6 @@ export interface QueueSessionSnapshot {
 	readonly agentId: string;
 	readonly projectPath: string;
 	readonly title: string | null;
-	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly currentToolKind: ToolKind | "other" | null;
 	readonly lastToolCall: ToolCall | null;
@@ -60,7 +58,6 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly agentId: string;
 	readonly projectPath: string;
 	readonly title: string | null;
-	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly currentStreamingToolCall: ToolCall | null;
 	readonly currentToolKind: ToolKind | "other" | null;
 	readonly lastToolCall: ToolCall | null;
@@ -153,7 +150,6 @@ export function buildQueueSessionSnapshot(
 		agentId: input.agentId,
 		projectPath: input.projectPath,
 		title: input.title,
-		entries: input.entries,
 		currentStreamingToolCall: input.currentStreamingToolCall,
 		currentToolKind: input.currentToolKind,
 		lastToolCall: input.lastToolCall,

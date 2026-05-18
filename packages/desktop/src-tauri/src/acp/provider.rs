@@ -22,7 +22,7 @@ use crate::acp::parsers::AgentType;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::{AvailableCommand, PlanConfidence, PlanSource, SessionUpdate};
 use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
@@ -459,8 +459,9 @@ pub trait AgentProvider: Send + Sync {
         _replay_context: &'a SessionReplayContext,
     ) -> Pin<
         Box<
-            dyn Future<Output = Result<Option<SessionThreadSnapshot>, ProviderHistoryLoadError>>
-                + Send
+            dyn Future<
+                    Output = Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError>,
+                > + Send
                 + 'a,
         >,
     > {

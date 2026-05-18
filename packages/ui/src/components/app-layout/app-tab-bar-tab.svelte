@@ -3,9 +3,8 @@
 	import { IconAlertTriangle, IconX } from '@tabler/icons-svelte';
 	import { HandPalm } from 'phosphor-svelte';
 
+	import { LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
-	import { BuildIcon, LoadingIcon, PlanIcon } from '../icons/index.js';
-	import { Colors } from '../../lib/colors.js';
 	import type { AppTab } from './types.js';
 
 	interface Props {
@@ -53,9 +52,9 @@
 					onmouseleave={handleMouseLeave}
 				>
 						<div
-							class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer border-r border-border/30 transition-transform duration-200 {tab.isFocused
-								? 'bg-accent'
-								: 'bg-accent/50 hover:bg-accent'}"
+							class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer rounded-lg border bg-card transition-colors duration-150 {tab.isFocused
+								? 'border-border'
+								: 'border-border/50 hover:bg-accent'}"
 						onclick={() => onclick?.()}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {
@@ -71,6 +70,7 @@
 								name={tab.projectName}
 								color={tab.projectColor}
 								iconSrc={tab.projectIconSrc}
+								sequenceId={tab.sequenceId}
 								size={14}
 								class="shrink-0"
 							/>
@@ -78,7 +78,9 @@
 
 						<!-- 2. Agent icon / spinner -->
 						{#if tab.status === 'running'}
-							<LoadingIcon class="size-3.5" />
+							<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden">
+								<LoadingIcon size={12} aria-label="Running" />
+							</span>
 						{:else if tab.agentIconSrc}
 							<img
 								src={tab.agentIconSrc}
@@ -88,21 +90,7 @@
 							/>
 						{/if}
 
-						<!-- 3. Mode icon -->
-						{#if tab.mode === 'plan'}
-							<span
-								class="shrink-0 flex items-center justify-center"
-								style="color: {Colors.orange}"
-							>
-								<PlanIcon size="sm" />
-							</span>
-						{:else if tab.mode === 'build'}
-							<span class="shrink-0 flex items-center justify-center text-success">
-								<BuildIcon size="sm" />
-							</span>
-						{/if}
-
-						<!-- 4. Status indicator -->
+						<!-- 3. Status indicator -->
 						{#if tab.status === 'error'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
 								<IconAlertTriangle class="size-3 text-destructive" />

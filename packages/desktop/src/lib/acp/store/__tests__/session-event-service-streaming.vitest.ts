@@ -28,6 +28,7 @@ import type { SessionUpdate } from "../../../services/converted-session-types.js
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 import type { SessionCold } from "../types.js";
 
 function createMockHandler(): SessionEventHandler {
@@ -1755,8 +1756,8 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		expect(entryStore.getEntries(sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
-		expect(entryStore.getEntries(sessionId)[0]).toMatchObject({
+		expect(readCompatibilityEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
+		expect(readCompatibilityEntries(entryStore, sessionId)[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {
 				chunks: [

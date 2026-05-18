@@ -23,7 +23,12 @@ import { createLogger } from "../../utils/logger.js";
 import type { SessionEntry } from "../types.js";
 import type { IChunkAggregator } from "./interfaces/chunk-aggregator-interface.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
-import type { IEntryStoreInternal } from "./interfaces/entry-store-internal.js";
+import type {
+	AssistantEntryRef,
+	EntryStoreEntryRef,
+	IEntryStoreInternal,
+	UserEntryRef,
+} from "./interfaces/entry-store-internal.js";
 
 const logger = createLogger({ id: "chunk-aggregator", name: "ChunkAggregator" });
 
@@ -46,7 +51,7 @@ export class ChunkAggregator implements IChunkAggregator {
 
 	constructor(
 		private readonly entryStore: IEntryStoreInternal,
-		private readonly entryIndex: IEntryIndex,
+		_entryIndex: IEntryIndex,
 		messageProcessor?: MessageProcessor
 	) {
 		this.messageProcessor = messageProcessor ?? new MessageProcessor();
@@ -149,18 +154,7 @@ export class ChunkAggregator implements IChunkAggregator {
 	}
 
 	startNewAssistantTurn(sessionId: string): void {
-		const pendingBoundaries = new Set<string>();
-		for (const entry of this.entryStore.getEntries(sessionId)) {
-			if (entry.type === "assistant") {
-				pendingBoundaries.add(entry.id);
-			}
-		}
-
-		this.setState(sessionId, {
-			lastKnownMessageId: null,
-			pendingBoundaries,
-			postBoundaryMap: new Map(),
-		});
+		this.setState(sessionId, createInitialState());
 	}
 
 	/**
@@ -269,7 +263,7 @@ export class ChunkAggregator implements IChunkAggregator {
 
 	private mergeChunkIntoEntry(
 		sessionId: string,
-		existing: EntryRef,
+		existing: AssistantEntryRef,
 		input: AssistantChunkInput
 	): void {
 		const message = existing.entry.message as AssistantMessage;
@@ -335,41 +329,24 @@ export class ChunkAggregator implements IChunkAggregator {
 	}
 
 	/** Find an assistant entry by ID. */
-	private findAssistantEntryRef(sessionId: string, entryId: string): EntryRef | null {
-		const entries = this.entryStore.getEntries(sessionId);
-		const idx = entries.findIndex((entry) => entry.type === "assistant" && entry.id === entryId);
-		if (idx !== -1) {
-			this.entryIndex.addMessageId(sessionId, entryId, idx);
-			logger.debug("Found entry", { sessionId, entryId, index: idx });
-			return { entry: entries[idx], index: idx };
-		}
-
-		logger.debug("Entry not found", { sessionId, entryId });
-		return null;
+	private findAssistantEntryRef(sessionId: string, entryId: string): AssistantEntryRef | null {
+		const entryRef = this.entryStore.findAssistantEntryRef(sessionId, entryId);
+		logger.debug(entryRef ? "Found entry" : "Entry not found", {
+			sessionId,
+			entryId,
+			index: entryRef?.index,
+		});
+		return entryRef;
 	}
 
 	/** Check if an assistant entry exists. */
 	private assistantEntryExists(sessionId: string, entryId: string): boolean {
-		const entries = this.entryStore.getEntries(sessionId);
-		return entries.some((entry) => entry.type === "assistant" && entry.id === entryId);
+		return this.entryStore.hasAssistantEntry(sessionId, entryId);
 	}
 
 	/** Find the latest user entry. */
-	private findLatestUserEntryRef(
-		sessionId: string
-	): (EntryRef & { entry: SessionEntry & { type: "user" } }) | null {
-		const entries = this.entryStore.getEntries(sessionId);
-		if (entries.length === 0) {
-			return null;
-		}
-
-		const latestIndex = entries.length - 1;
-		const latest = entries[latestIndex];
-		if (latest.type === "user") {
-			return { entry: latest, index: latestIndex };
-		}
-
-		return null;
+	private findLatestUserEntryRef(sessionId: string): UserEntryRef | null {
+		return this.entryStore.findLatestUserEntryRef(sessionId);
 	}
 
 	private isDuplicateMirroredUserChunk(
@@ -401,13 +378,7 @@ export class ChunkAggregator implements IChunkAggregator {
 		this.aggregationStates.set(sessionId, state);
 	}
 
-	private writeEntry(sessionId: string, ref: EntryRef, updatedEntry: SessionEntry): void {
+	private writeEntry(sessionId: string, ref: EntryStoreEntryRef, updatedEntry: SessionEntry): void {
 		this.entryStore.updateEntry(sessionId, ref.index, updatedEntry);
 	}
-}
-
-/** Reference to an entry with its location metadata. */
-interface EntryRef {
-	readonly entry: SessionEntry;
-	readonly index: number;
 }

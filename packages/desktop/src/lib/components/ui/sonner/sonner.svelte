@@ -30,7 +30,7 @@ registerToastBridge({
 	}}
 	{...restProps}
 	>{#snippet loadingIcon()}
-		<Spinner class="size-4" />
+		<Spinner size={16} />
 	{/snippet}
 	{#snippet successIcon()}
 		<CircleCheckIcon class="size-4" />

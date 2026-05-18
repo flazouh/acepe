@@ -21,6 +21,7 @@ import {
 	groupTabsByProject,
 	nonAgentPanelToTab,
 	panelToTab,
+	sortTabsByProjectSortOrder,
 	type TabBarTab,
 } from "./tab-bar-utils.js";
 import type { WorkspacePanel } from "./types.js";
@@ -39,14 +40,20 @@ export type ProjectColorLookup = (projectPath: string) => string | null;
 export type ProjectIconSrcLookup = (projectPath: string) => string | null;
 /** Optional lookup for project creation date (from ProjectManager). */
 export type ProjectCreatedAtLookup = (projectPath: string) => Date | null;
+/** Optional lookup for project sort order (from ProjectManager). */
+export type ProjectSortOrderLookup = (projectPath: string) => number | null;
 
 export class TabBarStore {
 	readonly tabs = $derived.by(() => this.computeTabs());
 	readonly groupedTabs = $derived.by(() => groupTabsByProject(this.tabs, this.getProjectCreatedAt));
+	readonly sortedTabs = $derived.by(() =>
+		sortTabsByProjectSortOrder(this.tabs, this.getProjectSortOrder)
+	);
 
 	private getProjectColor: ProjectColorLookup | null = null;
 	private getProjectIconSrc: ProjectIconSrcLookup | null = null;
 	private getProjectCreatedAt: ProjectCreatedAtLookup | null = null;
+	private getProjectSortOrder: ProjectSortOrderLookup | null = null;
 
 	constructor(
 		private readonly panelStore: PanelStore,
@@ -68,6 +75,11 @@ export class TabBarStore {
 	/** Set project creation date lookup (from ProjectManager) for group ordering. */
 	setProjectCreatedAtLookup(lookup: ProjectCreatedAtLookup): void {
 		this.getProjectCreatedAt = lookup;
+	}
+
+	/** Set project sort order lookup (from ProjectManager) for flat tab ordering. */
+	setProjectSortOrderLookup(lookup: ProjectSortOrderLookup): void {
+		this.getProjectSortOrder = lookup;
 	}
 
 	/**
@@ -110,7 +122,10 @@ export class TabBarStore {
 			? this.sessionStore.getCanonicalSessionProjection(sessionId)
 			: null;
 		const runtimeState = sessionId ? this.sessionStore.getSessionRuntimeState(sessionId) : null;
-		const entries = sessionId ? this.sessionStore.getEntries(sessionId) : [];
+		const transcriptEntries =
+			sessionId !== null
+				? (this.sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? [])
+				: [];
 		const operationStore = this.sessionStore.getOperationStore();
 		const currentStreamingToolCall =
 			sessionId !== null ? operationStore.getCurrentStreamingToolCall(sessionId) : null;
@@ -141,7 +156,7 @@ export class TabBarStore {
 			hotState,
 			canonicalProjection,
 			runtimeState,
-			entries,
+			transcriptEntries,
 			currentStreamingToolCall,
 			currentToolKind,
 			pendingQuestion,
@@ -152,6 +167,7 @@ export class TabBarStore {
 			projectColor,
 			projectIconSrc: projectPath ? (this.getProjectIconSrc?.(projectPath) ?? null) : null,
 			projectPath,
+			sequenceId: sessionMetadata?.sequenceId ?? panel.sequenceId ?? null,
 		});
 	}
 }

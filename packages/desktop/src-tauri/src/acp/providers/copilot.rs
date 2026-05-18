@@ -14,7 +14,7 @@ use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
@@ -209,7 +209,7 @@ impl AgentProvider for CopilotProvider {
         Box<
             dyn Future<
                     Output = Result<
-                        Option<SessionThreadSnapshot>,
+                        Option<ProviderOwnedSessionSnapshot>,
                         crate::acp::provider::ProviderHistoryLoadError,
                     >,
                 > + Send
@@ -239,7 +239,7 @@ impl AgentProvider for CopilotProvider {
             )
             .await
             {
-                Ok(session) => Ok(session),
+                Ok(session) => Ok(session.map(ProviderOwnedSessionSnapshot::from_thread_snapshot)),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

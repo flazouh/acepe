@@ -417,7 +417,7 @@ function handleOpenChange(newOpen: boolean) {
 							onclick={handleClone}
 						>
 							{#if cloning}
-								<Spinner class="size-3" />
+								<Spinner size={12} />
 								{"Cloning..."}
 							{:else}
 								<DownloadSimple size={14} />

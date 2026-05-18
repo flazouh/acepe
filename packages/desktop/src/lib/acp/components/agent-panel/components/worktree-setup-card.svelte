@@ -51,7 +51,7 @@ const detailsText = $derived(
 		{#if setupState.status === "failed"}
 			<WarningCircle size={13} weight="fill" class="shrink-0 text-destructive" />
 		{:else}
-			<Spinner class="size-[13px]" />
+			<Spinner size={13} />
 		{/if}
 	{/snippet}
 </SharedAgentPanelWorktreeSetupCard>

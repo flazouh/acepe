@@ -7,7 +7,9 @@ import type { ToolCall } from "../types/tool-call.js";
 import {
 	createTodoSnapshotFromToolCall,
 	createTodoState,
+	createTodoStateFromToolCalls,
 	type EntryWithMessage,
+	type TodoToolCallThread,
 	type ThreadWithEntries,
 	type TodoStateError,
 } from "./todo-state.svelte.js";
@@ -55,6 +57,17 @@ function hasTodos(entry: EntryWithMessage): entry is EntryWithMessage & { messag
  * 3. Using getTime() should work but adds unnecessary complexity
  * 4. The combination of entry IDs is sufficient to detect todo changes
  */
+function todoPayloadSignature(toolCall: ToolCall): string {
+	const todos = toolCall.normalizedTodos ?? [];
+	return JSON.stringify(
+		todos.map((todo) => ({
+			content: todo.content,
+			activeForm: todo.activeForm ?? null,
+			status: todo.status,
+		}))
+	);
+}
+
 function computeTodoSignature(entries: ReadonlyArray<EntryWithMessage>): string {
 	const todoWrites = entries.filter(hasTodos);
 
@@ -62,9 +75,23 @@ function computeTodoSignature(entries: ReadonlyArray<EntryWithMessage>): string 
 		return "empty";
 	}
 
-	// Create signature from entry IDs only - stable across loads
-	// IDs are UUIDs and unique per entry, so this is sufficient
-	return todoWrites.map((entry) => entry.id).join("|");
+	return todoWrites
+		.map((entry) => `${entry.id}:${todoPayloadSignature(entry.message)}`)
+		.join("|");
+}
+
+function computeToolCallTodoSignature(toolCalls: ReadonlyArray<ToolCall>): string {
+	const todoToolCalls = toolCalls.filter(
+		(toolCall) => toolCall.normalizedTodos != null && toolCall.normalizedTodos.length > 0
+	);
+
+	if (todoToolCalls.length === 0) {
+		return "empty";
+	}
+
+	return todoToolCalls
+		.map((toolCall) => `${toolCall.id}:${todoPayloadSignature(toolCall)}`)
+		.join("|");
 }
 
 /**
@@ -155,6 +182,49 @@ class TodoStateManager {
 					computedAt: Date.now(),
 					computationTime,
 					entryCount: thread.entries.length,
+				});
+			}
+
+			this.updateMetrics();
+		});
+
+		return result;
+	}
+
+	getTodoStateFromToolCalls(
+		threadId: string,
+		thread: TodoToolCallThread | null
+	): Result<TodoState | null, TodoStateError> {
+		if (!thread) {
+			return ok(null);
+		}
+
+		const signature = computeToolCallTodoSignature(thread.toolCalls);
+		const cacheKey = `${threadId}:operations:${signature}`;
+		const cached = this.cache.get(cacheKey);
+		if (cached) {
+			untrack(() => {
+				this.metrics.cacheHits++;
+				this.updateMetrics();
+			});
+			return ok(cached.state);
+		}
+
+		const startTime = performance.now();
+		const result = createTodoStateFromToolCalls(thread);
+		const computationTime = performance.now() - startTime;
+
+		untrack(() => {
+			this.metrics.cacheMisses++;
+			this.recordComputationTime(computationTime);
+
+			if (result.isOk()) {
+				this.cache.set(cacheKey, {
+					state: result.value,
+					signature,
+					computedAt: Date.now(),
+					computationTime,
+					entryCount: thread.toolCalls.length,
 				});
 			}
 

@@ -1,49 +1,24 @@
-import type { ContentBlock, ToolCallData } from "../../services/converted-session-types.js";
-import type { SessionEntry } from "../application/dto/session.js";
+import type {
+	OperationSnapshot,
+	SessionStateGraph,
+	ToolArguments,
+	TranscriptEntry,
+} from "../../services/acp-types.js";
 
-/**
- * Extract plain text from a content block.
- */
-function blockToText(block: ContentBlock): string {
-	if (block.type === "text" && typeof block.text === "string") {
-		return block.text;
+function transcriptSegmentText(entry: TranscriptEntry): string {
+	let text = "";
+	for (const segment of entry.segments) {
+		text += segment.text;
 	}
-	if (block.type === "resource_link") {
-		return block.title ?? block.name ?? block.uri ?? "";
-	}
-	return "";
+	return text;
 }
 
-/**
- * Extract text from user message content (ContentBlock or array).
- */
-function userContentToText(content: ContentBlock | readonly ContentBlock[]): string {
-	if (Array.isArray(content)) {
-		return content.map((b) => blockToText(b)).join("\n");
-	}
-	return blockToText(content as ContentBlock);
-}
-
-/**
- * Extract text from assistant message chunks.
- */
-function assistantChunksToText(
-	chunks: ReadonlyArray<{ type: string; block: ContentBlock }>
-): string {
-	return chunks.map((chunk) => (chunk.block.type === "text" ? chunk.block.text : "")).join("");
-}
-
-/**
- * Get tool call target/summary for display.
- */
-function getToolTarget(tool: ToolCallData): string {
-	const args = tool.arguments;
-	if (!args) return tool.name ?? String(tool.kind ?? "tool");
-
+function operationTarget(args: ToolArguments): string {
 	switch (args.kind) {
 		case "read":
-		case "delete":
 			return args.file_path ?? "";
+		case "delete":
+			return args.file_path ?? args.file_paths?.[0] ?? "";
 		case "edit":
 			return args.edits[0]?.filePath ?? "";
 		case "execute":
@@ -56,21 +31,51 @@ function getToolTarget(tool: ToolCallData): string {
 			return args.query ?? "";
 		case "fetch":
 			return args.url ?? "";
-		default:
-			return tool.name ?? tool.kind ?? "";
+		case "think":
+			return args.description ?? args.prompt ?? args.skill ?? "";
+		case "taskOutput":
+			return args.task_id ?? "";
+		case "move":
+			return args.from && args.to ? `${args.from} -> ${args.to}` : (args.from ?? args.to ?? "");
+		case "planMode":
+			return args.mode ?? "";
+		case "toolSearch":
+			return args.query ?? "";
+		case "sql":
+			return args.query ?? args.description ?? "";
+		case "unclassified":
+			return args.arguments_preview ?? args.title ?? args.raw_name;
+		case "readLints":
+		case "browser":
+		case "other":
+			return "";
 	}
 }
 
-/**
- * Convert session entries to readable markdown.
- */
-export function sessionEntriesToMarkdown(entries: ReadonlyArray<SessionEntry>): string {
-	const lines: string[] = [];
+function operationsByTranscriptEntryId(
+	operations: readonly OperationSnapshot[]
+): ReadonlyMap<string, OperationSnapshot> {
+	const byEntryId = new Map<string, OperationSnapshot>();
+	for (const operation of operations) {
+		if (operation.source_link.kind !== "transcript_linked") {
+			continue;
+		}
+		byEntryId.set(operation.source_link.entry_id, operation);
+	}
+	return byEntryId;
+}
 
-	for (const entry of entries) {
-		switch (entry.type) {
+/**
+ * Convert the canonical session graph to readable markdown.
+ */
+export function sessionGraphToMarkdown(graph: SessionStateGraph): string {
+	const lines: string[] = [];
+	const operationByEntryId = operationsByTranscriptEntryId(graph.operations);
+
+	for (const entry of graph.transcriptSnapshot.entries) {
+		switch (entry.role) {
 			case "user": {
-				const text = userContentToText(entry.message.content);
+				const text = transcriptSegmentText(entry);
 				if (text.trim()) {
 					lines.push("## User\n");
 					lines.push(text.trim());
@@ -79,7 +84,7 @@ export function sessionEntriesToMarkdown(entries: ReadonlyArray<SessionEntry>): 
 				break;
 			}
 			case "assistant": {
-				const text = assistantChunksToText(entry.message.chunks);
+				const text = transcriptSegmentText(entry);
 				if (text.trim()) {
 					lines.push("## Assistant\n");
 					lines.push(text.trim());
@@ -87,25 +92,21 @@ export function sessionEntriesToMarkdown(entries: ReadonlyArray<SessionEntry>): 
 				}
 				break;
 			}
-			case "tool_call": {
-				const target = getToolTarget(entry.message);
-				const name = entry.message.name ?? String(entry.message.kind ?? "Tool");
+			case "tool": {
+				const operation = operationByEntryId.get(entry.entryId);
+				const name = operation?.title ?? operation?.name ?? transcriptSegmentText(entry) ?? "Tool";
+				const target = operation ? operationTarget(operation.arguments) : transcriptSegmentText(entry);
 				lines.push(`## Tool: ${name}\n`);
-				if (target) {
-					lines.push(target);
+				if (target.trim()) {
+					lines.push(target.trim());
 					lines.push("\n");
 				}
 				break;
 			}
-			case "ask": {
-				lines.push("## Question\n");
-				lines.push(typeof entry.message.question === "string" ? entry.message.question : "");
-				lines.push("\n");
-				break;
-			}
 			case "error": {
+				const text = transcriptSegmentText(entry);
 				lines.push("## Error\n");
-				lines.push(entry.message.content ?? "Unknown error");
+				lines.push(text.trim() || "Unknown error");
 				lines.push("\n");
 				break;
 			}

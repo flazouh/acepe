@@ -67,6 +67,7 @@ export class SessionReviewStateStore {
 	private statesBySession = new SvelteMap<string, SessionReviewState | null>();
 	private loadedSessionIds = new SvelteSet<string>();
 	private loadingSessionIds = new SvelteSet<string>();
+	private loadPromisesBySession = new SvelteMap<string, Promise<void>>();
 	private saveTimers = new SvelteMap<string, ReturnType<typeof setTimeout>>();
 
 	getState(sessionId: string): SessionReviewState | null {
@@ -78,10 +79,21 @@ export class SessionReviewStateStore {
 	}
 
 	ensureLoaded(sessionId: string): void {
-		if (this.loadedSessionIds.has(sessionId) || this.loadingSessionIds.has(sessionId)) return;
+		void this.ensureLoadedAsync(sessionId);
+	}
+
+	ensureLoadedAsync(sessionId: string): Promise<void> {
+		if (this.loadedSessionIds.has(sessionId)) {
+			return Promise.resolve();
+		}
+
+		const existingPromise = this.loadPromisesBySession.get(sessionId);
+		if (existingPromise) {
+			return existingPromise;
+		}
 
 		this.loadingSessionIds.add(sessionId);
-		tauriClient.sessionReviewState
+		const loadPromise = tauriClient.sessionReviewState
 			.get(sessionId)
 			.andThen((raw) => decodeState(raw))
 			.match(
@@ -96,7 +108,13 @@ export class SessionReviewStateStore {
 					this.loadedSessionIds.add(sessionId);
 					this.loadingSessionIds.delete(sessionId);
 				}
-			);
+			)
+			.then(() => {
+				this.loadPromisesBySession.delete(sessionId);
+			});
+
+		this.loadPromisesBySession.set(sessionId, loadPromise);
+		return loadPromise;
 	}
 
 	getFileProgress(sessionId: string, revisionKey: string): PersistedFileReviewProgress | null {
@@ -146,6 +164,7 @@ export class SessionReviewStateStore {
 		this.statesBySession.delete(sessionId);
 		this.loadedSessionIds.delete(sessionId);
 		this.loadingSessionIds.delete(sessionId);
+		this.loadPromisesBySession.delete(sessionId);
 
 		const timer = this.saveTimers.get(sessionId);
 		if (timer) {

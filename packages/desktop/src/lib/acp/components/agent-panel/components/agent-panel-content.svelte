@@ -205,7 +205,7 @@ export function scrollToTop() {
 	<AgentPanelStatePanel centerContent={true}>
 		{#snippet children()}
 			<div class="flex h-full w-full items-center justify-center">
-				<LoadingIcon class="size-10" aria-label="Loading session" />
+				<LoadingIcon size={40} aria-label="Loading session" />
 			</div>
 		{/snippet}
 	</AgentPanelStatePanel>

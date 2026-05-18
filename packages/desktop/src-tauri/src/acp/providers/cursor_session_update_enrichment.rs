@@ -573,6 +573,7 @@ mod tests {
                 uuid: "assistant-1".to_string(),
                 parent_uuid: None,
                 role: "assistant".to_string(),
+                provider_message_id: None,
                 timestamp: "2025-01-01T00:00:00Z".to_string(),
                 content_blocks: vec![ContentBlock::ToolUse {
                     id: "call-1".to_string(),

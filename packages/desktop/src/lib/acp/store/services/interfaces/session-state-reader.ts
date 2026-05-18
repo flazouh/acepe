@@ -10,9 +10,9 @@ import type { CanonicalSessionProjection } from "../../canonical-session-project
 import type {
 	SessionCapabilities,
 	SessionCold,
-	SessionEntry,
 	SessionTransientProjection,
 } from "../../types.js";
+import type { ToolCall } from "../../../types/tool-call.js";
 
 /**
  * Interface for reading session state.
@@ -65,9 +65,9 @@ export interface ISessionStateReader {
 	getCanonicalSessionProjection?(sessionId: string): CanonicalSessionProjection | null;
 
 	/**
-	 * Get entries for a session.
+	 * Canonical operation-backed tool calls for a session.
 	 */
-	getEntries(sessionId: string): SessionEntry[];
+	getSessionToolCalls?(sessionId: string): ToolCall[];
 
 	/**
 	 * Check if a session's entries have been preloaded.

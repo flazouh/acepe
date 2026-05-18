@@ -6,11 +6,7 @@ import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte.js";
-import type {
-	SessionEntry,
-	SessionLinkedPr,
-	SessionPrLinkMode,
-} from "../../../application/dto/session";
+import type { SessionLinkedPr, SessionPrLinkMode } from "../../../application/dto/session";
 import type { SessionCold } from "../../../application/dto/session-cold.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
@@ -73,7 +69,6 @@ let {
 	sessionId,
 	effectiveProjectPath,
 	sessionProjectPath,
-	sessionEntries,
 	effectivePathForGit,
 	createdPr,
 	createPrRunning,
@@ -141,7 +136,6 @@ let {
 	sessionId: string | null;
 	effectiveProjectPath: string | null;
 	sessionProjectPath: string | null;
-	sessionEntries: SessionEntry[];
 	effectivePathForGit: string | null;
 	createdPr: number | null;
 	createPrRunning: boolean;
@@ -241,7 +235,6 @@ let {
 							<PermissionBar
 								sessionId={sessionId}
 								projectPath={effectiveProjectPath ?? sessionProjectPath}
-								entries={sessionEntries}
 							/>
 						{/if}
 						{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}

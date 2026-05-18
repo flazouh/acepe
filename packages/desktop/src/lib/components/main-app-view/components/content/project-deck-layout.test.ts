@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveProjectGroupDeckLayout } from "./project-deck-layout.js";
+import {
+	resolveProjectDeckContainerClass,
+	resolveProjectGroupDeckLayout,
+} from "./project-deck-layout.js";
 
 describe("project deck layout", () => {
 	it("keeps inactive project groups measurable instead of display-none hidden", () => {
@@ -32,5 +35,14 @@ describe("project deck layout", () => {
 		expect(layout.className.split(/\s+/)).toContain("relative");
 		expect(layout.className.split(/\s+/)).toContain("pointer-events-auto");
 		expect(layout.className.split(/\s+/)).not.toContain("hidden");
+	});
+
+	it("allows horizontal overflow while a project is focused", () => {
+		const className = resolveProjectDeckContainerClass("/projects/alpha");
+		const classes = className.split(/\s+/);
+
+		expect(classes).toContain("overflow-x-auto");
+		expect(classes).toContain("overflow-y-hidden");
+		expect(classes).not.toContain("overflow-hidden");
 	});
 });

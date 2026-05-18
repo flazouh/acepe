@@ -55,26 +55,24 @@ const navBtnClass =
 	<div class="flex items-stretch rounded-md overflow-hidden shadow-md border border-border/60 backdrop-blur-sm bg-popover/90">
 		<button
 			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
-			style="color: {Colors.red};"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
 			disabled={!hasPendingHunks}
 			title={"Reject file"}
 			onclick={onRejectFile}
 		>
-			<XCircle class="h-3 w-3 shrink-0" weight="fill" />
+			<XCircle class="h-3 w-3 shrink-0" style="color: {Colors.red};" weight="fill" />
 			{"Undo"}
 		</button>
 		<div class="w-px bg-border/50"></div>
 		<button
 			type="button"
-			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
-			style="color: {Colors.green};"
+			class="h-6 px-2 inline-flex items-center gap-1 text-[11px] font-medium text-foreground transition-colors hover:bg-accent/40 disabled:opacity-40 disabled:pointer-events-none"
 			disabled={!hasPendingHunks}
 			title={"Accept file"}
 			onclick={onAcceptFile}
 		>
-			<CheckCircle class="h-3 w-3 shrink-0" weight="fill" />
-			{"Keep"}
+			<CheckCircle class="h-3 w-3 shrink-0" style="color: {Colors.green};" weight="fill" />
+			{"Keep File"}
 		</button>
 	</div>
 

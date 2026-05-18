@@ -12,8 +12,10 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
+import type { ToolArguments } from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { readCompatibilityEntries } from "./entry-store-test-access.js";
 
 function applyStreamingArguments(
 	store: SessionEntryStore,
@@ -37,6 +39,17 @@ function applyStreamingArguments(
 	});
 }
 
+function readProgressiveArguments(
+	store: SessionEntryStore,
+	sessionId: string,
+	toolCallId: string
+): ToolArguments | undefined {
+	const entry = store
+		.getEntries(sessionId)
+		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
+	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
+}
+
 describe("SessionEntryStore - Streaming Arguments", () => {
 	let store: SessionEntryStore;
 
@@ -44,7 +57,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("updateToolCallTranscriptEntry / getStreamingArguments", () => {
+	describe("updateToolCallTranscriptEntry progressive arguments", () => {
 		it("should store and retrieve streaming arguments from transcript-only updates", () => {
 			store.recordToolCallTranscriptEntry("session1", {
 				id: "tool1",
@@ -68,7 +81,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				],
 			});
 
-			const result = store.getStreamingArguments("tool1");
+			const result = readProgressiveArguments(store, "session1", "tool1");
 			expect(result).toEqual({
 				kind: "edit",
 				edits: [
@@ -121,9 +134,15 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				file_path: "/tmp/file",
 			});
 
-			expect(store.getStreamingArguments("tool1")).toEqual({ kind: "execute", command: "ls -la" });
-			expect(store.getStreamingArguments("tool2")).toEqual({ kind: "search", query: "test" });
-			expect(store.getStreamingArguments("tool3")).toEqual({
+			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
+				kind: "execute",
+				command: "ls -la",
+			});
+			expect(readProgressiveArguments(store, "session1", "tool2")).toEqual({
+				kind: "search",
+				query: "test",
+			});
+			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
 				kind: "read",
 				file_path: "/tmp/file",
 			});
@@ -154,16 +173,16 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 
-			expect(store.getStreamingArguments("tool1")).toEqual({
+			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
 				kind: "edit",
 				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
 			});
 		});
 	});
 
-	describe("getStreamingArguments", () => {
+	describe("progressive argument lookup helper", () => {
 		it("should return undefined for unknown tool call", () => {
-			expect(store.getStreamingArguments("unknown")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "unknown")).toBeUndefined();
 		});
 	});
 
@@ -189,11 +208,11 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
 			});
 
-			expect(store.getStreamingArguments("tool1")).toBeDefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeDefined();
 
 			store.clearStreamingArguments("tool1");
 
-			expect(store.getStreamingArguments("tool1")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
 		});
 	});
 
@@ -243,11 +262,14 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 			store.clearEntries("session1");
 
 			// session1's tool calls should be cleared
-			expect(store.getStreamingArguments("tool1")).toBeUndefined();
-			expect(store.getStreamingArguments("tool2")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
+			expect(readProgressiveArguments(store, "session1", "tool2")).toBeUndefined();
 
 			// session2's tool calls should remain
-			expect(store.getStreamingArguments("tool3")).toEqual({ kind: "execute", command: "c" });
+			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
+				kind: "execute",
+				command: "c",
+			});
 		});
 	});
 });
@@ -279,7 +301,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.replaceTranscriptSnapshot("session-1", snapshot, new Date("2026-04-16T00:00:00.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -359,7 +381,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			timestamp
 		);
 
-		const [entry] = store.getEntries("session-1");
+		const [entry] = readCompatibilityEntries(store, "session-1");
 		expect(entry?.type).toBe("tool_call");
 		if (entry?.type !== "tool_call") {
 			throw new Error("expected tool call entry");
@@ -501,7 +523,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:01.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -564,7 +586,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "user-1",
 				type: "user",
@@ -638,7 +660,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(store.getEntries("session-1")).toEqual([
+		expect(readCompatibilityEntries(store, "session-1")).toEqual([
 			{
 				id: "optimistic-user-local",
 				type: "user",
@@ -707,12 +729,12 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:03.000Z"));
 
-		expect(store.getEntries("session-1").map((entry) => entry.id)).toEqual([
+		expect(readCompatibilityEntries(store, "session-1").map((entry) => entry.id)).toEqual([
 			"optimistic-user-local",
 			"assistant-1",
 			"user-event-7",
 		]);
-		expect(store.getEntries("session-1")[2]).toMatchObject({
+		expect(readCompatibilityEntries(store, "session-1")[2]).toMatchObject({
 			id: "user-event-7",
 			type: "user",
 		});
@@ -761,7 +783,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -813,7 +835,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("tool_call");
@@ -833,7 +855,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 		}
 	});
 
-	it("starts a new assistant entry for a new user turn even when the provider reuses messageId", async () => {
+	it("does not repair provider-reused assistant ids in the compatibility chunk aggregator", async () => {
 		await store.aggregateAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "first answer" } },
@@ -862,36 +884,30 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
-		expect(entries).toHaveLength(3);
+		const entries = readCompatibilityEntries(store, "session1");
+		expect(entries).toHaveLength(2);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
-		expect(entries[2].type).toBe("assistant");
-		expect(entries[2].id).not.toBe("provider-message");
 
 		const firstAssistant = entries[0];
-		const secondAssistant = entries[2];
 		if (firstAssistant.type === "assistant") {
-			expect(firstAssistant.message.chunks).toHaveLength(1);
+			expect(firstAssistant.message.chunks).toHaveLength(3);
 			expect(firstAssistant.message.chunks[0].block).toEqual({
 				type: "text",
 				text: "first answer",
 			});
-		}
-		if (secondAssistant.type === "assistant") {
-			expect(secondAssistant.message.chunks).toHaveLength(2);
-			expect(secondAssistant.message.chunks[0].block).toEqual({
+			expect(firstAssistant.message.chunks[1].block).toEqual({
 				type: "text",
 				text: "second ",
 			});
-			expect(secondAssistant.message.chunks[1].block).toEqual({
+			expect(firstAssistant.message.chunks[2].block).toEqual({
 				type: "text",
 				text: "answer",
 			});
 		}
 	});
 
-	it("keeps canonical assistant deltas after a new user turn when the provider reuses entryId", () => {
+	it("keeps canonical assistant deltas after a new user turn using Rust-owned entryId", () => {
 		store.applyTranscriptDelta(
 			"session1",
 			{
@@ -932,11 +948,11 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 				operations: [
 					{
 						kind: "appendSegment",
-						entryId: "provider-message",
+						entryId: "assistant-event-2",
 						role: "assistant",
 						segment: {
 							kind: "text",
-							segmentId: "provider-message:segment:2",
+							segmentId: "assistant-event-2:segment:2",
 							text: "second answer",
 						},
 					},
@@ -945,12 +961,12 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			new Date("2026-04-26T00:00:02.000Z")
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 		expect(entries).toHaveLength(3);
 		expect(entries[0].type).toBe("assistant");
 		expect(entries[1].type).toBe("user");
 		expect(entries[2].type).toBe("assistant");
-		expect(entries[2].id).not.toBe("provider-message");
+		expect(entries[2].id).toBe("assistant-event-2");
 		if (entries[0].type === "assistant") {
 			expect(entries[0].message.chunks[0].block).toEqual({
 				type: "text",
@@ -991,7 +1007,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 
@@ -1019,7 +1035,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 			expect((entries[1].message as { content: { text: string } }).content.text).toBe("New");
@@ -1051,7 +1067,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe(
 				"Update 2 - final"
 			);
@@ -1069,7 +1085,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 		});
 
@@ -1141,7 +1157,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1179,7 +1195,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1210,7 +1226,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 		});
 
@@ -1231,7 +1247,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				timestamp: new Date(),
 			});
 
-			const entries = store.getEntries("session1");
+			const entries = readCompatibilityEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 	});
@@ -1273,7 +1289,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		expect(entries).toHaveLength(1);
 		expect(entries[0].type).toBe("assistant");
@@ -1315,7 +1331,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Should be ONE entry with all 4 chunks
 		expect(entries).toHaveLength(1);
@@ -1341,7 +1357,7 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 			false
 		);
 
-		const entries = store.getEntries("session1");
+		const entries = readCompatibilityEntries(store, "session1");
 
 		// Different messageIds should create separate entries
 		expect(entries).toHaveLength(2);

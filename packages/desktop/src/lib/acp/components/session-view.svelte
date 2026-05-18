@@ -82,7 +82,7 @@ $effect(() => {
 		<!-- No session - show loading or empty state -->
 		{#if sessionStore.loading || isLoading}
 			<div class="flex items-center justify-center flex-1">
-				<Spinner class="h-6 w-6" />
+				<Spinner size={24} />
 			</div>
 		{/if}
 	{:else if isResizing}

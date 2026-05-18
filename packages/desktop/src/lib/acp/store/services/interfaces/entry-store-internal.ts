@@ -8,9 +8,35 @@
 
 import type { SessionEntry } from "../../types.js";
 
+export interface EntryStoreEntryRef {
+	readonly entry: SessionEntry;
+	readonly index: number;
+}
+
+export type AssistantEntryRef = EntryStoreEntryRef & {
+	readonly entry: Extract<SessionEntry, { readonly type: "assistant" }>;
+};
+
+export type UserEntryRef = EntryStoreEntryRef & {
+	readonly entry: Extract<SessionEntry, { readonly type: "user" }>;
+};
+
+export type ToolCallEntryRef = EntryStoreEntryRef & {
+	readonly entry: Extract<SessionEntry, { readonly type: "tool_call" }>;
+};
+
 export interface IEntryStoreInternal {
-	/** Get entries for a session. */
-	getEntries(sessionId: string): SessionEntry[];
+	/** Find an assistant compatibility entry by Acepe-owned entry id. */
+	findAssistantEntryRef(sessionId: string, entryId: string): AssistantEntryRef | null;
+
+	/** Check whether an assistant compatibility entry exists. */
+	hasAssistantEntry(sessionId: string, entryId: string): boolean;
+
+	/** Find the latest compatibility entry only when it is a user row. */
+	findLatestUserEntryRef(sessionId: string): UserEntryRef | null;
+
+	/** Find a tool-call compatibility entry by canonical tool-call id. */
+	findToolCallEntryRef(sessionId: string, toolCallId: string): ToolCallEntryRef | null;
 
 	/** Add an entry to a session. */
 	addEntry(sessionId: string, entry: SessionEntry): void;

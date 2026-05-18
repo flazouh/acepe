@@ -156,6 +156,14 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 - Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
 - Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
 
+#### GOD Architecture Gate
+
+- Always invoke `god-architecture-check` before changing session-shaped or transcript-shaped data paths: session lifecycle, hot state, canonical projections, transcript order, tool operations, provider history parsing, agent-panel projection, or display entry identity.
+- Keep asking during implementation: "Is this change moving truth upstream into canonical Rust-owned data, or patching symptoms downstream?" If it patches downstream, stop and use the GOD check before continuing.
+- Raw provider data is input, not product truth. Provider quirks belong in Rust adapters/history parsers; TypeScript and `packages/ui` must consume canonical facts, not repair provider-specific weirdness.
+- For transcript bugs, never fix order in the UI. Canonical transcript order, identity, and tool-call mapping must be corrected before display projection.
+- Treat raw provider ids, such as Claude `message.id`, as metadata unless the canonical model explicitly promotes them. Use canonical event order and Acepe-owned display ids for UI identity.
+
 #### Agent Panel MVC Separation
 
 The agent panel follows a View–Model–Controller split across packages:

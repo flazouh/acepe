@@ -546,6 +546,7 @@ export interface AgentPanelModifiedFileItem {
 	id: string;
 	filePath: string;
 	fileName?: string | null;
+	sourceIndex?: number;
 	reviewStatus?: AgentPanelFileReviewStatus;
 	additions: number;
 	deletions: number;
@@ -563,7 +564,7 @@ export function getReviewWorkspaceDefaultIndex(
 
 	for (let index = 0; index < files.length; index += 1) {
 		const reviewStatus = files[index].reviewStatus ?? "unreviewed";
-		if (reviewStatus !== "accepted") {
+		if (reviewStatus === "partial" || reviewStatus === "unreviewed") {
 			return index;
 		}
 	}

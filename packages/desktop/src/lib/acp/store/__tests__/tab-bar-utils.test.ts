@@ -105,7 +105,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		title: "Test Session",
 		hotState: makeHotState(),
 		runtimeState: null,
-		entries: [],
+		transcriptEntries: [],
 		currentStreamingToolCall: null,
 		currentToolKind: null,
 		pendingQuestion: null,
@@ -116,6 +116,7 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		projectColor: null,
 		projectIconSrc: null,
 		projectPath: null,
+		sequenceId: null,
 		...overrides,
 	};
 }
@@ -342,7 +343,7 @@ describe("panelToTab", () => {
 			expect(tab.state.activity.kind).toBe("paused");
 		});
 
-		it("classifies runtime thinking as active work", () => {
+		it("does not classify runtime thinking as active work when canonical activity is idle", () => {
 			const tab = panelToTab(
 				makeInput({
 					runtimeState: {
@@ -360,8 +361,8 @@ describe("panelToTab", () => {
 					canonicalProjection: makeCanonicalProjection("ready", "idle"),
 				})
 			);
-			expect(tab.state.activity.kind).toBe("thinking");
-			expect(tab.workBucket).toBe("working");
+			expect(tab.state.activity.kind).toBe("idle");
+			expect(tab.workBucket).toBe("idle");
 		});
 	});
 

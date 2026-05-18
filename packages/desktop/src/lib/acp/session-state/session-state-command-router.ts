@@ -150,14 +150,24 @@ export function routeSessionStateEnvelope(
 			const commands: SessionStateCommand[] = [];
 			const operationPatches = envelope.payload.delta.operationPatches ?? [];
 			const interactionPatches = envelope.payload.delta.interactionPatches ?? [];
-			const includesActivity = envelope.payload.delta.changedFields?.includes("activity") ?? false;
+			const changedFields = envelope.payload.delta.changedFields ?? null;
+			const includesActivity = changedFields?.includes("activity") ?? false;
+			const includesTurnState = changedFields?.includes("turnState") ?? false;
+			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
+			const includesLastTerminalTurnId = changedFields?.includes("lastTerminalTurnId") ?? false;
 			const includesLastAgentMessageId =
-				envelope.payload.delta.changedFields?.includes("lastAgentMessageId") ?? false;
+				changedFields?.includes("lastAgentMessageId") ?? false;
+			const includesGraphState =
+				changedFields === null ||
+				includesActivity ||
+				includesTurnState ||
+				includesActiveTurnFailure ||
+				includesLastTerminalTurnId ||
+				includesLastAgentMessageId;
 			if (
 				operationPatches.length > 0 ||
 				interactionPatches.length > 0 ||
-				includesActivity ||
-				includesLastAgentMessageId
+				includesGraphState
 			) {
 				commands.push({
 					kind: "applyGraphPatches",

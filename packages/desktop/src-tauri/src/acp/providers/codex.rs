@@ -8,7 +8,7 @@ use crate::acp::client::codex_native_config::load_codex_native_config_state;
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::types::ContentBlock;
@@ -138,7 +138,7 @@ impl AgentProvider for CodexProvider {
         Box<
             dyn Future<
                     Output = Result<
-                        Option<SessionThreadSnapshot>,
+                        Option<ProviderOwnedSessionSnapshot>,
                         crate::acp::provider::ProviderHistoryLoadError,
                     >,
                 > + Send
@@ -155,7 +155,7 @@ impl AgentProvider for CodexProvider {
             )
             .await
             {
-                Ok(session) => Ok(session),
+                Ok(session) => Ok(session.map(ProviderOwnedSessionSnapshot::from_thread_snapshot)),
                 Err(error) => {
                     tracing::warn!(
                         session_id = %session_id,

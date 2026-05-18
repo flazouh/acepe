@@ -134,7 +134,7 @@ function handleOpenChange(newOpen: boolean) {
 			</Button>
 			<Button onclick={handleClone} disabled={!isValid || cloning}>
 				{#if cloning}
-					<Spinner class="size-4 mr-2" />
+					<Spinner class="mr-2" size={16} />
 					{"Cloning..."}
 				{:else}
 					{"Clone"}
