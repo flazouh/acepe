@@ -1729,7 +1729,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			)
 		);
 
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: true,
 			canCancel: true,
 		});
@@ -1766,7 +1766,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionState("session-1")).toMatchObject({
 			connection: "ready",
 		});
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: false,
 			canCancel: false,
 			canSubmit: true,
@@ -4544,7 +4544,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(connectSession).not.toHaveBeenCalled();
 	});
 
-	it("marks restored local created sessions as loaded so the composer can submit", () => {
+	it("marks restored local created sessions as content loaded without canonical sendability", () => {
 		const store = new SessionStore();
 		store.addSession({
 			id: "session-1",
@@ -4559,11 +4559,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.setLocalCreatedSessionLoaded("session-1");
 
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
-			connectionPhase: "disconnected",
-			contentPhase: "loaded",
-			canSubmit: true,
+		expect(store.getSessionUIState("session-1")).toMatchObject({
+			showConversation: true,
+			isReadOnly: true,
 		});
+		expect(store.getSessionCanSend("session-1")).toBe(null);
 	});
 
 	it("selects lifecycle presentation from canonical graph instead of runtime state", () => {

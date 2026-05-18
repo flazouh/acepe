@@ -127,7 +127,6 @@ function createSessionStore(input: {
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
-	sessionStore.getSessionRuntimeState = () => null;
 	sessionStore.getCanonicalSessionProjection = () =>
 		input.lifecycle === null
 			? null

@@ -9,14 +9,14 @@ severity: high
 applies_when:
   - Updating queue, kanban, tabs, urgency, session item, agent panel, composer, or telemetry UI
   - Adding session lifecycle, sendability, activity, pending-send, or telemetry display state
-  - Touching transcript compatibility writers or provider-specific transcript display paths
+  - Touching transcript entry writers, legacy preload paths, or provider-specific transcript display paths
 tags:
   - canonical-authority
   - session-selectors
   - ui-derivation
   - transcript-order
   - hot-state
-  - compatibility-boundary
+  - legacy-boundary
 ---
 
 # Canonical UI session selector boundary
@@ -29,12 +29,13 @@ This matters for transcript bugs too. The bug class that started this work was a
 
 ## Guidance
 
-UI surfaces should ask for the exact session value they need. They should not receive full `SessionTransientProjection`, full `SessionRuntimeState`, or broad hot-state objects for session semantics.
+UI surfaces should ask for the exact session value they need. They should not receive full `SessionTransientProjection`, full `SessionRuntimeState`, or broad hot-state objects for session semantics. The public `SessionStore.getSessionRuntimeState(...)` facade is deleted; do not recreate it.
 
 Good selector shape:
 
 ```ts
 const lifecycle = sessionStore.getSessionLifecyclePresentation(sessionId);
+const composer = sessionStore.getStoreComposerState(sessionId);
 const pendingSend = sessionStore.getSessionPendingSendIntent(sessionId);
 const telemetry = sessionStore.getSessionUsageTelemetry(sessionId);
 const autonomousBusy = sessionStore.getSessionAutonomousTransitionBusy(sessionId);
@@ -52,7 +53,8 @@ The rule is simple:
 - Canonical graph projection owns lifecycle, actionability, activity, turn state, failure state, and provider-backed identity.
 - Local transient state may support UI timing or optimistic affordances, but only through narrow selectors with clear names.
 - Panel-local hot state may keep drafts, browser/sidebar UI, review UI, and pre-session optimistic visuals. It is not session truth.
-- Transcript compatibility writers must say `Compatibility` in their names. Product transcript truth enters through canonical snapshot and delta paths.
+- Transcript entry writers that create product-visible rows should use canonical names, for example `appendTranscriptEntry(...)`, `replaceTranscriptEntry(...)`, `recordTranscriptToolCallEntry(...)`, and `updateTranscriptToolCallEntry(...)`.
+- Legacy/test preload paths may say `legacy` because they are explicitly reading old stored rows. Do not call canonical product writers `Compatibility`; that makes real transcript writes look like temporary shims.
 
 ## Why This Matters
 
@@ -75,7 +77,7 @@ For the duplicate-id transcript bug class, this boundary is also the safety line
 - A UI component needs session status, activity, sendability, pending-send, mode/model, telemetry, or urgency timing.
 - A store builds DTOs for queue rows, kanban cards, tabs, session items, or the composer.
 - A provider parser or transcript restore path touches raw message ids, content-block ids, tool-call ids, or provider ordering.
-- A compatibility transcript path still exists for legacy streaming display rows.
+- A legacy transcript preload path still exists for stored rows or tests.
 
 ## Examples
 
@@ -99,18 +101,33 @@ const hasLocalPendingSend =
 	sessionStore.getSessionHasLocalPendingSendIntent(sessionId);
 ```
 
-Transcript compatibility methods should be named as compatibility-only:
+Canonical transcript methods should say what they write:
 
 ```ts
-entryStore.recordCompatibilityToolCallTranscriptEntry(...);
-chunkAggregator.aggregateCompatibilityAssistantChunk(...);
+entryStore.appendTranscriptEntry(...);
+entryStore.replaceTranscriptEntry(...);
+entryStore.recordTranscriptToolCallEntry(...);
+entryStore.updateTranscriptToolCallEntry(...);
 ```
 
-Names like `recordToolCallTranscriptEntry` or `aggregateAssistantChunk` are too generic because they look like product-truth writers.
+Legacy preload helpers may use `legacy` in their names:
+
+```ts
+entryStore.preloadLegacyEntriesAndBuildIndex(...);
+```
+
+Guard scan before finishing selector-boundary work:
+
+```bash
+rg -n "getSessionRuntimeState\\(" packages/desktop/src/lib/acp -g '*.ts' -g '*.svelte'
+```
+
+Expected result: no matches. If a UI needs session state, add or reuse a narrow canonical selector instead.
 
 ## Related
 
 - `docs/plans/2026-05-18-002-refactor-canonical-ui-session-projections-plan.md`
+- `docs/plans/2026-05-18-011-refactor-delete-unused-runtime-state-facade-plan.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`
 - `docs/solutions/architectural/canonical-projection-widening-2026-04-28.md`
 - `docs/solutions/best-practices/canonical-session-projection-ui-derivation-2026-05-01.md`

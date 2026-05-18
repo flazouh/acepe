@@ -50,9 +50,7 @@ import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
 import {
-	deriveSessionRuntimeState,
 	deriveSessionUIState,
-	type SessionRuntimeState,
 	type SessionUIState,
 } from "../logic/session-ui-state";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
@@ -1664,38 +1662,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const state = this.connectionService.getState(sessionId);
 		if (!state) return null;
 		return deriveSessionUIState(state);
-	}
-
-	/**
-	 * Get canonical runtime state for a session.
-	 * This is the single lifecycle contract for panel/input/queue consumers.
-	 */
-	getSessionRuntimeState(sessionId: string): SessionRuntimeState | null {
-		// Reactive anchor: XState machine snapshots are imperative (plain Map),
-		// invisible to Svelte's signal graph. Every machine transition is paired
-		// with a hot-state update, so reading hot state here ensures $derived
-		// callers re-evaluate when the machine moves.
-
-		const hotState = this.hotStateStore.getHotState(sessionId);
-
-		const state = this.connectionService.getState(sessionId);
-		if (!state) return null;
-		const runtimeState = deriveSessionRuntimeState(state);
-		if (hotState.pendingSendIntent === null || hotState.pendingSendIntent === undefined) {
-			return runtimeState;
-		}
-		return {
-			connectionPhase: runtimeState.connectionPhase,
-			contentPhase: runtimeState.contentPhase,
-			activityPhase: runtimeState.activityPhase,
-			canSubmit: false,
-			canCancel: runtimeState.canCancel,
-			showStop: runtimeState.showStop,
-			showThinking: runtimeState.showThinking,
-			showConnectingOverlay: runtimeState.showConnectingOverlay,
-			showConversation: runtimeState.showConversation,
-			showReadyPlaceholder: runtimeState.showReadyPlaceholder,
-		};
 	}
 
 	/**

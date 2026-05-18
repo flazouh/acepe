@@ -18,7 +18,6 @@ function createStore(
 		getSessionMetadata: vi.fn(() => null),
 		getHotState: vi.fn(() => null),
 		getCanonicalSessionProjection: vi.fn(() => null),
-		getSessionRuntimeState: vi.fn(() => null),
 		getSessionStateGraph: vi.fn(() => null),
 		getSessionCurrentToolKind: vi.fn(() => null),
 		getSessionOperationInteractionSnapshot: vi.fn(() => ({
