@@ -172,7 +172,7 @@ describe("submit intent", () => {
 				isAgentBusy: false,
 				isStreaming: false,
 				isSubmitDisabled: false,
-				hasBlockingPendingSessionConfigOperation: true,
+				hasBlockingComposerConfig: true,
 			})
 		).toBe("none");
 	});

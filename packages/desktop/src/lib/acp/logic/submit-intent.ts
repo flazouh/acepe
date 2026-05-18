@@ -30,8 +30,6 @@ interface DefaultSubmitActionInput {
 	isSubmitDisabled: boolean;
 	hasBlockingComposerConfig?: boolean;
 	isComposerDispatching?: boolean;
-	/** @deprecated Use hasBlockingComposerConfig */
-	hasBlockingPendingSessionConfigOperation?: boolean;
 }
 
 interface PrimaryButtonDisabledInput {
@@ -41,25 +39,10 @@ interface PrimaryButtonDisabledInput {
 	isSubmitDisabled: boolean;
 	primaryButtonIntent: SubmitIntent;
 	hasBlockingComposerConfig?: boolean;
-	/** @deprecated Use isComposerDispatching */
-	isSending?: boolean;
-	/** @deprecated Use hasBlockingComposerConfig */
-	hasBlockingPendingSessionConfigOperation?: boolean;
-}
-
-function isBlockingConfig(input: {
-	hasBlockingComposerConfig?: boolean;
-	hasBlockingPendingSessionConfigOperation?: boolean;
-}): boolean {
-	return Boolean(input.hasBlockingComposerConfig ?? input.hasBlockingPendingSessionConfigOperation);
-}
-
-function isDispatching(input: { isComposerDispatching?: boolean; isSending?: boolean }): boolean {
-	return Boolean(input.isComposerDispatching ?? input.isSending);
 }
 
 export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent {
-	if (isBlockingConfig(input) || isDispatching(input)) {
+	if ((input.hasBlockingComposerConfig ?? false) || (input.isComposerDispatching ?? false)) {
 		return "none";
 	}
 
@@ -103,7 +86,7 @@ export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): Def
 		return "none";
 	}
 
-	if (isBlockingConfig(input) || input.isComposerDispatching) {
+	if ((input.hasBlockingComposerConfig ?? false) || (input.isComposerDispatching ?? false)) {
 		return "none";
 	}
 
@@ -123,11 +106,11 @@ export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): Def
 }
 
 export function isPrimaryButtonDisabled(input: PrimaryButtonDisabledInput): boolean {
-	if (isDispatching(input)) {
+	if (input.isComposerDispatching) {
 		return true;
 	}
 
-	if (isBlockingConfig(input)) {
+	if (input.hasBlockingComposerConfig ?? false) {
 		return true;
 	}
 
