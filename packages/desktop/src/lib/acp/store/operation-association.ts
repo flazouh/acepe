@@ -104,14 +104,9 @@ export function buildSessionOperationInteractionSnapshot(
 ): SessionOperationInteractionSnapshot {
 	let pendingQuestion: QuestionRequest | null = null;
 	let pendingQuestionOperation: Operation | null = null;
-	let firstQuestion: QuestionRequest | null = null;
 	for (const question of interactions.questionsPending.values()) {
 		if (question.sessionId !== sessionId) {
 			continue;
-		}
-
-		if (firstQuestion == null) {
-			firstQuestion = question;
 		}
 
 		const operation = findOperationForQuestion(operationStore, question);
@@ -121,21 +116,12 @@ export function buildSessionOperationInteractionSnapshot(
 			break;
 		}
 	}
-	if (pendingQuestion == null && firstQuestion != null) {
-		pendingQuestion = firstQuestion;
-		pendingQuestionOperation = findOperationForQuestion(operationStore, firstQuestion);
-	}
 
 	let pendingPermission: PermissionRequest | null = null;
 	let pendingPermissionOperation: Operation | null = null;
-	let firstPermission: PermissionRequest | null = null;
 	for (const permission of interactions.permissionsPending.values()) {
 		if (permission.sessionId !== sessionId) {
 			continue;
-		}
-
-		if (firstPermission == null) {
-			firstPermission = permission;
 		}
 
 		const operation = findOperationForPermission(operationStore, permission);
@@ -145,21 +131,12 @@ export function buildSessionOperationInteractionSnapshot(
 			break;
 		}
 	}
-	if (pendingPermission == null && firstPermission != null) {
-		pendingPermission = firstPermission;
-		pendingPermissionOperation = findOperationForPermission(operationStore, firstPermission);
-	}
 
 	let pendingPlanApproval: PlanApprovalInteraction | null = null;
 	let pendingPlanApprovalOperation: Operation | null = null;
-	let firstPlanApproval: PlanApprovalInteraction | null = null;
 	for (const approval of interactions.planApprovalsPending.values()) {
 		if (approval.sessionId !== sessionId || approval.status !== "pending") {
 			continue;
-		}
-
-		if (firstPlanApproval == null) {
-			firstPlanApproval = approval;
 		}
 
 		const operation = findOperationForPlanApproval(operationStore, approval);
@@ -168,10 +145,6 @@ export function buildSessionOperationInteractionSnapshot(
 			pendingPlanApprovalOperation = operation;
 			break;
 		}
-	}
-	if (pendingPlanApproval == null && firstPlanApproval != null) {
-		pendingPlanApproval = firstPlanApproval;
-		pendingPlanApprovalOperation = findOperationForPlanApproval(operationStore, firstPlanApproval);
 	}
 
 	return {

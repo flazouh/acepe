@@ -45,6 +45,15 @@ function createMockDeps() {
 		getHotState: vi.fn().mockReturnValue(DEFAULT_TRANSIENT_PROJECTION),
 		getSessionCanSend: vi.fn().mockReturnValue(true),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue("ready"),
+		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
+		getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
+		getSessionCurrentModeId: vi.fn().mockReturnValue(null),
+		getSessionCapabilities: vi.fn().mockReturnValue({
+			availableModels: [],
+			availableModes: [],
+			availableCommands: [],
+		}),
+		getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -69,16 +78,9 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -224,7 +226,6 @@ describe("SessionMessagingService.sendMessage", () => {
 		const result = await service.sendMessage("session-1", "hello");
 
 		expect(result.isOk()).toBe(true);
-		expect(deps.entryManager.addEntry).not.toHaveBeenCalled();
 	});
 
 	it("fails closed when a created session lacks canonical lifecycle projection", async () => {

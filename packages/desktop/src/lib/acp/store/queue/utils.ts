@@ -4,7 +4,6 @@
 
 import type { SessionStatus } from "../../application/dto/session-status.js";
 import { extractTodoProgressFromToolCall } from "../../components/session-list/session-list-logic.js";
-import type { SessionRuntimeState } from "../../logic/session-ui-state.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
@@ -63,7 +62,6 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly lastToolCall: ToolCall | null;
 	readonly lastTodoToolCall: ToolCall | null;
 	readonly updatedAt: Date;
-	readonly runtimeState: SessionRuntimeState | null;
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure: ActiveTurnFailure | null;
@@ -129,18 +127,14 @@ export function buildQueueSessionSnapshot(
 	input: BuildQueueSessionSnapshotInput
 ): QueueSessionSnapshot {
 	const state = deriveLiveSessionState({
-		runtimeState: input.runtimeState,
 		canonicalProjection: input.canonicalProjection ?? null,
 		currentModeId: input.currentModeId,
-		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
 	const workProjection = deriveLiveSessionWorkProjection({
-		runtimeState: input.runtimeState,
 		canonicalProjection: input.canonicalProjection ?? null,
 		currentModeId: input.currentModeId,
-		currentStreamingToolCall: input.currentStreamingToolCall,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});

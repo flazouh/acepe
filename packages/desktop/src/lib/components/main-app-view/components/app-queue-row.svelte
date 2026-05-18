@@ -10,7 +10,6 @@ import {
 	getUnseenStore,
 } from "$lib/acp/store/index.js";
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
-import { buildSessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import { buildQueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
@@ -35,7 +34,6 @@ const interactionStore = getInteractionStore();
 const sessionStore = getSessionStore();
 const unseenStore = getUnseenStore();
 const queueStore = getQueueStore();
-const operationStore = sessionStore.getOperationStore();
 
 const sessionToPanelMap = $derived.by(() => {
 	const map = new SvelteMap<string, string>();
@@ -55,12 +53,9 @@ const queueInputs = $derived.by(() => {
 		const metadata = sessionStore.getSessionMetadata(sessionId);
 		if (!identity || !metadata) continue;
 
-		const runtimeState = sessionStore.getSessionRuntimeState(sessionId);
-		const hotState = sessionStore.getHotState(sessionId);
 		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
-		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			identity.id,
-			operationStore,
 			interactionStore
 		);
 		const session = buildQueueSessionSnapshot({
@@ -68,12 +63,11 @@ const queueInputs = $derived.by(() => {
 			agentId: identity.agentId,
 			projectPath: identity.projectPath,
 			title: metadata.title,
-			currentStreamingToolCall: operationStore.getCurrentStreamingToolCall(sessionId),
-			currentToolKind: operationStore.getCurrentToolKind(sessionId),
-			lastToolCall: operationStore.getLastToolCall(sessionId),
-			lastTodoToolCall: operationStore.getLastTodoToolCall(sessionId),
+			currentStreamingToolCall: sessionStore.getSessionCurrentStreamingToolCall(sessionId),
+			currentToolKind: sessionStore.getSessionCurrentToolKind(sessionId),
+			lastToolCall: sessionStore.getSessionLastToolCall(sessionId),
+			lastTodoToolCall: sessionStore.getSessionLastTodoToolCall(sessionId),
 			updatedAt: metadata.updatedAt,
-			runtimeState,
 			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
 			connectionError: sessionStore.getSessionConnectionError(sessionId),
 			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
@@ -106,10 +100,9 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
 	for (const session of sessionStore.sessions) {
-		const runtimeState = sessionStore.getSessionRuntimeState(session.id);
-		const interactionSnapshot = buildSessionOperationInteractionSnapshot(
+		const lifecyclePresentation = sessionStore.getSessionLifecyclePresentation(session.id);
+		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			session.id,
-			operationStore,
 			interactionStore
 		);
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
@@ -119,8 +112,8 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 		inputs.push({
 			sessionId: session.id,
 			updatedAtMs: session.updatedAt.getTime(),
-			connectionPhase: runtimeState ? runtimeState.connectionPhase : null,
-			activityPhase: runtimeState ? runtimeState.activityPhase : null,
+			connectionPhase: lifecyclePresentation.connectionPhase,
+			activityPhase: lifecyclePresentation.activityPhase,
 			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
 			pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
 			pendingPermissionId: pendingPermission ? pendingPermission.id : null,

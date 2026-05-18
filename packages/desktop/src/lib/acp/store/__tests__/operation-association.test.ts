@@ -5,10 +5,12 @@ import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
 import {
+	buildSessionOperationInteractionSnapshot,
 	findOperationForPermission,
 	findOperationForPlanApproval,
 	findOperationForQuestion,
 } from "../operation-association.js";
+import { InteractionStore } from "../interaction-store.svelte.js";
 import { OperationStore } from "../operation-store.svelte.js";
 
 function createExecuteOperation(
@@ -160,5 +162,67 @@ describe("operation association", () => {
 		const permission = createExecutePermission("session-1", "tool-nonexistent", "some command");
 		const result = findOperationForPermission(operationStore, permission);
 		expect(result).toBeNull();
+	});
+
+	it("does not choose the first pending question when no operation match exists", () => {
+		const operationStore = new OperationStore();
+		const interactions = new InteractionStore();
+		interactions.questionsPending.set("question-1", {
+			id: "question-1",
+			sessionId: "session-1",
+			questions: [],
+			tool: { messageID: "", callID: "missing-tool" },
+		});
+
+		const snapshot = buildSessionOperationInteractionSnapshot(
+			"session-1",
+			operationStore,
+			interactions
+		);
+
+		expect(snapshot.pendingQuestion).toBeNull();
+		expect(snapshot.pendingQuestionOperation).toBeNull();
+	});
+
+	it("does not choose the first pending permission when no operation match exists", () => {
+		const operationStore = new OperationStore();
+		const interactions = new InteractionStore();
+		interactions.permissionsPending.set(
+			"permission-1",
+			createExecutePermission("session-1", "missing-tool", "git status")
+		);
+
+		const snapshot = buildSessionOperationInteractionSnapshot(
+			"session-1",
+			operationStore,
+			interactions
+		);
+
+		expect(snapshot.pendingPermission).toBeNull();
+		expect(snapshot.pendingPermissionOperation).toBeNull();
+	});
+
+	it("does not choose the first pending plan approval when no operation match exists", () => {
+		const operationStore = new OperationStore();
+		const interactions = new InteractionStore();
+		interactions.planApprovalsPending.set("approval-1", {
+			id: "approval-1",
+			kind: "plan_approval",
+			source: "create_plan",
+			sessionId: "session-1",
+			tool: { messageID: "", callID: "missing-tool" },
+			jsonRpcRequestId: 10,
+			replyHandler: { kind: "json-rpc", requestId: 10 },
+			status: "pending",
+		});
+
+		const snapshot = buildSessionOperationInteractionSnapshot(
+			"session-1",
+			operationStore,
+			interactions
+		);
+
+		expect(snapshot.pendingPlanApproval).toBeNull();
+		expect(snapshot.pendingPlanApprovalOperation).toBeNull();
 	});
 });

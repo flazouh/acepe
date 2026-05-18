@@ -1,5 +1,4 @@
 import type { SessionPlanResponse } from "../../../services/converted-session-types.js";
-import type { OperationStore } from "../../store/operation-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import {
@@ -167,29 +166,4 @@ export function getExitPlanDisplayPlan(
 	}
 
 	return buildPlanFromInput(readExitPlanToolInput(toolCall));
-}
-
-export function shouldHidePermissionBarForExitPlan(
-	permission: PermissionRequest,
-	operationStore: OperationStore
-): boolean {
-	if (!isExitPlanPermission(permission)) {
-		return false;
-	}
-
-	const toolReference = permission.tool;
-	if (toolReference !== undefined) {
-		const operation = operationStore.getByToolCallId(permission.sessionId, toolReference.callID);
-		if (operation?.kind === "exit_plan_mode") {
-			return true;
-		}
-	}
-
-	for (const operation of operationStore.getSessionOperations(permission.sessionId)) {
-		if (operation.kind === "exit_plan_mode") {
-			return true;
-		}
-	}
-
-	return false;
 }

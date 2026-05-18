@@ -1,4 +1,3 @@
-import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { OperationSnapshot, OperationSourceLink } from "../../services/acp-types.js";
 import type { Operation, OperationState } from "../types/operation.js";
@@ -6,8 +5,6 @@ import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
-
-const OPERATION_STORE_KEY = Symbol("operation-store");
 
 function createSessionToolKey(sessionId: string, toolCallId: string): string {
 	return `${sessionId}::${toolCallId}`;
@@ -377,14 +374,4 @@ export class OperationStore {
 			presentationStatus: mapOperationStateToToolPresentationStatus(operation.operationState),
 		};
 	}
-}
-
-export function createOperationStore(): OperationStore {
-	const store = new OperationStore();
-	setContext(OPERATION_STORE_KEY, store);
-	return store;
-}
-
-export function getOperationStore(): OperationStore {
-	return getContext<OperationStore>(OPERATION_STORE_KEY);
 }

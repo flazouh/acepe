@@ -4,7 +4,6 @@ import { LoadingIcon } from "@acepe/ui/icons";
 import { mapCanonicalTurnStateToHotTurnState } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
-import { buildSessionOperationInteractionSnapshot } from "../../../store/operation-association.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -44,7 +43,6 @@ let {
 
 const sessionStore = getSessionStore();
 const interactionStore = getInteractionStore();
-const operationStore = sessionStore?.getOperationStore?.() ?? null;
 const logger = createLogger({
 	id: "agent-panel-content-trace",
 	name: "AgentPanelContentTrace",
@@ -54,24 +52,11 @@ let lastContentTraceSignature = $state<string | null>(null);
 // Reference to scene viewport for scroll control
 let sceneViewportRef: SceneContentViewport | null = $state(null);
 
-// Prefer props when provided (controller pattern), fall back to store access
-const runtimeState = $derived(
-	isWaitingProp !== undefined
-		? null
-		: sessionId
-			? (sessionStore?.getSessionRuntimeState(sessionId) ?? null)
-			: null
-);
 const canonicalProjection = $derived(
 	sessionId ? (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null) : null
 );
-const currentStreamingToolCall = $derived(
-	isWaitingProp !== undefined || !sessionId || operationStore === null
-		? null
-		: operationStore.getCurrentStreamingToolCall(sessionId)
-);
 const interactionSnapshot = $derived.by(() =>
-	isWaitingProp !== undefined || !sessionId || operationStore === null || interactionStore == null
+	isWaitingProp !== undefined || !sessionId || interactionStore == null
 		? {
 				pendingQuestion: null,
 				pendingQuestionOperation: null,
@@ -80,7 +65,7 @@ const interactionSnapshot = $derived.by(() =>
 				pendingPlanApproval: null,
 				pendingPlanApprovalOperation: null,
 			}
-		: buildSessionOperationInteractionSnapshot(sessionId, operationStore, interactionStore)
+		: sessionStore.getSessionOperationInteractionSnapshot(sessionId, interactionStore)
 );
 const sessionWorkProjection = $derived.by(() => {
 	if (isWaitingProp !== undefined || !sessionId) {
@@ -88,10 +73,8 @@ const sessionWorkProjection = $derived.by(() => {
 	}
 
 	return deriveLiveSessionWorkProjection({
-		runtimeState,
 		canonicalProjection,
 		currentModeId: sessionId ? (sessionStore?.getSessionCurrentModeId(sessionId) ?? null) : null,
-		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,

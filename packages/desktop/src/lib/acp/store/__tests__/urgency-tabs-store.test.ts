@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionGraphActivity, SessionGraphLifecycle } from "$lib/services/acp-types.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
-import { OperationStore } from "../operation-store.svelte.js";
 import type { PanelStore } from "../panel-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import type { Panel, SessionTransientProjection } from "../types.js";
@@ -103,7 +102,6 @@ function createSessionStore(input: {
 	readonly lifecycle: SessionGraphLifecycle | null;
 }): SessionStore {
 	const sessionStore = new SessionStore();
-	const operationStore = new OperationStore();
 	const activity = createIdleActivity();
 	sessionStore.addSession({
 		id: "session-1",
@@ -130,7 +128,6 @@ function createSessionStore(input: {
 		parentId: null,
 	});
 	sessionStore.getHotState = () => input.hotState;
-	sessionStore.getOperationStore = () => operationStore;
 	sessionStore.getSessionRuntimeState = () => null;
 	sessionStore.getCanonicalSessionProjection = () =>
 		input.lifecycle === null

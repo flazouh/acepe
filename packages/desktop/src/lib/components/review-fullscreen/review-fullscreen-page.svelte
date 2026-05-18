@@ -1,7 +1,6 @@
 <script lang="ts">
 import { IconX } from "@tabler/icons-svelte";
 import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/agent-panel-review-content.svelte";
-import { aggregateFileEditsFromToolCalls } from "$lib/acp/components/modified-files/logic/aggregate-file-edits.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 interface Props {
@@ -14,16 +13,18 @@ interface Props {
 let { sessionId, fileIndex, onClose, onFileIndexChange }: Props = $props();
 
 const sessionStore = getSessionStore();
-const operationStore = sessionStore.getOperationStore();
-const toolCalls = $derived(operationStore.getSessionToolCalls(sessionId));
 const identity = $derived(sessionStore.getSessionIdentity(sessionId));
-const modifiedFilesState = $derived.by(() => aggregateFileEditsFromToolCalls(toolCalls));
+const modifiedFilesState = $derived(sessionStore.getSessionModifiedFilesState(sessionId));
 const projectPath = $derived(identity?.projectPath ?? null);
 
-const hasModifications = $derived(modifiedFilesState.fileCount > 0);
-const isValidIndex = $derived(fileIndex >= 0 && fileIndex < modifiedFilesState.files.length);
+const hasModifications = $derived((modifiedFilesState?.fileCount ?? 0) > 0);
+const isValidIndex = $derived(
+	modifiedFilesState !== null && fileIndex >= 0 && fileIndex < modifiedFilesState.files.length
+);
 const effectiveFileIndex = $derived(
-	isValidIndex ? fileIndex : Math.max(0, Math.min(fileIndex, modifiedFilesState.files.length - 1))
+	isValidIndex
+		? fileIndex
+		: Math.max(0, Math.min(fileIndex, (modifiedFilesState?.files.length ?? 1) - 1))
 );
 
 function handleFileIndexChange(index: number): void {
@@ -46,7 +47,7 @@ function handleFileIndexChange(index: number): void {
 		<div class="flex-1 flex items-center justify-center text-muted-foreground">
 			{"Loading..."}
 		</div>
-	{:else if !hasModifications}
+	{:else if !hasModifications || modifiedFilesState === null}
 		<div class="flex-1 flex items-center justify-center text-muted-foreground px-4">
 			{`${0} files changed`} – {"Close"}
 		</div>

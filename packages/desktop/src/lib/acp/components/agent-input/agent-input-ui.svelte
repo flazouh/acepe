@@ -232,12 +232,9 @@ const preconnectionCapabilities = $derived.by(() =>
 	})
 );
 
-// Local transient affordances only; capability truth comes from canonical accessors below.
-const sessionHotState = $derived(
-	props.sessionId ? sessionStore.getHotState(props.sessionId) : null
-);
-const sessionRuntimeState = $derived(
-	props.sessionId ? sessionStore.getSessionRuntimeState(props.sessionId) : null
+// Local transient affordances and lifecycle presentation come through narrow selectors.
+const sessionLifecyclePresentation = $derived(
+	props.sessionId ? sessionStore.getSessionLifecyclePresentation(props.sessionId) : null
 );
 const storeComposerState = $derived(
 	props.sessionId ? sessionStore.getStoreComposerState(props.sessionId) : null
@@ -342,14 +339,16 @@ const autonomousToggleActive = $derived.by(() => {
 const autoModeSupportState = $derived.by(() =>
 	resolveAutonomousSupport({
 		agentId: capabilitiesAgentId,
-		connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
+		connectionPhase: sessionLifecyclePresentation
+			? sessionLifecyclePresentation.connectionPhase
+			: null,
 		currentUiModeId: CanonicalModeId.BUILD,
 		agents: agentStore.agents,
 	})
 );
 
 const autonomousToggleBusy = $derived(
-	sessionHotState ? sessionHotState.autonomousTransition !== "idle" : false
+	props.sessionId ? sessionStore.getSessionAutonomousTransitionBusy(props.sessionId) : false
 );
 
 const autonomousDisabled = $derived(autonomousToggleBusy || !autoModeSupportState.supported);
@@ -440,7 +439,7 @@ const preconnectionAvailableCommands = $derived.by(() => {
 const slashCommandSource = $derived.by(() => {
 	return resolveSlashCommandSource({
 		liveCommands: liveAvailableCommands,
-		hasConnectedSession: sessionRuntimeState?.connectionPhase === "connected",
+		hasConnectedSession: sessionLifecyclePresentation?.connectionPhase === "connected",
 		selectedAgentId: capabilitiesAgentId,
 		preconnectionCommands: preconnectionAvailableCommands,
 	});
@@ -459,23 +458,30 @@ const inputReady = $derived(Boolean(props.sessionId) || Boolean(filePickerProjec
 
 // Stop/cancel state from canonical runtime contract.
 const isStreaming = $derived(
-	props.sessionShowStop ?? sessionRuntimeState?.showStop ?? props.sessionIsStreaming ?? false
+	props.sessionShowStop ??
+		sessionLifecyclePresentation?.showStop ??
+		props.sessionIsStreaming ??
+		false
 );
 
 // Queue while the runtime contract still allows cancellation.
 // That covers both streaming and the awaiting-response gap used by OpenCode.
-const isAgentBusy = $derived(props.sessionShowStop ?? sessionRuntimeState?.canCancel ?? false);
+const isAgentBusy = $derived(
+	props.sessionShowStop ?? sessionLifecyclePresentation?.canCancel ?? false
+);
 
 // Submit is controlled by canonical runtime state when a session exists.
 const isSubmitDisabled = $derived(
 	props.disableSend
 		? true
 		: props.sessionId
-			? !(props.sessionCanSubmit ?? sessionRuntimeState?.canSubmit ?? false)
+			? !(props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit ?? false)
 			: false
 );
 
-const isSessionConnecting = $derived(sessionRuntimeState?.connectionPhase === "connecting");
+const isSessionConnecting = $derived(
+	sessionLifecyclePresentation?.connectionPhase === "connecting"
+);
 
 // Loading state only follows explicit connecting/loading signals.
 // Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
@@ -506,7 +512,7 @@ const selectorsLoading = $derived.by(() =>
 );
 
 $effect(() => {
-	const hasConnectedSession = sessionRuntimeState?.connectionPhase === "connected";
+	const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
 	preconnectionCapabilitiesState
 		.ensureLoaded({
 			agentId: capabilitiesAgentId,
@@ -530,7 +536,7 @@ $effect(() => {
 	if (!sessionId || isApplyingProvisionalToolbarSelections) {
 		return;
 	}
-	if (sessionRuntimeState?.connectionPhase !== "connected") {
+	if (sessionLifecyclePresentation?.connectionPhase !== "connected") {
 		return;
 	}
 
@@ -812,7 +818,8 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession = sessionRuntimeState?.connectionPhase === "connected";
+			const hasConnectedSession =
+				sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
 				capabilitiesAgentId &&
@@ -1084,15 +1091,17 @@ async function handleModeChange(modeId: string) {
 				provisionalModelId: effectiveCurrentModelId,
 				provisionalAutonomousEnabled: autonomousToggleActive,
 			},
-			async () => {
-				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
-					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-						currentUiModeId: modeId,
-						agents: agentStore.agents,
-					}).supported;
+				async () => {
+					const shouldAnnounceForcedOff =
+						autonomousToggleActive &&
+						!resolveAutonomousSupport({
+							agentId: capabilitiesAgentId,
+							connectionPhase: sessionLifecyclePresentation
+								? sessionLifecyclePresentation.connectionPhase
+								: null,
+							currentUiModeId: modeId,
+							agents: agentStore.agents,
+						}).supported;
 				const result = await sessionStore.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
@@ -1127,7 +1136,7 @@ async function handleModeChange(modeId: string) {
 }
 
 async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<boolean> {
-	if (!props.sessionId || !sessionHotState) {
+	if (!props.sessionId) {
 		return false;
 	}
 
@@ -1202,14 +1211,16 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-				const shouldAnnounceForcedOff =
-					autonomousToggleActive &&
-					!resolveAutonomousSupport({
-						agentId: capabilitiesAgentId,
-						connectionPhase: sessionRuntimeState ? sessionRuntimeState.connectionPhase : null,
-						currentUiModeId: resolution.modeIdToApply,
-						agents: agentStore.agents,
-					}).supported;
+					const shouldAnnounceForcedOff =
+						autonomousToggleActive &&
+						!resolveAutonomousSupport({
+							agentId: capabilitiesAgentId,
+							connectionPhase: sessionLifecyclePresentation
+								? sessionLifecyclePresentation.connectionPhase
+								: null,
+							currentUiModeId: resolution.modeIdToApply,
+							agents: agentStore.agents,
+						}).supported;
 				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");

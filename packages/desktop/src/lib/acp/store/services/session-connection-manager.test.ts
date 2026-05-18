@@ -129,9 +129,7 @@ function createMockEventHandler(): SessionEventHandler {
 		getSessionCold: vi.fn(),
 		isPreloaded: vi.fn(),
 		getHotState: vi.fn(),
-		ensureStreamingState: vi.fn(),
-		handleStreamComplete: vi.fn(),
-		handleTurnError: vi.fn(),
+		getSessionCanSend: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
 	};
@@ -219,9 +217,11 @@ describe("SessionConnectionManager.connectSession", () => {
 		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
+		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
 		getSessionCapabilities: vi.fn(),
+		getCanonicalSessionProjection: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -256,16 +256,9 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -381,7 +374,6 @@ describe("SessionConnectionManager.connectSession", () => {
 			"open-token-1"
 		);
 		expect(stateWriter.replaceSessionOpenSnapshot).not.toHaveBeenCalled();
-		expect(entryManager.storeEntriesAndBuildIndex).not.toHaveBeenCalled();
 		expect(entryManager.clearEntries).not.toHaveBeenCalled();
 		expect(connectionManager.sendContentLoad).not.toHaveBeenCalled();
 		expect(connectionManager.sendContentLoaded).not.toHaveBeenCalled();
@@ -1073,8 +1065,11 @@ describe("SessionConnectionManager.createSession", () => {
 		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
+		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
+		getSessionCapabilities: vi.fn(),
+		getCanonicalSessionProjection: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -1109,16 +1104,9 @@ describe("SessionConnectionManager.createSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -1788,8 +1776,11 @@ describe("SessionConnectionManager autonomous policy", () => {
 		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
+		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
+		getSessionCapabilities: vi.fn(),
+		getCanonicalSessionProjection: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -1824,16 +1815,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2237,7 +2221,13 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 
 	const stateReader: ISessionStateReader = {
 		getHotState: vi.fn(),
+		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
+		getGraphTranscriptRevision: vi.fn(),
+		getSessionAutonomousEnabled: vi.fn(),
+		getSessionCurrentModeId: vi.fn(),
+		getSessionCapabilities: vi.fn(),
+		getCanonicalSessionProjection: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -2272,16 +2262,9 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		hasEntries: vi.fn(),
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
-		unmarkPreloaded: vi.fn(),
-		storeEntriesAndBuildIndex: vi.fn(),
-		addEntry: vi.fn(),
-		removeEntry: vi.fn(),
-		updateEntry: vi.fn(),
 		clearEntries: vi.fn(),
-		aggregateAssistantChunk: vi.fn(),
 		clearStreamingAssistantEntry: vi.fn(),
 		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2371,6 +2354,17 @@ describe("SessionConnectionManager.disconnectSession", () => {
 					statusChangedAt: Date.now(),
 				})
 			),
+			getSessionCanSend: vi.fn(() => null),
+			getSessionLifecycleStatus: vi.fn(() => null),
+			getGraphTranscriptRevision: vi.fn(() => undefined),
+			getSessionAutonomousEnabled: vi.fn(() => null),
+			getSessionCurrentModeId: vi.fn(() => null),
+			getSessionCapabilities: vi.fn(() => ({
+				availableModels: [],
+				availableModes: [],
+				availableCommands: [],
+			})),
+			getCanonicalSessionProjection: vi.fn(() => null),
 			getSessionToolCalls: vi.fn(() => []),
 			isPreloaded: vi.fn(() => false),
 			getSessionsForProject: vi.fn(() => []),
@@ -2413,16 +2407,9 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		};
 
 		const entryManager: IEntryManager = {
-			hasEntries: vi.fn(),
 			isPreloaded: vi.fn(),
 			markPreloaded: vi.fn(),
-			unmarkPreloaded: vi.fn(),
-			storeEntriesAndBuildIndex: vi.fn(),
-			addEntry: vi.fn(),
-			removeEntry: vi.fn(),
-			updateEntry: vi.fn(),
 			clearEntries: vi.fn(),
-			aggregateAssistantChunk: vi.fn(),
 			clearStreamingAssistantEntry: vi.fn(),
 			startNewAssistantTurn: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),

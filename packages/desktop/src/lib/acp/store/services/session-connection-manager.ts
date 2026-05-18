@@ -101,37 +101,26 @@ function getProviderAwareSessionModelState(
 }
 
 function canSendFromCanonical(reader: ISessionStateReader, sessionId: string): boolean {
-	return reader.getSessionCanSend?.(sessionId) === true;
+	return reader.getSessionCanSend(sessionId) === true;
 }
 
 function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string): string | null {
-	return reader.getSessionCurrentModeId?.(sessionId) ?? null;
+	return reader.getSessionCurrentModeId(sessionId);
 }
 
 function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean {
-	return reader.getSessionAutonomousEnabled?.(sessionId) ?? false;
+	return reader.getSessionAutonomousEnabled(sessionId) ?? false;
 }
 
 function canonicalCapabilities(
 	reader: ISessionStateReader,
 	sessionId: string
 ): SessionCapabilities {
-	return (
-		reader.getSessionCapabilities?.(sessionId) ?? {
-			availableModes: [],
-			availableModels: [],
-			availableCommands: [],
-			revision: null,
-			pendingMutationId: null,
-			previewState: undefined,
-			modelsDisplay: undefined,
-			providerMetadata: undefined,
-		}
-	);
+	return reader.getSessionCapabilities(sessionId);
 }
 
 function canonicalWireOpen(reader: ISessionStateReader, sessionId: string): boolean {
-	const lifecycleStatus = reader.getSessionLifecycleStatus?.(sessionId) ?? null;
+	const lifecycleStatus = reader.getSessionLifecycleStatus(sessionId);
 	return (
 		lifecycleStatus === "ready" ||
 		lifecycleStatus === "activating" ||

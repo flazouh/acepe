@@ -24,50 +24,48 @@ export interface ISessionStateReader {
 	getHotState(sessionId: string): SessionTransientProjection;
 
 	/**
-	 * Canonical actionability gate. Returns null when no canonical graph has
-	 * materialized yet and callers must use their compatibility fallback.
+	 * Canonical actionability gate. Returns null before the first canonical graph.
 	 */
-	getSessionCanSend?(sessionId: string): boolean | null;
+	getSessionCanSend(sessionId: string): boolean | null;
 
 	/**
 	 * Canonical lifecycle status. Used when a caller needs to distinguish
 	 * reserved first-send activation from a detached historical reconnect.
 	 */
-	getSessionLifecycleStatus?(sessionId: string): SessionGraphLifecycle["status"] | null;
+	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null;
 
 	/**
 	 * Canonical transcript revision. Used by local optimistic send cleanup to
 	 * distinguish newly acknowledged text from older identical prompts.
 	 */
-	getGraphTranscriptRevision?(sessionId: string): number | undefined;
+	getGraphTranscriptRevision(sessionId: string): number | undefined;
 
 	/**
 	 * Canonical autonomous setting. Returns null when no canonical projection has materialized.
 	 */
-	getSessionAutonomousEnabled?(sessionId: string): boolean | null;
+	getSessionAutonomousEnabled(sessionId: string): boolean | null;
 
 	/**
 	 * Canonical current mode id. Returns null when no canonical projection or selected mode exists.
 	 */
-	getSessionCurrentModeId?(sessionId: string): string | null;
+	getSessionCurrentModeId(sessionId: string): string | null;
 
 	/**
 	 * Canonical capabilities projection. Returns empty capabilities when no
 	 * canonical projection has materialized.
 	 */
-	getSessionCapabilities?(sessionId: string): SessionCapabilities;
+	getSessionCapabilities(sessionId: string): SessionCapabilities;
 
 	/**
 	 * Canonical session projection (lifecycle + activity + turn state + active
-	 * failure). Returns null before the first canonical envelope arrives;
-	 * callers must treat that as the only legitimate hot-state fallback window.
+	 * failure). Returns null before the first canonical envelope arrives.
 	 */
-	getCanonicalSessionProjection?(sessionId: string): CanonicalSessionProjection | null;
+	getCanonicalSessionProjection(sessionId: string): CanonicalSessionProjection | null;
 
 	/**
 	 * Canonical operation-backed tool calls for a session.
 	 */
-	getSessionToolCalls?(sessionId: string): ToolCall[];
+	getSessionToolCalls(sessionId: string): ToolCall[];
 
 	/**
 	 * Check if a session's entries have been preloaded.

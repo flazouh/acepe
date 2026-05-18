@@ -1,25 +1,15 @@
 /**
  * Entry Manager Interface
  *
- * Narrow interface for managing session entries.
- * Extracted services use this for entry CRUD and chunk aggregation.
+ * Narrow interface for lifecycle-facing entry operations.
+ * Services may clear or finalize compatibility rows, but they must not create,
+ * remove, or update transcript rows directly.
  */
-
-import type { ResultAsync } from "neverthrow";
-
-import type { ContentChunk } from "../../../../services/converted-session-types.js";
-import type { AppError } from "../../../errors/app-error.js";
-import type { SessionEntry } from "../../types.js";
 
 /**
  * Interface for managing session entries.
  */
 export interface IEntryManager {
-	/**
-	 * Check if a session has entries.
-	 */
-	hasEntries(sessionId: string): boolean;
-
 	/**
 	 * Check if session is preloaded.
 	 */
@@ -31,45 +21,9 @@ export interface IEntryManager {
 	markPreloaded(sessionId: string): void;
 
 	/**
-	 * Unmark session as preloaded.
-	 */
-	unmarkPreloaded(sessionId: string): void;
-
-	/**
-	 * Store entries and build message index.
-	 */
-	storeEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
-
-	/**
-	 * Add an entry to a session.
-	 */
-	addEntry(sessionId: string, entry: SessionEntry): void;
-
-	/**
-	 * Remove an entry from a session.
-	 */
-	removeEntry(sessionId: string, entryId: string): void;
-
-	/**
-	 * Update an existing entry.
-	 */
-	updateEntry(sessionId: string, index: number, updatedEntry: SessionEntry): void;
-
-	/**
 	 * Clear entries for a session.
 	 */
 	clearEntries(sessionId: string): void;
-
-	/**
-	 * Aggregate assistant chunk.
-	 * Appends chunk content to the current assistant entry, creating a new entry if needed.
-	 */
-	aggregateAssistantChunk(
-		sessionId: string,
-		chunk: ContentChunk,
-		messageId: string | undefined,
-		isThought: boolean
-	): ResultAsync<void, AppError>;
 
 	/**
 	 * Clear any in-progress assistant aggregation state for a session.

@@ -182,6 +182,18 @@ Operation authority is closed on the GOD model after the canonical operation ref
 - Tool routing for `read_lints` now comes from Rust canonical classification (`ToolKind::ReadLints`), not UI-level raw name/title aliases.
 - Shared UI receives presentation-safe status values derived from operations (`pending`, `running`, `blocked`, `done`, `error`, `cancelled`, `degraded`) and remains presentational.
 
+## UI session projection closure (2026-05-18)
+
+The remaining UI session surfaces are now closed on the GOD authority boundary:
+
+- Queue, kanban, session item, tab, urgency, agent panel, composer, and telemetry chip surfaces no longer read broad session hot/runtime objects for session semantics.
+- Session lifecycle presentation comes from canonical graph projection selectors. Missing canonical projection fails closed instead of falling back to local hot state.
+- Residual local fields are exposed through narrow selectors only: pending send intent, usage telemetry, autonomous toggle busy, lifecycle presentation, and status-changed timestamp.
+- Panel-local hot state remains allowed for UI-only state such as drafts, provisional launch state, browser sidebar, and pre-session optimistic visuals. It is not session truth.
+- Old generic transcript compatibility writer names are gone. Remaining compatibility writer APIs are explicitly named with `Compatibility`, while product transcript truth uses `replaceTranscriptSnapshot` and `applyTranscriptDelta`.
+
+Deletion-proof scans for this closure are recorded in `docs/plans/2026-05-18-002-refactor-canonical-ui-session-projections-plan.md`.
+
 
 ## Post-land learnings
 

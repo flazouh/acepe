@@ -14,10 +14,6 @@ import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
 import { mapCanonicalTurnStateToHotTurnState } from "../../store/canonical-turn-state-mapping.js";
 import { extractCompactPermissionDisplay } from "./permission-display.js";
-import {
-	isPermissionRepresentedByToolCall,
-	visiblePermissionsForSessionBar,
-} from "./permission-visibility.js";
 import { useTheme } from "../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 import {
@@ -45,14 +41,13 @@ let {
 
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
-const operationStore = sessionStore.getOperationStore();
 
 const pendingPermissions = $derived.by(() => {
 	if (permission) {
 		return [permission];
 	}
 
-	return visiblePermissionsForSessionBar(permissionStore.getForSession(sessionId), operationStore);
+	return sessionStore.getVisiblePermissionsForSessionBar(permissionStore.getForSession(sessionId));
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
 const isRepresentedByToolCall = $derived.by(() => {
@@ -60,7 +55,7 @@ const isRepresentedByToolCall = $derived.by(() => {
 		return false;
 	}
 
-	return isPermissionRepresentedByToolCall(currentPermission, sessionId, operationStore);
+	return sessionStore.isPermissionRepresentedByToolCall(currentPermission, sessionId);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
 const effectiveTurnState = $derived(sessionStore.getSessionTurnState(sessionId));
@@ -70,7 +65,7 @@ const currentToolCall = $derived.by((): ToolCall | null => {
 		return null;
 	}
 
-	return operationStore.getToolCallById(sessionId, toolCallId);
+	return sessionStore.getToolCallById(sessionId, toolCallId);
 });
 const showEditPreview = $derived(
 	showCompactEditPreview && currentToolCall !== null && currentToolCall.kind === "edit"

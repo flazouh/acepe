@@ -14,8 +14,8 @@ function createMockEntryStore(overrides: Partial<IEntryStoreInternal> = {}): IEn
 		hasAssistantEntry: vi.fn(() => false),
 		findLatestUserEntryRef: vi.fn(() => null),
 		findToolCallEntryRef: vi.fn(() => null),
-		addEntry: vi.fn(),
-		updateEntry: vi.fn(),
+		appendCompatibilityEntry: vi.fn(),
+		replaceCompatibilityEntry: vi.fn(),
 		hasSession: vi.fn(() => true),
 		...overrides,
 	};
@@ -83,12 +83,12 @@ describe("ChunkAggregator", () => {
 	});
 
 	// ==========================================
-	// aggregateAssistantChunk
+	// aggregateCompatibilityAssistantChunk
 	// ==========================================
 
-	describe("aggregateAssistantChunk", () => {
+	describe("aggregateCompatibilityAssistantChunk", () => {
 		it("creates new assistant entry for first chunk", async () => {
-			const result = await aggregator.aggregateAssistantChunk(
+			const result = await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "Hello" } },
 				"msg-1",
@@ -96,9 +96,9 @@ describe("ChunkAggregator", () => {
 			);
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(1);
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(1);
 
-			const addedEntry = (mockStore.addEntry as ReturnType<typeof vi.fn>).mock
+			const addedEntry = (mockStore.appendCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][1] as SessionEntry;
 			expect(addedEntry.id).toBe("msg-1");
 			expect(addedEntry.type).toBe("assistant");
@@ -109,7 +109,7 @@ describe("ChunkAggregator", () => {
 		});
 
 		it("merges chunk into existing entry", async () => {
-			// Simulate: entry starts absent, then appears in entries after addEntry
+			// Simulate: entry starts absent, then appears in entries after appendCompatibilityEntry
 			let entries: SessionEntry[] = [];
 			mockStore = createMockEntryStore({
 				findAssistantEntryRef: vi.fn((_sessionId: string, entryId: string) => {
@@ -122,14 +122,14 @@ describe("ChunkAggregator", () => {
 				hasAssistantEntry: vi.fn((_sessionId: string, entryId: string) =>
 					entries.some((entry) => entry.type === "assistant" && entry.id === entryId)
 				),
-				addEntry: vi.fn((_sid: string, entry: SessionEntry) => {
+				appendCompatibilityEntry: vi.fn((_sid: string, entry: SessionEntry) => {
 					entries = [entry];
 				}),
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
 			// First chunk creates entry
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "First " } },
 				"msg-1",
@@ -137,19 +137,19 @@ describe("ChunkAggregator", () => {
 			);
 
 			// Second chunk should merge (entry now in entries)
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "second" } },
 				"msg-1",
 				false
 			);
 
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(1); // Only first creates
-			expect(mockStore.updateEntry).toHaveBeenCalledTimes(1); // Second merges
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(1); // Only first creates
+			expect(mockStore.replaceCompatibilityEntry).toHaveBeenCalledTimes(1); // Second merges
 		});
 
 		it("returns ValidationError for invalid chunk input", async () => {
-			const result = await aggregator.aggregateAssistantChunk(
+			const result = await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "test" } },
 				"msg-1",
@@ -163,7 +163,7 @@ describe("ChunkAggregator", () => {
 			mockStore = createMockEntryStore({ hasSession: vi.fn(() => false) });
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateAssistantChunk(
+			const result = await aggregator.aggregateCompatibilityAssistantChunk(
 				"unknown-session",
 				{ content: { type: "text", text: "test" } },
 				"msg-1",
@@ -174,14 +174,14 @@ describe("ChunkAggregator", () => {
 		});
 
 		it("normalizes explicit thought chunks by stripping prefix", async () => {
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "[Thinking] Let me check." } },
 				"msg-1",
 				true
 			);
 
-			const addedEntry = (mockStore.addEntry as ReturnType<typeof vi.fn>).mock
+			const addedEntry = (mockStore.appendCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][1] as SessionEntry;
 			if (addedEntry.type === "assistant") {
 				expect(addedEntry.message.chunks[0].type).toBe("thought");
@@ -200,7 +200,7 @@ describe("ChunkAggregator", () => {
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateAssistantChunk(
+			const result = await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "world" } },
 				"msg-1",
@@ -208,20 +208,20 @@ describe("ChunkAggregator", () => {
 			);
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.updateEntry).toHaveBeenCalledTimes(1);
-			expect(mockStore.addEntry).not.toHaveBeenCalled();
+			expect(mockStore.replaceCompatibilityEntry).toHaveBeenCalledTimes(1);
+			expect(mockStore.appendCompatibilityEntry).not.toHaveBeenCalled();
 			expect(mockStore.findAssistantEntryRef).toHaveBeenCalledWith("session1", "msg-1");
 		});
 
 		it("does not reinterpret message chunks from [Thinking] prefixes", async () => {
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "[Thinking] Implicit thought." } },
 				"msg-1",
 				false // Not explicitly marked as thought
 			);
 
-			const addedEntry = (mockStore.addEntry as ReturnType<typeof vi.fn>).mock
+			const addedEntry = (mockStore.appendCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][1] as SessionEntry;
 			if (addedEntry.type === "assistant") {
 				expect(addedEntry.message.chunks[0].type).toBe("message");
@@ -234,19 +234,19 @@ describe("ChunkAggregator", () => {
 	});
 
 	// ==========================================
-	// aggregateUserChunk
+	// aggregateCompatibilityUserChunk
 	// ==========================================
 
-	describe("aggregateUserChunk", () => {
+	describe("aggregateCompatibilityUserChunk", () => {
 		it("creates new user entry when no existing user entry", async () => {
-			const result = await aggregator.aggregateUserChunk("session1", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("session1", {
 				content: { type: "text", text: "Hello" },
 			});
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(1);
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(1);
 
-			const addedEntry = (mockStore.addEntry as ReturnType<typeof vi.fn>).mock
+			const addedEntry = (mockStore.appendCompatibilityEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][1] as SessionEntry;
 			expect(addedEntry.type).toBe("user");
 		});
@@ -258,13 +258,13 @@ describe("ChunkAggregator", () => {
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateUserChunk("session1", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("session1", {
 				content: { type: "text", text: " more" },
 			});
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.updateEntry).toHaveBeenCalledTimes(1);
-			expect(mockStore.addEntry).not.toHaveBeenCalled();
+			expect(mockStore.replaceCompatibilityEntry).toHaveBeenCalledTimes(1);
+			expect(mockStore.appendCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("drops mirrored duplicate chunk after optimistic user entry", async () => {
@@ -282,13 +282,13 @@ describe("ChunkAggregator", () => {
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateUserChunk("session1", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("session1", {
 				content: { type: "text", text: "Hi what is this repo ?" },
 			});
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.updateEntry).not.toHaveBeenCalled();
-			expect(mockStore.addEntry).not.toHaveBeenCalled();
+			expect(mockStore.replaceCompatibilityEntry).not.toHaveBeenCalled();
+			expect(mockStore.appendCompatibilityEntry).not.toHaveBeenCalled();
 		});
 
 		it("still merges when existing user entry already has multiple chunks", async () => {
@@ -309,19 +309,19 @@ describe("ChunkAggregator", () => {
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateUserChunk("session1", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("session1", {
 				content: { type: "text", text: "!" },
 			});
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.updateEntry).toHaveBeenCalledTimes(1);
+			expect(mockStore.replaceCompatibilityEntry).toHaveBeenCalledTimes(1);
 		});
 
 		it("returns SessionNotFoundError for unknown session", async () => {
 			mockStore = createMockEntryStore({ hasSession: vi.fn(() => false) });
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateUserChunk("unknown", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("unknown", {
 				content: { type: "text", text: "test" },
 			});
 
@@ -335,12 +335,12 @@ describe("ChunkAggregator", () => {
 			});
 			aggregator = new ChunkAggregator(mockStore, mockIndex);
 
-			const result = await aggregator.aggregateUserChunk("session1", {
+			const result = await aggregator.aggregateCompatibilityUserChunk("session1", {
 				content: { type: "text", text: "Hello" },
 			});
 
 			expect(result.isOk()).toBe(true);
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(1); // Creates new
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(1); // Creates new
 		});
 	});
 
@@ -359,7 +359,7 @@ describe("ChunkAggregator", () => {
 
 		it("marks current messageId as boundary", async () => {
 			// Set up state by aggregating a chunk
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "thinking..." } },
 				"msg-1",
@@ -369,19 +369,19 @@ describe("ChunkAggregator", () => {
 			aggregator.splitAssistantAggregationBoundary("session1");
 
 			// Subsequent chunk with same messageId should create new entry
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "after tool" } },
 				"msg-1",
 				false
 			);
 
-			// Should have called addEntry twice (first chunk + post-boundary chunk)
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(2);
+			// Should have called appendCompatibilityEntry twice (first chunk + post-boundary chunk)
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(2);
 		});
 
 		it("splits boundary without mutating message index entries", async () => {
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "hello" } },
 				"msg-1",
@@ -406,7 +406,7 @@ describe("ChunkAggregator", () => {
 
 	describe("clearStreamingAssistantEntry", () => {
 		it("clears aggregation state for session", async () => {
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "hello" } },
 				"msg-1",
@@ -416,14 +416,14 @@ describe("ChunkAggregator", () => {
 			aggregator.clearStreamingAssistantEntry("session1");
 
 			// Next chunk should create fresh entry (no lastKnownMessageId)
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "fresh" } },
 				"msg-2",
 				false
 			);
 
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(2);
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(2);
 		});
 	});
 
@@ -433,7 +433,7 @@ describe("ChunkAggregator", () => {
 
 	describe("clearSession", () => {
 		it("clears all state for the session", async () => {
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "hello" } },
 				"msg-1",
@@ -443,14 +443,14 @@ describe("ChunkAggregator", () => {
 			aggregator.clearSession("session1");
 
 			// Aggregation state should be fresh
-			await aggregator.aggregateAssistantChunk(
+			await aggregator.aggregateCompatibilityAssistantChunk(
 				"session1",
 				{ content: { type: "text", text: "new start" } },
 				"msg-2",
 				false
 			);
 
-			expect(mockStore.addEntry).toHaveBeenCalledTimes(2);
+			expect(mockStore.appendCompatibilityEntry).toHaveBeenCalledTimes(2);
 		});
 	});
 });

@@ -3,11 +3,9 @@
  */
 
 import type { TranscriptEntry } from "../../services/acp-types.js";
-import type { SessionRuntimeState } from "../logic/session-ui-state.js";
 import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
-import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import {
@@ -25,7 +23,6 @@ import type {
 	GitWorkspacePanel,
 	Panel,
 	ReviewWorkspacePanel,
-	SessionTransientProjection,
 	TerminalWorkspacePanel,
 } from "./types.js";
 
@@ -45,11 +42,8 @@ export interface PanelToTabInput {
 	readonly focusedPanelId: string | null;
 	readonly agentId: string | null;
 	readonly title: string | null;
-	readonly hotState: SessionTransientProjection | null;
 	readonly canonicalProjection?: CanonicalSessionProjection | null;
-	readonly runtimeState: SessionRuntimeState | null;
 	readonly transcriptEntries: ReadonlyArray<TranscriptEntry>;
-	readonly currentStreamingToolCall: ToolCall | null;
 	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
@@ -261,9 +255,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		agentId,
 		title,
 		canonicalProjection,
-		runtimeState,
 		transcriptEntries,
-		currentStreamingToolCall: providedCurrentStreamingToolCall,
 		currentToolKind: providedCurrentToolKind,
 		pendingQuestion,
 		pendingPlanApproval,
@@ -276,13 +268,10 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		sequenceId,
 	} = input;
 	const currentToolKind = providedCurrentToolKind;
-	const currentStreamingToolCall = providedCurrentStreamingToolCall;
 	const currentModeId = canonicalProjection?.capabilities.modes?.currentModeId ?? null;
 	const liveSessionInput: LiveSessionWorkInput = {
-		runtimeState,
 		canonicalProjection,
 		currentModeId,
-		currentStreamingToolCall,
 		interactionSnapshot: {
 			pendingQuestion,
 			pendingPlanApproval,

@@ -43,11 +43,7 @@ import type {
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
-import type {
-	ContentBlock,
-	ContentChunk,
-	PlanData,
-} from "../../services/converted-session-types.js";
+import type { ContentBlock, PlanData } from "../../services/converted-session-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
@@ -62,18 +58,27 @@ import {
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
+import type { PermissionRequest } from "../types/permission.js";
 import type { SessionUpdate } from "../types/session-update";
-import type {
-	ActiveTurnFailure,
-	TurnCompleteUpdate,
-	TurnErrorUpdate,
-} from "../types/turn-error.js";
+import type { ToolKind } from "../types/tool-kind.js";
+import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
+import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type {
 	CanonicalSessionProjection,
 	RowTokenStream,
 	SessionClockAnchor,
 } from "./canonical-session-projection.js";
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
+import type { InteractionStore } from "./interaction-store.svelte.js";
+import {
+	buildSessionOperationInteractionSnapshot,
+	type SessionOperationInteractionSnapshot,
+} from "./operation-association.js";
+import {
+	deriveLiveSessionLifecyclePresentation,
+	type LiveSessionLifecyclePresentation,
+} from "./live-session-work.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import {
 	SessionConnectionService,
@@ -90,7 +95,6 @@ import type {
 	SessionCapabilities,
 	SessionCold,
 	SessionContextBudget,
-	SessionEntry,
 	SessionIdentity,
 	SessionLinkedPr,
 	SessionMetadata,
@@ -110,6 +114,10 @@ import { createLogger } from "../utils/logger.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
+import {
+	isPermissionRepresentedByOperation,
+	visiblePermissionsForOperations,
+} from "./permission-operation-projection.js";
 import { canActivateCreatedSessionWithFirstPrompt } from "./services/first-send-activation.js";
 import {
 	type CreatedPendingSessionResult,
@@ -1318,6 +1326,38 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
 	}
 
+	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
+		const projection = this.canonicalProjections.get(sessionId) ?? null;
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		const hotState = this.hotStateStore.getHotState(sessionId);
+
+		return deriveLiveSessionLifecyclePresentation({
+			canonicalProjection: projection,
+			hasEntries: (graph?.transcriptSnapshot.entries.length ?? 0) > 0,
+			hasLocalPendingSendIntent: hotState.pendingSendIntent !== null,
+		});
+	}
+
+	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {
+		return this.hotStateStore.getHotState(sessionId).pendingSendIntent ?? null;
+	}
+
+	getSessionHasLocalPendingSendIntent(sessionId: string): boolean {
+		return this.getSessionPendingSendIntent(sessionId) !== null;
+	}
+
+	getSessionUsageTelemetry(sessionId: string): SessionUsageTelemetry | null {
+		return this.hotStateStore.getHotState(sessionId).usageTelemetry ?? null;
+	}
+
+	getSessionAutonomousTransitionBusy(sessionId: string): boolean {
+		return this.hotStateStore.getHotState(sessionId).autonomousTransition !== "idle";
+	}
+
+	getSessionStatusChangedAt(sessionId: string): number {
+		return this.hotStateStore.getHotState(sessionId).statusChangedAt;
+	}
+
 	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
 		const session = this.getSessionCold(sessionId);
@@ -1539,8 +1579,53 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.operationStore.getSessionToolCalls(sessionId);
 	}
 
-	getOperationStore(): OperationStore {
-		return this.operationStore;
+	getSessionCurrentStreamingToolCall(sessionId: string): ToolCall | null {
+		return this.operationStore.getCurrentStreamingToolCall(sessionId);
+	}
+
+	getSessionLastToolCall(sessionId: string): ToolCall | null {
+		return this.operationStore.getLastToolCall(sessionId);
+	}
+
+	getSessionLastTodoToolCall(sessionId: string): ToolCall | null {
+		return this.operationStore.getLastTodoToolCall(sessionId);
+	}
+
+	getSessionModifiedFilesState(sessionId: string): ModifiedFilesState | null {
+		const toolCalls = this.getSessionToolCalls(sessionId);
+		if (toolCalls.length === 0) {
+			return null;
+		}
+		const state = aggregateFileEditsFromToolCalls(toolCalls);
+		return state.fileCount > 0 ? state : null;
+	}
+
+	getSessionOperationInteractionSnapshot(
+		sessionId: string,
+		interactions: InteractionStore
+	): SessionOperationInteractionSnapshot {
+		return buildSessionOperationInteractionSnapshot(sessionId, this.operationStore, interactions);
+	}
+
+	getToolCallById(sessionId: string, toolCallId: string): ToolCall | null {
+		return this.operationStore.getToolCallById(sessionId, toolCallId);
+	}
+
+	getSessionCurrentToolKind(sessionId: string): ToolKind | null {
+		return this.operationStore.getCurrentToolKind(sessionId);
+	}
+
+	isPermissionRepresentedByToolCall(
+		permission: PermissionRequest,
+		sessionId: string
+	): boolean {
+		return isPermissionRepresentedByOperation(permission, sessionId, this.operationStore);
+	}
+
+	getVisiblePermissionsForSessionBar(
+		permissions: ReadonlyArray<PermissionRequest>
+	): PermissionRequest[] {
+		return visiblePermissionsForOperations(permissions, this.operationStore);
 	}
 
 	/**
@@ -1622,7 +1707,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 		return deriveStoreComposerState({
 			machineSnapshot: snapshot,
-			runtime: this.getSessionRuntimeState(sessionId),
+			runtime: this.getSessionLifecyclePresentation(sessionId),
 		});
 	}
 
@@ -1733,7 +1818,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				input.previousProjection.lastTerminalTurnId !== input.lastTerminalTurnId);
 		if (isNewCompletedTurn) {
 			this.composerEndDispatch(input.sessionId);
-			this.messagingSvc.handleStreamComplete(
+			this.messagingSvc.handleCanonicalTurnComplete(
 				input.sessionId,
 				input.lastTerminalTurnId ?? undefined
 			);
@@ -1755,7 +1840,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				: Number.isNaN(Number(input.projectedFailure.code))
 					? undefined
 					: Number(input.projectedFailure.code);
-		this.messagingSvc.handleTurnError(input.sessionId, {
+		this.messagingSvc.handleCanonicalTurnFailure(input.sessionId, {
 			type: "turnError",
 			session_id: input.sessionId,
 			turn_id: input.projectedFailure.turn_id ?? undefined,
@@ -2048,7 +2133,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		// TurnError arrives for an unregistered session (build_snapshot_envelope
 		// fallback in runtime_registry.rs). The canonical channel is the sole
 		// authority — no client synthesis needed.
-		this.messagingSvc.handleTurnError(sessionId, update);
+		this.messagingSvc.handleCanonicalTurnFailure(sessionId, update);
 		this.pendingCreationSessions.delete(sessionId);
 		this.callbacks.onTurnError?.(sessionId);
 	}
@@ -2398,39 +2483,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return send();
 		}
 		return errAsync(new ConnectionError(sessionId));
-	}
-
-	// ============================================
-	// STREAMING (delegated to messaging service)
-	// ============================================
-
-	/**
-	 * Handle incoming stream entry from Tauri events.
-	 */
-	handleStreamEntry(sessionId: string, entry: SessionEntry): void {
-		this.messagingSvc.handleStreamEntry(sessionId, entry);
-	}
-
-	/**
-	 * Handle stream complete from Tauri events.
-	 */
-	handleStreamComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
-		this.messagingSvc.handleStreamComplete(sessionId, turnId);
-	}
-
-	/**
-	 * Handle stream error from Tauri events.
-	 */
-	handleStreamError(sessionId: string, error: Error): void {
-		this.messagingSvc.handleStreamError(sessionId, error);
-	}
-
-	/**
-	 * Handle turn error from agent (e.g., usage limit reached).
-	 */
-	handleTurnError(sessionId: string, update: TurnErrorUpdate): void {
-		this.messagingSvc.handleTurnError(sessionId, update);
-		this.callbacks.onTurnError?.(sessionId);
 	}
 
 	clearStreamingAssistantEntry(sessionId: string): void {
@@ -3465,38 +3517,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.awaitingModelRefreshTimers.clear();
 	}
 
-	// ============================================
-	// TOOL CALLS (delegated to messaging service)
-	// ============================================
-
-	/**
-	 * Ensure streaming state is set.
-	 */
-	ensureStreamingState(sessionId: string): void {
-		this.messagingSvc.ensureStreamingState(sessionId);
-	}
-
-	// ============================================
-	// CHUNK AGGREGATION (delegated to messaging service)
-	// ============================================
-
-	/**
-	 * Aggregate assistant chunk.
-	 */
-	aggregateAssistantChunk(
-		sessionId: string,
-		chunk: ContentChunk,
-		messageId: string | undefined,
-		isThought: boolean
-	): ResultAsync<void, AppError> {
-		return this.messagingSvc.aggregateAssistantChunk(sessionId, chunk, messageId, isThought);
-	}
-
-	aggregateUserChunk(
+	aggregateCompatibilityUserChunk(
 		sessionId: string,
 		chunk: { content: ContentBlock }
 	): ResultAsync<void, AppError> {
-		return this.entryStore.aggregateUserChunk(sessionId, chunk);
+		return this.entryStore.aggregateCompatibilityUserChunk(sessionId, chunk);
 	}
 
 	// ============================================

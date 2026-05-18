@@ -17,7 +17,18 @@ function createStore(
 		getSessionIdentity: vi.fn(() => null),
 		getSessionMetadata: vi.fn(() => null),
 		getHotState: vi.fn(() => null),
-		getEntries: vi.fn(() => []),
+		getCanonicalSessionProjection: vi.fn(() => null),
+		getSessionRuntimeState: vi.fn(() => null),
+		getSessionStateGraph: vi.fn(() => null),
+		getSessionCurrentToolKind: vi.fn(() => null),
+		getSessionOperationInteractionSnapshot: vi.fn(() => ({
+			pendingQuestion: null,
+			pendingQuestionOperation: null,
+			pendingPermission: null,
+			pendingPermissionOperation: null,
+			pendingPlanApproval: null,
+			pendingPlanApprovalOperation: null,
+		})),
 	} as never;
 
 	const interactions = new InteractionStore();

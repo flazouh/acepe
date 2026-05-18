@@ -57,11 +57,7 @@ export {
 	type QueuedMessage,
 	serializeWithAttachments,
 } from "./message-queue/index.js";
-export {
-	createOperationStore,
-	getOperationStore,
-	OperationStore,
-} from "./operation-store.svelte.js";
+export { OperationStore } from "./operation-store.svelte.js";
 export { createPanelStore, getPanelStore, PanelStore } from "./panel-store.svelte.js";
 export {
 	createPermissionStore,

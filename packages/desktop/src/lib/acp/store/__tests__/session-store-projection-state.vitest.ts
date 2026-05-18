@@ -634,9 +634,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 			raw: null,
 		});
 		expect(entry.message.result).toBeNull();
-		const operation = store.getOperationStore().getByToolCallId("session-1", "tool-1");
+		const operation = store.getToolCallById("session-1", "tool-1");
 		expect(operation).toMatchObject({
-			toolCallId: "tool-1",
+			id: "tool-1",
 			kind: "execute",
 			arguments: {
 				kind: "execute",
@@ -797,7 +797,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			status: "degraded",
 			presentationState: "degraded_operation",
 		});
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(store.getToolCallById("session-1", "tool-1")).toBeNull();
 	});
 
 	it("preserves restored historical scene content across connect lifecycle envelopes", () => {
@@ -2027,7 +2027,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", envelope);
 
-		expect(store.getOperationStore().getSessionOperations("session-1")).toHaveLength(1);
+		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
 		expect(store.getHotState("session-1")).toMatchObject({
 			acpSessionId: "session-1",
 		});
@@ -2282,7 +2282,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getOperationStore().getSessionOperations("session-1")).toHaveLength(1);
+		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
 		expect(interactions.permissionsPending.get("permission-1")).toMatchObject({
 			id: "permission-1",
 			sessionId: "session-1",
@@ -2437,9 +2437,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		}
 		expect(graph?.operations[0]?.operation_state).toBe("running");
 		expect(graph?.interactions[0]?.state).toBe("Approved");
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")?.operationState).toBe(
-			"running"
-		);
+		expect(graph.operations[0]?.operation_state).toBe("running");
 		expect(
 			materializeAgentPanelSceneFromGraph({
 				panelId: "panel-1",
@@ -3291,7 +3289,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		await store.aggregateUserChunk("session-1", {
+		await store.aggregateCompatibilityUserChunk("session-1", {
 			content: {
 				type: "text",
 				text: "follow-up question",
@@ -3378,108 +3376,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-	});
-
-	it("keeps live assistant stream chunks out of the panel scene before canonical transcript catches up", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-		store.applySessionStateEnvelope(
-			"session-1",
-			createSnapshotEnvelope(
-				createSessionStateGraph({
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					turnState: "Running",
-					lifecycle: createGraphLifecycle("ready"),
-					activity: {
-						kind: "awaiting_model",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-					transcriptSnapshot: {
-						revision: 1,
-						entries: [
-							{
-								entryId: "user-1",
-								role: "user",
-								segments: [
-									{
-										kind: "text",
-										segmentId: "user-1:block:0",
-										text: "stream this reply",
-									},
-								],
-							},
-						],
-					},
-					revision: {
-						graphRevision: 1,
-						transcriptRevision: 1,
-						lastEventSeq: 1,
-					},
-					messageCount: 1,
-					lastAgentMessageId: null,
-				})
-			)
-		);
-
-		store.handleStreamEntry("session-1", {
-			id: "assistant-live-1",
-			type: "assistant",
-			message: {
-				chunks: [
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "partial streamed answer",
-						},
-					},
-				],
-			},
-			isStreaming: true,
-			timestamp: new Date("2026-04-19T00:00:01.000Z"),
-		});
-
-		expect(getSessionEntries(store, "session-1")).toMatchObject([
-			{
-				id: "user-1",
-				type: "user",
-			},
-			{
-				id: "assistant-live-1",
-				type: "assistant",
-				isStreaming: true,
-				message: {
-					chunks: [
-						{
-							block: {
-								text: "partial streamed answer",
-							},
-						},
-					],
-				},
-			},
-		]);
-
-		const graph = store.getSessionStateGraph("session-1");
-		if (graph === null) {
-			throw new Error("Expected graph for session-1");
-		}
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Session",
-			},
-		});
-		expect(scene.conversation.entries).not.toContainEqual(
-			expect.objectContaining({
-				id: "assistant-live-1",
-			})
-		);
 	});
 
 	it("applies canonical assistant turn ids exactly as Rust sends them", async () => {
@@ -4584,6 +4480,89 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("selects lifecycle presentation from canonical graph instead of runtime state", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					lifecycle: createGraphLifecycle("ready"),
+					turnState: "Idle",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 7,
+						entries: [],
+					},
+					activity: createIdleActivity(),
+				})
+			)
+		);
+
+		expect(store.getSessionLifecyclePresentation("session-1")).toEqual({
+			connectionPhase: "connected",
+			contentPhase: "empty",
+			activityPhase: "idle",
+			canSubmit: true,
+			canCancel: false,
+			showStop: false,
+			showThinking: false,
+			showConnectingOverlay: false,
+			showConversation: false,
+			showReadyPlaceholder: true,
+		});
+	});
+
+	it("exposes pending send and telemetry as narrow local selectors", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "Session",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+		expect(store.getSessionHasLocalPendingSendIntent("session-1")).toBe(false);
+		expect(store.getSessionUsageTelemetry("session-1")).toBeNull();
+
+		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
+
+		expect(result.isOk()).toBe(true);
+		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
+			attemptId: expect.any(String),
+		});
+		expect(store.getSessionHasLocalPendingSendIntent("session-1")).toBe(true);
+		expect(store.getSessionLifecyclePresentation("session-1").canSubmit).toBe(false);
+	});
+
 	it("fails closed for detached restored sessions until canonical lifecycle is sendable", async () => {
 		const store = new SessionStore();
 		const restoredSession = {
@@ -4668,7 +4647,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		await store.aggregateUserChunk("session-1", {
+		await store.aggregateCompatibilityUserChunk("session-1", {
 			content: {
 				type: "text",
 				text: "existing prompt",

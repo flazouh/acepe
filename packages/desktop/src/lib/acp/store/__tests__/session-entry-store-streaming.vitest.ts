@@ -22,10 +22,10 @@ function applyStreamingArguments(
 	sessionId: string,
 	toolCallId: string,
 	streamingArguments: Parameters<
-		SessionEntryStore["updateToolCallTranscriptEntry"]
+		SessionEntryStore["updateCompatibilityToolCallTranscriptEntry"]
 	>[1]["streamingArguments"]
 ): void {
-	store.updateToolCallTranscriptEntry(sessionId, {
+	store.updateCompatibilityToolCallTranscriptEntry(sessionId, {
 		toolCallId,
 		status: null,
 		result: null,
@@ -56,9 +56,9 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("updateToolCallTranscriptEntry progressive arguments", () => {
+	describe("updateCompatibilityToolCallTranscriptEntry progressive arguments", () => {
 		it("should store and retrieve streaming arguments from transcript-only updates", () => {
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -90,7 +90,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should track tool calls per session", () => {
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -102,7 +102,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool2",
 				name: "Search",
 				arguments: { kind: "search", query: null, file_path: null },
@@ -114,7 +114,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.recordToolCallTranscriptEntry("session2", {
+			store.recordCompatibilityToolCallTranscriptEntry("session2", {
 				id: "tool3",
 				name: "Read",
 				arguments: { kind: "read", file_path: null },
@@ -148,7 +148,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 		});
 
 		it("should overwrite when setting same tool call again", () => {
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -187,7 +187,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearStreamingArguments", () => {
 		it("should clear streaming arguments", () => {
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Edit",
 				arguments: {
@@ -217,7 +217,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 	describe("clearEntries", () => {
 		it("should clear all streaming arguments for session", () => {
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool1",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -229,7 +229,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.recordToolCallTranscriptEntry("session1", {
+			store.recordCompatibilityToolCallTranscriptEntry("session1", {
 				id: "tool2",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -241,7 +241,7 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 				result: null,
 				awaitingPlanApproval: false,
 			});
-			store.recordToolCallTranscriptEntry("session2", {
+			store.recordCompatibilityToolCallTranscriptEntry("session2", {
 				id: "tool3",
 				name: "Bash",
 				arguments: { kind: "execute", command: null },
@@ -275,9 +275,11 @@ describe("SessionEntryStore - Streaming Arguments", () => {
 
 describe("SessionEntryStore - Transcript Deltas", () => {
 	let store: SessionEntryStore;
+	let operationStore: OperationStore;
 
 	beforeEach(() => {
-		store = new SessionEntryStore();
+		operationStore = new OperationStore();
+		store = new SessionEntryStore(operationStore);
 	});
 
 	it("hydrates transcript snapshots into spine entries", () => {
@@ -322,7 +324,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		store.recordToolCallTranscriptEntry("session-1", {
+		store.recordCompatibilityToolCallTranscriptEntry("session-1", {
 			id: "tool-1",
 			name: "Edit File",
 			arguments: {
@@ -399,13 +401,13 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			kind: "other",
 			raw: null,
 		});
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toBeUndefined();
-		expect(store.getOperationStore().getLastToolCall("session-1")).toBeNull();
+		expect(operationStore.getByToolCallId("session-1", "tool-1")).toBeUndefined();
+		expect(operationStore.getLastToolCall("session-1")).toBeNull();
 	});
 
 	it("does not clear canonical tool operations when a delta replaces the transcript snapshot", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		store.getOperationStore().replaceSessionOperations("session-1", [
+		operationStore.replaceSessionOperations("session-1", [
 			{
 				id: "op-tool-1",
 				session_id: "session-1",
@@ -470,11 +472,11 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			timestamp
 		);
 
-		expect(store.getOperationStore().getByToolCallId("session-1", "tool-1")).toMatchObject({
+		expect(operationStore.getByToolCallId("session-1", "tool-1")).toMatchObject({
 			toolCallId: "tool-1",
 			kind: "edit",
 		});
-		expect(store.getOperationStore().getLastToolCall("session-1")).toMatchObject({
+		expect(operationStore.getLastToolCall("session-1")).toMatchObject({
 			id: "tool-1",
 			kind: "edit",
 		});
@@ -629,7 +631,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("does not reconcile canonical user append entries by matching optimistic text", () => {
-		store.addEntry("session-1", {
+		store.appendCompatibilityEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -685,7 +687,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("appends canonical user entries even when matching optimistic text exists before assistant output", () => {
-		store.addEntry("session-1", {
+		store.appendCompatibilityEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -696,7 +698,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			},
 			timestamp: new Date("2026-04-16T00:00:01.000Z"),
 		});
-		store.addEntry("session-1", {
+		store.appendCompatibilityEntry("session-1", {
 			id: "assistant-1",
 			type: "assistant",
 			message: {
@@ -751,18 +753,18 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.storeEntriesAndBuildIndex("session1", []);
+		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
 	});
 
 	it("creates a new assistant entry after tool call boundary for the same messageId", async () => {
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "pre-tool thought " } },
 			"msg-1",
 			true
 		);
 
-		store.recordToolCallTranscriptEntry("session1", {
+		store.recordCompatibilityToolCallTranscriptEntry("session1", {
 			id: "tool-1",
 			name: "Read",
 			arguments: { kind: "read", file_path: "/tmp/file.txt" },
@@ -775,7 +777,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			awaitingPlanApproval: false,
 		});
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "post-tool final response" } },
 			"msg-1",
@@ -801,14 +803,14 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 	});
 
 	it("merges multiple post-tool chunks with same messageId into one assistant entry", async () => {
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "pre-tool thought " } },
 			"msg-2",
 			true
 		);
 
-		store.recordToolCallTranscriptEntry("session1", {
+		store.recordCompatibilityToolCallTranscriptEntry("session1", {
 			id: "tool-2",
 			name: "Read",
 			arguments: { kind: "read", file_path: "/tmp/file.txt" },
@@ -821,13 +823,13 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			awaitingPlanApproval: false,
 		});
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "post-tool part 1 " } },
 			"msg-2",
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "post-tool part 2" } },
 			"msg-2",
@@ -855,7 +857,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 	});
 
 	it("does not repair provider-reused assistant ids in the compatibility chunk aggregator", async () => {
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "first answer" } },
 			"provider-message",
@@ -863,20 +865,20 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 		);
 
 		store.startNewAssistantTurn("session1");
-		store.addEntry("session1", {
+		store.appendCompatibilityEntry("session1", {
 			id: "user-2",
 			type: "user",
 			message: createUserMessage("second prompt"),
 			timestamp: new Date("2026-04-26T00:00:00.000Z"),
 		});
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "second " } },
 			"provider-message",
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "answer" } },
 			"provider-message",
@@ -932,7 +934,7 @@ describe("SessionEntryStore - Assistant/Tool Boundary", () => {
 			},
 			new Date("2026-04-26T00:00:00.000Z")
 		);
-		store.addEntry("session1", {
+		store.appendCompatibilityEntry("session1", {
 			id: "user-2",
 			type: "user",
 			message: createUserMessage("second prompt"),
@@ -988,18 +990,18 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("addEntry", () => {
+	describe("appendCompatibilityEntry", () => {
 		it("should make entries immediately available", () => {
-			store.storeEntriesAndBuildIndex("session1", []);
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
 
-			store.addEntry("session1", {
+			store.appendCompatibilityEntry("session1", {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Hello"),
 				timestamp: new Date(),
 			});
 
-			store.addEntry("session1", {
+			store.appendCompatibilityEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("World"),
@@ -1011,7 +1013,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should handle updates and additions together", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1020,14 +1022,14 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.updateEntry("session1", 0, {
+			store.replaceCompatibilityEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
 				timestamp: new Date(),
 			});
 
-			store.addEntry("session1", {
+			store.appendCompatibilityEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("New"),
@@ -1041,9 +1043,9 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 	});
 
-	describe("updateEntry", () => {
+	describe("replaceCompatibilityEntry", () => {
 		it("should apply multiple updates to same index with last-write-wins", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1052,14 +1054,14 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.updateEntry("session1", 0, {
+			store.replaceCompatibilityEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 1"),
 				timestamp: new Date(),
 			});
 
-			store.updateEntry("session1", 0, {
+			store.replaceCompatibilityEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 2 - final"),
@@ -1073,9 +1075,9 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 	});
 
-	describe("getEntries", () => {
+	describe("compatibility entry reads", () => {
 		it("should return stored entries", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1089,7 +1091,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("collapses replayed tool-call entries with the same tool id during preload", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "entry-tool-1-a",
 					type: "tool_call",
@@ -1132,7 +1134,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -1170,7 +1172,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results for preloaded tools whose canonical kind must be inferred from arguments", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -1208,7 +1210,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see updates immediately", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1217,7 +1219,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.updateEntry("session1", 0, {
+			store.replaceCompatibilityEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
@@ -1229,7 +1231,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see additions immediately", () => {
-			store.storeEntriesAndBuildIndex("session1", [
+			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1238,7 +1240,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.addEntry("session1", {
+			store.appendCompatibilityEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("Second"),
@@ -1256,31 +1258,31 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 
 	beforeEach(() => {
 		store = new SessionEntryStore();
-		store.storeEntriesAndBuildIndex("session1", []);
+		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
 	});
 
 	it("should merge all chunks with same messageId into one assistant entry", async () => {
 		const messageId = "msg-streaming-test";
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "The " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "quick " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "brown " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "fox" } },
 			messageId,
@@ -1304,25 +1306,25 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 	it("should merge all chunks with same messageId across multiple calls", async () => {
 		const messageId = "msg-across-calls";
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "First " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "batch " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "second " } },
 			messageId,
 			false
 		);
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "batch" } },
 			messageId,
@@ -1341,14 +1343,14 @@ describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
 	});
 
 	it("should create separate entries for different messageIds", async () => {
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Message 1" } },
 			"msg-1",
 			false
 		);
 
-		await store.aggregateAssistantChunk(
+		await store.aggregateCompatibilityAssistantChunk(
 			"session1",
 			{ content: { type: "text", text: "Message 2" } },
 			"msg-2",
