@@ -134,7 +134,6 @@ export interface AcpPermissionRequest extends PermissionRequest {
 type PermissionRequestMetadataInput = PermissionMetadata | JsonValue;
 type PermissionMetadataInputObject = {
 	readonly diagnosticRawInput?: JsonValue;
-	readonly rawInput?: JsonValue;
 	readonly parsedArguments?: ToolArguments | null;
 	readonly options?: readonly PermissionOptionMetadata[] | JsonValue;
 };
@@ -198,7 +197,7 @@ function normalizePermissionMetadata(value: PermissionRequestMetadataInput): Per
 	}
 
 	const input = value as PermissionMetadataInputObject;
-	const diagnosticRawInput = input.diagnosticRawInput ?? input.rawInput;
+	const diagnosticRawInput = input.diagnosticRawInput;
 	const parsedArguments = input.parsedArguments;
 	const options = readPermissionOptions(input.options);
 	const metadata: PermissionMetadata = {};

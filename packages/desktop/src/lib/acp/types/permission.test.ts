@@ -35,7 +35,7 @@ describe("createPermissionRequest", () => {
 		});
 	});
 
-	it("normalizes transport rawInput to diagnostic metadata", () => {
+	it("does not treat legacy rawInput as canonical permission metadata", () => {
 		const permission = createPermissionRequest({
 			id: "permission-raw",
 			sessionId: "session-raw",
@@ -48,9 +48,7 @@ describe("createPermissionRequest", () => {
 			always: [],
 		});
 
-		expect(permission.metadata).toEqual({
-			diagnosticRawInput: { path: "/tmp/file.ts" },
-		});
+		expect(permission.metadata).toEqual({});
 	});
 
 	it("preserves inbound-request permission data", () => {

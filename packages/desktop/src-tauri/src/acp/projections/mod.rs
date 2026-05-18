@@ -1656,11 +1656,7 @@ fn read_exit_plan_arguments_from_permission(permission: &PermissionData) -> Opti
         return parsed_arguments;
     }
 
-    let diagnostic_raw_input = permission
-        .metadata
-        .get("diagnosticRawInput")
-        .or_else(|| permission.metadata.get("rawInput"))
-        .or_else(|| permission.metadata.get("raw_input"))?;
+    let diagnostic_raw_input = permission.metadata.get("diagnosticRawInput")?;
     let has_plan_text = diagnostic_raw_input
         .get("plan")
         .and_then(Value::as_str)
