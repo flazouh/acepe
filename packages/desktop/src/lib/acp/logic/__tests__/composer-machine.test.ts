@@ -2,26 +2,19 @@ import { describe, expect, it } from "vitest";
 import { createActor } from "xstate";
 
 import { composerMachine } from "../composer-machine.js";
-import { deriveStoreComposerState } from "../composer-ui-state.js";
-import type { SessionRuntimeState } from "../session-ui-state.js";
+import {
+	deriveStoreComposerState,
+	type ComposerSessionSubmitPolicy,
+} from "../composer-ui-state.js";
 
-function disconnectedLoadedRuntime(): SessionRuntimeState {
+function submitPolicy(canSubmit = true): ComposerSessionSubmitPolicy {
 	return {
-		connectionPhase: "disconnected",
-		contentPhase: "loaded",
-		activityPhase: "idle",
-		canSubmit: true,
-		canCancel: false,
-		showStop: false,
-		showThinking: false,
-		showConnectingOverlay: false,
-		showConversation: true,
-		showReadyPlaceholder: false,
+		canSubmit,
 	};
 }
 
 describe("composer machine", () => {
-	it("allows send affordance when idle and runtime permits submit", () => {
+	it("allows send affordance when idle and canonical policy permits submit", () => {
 		const actor = createActor(composerMachine, { input: { sessionId: "s1" } });
 		actor.start();
 		actor.send({
@@ -32,7 +25,7 @@ describe("composer machine", () => {
 		});
 		const store = deriveStoreComposerState({
 			machineSnapshot: actor.getSnapshot(),
-			runtime: disconnectedLoadedRuntime(),
+			sessionSubmitPolicy: submitPolicy(),
 		});
 		expect(store.isBlocked).toBe(false);
 		expect(store.isDispatching).toBe(false);
@@ -56,7 +49,7 @@ describe("composer machine", () => {
 		});
 		const store = deriveStoreComposerState({
 			machineSnapshot: actor.getSnapshot(),
-			runtime: disconnectedLoadedRuntime(),
+			sessionSubmitPolicy: submitPolicy(),
 		});
 		expect(store.isBlocked).toBe(true);
 		expect(store.canSubmit).toBe(false);
@@ -81,7 +74,7 @@ describe("composer machine", () => {
 		actor.send({ type: "CONFIG_BLOCK_FAIL" });
 		const store = deriveStoreComposerState({
 			machineSnapshot: actor.getSnapshot(),
-			runtime: disconnectedLoadedRuntime(),
+			sessionSubmitPolicy: submitPolicy(),
 		});
 		expect(store.isBlocked).toBe(false);
 		expect(store.provisionalModeId).toBeNull();
@@ -177,7 +170,7 @@ describe("composer machine", () => {
 		expect(actor.getSnapshot().value).toBe("interactive");
 		const store = deriveStoreComposerState({
 			machineSnapshot: actor.getSnapshot(),
-			runtime: disconnectedLoadedRuntime(),
+			sessionSubmitPolicy: submitPolicy(),
 		});
 		expect(store.isBlocked).toBe(false);
 		expect(store.committedAutonomousEnabled).toBe(true);

@@ -2,29 +2,23 @@
  * Panel View State Tests
  *
  * Tests the panel-level view state derivation that combines
- * session runtime state, entry count, error info, and agent selection
+ * session lifecycle presentation, entry count, error info, and agent selection
  * into a single discriminated union — exactly one UI section to show.
  */
 
 import { describe, expect, it } from "vitest";
 
 import type { PanelErrorInfo } from "../../components/agent-panel/logic/connection-ui";
-import { derivePanelViewState } from "../panel-visibility";
-import type { SessionRuntimeState } from "../session-ui-state";
+import { derivePanelViewState, type PanelLifecyclePresentation } from "../panel-visibility";
 
-function makeRuntimeState(overrides: Partial<SessionRuntimeState> = {}): SessionRuntimeState {
+function makeLifecyclePresentation(
+	overrides: Partial<PanelLifecyclePresentation> = {}
+): PanelLifecyclePresentation {
 	return {
-		connectionPhase: "connected",
-		contentPhase: "loaded",
-		activityPhase: "idle",
-		canSubmit: true,
-		canCancel: false,
-		showStop: false,
-		showThinking: false,
-		showConnectingOverlay: false,
-		showConversation: true,
-		showReadyPlaceholder: false,
-		...overrides,
+		connectionPhase: overrides.connectionPhase ?? "connected",
+		contentPhase: overrides.contentPhase ?? "loaded",
+		showConversation: overrides.showConversation ?? true,
+		showReadyPlaceholder: overrides.showReadyPlaceholder ?? false,
 	};
 }
 
@@ -49,14 +43,16 @@ const HAS_ERROR: PanelErrorInfo = {
 
 function makeInput(overrides: Partial<Parameters<typeof derivePanelViewState>[0]> = {}) {
 	return {
-		runtimeState: makeRuntimeState(),
-		entriesCount: 0,
-		hasSession: true,
-		isAwaitingModelResponse: false,
-		showProjectSelection: false,
-		hasEffectiveProjectPath: true,
-		errorInfo: NO_ERROR,
-		...overrides,
+		lifecyclePresentation:
+			overrides.lifecyclePresentation === undefined
+				? makeLifecyclePresentation()
+				: overrides.lifecyclePresentation,
+		entriesCount: overrides.entriesCount ?? 0,
+		hasSession: overrides.hasSession ?? true,
+		isAwaitingModelResponse: overrides.isAwaitingModelResponse ?? false,
+		showProjectSelection: overrides.showProjectSelection ?? false,
+		hasEffectiveProjectPath: overrides.hasEffectiveProjectPath ?? true,
+		errorInfo: overrides.errorInfo ?? NO_ERROR,
 	};
 }
 
@@ -107,11 +103,11 @@ describe("derivePanelViewState", () => {
 		}
 	});
 
-	it("should return error when runtime connection failed without canonical details", () => {
+	it("should return error when lifecycle connection failed without canonical details", () => {
 		const result = derivePanelViewState(
 			makeInput({
 				entriesCount: 0,
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					connectionPhase: "failed",
 					contentPhase: "loading",
 					showConversation: false,
@@ -129,14 +125,14 @@ describe("derivePanelViewState", () => {
 	// ── Session Creation: Ready (not connecting) ──────────────
 
 	it("should return ready (not connecting) while session is being created", () => {
-		const result = derivePanelViewState(makeInput({ runtimeState: null, hasSession: false }));
+		const result = derivePanelViewState(makeInput({ lifecyclePresentation: null, hasSession: false }));
 		expect(result.kind).toBe("ready");
 	});
 
 	it("should return conversation when entries exist even while session is being created", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({ showConnectingOverlay: true }),
+			lifecyclePresentation: makeLifecyclePresentation(),
 				entriesCount: 2,
 			})
 		);
@@ -146,7 +142,7 @@ describe("derivePanelViewState", () => {
 	it("should show ready when reconnecting — input stays available for message queue", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({ showConnectingOverlay: true }),
+				lifecyclePresentation: makeLifecyclePresentation(),
 				entriesCount: 0,
 			})
 		);
@@ -165,7 +161,7 @@ describe("derivePanelViewState", () => {
 			makeInput({
 				entriesCount: 5,
 				hasSession: true,
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					contentPhase: "loading",
 					showConversation: false,
 					showReadyPlaceholder: false,
@@ -195,17 +191,17 @@ describe("derivePanelViewState", () => {
 	it("should show conversation when entries exist during reconnection", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({ showConnectingOverlay: true }),
+				lifecyclePresentation: makeLifecyclePresentation(),
 				entriesCount: 3,
 			})
 		);
 		expect(result.kind).toBe("conversation");
 	});
 
-	it("should show conversation when entries arrive before runtime updates", () => {
+	it("should show conversation when entries arrive before lifecycle presentation updates", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					showConversation: false,
 					showReadyPlaceholder: true,
 				}),
@@ -232,7 +228,7 @@ describe("derivePanelViewState", () => {
 			makeInput({
 				entriesCount: 0,
 				hasSession: true,
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					contentPhase: "loading",
 					showConversation: false,
 					showReadyPlaceholder: false,
@@ -248,14 +244,14 @@ describe("derivePanelViewState", () => {
 	it("should never produce ready or project_selection when entries exist (bug fix)", () => {
 		const configs = [
 			makeInput({ entriesCount: 1 }),
-			makeInput({ entriesCount: 1, runtimeState: null, hasSession: false }),
+			makeInput({ entriesCount: 1, lifecyclePresentation: null, hasSession: false }),
 			makeInput({
 				entriesCount: 1,
-				runtimeState: makeRuntimeState({ showReadyPlaceholder: true }),
+				lifecyclePresentation: makeLifecyclePresentation({ showReadyPlaceholder: true }),
 			}),
 			makeInput({
 				entriesCount: 10,
-				runtimeState: makeRuntimeState({ showConversation: true }),
+				lifecyclePresentation: makeLifecyclePresentation({ showConversation: true }),
 			}),
 		];
 
@@ -271,7 +267,7 @@ describe("derivePanelViewState", () => {
 	it("should return ready for new session with zero entries", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					showConversation: true,
 					showReadyPlaceholder: false,
 				}),
@@ -282,14 +278,14 @@ describe("derivePanelViewState", () => {
 	});
 
 	it("should return ready when no session but has project and agent", () => {
-		const result = derivePanelViewState(makeInput({ runtimeState: null, hasSession: false }));
+		const result = derivePanelViewState(makeInput({ lifecyclePresentation: null, hasSession: false }));
 		expect(result.kind).toBe("ready");
 	});
 
-	it("should return ready when runtime says ready and no entries", () => {
+	it("should return ready when lifecycle presentation says ready and no entries", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				runtimeState: makeRuntimeState({
+				lifecyclePresentation: makeLifecyclePresentation({
 					showConversation: false,
 					showReadyPlaceholder: true,
 				}),

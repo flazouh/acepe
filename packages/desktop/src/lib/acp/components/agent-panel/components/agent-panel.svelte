@@ -550,7 +550,7 @@ const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
 // Canonical lifecycle presentation from Rust-owned graph projection.
-const runtimeState = $derived(
+const lifecyclePresentation = $derived(
 	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
 );
 const canonicalProjection = $derived(
@@ -692,7 +692,7 @@ const errorDismissed = $derived(
 
 // Panel view state: single discriminated union from all inputs
 const viewStateInput = $derived({
-	runtimeState,
+	lifecyclePresentation,
 	entriesCount,
 	hasSession,
 	isAwaitingModelResponse,

@@ -1,11 +1,10 @@
 /**
  * Derives store-facing composer UI contract from the composer machine snapshot
- * plus session runtime policy inputs.
+ * plus canonical session submit policy inputs.
  */
 
 import type { SnapshotFrom } from "xstate";
 import type { composerMachine } from "./composer-machine.js";
-import type { SessionRuntimeState } from "./session-ui-state.js";
 import type { DefaultSubmitAction } from "./submit-intent.js";
 import {
 	isPrimaryButtonDisabled,
@@ -44,9 +43,13 @@ export interface StoreComposerState {
 	readonly boundGeneration: number;
 }
 
+export interface ComposerSessionSubmitPolicy {
+	readonly canSubmit: boolean;
+}
+
 export interface DeriveComposerStateInput {
 	readonly machineSnapshot: ComposerMachineSnapshot;
-	readonly runtime: SessionRuntimeState | null;
+	readonly sessionSubmitPolicy: ComposerSessionSubmitPolicy | null;
 }
 
 export function deriveStoreComposerState(input: DeriveComposerStateInput): StoreComposerState {
@@ -56,8 +59,8 @@ export function deriveStoreComposerState(input: DeriveComposerStateInput): Store
 	const isDispatching = phase === "dispatching";
 	const selectorsDisabled = isBlocked || isDispatching;
 
-	const runtimeCanSubmit = input.runtime?.canSubmit ?? false;
-	const canSubmit = runtimeCanSubmit && !isBlocked && !isDispatching;
+	const canonicalCanSubmit = input.sessionSubmitPolicy?.canSubmit ?? false;
+	const canSubmit = canonicalCanSubmit && !isBlocked && !isDispatching;
 
 	return {
 		canSubmit,
@@ -80,7 +83,7 @@ export interface ComposerInteractionInput {
 	readonly isAgentBusy: boolean;
 	readonly isStreaming: boolean;
 	readonly isShiftPressed: boolean;
-	/** Canonical submit disabled from runtime + host (matches agent-input `isSubmitDisabled`). */
+	/** Canonical submit disabled from lifecycle + host (matches agent-input `isSubmitDisabled`). */
 	readonly isSubmitDisabled: boolean;
 	readonly hasBlockingComposerConfig: boolean;
 	readonly isComposerDispatching: boolean;

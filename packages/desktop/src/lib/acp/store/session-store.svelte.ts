@@ -1666,7 +1666,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	/**
 	 * Canonical composer policy for a session (config block, dispatch, selector disables).
-	 * Reactive: subscribes to composer machine snapshots and runtime state.
+	 * Reactive: subscribes to composer machine snapshots and canonical lifecycle presentation.
 	 */
 	getStoreComposerState(sessionId: string): StoreComposerState | null {
 		this.hotStateStore.getHotState(sessionId);
@@ -1674,9 +1674,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (!snapshot) {
 			return null;
 		}
+		const lifecyclePresentation = this.getSessionLifecyclePresentation(sessionId);
 		return deriveStoreComposerState({
 			machineSnapshot: snapshot,
-			runtime: this.getSessionLifecyclePresentation(sessionId),
+			sessionSubmitPolicy: {
+				canSubmit: lifecyclePresentation.canSubmit,
+			},
 		});
 	}
 
@@ -1968,7 +1971,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Clear cached entries/runtime for a session without removing session metadata.
+	 * Clear cached entries and graph projection for a session without removing metadata.
 	 * Used to force a fresh reload from persisted provider history for historical sessions.
 	 */
 	clearSessionEntries(sessionId: string): void {

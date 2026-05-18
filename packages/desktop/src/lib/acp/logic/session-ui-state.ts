@@ -47,23 +47,6 @@ export type ContentPhase = "empty" | "loading" | "loaded";
 export type ActivityPhase = "idle" | "running" | "waiting_for_user";
 
 /**
- * Canonical runtime contract for session lifecycle UI.
- * Panel/input/queue components should consume this shape to avoid split-brain state.
- */
-export interface SessionRuntimeState {
-	connectionPhase: ConnectionPhase;
-	contentPhase: ContentPhase;
-	activityPhase: ActivityPhase;
-	canSubmit: boolean;
-	canCancel: boolean;
-	showStop: boolean;
-	showThinking: boolean;
-	showConnectingOverlay: boolean;
-	showConversation: boolean;
-	showReadyPlaceholder: boolean;
-}
-
-/**
  * Derive UI state from machine snapshot.
  *
  * This function contains the logic that fixes the "Thinking_" bug:
@@ -106,57 +89,6 @@ export function deriveSessionUIState(state: SessionMachineSnapshot): SessionUISt
 
 		// Read-only when not connected
 		isReadOnly: connection === ConnectionState.DISCONNECTED,
-	};
-}
-
-/**
- * Derive canonical runtime lifecycle state from machine snapshot.
- *
- * @param state - Machine snapshot from XState
- */
-export function deriveSessionRuntimeState(state: SessionMachineSnapshot): SessionRuntimeState {
-	const { content, connection } = state;
-
-	const connectionPhase: ConnectionPhase =
-		connection === ConnectionState.ERROR
-			? "failed"
-			: connection === ConnectionState.DISCONNECTED
-				? "disconnected"
-				: connection === ConnectionState.CONNECTING || connection === ConnectionState.WARMING_UP
-					? "connecting"
-					: "connected";
-
-	const contentPhase: ContentPhase =
-		content === ContentState.LOADING
-			? "loading"
-			: content === ContentState.LOADED
-				? "loaded"
-				: "empty";
-
-	const activityPhase: ActivityPhase =
-		connection === ConnectionState.AWAITING_RESPONSE
-			? "waiting_for_user"
-			: connection === ConnectionState.STREAMING || connection === ConnectionState.PAUSED
-				? "running"
-				: "idle";
-
-	const showThinking = connection === ConnectionState.AWAITING_RESPONSE;
-	const isCancellable =
-		connection === ConnectionState.AWAITING_RESPONSE || activityPhase === "running";
-
-	return {
-		connectionPhase,
-		contentPhase,
-		activityPhase,
-		canSubmit:
-			connection === ConnectionState.READY ||
-			(connection === ConnectionState.DISCONNECTED && content === ContentState.LOADED),
-		canCancel: isCancellable,
-		showStop: isCancellable,
-		showThinking,
-		showConnectingOverlay: connectionPhase === "connecting" && contentPhase !== "loaded",
-		showConversation: contentPhase === "loaded",
-		showReadyPlaceholder: contentPhase !== "loaded" && connection === ConnectionState.READY,
 	};
 }
 

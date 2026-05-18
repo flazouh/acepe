@@ -1068,8 +1068,7 @@ export class SessionConnectionManager {
 		return api
 			.stopStreaming(session.id)
 			.map(() => {
-				// Transition machine STREAMING → READY so deriveSessionRuntimeState()
-				// sees the updated connection state after the reactive anchor fires.
+				// Transition machine STREAMING -> READY for machine-backed selectors.
 				this.connectionManager.sendResponseComplete(sessionId);
 				logger.debug("Streaming cancelled", { sessionId });
 				return undefined;

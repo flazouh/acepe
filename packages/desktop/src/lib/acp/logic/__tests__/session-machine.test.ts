@@ -16,7 +16,7 @@ import {
 	type SessionMachineSnapshot,
 	sessionMachine,
 } from "../session-machine";
-import { deriveSessionRuntimeState, deriveSessionUIState } from "../session-ui-state";
+import { deriveSessionUIState } from "../session-ui-state";
 
 describe("Session Machine", () => {
 	describe("Parallel State Progression", () => {
@@ -334,56 +334,6 @@ describe("Session Machine", () => {
 				connection: ConnectionState.PAUSED,
 			});
 			expect(uiState.showStreaming).toBe(false);
-		});
-	});
-
-	describe("Runtime State Derivation", () => {
-		it("should allow stop/cancel while awaiting or running", () => {
-			const waiting = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.AWAITING_RESPONSE,
-			});
-			expect(waiting.showStop).toBe(true);
-			expect(waiting.canCancel).toBe(true);
-			expect(waiting.activityPhase).toBe("waiting_for_user");
-			expect(waiting.showThinking).toBe(true);
-
-			const running = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.STREAMING,
-			});
-			expect(running.showStop).toBe(true);
-			expect(running.canCancel).toBe(true);
-			expect(running.activityPhase).toBe("running");
-			expect(running.showThinking).toBe(false);
-		});
-
-		it("should suppress blocking connecting overlay once content is loaded", () => {
-			const runtime = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.CONNECTING,
-			});
-			expect(runtime.showConnectingOverlay).toBe(false);
-		});
-
-		it("should allow submit from ready state and settled disconnected history", () => {
-			const ready = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.READY,
-			});
-			expect(ready.canSubmit).toBe(true);
-
-			const historical = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.DISCONNECTED,
-			});
-			expect(historical.canSubmit).toBe(true);
-
-			const connecting = deriveSessionRuntimeState({
-				content: ContentState.LOADED,
-				connection: ConnectionState.CONNECTING,
-			});
-			expect(connecting.canSubmit).toBe(false);
 		});
 	});
 

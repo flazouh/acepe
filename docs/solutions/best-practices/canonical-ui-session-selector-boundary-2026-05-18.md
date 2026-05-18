@@ -29,7 +29,7 @@ This matters for transcript bugs too. The bug class that started this work was a
 
 ## Guidance
 
-UI surfaces should ask for the exact session value they need. They should not receive full `SessionTransientProjection`, full `SessionRuntimeState`, or broad hot-state objects for session semantics. The public `SessionStore.getSessionRuntimeState(...)` facade is deleted; do not recreate it.
+UI surfaces should ask for the exact session value they need. They should not receive full `SessionTransientProjection`, old runtime-state contracts, or broad hot-state objects for session semantics. The public `SessionStore.getSessionRuntimeState(...)` facade, `SessionRuntimeState` type, and `deriveSessionRuntimeState(...)` helper are deleted; do not recreate them.
 
 Good selector shape:
 
@@ -120,6 +120,7 @@ Guard scan before finishing selector-boundary work:
 
 ```bash
 rg -n "getSessionRuntimeState\\(" packages/desktop/src/lib/acp -g '*.ts' -g '*.svelte'
+rg -n "SessionRuntimeState|deriveSessionRuntimeState" packages/desktop/src/lib/acp -g '*.ts' -g '*.svelte'
 ```
 
 Expected result: no matches. If a UI needs session state, add or reuse a narrow canonical selector instead.
@@ -128,6 +129,7 @@ Expected result: no matches. If a UI needs session state, add or reuse a narrow 
 
 - `docs/plans/2026-05-18-002-refactor-canonical-ui-session-projections-plan.md`
 - `docs/plans/2026-05-18-011-refactor-delete-unused-runtime-state-facade-plan.md`
+- `docs/plans/2026-05-18-012-refactor-retire-session-runtime-state-plan.md`
 - `docs/solutions/architectural/final-god-architecture-2026-04-25.md`
 - `docs/solutions/architectural/canonical-projection-widening-2026-04-28.md`
 - `docs/solutions/best-practices/canonical-session-projection-ui-derivation-2026-05-01.md`

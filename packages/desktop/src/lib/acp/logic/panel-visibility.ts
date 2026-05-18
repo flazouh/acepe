@@ -1,13 +1,13 @@
 /**
  * Panel View State
  *
- * Derives a single discriminated union from session runtime state,
+ * Derives a single discriminated union from session lifecycle presentation,
  * entry count, error info, and agent selection — exactly one UI
  * section to show. No boolean soup, no impossible states.
  */
 
 import type { PanelErrorInfo } from "../components/agent-panel/logic/connection-ui";
-import type { SessionRuntimeState } from "./session-ui-state";
+import type { ConnectionPhase, ContentPhase } from "./session-ui-state";
 
 // ── Discriminated Union ────────────────────────────────────────
 
@@ -18,10 +18,17 @@ export type PanelViewState =
 	| { readonly kind: "loading" }
 	| { readonly kind: "ready" };
 
+export interface PanelLifecyclePresentation {
+	readonly connectionPhase: ConnectionPhase;
+	readonly contentPhase: ContentPhase;
+	readonly showConversation: boolean;
+	readonly showReadyPlaceholder: boolean;
+}
+
 // ── Input ──────────────────────────────────────────────────────
 
 export interface PanelViewStateInput {
-	readonly runtimeState: SessionRuntimeState | null;
+	readonly lifecyclePresentation: PanelLifecyclePresentation | null;
 	readonly entriesCount: number;
 	readonly hasSession: boolean;
 	readonly isAwaitingModelResponse: boolean;
@@ -44,7 +51,7 @@ export interface PanelViewStateInput {
  */
 export function derivePanelViewState(input: PanelViewStateInput): PanelViewState {
 	const {
-		runtimeState,
+		lifecyclePresentation,
 		entriesCount,
 		hasSession,
 		isAwaitingModelResponse,
@@ -63,16 +70,16 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 
-	if (runtimeState?.connectionPhase === "failed" && entriesCount === 0) {
+	if (lifecyclePresentation?.connectionPhase === "failed" && entriesCount === 0) {
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 
 	if (
 		hasSession &&
-		runtimeState !== null &&
-		runtimeState.contentPhase === "loading" &&
-		!runtimeState.showConversation &&
-		!runtimeState.showReadyPlaceholder
+		lifecyclePresentation !== null &&
+		lifecyclePresentation.contentPhase === "loading" &&
+		!lifecyclePresentation.showConversation &&
+		!lifecyclePresentation.showReadyPlaceholder
 	) {
 		return { kind: "loading" };
 	}
@@ -97,7 +104,8 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 	// and can type immediately while the session is being created in the background.
 	const sessionIsReady =
 		hasSession &&
-		((runtimeState?.showReadyPlaceholder ?? false) || (runtimeState?.showConversation ?? false));
+		((lifecyclePresentation?.showReadyPlaceholder ?? false) ||
+			(lifecyclePresentation?.showConversation ?? false));
 	const canStartSession = !hasSession && hasEffectiveProjectPath;
 	const result: PanelViewState = { kind: "ready" };
 	if (sessionIsReady || canStartSession) {
