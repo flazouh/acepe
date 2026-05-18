@@ -10,7 +10,6 @@ export type {
 // Import the data types directly to avoid circular dependencies
 import type {
 	ToolCallData as _ToolCallData,
-	ToolCallUpdateData as _ToolCallUpdateData,
 	ToolArguments,
 } from "../../services/converted-session-types.js";
 import type { NormalizedToolResult } from "./normalized-tool-result.js";
@@ -35,8 +34,3 @@ export interface ToolCall extends _ToolCallData, ToolCallTiming {
 	taskChildren?: ToolCall[] | null;
 	presentationStatus?: ToolPresentationStatus;
 }
-
-// Legacy aliases for backward compatibility
-export type ToolCallUpdate = _ToolCallUpdateData;
-export type ToolCallData = _ToolCallData;
-export type ToolCallUpdateData = _ToolCallUpdateData;

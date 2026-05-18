@@ -8,13 +8,15 @@
 
 import type { Result } from "neverthrow";
 
-import type { ToolCallData } from "../../../../services/converted-session-types.js";
+import type {
+	ToolCallData,
+	ToolCallUpdateData,
+} from "../../../../services/converted-session-types.js";
 import type { AppError } from "../../../errors/app-error.js";
-import type { ToolCallUpdate } from "../../../types/tool-call.js";
 
 export interface ITranscriptToolCallBuffer {
 	createEntry(sessionId: string, data: ToolCallData): Result<void, AppError>;
-	updateEntry(sessionId: string, update: ToolCallUpdate): Result<void, AppError>;
+	updateEntry(sessionId: string, update: ToolCallUpdateData): Result<void, AppError>;
 	getToolCallIdsForSession(sessionId: string): ReadonlySet<string>;
 	clearStreamingArguments(toolCallId: string): void;
 	clearSession(sessionId: string): void;

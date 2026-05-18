@@ -1,7 +1,9 @@
 import type { SessionEntry } from "../types.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
-import type { ToolCallData } from "../../../services/converted-session-types.js";
-import type { ToolCallUpdate } from "../../types/tool-call.js";
+import type {
+	ToolCallData,
+	ToolCallUpdateData,
+} from "../../../services/converted-session-types.js";
 
 type EntryStoreStorage = {
 	entriesById: {
@@ -19,7 +21,7 @@ export function readStoredEntries(
 type EntryStoreTestMutations = {
 	preloadLegacyEntriesAndBuildIndex(sessionId: string, entries: SessionEntry[]): void;
 	recordTranscriptToolCallEntry(sessionId: string, toolCallData: ToolCallData): void;
-	updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdate): void;
+	updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdateData): void;
 };
 
 export function preloadLegacyEntriesAndBuildIndex(
@@ -47,7 +49,7 @@ export function recordTranscriptToolCallEntry(
 export function updateTranscriptToolCallEntry(
 	store: SessionEntryStore,
 	sessionId: string,
-	update: ToolCallUpdate
+	update: ToolCallUpdateData
 ): void {
 	(store as never as EntryStoreTestMutations).updateTranscriptToolCallEntry(
 		sessionId,

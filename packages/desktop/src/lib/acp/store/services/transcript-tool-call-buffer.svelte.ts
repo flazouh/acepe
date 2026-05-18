@@ -16,6 +16,7 @@ import type {
 	ContentBlock,
 	ToolArguments,
 	ToolCallData,
+	ToolCallUpdateData,
 	ToolCallStatus,
 } from "../../../services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
@@ -23,7 +24,7 @@ import {
 	resolveTranscriptToolCallCreate,
 	resolveTranscriptToolCallUpdate,
 } from "../../session-state/session-state-query-service.js";
-import type { ToolCall, ToolCallUpdate } from "../../types/tool-call.js";
+import type { ToolCall } from "../../types/tool-call.js";
 import { createLogger } from "../../utils/logger.js";
 import type { SessionEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
@@ -83,7 +84,7 @@ export function extractResultFromContent(
 	return textParts.length > 0 ? textParts.join("\n") : null;
 }
 
-function hasMaterializedToolUpdateFields(update: ToolCallUpdate): boolean {
+function hasMaterializedToolUpdateFields(update: ToolCallUpdateData): boolean {
 	return (
 		update.status != null ||
 		update.result != null ||
@@ -98,13 +99,13 @@ function hasMaterializedToolUpdateFields(update: ToolCallUpdate): boolean {
 	);
 }
 
-function isStreamingOnlyToolUpdate(update: ToolCallUpdate): boolean {
+function isStreamingOnlyToolUpdate(update: ToolCallUpdateData): boolean {
 	const hasStreamingFields =
 		update.streamingArguments != null || update.streamingInputDelta != null;
 	return hasStreamingFields && !hasMaterializedToolUpdateFields(update);
 }
 
-function reportMissingTranscriptToolCallUpdate(sessionId: string, update: ToolCallUpdate): void {
+function reportMissingTranscriptToolCallUpdate(sessionId: string, update: ToolCallUpdateData): void {
 	captureContractViolation("tool_call_update_without_canonical_entry", {
 		source: "transcript-tool-call-buffer.updateEntry",
 		sessionId,
@@ -312,7 +313,7 @@ export class TranscriptToolCallBuffer implements ITranscriptToolCallBuffer {
 	 * Update tool call entry.
 	 * Backend handles child-to-parent updates via TaskReconciler.
 	 */
-	updateEntry(sessionId: string, update: ToolCallUpdate): Result<void, AppError> {
+	updateEntry(sessionId: string, update: ToolCallUpdateData): Result<void, AppError> {
 		this.rememberToolCallSession(sessionId, update.toolCallId);
 
 		// Extract result from update.result, update.rawOutput, or content (as fallback)

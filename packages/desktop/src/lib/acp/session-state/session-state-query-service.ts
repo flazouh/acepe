@@ -4,8 +4,12 @@ import type {
 	TranscriptDelta,
 	TranscriptDeltaOperation,
 } from "../../services/acp-types.js";
-import type { ToolArguments, ToolCallData } from "../../services/converted-session-types.js";
-import type { ToolCall, ToolCallUpdate } from "../types/tool-call.js";
+import type {
+	ToolArguments,
+	ToolCallData,
+	ToolCallUpdateData,
+} from "../../services/converted-session-types.js";
+import type { ToolCall } from "../types/tool-call.js";
 
 export type SessionStateDeltaResolution =
 	| {
@@ -187,7 +191,7 @@ export interface TranscriptToolCallUpdateResolution {
 
 export function resolveTranscriptToolCallUpdate(
 	currentToolCall: ToolCall,
-	update: ToolCallUpdate,
+	update: ToolCallUpdateData,
 	extractedResult: ToolCall["result"] | null | undefined,
 	startedAtMsHint: number,
 	nowMs: number

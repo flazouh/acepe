@@ -12,8 +12,10 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
-import type { ToolArguments } from "../../../services/converted-session-types.js";
-import type { ToolCallUpdate } from "../../types/tool-call.js";
+import type {
+	ToolArguments,
+	ToolCallUpdateData,
+} from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
@@ -27,7 +29,7 @@ function applyStreamingArguments(
 	store: SessionEntryStore,
 	sessionId: string,
 	toolCallId: string,
-	streamingArguments: ToolCallUpdate["streamingArguments"]
+	streamingArguments: ToolCallUpdateData["streamingArguments"]
 ): void {
 	updateTranscriptToolCallEntry(store, sessionId, {
 		toolCallId,

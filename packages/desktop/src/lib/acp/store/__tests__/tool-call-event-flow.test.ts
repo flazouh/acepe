@@ -19,9 +19,9 @@ import type {
 	SessionUpdate,
 	ToolArguments,
 	ToolCallData,
+	ToolCallUpdateData,
 } from "../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../application/dto/session.js";
-import type { ToolCallUpdate } from "../../types/tool-call.js";
 
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
@@ -35,7 +35,7 @@ function applyStreamingArguments(
 	entryStore: SessionEntryStore,
 	sessionId: string,
 	toolCallId: string,
-	streamingArguments: ToolCallUpdate["streamingArguments"]
+	streamingArguments: ToolCallUpdateData["streamingArguments"]
 ): void {
 	updateTranscriptToolCallEntry(entryStore, sessionId, {
 		toolCallId,

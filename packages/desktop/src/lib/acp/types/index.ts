@@ -104,7 +104,7 @@ export { isConnected, needsContentLoad } from "./thread-state.js";
 export type { ThreadStatistics } from "./thread-stats.js";
 export type { ThreadStatus } from "./thread-status.js";
 export type { ThreadTableRow } from "./thread-table-row.js";
-export type { ToolCall, ToolCallUpdate } from "./tool-call.js";
+export type { ToolCall } from "./tool-call.js";
 export type { UserMessage } from "./user-message.js";
 export type { WaitForExitResult } from "./wait-for-exit-result.js";
 export type { WriteTextFileParams } from "./write-text-file-params.js";

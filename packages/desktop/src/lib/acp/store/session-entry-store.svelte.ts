@@ -16,9 +16,12 @@
 
 import { SvelteMap } from "svelte/reactivity";
 import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
-import type { ToolCallData } from "../../services/converted-session-types.js";
+import type {
+	ToolCallData,
+	ToolCallUpdateData,
+} from "../../services/converted-session-types.js";
 import { resolveTranscriptToolCallCreate } from "../session-state/session-state-query-service.js";
-import type { ToolCall, ToolCallUpdate } from "../types/tool-call.js";
+import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
@@ -478,7 +481,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	 * Operation truth is not created here; canonical operation data arrives through
 	 * Rust-authored session graph snapshots and patches.
 	 */
-	private updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdate): void {
+	private updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdateData): void {
 		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
 			() => {},
 			(e) =>

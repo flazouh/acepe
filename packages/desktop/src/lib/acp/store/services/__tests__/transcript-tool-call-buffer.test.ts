@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "bun:test";
 
-import type { ToolArguments, ToolCallData } from "../../../../services/converted-session-types.js";
-import type { ToolCallUpdate } from "../../../types/tool-call.js";
+import type {
+	ToolArguments,
+	ToolCallData,
+	ToolCallUpdateData,
+} from "../../../../services/converted-session-types.js";
 import type { SessionEntry } from "../../types.js";
 import type { IEntryIndex } from "../interfaces/entry-index.js";
 import type { IEntryStoreInternal } from "../interfaces/entry-store-internal.js";
@@ -58,8 +61,8 @@ function createToolCallData(id: string, overrides?: Partial<ToolCallData>): Tool
 
 function createToolCallUpdate(
 	toolCallId: string,
-	overrides?: Partial<ToolCallUpdate>
-): ToolCallUpdate {
+	overrides?: Partial<ToolCallUpdateData>
+): ToolCallUpdateData {
 	return {
 		toolCallId,
 		status: null,
