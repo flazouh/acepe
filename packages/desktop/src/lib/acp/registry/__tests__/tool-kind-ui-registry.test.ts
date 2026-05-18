@@ -152,6 +152,8 @@ describe("getToolKindSubtitle", () => {
 					script:
 						"(() => {\n  const elements = Array.from(document.querySelectorAll('[data-ref]'));\n  return elements.map((element) => element.textContent?.trim() ?? '');\n})()",
 				},
+				script:
+					"(() => {\n  const elements = Array.from(document.querySelectorAll('[data-ref]'));\n  return elements.map((element) => element.textContent?.trim() ?? '');\n})()",
 			},
 			status: "completed",
 			kind: "browser",
@@ -162,6 +164,24 @@ describe("getToolKindSubtitle", () => {
 		expect(subtitle).toContain("(() => {");
 		expect(subtitle.length).toBeLessThanOrEqual(43);
 		expect(subtitle).toContain("...");
+	});
+
+	it("does not derive browser subtitles from raw arguments", () => {
+		const toolCall: ToolCallData = {
+			id: "test-browser-raw-only",
+			name: "mcp__tauri__webview_execute_js",
+			arguments: {
+				kind: "browser",
+				raw: {
+					script: "document.body.innerText",
+				},
+			},
+			status: "completed",
+			kind: "browser",
+			awaitingPlanApproval: false,
+		};
+
+		expect(getToolKindSubtitle("browser", toolCall)).toBe("");
 	});
 
 	it("shows SQL descriptions as the subtitle", () => {

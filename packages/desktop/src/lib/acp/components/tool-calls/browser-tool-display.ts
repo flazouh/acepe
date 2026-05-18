@@ -4,7 +4,7 @@ import { isBrowserNormalizedResult } from "../../types/normalized-tool-result.js
 import type { ToolCall } from "../../types/tool-call.js";
 
 function getBrowserRawArguments(toolCall: ToolCall): Record<string, unknown> | null {
-	if (toolCall.arguments.kind !== "browser" && toolCall.arguments.kind !== "other") {
+	if (toolCall.arguments.kind !== "other") {
 		return null;
 	}
 
@@ -106,6 +106,10 @@ export function parseBrowserToolResult(
 }
 
 export function extractBrowserScriptText(toolCall: ToolCall): string | null {
+	if (toolCall.arguments.kind === "browser") {
+		return toolCall.arguments.script ?? null;
+	}
+
 	const raw = getBrowserRawArguments(toolCall);
 	if (!raw) {
 		return null;

@@ -443,7 +443,7 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
         ToolArguments::ToolSearch { query, max_results } => {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
         }
-        ToolArguments::Browser { raw } => {
+        ToolArguments::Browser { raw, .. } => {
             if raw.is_null() {
                 0
             } else {

@@ -464,6 +464,9 @@ pub(crate) fn parse_tool_kind_arguments(
         },
         ToolKind::Browser => ToolArguments::Browser {
             raw: raw_arguments.clone(),
+            action: extract_parser_string(raw_arguments, &["action"]),
+            selector: extract_parser_string(raw_arguments, &["selector"]),
+            script: extract_parser_string(raw_arguments, &["script"]),
         },
         ToolKind::Unclassified => ToolArguments::Unclassified {
             raw_name: extract_parser_string(raw_arguments, &["raw_name", "rawName", "name"])
@@ -486,5 +489,37 @@ pub(crate) fn parse_tool_kind_arguments(
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parses_browser_display_fields_from_raw_arguments() {
+        let args = parse_tool_kind_arguments(
+            ToolKind::Browser,
+            &json!({
+                "action": "click",
+                "selector": "[data-testid='submit']",
+                "script": "document.body.innerText",
+            }),
+        );
+
+        match args {
+            ToolArguments::Browser {
+                action,
+                selector,
+                script,
+                ..
+            } => {
+                assert_eq!(action.as_deref(), Some("click"));
+                assert_eq!(selector.as_deref(), Some("[data-testid='submit']"));
+                assert_eq!(script.as_deref(), Some("document.body.innerText"));
+            }
+            other => panic!("expected browser arguments, got {other:?}"),
+        }
     }
 }

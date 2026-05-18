@@ -122,6 +122,22 @@ function formatBrowserTitle(funcName: string): string {
 	return BROWSER_TITLE_MAP[funcName] ?? formatOtherToolName(funcName);
 }
 
+function getBrowserSubtitle(toolCall: ToolCall): string {
+	if (toolCall.arguments.kind !== "browser") {
+		return "";
+	}
+
+	const action = toolCall.arguments.action;
+	const selector = toolCall.arguments.selector;
+	const script = toolCall.arguments.script;
+
+	if (action && selector) return `${action} -> ${truncateText(selector, 30)}`;
+	if (action) return action;
+	if (selector) return truncateText(selector, 40);
+	if (script) return truncateText(script.replace(/\s+/g, " "), 40);
+	return "";
+}
+
 /**
  * Tool Kind UI Registry
  *
@@ -441,20 +457,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			const funcName = extractBrowserFuncName(name);
 			return formatBrowserTitle(funcName);
 		},
-		subtitle: (toolCall) => {
-			if (toolCall.arguments.kind !== "browser") return "";
-			const raw = toolCall.arguments.raw;
-			if (typeof raw !== "object" || raw === null) return "";
-			const obj = raw as Record<string, unknown>;
-			const action = typeof obj.action === "string" ? obj.action : null;
-			const selector = typeof obj.selector === "string" ? obj.selector : null;
-			const script = typeof obj.script === "string" ? obj.script : null;
-			if (action && selector) return `${action} → ${truncateText(selector, 30)}`;
-			if (action) return action;
-			if (selector) return truncateText(selector, 40);
-			if (script) return truncateText(script.replace(/\s+/g, " "), 40);
-			return "";
-		},
+		subtitle: getBrowserSubtitle,
 	},
 
 	sql: {

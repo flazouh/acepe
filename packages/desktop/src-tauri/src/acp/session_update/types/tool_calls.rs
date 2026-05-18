@@ -261,6 +261,12 @@ pub enum ToolArguments {
     },
     Browser {
         raw: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        action: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        selector: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        script: Option<String>,
     },
     Sql {
         #[serde(skip_serializing_if = "Option::is_none")]
