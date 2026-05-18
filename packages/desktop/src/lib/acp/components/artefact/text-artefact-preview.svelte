@@ -1,16 +1,12 @@
 <script lang="ts">
-import { useSessionContext } from "../../hooks/use-session-context.js";
 import MarkdownText from "../messages/markdown-text.svelte";
 
 interface Props {
 	content: string;
+	projectPath?: string;
 }
 
-const { content }: Props = $props();
-
-// Get projectPath from session context
-const sessionContext = useSessionContext();
-const projectPath = $derived(sessionContext?.projectPath);
+const { content, projectPath }: Props = $props();
 </script>
 
 <div class="p-3 text-sm">

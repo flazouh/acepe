@@ -5,7 +5,6 @@ import { GithubLogo } from "phosphor-svelte";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";
-import { useSessionContext } from "../hooks/use-session-context.js";
 import { fetchCommitDiff, fetchPrDiff } from "../services/github-service.js";
 import { getPanelStore } from "../store/panel-store.svelte.js";
 import CopyButton from "./messages/copy-button.svelte";
@@ -16,12 +15,9 @@ interface Props {
 	projectPath?: string;
 }
 
-let { ref, repoContext, projectPath: propProjectPath }: Props = $props();
+let { ref, repoContext, projectPath }: Props = $props();
 
 const panelStore = getPanelStore();
-const sessionContext = useSessionContext();
-const contextProjectPath = $derived(sessionContext?.projectPath);
-const projectPath = $derived(propProjectPath ?? contextProjectPath);
 
 // Enhance commit ref with repo context if available
 const enhancedRef = $derived.by(() => {

@@ -10,10 +10,11 @@ import ArtefactPreview from "./artefact-preview.svelte";
 
 interface Props {
 	attachment: Attachment;
+	projectPath?: string;
 	onRemove?: () => void;
 }
 
-const { attachment, onRemove }: Props = $props();
+const { attachment, projectPath, onRemove }: Props = $props();
 
 let isOpen = $state(false);
 
@@ -71,7 +72,7 @@ const popoverClass = $derived.by(() => {
 			onmouseenter={() => (isOpen = true)}
 			onmouseleave={() => (isOpen = false)}
 		>
-			<ArtefactPreview {attachment} />
+			<ArtefactPreview {attachment} {projectPath} />
 		</Popover.Content>
 	</Popover.Portal>
 </Popover.Root>
