@@ -45,7 +45,7 @@ import {
 } from "./logic/pr-generation-preferences.js";
 import PrLinkFooterButton from "../shared/pr-link-footer-button.svelte";
 import { getReviewStatusByFilePath, hasKeepAllBeenApplied } from "./logic/review-progress.js";
-import type { ModifiedFilesState } from "./types/modified-files-state.js";
+import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 
 import type { PrGenerationConfig } from "./types/pr-generation-config.js";
 

@@ -14,7 +14,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import type { ReviewDiffViewState } from "../modified-files/components/review-diff-view-state.svelte.js";
-import type { ModifiedFilesState } from "../modified-files/types/modified-files-state.js";
+import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import ReviewBottomWidget from "./review-bottom-widget.svelte";
 import ReviewPanelDiff from "./review-panel-diff.svelte";
 import type {

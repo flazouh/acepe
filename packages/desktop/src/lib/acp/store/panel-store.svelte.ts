@@ -11,7 +11,7 @@
 import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
-import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state.js";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import { clearWorktreeEnabled } from "../components/worktree/worktree-storage.js";
 import { areReviewFileSnapshotsEqual } from "../review/review-file-revision.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";

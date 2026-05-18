@@ -3,7 +3,7 @@ import { FilePathBadge } from "@acepe/ui";
 import { IconChevronLeft } from "@tabler/icons-svelte";
 import { IconChevronRight } from "@tabler/icons-svelte";
 import { Button } from "$lib/components/ui/button/index.js";
-import type { ModifiedFilesState } from "../modified-files/types/modified-files-state.js";
+import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 
 interface Props {
 	modifiedFilesState: ModifiedFilesState;

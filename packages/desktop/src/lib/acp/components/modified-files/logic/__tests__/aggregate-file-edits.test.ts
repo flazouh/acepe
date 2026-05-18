@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
-import { aggregateFileEdits, aggregateFileEditsFromToolCalls } from "../aggregate-file-edits.js";
+import { aggregateFileEdits, aggregateFileEditsFromToolCalls } from "../../../../logic/aggregate-file-edits.js";
 
 function createEditEntry(
 	id: string,

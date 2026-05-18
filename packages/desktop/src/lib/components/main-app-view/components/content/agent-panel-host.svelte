@@ -210,7 +210,7 @@ function handleFocus(): void {
 }
 
 function handleEnterReviewMode(
-	modifiedFilesState: import("$lib/acp/components/modified-files/types/modified-files-state.js").ModifiedFilesState,
+	modifiedFilesState: import("$lib/acp/types/modified-files-state.js").ModifiedFilesState,
 	initialFileIndex: number
 ): void {
 	panelStore.enterReviewMode(panelId, modifiedFilesState, initialFileIndex);

@@ -59,7 +59,7 @@ import type { AvailableCommand } from "../types/available-command.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
-import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type {
 	CanonicalSessionProjection,

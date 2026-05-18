@@ -37,7 +37,7 @@ export type { TaskProgress } from "../application/dto/task-progress.js";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 import type { SessionCapabilities } from "../application/dto/session-capabilities.js";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
-import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 

@@ -8,7 +8,7 @@ import {
 	ReviewDiffViewState,
 	type ResolvedReviewHunkAction,
 } from "../modified-files/components/review-diff-view-state.svelte.js";
-import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
+import type { ModifiedFileEntry } from "../../types/modified-file-entry.js";
 import { createReviewDiffData, selectReviewDiffData } from "./review-diff-data.js";
 
 interface Props {
