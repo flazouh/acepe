@@ -3,6 +3,7 @@ import type { ActivityPhase, ConnectionPhase } from "$lib/acp/logic/session-ui-s
 export interface LiveSessionPanelSyncInput {
 	readonly sessionId: string;
 	readonly updatedAtMs: number;
+	readonly hasCanonicalProjection: boolean;
 	readonly connectionPhase: ConnectionPhase | null;
 	readonly activityPhase: ActivityPhase | null;
 	readonly pendingQuestionId: string | null;
@@ -23,6 +24,10 @@ export function isLiveSessionPanelCandidate(input: LiveSessionPanelSyncInput): b
 		input.pendingPermissionId !== null
 	) {
 		return true;
+	}
+
+	if (!input.hasCanonicalProjection) {
+		return false;
 	}
 
 	if (input.connectionPhase === "connecting" || input.connectionPhase === "failed") {

@@ -12,6 +12,8 @@ function makeInput(overrides: Partial<LiveSessionPanelSyncInput> = {}): LiveSess
 	return {
 		sessionId: overrides.sessionId !== undefined ? overrides.sessionId : "session-1",
 		updatedAtMs: overrides.updatedAtMs !== undefined ? overrides.updatedAtMs : 1000,
+		hasCanonicalProjection:
+			overrides.hasCanonicalProjection !== undefined ? overrides.hasCanonicalProjection : true,
 		connectionPhase:
 			overrides.connectionPhase !== undefined ? overrides.connectionPhase : "connected",
 		activityPhase: overrides.activityPhase !== undefined ? overrides.activityPhase : "running",
@@ -85,6 +87,18 @@ describe("isLiveSessionPanelCandidate", () => {
 		).toBe(true);
 	});
 
+	it("does not treat missing-canonical historical sessions as live", () => {
+		expect(
+			isLiveSessionPanelCandidate(
+				makeInput({
+					hasCanonicalProjection: false,
+					connectionPhase: "failed",
+					activityPhase: "idle",
+				})
+			)
+		).toBe(false);
+	});
+
 	it("treats connected idle sessions without pending input as not live", () => {
 		expect(
 			isLiveSessionPanelCandidate(
@@ -96,7 +110,11 @@ describe("isLiveSessionPanelCandidate", () => {
 	it("treats pending questions as live even when idle", () => {
 		expect(
 			isLiveSessionPanelCandidate(
-				makeInput({ activityPhase: "idle", pendingQuestionId: "question-1" })
+				makeInput({
+					hasCanonicalProjection: false,
+					activityPhase: "idle",
+					pendingQuestionId: "question-1",
+				})
 			)
 		).toBe(true);
 	});
@@ -129,6 +147,26 @@ describe("syncLiveSessionPanels", () => {
 
 		const synchronized = syncLiveSessionPanels(
 			[makeInput({ sessionId: "session-1", connectionPhase: "connected", activityPhase: "idle" })],
+			controller,
+			450
+		);
+
+		expect(synchronized).toEqual([]);
+		expect(materializedSessionIds).toEqual([]);
+	});
+
+	it("does not materialize failed sessions without canonical state", () => {
+		const { controller, materializedSessionIds } = createController();
+
+		const synchronized = syncLiveSessionPanels(
+			[
+				makeInput({
+					sessionId: "session-1",
+					hasCanonicalProjection: false,
+					connectionPhase: "failed",
+					activityPhase: "idle",
+				}),
+			],
 			controller,
 			450
 		);

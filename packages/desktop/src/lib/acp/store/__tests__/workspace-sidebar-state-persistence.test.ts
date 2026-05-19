@@ -167,6 +167,85 @@ describe("workspace sidebar state persistence", () => {
 		expect(restoredValues).toEqual([["/workspace/app"]]);
 	});
 
+	it("drops auto-created unified workspace panels on restore", () => {
+		const panelStore = createPanelStoreStub();
+		const store = new WorkspaceStore(panelStore as never, createSessionStoreStub() as never);
+
+		const restoredSessionIds = store.restore({
+			version: 12,
+			workspacePanels: [
+				{
+					id: "auto-panel",
+					kind: "agent",
+					projectPath: "/workspace/app",
+					ownerPanelId: null,
+					width: 640,
+					sessionId: "auto-session",
+					autoCreated: true,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					agentId: "claude-code",
+				},
+				{
+					id: "durable-panel",
+					kind: "agent",
+					projectPath: "/workspace/app",
+					ownerPanelId: null,
+					width: 640,
+					sessionId: "durable-session",
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					agentId: "claude-code",
+				},
+			],
+			panels: [],
+			focusedPanelIndex: 0,
+			panelContainerScrollX: 0,
+			savedAt: new Date().toISOString(),
+		});
+
+		expect(restoredSessionIds).toEqual(["durable-session"]);
+		expect(panelStore.workspacePanels).toHaveLength(1);
+		expect(panelStore.workspacePanels[0]).toMatchObject({ id: "durable-panel" });
+	});
+
+	it("drops auto-created legacy panels on restore", () => {
+		const panelStore = createPanelStoreStub();
+		const store = new WorkspaceStore(panelStore as never, createSessionStoreStub() as never);
+
+		const restoredSessionIds = store.restore({
+			version: 9,
+			panels: [
+				{
+					id: "auto-panel",
+					sessionId: "auto-session",
+					autoCreated: true,
+					width: 640,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/workspace/app",
+					agentId: "claude-code",
+				},
+				{
+					id: "durable-panel",
+					sessionId: "durable-session",
+					width: 640,
+					pendingProjectSelection: false,
+					selectedAgentId: "claude-code",
+					projectPath: "/workspace/app",
+					agentId: "claude-code",
+				},
+			],
+			focusedPanelIndex: 0,
+			panelContainerScrollX: 0,
+			savedAt: new Date().toISOString(),
+		});
+
+		expect(restoredSessionIds).toEqual(["durable-session"]);
+		expect(panelStore.panels).toHaveLength(1);
+		expect(panelStore.panels[0]).toMatchObject({ sessionId: "durable-session" });
+	});
+
 	it("can persist sidebar collapse state immediately", () => {
 		const store = new WorkspaceStore(
 			createPanelStoreStub() as never,
@@ -187,6 +266,84 @@ describe("workspace sidebar state persistence", () => {
 		expect(savedState).toMatchObject({
 			collapsedProjectPaths: ["/workspace/app"],
 		});
+	});
+
+	it("does not persist auto-created session panels", () => {
+		const panelStore = createPanelStoreStub();
+		panelStore.workspacePanels = [
+			{
+				id: "auto-panel",
+				kind: "agent",
+				sessionId: "auto-session",
+				autoCreated: true,
+				width: 640,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				ownerPanelId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: "Auto session",
+			},
+			{
+				id: "durable-panel",
+				kind: "agent",
+				sessionId: "durable-session",
+				width: 640,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				ownerPanelId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: "Durable session",
+			},
+		];
+		panelStore.panels = [
+			{
+				id: "auto-panel",
+				kind: "agent",
+				sessionId: "auto-session",
+				autoCreated: true,
+				width: 640,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				ownerPanelId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: "Auto session",
+			},
+			{
+				id: "durable-panel",
+				kind: "agent",
+				sessionId: "durable-session",
+				width: 640,
+				pendingProjectSelection: false,
+				selectedAgentId: "claude-code",
+				projectPath: "/workspace/app",
+				agentId: "claude-code",
+				ownerPanelId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: "Durable session",
+			},
+		] as Panel[];
+		const store = new WorkspaceStore(panelStore as never, createSessionStoreStub() as never);
+
+		store.persist(true);
+
+		expect(saveWorkspaceStateMock).toHaveBeenCalledTimes(1);
+		const calls = saveWorkspaceStateMock.mock.calls as Array<ReadonlyArray<unknown>>;
+		const savedState = calls[0]?.[0] as {
+			workspacePanels?: Array<Record<string, unknown>>;
+			panels?: Array<Record<string, unknown>>;
+		};
+		expect(savedState.workspacePanels?.map((panel) => panel.id)).toEqual(["durable-panel"]);
+		expect(savedState.panels?.map((panel) => panel.id)).toEqual(["durable-panel"]);
 	});
 
 	it("persists terminal panel groups and tabs", () => {

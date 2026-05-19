@@ -37,6 +37,7 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	inactiveSessionWorkSourceFromCanonicalProjection,
 	liveSessionWorkSourceFromCanonicalProjection,
 } from "$lib/acp/store/live-session-work.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
@@ -249,7 +250,9 @@ const interactionSnapshot = $derived.by(() =>
 );
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
 const liveSessionSource = $derived(
-	liveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
+	isOpen
+		? liveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
+		: inactiveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
 );
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({

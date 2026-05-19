@@ -9,6 +9,7 @@ import {
 	deriveLiveSessionLifecyclePresentation,
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	inactiveSessionWorkSourceFromCanonicalProjection,
 	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
 	type LiveSessionWorkSource,
@@ -307,6 +308,20 @@ describe("deriveLiveCanonicalActivity", () => {
 		expect(projection.canonicalActivity).toBe("error");
 		expect(selectSessionStatusForPresentation(projection)).toBe("error");
 	});
+
+	it("keeps inactive history sessions neutral when no canonical projection is loaded", () => {
+		const projection = deriveLiveSessionWorkProjection(
+			makeInput({
+				source: inactiveSessionWorkSourceFromCanonicalProjection("session-1", null),
+				hasPendingQuestion: true,
+			})
+		);
+
+		expect(projection.hasError).toBe(false);
+		expect(projection.state.connection).toBe("disconnected");
+		expect(projection.canonicalActivity).toBe("idle");
+		expect(selectSessionStatusForPresentation(projection)).toBe("idle");
+	});
 });
 
 describe("deriveLiveSessionWorkProjection", () => {
@@ -510,6 +525,20 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 			connectionPhase: "failed",
 			contentPhase: "loading",
 			canSubmit: null,
+		});
+	});
+
+	it("keeps inactive history presentation disconnected while canonical projection is unloaded", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: inactiveSessionWorkSourceFromCanonicalProjection("session-1", null),
+			hasEntries: null,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "disconnected",
+			contentPhase: "loading",
+			canSubmit: false,
 		});
 	});
 });

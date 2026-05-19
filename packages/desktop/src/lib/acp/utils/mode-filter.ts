@@ -4,10 +4,16 @@ import type { AvailableMode } from "../types/available-mode.js";
 /**
  * Filters modes to only include visible modes (Build and Plan).
  *
- * @param modes - Array of available modes from the backend
+ * @param modes - Available modes from the canonical capability snapshot
  * @returns Filtered array containing only visible modes
  */
-export function filterVisibleModes(modes: readonly AvailableMode[]): readonly AvailableMode[] {
+export function filterVisibleModes(
+	modes: readonly AvailableMode[] | null | undefined
+): readonly AvailableMode[] {
+	if (!modes) {
+		return [];
+	}
+
 	return modes.filter((mode) => VISIBLE_BACKEND_MODE_IDS.includes(mode.id));
 }
 

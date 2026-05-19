@@ -28,6 +28,10 @@ export type LiveSessionWorkSource =
 			readonly projection: LiveSessionCanonicalProjection;
 	  }
 	| {
+			readonly kind: "inactive_session";
+			readonly sessionId: string;
+	  }
+	| {
 			readonly kind: "missing_canonical";
 			readonly sessionId: string;
 	  };
@@ -81,6 +85,27 @@ export function liveSessionWorkSourceFromCanonicalProjection(
 	if (canonicalProjection === null) {
 		return {
 			kind: "missing_canonical",
+			sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical",
+		projection: canonicalProjection,
+	};
+}
+
+export function inactiveSessionWorkSourceFromCanonicalProjection(
+	sessionId: string | null,
+	canonicalProjection: LiveSessionCanonicalProjection | null
+): LiveSessionWorkSource {
+	if (sessionId === null) {
+		return { kind: "no_session" };
+	}
+
+	if (canonicalProjection === null) {
+		return {
+			kind: "inactive_session",
 			sessionId,
 		};
 	}
@@ -348,7 +373,7 @@ export function deriveLiveSessionLifecyclePresentation(
 		canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user";
 	const canonicalProjection = canonicalProjectionFromSource(input.source);
 	const canSubmit =
-		input.source.kind === "no_session"
+		input.source.kind === "no_session" || input.source.kind === "inactive_session"
 			? false
 			: canonicalProjection === null
 				? null

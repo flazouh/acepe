@@ -29,6 +29,7 @@ import {
 	type PersistedBrowserWorkspacePanelState,
 	type PersistedFilePanelState,
 	type PersistedFileWorkspacePanelState,
+	type PersistedPanelState,
 	type PersistedReviewFullscreenState,
 	type PersistedReviewWorkspacePanelState,
 	type PersistedSqlStudioState,
@@ -48,6 +49,60 @@ import {
 
 const WORKSPACE_STORE_KEY = Symbol("workspace-store");
 const logger = createLogger({ id: "workspace-store", name: "WorkspaceStore" });
+
+function isPersistableAgentPanel(panel: Panel): boolean {
+	return panel.autoCreated !== true;
+}
+
+function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
+	return panel.kind !== "agent" || panel.autoCreated !== true;
+}
+
+function isPersistablePersistedAgentPanel(
+	panel: PersistedAgentWorkspacePanelState | PersistedPanelState
+): boolean {
+	return panel.autoCreated !== true;
+}
+
+function filterPersistableWorkspacePanels(
+	workspacePanels: ReadonlyArray<WorkspacePanel>
+): WorkspacePanel[] {
+	const persistableTopLevelPanelIds = new Set<string>();
+	for (const panel of workspacePanels) {
+		if (panel.ownerPanelId === null && isPersistableWorkspacePanel(panel)) {
+			persistableTopLevelPanelIds.add(panel.id);
+		}
+	}
+
+	return workspacePanels.filter((panel) => {
+		if (!isPersistableWorkspacePanel(panel)) {
+			return false;
+		}
+		return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
+	});
+}
+
+function filterPersistablePersistedWorkspacePanels(
+	workspacePanels: ReadonlyArray<PersistedWorkspacePanelState>
+): PersistedWorkspacePanelState[] {
+	const persistableTopLevelPanelIds = new Set<string>();
+	for (const panel of workspacePanels) {
+		if (
+			panel.ownerPanelId === null &&
+			(panel.kind !== "agent" || isPersistablePersistedAgentPanel(panel)) &&
+			panel.id
+		) {
+			persistableTopLevelPanelIds.add(panel.id);
+		}
+	}
+
+	return workspacePanels.filter((panel) => {
+		if (panel.kind === "agent" && !isPersistablePersistedAgentPanel(panel)) {
+			return false;
+		}
+		return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
+	});
+}
 
 /**
  * Convert runtime file panels to persisted format.
@@ -465,13 +520,23 @@ export class WorkspaceStore {
 	persist(immediate = false): void {
 		const saveState = () => {
 			this.persistDebounce = null;
-			const topLevelWorkspacePanels = this.panelStore.workspacePanels.filter(
+			const persistableWorkspacePanels = filterPersistableWorkspacePanels(
+				this.panelStore.workspacePanels
+			);
+			const persistableAgentPanels = this.panelStore.panels.filter(isPersistableAgentPanel);
+			const persistableAgentPanelIds = new Set<string>(
+				persistableAgentPanels.map((panel) => panel.id)
+			);
+			const persistableFilePanels = this.panelStore.filePanels.filter(
+				(panel) => panel.ownerPanelId === null || persistableAgentPanelIds.has(panel.ownerPanelId)
+			);
+			const topLevelWorkspacePanels = persistableWorkspacePanels.filter(
 				(panel) => panel.kind === "agent" || panel.ownerPanelId === null
 			);
 			const state: PersistedWorkspaceState = {
 				version: 12,
-				workspacePanels: serializeWorkspacePanels(this.panelStore.workspacePanels),
-				panels: this.panelStore.panels.map((p) => {
+				workspacePanels: serializeWorkspacePanels(persistableWorkspacePanels),
+				panels: persistableAgentPanels.map((p) => {
 					// Use immutable session identity when possible to avoid reconstructing full session objects.
 					const sessionIdentity = p.sessionId
 						? this.sessionStore.getSessionIdentity(p.sessionId)
@@ -508,7 +573,7 @@ export class WorkspaceStore {
 						sequenceId: sessionMetadata?.sequenceId ?? undefined,
 					};
 				}),
-				filePanels: serializeFilePanels(this.panelStore.filePanels),
+				filePanels: serializeFilePanels(persistableFilePanels),
 				activeFilePanelIdByOwnerPanelId: this.panelStore.getActiveFilePanelIdByOwnerPanelIdRecord(),
 				focusedPanelIndex: this.panelStore.focusedPanelId
 					? topLevelWorkspacePanels.findIndex((p) => p.id === this.panelStore.focusedPanelId)
@@ -597,7 +662,10 @@ export class WorkspaceStore {
 		});
 
 		if (state.workspacePanels && state.workspacePanels.length > 0) {
-			const restoredWorkspacePanels = hydratePersistedWorkspacePanels(state.workspacePanels);
+			const persistedWorkspacePanels = filterPersistablePersistedWorkspacePanels(
+				state.workspacePanels
+			);
+			const restoredWorkspacePanels = hydratePersistedWorkspacePanels(persistedWorkspacePanels);
 			this.panelStore.workspacePanels = restoredWorkspacePanels;
 			if (state.terminalPanelGroups && state.terminalTabs) {
 				this.panelStore.terminalPanelGroups = hydratePersistedTerminalPanelGroups(
@@ -656,11 +724,12 @@ export class WorkspaceStore {
 		}
 
 		// Restore panels with new IDs, preserving hot state for later
+		const persistedPanels = state.panels.filter(isPersistablePersistedAgentPanel);
 		const panelScrollPositions: Array<{ id: string; scrollTop: number }> = [];
 		const panelPlanSidebarStates: Array<{ id: string; expanded: boolean }> = [];
 		const panelMessageDrafts: Array<{ id: string; draft: string }> = [];
 		const restoredPanelIdByPersistedPanelId = new SvelteMap<string, string>();
-		const restoredPanels: Panel[] = state.panels.map((p, index) => {
+		const restoredPanels: Panel[] = persistedPanels.map((p, index) => {
 			const id = crypto.randomUUID();
 			if (p.id) {
 				restoredPanelIdByPersistedPanelId.set(p.id, id);
@@ -782,8 +851,8 @@ export class WorkspaceStore {
 
 		// Restore panel review mode (deferred until session loads)
 		const panelReviewRestores: Array<{ id: string; reviewFileIndex: number }> = [];
-		for (let i = 0; i < state.panels.length; i++) {
-			const p = state.panels[i];
+		for (let i = 0; i < persistedPanels.length; i++) {
+			const p = persistedPanels[i];
 			if (p.reviewMode && p.sessionId) {
 				panelReviewRestores.push({
 					id: restoredPanels[i].id,
@@ -842,7 +911,7 @@ export class WorkspaceStore {
 		// Restore embedded terminal tabs (version 9+)
 		if (state.embeddedTerminalTabs && state.embeddedTerminalTabs.length > 0) {
 			const selectedTabByPanelId = new SvelteMap<string, string>();
-			for (const p of state.panels) {
+			for (const p of persistedPanels) {
 				if (p.id && p.selectedEmbeddedTerminalTabId) {
 					selectedTabByPanelId.set(p.id, p.selectedEmbeddedTerminalTabId);
 				}
