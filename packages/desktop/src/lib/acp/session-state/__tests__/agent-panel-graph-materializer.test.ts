@@ -886,6 +886,7 @@ describe("agent panel graph materializer", () => {
 				createOperationSnapshot({
 					provider_status: "completed",
 					operation_state: "degraded",
+	awaiting_plan_approval: false,
 					degradation_reason: {
 						code: "classification_failure",
 						detail: "Tool classification was insufficient for canonical presentation.",
@@ -931,6 +932,7 @@ describe("agent panel graph materializer", () => {
 					},
 					provider_status: "completed",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 					degradation_reason: null,
 				}),
 			],
@@ -963,6 +965,7 @@ describe("agent panel graph materializer", () => {
 				createOperationSnapshot({
 					provider_status: "completed",
 					operation_state: "blocked",
+	awaiting_plan_approval: false,
 				}),
 			],
 			turnState: "Running",
@@ -1791,6 +1794,7 @@ describe("agent panel graph materializer", () => {
 					createOperationSnapshot({
 						provider_status: "pending",
 						operation_state: "running",
+	awaiting_plan_approval: false,
 						result: null,
 					}),
 				],

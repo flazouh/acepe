@@ -70,6 +70,7 @@ function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
 		arguments: toolCall.arguments,
 		provider_status: toolCall.status,
 		operation_state: toolCall.status === "completed" ? "completed" : "running",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: toolCall.id },
 		kind: toolCall.kind ?? null,
 		title: null,

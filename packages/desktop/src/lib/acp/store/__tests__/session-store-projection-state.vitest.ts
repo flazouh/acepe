@@ -69,6 +69,7 @@ function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): Op
 		child_tool_call_ids: overrides.child_tool_call_ids ?? [],
 		child_operation_ids: overrides.child_operation_ids ?? [],
 		operation_state: overrides.operation_state ?? "running",
+	awaiting_plan_approval: false,
 		source_link: overrides.source_link ?? {
 			kind: "transcript_linked",
 			entry_id: overrides.tool_call_id ?? "tool-1",
@@ -675,6 +676,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -759,6 +761,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -824,6 +827,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			command: "ls",
 			operation_state: "completed",
+	awaiting_plan_approval: false,
 		});
 		const restoredGraph = createSessionStateGraph({
 			turnState: "Idle",
@@ -911,6 +915,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -1034,6 +1039,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: "/repo",
 					command: "pwd",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 				createOperationSnapshot({
 					id: "op-2",
@@ -1049,6 +1055,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: null,
 					command: "bun test",
 					operation_state: "running",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -1111,6 +1118,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 							},
 							command: "bun test",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],
@@ -1157,6 +1165,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					id: "op-1",
 					tool_call_id: "tool-1",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 					provider_status: "completed",
 				}),
 			],
@@ -2083,6 +2092,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							kind: "execute",
 							provider_status: "completed",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 							source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 							title: "Run command",
 							arguments: {
@@ -2399,6 +2409,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operations: [
 						createOperationSnapshot({
 							operation_state: "blocked",
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2482,6 +2493,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "running",
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2558,6 +2570,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 							provider_status: "completed",
 						}),
 					],
@@ -2703,6 +2716,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							result: "/repo",
 							command: "pwd",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],

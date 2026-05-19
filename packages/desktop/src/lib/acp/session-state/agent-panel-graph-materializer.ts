@@ -337,7 +337,7 @@ function operationSnapshotToToolCall(operation: OperationSnapshot): ToolCall {
 		parentToolUseId: operation.parent_tool_call_id,
 		taskChildren: null,
 		questionAnswer: operation.question_answer ?? null,
-		awaitingPlanApproval: operation.awaiting_plan_approval ?? false,
+		awaitingPlanApproval: operation.awaiting_plan_approval,
 		planApprovalRequestId: operation.plan_approval_request_id ?? null,
 		progressiveArguments: operation.progressive_arguments ?? undefined,
 		startedAtMs: operation.started_at_ms ?? undefined,

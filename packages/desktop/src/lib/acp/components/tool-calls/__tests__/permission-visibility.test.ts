@@ -42,6 +42,7 @@ function createEntriesWithOperations(
 		},
 		provider_status: "in_progress",
 		operation_state: "running",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: toolCallId },
 		kind: "execute",
 		title: null,

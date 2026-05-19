@@ -185,7 +185,6 @@ pub struct OperationSnapshot {
     pub normalized_questions: Option<Vec<crate::acp::session_update::QuestionItem>>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub question_answer: Option<crate::session_jsonl::types::QuestionAnswer>,
-    #[serde(default)]
     pub awaiting_plan_approval: bool,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub plan_approval_request_id: Option<u64>,
@@ -819,7 +818,7 @@ impl ProjectionRegistry {
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                 }
-                StoredEntry::ToolCall { message, .. } => {
+                StoredEntry::ToolCall { id, message, .. } => {
                     let message = normalize_tool_call_for_operation_ingress(message);
                     if should_skip_unanswered_question_tool_operation(&message) {
                         continue;
@@ -838,7 +837,7 @@ impl ProjectionRegistry {
                         None,
                         message.parent_tool_use_id.clone(),
                         OperationSourceLink::transcript_linked(
-                            normalize_operation_ingress_tool_call_id(&message.id),
+                            normalize_operation_ingress_tool_call_id(id),
                         ),
                     );
                     self.register_plan_approval_interaction(session_id, &message);

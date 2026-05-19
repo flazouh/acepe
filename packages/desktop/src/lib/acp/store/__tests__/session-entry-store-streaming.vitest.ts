@@ -433,6 +433,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 				},
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				result: null,
 				kind: "edit",
