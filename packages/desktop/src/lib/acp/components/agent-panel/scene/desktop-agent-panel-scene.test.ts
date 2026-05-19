@@ -31,10 +31,10 @@ describe("desktop agent panel scene adapter", () => {
 				},
 			},
 			{
-				id: "tool-1",
+				id: "transcript-tool-row-1",
 				type: "tool_call",
 				message: {
-					id: "tool-1",
+					id: "provider-tool-call-1",
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test src/lib/auth" },
 					status: "completed",
@@ -100,8 +100,9 @@ describe("desktop agent panel scene adapter", () => {
 			text: "Migrate auth to JWT",
 		});
 		expect(conversation.entries[1]).toMatchObject({
-			id: "tool-1",
+			id: "transcript-tool-row-1",
 			type: "tool_call",
+			toolCallId: "provider-tool-call-1",
 			kind: "execute",
 			status: "done",
 			command: "bun test src/lib/auth",

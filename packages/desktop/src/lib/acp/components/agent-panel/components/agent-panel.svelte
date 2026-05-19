@@ -2245,9 +2245,11 @@ function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {
 	if (!sessionId) {
 		return undefined;
 	}
+	if (event.toolCallId === undefined) {
+		return undefined;
+	}
 
-	const toolCallId = event.toolCallId ?? event.entryId;
-	return permissionStore.getForToolCall(sessionId, toolCallId);
+	return permissionStore.getForToolCall(sessionId, event.toolCallId);
 }
 
 function replyToPlanPermission(event: AgentPanelPlanActionEvent, reply: "once" | "reject"): void {

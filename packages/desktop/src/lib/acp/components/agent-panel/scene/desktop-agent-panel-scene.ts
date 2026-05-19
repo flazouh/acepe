@@ -166,6 +166,7 @@ function mapToolStatus(
 }
 
 interface MapToolCallEntryOptions {
+	readonly displayEntryId?: string;
 	readonly canonicalStatus?: AgentToolStatus;
 	readonly presentationState?: AgentToolPresentationState;
 	readonly degradedReason?: string | null;
@@ -936,8 +937,9 @@ function mapToolCallEntry(
 	const commandHtmls = mapExecuteCommandHtmls(command);
 
 	const entry: AgentToolEntry = {
-		id: toolCall.id,
+		id: options.displayEntryId ?? toolCall.id,
 		type: "tool_call",
+		toolCallId: toolCall.id,
 		kind: normalizeToolKind(kind),
 		title: resolveToolTitle(toolCall, kind, turnState),
 		subtitle,
@@ -1133,7 +1135,9 @@ export function mapSessionEntryToConversationEntry(
 	}
 
 	if (entry.type === "tool_call") {
-		return mapToolCallToSceneEntry(entry.message, turnState);
+		return mapToolCallToSceneEntry(entry.message, turnState, false, {
+			displayEntryId: entry.id,
+		});
 	}
 
 	if (entry.type === "ask") {
