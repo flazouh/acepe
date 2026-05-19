@@ -165,11 +165,7 @@ export class SessionConnectionManager {
 		agentId: string,
 		providerMetadata: ProviderMetadataProjection | null | undefined
 	): ProviderMetadataProjection {
-		return resolveProviderMetadataProjection(
-			agentId,
-			providerMetadata ?? preferencesStore.getCachedProviderMetadata(agentId),
-			agentId
-		);
+		return resolveProviderMetadataProjection(agentId, providerMetadata, agentId);
 	}
 
 	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {

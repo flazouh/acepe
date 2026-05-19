@@ -516,7 +516,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
-	it("ignores cached provider metadata when restoring autonomous policy on reconnect", async () => {
+	it("does not write cached provider metadata back as live reconnect metadata", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			...baseSession,
 			agentId: "custom-agent",
@@ -586,9 +586,10 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
 			"custom-agent",
 			expect.objectContaining({
-				displayName: "Launch Profile Agent",
+				displayName: "custom-agent",
 			})
 		);
+		expect(getCachedProviderMetadata).not.toHaveBeenCalled();
 	});
 
 	it("uses the lifecycle event model for current mode on connect", async () => {
