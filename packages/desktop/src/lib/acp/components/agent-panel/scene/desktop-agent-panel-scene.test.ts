@@ -356,7 +356,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("only keeps the trailing incomplete tool call live during streaming", () => {
+	it("maps each tool status from canonical tool-call state instead of transcript position", () => {
 		const entries: SessionEntry[] = [
 			{
 				id: "tool-1",
@@ -411,7 +411,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			id: "tool-1",
 			type: "tool_call",
-			status: "done",
+			status: "running",
 		});
 		expect(conversation.entries[1]).toMatchObject({
 			id: "tool-2",
@@ -420,7 +420,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("normalizes stale incomplete tool calls to done outside live streaming", () => {
+	it("keeps incomplete tool-call status outside live streaming instead of repairing it downstream", () => {
 		const entries: SessionEntry[] = [
 			{
 				id: "tool-1",
@@ -452,7 +452,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			id: "tool-1",
 			type: "tool_call",
-			status: "done",
+			status: "running",
 		});
 	});
 
@@ -1312,7 +1312,6 @@ describe("desktop agent panel scene adapter", () => {
 			},
 			"streaming",
 			false,
-			null,
 			startedAtMs + 4_000
 		);
 
@@ -1366,7 +1365,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("stamps isOptimistic: true on user entries when options.isOptimistic is true", () => {
 			const entry = makeUserEntry("u1", "Hello");
-			const result = mapSessionEntryToConversationEntry(entry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(entry, undefined, {
 				isOptimistic: true,
 			});
 
@@ -1389,7 +1388,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("leaves isOptimistic undefined on user entries when isOptimistic is false", () => {
 			const entry = makeUserEntry("u3", "Hello false");
-			const result = mapSessionEntryToConversationEntry(entry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(entry, undefined, {
 				isOptimistic: false,
 			});
 
@@ -1401,7 +1400,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("does NOT add isOptimistic to non-user entry variants even when options flag is set", () => {
 			const toolEntry = makeToolEntry("t1");
-			const result = mapSessionEntryToConversationEntry(toolEntry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(toolEntry, undefined, {
 				isOptimistic: true,
 			});
 

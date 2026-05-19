@@ -135,8 +135,7 @@ function createAttachmentScopedActionId(
 function mapToolStatus(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
-	parentCompleted: boolean,
-	isActiveToolCall: boolean
+	parentCompleted: boolean
 ): AgentToolStatus {
 	if (toolCall.presentationStatus !== undefined) {
 		return toolCall.presentationStatus;
@@ -155,15 +154,15 @@ function mapToolStatus(
 		return "done";
 	}
 
-	if (!isActiveToolCall || turnState !== "streaming") {
-		return "done";
-	}
-
 	if (toolCall.status === "in_progress") {
 		return "running";
 	}
 
-	return "pending";
+	if (toolCall.status === "pending") {
+		return "pending";
+	}
+
+	return turnState === "streaming" ? "pending" : "done";
 }
 
 interface MapToolCallEntryOptions {
@@ -172,56 +171,6 @@ interface MapToolCallEntryOptions {
 	readonly degradedReason?: string | null;
 	readonly taskChildren?: AgentPanelSceneEntryModel[];
 	readonly includeDiagnosticDetails?: boolean;
-}
-
-function getActiveTailToolCallId(
-	children: readonly ToolCall[] | null | undefined,
-	turnState: TurnState | undefined,
-	parentCompleted: boolean
-): string | null {
-	if (!children || children.length === 0 || turnState !== "streaming" || parentCompleted) {
-		return null;
-	}
-
-	const lastChild = children[children.length - 1];
-	if (!lastChild) {
-		return null;
-	}
-
-	if (lastChild.status === "completed" || lastChild.status === "failed") {
-		return null;
-	}
-
-	if (hasToolResult(lastChild)) {
-		return null;
-	}
-
-	return lastChild.id;
-}
-
-function getActiveRootToolCallId(
-	entries: readonly SessionEntry[],
-	turnState: TurnState | undefined
-): string | null {
-	if (turnState !== "streaming" || entries.length === 0) {
-		return null;
-	}
-
-	const lastEntry = entries[entries.length - 1];
-	if (!lastEntry || lastEntry.type !== "tool_call") {
-		return null;
-	}
-
-	const toolCall = lastEntry.message;
-	if (toolCall.status === "completed" || toolCall.status === "failed") {
-		return null;
-	}
-
-	if (hasToolResult(toolCall)) {
-		return null;
-	}
-
-	return toolCall.id;
 }
 
 function normalizeToolKind(kind: ToolKind | null | undefined) {
@@ -585,10 +534,7 @@ function mapTaskChildren(
 		return undefined;
 	}
 
-	const activeChildId = getActiveTailToolCallId(children, turnState, parentCompleted);
-	return children.map((child) =>
-		mapToolCallEntry(child, turnState, parentCompleted, activeChildId)
-	);
+	return children.map((child) => mapToolCallEntry(child, turnState, parentCompleted));
 }
 
 function mapSearchPayload(toolCall: ToolCall): {
@@ -968,7 +914,6 @@ function mapToolCallEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean,
-	activeToolCallId: string | null,
 	options: MapToolCallEntryOptions = {}
 ): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
@@ -984,7 +929,7 @@ function mapToolCallEntry(
 	const planPayload = mapPlanPayload(toolCall);
 	const status =
 		options.canonicalStatus ??
-		mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
+		mapToolStatus(toolCall, turnState, parentCompleted);
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
@@ -1071,10 +1016,9 @@ export function mapToolCallToSceneEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean = false,
-	activeToolCallId: string | null = null,
 	options: MapToolCallEntryOptions = {}
 ): AgentPanelSceneEntryModel {
-	return mapToolCallEntry(toolCall, turnState, parentCompleted, activeToolCallId, options);
+	return mapToolCallEntry(toolCall, turnState, parentCompleted, options);
 }
 
 function contentBlockToPlainText(block: ContentBlock): string {
@@ -1153,9 +1097,8 @@ export function mapSessionEntriesToConversationModel(
 	entries: readonly SessionEntry[],
 	turnState: TurnState | undefined
 ): { entries: readonly AgentPanelSceneEntryModel[]; isStreaming: boolean } {
-	const activeRootToolCallId = getActiveRootToolCallId(entries, turnState);
 	const conversationEntries = entries.map((entry) =>
-		mapSessionEntryToConversationEntry(entry, turnState, activeRootToolCallId)
+		mapSessionEntryToConversationEntry(entry, turnState)
 	);
 
 	return {
@@ -1167,7 +1110,6 @@ export function mapSessionEntriesToConversationModel(
 export function mapSessionEntryToConversationEntry(
 	entry: SessionEntry,
 	turnState: TurnState | undefined,
-	activeToolCallId: string | null = null,
 	options?: { isOptimistic?: boolean }
 ): AgentPanelSceneEntryModel {
 	if (entry.type === "user") {
@@ -1191,7 +1133,7 @@ export function mapSessionEntryToConversationEntry(
 	}
 
 	if (entry.type === "tool_call") {
-		return mapToolCallToSceneEntry(entry.message, turnState, false, activeToolCallId);
+		return mapToolCallToSceneEntry(entry.message, turnState);
 	}
 
 	if (entry.type === "ask") {
@@ -1231,7 +1173,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 	entry: SceneDisplayRow,
 	turnState: TurnState | undefined,
 	isStreamingAssistant: boolean,
-	activeToolCallId: string | null = null,
 	nowMs: number = Date.now()
 ): AgentPanelSceneEntryModel {
 	if (entry.type === "thinking") {
@@ -1281,7 +1222,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 		};
 	}
 
-	const mapped = mapSessionEntryToConversationEntry(entry, turnState, activeToolCallId);
+	const mapped = mapSessionEntryToConversationEntry(entry, turnState);
 	if (mapped.type === "assistant") {
 		return {
 			id: mapped.id,

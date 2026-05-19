@@ -461,7 +461,6 @@ function materializeOperationEntry(
 		toolCall,
 		mapCanonicalTurnStateToHotTurnState(graph.turnState),
 		false,
-		null,
 		{
 			canonicalStatus: mapOperationStateToToolPresentationStatus(state),
 			presentationState,
@@ -703,7 +702,6 @@ export function materializeAgentPanelSceneFromGraph(
 			const mapped = mapSessionEntryToConversationEntry(
 				input.optimistic.pendingUserEntry,
 				undefined,
-				null,
 				{ isOptimistic: true }
 			);
 			optimisticEntries.push(mapped);
@@ -745,7 +743,6 @@ export function materializeAgentPanelSceneFromGraph(
 		const mapped = mapSessionEntryToConversationEntry(
 			input.optimistic.pendingUserEntry,
 			undefined,
-			null,
 			{ isOptimistic: true }
 		);
 		conversationEntries = insertOptimisticUserEntryAtTurnBoundary(conversationEntries, mapped);
