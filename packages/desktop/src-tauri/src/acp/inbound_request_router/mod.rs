@@ -692,8 +692,11 @@ mod tests {
             tool_call_data: crate::acp::session_update::ToolCallData {
                 id: "web_search_0".to_string(),
                 name: "WebSearch".to_string(),
-                arguments: crate::acp::session_update::ToolArguments::Other { raw: json!({}) },
-                raw_input: None,
+                arguments: crate::acp::session_update::ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
+                diagnostic_input: None,
                 status: crate::acp::session_update::ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(crate::acp::session_update::ToolKind::WebSearch),

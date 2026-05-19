@@ -72,9 +72,9 @@ function createSessionStateGraph(overrides: Partial<SessionStateGraph> = {}): Se
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Running",
 		messageCount: overrides.messageCount ?? 1,
-		lastAgentMessageId: overrides.lastAgentMessageId ?? "assistant-1",
 		activeTurnFailure: overrides.activeTurnFailure ?? null,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? createReadyLifecycle(),
 		activity: overrides.activity ?? createIdleActivity(),
 		capabilities: overrides.capabilities ?? {

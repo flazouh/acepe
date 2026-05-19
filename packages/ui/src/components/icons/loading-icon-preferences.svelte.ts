@@ -1,3 +1,5 @@
+import { createSubscriber } from "svelte/reactivity";
+
 export const DOT_MATRIX_LOADER_OPTIONS = [
 	{
 		id: "prism-bloom",
@@ -41,7 +43,8 @@ export const DOT_MATRIX_LOADER_OPTIONS = [
 	},
 ] as const;
 
-export type DotMatrixLoaderId = (typeof DOT_MATRIX_LOADER_OPTIONS)[number]["id"];
+export type DotMatrixLoaderId =
+	(typeof DOT_MATRIX_LOADER_OPTIONS)[number]["id"];
 
 export const DEFAULT_DOT_MATRIX_LOADER_ID: DotMatrixLoaderId = "prism-bloom";
 
@@ -70,18 +73,19 @@ export const LOADING_ICON_COLOR_OPTIONS = [
 	{ id: "slate", label: "Slate", hex: "#64748b" },
 ] as const;
 
-export type LoadingIconColorId = (typeof LOADING_ICON_COLOR_OPTIONS)[number]["id"];
+export type LoadingIconColorId =
+	(typeof LOADING_ICON_COLOR_OPTIONS)[number]["id"];
 
 export const DEFAULT_LOADING_ICON_COLOR_ID: LoadingIconColorId = "amber";
 
 export function isLoadingIconColorId(
-	value: string | null | undefined
+	value: string | null | undefined,
 ): value is LoadingIconColorId {
 	return LOADING_ICON_COLOR_OPTIONS.some((option) => option.id === value);
 }
 
 export function normalizeLoadingIconColorId(
-	value: string | null | undefined
+	value: string | null | undefined,
 ): LoadingIconColorId {
 	if (isLoadingIconColorId(value)) {
 		return value;
@@ -94,14 +98,31 @@ export function loadingIconColorHex(id: LoadingIconColorId): string {
 	return match?.hex ?? "#bf8700";
 }
 
-let globalLoadingIconVariant = $state<DotMatrixLoaderId>(DEFAULT_DOT_MATRIX_LOADER_ID);
-let globalLoadingIconColor = $state<LoadingIconColorId>(DEFAULT_LOADING_ICON_COLOR_ID);
+let globalLoadingIconVariant: DotMatrixLoaderId = DEFAULT_DOT_MATRIX_LOADER_ID;
+let globalLoadingIconColor: LoadingIconColorId = DEFAULT_LOADING_ICON_COLOR_ID;
+const loadingIconPreferenceSubscribers = new Set<() => void>();
+const subscribeLoadingIconPreference = createSubscriber((update) => {
+	loadingIconPreferenceSubscribers.add(update);
+	return () => {
+		loadingIconPreferenceSubscribers.delete(update);
+	};
+});
 
-export function isDotMatrixLoaderId(value: string | null | undefined): value is DotMatrixLoaderId {
+function notifyLoadingIconPreferenceSubscribers(): void {
+	for (const update of loadingIconPreferenceSubscribers) {
+		update();
+	}
+}
+
+export function isDotMatrixLoaderId(
+	value: string | null | undefined,
+): value is DotMatrixLoaderId {
 	return DOT_MATRIX_LOADER_OPTIONS.some((option) => option.id === value);
 }
 
-export function normalizeDotMatrixLoaderId(value: string | null | undefined): DotMatrixLoaderId {
+export function normalizeDotMatrixLoaderId(
+	value: string | null | undefined,
+): DotMatrixLoaderId {
 	if (isDotMatrixLoaderId(value)) {
 		return value;
 	}
@@ -110,18 +131,29 @@ export function normalizeDotMatrixLoaderId(value: string | null | undefined): Do
 
 export const loadingIconPreference = {
 	get variant(): DotMatrixLoaderId {
+		subscribeLoadingIconPreference();
 		return globalLoadingIconVariant;
 	},
 	setVariant(value: DotMatrixLoaderId): void {
+		if (globalLoadingIconVariant === value) {
+			return;
+		}
 		globalLoadingIconVariant = value;
+		notifyLoadingIconPreferenceSubscribers();
 	},
 	get colorId(): LoadingIconColorId {
+		subscribeLoadingIconPreference();
 		return globalLoadingIconColor;
 	},
 	get colorHex(): string {
+		subscribeLoadingIconPreference();
 		return loadingIconColorHex(globalLoadingIconColor);
 	},
 	setColor(value: LoadingIconColorId): void {
+		if (globalLoadingIconColor === value) {
+			return;
+		}
 		globalLoadingIconColor = value;
+		notifyLoadingIconPreferenceSubscribers();
 	},
 };

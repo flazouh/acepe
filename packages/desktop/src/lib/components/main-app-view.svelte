@@ -925,23 +925,14 @@ onMount(async () => {
 	attemptStartupMaximize();
 
 	logger.info("main-app-view onMount: Starting InboundRequestHandler");
-	// Initialize inbound request handler for ACP permission and question requests
-	const handlerResult = await inboundRequestHandler.start(
-		(permission) => {
-			logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
-				permissionId: permission.id,
-				sessionId: permission.sessionId,
-				jsonRpcRequestId: permission.jsonRpcRequestId,
-			});
-		},
-		(question) => {
-			logger.error("Legacy inbound question request ignored; expected canonical graph patch", {
-				questionId: question.id,
-				sessionId: question.sessionId,
-				jsonRpcRequestId: question.jsonRpcRequestId,
-			});
-		}
-	);
+	// Initialize inbound request handler for legacy ACP permission fallback events.
+	const handlerResult = await inboundRequestHandler.start((permission) => {
+		logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
+			permissionId: permission.id,
+			sessionId: permission.sessionId,
+			jsonRpcRequestId: permission.jsonRpcRequestId,
+		});
+	});
 	if (handlerResult.isErr()) {
 		logger.error("[Startup] Failed to start inbound request handler:", handlerResult.error);
 		viewState.initializationError = handlerResult.error;

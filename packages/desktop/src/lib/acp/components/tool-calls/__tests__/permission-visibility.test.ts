@@ -14,7 +14,7 @@ function createPermission(toolCallId: string, command = "git status"): Permissio
 		permission: "Execute",
 		patterns: [],
 		metadata: {
-			rawInput: { command },
+			diagnosticRawInput: { command },
 			parsedArguments: { kind: "execute", command },
 		},
 		always: [],
@@ -42,6 +42,7 @@ function createEntriesWithOperations(
 		},
 		provider_status: "in_progress",
 		operation_state: "running",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: toolCallId },
 		kind: "execute",
 		title: null,

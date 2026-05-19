@@ -145,8 +145,8 @@ setIconConfig({ basePath: "/svgs/icons" });
 // Use getters to ensure reactivity (values update when they change)
 setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	get sessionId() {
-			return sessionId ?? undefined;
-		},
+		return sessionId ?? undefined;
+	},
 	get panelId() {
 		return panelId;
 	},
@@ -158,13 +158,6 @@ setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	},
 	get modifiedFilesState() {
 		return modifiedFilesState ?? undefined;
-	},
-});
-
-// Also maintain legacy modifiedFilesState context for backward compatibility
-setContext("modifiedFilesState", {
-	get current() {
-		return modifiedFilesState;
 	},
 });
 

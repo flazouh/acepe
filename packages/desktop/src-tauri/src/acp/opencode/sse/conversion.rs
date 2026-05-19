@@ -1,14 +1,15 @@
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
 use crate::acp::parsers::{AgentParser, AgentType, OpenCodeParser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, ContentChunk, PermissionData, QuestionData,
-    QuestionItem, QuestionOption, SessionUpdate, TodoItem, ToolArguments, ToolCallData,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    build_tool_call_from_raw, parse_normalized_questions, parse_normalized_todos, ContentChunk,
+    PermissionData, QuestionData, QuestionItem, QuestionOption, RawToolCallInput, SessionUpdate,
+    TodoItem, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
+    TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData,
+    UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 
@@ -262,16 +263,19 @@ fn extract_normalized_data(
     }
 }
 
-fn parse_opencode_tool_arguments(tool_name: &str, tool_input: &Value) -> ToolArguments {
+fn parse_opencode_tool_arguments(tool_name: Option<&str>, tool_input: &Value) -> ToolArguments {
     OpenCodeParser
-        .parse_typed_tool_arguments(Some(tool_name), tool_input, None)
+        .parse_typed_tool_arguments(tool_name, tool_input, None)
         .unwrap_or(ToolArguments::Other {
             raw: tool_input.clone(),
+            intent: None,
         })
 }
 
-fn resolve_opencode_tool_kind(tool_name: &str, arguments: &ToolArguments) -> ToolKind {
-    let detected_kind = OpenCodeParser.detect_tool_kind(tool_name);
+fn resolve_opencode_tool_kind(tool_name: Option<&str>, arguments: &ToolArguments) -> ToolKind {
+    let detected_kind = tool_name
+        .map(|name| OpenCodeParser.detect_tool_kind(name))
+        .unwrap_or(ToolKind::Other);
     let argument_kind = arguments.tool_kind();
     // When arguments were upgraded (e.g. Fetch URL → WebSearch), prefer argument_kind.
     // Otherwise prefer detected_kind for specificity (e.g. Task vs Think).
@@ -282,6 +286,38 @@ fn resolve_opencode_tool_kind(tool_name: &str, arguments: &ToolArguments) -> Too
     } else {
         argument_kind
     }
+}
+
+fn normalized_part_tool_name(part: &OpenCodePart) -> Option<String> {
+    part.tool
+        .as_deref()
+        .or(part.name.as_deref())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+}
+
+fn build_opencode_tool_call(
+    tool_call_id: String,
+    tool_name: Option<String>,
+    tool_input: Value,
+    status: ToolCallStatus,
+    title: Option<String>,
+) -> ToolCallData {
+    build_tool_call_from_raw(
+        &OpenCodeParser,
+        RawToolCallInput {
+            id: tool_call_id,
+            name: tool_name,
+            arguments: tool_input,
+            status,
+            kind: None,
+            title,
+            suppress_title_read_path_hint: false,
+            parent_tool_use_id: None,
+            task_children: None,
+        },
+    )
 }
 
 /// Event envelope for SSE events
@@ -478,7 +514,12 @@ fn parse_task_children_from_metadata(
 
     let mut children = Vec::with_capacity(summary.len());
     for (index, item) in summary.iter().enumerate() {
-        let tool_name = item.get("tool").and_then(|v| v.as_str()).unwrap_or("Tool");
+        let tool_name = item
+            .get("tool")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string);
         let state = item.get("state");
         let title = state
             .and_then(|s| s.get("title"))
@@ -495,31 +536,15 @@ fn parse_task_children_from_metadata(
             .cloned()
             .unwrap_or_else(|| Value::Object(Default::default()));
 
-        let arguments = parse_opencode_tool_arguments(tool_name, &tool_input);
-        let tool_kind = resolve_opencode_tool_kind(tool_name, &arguments);
-        let (normalized_todos, normalized_questions) =
-            extract_normalized_data(tool_kind, tool_name, &tool_input);
-
-        children.push(ToolCallData {
-            id: format!("{parent_id}:summary-{index}"),
-            name: tool_name.to_string(),
-            arguments,
-            raw_input: Some(tool_input.clone()),
-            status: map_tool_status(status),
-            result: None,
-            kind: Some(tool_kind),
+        let mut child = build_opencode_tool_call(
+            format!("{parent_id}:summary-{index}"),
+            tool_name,
+            tool_input,
+            map_tool_status(status),
             title,
-            locations: None,
-            skill_meta: None,
-            normalized_questions,
-            normalized_todos,
-            normalized_todo_update: None,
-            parent_tool_use_id: Some(parent_id.to_string()),
-            task_children: None,
-            question_answer: None,
-            awaiting_plan_approval: false,
-            plan_approval_request_id: None,
-        });
+        );
+        child.parent_tool_use_id = Some(parent_id.to_string());
+        children.push(child);
     }
 
     Some(children)
@@ -656,7 +681,7 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
         }
 
         "tool" | "tool-invocation" => {
-            let tool_name = part.tool.clone().or(part.name.clone()).unwrap_or_default();
+            let tool_name = normalized_part_tool_name(&part);
             let tool_call_id = part.call_id.clone().unwrap_or_else(|| part.id.clone());
             let state_status = part.state.as_ref().map(|s| s.status.as_str());
             let state_input = part.state.as_ref().and_then(|s| s.input.clone());
@@ -669,7 +694,7 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                 .unwrap_or_else(|| Value::Object(Default::default()));
 
             let log_tool_call_id = tool_call_id.clone();
-            let log_tool_name = tool_name.clone();
+            let log_tool_name = tool_name.as_deref().unwrap_or("<absent>").to_string();
 
             tracing::debug!(
                 part_id = %part.id,
@@ -684,15 +709,15 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                 "RECEIVED TOOL INVOCATION"
             );
 
-            let arguments = parse_opencode_tool_arguments(&tool_name, &tool_input);
-            let tool_kind = resolve_opencode_tool_kind(&tool_name, &arguments);
+            let arguments = parse_opencode_tool_arguments(tool_name.as_deref(), &tool_input);
+            let tool_kind = resolve_opencode_tool_kind(tool_name.as_deref(), &arguments);
 
             match state_status {
                 Some("completed") => {
                     let result = state_output.map(Value::String);
                     // Extract normalized data from tool input on completion
                     let (normalized_todos, normalized_questions) =
-                        extract_normalized_data(tool_kind, &tool_name, &tool_input);
+                        extract_normalized_data(tool_kind, &log_tool_name, &tool_input);
                     tracing::debug!(
                         tool_call_id = %log_tool_call_id,
                         tool_name = %log_tool_name,
@@ -748,34 +773,26 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                     }))
                 }
                 _ => {
-                    let is_task_tool = tool_name.to_lowercase().contains("task");
+                    let is_task_tool = tool_name
+                        .as_deref()
+                        .is_some_and(|name| name.to_lowercase().contains("task"));
                     let task_children = if is_task_tool {
                         parse_task_children_from_metadata(&tool_call_id, &state_metadata)
                     } else {
                         None
                     };
                     let (normalized_todos, normalized_questions) =
-                        extract_normalized_data(tool_kind, &tool_name, &tool_input);
-                    let tool_call = ToolCallData {
-                        id: tool_call_id,
-                        name: tool_name.clone(),
-                        arguments,
-                        raw_input: Some(tool_input.clone()),
-                        status: ToolCallStatus::Pending,
-                        kind: Some(tool_kind),
-                        result: None,
-                        title: None,
-                        locations: None,
-                        skill_meta: None,
-                        normalized_questions,
-                        normalized_todos,
-                        normalized_todo_update: None,
-                        parent_tool_use_id: None,
-                        task_children,
-                        question_answer: None,
-                        awaiting_plan_approval: false,
-                        plan_approval_request_id: None,
-                    };
+                        extract_normalized_data(tool_kind, &log_tool_name, &tool_input);
+                    let mut tool_call = build_opencode_tool_call(
+                        tool_call_id,
+                        tool_name,
+                        tool_input.clone(),
+                        ToolCallStatus::Pending,
+                        None,
+                    );
+                    tool_call.normalized_questions = normalized_questions;
+                    tool_call.normalized_todos = normalized_todos;
+                    tool_call.task_children = task_children;
                     tracing::debug!(
                         tool_call_id = %log_tool_call_id,
                         tool_name = %log_tool_name,
@@ -1066,14 +1083,14 @@ pub(super) fn convert_question_asked_to_session_update(
 ///
 /// Note: Unlike the ACP JSON-RPC path (which has `toolCall.name` for ToolKind detection),
 /// OpenCode SSE permissions only carry a `permission` description string and raw `metadata`.
-/// Without a tool name, we cannot reliably derive canonical typed tool arguments.
-/// The frontend's legacy rawInput fallback in `merge-permission-args.ts` handles this path.
+/// Derive the best canonical parsed arguments here so the frontend does not read raw metadata.
 pub(super) fn convert_permission_asked_to_session_update(
     properties: &Value,
 ) -> Option<SessionUpdate> {
     let event: PermissionAskedEvent = serde_json::from_value(properties.clone()).ok()?;
 
     let session_id = event.session_id.clone();
+    let metadata = enrich_permission_metadata(&event.permission, &event.patterns, event.metadata);
 
     Some(SessionUpdate::PermissionRequest {
         permission: PermissionData {
@@ -1085,13 +1102,126 @@ pub(super) fn convert_permission_asked_to_session_update(
             )),
             permission: event.permission,
             patterns: event.patterns,
-            metadata: event.metadata,
+            metadata,
             always: event.always,
             auto_accepted: false,
             tool: None,
         },
         session_id: Some(session_id),
     })
+}
+
+fn permission_kind_from_label(permission: &str) -> ToolKind {
+    let first_word = permission.split_whitespace().next().unwrap_or_default();
+    match first_word.to_ascii_lowercase().as_str() {
+        "read" => ToolKind::Read,
+        "edit" | "write" => ToolKind::Edit,
+        "delete" | "remove" => ToolKind::Delete,
+        "execute" | "bash" | "run" => ToolKind::Execute,
+        "search" => ToolKind::Search,
+        "glob" => ToolKind::Glob,
+        "fetch" => ToolKind::Fetch,
+        _ => ToolKind::Other,
+    }
+}
+
+fn permission_label_tail(permission: &str) -> Option<String> {
+    let (_, tail) = permission.split_once(char::is_whitespace)?;
+    let trimmed = tail.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.trim_matches(['"', '\'', '`']).to_string())
+}
+
+fn first_permission_pattern(patterns: &[String]) -> Option<String> {
+    patterns
+        .iter()
+        .map(|pattern| pattern.trim())
+        .find(|pattern| !pattern.is_empty())
+        .map(ToString::to_string)
+}
+
+fn ensure_permission_raw_input(
+    raw_input: Option<Value>,
+    permission: &str,
+    patterns: &[String],
+    kind: ToolKind,
+) -> Value {
+    let mut raw_object = raw_input
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    let label_tail = permission_label_tail(permission);
+    let first_pattern = first_permission_pattern(patterns);
+
+    match kind {
+        ToolKind::Read | ToolKind::Edit | ToolKind::Delete => {
+            if !raw_object.contains_key("file_path") {
+                if let Some(path) = first_pattern.or(label_tail) {
+                    raw_object.insert("file_path".to_string(), Value::String(path));
+                }
+            }
+        }
+        ToolKind::Execute => {
+            if !raw_object.contains_key("command") {
+                if let Some(command) = label_tail.or(first_pattern) {
+                    raw_object.insert("command".to_string(), Value::String(command));
+                }
+            }
+        }
+        ToolKind::Search => {
+            if !raw_object.contains_key("query") {
+                if let Some(query) = label_tail.or(first_pattern) {
+                    raw_object.insert("query".to_string(), Value::String(query));
+                }
+            }
+        }
+        ToolKind::Glob => {
+            if !raw_object.contains_key("pattern") {
+                if let Some(pattern) = first_pattern.or(label_tail) {
+                    raw_object.insert("pattern".to_string(), Value::String(pattern));
+                }
+            }
+        }
+        ToolKind::Fetch => {
+            if !raw_object.contains_key("url") {
+                if let Some(url) = label_tail.or(first_pattern) {
+                    raw_object.insert("url".to_string(), Value::String(url));
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Value::Object(raw_object)
+}
+
+fn enrich_permission_metadata(permission: &str, patterns: &[String], metadata: Value) -> Value {
+    let mut metadata_object = metadata.as_object().cloned().unwrap_or_else(Map::new);
+    let diagnostic_raw_input = metadata_object
+        .remove("diagnosticRawInput")
+        .or_else(|| metadata_object.remove("rawInput"));
+
+    if let Some(raw_input) = diagnostic_raw_input.clone() {
+        metadata_object.insert("diagnosticRawInput".to_string(), raw_input);
+    }
+
+    if metadata_object.contains_key("parsedArguments") {
+        return Value::Object(metadata_object);
+    }
+
+    let kind = permission_kind_from_label(permission);
+    if kind == ToolKind::Other {
+        return Value::Object(metadata_object);
+    }
+
+    let raw_input = ensure_permission_raw_input(diagnostic_raw_input, permission, patterns, kind);
+    let parsed_arguments = ToolArguments::from_raw(kind, raw_input);
+    if let Ok(parsed_value) = serde_json::to_value(parsed_arguments) {
+        metadata_object.insert("parsedArguments".to_string(), parsed_value);
+    }
+
+    Value::Object(metadata_object)
 }
 
 #[cfg(test)]
@@ -1147,6 +1277,65 @@ mod tests {
                     Some(crate::acp::session_update::InteractionReplyHandler::http(
                         "permission-1".to_string()
                     ))
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn permission_asked_derives_canonical_parsed_arguments() {
+        let update = convert_permission_asked_to_session_update(&json!({
+            "id": "permission-1",
+            "sessionID": "session-1",
+            "permission": "Read README.md",
+            "patterns": ["README.md"],
+            "metadata": {},
+            "always": []
+        }))
+        .expect("permission update should parse");
+
+        match update {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert_eq!(
+                    permission.metadata["parsedArguments"],
+                    json!({
+                        "kind": "read",
+                        "file_path": "README.md"
+                    })
+                );
+            }
+            other => panic!("unexpected update: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn permission_asked_marks_original_payload_as_diagnostic() {
+        let update = convert_permission_asked_to_session_update(&json!({
+            "id": "permission-1",
+            "sessionID": "session-1",
+            "permission": "Bash",
+            "patterns": [],
+            "metadata": {
+                "rawInput": { "command": "echo ok" }
+            },
+            "always": []
+        }))
+        .expect("permission update should parse");
+
+        match update {
+            SessionUpdate::PermissionRequest { permission, .. } => {
+                assert_eq!(
+                    permission.metadata["diagnosticRawInput"],
+                    json!({ "command": "echo ok" })
+                );
+                assert!(permission.metadata.get("rawInput").is_none());
+                assert_eq!(
+                    permission.metadata["parsedArguments"],
+                    json!({
+                        "kind": "execute",
+                        "command": "echo ok"
+                    })
                 );
             }
             other => panic!("unexpected update: {other:?}"),

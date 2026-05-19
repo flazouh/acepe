@@ -42,13 +42,13 @@ export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usa
  */
 export type ModelsForDisplay = { groups: DisplayModelGroup[]; presentation?: ModelPresentationMetadata }
 
-export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay; providerMetadata?: ProviderMetadataProjection }
+export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string | null; modelsDisplay?: ModelsForDisplay }
 
 export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
 export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | "failed"
 
-export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string }
+export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null }
 
 /**
  * Configuration option value.
@@ -79,7 +79,7 @@ export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
+export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "shell_input" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.
@@ -144,12 +144,12 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; raw_name: string; raw_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "shellInput"; shell_id?: string | null; input?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null; plan?: string | null; plan_file_path?: string | null; title?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue; action?: string | null; selector?: string | null; script?: string | null } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; provider_name: string; provider_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue; intent?: string | null }
 
 /**
  * Tool reference for permission/question requests.
  */
-export type ToolReference = { messageId: string; callId: string }
+export type ToolReference = { messageId?: string | null; callId: string }
 
 /**
  * Question option.
@@ -304,7 +304,7 @@ export type TranscriptDelta = { eventSeq: number; sessionId: string; snapshotRev
  * in frontend subscribers (`event.kind === "..."` comparisons).
  * Typed payload data is carried in [`SessionDomainEvent::payload`].
  */
-export type SessionDomainEventKind = "session_identity_resolved" | "session_connected" | "session_disconnected" | "session_config_changed" | "turn_started" | "turn_completed" | "turn_failed" | "turn_cancelled" | "user_message_segment_appended" | "assistant_message_segment_appended" | "assistant_thought_segment_appended" | "operation_upserted" | "operation_child_linked" | "operation_completed" | "interaction_upserted" | "interaction_resolved" | "interaction_cancelled" | "usage_telemetry_updated" | "todo_state_updated"
+export type SessionDomainEventKind = "session_identity_resolved" | "session_connected" | "session_disconnected" | "session_config_changed" | "turn_started" | "turn_completed" | "turn_failed" | "turn_cancelled" | "user_message_segment_appended" | "assistant_message_segment_appended" | "assistant_thought_segment_appended" | "operation_upserted" | "operation_child_linked" | "operation_status_updated" | "operation_completed" | "interaction_upserted" | "interaction_resolved" | "interaction_cancelled" | "usage_telemetry_updated" | "todo_state_updated"
 
 /**
  * Typed payload carried by a canonical domain event.
@@ -314,7 +314,7 @@ export type SessionDomainEventKind = "session_identity_resolved" | "session_conn
  * can switch on `event.kind` for quick discrimination and access the typed
  * payload via `event.payload` when richer data is required.
  */
-export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
+export type SessionDomainEventPayload = { kind: "session_identity_resolved"; resolved_provider_session_id: string } | { kind: "session_connected" } | { kind: "session_disconnected" } | { kind: "session_config_changed" } | { kind: "turn_started"; turn_id: string } | { kind: "turn_completed"; turn_id: string | null } | { kind: "turn_failed"; turn_id: string | null; error_message: string } | { kind: "turn_cancelled"; turn_id: string | null } | { kind: "user_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_message_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "assistant_thought_segment_appended"; message_id: string | null; part_id: string | null; text: string } | { kind: "operation_upserted"; operation_id: string; tool_call_id: string; tool_name: string; tool_kind: ToolKind; status: ToolCallStatus; parent_operation_id: string | null } | { kind: "operation_child_linked"; parent_operation_id: string; child_operation_id: string } | { kind: "operation_status_updated"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "operation_completed"; operation_id: string; tool_call_id: string; status: ToolCallStatus } | { kind: "interaction_upserted"; interaction_id: string; interaction_kind: InteractionKind } | { kind: "interaction_resolved"; interaction_id: string } | { kind: "interaction_cancelled"; interaction_id: string } | { kind: "usage_telemetry_updated"; data: UsageTelemetryData } | { kind: "todo_state_updated"; update: TodoUpdate }
 
 /**
  * Canonical domain event envelope.
@@ -351,7 +351,7 @@ answers: Partial<{ [key in string]: JsonValue }> }
 
 export type SessionTurnState = "Idle" | "Running" | "Completed" | "Failed" | "Cancelled"
 
-export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; last_agent_message_id: string | null; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
+export type SessionSnapshot = { session_id: string; agent_id: CanonicalAgentId | null; last_event_seq: number; turn_state: SessionTurnState; message_count: number; active_tool_call_ids: string[]; completed_tool_call_ids: string[]; active_turn_failure?: TurnFailureSnapshot | null; last_terminal_turn_id?: string | null }
 
 export type OperationState = "pending" | "running" | "blocked" | "completed" | "failed" | "cancelled" | "degraded"
 
@@ -365,7 +365,7 @@ export type OperationSnapshot = { id: string; session_id: string; tool_call_id: 
 /**
  * Provider-layer provenance status. Use `operation_state` for canonical state decisions.
  */
-provider_status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state: OperationState; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval?: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_link: OperationSourceLink; degradation_reason?: OperationDegradationReason | null }
+provider_status: ToolCallStatus; title: string | null; arguments: ToolArguments; progressive_arguments: ToolArguments | null; result: JsonValue | null; command: string | null; normalized_todos: TodoItem[] | null; parent_tool_call_id: string | null; parent_operation_id: string | null; child_tool_call_ids: string[]; child_operation_ids: string[]; operation_provenance_key?: string | null; operation_state: OperationState; locations?: ToolCallLocation[] | null; skill_meta?: SkillMeta | null; normalized_questions?: QuestionItem[] | null; question_answer?: QuestionAnswer | null; awaiting_plan_approval: boolean; plan_approval_request_id?: number | null; started_at_ms?: number | null; completed_at_ms?: number | null; source_link: OperationSourceLink; degradation_reason?: OperationDegradationReason | null }
 
 export type InteractionKind = "Permission" | "Question" | "PlanApproval"
 
@@ -455,7 +455,7 @@ graphRevision: number;
  * reservation until the token is claimed (Unit 3) or expires after 30 s
  * of inactivity.
  */
-openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; lastAgentMessageId?: string | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
+openToken: string; agentId: CanonicalAgentId; projectPath: string; worktreePath: string | null; sourcePath: string | null; transcriptSnapshot: TranscriptSnapshot; sessionTitle: string; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activity: SessionGraphActivity; activeStreamingTail: ActiveStreamingTail | null; lifecycle: SessionGraphLifecycle; capabilities: SessionGraphCapabilities; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null }
 
 /**
  * Payload for the `missing` outcome — no persisted content was found for the
@@ -490,7 +490,7 @@ export type SessionGraphActionability = { canSend: boolean; canResume: boolean; 
 
 export type SessionGraphLifecycle = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null; actionability: SessionGraphActionability }
 
-export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
+export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[] | null; configOptions?: ConfigOptionData[] | null; autonomousEnabled?: boolean | null }
 
 export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
 
@@ -498,11 +498,15 @@ export type SessionGraphActivityKind = "awaiting_model" | "running_operation" | 
 
 export type SessionGraphActivity = { kind: SessionGraphActivityKind; activeOperationCount: number; activeSubagentCount: number; dominantOperationId?: string | null; blockingInteractionId?: string | null }
 
-export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; lastAgentMessageId?: string | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
+export type ActiveStreamingTailContentKind = "thought" | "message"
+
+export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
+
+export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeStreamingTail: ActiveStreamingTail | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 
 export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 
-export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lastAgentMessageId?: string | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
+export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; activeStreamingTail: ActiveStreamingTail | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: string[] }
 
 export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOffset: number; deltaText: string; producedAtMonotonicMs: number; revision: number }
 
@@ -538,149 +542,3 @@ export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
 
-export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetadataProjection> = {
-	"claude-code": {
-		providerBrand: "claude-code",
-		displayName: "Claude Code",
-		displayOrder: 10,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: "default",
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-	copilot: {
-		providerBrand: "copilot",
-		displayName: "GitHub Copilot",
-		displayOrder: 30,
-		supportsModelDefaults: false,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "projectScoped",
-		preconnectionCapabilityMode: "projectScoped",
-		implicitSessionCreationMode: "allowed",
-	},
-	cursor: {
-		providerBrand: "cursor",
-		displayName: "Cursor",
-		displayOrder: 20,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: "auto",
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-	opencode: {
-		providerBrand: "opencode",
-		displayName: "OpenCode",
-		displayOrder: 40,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "projectScoped",
-		preconnectionCapabilityMode: "projectScoped",
-		implicitSessionCreationMode: "explicitUserAction",
-	},
-	codex: {
-		providerBrand: "codex",
-		displayName: "Codex",
-		displayOrder: 50,
-		supportsModelDefaults: true,
-		variantGroup: "reasoningEffort",
-		defaultAlias: undefined,
-		reasoningEffortSupport: true,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-};
-
-function cloneProviderMetadataProjection(
-	providerMetadata: ProviderMetadataProjection
-): ProviderMetadataProjection {
-	return {
-		providerBrand: providerMetadata.providerBrand,
-		displayName: providerMetadata.displayName,
-		displayOrder: providerMetadata.displayOrder,
-		supportsModelDefaults: providerMetadata.supportsModelDefaults,
-		variantGroup: providerMetadata.variantGroup,
-		defaultAlias: providerMetadata.defaultAlias,
-		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
-		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
-		preconnectionCapabilityMode:
-			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
-		implicitSessionCreationMode:
-			providerMetadata.implicitSessionCreationMode ?? "explicitUserAction",
-	};
-}
-
-export function resolveProviderMetadataProjection(
-	agentId: string,
-	providerMetadata: ProviderMetadataProjection | null | undefined,
-	fallbackDisplayName?: string
-): ProviderMetadataProjection {
-	if (providerMetadata) {
-		return cloneProviderMetadataProjection(providerMetadata);
-	}
-	const builtInProviderMetadata = BUILTIN_PROVIDER_METADATA_BY_AGENT_ID[agentId];
-	if (builtInProviderMetadata) {
-		return cloneProviderMetadataProjection(builtInProviderMetadata);
-	}
-
-	return {
-		providerBrand: "custom",
-		displayName: fallbackDisplayName ?? agentId,
-		displayOrder: 65535,
-		supportsModelDefaults: false,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "unsupported",
-		preconnectionCapabilityMode: "unsupported",
-		implicitSessionCreationMode: "explicitUserAction",
-	};
-}
-
-export function getProviderMetadataFromModelsDisplay(
-	modelsDisplay: ModelsForDisplay | null | undefined
-): ProviderMetadataProjection | null {
-	return modelsDisplay?.presentation?.provider ?? null;
-}
-
-export function normalizeModelsForDisplay(
-	agentId: string,
-	modelsDisplay: ModelsForDisplay | null | undefined,
-	fallbackDisplayName?: string,
-	providerMetadataOverride?: ProviderMetadataProjection | null
-): ModelsForDisplay | null {
-	if (!modelsDisplay) {
-		return null;
-	}
-
-	const providerMetadata = resolveProviderMetadataProjection(
-		agentId,
-		providerMetadataOverride ?? getProviderMetadataFromModelsDisplay(modelsDisplay),
-		fallbackDisplayName
-	);
-	const presentation = modelsDisplay.presentation;
-	const displayFamily =
-		presentation?.displayFamily ??
-		(providerMetadata.variantGroup === "reasoningEffort"
-			? "codexReasoningEffort"
-			: "providerGrouped");
-
-	return {
-		groups: modelsDisplay.groups,
-		presentation: {
-			displayFamily,
-			usageMetrics: presentation?.usageMetrics ?? "spendAndContext",
-			provider: providerMetadata,
-		},
-	};
-}

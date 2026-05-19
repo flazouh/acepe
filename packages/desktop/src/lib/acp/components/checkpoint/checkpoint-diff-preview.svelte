@@ -4,7 +4,7 @@ import { FileDiff } from "@pierre/diffs";
 import { onDestroy, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 
-import { getHighlighterPool } from "../../services/highlighter-pool.svelte.js";
+import { getWorkerPool as getHighlighterPool } from "../../utils/worker-pool-singleton.js";
 import {
 	buildPierreDiffOptions,
 	ensurePierreThemeRegistered,

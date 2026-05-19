@@ -210,8 +210,11 @@ pub async fn load_thread_snapshot(
                                         &raw_arguments,
                                         Some(kind.as_str()),
                                     )
-                                    .unwrap_or(ToolArguments::Other { raw: raw_arguments }),
-                                raw_input: None,
+                                    .unwrap_or(ToolArguments::Other {
+                                        raw: raw_arguments,
+                                        intent: None,
+                                    }),
+                                diagnostic_input: None,
                                 skill_meta: None,
                                 locations: None,
                                 normalized_questions,

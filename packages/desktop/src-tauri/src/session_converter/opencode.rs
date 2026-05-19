@@ -55,8 +55,9 @@ fn parse_task_children_from_metadata(
             kind: Some(kind),
             arguments: ToolArguments::Other {
                 raw: serde_json::json!({}),
+                intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             skill_meta: None,
             locations: None,
             normalized_questions: None,
@@ -100,7 +101,7 @@ fn materialize_opencode_canonical_transcript_events(
     let mut events = Vec::new();
     let mut transcript_seq = 0_u64;
 
-    for msg in messages {
+    for (message_index, msg) in messages.iter().enumerate() {
         for (block_index, part) in msg.parts.iter().enumerate() {
             let timestamp = msg.timestamp.clone().unwrap_or_default();
             let maybe_event = match part {
@@ -114,7 +115,7 @@ fn materialize_opencode_canonical_transcript_events(
                         provider_msg_id: Some(msg.id.clone()),
                         request_id: None,
                         block_index,
-                        display_id: format!("opencode:{}:user", msg.id),
+                        display_id: opencode_text_display_id(message_index, "user"),
                         timestamp,
                         model: msg.model.clone(),
                         kind: CanonicalTranscriptEventKind::UserText { text: text.clone() },
@@ -130,7 +131,7 @@ fn materialize_opencode_canonical_transcript_events(
                         provider_msg_id: Some(msg.id.clone()),
                         request_id: None,
                         block_index,
-                        display_id: format!("opencode:{}:assistant", msg.id),
+                        display_id: opencode_text_display_id(message_index, "assistant"),
                         timestamp,
                         model: msg.model.clone(),
                         kind: CanonicalTranscriptEventKind::AssistantText { text: text.clone() },
@@ -145,7 +146,7 @@ fn materialize_opencode_canonical_transcript_events(
                     provider_msg_id: Some(msg.id.clone()),
                     request_id: None,
                     block_index,
-                    display_id: String::new(),
+                    display_id: id.clone(),
                     timestamp,
                     model: msg.model.clone(),
                     kind: CanonicalTranscriptEventKind::ToolUse {
@@ -167,6 +168,10 @@ fn materialize_opencode_canonical_transcript_events(
     }
 
     events
+}
+
+fn opencode_text_display_id(message_index: usize, role: &str) -> String {
+    format!("opencode-event-{message_index}:{role}")
 }
 
 fn convert_opencode_messages(
@@ -395,7 +400,7 @@ fn convert_opencode_assistant_message(
                         result: result.map(serde_json::Value::String),
                         kind: Some(classified.kind),
                         arguments: classified.arguments,
-                        raw_input: None,
+                        diagnostic_input: None,
                         skill_meta: None, // OpenCode doesn't support skill meta yet
                         locations: None,
                         normalized_questions: classified.normalized_questions,
@@ -477,7 +482,7 @@ mod tests {
         assert_eq!(materialized.transcript_snapshot.entries.len(), 2);
         assert_eq!(
             materialized.transcript_snapshot.entries[1].entry_id,
-            "opencode:provider-assistant-message:assistant"
+            "opencode-event-1:assistant"
         );
         assert_eq!(
             materialized.transcript_snapshot.entries[1].role,
@@ -486,9 +491,99 @@ mod tests {
         assert_eq!(
             materialized.transcript_snapshot.entries[1].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "opencode:provider-assistant-message:assistant:event:1".to_string(),
+                segment_id: "opencode-event-1:assistant:event:1".to_string(),
                 text: "Looks good".to_string(),
             }]
         );
+    }
+
+    #[test]
+    fn opencode_canonical_events_keep_provider_id_out_of_display_identity() {
+        let snapshot = convert_opencode_messages_to_provider_owned_snapshot(vec![
+            OpenCodeMessage {
+                id: "provider-reused-message".to_string(),
+                role: "assistant".to_string(),
+                parts: vec![OpenCodeMessagePart::Text {
+                    text: "I will inspect it first.".to_string(),
+                }],
+                model: Some("openai/gpt-5".to_string()),
+                timestamp: Some("1001".to_string()),
+            },
+            OpenCodeMessage {
+                id: "provider-reused-message".to_string(),
+                role: "assistant".to_string(),
+                parts: vec![OpenCodeMessagePart::ToolInvocation {
+                    id: "toolu_read".to_string(),
+                    name: "Read".to_string(),
+                    input: serde_json::json!({ "file_path": "/tmp/a" }),
+                    state: None,
+                }],
+                model: Some("openai/gpt-5".to_string()),
+                timestamp: Some("1002".to_string()),
+            },
+            OpenCodeMessage {
+                id: "provider-reused-message".to_string(),
+                role: "assistant".to_string(),
+                parts: vec![OpenCodeMessagePart::Text {
+                    text: "The file is clean.".to_string(),
+                }],
+                model: Some("openai/gpt-5".to_string()),
+                timestamp: Some("1003".to_string()),
+            },
+        ])
+        .expect("OpenCode messages should convert");
+
+        let provider_msg_ids: Vec<Option<&str>> = snapshot
+            .canonical_transcript_events
+            .iter()
+            .map(|event| event.provider_msg_id.as_deref())
+            .collect();
+        let event_display_ids: Vec<&str> = snapshot
+            .canonical_transcript_events
+            .iter()
+            .map(|event| event.display_id.as_str())
+            .collect();
+
+        assert_eq!(
+            provider_msg_ids,
+            vec![
+                Some("provider-reused-message"),
+                Some("provider-reused-message"),
+                Some("provider-reused-message")
+            ]
+        );
+        assert_eq!(
+            event_display_ids,
+            vec![
+                "opencode-event-0:assistant",
+                "toolu_read",
+                "opencode-event-2:assistant"
+            ]
+        );
+
+        let materialized = materialize_provider_owned_thread_snapshot(
+            "session-1",
+            Some(CanonicalAgentId::OpenCode),
+            7,
+            &snapshot,
+        );
+        let entry_ids: Vec<&str> = materialized
+            .transcript_snapshot
+            .entries
+            .iter()
+            .map(|entry| entry.entry_id.as_str())
+            .collect();
+
+        assert_eq!(
+            entry_ids,
+            vec![
+                "opencode-event-0:assistant",
+                "toolu_read",
+                "opencode-event-2:assistant"
+            ]
+        );
+        assert!(entry_ids
+            .iter()
+            .all(|entry_id| !entry_id.contains("provider-reused-message")));
     }
 }

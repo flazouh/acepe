@@ -254,10 +254,6 @@ export class SessionMessagingService {
 		const optimisticEntry = buildOptimisticUserEntry(textContent, imageBlocks, new Date());
 		this.setPendingSendIntent(sessionId, sendAttemptId, textContent.length, optimisticEntry);
 
-		// Providers like Cursor can reuse/omit message IDs across prompts. Force the
-		// next assistant chunks into a new entry so the new answer stays after this prompt.
-		this.entryManager.startNewAssistantTurn(sessionId);
-
 		// Start awaiting response in state machine
 		this.connectionManager.sendMessageSent(sessionId);
 
@@ -489,7 +485,6 @@ export class SessionMessagingService {
 			return;
 		}
 
-		this.entryManager.clearStreamingAssistantEntry(sessionId);
 		this.connectionManager.sendTurnFailed(sessionId, normalized);
 
 		if (normalized.kind === "fatal") {

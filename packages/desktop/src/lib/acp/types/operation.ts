@@ -18,6 +18,7 @@ export type OperationKind =
 	| "read_lints"
 	| "edit"
 	| "execute"
+	| "shell_input"
 	| "search"
 	| "glob"
 	| "fetch"

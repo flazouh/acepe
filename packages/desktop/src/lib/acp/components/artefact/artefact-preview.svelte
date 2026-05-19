@@ -6,13 +6,14 @@ import TextArtefactPreview from "./text-artefact-preview.svelte";
 
 interface Props {
 	attachment: Attachment;
+	projectPath?: string;
 }
 
-const { attachment }: Props = $props();
+const { attachment, projectPath }: Props = $props();
 </script>
 
 {#if attachment.type === "text" && attachment.content}
-	<TextArtefactPreview content={attachment.content} />
+	<TextArtefactPreview content={attachment.content} {projectPath} />
 {:else if attachment.type === "image"}
 	<ImageArtefactPreview
 		path={attachment.path}

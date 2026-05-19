@@ -1,6 +1,6 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,

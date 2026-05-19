@@ -145,7 +145,7 @@ async fn handle_session_request_permission_with_state(
         Some(_) => {
             let raw = RawToolCallInput {
                 id: tool_call_id.clone(),
-                name: identity.name.clone(),
+                name: Some(identity.name.clone()),
                 arguments: tool_call.raw_input.clone(),
                 status: ToolCallStatus::InProgress,
                 kind: Some(identity.kind),
@@ -263,7 +263,7 @@ fn build_canonical_interaction(
             permission: normalized_tool_label(tool_call),
             patterns: Vec::new(),
             metadata: json!({
-                "rawInput": tool_call.raw_input.clone(),
+                "diagnosticRawInput": tool_call.raw_input.clone(),
                 "parsedArguments": parsed_arguments.cloned(),
                 "options": options,
             }),
@@ -274,7 +274,7 @@ fn build_canonical_interaction(
                 .collect(),
             auto_accepted,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },
@@ -298,7 +298,7 @@ fn build_question_update(
             reply_handler: Some(InteractionReplyHandler::json_rpc(request_id)),
             questions,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },
@@ -415,7 +415,7 @@ mod tests {
                 file_path: Some("/tmp/example.txt".to_string()),
                 source_context: None,
             },
-            raw_input: Some(json!({ "file_path": "/tmp/example.txt" })),
+            diagnostic_input: Some(json!({ "file_path": "/tmp/example.txt" })),
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -469,6 +469,11 @@ mod tests {
                 assert_eq!(result["outcome"]["optionId"], "allow_once");
                 assert_eq!(synthetic_tool_call.tool_call_data.id, "tc-1");
                 assert!(permission.auto_accepted);
+                assert_eq!(
+                    permission.metadata["diagnosticRawInput"],
+                    json!({ "command": "git status" })
+                );
+                assert!(permission.metadata.get("rawInput").is_none());
             }
             other => panic!("expected auto-respond decision, got {:?}", other),
         }

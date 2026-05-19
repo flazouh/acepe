@@ -7,6 +7,7 @@ use crate::acp::pre_reservation_event_buffer::{
     PreReservationEventBuffer, PreReservationIngressDecision,
 };
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
     build_delta_envelope, select_session_graph_activity, DeltaEnvelopeParts,
     DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest, SessionGraphRevision,
@@ -803,9 +804,11 @@ impl AcpUiEventDispatcher {
         };
         let previous_runtime_snapshot =
             self.runtime_graph_registry.snapshot_for_session(session_id);
-        let previous_transcript_revision = self
+        let transcript_snapshot = self
             .transcript_projection_registry
-            .snapshot_for_session(session_id)
+            .snapshot_for_session(session_id);
+        let previous_transcript_revision = transcript_snapshot
+            .as_ref()
             .map(|snapshot| snapshot.revision)
             .unwrap_or(0);
         let previous_graph_revision = if previous_runtime_snapshot.graph_revision > 0 {
@@ -830,6 +833,9 @@ impl AcpUiEventDispatcher {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let active_streaming_tail = transcript_snapshot.as_ref().and_then(|snapshot| {
+            select_active_streaming_tail(&session_snapshot.turn_state, &activity, snapshot)
+        });
         let operation_patches = match interaction_patch.canonical_operation_id.as_deref() {
             Some(operation_id) => match self.projection_registry.operation(operation_id) {
                 Some(operation) => vec![operation],
@@ -851,7 +857,7 @@ impl AcpUiEventDispatcher {
             "turnState".to_string(),
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
-            "lastAgentMessageId".to_string(),
+            "activeStreamingTail".to_string(),
         ];
         if !operation_patches.is_empty() {
             changed_fields.insert(0, "operations".to_string());
@@ -869,7 +875,7 @@ impl AcpUiEventDispatcher {
                 turn_state: session_snapshot.turn_state,
                 active_turn_failure: session_snapshot.active_turn_failure,
                 last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
-                last_agent_message_id: session_snapshot.last_agent_message_id,
+                active_streaming_tail,
             },
             transcript_operations: Vec::new(),
             operation_patches,
@@ -2232,14 +2238,6 @@ mod tests {
             }
             other => panic!("expected second delta payload, got {:?}", other),
         }
-
-        let snapshot = projection_registry
-            .snapshot_for_session("session-1")
-            .expect("projection snapshot");
-        assert_eq!(
-            snapshot.last_agent_message_id.as_deref(),
-            Some("assistant-event-1")
-        );
     }
 
     #[tokio::test]
@@ -2423,7 +2421,7 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
             }
@@ -2692,7 +2690,7 @@ mod tests {
                             segment,
                             ..
                         } => {
-                            assert_eq!(entry_id, "assistant-1");
+                            assert_eq!(entry_id, "assistant-event-1");
                             match segment {
                                 crate::acp::transcript_projection::TranscriptSegment::Text {
                                     text,
@@ -2902,7 +2900,6 @@ mod tests {
             .expect("expected session snapshot");
         assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
         assert_eq!(snapshot.message_count, 1);
-        assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
         assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
         assert_eq!(snapshot.last_event_seq, 2);
     }
@@ -2954,8 +2951,11 @@ mod tests {
             tool_call: ToolCallData {
                 id: "tool-1".to_string(),
                 name: "create_plan".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
-                raw_input: None,
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
+                diagnostic_input: None,
                 kind: Some(ToolKind::CreatePlan),
                 title: Some("Create plan".to_string()),
                 status: ToolCallStatus::Pending,
@@ -3013,8 +3013,9 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 kind: Some(ToolKind::Read),
                 title: Some("Read src/main.rs".to_string()),
                 status: ToolCallStatus::Pending,
@@ -3091,8 +3092,11 @@ mod tests {
             tool_call: ToolCallData {
                 id: "tool-idem-1".to_string(),
                 name: "Edit".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
-                raw_input: None,
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
+                diagnostic_input: None,
                 kind: Some(ToolKind::Edit),
                 title: Some("Edit file".to_string()),
                 status: ToolCallStatus::Pending,
@@ -3156,8 +3160,9 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 kind: Some(ToolKind::Read),
                 title: Some("Read src/main.rs".to_string()),
                 status: ToolCallStatus::Pending,

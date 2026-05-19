@@ -3,7 +3,7 @@ import type {
 	SessionGraphLifecycle,
 	SessionTurnState,
 } from "$lib/services/acp-types.js";
-import type { SessionStatus } from "../../../application/dto/session";
+import type { SessionStatus } from "../../../application/dto/session-status";
 import type { SessionStatusUI } from "../types";
 
 export interface CanonicalSessionPresentationStatusInput {
@@ -13,8 +13,24 @@ export interface CanonicalSessionPresentationStatusInput {
 	readonly hasEntries?: boolean;
 }
 
-export interface CanonicalAgentPanelSessionStateInput
-	extends CanonicalSessionPresentationStatusInput {
+export type CanonicalAgentPanelSessionSource =
+	| {
+			readonly kind: "no_session";
+	  }
+	| {
+			readonly kind: "canonical";
+			readonly lifecycle: SessionGraphLifecycle;
+			readonly activity: SessionGraphActivity | null;
+			readonly turnState: SessionTurnState | null;
+	  }
+	| {
+			readonly kind: "missing_canonical";
+			readonly sessionId: string;
+	  };
+
+export interface CanonicalAgentPanelSessionStateInput {
+	readonly source: CanonicalAgentPanelSessionSource;
+	readonly hasEntries?: boolean;
 	readonly hasOptimisticPendingEntry?: boolean;
 	readonly hasLocalPendingSendIntent?: boolean;
 }
@@ -126,41 +142,53 @@ function isCanonicalBusy(
 export function deriveCanonicalAgentPanelSessionState(
 	input: CanonicalAgentPanelSessionStateInput
 ): CanonicalAgentPanelSessionState {
-	const effectiveActivity = input.activity;
-	const effectiveTurnState = input.turnState;
+	if (input.source.kind === "missing_canonical") {
+		return {
+			sessionStatus: "error",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: input.hasLocalPendingSendIntent === true,
+			canSubmit: false,
+			showStop: false,
+		};
+	}
+
+	if (input.source.kind === "no_session") {
+		return {
+			sessionStatus: input.hasOptimisticPendingEntry === true ? "warming" : "empty",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: input.hasOptimisticPendingEntry === true,
+			canSubmit: false,
+			showStop: false,
+		};
+	}
+
+	const effectiveActivity = input.source.activity;
+	const effectiveTurnState = input.source.turnState;
 	const isBusy = isCanonicalBusy(effectiveActivity, effectiveTurnState);
 	const showPlanningIndicator =
 		input.hasOptimisticPendingEntry === true ||
 		input.hasLocalPendingSendIntent === true ||
 		effectiveActivity?.kind === "awaiting_model";
-	const baseStatus =
-		input.lifecycle === null || input.lifecycle === undefined
-			? input.hasOptimisticPendingEntry === true
-				? "warming"
-				: mapCanonicalSessionToPanelStatus({
-						lifecycle: input.lifecycle,
-						activity: effectiveActivity,
-						turnState: effectiveTurnState,
-						hasEntries: input.hasEntries,
-					})
-			: mapCanonicalSessionToPanelStatus({
-					lifecycle: input.lifecycle,
-					activity: effectiveActivity,
-					turnState: effectiveTurnState,
-					hasEntries: input.hasEntries,
-				});
+	const baseStatus = mapCanonicalSessionToPanelStatus({
+		lifecycle: input.source.lifecycle,
+		activity: effectiveActivity,
+		turnState: effectiveTurnState,
+		hasEntries: input.hasEntries,
+	});
 	const sessionStatus =
 		input.hasLocalPendingSendIntent === true && baseStatus === "done" ? "connected" : baseStatus;
 
 	return {
 		sessionStatus,
-		isConnected: input.lifecycle?.status === "ready",
+		isConnected: input.source.lifecycle.status === "ready",
 		isStreaming: isBusy,
 		showPlanningIndicator,
 		canSubmit:
 			input.hasLocalPendingSendIntent === true
 				? false
-				: !isBusy && input.lifecycle?.actionability.canSend === true,
+				: !isBusy && input.source.lifecycle.actionability.canSend === true,
 		showStop: isBusy,
 	};
 }

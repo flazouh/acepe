@@ -28,6 +28,7 @@ describe("resolveSessionStateDelta", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+			activeStreamingTail: null,
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
@@ -55,6 +56,7 @@ describe("resolveSessionStateDelta", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+			activeStreamingTail: null,
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
@@ -82,6 +84,7 @@ describe("resolveSessionStateDelta", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+			activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 			transcriptOperations: [
 				{
 					kind: "appendEntry",

@@ -1,4 +1,4 @@
-import type { SessionEntry } from "$lib/acp/application/dto/session.js";
+import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
 import type {
 	TranscriptEntry,
 	TranscriptSegment,
@@ -41,7 +41,6 @@ function toTranscriptToolSpineMessage(entry: TranscriptEntry): ToolCallData {
 			kind: "other",
 			raw: null,
 		},
-		rawInput: null,
 		status,
 		result: null,
 		kind,
@@ -179,7 +178,6 @@ export function appendTranscriptSegmentToSessionEntry(
 				name: nextTitle.length > 0 ? nextTitle : entry.message.name,
 				arguments: entry.message.arguments,
 				progressiveArguments: entry.message.progressiveArguments,
-				rawInput: entry.message.rawInput,
 				status: entry.message.status,
 				result: entry.message.result,
 				kind: entry.message.kind,

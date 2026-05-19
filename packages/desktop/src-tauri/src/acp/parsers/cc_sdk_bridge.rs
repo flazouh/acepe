@@ -263,7 +263,7 @@ fn translate_assistant(
                 let parser = get_parser(agent);
                 let raw = RawToolCallInput {
                     id: tu.id,
-                    name: tu.name,
+                    name: Some(tu.name),
                     arguments: tu.input,
                     status: ToolCallStatus::InProgress,
                     kind: None,
@@ -407,24 +407,27 @@ fn build_question_request_update(
     if questions.is_empty() {
         return None;
     }
+    let session_id = session_id
+        .clone()
+        .filter(|session_id| !session_id.is_empty())?;
 
     let question = QuestionData {
         id: tool_call.id.clone(),
-        session_id: session_id.clone().unwrap_or_default(),
+        session_id: session_id.clone(),
         json_rpc_request_id: None,
         reply_handler: Some(crate::acp::session_update::InteractionReplyHandler::http(
             tool_call.id.clone(),
         )),
         questions,
         tool: Some(ToolReference {
-            message_id: String::new(),
+            message_id: None,
             call_id: tool_call.id.clone(),
         }),
     };
 
     Some(SessionUpdate::QuestionRequest {
         question,
-        session_id: session_id.clone(),
+        session_id: Some(session_id),
     })
 }
 
@@ -467,8 +470,12 @@ fn translate_stream_event(
             let name = block
                 .get("name")
                 .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_string);
+            let Some(name) = name else {
+                return vec![];
+            };
 
             let detected_kind = get_parser(agent).detect_tool_kind(&name);
             let kind = if detected_kind != ToolKind::Other {
@@ -486,8 +493,9 @@ fn translate_stream_event(
                 name,
                 arguments: ToolArguments::Other {
                     raw: serde_json::Value::Null,
+                    intent: None,
                 },
-                raw_input: block.get("input").cloned(),
+                diagnostic_input: block.get("input").cloned(),
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind,
@@ -653,14 +661,15 @@ fn translate_result(
 
     // Emit usage telemetry if we have usage data or a cost figure
     if usage.is_some() || total_cost_usd.is_some() {
-        let telemetry = build_result_telemetry(
+        if let Some(telemetry) = build_result_telemetry(
             usage,
             model_usage,
             total_cost_usd,
             session_id.clone(),
             stream_state.model_id.as_deref(),
-        );
-        updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
+        ) {
+            updates.push(SessionUpdate::UsageTelemetryUpdate { data: telemetry });
+        }
     }
 
     if is_error {
@@ -813,7 +822,7 @@ fn build_usage_telemetry_from_json(
     usage: &serde_json::Value,
     session_id: Option<String>,
 ) -> Option<UsageTelemetryData> {
-    let sid = session_id?;
+    let sid = session_id.filter(|session_id| !session_id.is_empty())?;
 
     let input = usage.get("input_tokens").and_then(|v| v.as_u64());
     let output = usage.get("output_tokens").and_then(|v| v.as_u64());
@@ -849,15 +858,15 @@ fn build_usage_telemetry_from_json(
     })
 }
 
-/// Build `UsageTelemetryData` from a Result message where `session_id` is always present.
+/// Build `UsageTelemetryData` from a Result message when session identity is known.
 fn build_result_telemetry(
     usage: Option<serde_json::Value>,
     model_usage: Option<serde_json::Value>,
     total_cost_usd: Option<f64>,
     session_id: Option<String>,
     model_id: Option<&str>,
-) -> UsageTelemetryData {
-    let sid = session_id.unwrap_or_default();
+) -> Option<UsageTelemetryData> {
+    let sid = session_id.filter(|session_id| !session_id.is_empty())?;
 
     let (input, output, cache_read, cache_write) = usage
         .as_ref()
@@ -877,7 +886,7 @@ fn build_result_telemetry(
         _ => None,
     };
 
-    UsageTelemetryData {
+    Some(UsageTelemetryData {
         session_id: sid,
         event_id: None,
         scope: "step".to_string(),
@@ -897,7 +906,7 @@ fn build_result_telemetry(
             .and_then(|usage| model_id.and_then(|model| usage.get(model)))
             .and_then(|usage| usage.get("contextWindow"))
             .and_then(|value| value.as_u64()),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -1268,6 +1277,35 @@ mod tests {
         } else {
             panic!("Expected UsageTelemetryUpdate");
         }
+    }
+
+    #[test]
+    fn result_without_session_id_does_not_emit_fake_usage_telemetry_session() {
+        let updates = translate_cc_sdk_message_with_turn_state(
+            AgentType::ClaudeCode,
+            Message::Result {
+                subtype: "conversation_turn".to_string(),
+                duration_ms: 1000,
+                duration_api_ms: 800,
+                is_error: false,
+                num_turns: 1,
+                session_id: "".to_string(),
+                total_cost_usd: Some(0.005),
+                usage: Some(serde_json::json!({
+                    "input_tokens": 1000,
+                    "output_tokens": 100,
+                })),
+                model_usage: None,
+                result: None,
+                structured_output: None,
+                stop_reason: None,
+            },
+            None,
+            CcSdkTurnStreamState::default(),
+        );
+
+        assert_eq!(updates.len(), 1);
+        assert!(matches!(updates[0], SessionUpdate::TurnComplete { .. }));
     }
 
     #[test]
@@ -1720,6 +1758,30 @@ mod tests {
     }
 
     #[test]
+    fn content_block_start_without_tool_name_is_not_promoted_to_tool_call() {
+        let updates = translate_cc_sdk_message(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-missing-tool-name".to_string(),
+                session_id: "ses-test".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_missing_name",
+                        "input": {}
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("ses-test".to_string()),
+        );
+
+        assert!(updates.is_empty());
+    }
+
+    #[test]
     fn content_block_start_prefers_explicit_agent_parser_over_current_agent() {
         with_agent(AgentType::ClaudeCode, || {
             let updates = translate_cc_sdk_message(
@@ -1859,9 +1921,56 @@ mod tests {
                         question.tool.as_ref().map(|tool| tool.call_id.as_str()),
                         Some("toolu_question_001")
                     );
+                    assert_eq!(
+                        question
+                            .tool
+                            .as_ref()
+                            .and_then(|tool| tool.message_id.as_deref()),
+                        None
+                    );
                 }
                 other => panic!("expected question request update, got {:?}", other),
             }
+        });
+    }
+
+    #[test]
+    fn assistant_ask_user_question_without_session_id_does_not_emit_fake_question_session() {
+        with_agent(AgentType::ClaudeCode, || {
+            let updates = translate_cc_sdk_message(
+                AgentType::ClaudeCode,
+                Message::Assistant {
+                    message: cc_sdk::AssistantMessage {
+                        content: vec![cc_sdk::ContentBlock::ToolUse(cc_sdk::ToolUseContent {
+                            id: "toolu_question_no_session".to_string(),
+                            name: "AskUserQuestion".to_string(),
+                            input: serde_json::json!({
+                                "questions": [
+                                    {
+                                        "question": "Continue?",
+                                        "header": "Decision",
+                                        "options": [
+                                            {
+                                                "label": "yes",
+                                                "description": "Continue"
+                                            }
+                                        ],
+                                        "multiSelect": false
+                                    }
+                                ]
+                            }),
+                        })],
+                        model: Some("claude-opus-4-6".to_string()),
+                        usage: None,
+                        error: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+                None,
+            );
+
+            assert_eq!(updates.len(), 1);
+            assert!(matches!(updates[0], SessionUpdate::ToolCall { .. }));
         });
     }
 

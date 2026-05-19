@@ -37,7 +37,7 @@ function createExecutePermissionWithCommand(
 		permission: "Execute",
 		patterns: [],
 		metadata: {
-			rawInput: { command },
+			diagnosticRawInput: { command },
 			parsedArguments: { kind: "execute", command },
 			options: [],
 		},
@@ -56,6 +56,7 @@ function createExecuteOperation(id: string, command: string): OperationSnapshot 
 		kind: "execute",
 		provider_status: "pending",
 		operation_state: "pending",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: id },
 		title: "Run command",
 		arguments: { kind: "execute", command },

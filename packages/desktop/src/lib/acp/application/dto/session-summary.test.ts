@@ -59,6 +59,7 @@ function projection(input: {
 		turnState: input.turnState,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {},
 		tokenStream: new Map(),
 		clockAnchor: null,
@@ -71,9 +72,9 @@ function projection(input: {
 }
 
 describe("deriveSessionListStateFromCanonical", () => {
-	it("returns neutral state when the canonical projection is missing", () => {
+	it("returns error state when the canonical projection is missing", () => {
 		expect(deriveSessionListStateFromCanonical(null)).toEqual({
-			status: "idle",
+			status: "error",
 			isConnected: false,
 			isStreaming: false,
 		});
@@ -212,5 +213,33 @@ describe("buildSessionSummaryFromCold", () => {
 			worktreeDeleted: true,
 			sequenceId: 7,
 		});
+	});
+
+	it("preserves unknown canonical entry count instead of coercing it to zero", () => {
+		const createdAt = new Date("2026-05-01T00:00:00.000Z");
+		const updatedAt = new Date("2026-05-01T00:01:00.000Z");
+
+		const summary = buildSessionSummaryFromCold({
+			cold: {
+				id: "session-unknown-count",
+				projectPath: "/repo",
+				agentId: "codex",
+				worktreePath: "/repo-worktree",
+				title: "Unknown count",
+				createdAt,
+				updatedAt,
+				sourcePath: "/repo/session.json",
+				sessionLifecycleState: "persisted",
+				parentId: null,
+			},
+			listState: {
+				status: "error",
+				isConnected: false,
+				isStreaming: false,
+			},
+			entryCount: null,
+		});
+
+		expect(summary.entryCount).toBeNull();
 	});
 });

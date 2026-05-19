@@ -209,6 +209,7 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
                 || edit.content.is_none()
         }),
         ToolArguments::Execute { command } => command.is_none(),
+        ToolArguments::ShellInput { shell_id, input } => shell_id.is_none() || input.is_none(),
         ToolArguments::Search { query, file_path } => query.is_none() || file_path.is_none(),
         ToolArguments::Glob { pattern, path } => pattern.is_none() || path.is_none(),
         ToolArguments::Fetch { url } => url.is_none(),
@@ -230,7 +231,12 @@ fn tool_arguments_need_enrichment(arguments: &ToolArguments) -> bool {
         }
         ToolArguments::TaskOutput { task_id, .. } => task_id.is_none(),
         ToolArguments::Move { from, to } => from.is_none() || to.is_none(),
-        ToolArguments::PlanMode { mode } => mode.is_none(),
+        ToolArguments::PlanMode {
+            mode,
+            plan,
+            plan_file_path,
+            title,
+        } => mode.is_none() || plan.is_none() || plan_file_path.is_none() || title.is_none(),
         ToolArguments::ToolSearch { query, max_results } => {
             query.is_none() || max_results.is_none()
         }
@@ -261,8 +267,8 @@ fn enrich_tool_call_data(
         tool_call.arguments = merged_arguments;
     }
 
-    if tool_call.raw_input.is_none() {
-        tool_call.raw_input = Some(persisted.input.clone());
+    if tool_call.diagnostic_input.is_none() {
+        tool_call.diagnostic_input = Some(persisted.input.clone());
     }
 
     if tool_call.kind.is_none()
@@ -389,6 +395,9 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
                 + usize::from(e.content.is_some())
         }),
         ToolArguments::Execute { command } => usize::from(command.is_some()),
+        ToolArguments::ShellInput { shell_id, input } => {
+            usize::from(shell_id.is_some()) + usize::from(input.is_some())
+        }
         ToolArguments::Search { query, file_path } => {
             usize::from(query.is_some()) + usize::from(file_path.is_some())
         }
@@ -420,11 +429,21 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
         } => usize::from(
             file_path.is_some() || file_paths.as_ref().is_some_and(|paths| !paths.is_empty()),
         ),
-        ToolArguments::PlanMode { mode } => usize::from(mode.is_some()),
+        ToolArguments::PlanMode {
+            mode,
+            plan,
+            plan_file_path,
+            title,
+        } => {
+            usize::from(mode.is_some())
+                + usize::from(plan.is_some())
+                + usize::from(plan_file_path.is_some())
+                + usize::from(title.is_some())
+        }
         ToolArguments::ToolSearch { query, max_results } => {
             usize::from(query.is_some()) + usize::from(max_results.is_some())
         }
-        ToolArguments::Browser { raw } => {
+        ToolArguments::Browser { raw, .. } => {
             if raw.is_null() {
                 0
             } else {
@@ -435,19 +454,22 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             usize::from(query.is_some()) + usize::from(description.is_some())
         }
         ToolArguments::Unclassified {
-            raw_name,
-            raw_kind_hint,
+            provider_name,
+            provider_kind_hint,
             title,
             arguments_preview,
             signals_tried,
         } => {
-            usize::from(!raw_name.is_empty())
-                + usize::from(raw_kind_hint.is_some())
+            usize::from(!provider_name.is_empty())
+                + usize::from(provider_kind_hint.is_some())
                 + usize::from(title.is_some())
                 + usize::from(arguments_preview.is_some())
                 + usize::from(!signals_tried.is_empty())
         }
-        ToolArguments::Other { raw } => {
+        ToolArguments::Other { raw, intent } => {
+            if intent.is_some() {
+                return 1;
+            }
             if raw.is_null() {
                 return 0;
             }
@@ -608,7 +630,7 @@ mod tests {
                     file_path: None,
                     source_context: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::Read),
@@ -633,7 +655,7 @@ mod tests {
             SessionUpdate::ToolCall { tool_call, .. } => {
                 assert_eq!(tool_call.arguments.tool_kind(), ToolKind::Read);
                 assert_eq!(
-                    tool_call.raw_input,
+                    tool_call.diagnostic_input,
                     Some(serde_json::json!({
                         "path": "/tmp/example.rs",
                         "offset": 1,

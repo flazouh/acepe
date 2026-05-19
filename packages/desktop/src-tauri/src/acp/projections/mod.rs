@@ -10,6 +10,7 @@ use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, TodoItem, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
+use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
@@ -48,7 +49,6 @@ pub struct SessionSnapshot {
     pub last_event_seq: i64,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
-    pub last_agent_message_id: Option<String>,
     pub active_tool_call_ids: Vec<String>,
     pub completed_tool_call_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -186,7 +186,6 @@ pub struct OperationSnapshot {
     pub normalized_questions: Option<Vec<crate::acp::session_update::QuestionItem>>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub question_answer: Option<crate::session_jsonl::types::QuestionAnswer>,
-    #[serde(default)]
     pub awaiting_plan_approval: bool,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub plan_approval_request_id: Option<u64>,
@@ -280,7 +279,6 @@ impl SessionSnapshot {
             last_event_seq: 0,
             turn_state: SessionTurnState::Idle,
             message_count: 0,
-            last_agent_message_id: None,
             active_tool_call_ids: Vec::new(),
             completed_tool_call_ids: Vec::new(),
             active_turn_failure: None,
@@ -307,10 +305,6 @@ fn start_running_turn(snapshot: &mut SessionSnapshot) {
     snapshot.turn_state = SessionTurnState::Running;
     snapshot.active_turn_failure = None;
     snapshot.last_terminal_turn_id = None;
-}
-
-fn synthetic_agent_message_id(event_seq: i64) -> String {
-    format!("assistant-event-{event_seq}")
 }
 
 fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
@@ -478,16 +472,10 @@ impl ProjectionRegistry {
         match update {
             SessionUpdate::UserMessageChunk { .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                snapshot.last_agent_message_id = None;
                 start_running_turn(&mut snapshot);
             }
-            SessionUpdate::AgentMessageChunk { message_id, .. } => {
+            SessionUpdate::AgentMessageChunk { .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                let live_message_id = message_id
-                    .clone()
-                    .or_else(|| snapshot.last_agent_message_id.clone())
-                    .unwrap_or_else(|| synthetic_agent_message_id(snapshot.last_event_seq));
-                snapshot.last_agent_message_id = Some(live_message_id);
                 if !preserves_terminal_turn(&snapshot) {
                     start_running_turn(&mut snapshot);
                 }
@@ -500,6 +488,7 @@ impl ProjectionRegistry {
                 if preserves_terminal_turn(&snapshot) {
                     return;
                 }
+                let entry_id = live_tool_entry_id_for_event_seq(snapshot.last_event_seq);
                 let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
                 if should_skip_unanswered_question_tool_operation(&tool_call) {
                     self.register_converted_question_interaction(
@@ -518,7 +507,7 @@ impl ProjectionRegistry {
                     &tool_call,
                     None,
                     tool_call.parent_tool_use_id.clone(),
-                    OperationSourceLink::transcript_linked(tool_call.id.clone()),
+                    OperationSourceLink::transcript_linked(entry_id),
                 );
                 self.register_plan_approval_interaction(session_id, &tool_call);
                 start_running_turn(&mut snapshot);
@@ -820,7 +809,7 @@ impl ProjectionRegistry {
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                 }
-                StoredEntry::Assistant { id, .. } => {
+                StoredEntry::Assistant { .. } => {
                     self.cancel_active_tool_calls_for_historical_boundary(
                         session_id,
                         &snapshot.active_tool_call_ids,
@@ -830,9 +819,8 @@ impl ProjectionRegistry {
                         start_running_turn(&mut snapshot);
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
-                    snapshot.last_agent_message_id = Some(id.clone());
                 }
-                StoredEntry::ToolCall { message, .. } => {
+                StoredEntry::ToolCall { id, message, .. } => {
                     let message = normalize_tool_call_for_operation_ingress(message);
                     if should_skip_unanswered_question_tool_operation(&message) {
                         continue;
@@ -851,7 +839,7 @@ impl ProjectionRegistry {
                         None,
                         message.parent_tool_use_id.clone(),
                         OperationSourceLink::transcript_linked(
-                            normalize_operation_ingress_tool_call_id(&message.id),
+                            normalize_operation_ingress_tool_call_id(id),
                         ),
                     );
                     self.register_plan_approval_interaction(session_id, &message);
@@ -1429,7 +1417,7 @@ impl ProjectionRegistry {
         let Some(tool_reference) = permission.tool.as_ref() else {
             return;
         };
-        let Some(raw_input) = read_exit_plan_raw_input_from_permission(permission) else {
+        let Some(arguments) = read_exit_plan_arguments_from_permission(permission) else {
             return;
         };
         let Some(operation_id) =
@@ -1461,7 +1449,7 @@ impl ProjectionRegistry {
                 .title
                 .clone()
                 .or_else(|| Some("Plan ready".to_string())),
-            arguments: ToolArguments::Other { raw: raw_input },
+            arguments,
             progressive_arguments: existing.progressive_arguments.clone(),
             result: existing.result.clone(),
             command: existing.command.clone(),
@@ -1536,7 +1524,7 @@ impl ProjectionRegistry {
             json_rpc_request_id: Some(plan_approval_request_id),
             reply_handler: Some(InteractionReplyHandler::json_rpc(plan_approval_request_id)),
             tool_reference: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call.id.clone(),
             }),
             responded_at_event_seq: None,
@@ -1569,7 +1557,7 @@ impl ProjectionRegistry {
             reply_handler: Some(InteractionReplyHandler::http(tool_call.id.clone())),
             questions: question_items,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call.id.clone(),
             }),
         };
@@ -1636,20 +1624,22 @@ fn is_exit_plan_permission(permission: &PermissionData) -> bool {
     permission.permission == "ExitPlanMode" || permission.permission == "exit_plan_mode"
 }
 
-fn read_exit_plan_raw_input_from_permission(permission: &PermissionData) -> Option<Value> {
-    let raw_input = permission
-        .metadata
-        .get("rawInput")
-        .or_else(|| permission.metadata.get("raw_input"))?;
-    let has_plan_text = raw_input
-        .get("plan")
-        .and_then(Value::as_str)
-        .is_some_and(|plan| !plan.trim().is_empty());
-    if has_plan_text {
-        return Some(raw_input.clone());
-    }
+fn plan_mode_arguments_have_plan(arguments: &ToolArguments) -> bool {
+    matches!(
+        arguments,
+        ToolArguments::PlanMode {
+            plan: Some(plan),
+            ..
+        } if !plan.trim().is_empty()
+    )
+}
 
-    None
+fn read_exit_plan_arguments_from_permission(permission: &PermissionData) -> Option<ToolArguments> {
+    permission
+        .metadata
+        .get("parsedArguments")
+        .and_then(|value| serde_json::from_value::<ToolArguments>(value.clone()).ok())
+        .filter(plan_mode_arguments_have_plan)
 }
 
 fn create_session_tool_key(session_id: &str, tool_call_id: &str) -> String {
@@ -2099,7 +2089,6 @@ mod tests {
             .expect("expected session snapshot");
         assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
         assert_eq!(snapshot.message_count, 1);
-        assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
         assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
         assert_eq!(snapshot.last_event_seq, 2);
     }
@@ -2156,10 +2145,6 @@ mod tests {
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("expected session snapshot");
-        assert_eq!(
-            snapshot.last_agent_message_id.as_deref(),
-            Some("assistant-event-2")
-        );
         assert_eq!(snapshot.turn_state, SessionTurnState::Running);
         assert_eq!(snapshot.last_event_seq, 3);
     }
@@ -2429,7 +2414,7 @@ mod tests {
             arguments: ToolArguments::Execute {
                 command: Some(command.to_string()),
             },
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(ToolKind::Execute),
@@ -2584,7 +2569,7 @@ mod tests {
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-1".to_string()
+                entry_id: "tool-event-1".to_string()
             }
         );
     }
@@ -2618,7 +2603,7 @@ mod tests {
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: normalized_tool_call_id.to_string(),
+                entry_id: "tool-event-1".to_string(),
             }
         );
         assert_eq!(registry.session_operations("session-1").len(), 1);
@@ -2630,8 +2615,11 @@ mod tests {
         let mut parent = ToolCallData {
             id: "task-parent".to_string(),
             name: "task".to_string(),
-            arguments: ToolArguments::Other { raw: json!({}) },
-            raw_input: None,
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -2693,7 +2681,7 @@ mod tests {
                     always: vec!["allow_always".to_string()],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -2710,7 +2698,7 @@ mod tests {
                     reply_handler: Some(InteractionReplyHandler::json_rpc(8)),
                     questions: vec![],
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-2".to_string(),
                     }),
                 },
@@ -2960,7 +2948,6 @@ mod tests {
                 last_event_seq: 5,
                 turn_state: SessionTurnState::Completed,
                 message_count: 2,
-                last_agent_message_id: Some("msg-2".to_string()),
                 active_tool_call_ids: vec![],
                 completed_tool_call_ids: vec!["tool-1".to_string()],
                 active_turn_failure: None,
@@ -3090,8 +3077,11 @@ mod tests {
                     message: ToolCallData {
                         id: "tool-question".to_string(),
                         name: "ask_user".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
-                        raw_input: None,
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
+                        diagnostic_input: None,
                         status: ToolCallStatus::Completed,
                         result: None,
                         kind: Some(ToolKind::Question),
@@ -3117,8 +3107,11 @@ mod tests {
                     message: ToolCallData {
                         id: "tool-plan".to_string(),
                         name: "create_plan".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
-                        raw_input: None,
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::CreatePlan),
@@ -3232,8 +3225,9 @@ mod tests {
                                     "multiSelect": false
                                 }]
                             }),
+                            intent: None,
                         },
-                        raw_input: None,
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::Question),
@@ -3467,8 +3461,11 @@ mod tests {
                     message: ToolCallData {
                         id: "plan-tool".to_string(),
                         name: "create_plan".to_string(),
-                        arguments: ToolArguments::Other { raw: json!({}) },
-                        raw_input: None,
+                        arguments: ToolArguments::Other {
+                            raw: json!({}),
+                            intent: None,
+                        },
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::CreatePlan),
@@ -3858,7 +3855,7 @@ mod tests {
                 file_path: Some("/repo/README.md".to_string()),
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Completed,
             result: None,
             kind: Some(ToolKind::Read),
@@ -3902,8 +3899,9 @@ mod tests {
             name: "unknown_tool".to_string(),
             arguments: ToolArguments::Other {
                 raw: serde_json::json!({}),
+                intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Unclassified),
@@ -4074,8 +4072,11 @@ mod tests {
         let mut parent = ToolCallData {
             id: "task\nparent".to_string(),
             name: "task".to_string(),
-            arguments: ToolArguments::Other { raw: json!({}) },
-            raw_input: None,
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -4236,7 +4237,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -4260,8 +4261,11 @@ mod tests {
         plan_tool_call.name = "ExitPlanMode".to_string();
         plan_tool_call.kind = Some(ToolKind::ExitPlanMode);
         plan_tool_call.title = Some("Plan ready".to_string());
-        plan_tool_call.arguments = ToolArguments::Other { raw: json!({}) };
-        plan_tool_call.raw_input = Some(json!({}));
+        plan_tool_call.arguments = ToolArguments::Other {
+            raw: json!({}),
+            intent: None,
+        };
+        plan_tool_call.diagnostic_input = Some(json!({}));
 
         registry.apply_session_update(
             "session-1",
@@ -4281,20 +4285,22 @@ mod tests {
                     permission: "ExitPlanMode".to_string(),
                     patterns: vec![],
                     metadata: json!({
-                        "rawInput": {
-                            "plan": plan,
+                        "diagnosticRawInput": {
+                            "plan": "# Raw Plan\n\nThis should not be used.",
                             "planFilePath": "/repo/docs/plans/fix-plan-card.md"
                         },
                         "parsedArguments": {
                             "kind": "planMode",
-                            "mode": "default"
+                            "plan": plan,
+                            "plan_file_path": "/repo/docs/plans/fix-plan-card.md",
+                            "title": "Fix Plan Card"
                         },
                         "options": []
                     }),
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "exit-plan-tool".to_string(),
                     }),
                 },
@@ -4311,11 +4317,79 @@ mod tests {
         assert_eq!(operation.plan_approval_request_id, Some(42));
         assert_eq!(
             operation.arguments,
+            ToolArguments::PlanMode {
+                mode: None,
+                plan: Some(plan.to_string()),
+                plan_file_path: Some("/repo/docs/plans/fix-plan-card.md".to_string()),
+                title: Some("Fix Plan Card".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn exit_plan_permission_does_not_enrich_operation_from_diagnostic_raw_input() {
+        let registry = ProjectionRegistry::new();
+        let mut plan_tool_call = create_execute_tool_call(
+            "exit-plan-tool",
+            "exit plan mode",
+            ToolCallStatus::InProgress,
+        );
+        plan_tool_call.name = "ExitPlanMode".to_string();
+        plan_tool_call.kind = Some(ToolKind::ExitPlanMode);
+        plan_tool_call.title = Some("Plan ready".to_string());
+        plan_tool_call.arguments = ToolArguments::Other {
+            raw: json!({}),
+            intent: None,
+        };
+        plan_tool_call.diagnostic_input = Some(json!({}));
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: plan_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-exit-plan".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(42),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(42)),
+                    permission: "ExitPlanMode".to_string(),
+                    patterns: vec![],
+                    metadata: json!({
+                        "diagnosticRawInput": {
+                            "plan": "# Raw Plan\n\nThis must stay diagnostic.",
+                            "planFilePath": "/repo/docs/plans/raw-plan.md"
+                        },
+                        "options": []
+                    }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: Some(ToolReference {
+                        message_id: None,
+                        call_id: "exit-plan-tool".to_string(),
+                    }),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let operation = registry
+            .operation_for_tool_call("session-1", "exit-plan-tool")
+            .expect("expected exit-plan operation");
+
+        assert_eq!(operation.operation_state, OperationState::Blocked);
+        assert!(!operation.awaiting_plan_approval);
+        assert_eq!(operation.plan_approval_request_id, None);
+        assert_eq!(
+            operation.arguments,
             ToolArguments::Other {
-                raw: json!({
-                    "plan": plan,
-                    "planFilePath": "/repo/docs/plans/fix-plan-card.md"
-                })
+                raw: json!({}),
+                intent: None
             }
         );
     }
@@ -4365,7 +4439,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -4426,7 +4500,7 @@ mod tests {
                         multi_select: false,
                     }],
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "question-tool".to_string(),
                     }),
                 },
@@ -4538,7 +4612,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "late-tool".to_string(),
                     }),
                 },

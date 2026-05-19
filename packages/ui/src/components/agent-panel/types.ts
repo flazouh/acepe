@@ -124,6 +124,8 @@ export interface AgentToolEntry {
 	sourceExcerpt?: string | null;
 	sourceRangeLabel?: string | null;
 	status: AgentToolStatus;
+	startedAtMs?: number | null;
+	completedAtMs?: number | null;
 	// Execute-specific
 	command?: string | null;
 	commandHtmls?: readonly string[];

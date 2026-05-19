@@ -9,9 +9,7 @@
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
-import { SessionEntryStore } from "../../session-entry-store.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
-import { readCompatibilityEntries } from "../../__tests__/entry-store-test-access.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -48,7 +46,8 @@ function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeo
 
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn().mockReturnValue(null),
+		getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
 		getSessionCanSend: vi.fn().mockReturnValue(null),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
 		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
@@ -79,8 +78,6 @@ function createMockDeps() {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -139,6 +136,7 @@ function createCanonicalProjection(
 		turnState: overrides.turnState ?? "Idle",
 		activeTurnFailure: overrides.activeTurnFailure ?? null,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		capabilities: overrides.capabilities ?? {
 			models: null,
 			modes: null,
@@ -225,12 +223,6 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		expect(updates).not.toContainEqual(
 			expect.objectContaining({ observedTerminalTurn: expect.anything() })
 		);
-	});
-
-	it("does not clear streaming assistant entry on turn complete", () => {
-		service.handleCanonicalTurnComplete(sessionId);
-
-		expect(deps.entryManager.clearStreamingAssistantEntry).not.toHaveBeenCalled();
 	});
 
 	it("clears local pending send before sending the machine complete event", () => {
@@ -547,118 +539,5 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
 		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-	});
-});
-
-describe("SessionMessagingService replay regression", () => {
-	const sessionId = "session-replay";
-	let service: InstanceType<typeof SessionMessagingService>;
-	let entryStore: SessionEntryStore;
-
-	beforeAll(async () => {
-		const module = await import("../session-messaging-service.js");
-		SessionMessagingService = module.SessionMessagingService;
-	});
-
-	beforeEach(() => {
-		entryStore = new SessionEntryStore();
-		entryStore.preloadCompatibilityEntriesAndBuildIndex(sessionId, []);
-
-		const stateReader: ISessionStateReader = {
-			getHotState: vi.fn(),
-			getSessionCanSend: vi.fn().mockReturnValue(null),
-			getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
-			getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
-			getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
-			getSessionCurrentModeId: vi.fn().mockReturnValue(null),
-			getSessionCapabilities: vi.fn().mockReturnValue({
-				availableModels: [],
-				availableModes: [],
-				availableCommands: [],
-			}),
-			getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
-			getSessionToolCalls: vi.fn().mockReturnValue([]),
-			isPreloaded: vi.fn(),
-			getSessionsForProject: vi.fn(),
-			getSessionCold: vi.fn().mockReturnValue(undefined),
-			getAllSessions: vi.fn(),
-		};
-
-		const hotStateManager: ITransientProjectionManager = {
-			getHotState: vi.fn().mockReturnValue({ turnState: "streaming" }),
-			hasHotState: vi.fn(),
-			updateHotState: vi.fn(),
-			removeHotState: vi.fn(),
-			initializeHotState: vi.fn(),
-		};
-
-		const connectionManager: IConnectionManager = {
-			createOrGetMachine: vi.fn(),
-			getMachine: vi.fn(),
-			getState: vi.fn().mockReturnValue(undefined),
-			removeMachine: vi.fn(),
-			isConnecting: vi.fn(),
-			setConnecting: vi.fn(),
-			sendContentLoad: vi.fn(),
-			sendContentLoaded: vi.fn(),
-			sendContentLoadError: vi.fn(),
-			sendConnectionConnect: vi.fn(),
-			sendConnectionSuccess: vi.fn(),
-			sendCapabilitiesLoaded: vi.fn(),
-			sendConnectionError: vi.fn(),
-			sendTurnFailed: vi.fn(),
-			sendDisconnect: vi.fn(),
-			sendMessageSent: vi.fn(),
-			sendResponseStarted: vi.fn(),
-			sendResponseComplete: vi.fn(),
-			initializeConnectedSession: vi.fn(),
-		};
-
-		service = new SessionMessagingService(
-			stateReader,
-			hotStateManager,
-			entryStore,
-			connectionManager
-		);
-	});
-
-	it("merges post-turn trailing chunk without message_id into the same assistant entry", async () => {
-		const first = await entryStore.aggregateCompatibilityAssistantChunk(
-			sessionId,
-			{ content: { type: "text", text: "I see the" } },
-			"msg-thread-1",
-			false
-		);
-		expect(first.isOk()).toBe(true);
-
-		const second = await entryStore.aggregateCompatibilityAssistantChunk(
-			sessionId,
-			{ content: { type: "text", text: " component." } },
-			"msg-thread-1",
-			false
-		);
-		expect(second.isOk()).toBe(true);
-
-		service.handleCanonicalTurnComplete(sessionId);
-
-		const trailing = await entryStore.aggregateCompatibilityAssistantChunk(
-			sessionId,
-			{ content: { type: "text", text: " test it." } },
-			undefined,
-			false
-		);
-		expect(trailing.isOk()).toBe(true);
-
-		const assistantEntries = readCompatibilityEntries(entryStore, sessionId)
-			.filter((entry) => entry.type === "assistant");
-		expect(assistantEntries).toHaveLength(1);
-
-		const onlyEntry = assistantEntries[0];
-		if (onlyEntry.type === "assistant") {
-			const combinedText = onlyEntry.message.chunks
-				.map((chunk) => (chunk.block.type === "text" ? chunk.block.text : ""))
-				.join("");
-			expect(combinedText).toBe("I see the component. test it.");
-		}
 	});
 });

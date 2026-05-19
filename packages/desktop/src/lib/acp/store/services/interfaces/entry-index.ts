@@ -13,15 +13,10 @@ export interface IEntryIndex {
 	deleteEntryId(sessionId: string, entryId: string): void;
 	rebuildEntryIdIndex(sessionId: string, entries: SessionEntry[]): void;
 
-	// MessageId index (assistant chunk aggregation)
-	getMessageIdIndex(sessionId: string, messageId: string): number | undefined;
-	addMessageId(sessionId: string, messageId: string, index: number): void;
-	deleteMessageId(sessionId: string, messageId: string): void;
-	rebuildMessageIdIndex(sessionId: string, entries: SessionEntry[]): void;
-
 	// ToolCallId index (tool call lookups)
 	getToolCallIdIndex(sessionId: string, toolCallId: string): number | undefined;
 	addToolCallId(sessionId: string, toolCallId: string, index: number): void;
+	deleteToolCallId(sessionId: string, toolCallId: string): void;
 	rebuildToolCallIdIndex(sessionId: string, entries: SessionEntry[]): void;
 
 	// Session cleanup

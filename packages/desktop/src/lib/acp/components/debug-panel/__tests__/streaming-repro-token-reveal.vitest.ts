@@ -15,7 +15,7 @@ const PRESET: StreamingReproPreset = {
 			assistantText: "one two",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -24,7 +24,7 @@ const PRESET: StreamingReproPreset = {
 			assistantText: "one two three four",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -33,7 +33,7 @@ const PRESET: StreamingReproPreset = {
 			assistantText: "instant mode",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 			streamingAnimationMode: "instant",
 		},

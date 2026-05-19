@@ -3,10 +3,11 @@ import { ProviderMark } from "@acepe/ui";
 
 interface Props {
 	providerId: string;
+	providerName?: string;
 	class?: string;
 }
 
-let { providerId, class: className }: Props = $props();
+let { providerId, providerName, class: className }: Props = $props();
 </script>
 
-<ProviderMark provider={providerId} class={className} />
+<ProviderMark brand="custom" label={providerName ?? providerId} class={className} />

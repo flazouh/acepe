@@ -169,12 +169,12 @@ pub struct SessionGraphCapabilities {
     pub models: Option<SessionModelState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modes: Option<SessionModes>,
-    #[serde(default)]
-    pub available_commands: Vec<AvailableCommand>,
-    #[serde(default)]
-    pub config_options: Vec<ConfigOptionData>,
-    #[serde(default)]
-    pub autonomous_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_commands: Option<Vec<AvailableCommand>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_options: Option<Vec<ConfigOptionData>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub autonomous_enabled: Option<bool>,
 }
 
 impl SessionGraphCapabilities {
@@ -182,9 +182,9 @@ impl SessionGraphCapabilities {
         Self {
             models: None,
             modes: None,
-            available_commands: Vec::new(),
-            config_options: Vec::new(),
-            autonomous_enabled: false,
+            available_commands: None,
+            config_options: None,
+            autonomous_enabled: None,
         }
     }
 }
@@ -345,7 +345,10 @@ mod tests {
             kind,
             provider_status: status.clone(),
             title: None,
-            arguments: ToolArguments::Other { raw: json!({}) },
+            arguments: ToolArguments::Other {
+                raw: json!({}),
+                intent: None,
+            },
             progressive_arguments: None,
             result: None,
             command: None,
@@ -506,9 +509,9 @@ mod tests {
 
         assert!(capabilities.models.is_none());
         assert!(capabilities.modes.is_none());
-        assert!(capabilities.available_commands.is_empty());
-        assert!(capabilities.config_options.is_empty());
-        assert!(!capabilities.autonomous_enabled);
+        assert!(capabilities.available_commands.is_none());
+        assert!(capabilities.config_options.is_none());
+        assert!(capabilities.autonomous_enabled.is_none());
     }
 
     #[test]

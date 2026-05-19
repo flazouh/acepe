@@ -17,6 +17,7 @@ import {
 	getAgentsByProviderOrder,
 	getAgentModelDefaultsEntries,
 	getProviderDefaultLabel,
+	resolveSettingsProviderMetadata,
 	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
 import SettingsModelSelector from "./settings-model-selector.svelte";
@@ -31,8 +32,10 @@ const capabilitySourceByAgentId = $derived.by(() => {
 	const resolutions = new Map();
 
 	for (const agent of agentStore.agents) {
-		const providerMetadata =
-			preferencesStore.getCachedProviderMetadata(agent.id) ?? agent.providerMetadata ?? null;
+		const providerMetadata = resolveSettingsProviderMetadata({
+			agentProviderMetadata: agent.providerMetadata,
+			cachedProviderMetadata: preferencesStore.getCachedProviderMetadata(agent.id),
+		});
 		const preconnectionCapabilities = preconnectionCapabilitiesState.getCapabilities({
 			agentId: agent.id,
 			projectPath: null,
@@ -232,6 +235,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 								{modeType}
 								{availableModels}
 								{modelsDisplay}
+								{providerMetadata}
 								{fallbackLabel}
 								isLoading={isModelsLoading}
 							/>

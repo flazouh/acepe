@@ -1,5 +1,6 @@
 <script lang="ts">
-import { type FilePanelFormatKind, parseTableContent } from "./file-panel-format.js";
+import type { FilePanelFormatKind } from "./format/types.js";
+import { parseTableContent } from "./format/parsers/delimited.js";
 
 interface Props {
 	content: string;

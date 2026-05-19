@@ -4,7 +4,7 @@
  * Used across agent-panel logic tests to avoid duplicating entry creation helpers.
  */
 
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 
 export function createUserEntry(id: string): SessionEntry {
 	return {

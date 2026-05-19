@@ -101,6 +101,17 @@ function getProjectedProviderMetadata(
 	return getProviderMetadata(agent.id) ?? agent.providerMetadata ?? undefined;
 }
 
+export function resolveSettingsProviderMetadata(input: {
+	readonly agentProviderMetadata: ProviderMetadataProjection | null | undefined;
+	readonly cachedProviderMetadata: ProviderMetadataProjection | null;
+}): ProviderMetadataProjection | null {
+	if (input.agentProviderMetadata) {
+		return input.agentProviderMetadata;
+	}
+
+	return input.cachedProviderMetadata;
+}
+
 export function getAgentsByProviderOrder(
 	agents: readonly Agent[],
 	getProviderMetadata: (agentId: string) => ProviderMetadataProjection | null
@@ -148,7 +159,7 @@ export function resolveSettingsCapabilitySource(input: {
 	providerMetadata: ProviderMetadataProjection | null;
 }): CapabilitySourceResolution {
 	return resolveCapabilitySource({
-		sessionCapabilities: null,
+		sessionSource: { kind: "no_session" },
 		preconnectionCapabilities: input.preconnectionCapabilities,
 		cachedModes: input.cachedModes,
 		cachedModels: input.cachedModels,

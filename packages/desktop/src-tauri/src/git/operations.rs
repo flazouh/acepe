@@ -863,11 +863,7 @@ pub async fn git_fetch(project_path: String) -> CommandResult<()> {
 #[specta::specta]
 pub async fn git_remote_status(project_path: String) -> CommandResult<GitRemoteStatus> {
     let path = expected_command_result("git_remote_status", validate_project_path(&project_path))?;
-    unexpected_command_result(
-        "git_remote_status",
-        "Failed to get git remote status",
-        get_git_remote_status_impl(path).await,
-    )
+    expected_command_result("git_remote_status", get_git_remote_status_impl(path).await)
 }
 
 // ─── Stash ──────────────────────────────────────────────────────────────────
@@ -1476,10 +1472,12 @@ mod tests {
     use git2::IndexAddOption;
     use tempfile::TempDir;
 
+    use crate::commands::observability::CommandErrorClassification;
     use crate::file_index::git::open_repository;
 
     use super::{
-        do_commit, git_panel_status, git_run_stacked_action, git_stage_files, has_staged_changes,
+        do_commit, git_panel_status, git_remote_status, git_run_stacked_action, git_stage_files,
+        has_staged_changes,
     };
 
     /// Create a new git repo in a temp dir with user config set (required for commits).
@@ -1621,6 +1619,14 @@ mod tests {
         );
         drop(repo);
         drop(dir);
+    }
+
+    #[tokio::test]
+    async fn git_remote_status_non_git_directory_is_expected_metadata_absence() {
+        let dir = TempDir::new().expect("temp dir");
+        let result = git_remote_status(dir.path().display().to_string()).await;
+        let error = result.expect_err("non-git directory should not have remote status");
+        assert_eq!(error.classification, CommandErrorClassification::Expected);
     }
 
     #[tokio::test]

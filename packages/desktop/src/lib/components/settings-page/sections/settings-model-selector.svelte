@@ -4,13 +4,13 @@ import {
 	type AgentInputModelSelectorGroup,
 	type AgentInputModelSelectorItem,
 	type AgentInputModelSelectorReasoningGroup,
+	type ProviderBrand,
 } from "@acepe/ui";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import {
-	getCodexCurrentVariant,
+	getCurrentReasoningVariant,
 	getModelDisplayName,
-	groupCodexModelsByBase,
-	groupModelsByProvider,
+	groupModelsForFallback,
 	groupReasoningModelsFromDisplay,
 	hasUsableModelsDisplayGroups,
 	isDefaultChoiceModelId,
@@ -19,6 +19,7 @@ import {
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
 import type { DisplayableModel, ModelsForDisplay } from "$lib/services/acp-types.js";
+import type { ProviderMetadataProjection } from "$lib/services/acp-provider-metadata.js";
 
 const CLEAR_DEFAULT_ID = "__settings_clear_default__";
 
@@ -27,6 +28,7 @@ interface Props {
 	modeType: ModeType;
 	availableModels: readonly Model[];
 	modelsDisplay: ModelsForDisplay | null;
+	providerMetadata: ProviderMetadataProjection;
 	fallbackLabel: string;
 	isLoading?: boolean;
 }
@@ -36,11 +38,14 @@ let {
 	modeType,
 	availableModels,
 	modelsDisplay,
+	providerMetadata,
 	fallbackLabel,
 	isLoading = false,
 }: Props = $props();
 
 const currentDefaultId = $derived(preferencesStore.getDefaultModel(agentId, modeType) ?? null);
+const providerBrand = $derived<ProviderBrand | null>(providerMetadata.providerBrand);
+const providerLabel = $derived(providerMetadata.displayName);
 
 const validModels = $derived(availableModels.filter((model) => model.id));
 const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
@@ -56,14 +61,10 @@ const reasoningBaseGroupsFromDisplay = $derived.by(() =>
 	groupReasoningModelsFromDisplay(modelsDisplay)
 );
 const reasoningBaseGroups = $derived.by(() =>
-	usesVariantSelector
-		? reasoningBaseGroupsFromDisplay.length > 0
-			? reasoningBaseGroupsFromDisplay
-			: groupCodexModelsByBase(availableModels)
-		: []
+	usesVariantSelector ? reasoningBaseGroupsFromDisplay : []
 );
 const selectedReasoningVariant = $derived.by(() =>
-	usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentDefaultId) : null
+	usesVariantSelector ? getCurrentReasoningVariant(reasoningBaseGroups, currentDefaultId) : null
 );
 const selectedReasoningBaseGroup = $derived.by(() => {
 	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
@@ -92,19 +93,16 @@ function getDisplayLabel(model: Model | DisplayableModel): string {
 		: getModelDisplayName(model, agentId, modelsDisplay);
 }
 
-function getModelProviderSource(model: Model | DisplayableModel): string {
-	return `${getDisplayLabel(model)} ${getModelIdFrom(model)}`;
-}
-
 function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelectorItem {
 	const id = getModelIdFrom(model);
 	const name = getDisplayLabel(model);
 	return {
 		id,
 		name,
-		providerSource: getModelProviderSource(model),
+		providerBrand,
+		providerLabel,
 		description: model.description ?? undefined,
-		searchText: `${name} ${id} ${model.description ?? ""} ${getModelProviderSource(model)}`,
+		searchText: `${name} ${id} ${model.description ?? ""} ${providerLabel}`,
 		hideProviderMark: isDefaultChoiceModelId(id),
 	};
 }
@@ -112,7 +110,8 @@ function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelecto
 const clearDefaultFavorite = $derived<AgentInputModelSelectorItem>({
 	id: CLEAR_DEFAULT_ID,
 	name: fallbackLabel,
-	providerSource: `${fallbackLabel} default`,
+	providerBrand: null,
+	providerLabel,
 	description: "Use the provider default when no model is chosen.",
 	searchText: `${fallbackLabel} default first available`,
 	hideProviderMark: true,
@@ -124,6 +123,8 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 	if (hasDisplayGroups) {
 		return modelsDisplay!.groups.map((group) => ({
 			label: group.label,
+			providerBrand,
+			providerLabel,
 			items: Array.from(group.models)
 				.sort((left, right) =>
 					left.displayName.localeCompare(right.displayName, undefined, {
@@ -134,8 +135,10 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 		}));
 	}
 
-	return groupModelsByProvider(validModels).map((group) => ({
-		label: group.provider,
+	return groupModelsForFallback(validModels).map((group) => ({
+		label: group.label,
+		providerBrand,
+		providerLabel,
 		items: group.models.map(toSelectorItem),
 	}));
 });
@@ -147,17 +150,16 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 				? (group.variants.find(
 						(variant) => variant.fullModelId === selectedReasoningVariant.fullModelId
 					)?.fullModelId ?? null)
-				: (group.variants.find((variant) => variant.effort === "medium")?.fullModelId ??
-					group.variants[0]?.fullModelId ??
-					null);
+				: (group.variants[0]?.fullModelId ?? null);
 		return {
 			baseModelId: group.baseModelId,
 			baseModelName: group.baseModelName,
-			providerSource: `${group.baseModelName} ${group.baseModelId}`,
+			providerBrand,
+			providerLabel,
 			preferredVariantId,
 			variants: group.variants.map((variant) => ({
 				id: variant.fullModelId,
-				name: variant.effort,
+				name: variant.name,
 			})),
 		};
 	})
@@ -182,13 +184,6 @@ const selectedModelDisplayName = $derived.by(() => {
 	return fallbackLabel;
 });
 
-const triggerProviderMarkSource = $derived.by(() => {
-	if (!currentDefaultId) {
-		return `${fallbackLabel} default`;
-	}
-	return `${selectedModelDisplayName} ${currentDefaultId}`;
-});
-
 function handleModelChange(modelId: string): void {
 	if (modelId === CLEAR_DEFAULT_ID) {
 		preferencesStore.setDefaultModel(agentId, modeType, undefined);
@@ -200,7 +195,8 @@ function handleModelChange(modelId: string): void {
 
 <SharedAgentInputModelSelector
 	triggerLabel={selectedModelDisplayName}
-	triggerProviderSource={triggerProviderMarkSource}
+	triggerProviderBrand={providerBrand}
+	triggerProviderLabel={providerLabel}
 	currentModelId={currentDefaultId ?? CLEAR_DEFAULT_ID}
 	{isLoading}
 	{modelGroups}
@@ -210,7 +206,8 @@ function handleModelChange(modelId: string): void {
 	selectedReasoningBaseId={selectedReasoningVariant?.baseModelId ?? null}
 	selectedReasoningVariantId={currentDefaultId}
 	{primarySelectorLabel}
-	primaryTriggerProviderSource={`${primarySelectorLabel} ${selectedReasoningBaseGroup?.baseModelId ?? currentDefaultId ?? ""}`}
+	primaryTriggerProviderBrand={providerBrand}
+	primaryTriggerProviderLabel={providerLabel}
 	searchPlaceholder="Search models..."
 	loadingLabel="Loading..."
 	noModelsLabel="Unavailable"

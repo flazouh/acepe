@@ -3,6 +3,7 @@ import { tauriClient } from "../../utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { AcpError } from "../errors/index.js";
 import { ConnectionError } from "../errors/index.js";
+import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 /**
  * Information about an available agent
  */
@@ -17,6 +18,7 @@ export interface AgentInfo {
 	availability_kind?: AgentAvailabilityKind;
 	default_selection_rank?: number;
 	supports_project_discovery?: boolean;
+	provider_metadata?: ProviderMetadataProjection;
 }
 
 /**
@@ -84,6 +86,7 @@ export class AgentManager {
 					},
 					default_selection_rank: a.default_selection_rank,
 					supports_project_discovery: a.supports_project_discovery,
+					provider_metadata: a.provider_metadata,
 				}))
 			)
 			.mapErr((error) => {

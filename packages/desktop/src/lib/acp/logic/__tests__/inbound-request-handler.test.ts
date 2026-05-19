@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vite
 import type { JsonValue } from "../../../services/converted-session-types.js";
 import { ACP_INBOUND_METHODS } from "../../constants/acp-methods.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
-import type { QuestionRequest } from "../../types/question.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
 import { createTestAcpEventDrain } from "./fixtures/acp-event-drain-stub.js";
 
@@ -38,12 +37,10 @@ const { cancelQuestion, InboundRequestHandler, respondToPermission, respondToQue
 describe("InboundRequestHandler", () => {
 	let handler: InstanceType<typeof InboundRequestHandler>;
 	let permissionCallback: Mock;
-	let questionCallback: Mock;
 
 	beforeEach(() => {
 		handler = new InboundRequestHandler();
 		permissionCallback = vi.fn();
-		questionCallback = vi.fn();
 		eventCallback = null;
 		vi.clearAllMocks();
 		mockOpenAcpEventSource.mockImplementation(
@@ -243,7 +240,7 @@ describe("InboundRequestHandler", () => {
 			expect(permission.permission).toBe("Execute tool");
 		});
 
-		it("should store rawInput in metadata", async () => {
+		it("stores transport rawInput as diagnostic metadata", async () => {
 			await handler.start(permissionCallback);
 
 			const rawInput = { command: "rm -rf /", dangerous: true };
@@ -265,7 +262,7 @@ describe("InboundRequestHandler", () => {
 			eventCallback?.({ payload: request });
 
 			const permission: PermissionRequest = permissionCallback.mock.calls[0][0];
-			expect(permission.metadata).toEqual({ rawInput, options: [] });
+			expect(permission.metadata).toEqual({ diagnosticRawInput: rawInput });
 		});
 	});
 
@@ -286,9 +283,9 @@ describe("InboundRequestHandler", () => {
 		});
 	});
 
-	describe("handleQuestionRequest (AskUserQuestion)", () => {
-		it("should route request with _meta.askUserQuestion to question callback", async () => {
-			await handler.start(permissionCallback, questionCallback);
+	describe("legacy question-shaped permissions", () => {
+		it("keeps AskUserQuestion fallback events in the legacy permission path", async () => {
+			await handler.start(permissionCallback);
 
 			const request = {
 				id: 1,
@@ -322,279 +319,10 @@ describe("InboundRequestHandler", () => {
 
 			eventCallback?.({ payload: request });
 
-			// Should call question callback, NOT permission callback
-			expect(questionCallback).toHaveBeenCalledTimes(1);
-			expect(permissionCallback).not.toHaveBeenCalled();
-
-			const question: QuestionRequest = questionCallback.mock.calls[0][0];
-			expect(question.id).toBe("tc-question-1");
-			expect(question.sessionId).toBe("session-1");
-			expect(question.jsonRpcRequestId).toBe(1);
-			expect(question.questions).toHaveLength(1);
-			expect(question.questions[0].question).toBe("Which framework do you prefer?");
-			expect(question.questions[0].header).toBe("Framework");
-			expect(question.questions[0].options).toHaveLength(2);
-			expect(question.questions[0].multiSelect).toBe(false);
-		});
-
-		it("should route upstream AskUserQuestion requests to question callback", async () => {
-			await handler.start(permissionCallback, questionCallback);
-
-			const request = {
-				id: 7,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-7",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-question-7",
-						name: "AskUserQuestion",
-						rawInput: {
-							questions: [
-								{
-									question: "Which editor?",
-									header: "Editor",
-									options: [
-										{ label: "Zed", description: "Fast editor" },
-										{ label: "VS Code", description: "Popular editor" },
-									],
-									multiSelect: false,
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			expect(questionCallback).toHaveBeenCalledTimes(1);
-			expect(permissionCallback).not.toHaveBeenCalled();
-
-			const question: QuestionRequest = questionCallback.mock.calls[0][0];
-			expect(question.id).toBe("tc-question-7");
-			expect(question.sessionId).toBe("session-7");
-			expect(question.jsonRpcRequestId).toBe(7);
-			expect(question.questions).toHaveLength(1);
-			expect(question.questions[0].question).toBe("Which editor?");
-		});
-
-		it("should fall back to permission flow for upstream AskUserQuestion without callback", async () => {
-			await handler.start(permissionCallback);
-
-			const request = {
-				id: 8,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-8",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-question-8",
-						title: "AskUserQuestion",
-						rawInput: {
-							questions: [
-								{
-									question: "Continue?",
-									header: "Confirm",
-									options: [{ label: "Yes", description: "Continue" }],
-									multiSelect: false,
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
 			expect(permissionCallback).toHaveBeenCalledTimes(1);
 			const permission: PermissionRequest = permissionCallback.mock.calls[0][0];
-			expect(permission.id).toBe(buildAcpPermissionId("session-8", "tc-question-8", 8));
-			expect(permission.tool?.callID).toBe("tc-question-8");
-			expect(permission.jsonRpcRequestId).toBe(8);
-		});
-
-		it("should handle multiSelect questions", async () => {
-			await handler.start(permissionCallback, questionCallback);
-
-			const request = {
-				id: 2,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-2",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-question-2",
-						rawInput: {},
-						title: "Multi-select",
-					},
-					_meta: {
-						askUserQuestion: {
-							questions: [
-								{
-									question: "Select features to enable:",
-									header: "Features",
-									options: [
-										{ label: "TypeScript", description: "Type safety" },
-										{ label: "ESLint", description: "Code linting" },
-										{ label: "Prettier", description: "Code formatting" },
-									],
-									multiSelect: true,
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			const question: QuestionRequest = questionCallback.mock.calls[0][0];
-			expect(question.questions[0].multiSelect).toBe(true);
-		});
-
-		it("should handle multiple questions in a single request", async () => {
-			await handler.start(permissionCallback, questionCallback);
-
-			const request = {
-				id: 3,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-3",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-question-3",
-						rawInput: {},
-						title: "Multiple Questions",
-					},
-					_meta: {
-						askUserQuestion: {
-							questions: [
-								{
-									question: "First question?",
-									header: "Q1",
-									options: [{ label: "A", description: "Option A" }],
-								},
-								{
-									question: "Second question?",
-									header: "Q2",
-									options: [{ label: "B", description: "Option B" }],
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			const question: QuestionRequest = questionCallback.mock.calls[0][0];
-			expect(question.questions).toHaveLength(2);
-			expect(question.questions[0].question).toBe("First question?");
-			expect(question.questions[1].question).toBe("Second question?");
-		});
-
-		it("should treat as permission request when no question callback provided", async () => {
-			// Start WITHOUT question callback
-			await handler.start(permissionCallback);
-
-			const request = {
-				id: 4,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-4",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-4",
-						rawInput: {},
-						title: "Question",
-					},
-					_meta: {
-						askUserQuestion: {
-							questions: [
-								{
-									question: "Test?",
-									header: "Test",
-									options: [{ label: "Yes", description: "Confirm" }],
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			// Should fall back to permission callback
-			expect(permissionCallback).toHaveBeenCalledTimes(1);
-		});
-
-		it("should treat as permission request when _meta.askUserQuestion is missing", async () => {
-			await handler.start(permissionCallback, questionCallback);
-
-			const request = {
-				id: 5,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-5",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-5",
-						rawInput: {},
-						title: "Regular Permission",
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			// Should use permission callback
-			expect(permissionCallback).toHaveBeenCalledTimes(1);
-			expect(questionCallback).not.toHaveBeenCalled();
-		});
-
-		it("should set tool reference on question request", async () => {
-			await handler.start(permissionCallback, questionCallback);
-
-			const request = {
-				id: 6,
-				jsonrpc: "2.0",
-				method: ACP_INBOUND_METHODS.REQUEST_PERMISSION,
-				params: {
-					sessionId: "session-6",
-					options: [],
-					toolCall: {
-						toolCallId: "tc-question-6",
-						rawInput: {},
-						title: "Question",
-					},
-					_meta: {
-						askUserQuestion: {
-							questions: [
-								{
-									question: "Test?",
-									header: "Test",
-									options: [{ label: "Yes", description: "Yes" }],
-								},
-							],
-						},
-					},
-				},
-			};
-
-			eventCallback?.({ payload: request });
-
-			const question: QuestionRequest = questionCallback.mock.calls[0][0];
-			expect(question.tool).toEqual({
-				messageID: "",
-				callID: "tc-question-6",
-			});
+			expect(permission.id).toBe(buildAcpPermissionId("session-1", "tc-question-1", 1));
+			expect(permission.permission).toBe("Question");
 		});
 	});
 });

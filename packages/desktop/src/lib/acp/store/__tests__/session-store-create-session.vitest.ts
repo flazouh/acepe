@@ -13,7 +13,7 @@ vi.mock("$lib/analytics.js", () => ({
 	setAnalyticsEnabled: vi.fn(),
 }));
 
-import type { SessionCold } from "../../application/dto/session.js";
+import type { SessionCold } from "../../application/dto/session-cold.js";
 import { SessionStore } from "../session-store.svelte.js";
 
 function createSession(overrides: Partial<SessionCold> = {}): SessionCold {
@@ -51,6 +51,14 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Idle",
 		messageCount: overrides.messageCount ?? 0,
+		activity: overrides.activity ?? {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? {
 			status: "ready",
 			actionability: {
@@ -92,6 +100,7 @@ function createSessionStateGraph(overrides: Partial<SessionStateGraph> = {}): Se
 		messageCount: overrides.messageCount ?? 0,
 		activeTurnFailure: overrides.activeTurnFailure ?? null,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? {
 			status: "ready",
 			actionability: {
@@ -225,6 +234,7 @@ describe("SessionStore.createSession", () => {
 					kind: "read",
 					provider_status: "completed",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 					source_link: { kind: "transcript_linked", entry_id: "tc-1" },
 					title: "Read file.ts",
 					arguments: { kind: "read", file_path: "file.ts" },
@@ -447,12 +457,6 @@ describe("SessionStore.createSession", () => {
 		});
 
 		expect(store.hasPendingCreationSession("pending-session")).toBe(false);
-		expect(store.getHotState("pending-session")).toEqual(
-			expect.objectContaining({
-				status: "error",
-				turnState: "error",
-			})
-		);
 		expect(store.getCanonicalSessionProjection("pending-session")).toBeNull();
 
 		store.applySessionStateEnvelope(

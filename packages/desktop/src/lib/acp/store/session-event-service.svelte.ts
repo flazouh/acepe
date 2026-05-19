@@ -78,9 +78,9 @@ export interface ConnectionCompleteData {
 		currentModeId?: string;
 		availableModes?: Array<{ id: string; name: string; description?: string | null }>;
 	};
-	availableCommands: AvailableCommand[];
-	configOptions: ConfigOptionData[];
-	autonomousEnabled: boolean;
+	availableCommands: AvailableCommand[] | null;
+	configOptions: ConfigOptionData[] | null;
+	autonomousEnabled: boolean | null;
 }
 
 function materializedConnectionData(
@@ -93,9 +93,9 @@ function materializedConnectionData(
 	return {
 		models: capabilities.models,
 		modes: capabilities.modes,
-		availableCommands: capabilities.availableCommands ?? [],
-		configOptions: capabilities.configOptions ?? [],
-		autonomousEnabled: capabilities.autonomousEnabled ?? false,
+		availableCommands: capabilities.availableCommands ?? null,
+		configOptions: capabilities.configOptions ?? null,
+		autonomousEnabled: capabilities.autonomousEnabled ?? null,
 	};
 }
 
@@ -273,7 +273,12 @@ export class SessionEventService {
 				return undefined;
 			})
 			.mapErr((error) => {
-				subscriber.unsubscribe();
+				if (this.sessionUpdateSubscriptionId !== null) {
+					subscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
+				}
+				if (this.sessionStateSubscriptionId !== null) {
+					subscriber.unsubscribeById(this.sessionStateSubscriptionId);
+				}
 				this.eventSubscriber = null;
 				this.sessionUpdateSubscriptionId = null;
 				this.sessionStateSubscriptionId = null;
@@ -301,10 +306,13 @@ export class SessionEventService {
 		this.processedSessionUpdateSeqs.clear();
 		this.stopTelemetryReporter();
 
-		if (this.eventSubscriber) {
-			this.eventSubscriber.unsubscribe();
-			this.eventSubscriber = null;
+		if (this.eventSubscriber && this.sessionUpdateSubscriptionId !== null) {
+			this.eventSubscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
 		}
+		if (this.eventSubscriber && this.sessionStateSubscriptionId !== null) {
+			this.eventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
+		}
+		this.eventSubscriber = null;
 		this.sessionUpdateSubscriptionId = null;
 		this.sessionStateSubscriptionId = null;
 	}

@@ -10,6 +10,7 @@ import type { ToolCall } from "../../types/tool-call.js";
 import type { ToolKind } from "../../types/tool-kind.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import type { SessionState } from "../session-state.js";
+import type { SessionWorkBucket } from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 
 /**
@@ -60,6 +61,8 @@ export interface QueueItem {
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
 	/** Session status for filtering */
 	readonly status: SessionStatus;
+	/** Canonical-derived work bucket for filtering/grouping. */
+	readonly workBucket: SessionWorkBucket;
 	/** Connection/agent error message when present */
 	readonly connectionError: string | null;
 	/** Canonical failed-turn state when the latest turn ended in error. */

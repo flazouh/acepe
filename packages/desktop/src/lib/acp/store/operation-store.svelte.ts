@@ -249,7 +249,7 @@ export class OperationStore {
 			normalizedQuestions: snapshot.normalized_questions ?? undefined,
 			normalizedTodos: snapshot.normalized_todos ?? undefined,
 			questionAnswer: snapshot.question_answer ?? undefined,
-			awaitingPlanApproval: snapshot.awaiting_plan_approval ?? false,
+			awaitingPlanApproval: snapshot.awaiting_plan_approval,
 			planApprovalRequestId: snapshot.plan_approval_request_id ?? undefined,
 			startedAtMs: snapshot.started_at_ms ?? undefined,
 			completedAtMs: snapshot.completed_at_ms ?? undefined,

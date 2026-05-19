@@ -313,7 +313,7 @@ async fn session_lifecycle_uses_provider_owned_model_presentation_contract() {
             name: "gpt-5".to_string(),
             description: None,
         }],
-        current_model_id: "gpt-5".to_string(),
+        current_model_id: Some("gpt-5".to_string()),
         models_display: ModelsForDisplay::default(),
         provider_metadata: None,
     };
@@ -845,7 +845,7 @@ fn new_session_response_handles_missing_models() {
     });
     let response: NewSessionResponse = serde_json::from_value(json).unwrap();
     assert!(response.models.available_models.is_empty());
-    assert_eq!(response.models.current_model_id, "auto");
+    assert_eq!(response.models.current_model_id.as_deref(), Some("auto"));
 }
 
 #[test]
@@ -856,7 +856,7 @@ fn new_session_response_handles_partial_models() {
     });
     let response: NewSessionResponse = serde_json::from_value(json).unwrap();
     assert!(response.models.available_models.is_empty());
-    assert_eq!(response.models.current_model_id, "auto");
+    assert_eq!(response.models.current_model_id.as_deref(), Some("auto"));
 }
 
 #[test]
@@ -877,7 +877,7 @@ fn resume_session_response_handles_missing_models() {
     });
     let response: ResumeSessionResponse = serde_json::from_value(json).unwrap();
     assert!(response.models.available_models.is_empty());
-    assert_eq!(response.models.current_model_id, "auto");
+    assert_eq!(response.models.current_model_id.as_deref(), Some("auto"));
 }
 
 #[test]
@@ -885,7 +885,7 @@ fn apply_provider_model_fallback_adds_auto_for_cursor_when_models_missing() {
     let provider = TestProvider { id: "cursor" };
     let mut state = SessionModelState {
         available_models: vec![],
-        current_model_id: "auto".to_string(),
+        current_model_id: Some("auto".to_string()),
         models_display: ModelsForDisplay::default(),
         provider_metadata: None,
     };
@@ -906,7 +906,7 @@ fn apply_provider_model_fallback_keeps_existing_models() {
             name: "Claude Sonnet".to_string(),
             description: None,
         }],
-        current_model_id: "claude-sonnet-4".to_string(),
+        current_model_id: Some("claude-sonnet-4".to_string()),
         models_display: ModelsForDisplay::default(),
         provider_metadata: None,
     };
@@ -922,7 +922,7 @@ fn apply_provider_model_fallback_does_not_apply_to_other_providers() {
     let provider = TestProvider { id: "claude-code" };
     let mut state = SessionModelState {
         available_models: vec![],
-        current_model_id: "auto".to_string(),
+        current_model_id: Some("auto".to_string()),
         models_display: ModelsForDisplay::default(),
         provider_metadata: None,
     };

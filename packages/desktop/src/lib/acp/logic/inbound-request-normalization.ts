@@ -3,10 +3,8 @@ import { err, ok, type Result } from "neverthrow";
 import type { JsonValue, ToolArguments } from "../../services/converted-session-types.js";
 import type { AcpError } from "../errors/index.js";
 import {
-	type AskUserQuestionData,
 	type JsonRpcRequest,
 	parseRequestPermissionParams,
-	RawInputWithQuestionsSchema,
 	type RequestPermissionParams,
 } from "../schemas/inbound-request.schema.js";
 import {
@@ -14,7 +12,6 @@ import {
 	createPermissionRequest,
 	type PermissionRequest,
 } from "../types/permission.js";
-import type { QuestionRequest } from "../types/question.js";
 import { createLegacyInteractionReplyHandler } from "../types/reply-handler.js";
 
 interface NormalizedInboundInteractionBase {
@@ -22,7 +19,7 @@ interface NormalizedInboundInteractionBase {
 	jsonRpcRequestId: number;
 	toolCallId: string;
 	toolLabel: string;
-	rawInput: JsonValue;
+	diagnosticRawInput: JsonValue;
 	parsedArguments: ToolArguments | undefined;
 	options: RequestPermissionParams["options"];
 	alwaysOptionIds: string[];
@@ -32,14 +29,7 @@ export interface NormalizedInboundPermissionRequest extends NormalizedInboundInt
 	kind: "permission";
 }
 
-export interface NormalizedInboundQuestionRequest extends NormalizedInboundInteractionBase {
-	kind: "question";
-	questions: QuestionRequest["questions"];
-}
-
-export type NormalizedInboundInteractionRequest =
-	| NormalizedInboundPermissionRequest
-	| NormalizedInboundQuestionRequest;
+export type NormalizedInboundInteractionRequest = NormalizedInboundPermissionRequest;
 
 function getNormalizedToolLabel(toolCall: RequestPermissionParams["toolCall"]): string {
 	if (toolCall.title !== undefined) {
@@ -64,41 +54,6 @@ function getNormalizedToolCallId(
 	return `permission-request-${request.id}`;
 }
 
-function normalizeQuestionItems(
-	questions: AskUserQuestionData["questions"]
-): QuestionRequest["questions"] {
-	return questions.map((question) => ({
-		question: question.question,
-		header: question.header !== undefined ? question.header : "",
-		options:
-			question.options !== undefined
-				? question.options.map((option) => ({
-						label: option.label,
-						description: option.description !== undefined ? option.description : "",
-					}))
-				: [],
-		multiSelect: question.multiSelect !== undefined ? question.multiSelect : false,
-	}));
-}
-
-function extractNormalizedQuestions(
-	params: RequestPermissionParams
-): QuestionRequest["questions"] | null {
-	const askUserQuestion = params._meta?.askUserQuestion;
-	if (askUserQuestion !== undefined) {
-		return normalizeQuestionItems(askUserQuestion.questions);
-	}
-
-	const toolName =
-		params.toolCall.name !== undefined ? params.toolCall.name : params.toolCall.title;
-	const rawInputResult = RawInputWithQuestionsSchema.safeParse(params.toolCall.rawInput);
-	if (toolName === "AskUserQuestion" && rawInputResult.success) {
-		return normalizeQuestionItems(rawInputResult.data.questions);
-	}
-
-	return null;
-}
-
 function buildNormalizedBase(
 	request: JsonRpcRequest,
 	params: RequestPermissionParams
@@ -108,7 +63,7 @@ function buildNormalizedBase(
 		jsonRpcRequestId: request.id,
 		toolCallId: getNormalizedToolCallId(request, params.toolCall),
 		toolLabel: getNormalizedToolLabel(params.toolCall),
-		rawInput: params.toolCall.rawInput,
+		diagnosticRawInput: params.toolCall.rawInput,
 		parsedArguments: params.toolCall.parsedArguments,
 		options: params.options,
 		alwaysOptionIds: params.options
@@ -127,22 +82,6 @@ export function normalizeInboundInteractionRequest(
 
 	const params = paramsResult.value;
 	const base = buildNormalizedBase(request, params);
-	const questions = extractNormalizedQuestions(params);
-
-	if (questions !== null) {
-		return ok({
-			kind: "question",
-			sessionId: base.sessionId,
-			jsonRpcRequestId: base.jsonRpcRequestId,
-			toolCallId: base.toolCallId,
-			toolLabel: base.toolLabel,
-			rawInput: base.rawInput,
-			parsedArguments: base.parsedArguments,
-			options: base.options,
-			alwaysOptionIds: base.alwaysOptionIds,
-			questions,
-		});
-	}
 
 	return ok({
 		kind: "permission",
@@ -150,7 +89,7 @@ export function normalizeInboundInteractionRequest(
 		jsonRpcRequestId: base.jsonRpcRequestId,
 		toolCallId: base.toolCallId,
 		toolLabel: base.toolLabel,
-		rawInput: base.rawInput,
+		diagnosticRawInput: base.diagnosticRawInput,
 		parsedArguments: base.parsedArguments,
 		options: base.options,
 		alwaysOptionIds: base.alwaysOptionIds,
@@ -171,28 +110,14 @@ export function toPermissionRequest(
 		permission: request.toolLabel,
 		patterns: [],
 		metadata: {
-			rawInput: request.rawInput,
+			diagnosticRawInput: request.diagnosticRawInput,
 			parsedArguments: request.parsedArguments,
 			options: request.options,
 		},
 		always: request.alwaysOptionIds,
 		tool: {
-			messageID: "",
+			messageID: null,
 			callID: request.toolCallId,
 		},
 	});
-}
-
-export function toQuestionRequest(request: NormalizedInboundQuestionRequest): QuestionRequest {
-	return {
-		id: request.toolCallId,
-		sessionId: request.sessionId,
-		jsonRpcRequestId: request.jsonRpcRequestId,
-		replyHandler: createLegacyInteractionReplyHandler(request.toolCallId, request.jsonRpcRequestId),
-		questions: request.questions,
-		tool: {
-			messageID: "",
-			callID: request.toolCallId,
-		},
-	};
 }

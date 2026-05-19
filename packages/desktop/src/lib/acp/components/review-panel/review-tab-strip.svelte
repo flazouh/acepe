@@ -3,7 +3,7 @@ import { FilePathBadge } from "@acepe/ui";
 import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
 import { XCircle } from "phosphor-svelte";
-import type { ModifiedFileEntry } from "../modified-files/types/modified-file-entry.js";
+import type { ModifiedFileEntry } from "../../types/modified-file-entry.js";
 import type { FileReviewStatus } from "./review-session-state.js";
 
 interface TabItem {

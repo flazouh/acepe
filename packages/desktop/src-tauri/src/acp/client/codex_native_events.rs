@@ -141,7 +141,7 @@ fn translate_permission_request(
             always: permission_always_options(method),
             auto_accepted: false,
             tool: item_id.map(|call_id| ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id,
             }),
         },
@@ -181,7 +181,7 @@ fn translate_question_request(
             )),
             questions,
             tool: item_id.map(|call_id| ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id,
             }),
         },
@@ -333,7 +333,7 @@ fn translate_item_started(
             locations: synthesize_locations(&fields.arguments),
             title: synthesize_title(&fields.arguments).or(Some(fields.title)),
             arguments: fields.arguments,
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(fields.kind),
@@ -499,6 +499,7 @@ fn extract_tool_fields(item_type: &str, item: &serde_json::Map<String, Value>) -
                 kind: ToolKind::Other,
                 arguments: ToolArguments::Other {
                     raw: serde_json::Value::Object(item.clone()),
+                    intent: None,
                 },
                 title: label,
             }
@@ -1326,7 +1327,7 @@ mod tests {
                 assert_eq!(tool_call.kind, Some(ToolKind::Other));
                 assert_eq!(tool_call.title.as_deref(), Some("Searching for main"));
                 match &tool_call.arguments {
-                    ToolArguments::Other { raw } => {
+                    ToolArguments::Other { raw, .. } => {
                         // The raw value should contain the full item object
                         assert_eq!(raw.get("query").and_then(|v| v.as_str()), Some("main"));
                     }

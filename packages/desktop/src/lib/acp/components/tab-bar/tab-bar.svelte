@@ -1,7 +1,13 @@
 <script lang="ts">
-import { type AppTab, AppTabBarTab, type AppTabMode, type AppTabStatus } from "@acepe/ui/app-layout";
+import {
+	type AppTab,
+	AppTabBarTab,
+	type AppTabMode,
+	type AppTabStatus,
+} from "@acepe/ui/app-layout";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
-import { getAgentIcon } from "../../constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "../../constants/thread-list-constants.js";
+import { getAgentStore } from "../../store/index.js";
 import type { TabBarTab } from "../../store/tab-bar-utils.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { deriveAppTabStatus } from "./tab-bar-status.js";
@@ -18,6 +24,19 @@ interface Props {
 let { tabs, onSelectTab, onCloseTab }: Props = $props();
 
 const themeState = useTheme();
+const agentStore = getAgentStore();
+
+function resolveProviderIcon(agentId: string | null | undefined): string | undefined {
+	if (!agentId) {
+		return undefined;
+	}
+
+	const providerBrand =
+		agentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata?.providerBrand ??
+		null;
+
+	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
+}
 
 function tabToAppTab(tab: TabBarTab): AppTab {
 	const status: AppTabStatus = deriveAppTabStatus(tab);
@@ -33,11 +52,11 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		projectColor: tab.projectColor ?? undefined,
 		projectIconSrc: tab.projectIconSrc,
 		sequenceId: tab.sequenceId,
-		agentIconSrc: tab.agentId ? getAgentIcon(tab.agentId, themeState.effectiveTheme) : undefined,
+		agentIconSrc: resolveProviderIcon(tab.agentId),
 		mode,
 		status,
 		isFocused: tab.isFocused,
-		tooltipText: tab.conversationPreview[0]?.text,
+		tooltipText: tab.conversationPreview?.[0]?.text,
 	};
 }
 </script>

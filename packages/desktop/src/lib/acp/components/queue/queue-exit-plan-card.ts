@@ -2,8 +2,7 @@ import type { SessionPlanResponse } from "../../../services/converted-session-ty
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import {
-	type ExitPlanRawInput,
-	readExitPlanRawInput,
+	type ExitPlanInput,
 	readExitPlanPermissionInput,
 } from "../../utils/exit-plan-permission.js";
 import { parsePlanMarkdown } from "../../utils/plan-parser.js";
@@ -22,7 +21,7 @@ function normalized(value: string | null | undefined): string | null {
 	return trimmed.length > 0 ? trimmed : null;
 }
 
-function preferredPath(input: ExitPlanRawInput): string | null {
+function preferredPath(input: ExitPlanInput): string | null {
 	return input.planFilePath ?? input.planPath ?? input.filePath;
 }
 
@@ -36,15 +35,18 @@ function slugFromPath(filePath: string | null): string {
 	return fileName.endsWith(".md") ? fileName.slice(0, -3) : fileName;
 }
 
-function planFromInput(input: ExitPlanRawInput | null): SessionPlanResponse | null {
-	const content = normalized(input?.plan);
-	if (input === null || content === null) {
+function planFromFields(
+	planContent: string | null | undefined,
+	filePath: string | null,
+	title: string | null | undefined
+): SessionPlanResponse | null {
+	const content = normalized(planContent);
+	if (content === null) {
 		return null;
 	}
 
 	const parsedPlan = parsePlanMarkdown(content);
-	const filePath = preferredPath(input);
-	const parsedTitle = normalized(parsedPlan.title);
+	const parsedTitle = normalized(title) ?? normalized(parsedPlan.title);
 
 	return {
 		slug: slugFromPath(filePath),
@@ -55,21 +57,28 @@ function planFromInput(input: ExitPlanRawInput | null): SessionPlanResponse | nu
 	};
 }
 
+function planFromInput(input: ExitPlanInput | null): SessionPlanResponse | null {
+	if (input === null) {
+		return null;
+	}
+
+	return planFromFields(input.plan, preferredPath(input), null);
+}
+
 function planFromToolCall(toolCall: ToolCall | null): SessionPlanResponse | null {
 	if (toolCall === null) {
 		return null;
 	}
 
-	const rawInputPlan = planFromInput(readExitPlanRawInput(toolCall.rawInput ?? undefined));
-	if (rawInputPlan !== null) {
-		return rawInputPlan;
-	}
-
-	if (toolCall.arguments.kind !== "other") {
+	if (toolCall.arguments.kind !== "planMode") {
 		return null;
 	}
 
-	return planFromInput(readExitPlanRawInput(toolCall.arguments.raw));
+	return planFromFields(
+		toolCall.arguments.plan,
+		toolCall.arguments.plan_file_path ?? null,
+		toolCall.arguments.title
+	);
 }
 
 export function buildQueueExitPlanCard(

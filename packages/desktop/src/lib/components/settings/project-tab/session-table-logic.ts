@@ -1,4 +1,4 @@
-import type { SessionSummary } from "$lib/acp/application/dto/session.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import { extractProjectName } from "$lib/acp/utils/path-utils.js";
 import { createProjectColorMap, createProjectNameMap } from "$lib/acp/utils/project-utils.js";
 
@@ -118,7 +118,7 @@ export function sortRows(
 	sortColumn: SortColumn,
 	sortDirection: SortDirection
 ): SessionTableRow[] {
-	const sorted = [...rows];
+	const sorted = Array.from(rows);
 	const multiplier = sortDirection === "asc" ? 1 : -1;
 
 	return sorted.sort((a, b) => {
@@ -132,13 +132,34 @@ export function sortRows(
 			case "status":
 				return multiplier * a.status.localeCompare(b.status);
 			case "entryCount":
-				return multiplier * (a.entryCount - b.entryCount);
+				return compareNullableNumber(a.entryCount, b.entryCount, sortDirection);
 			case "updatedAt":
 				return multiplier * (a.updatedAt.getTime() - b.updatedAt.getTime());
 			default:
 				return 0;
 		}
 	});
+}
+
+function compareNullableNumber(
+	left: number | null,
+	right: number | null,
+	sortDirection: SortDirection
+): number {
+	if (left === null && right === null) {
+		return 0;
+	}
+
+	if (left === null) {
+		return 1;
+	}
+
+	if (right === null) {
+		return -1;
+	}
+
+	const multiplier = sortDirection === "asc" ? 1 : -1;
+	return multiplier * (left - right);
 }
 
 /**

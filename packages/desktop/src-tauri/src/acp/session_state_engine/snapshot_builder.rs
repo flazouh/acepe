@@ -1,16 +1,8 @@
 use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
-use crate::acp::session_state_engine::selectors::select_session_graph_activity;
 
 pub fn build_graph_from_open_found(found: &SessionOpenFound) -> SessionStateGraph {
-    let activity = select_session_graph_activity(
-        &found.lifecycle,
-        &found.turn_state,
-        &found.operations,
-        &found.interactions,
-        found.active_turn_failure.as_ref(),
-    );
     SessionStateGraph {
         requested_session_id: found.requested_session_id.clone(),
         canonical_session_id: found.canonical_session_id.clone(),
@@ -29,11 +21,11 @@ pub fn build_graph_from_open_found(found: &SessionOpenFound) -> SessionStateGrap
         interactions: found.interactions.clone(),
         turn_state: found.turn_state.clone(),
         message_count: found.message_count,
-        last_agent_message_id: found.last_agent_message_id.clone(),
+        active_streaming_tail: found.active_streaming_tail.clone(),
         active_turn_failure: found.active_turn_failure.clone(),
         last_terminal_turn_id: found.last_terminal_turn_id.clone(),
         lifecycle: found.lifecycle.clone(),
-        activity,
+        activity: found.activity.clone(),
         capabilities: found.capabilities.clone(),
     }
 }
@@ -43,7 +35,8 @@ mod tests {
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_open_snapshot::SessionOpenFound;
     use crate::acp::session_state_engine::selectors::{
-        SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
+        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
+        SessionGraphLifecycle,
     };
     use crate::acp::transcript_projection::TranscriptSnapshot;
     use crate::acp::types::CanonicalAgentId;
@@ -72,7 +65,8 @@ mod tests {
             interactions: Vec::new(),
             turn_state: SessionTurnState::Idle,
             message_count: 0,
-            last_agent_message_id: Some("assistant-1".to_string()),
+            activity: SessionGraphActivity::idle(),
+            active_streaming_tail: None,
             lifecycle: SessionGraphLifecycle::ready(),
             capabilities: SessionGraphCapabilities::empty(),
             active_turn_failure: None,
@@ -87,6 +81,6 @@ mod tests {
         assert_eq!(graph.revision.transcript_revision, 3);
         assert_eq!(graph.revision.last_event_seq, 11);
         assert_eq!(graph.activity.kind, SessionGraphActivityKind::Idle);
-        assert_eq!(graph.last_agent_message_id.as_deref(), Some("assistant-1"));
+        assert_eq!(graph.active_streaming_tail, None);
     }
 }

@@ -178,7 +178,7 @@ pub fn normalize_cursor_extension(
 ) -> Result<ProviderExtensionEvent, String> {
     let session_id = current_session_id
         .filter(|value| !value.is_empty())
-        .unwrap_or("unknown")
+        .ok_or_else(|| format!("Cursor extension method {method} requires an active session id"))?
         .to_string();
 
     match strip_underscore_prefix(method) {
@@ -346,7 +346,7 @@ fn normalize_cursor_ask_question(
                     }),
                 questions: canonical_questions,
                 tool: parsed.tool_call_id.as_ref().map(|id| ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: id.clone(),
                 }),
             },
@@ -398,8 +398,9 @@ fn normalize_cursor_create_plan(
                 name: CURSOR_CREATE_PLAN.to_string(),
                 arguments: ToolArguments::Other {
                     raw: params.clone(),
+                    intent: None,
                 },
-                raw_input: Some(params.clone()),
+                diagnostic_input: Some(params.clone()),
                 status: ToolCallStatus::Completed,
                 result: None,
                 kind: Some(ToolKind::CreatePlan),
@@ -717,6 +718,22 @@ mod tests {
             }
             other => panic!("unexpected adapter: {other:?}"),
         }
+    }
+
+    #[test]
+    fn rejects_cursor_extension_without_active_session_id() {
+        let error = normalize_cursor_extension(
+            CURSOR_UPDATE_TODOS,
+            &json!({
+                "toolCallId": "tool-1",
+                "todos": []
+            }),
+            None,
+            None,
+        )
+        .expect_err("missing session id should be rejected");
+
+        assert!(error.contains("requires an active session id"));
     }
 
     #[test]

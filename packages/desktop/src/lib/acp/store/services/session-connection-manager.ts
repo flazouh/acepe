@@ -12,11 +12,9 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import {
-	type ModelsForDisplay,
-	normalizeModelsForDisplay,
-	type ProviderMetadataProjection,
-	resolveProviderMetadataProjection,
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
 import type {
 	SessionModelState as AcpSessionModelState,
@@ -108,14 +106,14 @@ function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string):
 	return reader.getSessionCurrentModeId(sessionId);
 }
 
-function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean {
-	return reader.getSessionAutonomousEnabled(sessionId) ?? false;
+function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean | null {
+	return reader.getSessionAutonomousEnabled(sessionId);
 }
 
 function canonicalCapabilities(
 	reader: ISessionStateReader,
 	sessionId: string
-): SessionCapabilities {
+): SessionCapabilities | null {
 	return reader.getSessionCapabilities(sessionId);
 }
 
@@ -161,17 +159,6 @@ export class SessionConnectionManager {
 		return modeId === CanonicalModeId.BUILD;
 	}
 
-	private resolveProviderMetadata(
-		agentId: string,
-		providerMetadata: ProviderMetadataProjection | null | undefined
-	): ProviderMetadataProjection {
-		return resolveProviderMetadataProjection(
-			agentId,
-			providerMetadata ?? preferencesStore.getCachedProviderMetadata(agentId),
-			agentId
-		);
-	}
-
 	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
 		return api.setSessionAutonomous(sessionId, enabled);
 	}
@@ -209,7 +196,7 @@ export class SessionConnectionManager {
 		availableModels: readonly Model[],
 		currentModelId: string,
 		modelsDisplay: ModelsForDisplay | null | undefined,
-		providerMetadata: ProviderMetadataProjection
+		providerMetadata: ProviderMetadataProjection | null | undefined
 	): Model | null {
 		if (!modelsDisplay || modelsDisplay.groups.length === 0) {
 			return null;
@@ -219,7 +206,7 @@ export class SessionConnectionManager {
 			modelsDisplay.groups.find((group) =>
 				this.matchesDisplayGroupIdentity(group, currentModelId)
 			) ??
-			(providerMetadata.variantGroup === "reasoningEffort" && modelsDisplay.groups.length === 1
+			(providerMetadata?.variantGroup === "reasoningEffort" && modelsDisplay.groups.length === 1
 				? modelsDisplay.groups[0]
 				: null);
 
@@ -256,7 +243,6 @@ export class SessionConnectionManager {
 	 * Some agents return a base model ID while available models include variant suffixes.
 	 */
 	private resolveCurrentModel(
-		agentId: string,
 		availableModels: readonly Model[],
 		currentModelId: string | null | undefined,
 		modelsDisplay: ModelsForDisplay | null | undefined,
@@ -272,12 +258,11 @@ export class SessionConnectionManager {
 				return exact;
 			}
 
-			const resolvedProviderMetadata = this.resolveProviderMetadata(agentId, providerMetadata);
 			const groupedVariant = this.resolveModelFromDisplayGroup(
 				availableModels,
 				currentModelId,
 				modelsDisplay,
-				resolvedProviderMetadata
+				providerMetadata
 			);
 			if (groupedVariant) {
 				return groupedVariant;
@@ -333,38 +318,36 @@ export class SessionConnectionManager {
 				const sessionId = result.sessionId;
 				if (result.deferredCreation === true) {
 					const modelState = getProviderAwareSessionModelState(result.models);
-					const rawModels = modelState.availableModels ?? [];
+					const rawModels = modelState.availableModels;
 					const rawProviderMetadata = modelState.providerMetadata;
-					const providerMetadata = this.resolveProviderMetadata(
-						options.agentId,
-						rawProviderMetadata
-					);
-					const availableModels: Model[] = rawModels.map((m) => ({
-						id: m.modelId,
-						name: m.name,
-						description: m.description ?? undefined,
-					}));
-					const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-						id: m.id,
-						name: m.name,
-						description: m.description ?? undefined,
-					}));
-					const modelsDisplay =
-						normalizeModelsForDisplay(
-							options.agentId,
-							modelState.modelsDisplay,
-							options.agentId,
-							providerMetadata
-						) ?? undefined;
+					const providerMetadata = rawProviderMetadata ?? undefined;
+					const availableModels: Model[] =
+						rawModels === undefined
+							? []
+							: rawModels.map((m) => ({
+									id: m.modelId,
+									name: m.name,
+									description: m.description ?? undefined,
+								}));
+					const rawModes = result.modes?.availableModes;
+					const availableModes: Mode[] =
+						rawModes === undefined
+							? []
+							: rawModes.map((m) => ({
+									id: m.id,
+									name: m.name,
+									description: m.description ?? undefined,
+								}));
+					const modelsDisplay = modelState.modelsDisplay ?? undefined;
 
-					preferencesStore.updateModelsCache(options.agentId, availableModels);
+					if (rawModels !== undefined) {
+						preferencesStore.updateModelsCache(options.agentId, availableModels);
+					}
 					preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-					preferencesStore.updateModelsDisplayCache(
-						options.agentId,
-						modelsDisplay,
-						providerMetadata
-					);
-					preferencesStore.updateModesCache(options.agentId, availableModes);
+					preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+					if (rawModes !== undefined) {
+						preferencesStore.updateModesCache(options.agentId, availableModes);
+					}
 					this.hotStateManager.initializeHotState(sessionId);
 					logger.info("Deferred session creation is pending provider identity promotion", {
 						sessionId,
@@ -384,34 +367,34 @@ export class SessionConnectionManager {
 				const now = new Date();
 				const modelState = getProviderAwareSessionModelState(result.models);
 				const {
-					availableModels: rawModels = [],
+					availableModels: rawModels,
 					currentModelId,
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
 				} = modelState;
-				const providerMetadata = this.resolveProviderMetadata(options.agentId, rawProviderMetadata);
-				const modelsDisplay =
-					normalizeModelsForDisplay(
-						options.agentId,
-						rawModelsDisplay,
-						options.agentId,
-						providerMetadata
-					) ?? undefined;
+				const providerMetadata = rawProviderMetadata ?? undefined;
+				const modelsDisplay = rawModelsDisplay ?? undefined;
 
-				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-					id: m.id,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
+				const rawModes = result.modes?.availableModes;
+				const availableModes: Mode[] =
+					rawModes === undefined
+						? []
+						: rawModes.map((m) => ({
+								id: m.id,
+								name: m.name,
+								description: m.description ?? undefined,
+							}));
 
-				const availableModels: Model[] = rawModels.map((m) => ({
-					id: m.modelId,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
+				const availableModels: Model[] =
+					rawModels === undefined
+						? []
+						: rawModels.map((m) => ({
+								id: m.modelId,
+								name: m.name,
+								description: m.description ?? undefined,
+							}));
 				let currentMode = availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
 				let currentModel = this.resolveCurrentModel(
-					options.agentId,
 					availableModels,
 					currentModelId,
 					modelsDisplay,
@@ -534,14 +517,14 @@ export class SessionConnectionManager {
 
 						return applyInitialAutonomous.map(() => {
 							// Cache available models and modes for settings/optimistic display
-							preferencesStore.updateModelsCache(options.agentId, availableModels);
+							if (rawModels !== undefined) {
+								preferencesStore.updateModelsCache(options.agentId, availableModels);
+							}
 							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-							preferencesStore.updateModelsDisplayCache(
-								options.agentId,
-								modelsDisplay,
-								providerMetadata
-							);
-							preferencesStore.updateModesCache(options.agentId, availableModes);
+							preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+							if (rawModes !== undefined) {
+								preferencesStore.updateModesCache(options.agentId, availableModes);
+							}
 							logger.info("Provider model capabilities on session creation", {
 								sessionId,
 								agentId: options.agentId,
@@ -761,36 +744,33 @@ export class SessionConnectionManager {
 	): void {
 		const modelState = getProviderAwareSessionModelState(data.models);
 		const {
-			availableModels: rawModels = [],
+			availableModels: rawModels,
 			currentModelId,
 			modelsDisplay: rawModelsDisplay,
 			providerMetadata: rawProviderMetadata,
 		} = modelState;
-		const providerMetadata = this.resolveProviderMetadata(
-			effectiveAgentId,
-			rawProviderMetadata as ProviderMetadataProjection | undefined
-		);
-		const modelsDisplay =
-			normalizeModelsForDisplay(
-				effectiveAgentId,
-				rawModelsDisplay as ModelsForDisplay | undefined,
-				effectiveAgentId,
-				providerMetadata
-			) ?? undefined;
+		const providerMetadata = rawProviderMetadata ?? undefined;
+		const modelsDisplay = rawModelsDisplay ?? undefined;
 
-		const availableModes: Mode[] = (data.modes?.availableModes ?? []).map((m) => ({
-			id: m.id,
-			name: m.name,
-			description: m.description ?? undefined,
-		}));
+		const rawModes = data.modes?.availableModes;
+		const availableModes: Mode[] =
+			rawModes === undefined
+				? []
+				: rawModes.map((m) => ({
+						id: m.id,
+						name: m.name,
+						description: m.description ?? undefined,
+					}));
 
-		const availableModels: Model[] = rawModels.map((m) => ({
-			id: m.modelId,
-			name: m.name,
-			description: m.description ?? undefined,
-		}));
+		const availableModels: Model[] =
+			rawModels === undefined
+				? []
+				: rawModels.map((m) => ({
+						id: m.modelId,
+						name: m.name,
+						description: m.description ?? undefined,
+					}));
 		const initialModel = this.resolveCurrentModel(
-			effectiveAgentId,
 			availableModels,
 			currentModelId,
 			modelsDisplay,
@@ -798,10 +778,14 @@ export class SessionConnectionManager {
 		);
 
 		// Cache available models and modes for settings/optimistic display
-		preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
+		if (rawModels !== undefined) {
+			preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
+		}
 		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay, providerMetadata);
-		preferencesStore.updateModesCache(effectiveAgentId, availableModes);
+		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay);
+		if (rawModes !== undefined) {
+			preferencesStore.updateModesCache(effectiveAgentId, availableModes);
+		}
 		logger.info("Provider model capabilities on session resume", {
 			sessionId,
 			agentId: effectiveAgentId,
@@ -829,8 +813,8 @@ export class SessionConnectionManager {
 		// Disconnect in state machine
 		this.connectionManager.sendDisconnect(sessionId);
 
-		// Read acpSessionId from hot state before clearing it
-		const acpSessionId = this.stateReader.getHotState(sessionId).acpSessionId;
+		// Read provider session id before clearing local transport mapping.
+		const acpSessionId = this.stateReader.getSessionAcpSessionId(sessionId);
 
 		// Pure GOD: Rust emits a Detached(ClosedByClient) lifecycle envelope from
 		// `acp_close_session` before tearing down the subprocess. Canonical
@@ -911,10 +895,15 @@ export class SessionConnectionManager {
 		}
 
 		const capabilities = canonicalCapabilities(this.stateReader, sessionId);
-		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
+		if (capabilities === null) {
+			return errAsync(new ConnectionError(sessionId));
+		}
+		const newMode = capabilities.availableModes?.find((m) => m.id === modeId) ?? null;
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
 		const nextAutonomousEnabled =
-			oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
+			oldAutonomousEnabled === null
+				? null
+				: oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
 		logger.debug("Setting mode", { sessionId, modeId });
 
 		const applyMode = api.setMode(session.id, modeId);
@@ -925,7 +914,9 @@ export class SessionConnectionManager {
 
 				const syncAutonomousPolicy =
 					oldAutonomousEnabled !== nextAutonomousEnabled
-						? this.setSessionAutonomous(session.id, nextAutonomousEnabled)
+						? nextAutonomousEnabled === null
+							? okAsync(undefined)
+							: this.setSessionAutonomous(session.id, nextAutonomousEnabled)
 						: okAsync(undefined);
 
 				return syncAutonomousPolicy;
@@ -946,7 +937,7 @@ export class SessionConnectionManager {
 				const previousModelForMode = preferencesStore.getSessionModelForMode(sessionId, modeId);
 				if (
 					previousModelForMode &&
-					capabilities.availableModels.some((m) => m.id === previousModelForMode)
+					capabilities.availableModels?.some((m) => m.id === previousModelForMode) === true
 				) {
 					// Restore user's previous choice for this mode
 					logger.debug("Restoring previous model choice for mode", {
@@ -960,7 +951,10 @@ export class SessionConnectionManager {
 				// No previous choice, check for default model for this mode
 				const modeType = this.getModeType(modeId);
 				const defaultModelId = preferencesStore.getDefaultModel(session.agentId, modeType);
-				if (defaultModelId && capabilities.availableModels.some((m) => m.id === defaultModelId)) {
+				if (
+					defaultModelId &&
+					capabilities.availableModels?.some((m) => m.id === defaultModelId) === true
+				) {
 					logger.debug("Applying default model for mode", {
 						sessionId,
 						modeId,
@@ -988,11 +982,10 @@ export class SessionConnectionManager {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 
-		const hotState = this.stateReader.getHotState(sessionId);
 		const targetEnabled =
 			enabled &&
 			this.supportsAutonomousMode(canonicalCurrentModeId(this.stateReader, sessionId) ?? undefined);
-		if (hotState.autonomousTransition !== "idle") {
+		if (this.stateReader.getSessionAutonomousTransitionBusy(sessionId)) {
 			return errAsync(
 				new AgentError(
 					"setAutonomousEnabled",
@@ -1069,8 +1062,7 @@ export class SessionConnectionManager {
 		return api
 			.stopStreaming(session.id)
 			.map(() => {
-				// Transition machine STREAMING → READY so deriveSessionRuntimeState()
-				// sees the updated connection state after the reactive anchor fires.
+				// Transition machine STREAMING -> READY for machine-backed selectors.
 				this.connectionManager.sendResponseComplete(sessionId);
 				logger.debug("Streaming cancelled", { sessionId });
 				return undefined;

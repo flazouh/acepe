@@ -1,7 +1,7 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 
-import type { SessionCold } from "../../../application/dto/session";
+import type { SessionCold } from "../../../application/dto/session-cold";
 import type { SessionStateGraph } from "../../../../services/acp-types.js";
 import { createLogger } from "../../../utils/logger.js";
 

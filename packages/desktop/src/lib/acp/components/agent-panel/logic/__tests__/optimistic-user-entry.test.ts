@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
+import type { TranscriptEntry } from "../../../../../services/acp-types.js";
 import {
+	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "../optimistic-user-entry.js";
@@ -16,6 +18,66 @@ function createUserEntry(id: string, text: string): SessionEntry {
 		},
 	};
 }
+
+function transcriptEntry(input: {
+	readonly entryId: string;
+	readonly role: "user" | "assistant";
+	readonly attemptId: string | null;
+}): TranscriptEntry {
+	return {
+		entryId: input.entryId,
+		role: input.role,
+		segments: [],
+		attemptId: input.attemptId,
+	};
+}
+
+describe("deriveCanonicalUserEntryPresence", () => {
+	it("keeps missing canonical transcript distinct from empty canonical transcript", () => {
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: null,
+				pendingAttemptId: "attempt-1",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: null,
+			hasCanonicalMatchingPendingUserEntry: null,
+		});
+
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: [],
+				pendingAttemptId: "attempt-1",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: false,
+			hasCanonicalMatchingPendingUserEntry: false,
+		});
+	});
+
+	it("detects canonical user entries and matching pending attempts", () => {
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: [
+					transcriptEntry({
+						entryId: "assistant-1",
+						role: "assistant",
+						attemptId: null,
+					}),
+					transcriptEntry({
+						entryId: "user-1",
+						role: "user",
+						attemptId: "attempt-1",
+					}),
+				],
+				pendingAttemptId: "attempt-1",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: true,
+		});
+	});
+});
 
 describe("resolveOptimisticUserEntryForGraph", () => {
 	it("keeps the panel pending entry during the first-send session handoff", () => {
@@ -70,9 +132,39 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 
 		expect(entry).toBeNull();
 	});
+
+	it("does not show optimistic entries when canonical transcript state is unknown", () => {
+		const panelPending = createUserEntry("panel-pending", "Hello Claude");
+		const sessionPending = createUserEntry("session-pending", "Hello Claude");
+
+		const panelEntry = resolveOptimisticUserEntryForGraph({
+			panelPendingUserEntry: panelPending,
+			sessionPendingOptimisticEntry: null,
+			hasCanonicalUserEntry: null,
+			hasCanonicalMatchingPendingUserEntry: null,
+		});
+		const sessionEntry = resolveOptimisticUserEntryForGraph({
+			panelPendingUserEntry: null,
+			sessionPendingOptimisticEntry: sessionPending,
+			hasCanonicalUserEntry: null,
+			hasCanonicalMatchingPendingUserEntry: null,
+		});
+
+		expect(panelEntry).toBeNull();
+		expect(sessionEntry).toBeNull();
+	});
 });
 
 describe("resolveVisibleEntryCount", () => {
+	it("preserves unknown canonical entry count", () => {
+		const count = resolveVisibleEntryCount({
+			canonicalEntryCount: null,
+			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
+		});
+
+		expect(count).toBeNull();
+	});
+
 	it("counts the optimistic user entry while canonical entries are empty", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 0,

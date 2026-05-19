@@ -31,13 +31,12 @@ describe("desktop agent panel scene adapter", () => {
 				},
 			},
 			{
-				id: "tool-1",
+				id: "transcript-tool-row-1",
 				type: "tool_call",
 				message: {
-					id: "tool-1",
+					id: "provider-tool-call-1",
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test src/lib/auth" },
-					rawInput: null,
 					status: "completed",
 					result: "raw execute payload should not drive the scene entry",
 					kind: "execute",
@@ -101,8 +100,9 @@ describe("desktop agent panel scene adapter", () => {
 			text: "Migrate auth to JWT",
 		});
 		expect(conversation.entries[1]).toMatchObject({
-			id: "tool-1",
+			id: "transcript-tool-row-1",
 			type: "tool_call",
+			toolCallId: "provider-tool-call-1",
 			kind: "execute",
 			status: "done",
 			command: "bun test src/lib/auth",
@@ -133,7 +133,6 @@ describe("desktop agent panel scene adapter", () => {
 							viewRange: { startLine: 443, endLine: 443 },
 						},
 					},
-					rawInput: null,
 					status: "completed",
 					result: null,
 					kind: "read",
@@ -181,7 +180,6 @@ describe("desktop agent panel scene adapter", () => {
 							},
 						],
 					},
-					rawInput: null,
 					status: "completed",
 					result: null,
 					kind: "edit",
@@ -218,7 +216,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("maps Claude Code ExitPlanMode raw input into a plan tool card model", () => {
+	it("maps canonical ExitPlanMode arguments into a plan tool card model", () => {
 		const plan = "# Focused Plan\n\n- [ ] Fix the exit plan display";
 		const entries: SessionEntry[] = [
 			{
@@ -230,10 +228,8 @@ describe("desktop agent panel scene adapter", () => {
 					arguments: {
 						kind: "planMode",
 						mode: null,
-					},
-					rawInput: {
 						plan,
-						planFilePath: "/repo/.claude/plans/focused-plan.md",
+						plan_file_path: "/repo/.claude/plans/focused-plan.md",
 					},
 					status: "completed",
 					result: null,
@@ -277,10 +273,8 @@ describe("desktop agent panel scene adapter", () => {
 					arguments: {
 						kind: "planMode",
 						mode: null,
-					},
-					rawInput: {
 						plan,
-						planFilePath: "/repo/.claude/plans/make-this-an-animation.md",
+						plan_file_path: "/repo/.claude/plans/make-this-an-animation.md",
 					},
 					status: "in_progress",
 					result: null,
@@ -312,7 +306,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("reads restored ExitPlanMode plan content from arguments.raw when rawInput is missing", () => {
+	it("reads restored ExitPlanMode plan content from canonical arguments when diagnosticRawInput is missing", () => {
 		const plan = "# Restored Plan\n\n- [ ] Render from restored arguments";
 		const entries: SessionEntry[] = [
 			{
@@ -322,13 +316,11 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-exit-plan-restored",
 					name: "ExitPlanMode",
 					arguments: {
-						kind: "other",
-						raw: {
-							plan,
-							planFilePath: "/repo/.claude/plans/restored-plan.md",
-						},
+						kind: "planMode",
+						mode: null,
+						plan,
+						plan_file_path: "/repo/.claude/plans/restored-plan.md",
 					},
-					rawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "exit_plan_mode",
@@ -359,7 +351,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("only keeps the trailing incomplete tool call live during streaming", () => {
+	it("maps each tool status from canonical tool-call state instead of transcript position", () => {
 		const entries: SessionEntry[] = [
 			{
 				id: "tool-1",
@@ -368,7 +360,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-1",
 					name: "search",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "search",
@@ -391,7 +382,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-2",
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test" },
-					rawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "execute",
@@ -414,7 +404,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			id: "tool-1",
 			type: "tool_call",
-			status: "done",
+			status: "running",
 		});
 		expect(conversation.entries[1]).toMatchObject({
 			id: "tool-2",
@@ -423,7 +413,7 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("normalizes stale incomplete tool calls to done outside live streaming", () => {
+	it("keeps incomplete tool-call status outside live streaming instead of repairing it downstream", () => {
 		const entries: SessionEntry[] = [
 			{
 				id: "tool-1",
@@ -432,7 +422,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "tool-1",
 					name: "search",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
 					status: "in_progress",
 					result: null,
 					kind: "search",
@@ -455,7 +444,7 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			id: "tool-1",
 			type: "tool_call",
-			status: "done",
+			status: "running",
 		});
 	});
 
@@ -494,7 +483,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "search-1",
 					name: "rg",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
 					status: "completed",
 					result: {
 						mode: "files_with_matches",
@@ -527,7 +515,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "fetch-1",
 					name: "fetch",
 					arguments: { kind: "fetch", url: "https://acepe.dev/docs" },
-					rawInput: null,
 					status: "completed",
 					result: "wrong fetch body",
 					kind: "fetch",
@@ -557,7 +544,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "search-content-1",
 					name: "rg",
 					arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-					rawInput: null,
 					status: "completed",
 					result: {
 						content: "1:wrong result",
@@ -605,7 +591,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "web-1",
 					name: "webSearch",
 					arguments: { kind: "webSearch", query: "acepe agent panel" },
-					rawInput: null,
 					status: "completed",
 					result: {
 						summary: "Wrong raw summary",
@@ -636,7 +621,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "lint-1",
 					name: "read_lints",
 					arguments: { kind: "readLints", raw: {} },
-					rawInput: null,
 					status: "completed",
 					result: {
 						totalDiagnostics: 1,
@@ -665,7 +649,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "lint-alias-1",
 					name: "read_lints",
 					arguments: { kind: "read", file_path: "/tmp/lints.json" },
-					rawInput: null,
 					status: "completed",
 					result: {
 						diagnostics: [
@@ -697,7 +680,6 @@ describe("desktop agent panel scene adapter", () => {
 					id: "task-output-1",
 					name: "task_output",
 					arguments: { kind: "taskOutput", task_id: "subagent-1", timeout: null },
-					rawInput: null,
 					status: "completed",
 					result: "subagent finished",
 					kind: "task_output",
@@ -728,7 +710,6 @@ describe("desktop agent panel scene adapter", () => {
 						skill_args: null,
 						raw: { skill: "frontend-design" },
 					},
-					rawInput: { skill: "frontend-design" },
 					status: "completed",
 					result: null,
 					kind: "skill",
@@ -821,7 +802,6 @@ describe("desktop agent panel scene adapter", () => {
 						skill_args: null,
 						raw: null,
 					},
-					rawInput: null,
 					status: "completed",
 					result: "done",
 					kind: "task",
@@ -836,7 +816,6 @@ describe("desktop agent panel scene adapter", () => {
 							id: "child-search-1",
 							name: "search",
 							arguments: { kind: "search", query: "jwt", file_path: "src/lib/auth.ts" },
-							rawInput: null,
 							status: "in_progress",
 							result: null,
 							kind: "search",
@@ -887,8 +866,11 @@ describe("desktop agent panel scene adapter", () => {
 				message: {
 					id: "tool-1",
 					name: "report_intent",
-					arguments: { kind: "other", raw: { intent: "Viewing extracted lines" } },
-					rawInput: { intent: "Viewing extracted lines" },
+					arguments: {
+						kind: "other",
+						raw: { intent: "Viewing extracted lines" },
+						intent: "Viewing extracted lines",
+					},
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -918,29 +900,19 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
-	it("surfaces write_bash shell input metadata on generic tool rows", () => {
+	it("does not derive other tool subtitles from raw arguments", () => {
 		const entries: SessionEntry[] = [
 			{
-				id: "write-bash-1",
+				id: "tool-raw-only",
 				type: "tool_call",
 				message: {
-					id: "write-bash-1",
-					name: "write_bash",
-					arguments: {
-						kind: "unclassified",
-						raw_name: "write_bash",
-						raw_kind_hint: null,
-						title: "Write shell input",
-						arguments_preview: '{"shellId":"2","input":"{enter}","delay":10}',
-						signals_tried: ["ProviderNameMap", "ArgumentShape"],
-					},
-					rawInput: { shellId: "2", input: "{enter}", delay: 10 },
+					id: "tool-raw-only",
+					name: "report_intent",
+					arguments: { kind: "other", raw: { intent: "Raw intent should not display" } },
 					status: "completed",
-					result: {
-						content: "done",
-					},
-					kind: "unclassified",
-					title: "Write shell input",
+					result: null,
+					kind: "other",
+					title: null,
 					locations: null,
 					skillMeta: null,
 					normalizedQuestions: null,
@@ -959,9 +931,92 @@ describe("desktop agent panel scene adapter", () => {
 		expect(conversation.entries[0]).toMatchObject({
 			type: "tool_call",
 			kind: "other",
+			title: "Report Intent",
+			subtitle: undefined,
+			status: "done",
+		});
+	});
+
+	it("does not leak provider raw input into visible other tool details", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "tool-raw-details",
+				type: "tool_call",
+				message: {
+					id: "tool-raw-details",
+					name: "report_intent",
+					arguments: { kind: "other", raw: { intent: "Canonical argument" } },
+					status: "completed",
+					result: null,
+					kind: "other",
+					title: null,
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+		const entry = conversation.entries[0];
+
+		expect(entry.type).toBe("tool_call");
+		if (entry.type !== "tool_call") {
+			throw new Error("Expected a tool-call entry");
+		}
+		expect(entry.kind).toBe("other");
+		expect(typeof entry.detailsText).toBe("string");
+		const detailsText = entry.detailsText ?? "";
+		expect(detailsText.includes('"arguments"')).toBe(true);
+		expect(detailsText.includes("diagnosticRawInput")).toBe(false);
+		expect(detailsText.includes("secret_provider_payload")).toBe(false);
+	});
+
+	it("surfaces write_bash shell input metadata on generic tool rows", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "write-bash-1",
+				type: "tool_call",
+				message: {
+					id: "write-bash-1",
+					name: "write_bash",
+					arguments: {
+						kind: "shellInput",
+						shell_id: "2",
+						input: "{enter}",
+					},
+					status: "completed",
+					result: {
+						content: "done",
+					},
+					kind: "shell_input",
+					title: "Write shell input",
+					locations: null,
+					skillMeta: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "idle");
+
+		expect(conversation.entries[0]).toMatchObject({
+			type: "tool_call",
+			kind: "execute",
 			title: "Write shell input",
 			subtitle: "Shell 2: {enter}",
-			detailsText: expect.stringContaining('"shellId": "2"'),
 			status: "done",
 		});
 	});
@@ -979,7 +1034,6 @@ describe("desktop agent panel scene adapter", () => {
 						query: "UPDATE todos SET status = 'done'",
 						description: "Mark all done",
 					},
-					rawInput: { description: "Mark all done" },
 					status: "completed",
 					result: {
 						rowsAffected: 3,
@@ -1010,13 +1064,12 @@ describe("desktop agent panel scene adapter", () => {
 					name: "unknown",
 					arguments: {
 						kind: "unclassified",
-						raw_name: "unknown",
-						raw_kind_hint: "other",
+						provider_name: "unknown",
+						provider_kind_hint: "other",
 						title: "Mystery tool",
 						arguments_preview: '{"foo":"bar"}',
 						signals_tried: ["provider_name_map", "argument_shape"],
 					},
-					rawInput: { foo: "bar" },
 					status: "completed",
 					result: null,
 					kind: "unclassified",
@@ -1235,7 +1288,6 @@ describe("desktop agent panel scene adapter", () => {
 			},
 			"streaming",
 			false,
-			null,
 			startedAtMs + 4_000
 		);
 
@@ -1268,7 +1320,6 @@ describe("desktop agent panel scene adapter", () => {
 					id,
 					name: "bash",
 					arguments: { kind: "execute", command: "bun test" },
-					rawInput: null,
 					status: "completed",
 					result: null,
 					kind: "execute",
@@ -1289,7 +1340,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("stamps isOptimistic: true on user entries when options.isOptimistic is true", () => {
 			const entry = makeUserEntry("u1", "Hello");
-			const result = mapSessionEntryToConversationEntry(entry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(entry, undefined, {
 				isOptimistic: true,
 			});
 
@@ -1312,7 +1363,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("leaves isOptimistic undefined on user entries when isOptimistic is false", () => {
 			const entry = makeUserEntry("u3", "Hello false");
-			const result = mapSessionEntryToConversationEntry(entry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(entry, undefined, {
 				isOptimistic: false,
 			});
 
@@ -1324,7 +1375,7 @@ describe("desktop agent panel scene adapter", () => {
 
 		it("does NOT add isOptimistic to non-user entry variants even when options flag is set", () => {
 			const toolEntry = makeToolEntry("t1");
-			const result = mapSessionEntryToConversationEntry(toolEntry, undefined, null, {
+			const result = mapSessionEntryToConversationEntry(toolEntry, undefined, {
 				isOptimistic: true,
 			});
 

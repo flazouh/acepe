@@ -118,11 +118,15 @@ impl AgentClient for OpenCodeHttpClient {
             provider_metadata: Some(resolved_capabilities.provider_metadata),
         };
         response.modes = SessionModes {
-            current_mode_id: resolved_capabilities.current_mode_id,
+            current_mode_id: resolved_capabilities
+                .current_mode_id
+                .unwrap_or_else(|| "build".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
-        self.seed_current_model(&response.models.current_model_id)?;
+        if let Some(model_id) = response.models.current_model_id.as_deref() {
+            self.seed_current_model(model_id)?;
+        }
 
         Ok(response)
     }
@@ -182,11 +186,15 @@ impl AgentClient for OpenCodeHttpClient {
             provider_metadata: Some(resolved_capabilities.provider_metadata),
         };
         response.modes = SessionModes {
-            current_mode_id: resolved_capabilities.current_mode_id,
+            current_mode_id: resolved_capabilities
+                .current_mode_id
+                .unwrap_or_else(|| "build".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
-        self.seed_current_model(&response.models.current_model_id)?;
+        if let Some(model_id) = response.models.current_model_id.as_deref() {
+            self.seed_current_model(model_id)?;
+        }
 
         Ok(response)
     }

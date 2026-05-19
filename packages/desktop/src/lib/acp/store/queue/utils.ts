@@ -15,10 +15,18 @@ import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
-import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "../live-session-work.js";
+import {
+	deriveLiveSessionState,
+	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
+} from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
-import { selectSessionStatusForPresentation } from "../session-work-projection.js";
+import {
+	selectSessionStatusForPresentation,
+	selectSessionWorkBucket,
+	type SessionWorkBucket,
+} from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
@@ -45,6 +53,7 @@ export interface QueueSessionSnapshot {
 	readonly isStreaming: boolean;
 	readonly isThinking: boolean;
 	readonly status: SessionStatus;
+	readonly workBucket: SessionWorkBucket;
 	readonly updatedAt: Date;
 	readonly currentModeId: string | null;
 	/** Connection/agent error message (e.g. acp_resume_session failure) */
@@ -65,7 +74,7 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure: ActiveTurnFailure | null;
-	readonly canonicalProjection?: CanonicalSessionProjection | null;
+	readonly canonicalProjection: CanonicalSessionProjection | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
@@ -126,14 +135,18 @@ export function deriveQueueSessionState(input: QueueSessionStateInput) {
 export function buildQueueSessionSnapshot(
 	input: BuildQueueSessionSnapshotInput
 ): QueueSessionSnapshot {
+	const source = liveSessionWorkSourceFromCanonicalProjection(
+		input.id,
+		input.canonicalProjection
+	);
 	const state = deriveLiveSessionState({
-		canonicalProjection: input.canonicalProjection ?? null,
+		source,
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
 	const workProjection = deriveLiveSessionWorkProjection({
-		canonicalProjection: input.canonicalProjection ?? null,
+		source,
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
@@ -152,6 +165,7 @@ export function buildQueueSessionSnapshot(
 		isStreaming: workProjection.compactActivityKind === "streaming",
 		isThinking: workProjection.compactActivityKind === "thinking",
 		status: selectSessionStatusForPresentation(workProjection),
+		workBucket: selectSessionWorkBucket(workProjection),
 		updatedAt: input.updatedAt,
 		currentModeId: input.currentModeId,
 		connectionError: input.connectionError,
@@ -208,6 +222,7 @@ export function buildQueueItem(
 		pendingQuestion,
 		pendingPlanApproval,
 		status: session.status,
+		workBucket: session.workBucket,
 		connectionError: session.connectionError ?? null,
 		activeTurnFailure: session.activeTurnFailure ?? null,
 		state: session.state,
@@ -216,8 +231,7 @@ export function buildQueueItem(
 
 /**
  * Calculate urgency for a session.
- * Uses session.status directly - this should reflect the actual state
- * including "streaming" when the agent is actively working.
+ * Uses the canonical-derived queue snapshot status plus canonical failure fields.
  */
 export function calculateSessionUrgency(
 	session: QueueSessionSnapshot,

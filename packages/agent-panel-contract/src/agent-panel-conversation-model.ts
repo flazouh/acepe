@@ -105,6 +105,8 @@ export interface AgentPanelToolCallEntry {
 	subtitle?: string;
 	filePath?: string;
 	status: AgentPanelToolStatus;
+	startedAtMs?: number | null;
+	completedAtMs?: number | null;
 	command?: string | null;
 	stdout?: string | null;
 	stderr?: string | null;

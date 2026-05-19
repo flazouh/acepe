@@ -1,43 +1,43 @@
 /**
  * Unified store types.
  *
- * Session types are imported from the canonical location in application/dto/session.ts.
+ * Session types are imported from focused DTO modules under application/dto.
  * This file contains store-specific types like panels, agents, and workspace persistence.
  */
 
 // Import SessionEntry for use within this file (PanelHotState)
-import type { SessionEntry as _SessionEntry } from "../application/dto/session";
+import type { SessionEntry as _SessionEntry } from "../application/dto/session-entry.js";
 
 /**
  * Resume session result from ACP.
  * This type is now imported from generated ACP types for consistency with Rust backend.
  */
 export type { NewSessionResponse as ResumeSessionResult } from "../../services/acp-types.js";
-// Re-export session types from canonical location
+// Re-export session DTOs for store consumers.
+export type { Mode } from "../application/dto/mode.js";
+export type { Model } from "../application/dto/model.js";
+export type { SessionCapabilities } from "../application/dto/session-capabilities.js";
+export type { SessionCold } from "../application/dto/session-cold.js";
+export type { SessionEntry } from "../application/dto/session-entry.js";
+export type { SessionIdentity } from "../application/dto/session-identity.js";
 export type {
-	Mode,
-	Model,
-	Session,
-	SessionCapabilities,
-	SessionCold,
-	SessionEntry,
-	SessionIdentity,
 	SessionLinkedPr,
-	SessionMetadata,
 	SessionPrLinkMode,
-	SessionStatus,
-	SessionSummary,
-	TaskProgress,
-} from "../application/dto/session";
+} from "../application/dto/session-linked-pr.js";
+export type { SessionMetadata } from "../application/dto/session-metadata.js";
+export type { SessionStatus } from "../application/dto/session-status.js";
+export type { SessionSummary } from "../application/dto/session-summary.js";
+export type { Session } from "../application/dto/session.js";
+export type { TaskProgress } from "../application/dto/task-progress.js";
 
 // ============================================
 // STORE-SPECIFIC TYPES
 // ============================================
 
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
-import type { SessionCapabilities } from "../application/dto/session";
+import type { SessionCapabilities } from "../application/dto/session-capabilities.js";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
-import type { ModifiedFilesState } from "../components/modified-files/types/modified-files-state";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 
@@ -458,7 +458,7 @@ export interface HistoryEntry {
 	readonly agentId: string; // Identifies which agent created this session
 }
 
-export { isToolCallEntry } from "../application/dto/session";
+export { isToolCallEntry } from "../application/dto/session-entry.js";
 
 // ============================================
 // VIEW MODE
@@ -499,8 +499,6 @@ export interface PersistedWorkspaceState {
 	readonly sqlStudio?: PersistedSqlStudioState;
 	/** Full-screen review overlay state (added in version 5) */
 	readonly reviewFullscreen?: PersistedReviewFullscreenState;
-	/** Open terminal panels persisted across app restarts (added in version 7, legacy flat shape) */
-	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
 	/** Explicit top-level terminal groups persisted across app restarts (added in version 10). */
 	readonly terminalPanelGroups?: ReadonlyArray<PersistedTerminalPanelGroupState>;
 	/** Terminal tabs persisted separately from runtime PTY state (added in version 10). */
@@ -511,17 +509,17 @@ export interface PersistedWorkspaceState {
 	readonly viewMode?: ViewMode;
 	/** Embedded terminal tabs per agent panel (added in version 9) */
 	readonly embeddedTerminalTabs?: ReadonlyArray<PersistedEmbeddedTerminalState>;
-	/** @deprecated Use viewMode instead. Kept for backward-compatible restore. */
-	readonly focusedViewEnabled?: boolean;
 	/** Which project path is focused in focused view */
 	readonly focusedViewProjectPath?: string | null;
 	/** Project paths whose sidebar cards are collapsed */
 	readonly collapsedProjectPaths?: readonly string[];
 	/** Whether the attention queue card is expanded (defaults to true) */
 	readonly queueExpanded?: boolean;
-	/**
-	 * @deprecated Use PersistedPanelState.messageDraft instead. Kept for backward compatibility.
-	 */
+}
+
+export interface PersistedWorkspaceRestoreState extends PersistedWorkspaceState {
+	readonly terminalPanels?: ReadonlyArray<PersistedTerminalPanelState>;
+	readonly focusedViewEnabled?: boolean;
 	readonly messageDrafts?: Record<number, string>;
 }
 

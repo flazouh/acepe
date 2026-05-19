@@ -4,14 +4,11 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
-import type { TranscriptEntry } from "$lib/services/acp-types.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
 import CheckpointCard from "./checkpoint-card.svelte";
-
-/** Maximum characters for user message preview */
-const MAX_PREVIEW_LENGTH = 50;
+import { deriveCheckpointUserMessagePreviews } from "./checkpoint-message-preview.js";
 
 interface Props {
 	sessionId: string;
@@ -76,49 +73,20 @@ async function loadFilesForCheckpoint(checkpointId: string) {
 }
 
 /**
- * Extract text preview from a user entry's content.
- * Returns null if content is not text or is empty.
- */
-function extractTextPreview(entry: TranscriptEntry): string | null {
-	let content = "";
-	for (const segment of entry.segments) {
-		content += segment.text;
-	}
-
-	const text = content.trim();
-	if (text.length === 0) return null;
-
-	return text.length > MAX_PREVIEW_LENGTH ? `${text.substring(0, MAX_PREVIEW_LENGTH)}…` : text;
-}
-
-/**
  * Compute user message previews for all checkpoints in a single pass.
  * This is more efficient than computing per-card because:
  * 1. We only iterate canonical transcript entries once (O(n)) instead of per checkpoint (O(n*m))
  * 2. Reactive updates only trigger one recomputation, not m recomputations
  */
 const userMessagePreviews = $derived.by(() => {
-	const entries = sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? [];
-	const previews = new SvelteMap<string, string | null>();
+	const graph = sessionStore.getSessionStateGraph(sessionId);
+	const transcriptEntries = graph === null ? null : graph.transcriptSnapshot.entries;
+	const previews = deriveCheckpointUserMessagePreviews({
+		transcriptEntries,
+		checkpoints: visibleCheckpoints,
+	});
 
-	if (visibleCheckpoints.length === 0) return previews;
-
-	// Filter to user entries only (typically small subset)
-	const userEntries = entries.filter((entry) => entry.role === "user");
-
-	// For each checkpoint, find the last user entry before its creation time
-	for (const checkpoint of visibleCheckpoints) {
-		const checkpointTime = checkpoint.createdAt;
-
-		// Use findLast for cleaner reverse search
-		const lastUserEntry = userEntries.findLast(
-			(entry) => (entry.timestampMs ?? 0) <= checkpointTime
-		);
-
-		previews.set(checkpoint.id, lastUserEntry ? extractTextPreview(lastUserEntry) : null);
-	}
-
-	return previews;
+	return previews === null ? null : new SvelteMap(previews);
 });
 
 async function handleRevert(checkpoint: Checkpoint) {
@@ -193,11 +161,11 @@ function isExpanded(checkpointId: string): boolean {
 			{:else}
 				<!-- Simple list with gap - reversed so oldest (first) is at top -->
 				<div class="p-2 space-y-1">
-					{#each [...visibleCheckpoints].reverse() as checkpoint (checkpoint.id)}
+					{#each Array.from(visibleCheckpoints).reverse() as checkpoint (checkpoint.id)}
 						<CheckpointCard
 							{checkpoint}
 							{projectPath}
-							userMessagePreview={userMessagePreviews.get(checkpoint.id) ?? null}
+							userMessagePreview={userMessagePreviews?.get(checkpoint.id) ?? null}
 							isExpanded={isExpanded(checkpoint.id)}
 							fileSnapshots={fileSnapshots.get(checkpoint.id) ?? []}
 							isLoadingFiles={loadingFilesForCheckpoint === checkpoint.id}

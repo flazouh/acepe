@@ -510,7 +510,14 @@ mod parse_tool_call_from_acp {
         let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().name, "Tool");
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.name, "Tool");
+        match tool_call.arguments {
+            ToolArguments::Unclassified { provider_name, .. } => {
+                assert!(provider_name.is_empty());
+            }
+            other => panic!("Expected Unclassified arguments, got {other:?}"),
+        }
     }
 
     #[test]
@@ -925,6 +932,7 @@ mod parse_tool_call_from_acp {
             ("Edit", ToolKind::Edit),
             ("Write", ToolKind::Edit),
             ("Bash", ToolKind::Execute),
+            ("write_bash", ToolKind::ShellInput),
             ("Glob", ToolKind::Glob),
             ("Grep", ToolKind::Search),
             ("WebFetch", ToolKind::Fetch),
@@ -959,6 +967,39 @@ mod parse_tool_call_from_acp {
                 "Kind mismatch for tool: {}",
                 tool_name
             );
+        }
+    }
+
+    #[test]
+    fn write_bash_parses_shell_input_arguments() {
+        let data = json!({
+            "toolCallId": "tool-write-bash",
+            "_meta": {
+                "claudeCode": {
+                    "toolName": "write_bash"
+                }
+            },
+            "rawInput": {
+                "shellId": "2",
+                "input": "{enter}",
+                "delay": 10
+            }
+        });
+
+        let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
+
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result);
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.kind, Some(ToolKind::ShellInput));
+        match tool_call.arguments {
+            ToolArguments::ShellInput { shell_id, input } => {
+                assert_eq!(shell_id.as_deref(), Some("2"));
+                assert_eq!(input.as_deref(), Some("{enter}"));
+            }
+            other => panic!(
+                "Expected shell input arguments, got {:?}",
+                other.tool_kind()
+            ),
         }
     }
 

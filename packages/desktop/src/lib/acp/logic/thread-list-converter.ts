@@ -1,4 +1,4 @@
-import type { SessionSummary } from "../application/dto/session.js";
+import type { SessionSummary } from "../application/dto/session-summary.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import {
 	type SessionDisplayItem,

@@ -299,6 +299,7 @@ export {
 	RevertIcon,
 } from "./components/icons/index.js";
 export { ProviderMark } from "./components/provider-mark/index.js";
+export type { ProviderBrand } from "./components/provider-mark/index.js";
 export {
 	VoiceDownloadProgress,
 	buildVoiceDownloadSegments,
@@ -416,9 +417,10 @@ export { getFallbackIconSrc, getFileIconName, getFileIconSrc } from "./lib/file-
 // Icon context
 export { getIconBasePath, setIconConfig } from "./lib/icon-context.js";
 // Thinking preferences context
-export { getThinkingPreferences, setThinkingPreferences } from "./lib/thinking-preferences-context.js";
-export { getProviderDisplayName, resolveProviderBrand } from "./lib/provider-brand.js";
-export type { ProviderBrand } from "./lib/provider-brand.js";
+export {
+	getThinkingPreferences,
+	setThinkingPreferences,
+} from "./lib/thinking-preferences-context.js";
 export type {
 	InlineArtefactSegment,
 	InlineArtefactTokenType,

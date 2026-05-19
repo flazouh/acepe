@@ -37,6 +37,7 @@ import {
 	type PersistedTerminalTabState,
 	type PersistedTerminalWorkspacePanelState,
 	type PersistedWorkspacePanelState,
+	type PersistedWorkspaceRestoreState,
 	type PersistedWorkspaceState,
 	type ReviewWorkspacePanel,
 	type TerminalPanelGroup,
@@ -81,20 +82,6 @@ export function hydratePersistedFilePanels(
 		width: panel.width,
 		targetLine: panel.targetLine,
 		targetColumn: panel.targetColumn,
-	}));
-}
-
-/**
- * Convert runtime terminal panels to persisted format.
- * Runtime-only fields (ptyId, shell) are stripped.
- */
-export function serializeTerminalPanels(
-	terminalPanels: ReadonlyArray<TerminalWorkspacePanel>
-): PersistedTerminalPanelState[] {
-	return terminalPanels.map((panel) => ({
-		id: panel.id,
-		projectPath: panel.projectPath,
-		width: panel.width,
 	}));
 }
 
@@ -541,8 +528,7 @@ export class WorkspaceStore {
 				sqlStudio: this.providers.getSqlStudioState?.(),
 				// Full-screen review state
 				reviewFullscreen: this.providers.getReviewFullscreenState?.(),
-				// Terminal + browser panels (version 7+)
-				terminalPanels: serializeTerminalPanels(this.panelStore.terminalPanels),
+				// Terminal + browser panels
 				terminalPanelGroups: serializeTerminalPanelGroups(this.panelStore.terminalPanelGroups),
 				terminalTabs: serializeTerminalTabs(this.panelStore.terminalTabs),
 				browserPanels: serializeBrowserPanels(this.panelStore.browserPanels),
@@ -573,7 +559,7 @@ export class WorkspaceStore {
 		this.persistDebounce = setTimeout(saveState, 300);
 	}
 
-	private restoreProviderState(state: PersistedWorkspaceState): void {
+	private restoreProviderState(state: PersistedWorkspaceRestoreState): void {
 		if (state.sidebarOpen !== undefined) {
 			this.providers.setSidebarOpen?.(state.sidebarOpen);
 		}
@@ -604,7 +590,7 @@ export class WorkspaceStore {
 	 * Restore workspace state from persisted data.
 	 * Returns list of session IDs that need to be loaded.
 	 */
-	restore(state: PersistedWorkspaceState): string[] {
+	restore(state: PersistedWorkspaceRestoreState): string[] {
 		logger.debug("Restoring workspace", {
 			panelCount: state.workspacePanels ? state.workspacePanels.length : state.panels.length,
 			version: state.version,
@@ -872,7 +858,7 @@ export class WorkspaceStore {
 			);
 		}
 
-		// Restore view mode (version 8+), with backward compat for focusedViewEnabled
+		// Restore view mode; older saved workspaces may only have focusedViewEnabled.
 		if (state.viewMode !== undefined) {
 			this.panelStore.viewMode = state.viewMode;
 		} else if (state.focusedViewEnabled) {
@@ -901,7 +887,7 @@ export class WorkspaceStore {
 	/**
 	 * Load workspace state from persistent storage.
 	 */
-	load(): ResultAsync<PersistedWorkspaceState | null, AppError> {
+	load(): ResultAsync<PersistedWorkspaceRestoreState | null, AppError> {
 		return api.loadWorkspaceState();
 	}
 }

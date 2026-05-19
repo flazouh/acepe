@@ -28,6 +28,8 @@
 	import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
 	import AgentUserMessage from "./agent-user-message.svelte";
 	import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
+	import { toolDurationClock } from "./tool-duration-clock.js";
+	import { formatToolDurationLabel } from "./tool-duration.js";
 	import { PlanCard } from "../plan-card/index.js";
 	import type { PlanCardStatus } from "../plan-card/types.js";
 
@@ -74,6 +76,19 @@
 	): value is Extract<AgentPanelConversationEntry, { type: "tool_call" }> {
 		return value.type === "tool_call";
 	}
+
+	const toolDurationLabel = $derived.by(() => {
+		if (!isToolCall(entry)) {
+			return null;
+		}
+
+		return formatToolDurationLabel({
+			startedAtMs: entry.startedAtMs,
+			completedAtMs: entry.completedAtMs,
+			status: entry.status,
+			nowMs: $toolDurationClock,
+		});
+	});
 
 	function questionOtherText(
 		toolEntry: Extract<AgentPanelConversationEntry, { type: "tool_call" }>,
@@ -201,13 +216,18 @@
 		diagnosticLabel={entry.diagnosticLabel}
 	/>
 {:else if isToolCall(entry) && entry.todos && entry.todos.length > 0}
-	<AgentToolTodo todos={entry.todos} isLive={entry.status === "running"} />
+	<AgentToolTodo
+		todos={entry.todos}
+		isLive={entry.status === "running"}
+		durationLabel={toolDurationLabel ?? undefined}
+	/>
 {:else if isToolCall(entry) && entry.question}
 	<AgentToolQuestion
 		questions={[entry.question]}
 		status={entry.status}
 		isInteractive={entry.status === "running"}
 		otherText={questionOtherText(entry)}
+		durationLabel={toolDurationLabel ?? undefined}
 		onSelect={(questionIndex, label, multiSelect) =>
 			onQuestionSelect?.({
 				entryId: entry.id,
@@ -228,6 +248,7 @@
 		totalFiles={lintFileCount}
 		diagnostics={entry.lintDiagnostics ?? null}
 		summaryLabel={`${entry.lintDiagnostics?.length ?? 0} issues in ${lintFileCount} files`}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "read"}
 	<AgentToolRead
@@ -235,6 +256,7 @@
 		sourceExcerpt={entry.sourceExcerpt ?? null}
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 		{iconBasePath}
 	/>
 {:else if isToolCall(entry) && entry.kind === "edit"}
@@ -252,6 +274,7 @@
 		workerPool={editToolTheme?.workerPool}
 		onBeforeRender={editToolTheme?.onBeforeRender}
 		unsafeCSS={editToolTheme?.unsafeCSS}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
@@ -261,6 +284,7 @@
 		stderr={entry.stderr}
 		exitCode={entry.exitCode}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "search"}
 	<AgentToolSearch
@@ -273,6 +297,7 @@
 		searchNumMatches={entry.searchNumMatches}
 		searchMatches={entry.searchMatches}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 		{iconBasePath}
 	/>
 {:else if isToolCall(entry) && entry.kind === "fetch"}
@@ -281,6 +306,7 @@
 		domain={entry.subtitle ?? null}
 		resultText={entry.resultText ?? null}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "web_search"}
 	<AgentToolWebSearch
@@ -288,6 +314,7 @@
 		links={entry.webSearchLinks ?? []}
 		summary={entry.webSearchSummary ?? null}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "other"}
 	<AgentToolOther
@@ -295,6 +322,7 @@
 		subtitle={entry.subtitle ?? null}
 		detailsText={entry.detailsText ?? null}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "browser"}
 	<AgentToolBrowser
@@ -302,6 +330,7 @@
 		subtitle={entry.subtitle ?? null}
 		detailsText={entry.detailsText ?? null}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && entry.kind === "skill"}
 	<AgentToolSkill
@@ -309,6 +338,7 @@
 		skillArgs={entry.skillArgs}
 		description={entry.skillDescription}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 	/>
 {:else if isToolCall(entry) && (entry.kind === "task" || entry.kind === "task_output")}
 	<AgentToolTask
@@ -317,6 +347,7 @@
 		resultText={entry.taskResultText}
 		children={entry.taskChildren}
 		status={entry.status}
+		durationLabel={toolDurationLabel ?? undefined}
 		{iconBasePath}
 	/>
 {:else if isToolCall(entry) && (entry.kind === "exit_plan_mode" || entry.kind === "create_plan")}
@@ -344,6 +375,7 @@
 		filePath={entry.filePath}
 		status={entry.status}
 		kind={entry.kind}
+		durationLabel={toolDurationLabel ?? undefined}
 		padded={true}
 		{iconBasePath}
 	/>

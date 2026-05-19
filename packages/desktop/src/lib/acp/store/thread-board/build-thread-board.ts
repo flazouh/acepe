@@ -1,35 +1,17 @@
-import {
-	deriveSessionWorkProjection,
-	selectSessionWorkBucket,
-} from "../session-work-projection.js";
-
 import type { ThreadBoardGroup, ThreadBoardItem, ThreadBoardSource } from "./thread-board-item.js";
 import { THREAD_BOARD_STATUS_ORDER, type ThreadBoardStatus } from "./thread-board-status.js";
 
 export interface ThreadBoardStatusInput {
-	readonly currentModeId: string | null;
-	readonly connectionError: string | null;
-	readonly activeTurnFailure: ThreadBoardSource["activeTurnFailure"];
-	readonly state: ThreadBoardSource["state"];
+	readonly workBucket: ThreadBoardSource["workBucket"];
 }
 
 export function classifyThreadBoardState(input: ThreadBoardStatusInput): ThreadBoardStatus {
-	return selectSessionWorkBucket(
-		deriveSessionWorkProjection({
-			state: input.state,
-			currentModeId: input.currentModeId,
-			connectionError: input.connectionError,
-			activeTurnFailure: input.activeTurnFailure ?? null,
-		})
-	);
+	return input.workBucket;
 }
 
 export function classifyThreadBoardStatus(source: ThreadBoardSource): ThreadBoardStatus {
 	return classifyThreadBoardState({
-		currentModeId: source.currentModeId,
-		connectionError: source.connectionError,
-		activeTurnFailure: source.activeTurnFailure ?? null,
-		state: source.state,
+		workBucket: source.workBucket,
 	});
 }
 
@@ -55,7 +37,9 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		todoProgress: source.todoProgress,
 		connectionError: source.connectionError,
 		activeTurnFailure: source.activeTurnFailure ?? null,
+		sessionStatus: source.sessionStatus,
 		state: source.state,
+		workBucket: source.workBucket,
 		sequenceId: source.sequenceId ?? null,
 		worktreePath: source.worktreePath ?? null,
 		worktreeDeleted: source.worktreeDeleted ?? false,

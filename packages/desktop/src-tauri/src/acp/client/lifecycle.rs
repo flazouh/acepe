@@ -128,13 +128,9 @@ impl AcpClient {
             {
                 Ok(child) => child,
                 Err(error) => {
-                    let redacted_cmd = command_str
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or("unknown")
-                        .to_string();
+                    let redacted_cmd = command_str.split_whitespace().next();
                     tracing::error!(
-                        command = %redacted_cmd,
+                        command = ?redacted_cmd,
                         error = %error,
                         attempt = self.spawn_config_index + 1,
                         total_attempts = total_spawn_configs,
@@ -256,7 +252,7 @@ impl AcpClient {
     pub fn stop(&mut self) {
         tracing::warn!(
             cwd = %self.cwd.display(),
-            provider = self.provider.as_ref().map(|provider| provider.id()).unwrap_or("unknown"),
+            provider = ?self.provider.as_ref().map(|provider| provider.id()),
             pgid = ?self.pgid,
             has_child = self.child.is_some(),
             stderr = self.stderr_buffer.as_ref().and_then(read_stderr_buffer),

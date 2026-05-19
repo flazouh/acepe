@@ -18,7 +18,7 @@ import {
 } from "@acepe/ui/agent-panel/types";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { JsonValue } from "../../../../services/converted-session-types.js";
-import type { SessionStatus } from "../../../application/dto/session.js";
+import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
@@ -35,7 +35,6 @@ import type { ToolKind } from "../../../types/tool-kind.js";
 import { stripAnsiCodes } from "../../../utils/ansi-utils.js";
 import { bashHighlighter } from "../../../utils/bash-highlighter.svelte.js";
 import { extractSkillCallInput } from "../../../utils/extract-skill-call-input.js";
-import { readExitPlanRawInput } from "../../../utils/exit-plan-permission.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import { parsePlanMarkdown } from "../../../utils/plan-parser.js";
 import { resolveToolCallEditDiffs } from "../../../utils/tool-call-edit/logic/resolve-tool-call-edit-diffs.js";
@@ -136,8 +135,7 @@ function createAttachmentScopedActionId(
 function mapToolStatus(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
-	parentCompleted: boolean,
-	isActiveToolCall: boolean
+	parentCompleted: boolean
 ): AgentToolStatus {
 	if (toolCall.presentationStatus !== undefined) {
 		return toolCall.presentationStatus;
@@ -156,73 +154,24 @@ function mapToolStatus(
 		return "done";
 	}
 
-	if (!isActiveToolCall || turnState !== "streaming") {
-		return "done";
-	}
-
 	if (toolCall.status === "in_progress") {
 		return "running";
 	}
 
-	return "pending";
+	if (toolCall.status === "pending") {
+		return "pending";
+	}
+
+	return turnState === "streaming" ? "pending" : "done";
 }
 
 interface MapToolCallEntryOptions {
+	readonly displayEntryId?: string;
 	readonly canonicalStatus?: AgentToolStatus;
 	readonly presentationState?: AgentToolPresentationState;
 	readonly degradedReason?: string | null;
 	readonly taskChildren?: AgentPanelSceneEntryModel[];
 	readonly includeDiagnosticDetails?: boolean;
-}
-
-function getActiveTailToolCallId(
-	children: readonly ToolCall[] | null | undefined,
-	turnState: TurnState | undefined,
-	parentCompleted: boolean
-): string | null {
-	if (!children || children.length === 0 || turnState !== "streaming" || parentCompleted) {
-		return null;
-	}
-
-	const lastChild = children[children.length - 1];
-	if (!lastChild) {
-		return null;
-	}
-
-	if (lastChild.status === "completed" || lastChild.status === "failed") {
-		return null;
-	}
-
-	if (hasToolResult(lastChild)) {
-		return null;
-	}
-
-	return lastChild.id;
-}
-
-function getActiveRootToolCallId(
-	entries: readonly SessionEntry[],
-	turnState: TurnState | undefined
-): string | null {
-	if (turnState !== "streaming" || entries.length === 0) {
-		return null;
-	}
-
-	const lastEntry = entries[entries.length - 1];
-	if (!lastEntry || lastEntry.type !== "tool_call") {
-		return null;
-	}
-
-	const toolCall = lastEntry.message;
-	if (toolCall.status === "completed" || toolCall.status === "failed") {
-		return null;
-	}
-
-	if (hasToolResult(toolCall)) {
-		return null;
-	}
-
-	return toolCall.id;
 }
 
 function normalizeToolKind(kind: ToolKind | null | undefined) {
@@ -236,6 +185,10 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 
 	if (kind === "web_search") {
 		return "web_search";
+	}
+
+	if (kind === "shell_input") {
+		return "execute";
 	}
 
 	if (
@@ -263,6 +216,7 @@ function normalizeToolKind(kind: ToolKind | null | undefined) {
 
 function getDefaultToolTitle(kind: ToolKind, turnState: TurnState | undefined): string {
 	if (kind === "execute") return "Run";
+	if (kind === "shell_input") return "Shell input";
 	if (kind === "read") return "Read";
 	if (kind === "read_lints") return "Read lints";
 	if (kind === "edit") return "Edit";
@@ -318,41 +272,13 @@ function resolveToolTitle(
 	return rawTitle;
 }
 
-function getJsonObject(value: JsonValue | null | undefined): { [key: string]: JsonValue } | null {
-	if (value === null || value === undefined || typeof value !== "object" || Array.isArray(value)) {
-		return null;
-	}
-
-	return value;
-}
-
-function getJsonScalarLabel(value: JsonValue | undefined): string | null {
-	if (value === undefined || value === null) {
-		return null;
-	}
-
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return trimmed.length > 0 ? trimmed : null;
-	}
-
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-
-	return null;
-}
-
 function getWriteBashSubtitle(toolCall: ToolCall): string | undefined {
-	const rawToolName =
-		toolCall.arguments.kind === "unclassified" ? toolCall.arguments.raw_name : toolCall.name;
-	if (toolCall.name !== "write_bash" && rawToolName !== "write_bash") {
+	if (toolCall.arguments.kind !== "shellInput") {
 		return undefined;
 	}
 
-	const rawInput = getJsonObject(toolCall.rawInput);
-	const shellId = getJsonScalarLabel(rawInput?.shellId);
-	const input = getJsonScalarLabel(rawInput?.input);
+	const shellId = toolCall.arguments.shell_id?.trim() ?? null;
+	const input = toolCall.arguments.input?.trim() ?? null;
 
 	if (shellId && input) {
 		return `Shell ${shellId}: ${input}`;
@@ -392,12 +318,9 @@ function getToolSubtitle(toolCall: ToolCall): string | undefined {
 	}
 
 	if (toolCall.arguments.kind === "other") {
-		const raw = toolCall.arguments.raw;
-		if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-			const intent = raw.intent;
-			if (typeof intent === "string" && intent.trim().length > 0) {
-				return intent.trim();
-			}
+		const intent = toolCall.arguments.intent?.trim();
+		if (intent && intent.length > 0) {
+			return intent;
 		}
 	}
 
@@ -484,7 +407,6 @@ function serializeOtherToolDetails(toolCall: ToolCall): string | null {
 			title: toolCall.title,
 			status: toolCall.status,
 			arguments: toolCall.arguments,
-			rawInput: toolCall.rawInput,
 			result: toolCall.result,
 			locations: toolCall.locations,
 			skillMeta: toolCall.skillMeta,
@@ -613,10 +535,7 @@ function mapTaskChildren(
 		return undefined;
 	}
 
-	const activeChildId = getActiveTailToolCallId(children, turnState, parentCompleted);
-	return children.map((child) =>
-		mapToolCallEntry(child, turnState, parentCompleted, activeChildId)
-	);
+	return children.map((child) => mapToolCallEntry(child, turnState, parentCompleted));
 }
 
 function mapSearchPayload(toolCall: ToolCall): {
@@ -825,6 +744,15 @@ function readStringField(value: JsonValue | null | undefined, key: string): stri
 	return typeof field === "string" && field.trim().length > 0 ? field : null;
 }
 
+function normalizePlanString(value: string | null | undefined): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
 function mapPlanPayload(toolCall: ToolCall): {
 	planTitle?: string | null;
 	planContent?: string | null;
@@ -834,26 +762,19 @@ function mapPlanPayload(toolCall: ToolCall): {
 		return {};
 	}
 
-	const exitPlanInput = readExitPlanRawInput(toolCall.rawInput ?? undefined);
-	const exitPlanArgumentInput =
-		toolCall.arguments.kind === "other" ? readExitPlanRawInput(toolCall.arguments.raw) : null;
 	const rawPlan =
-		exitPlanInput?.plan ??
-		exitPlanArgumentInput?.plan ??
-		readStringField(toolCall.rawInput, "content") ??
-		readStringField(toolCall.rawInput, "planMarkdown") ??
-		readStringField(toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null, "content") ??
-		readStringField(
-			toolCall.arguments.kind === "other" ? toolCall.arguments.raw : null,
-			"planMarkdown"
-		) ??
+		(toolCall.arguments.kind === "planMode" ? normalizePlanString(toolCall.arguments.plan) : null) ??
 		readStringField(toolCall.result, "plan") ??
 		readStringField(toolCall.result, "content");
 	const planContent = rawPlan !== null && rawPlan !== undefined ? rawPlan : null;
 	const parsedPlan = planContent !== null ? parsePlanMarkdown(planContent) : null;
+	const planTitle =
+		toolCall.arguments.kind === "planMode"
+			? (normalizePlanString(toolCall.arguments.title) ?? parsedPlan?.title ?? null)
+			: (parsedPlan?.title ?? null);
 
 	return {
-		planTitle: parsedPlan?.title ?? null,
+		planTitle,
 		planContent,
 		planStatus:
 			toolCall.status === "failed"
@@ -994,7 +915,6 @@ function mapToolCallEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean,
-	activeToolCallId: string | null,
 	options: MapToolCallEntryOptions = {}
 ): AgentPanelSceneEntryModel {
 	const kind = toolCall.kind ?? "other";
@@ -1010,15 +930,16 @@ function mapToolCallEntry(
 	const planPayload = mapPlanPayload(toolCall);
 	const status =
 		options.canonicalStatus ??
-		mapToolStatus(toolCall, turnState, parentCompleted, toolCall.id === activeToolCallId);
+		mapToolStatus(toolCall, turnState, parentCompleted);
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
 	const commandHtmls = mapExecuteCommandHtmls(command);
 
 	const entry: AgentToolEntry = {
-		id: toolCall.id,
+		id: options.displayEntryId ?? toolCall.id,
 		type: "tool_call",
+		toolCallId: toolCall.id,
 		kind: normalizeToolKind(kind),
 		title: resolveToolTitle(toolCall, kind, turnState),
 		subtitle,
@@ -1036,6 +957,8 @@ function mapToolCallEntry(
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
+		startedAtMs: toolCall.startedAtMs ?? null,
+		completedAtMs: toolCall.completedAtMs ?? null,
 		command,
 		commandHtmls,
 		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
@@ -1095,10 +1018,9 @@ export function mapToolCallToSceneEntry(
 	toolCall: ToolCall,
 	turnState: TurnState | undefined,
 	parentCompleted: boolean = false,
-	activeToolCallId: string | null = null,
 	options: MapToolCallEntryOptions = {}
 ): AgentPanelSceneEntryModel {
-	return mapToolCallEntry(toolCall, turnState, parentCompleted, activeToolCallId, options);
+	return mapToolCallEntry(toolCall, turnState, parentCompleted, options);
 }
 
 function contentBlockToPlainText(block: ContentBlock): string {
@@ -1177,9 +1099,8 @@ export function mapSessionEntriesToConversationModel(
 	entries: readonly SessionEntry[],
 	turnState: TurnState | undefined
 ): { entries: readonly AgentPanelSceneEntryModel[]; isStreaming: boolean } {
-	const activeRootToolCallId = getActiveRootToolCallId(entries, turnState);
 	const conversationEntries = entries.map((entry) =>
-		mapSessionEntryToConversationEntry(entry, turnState, activeRootToolCallId)
+		mapSessionEntryToConversationEntry(entry, turnState)
 	);
 
 	return {
@@ -1191,7 +1112,6 @@ export function mapSessionEntriesToConversationModel(
 export function mapSessionEntryToConversationEntry(
 	entry: SessionEntry,
 	turnState: TurnState | undefined,
-	activeToolCallId: string | null = null,
 	options?: { isOptimistic?: boolean }
 ): AgentPanelSceneEntryModel {
 	if (entry.type === "user") {
@@ -1215,7 +1135,9 @@ export function mapSessionEntryToConversationEntry(
 	}
 
 	if (entry.type === "tool_call") {
-		return mapToolCallToSceneEntry(entry.message, turnState, false, activeToolCallId);
+		return mapToolCallToSceneEntry(entry.message, turnState, false, {
+			displayEntryId: entry.id,
+		});
 	}
 
 	if (entry.type === "ask") {
@@ -1255,7 +1177,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 	entry: SceneDisplayRow,
 	turnState: TurnState | undefined,
 	isStreamingAssistant: boolean,
-	activeToolCallId: string | null = null,
 	nowMs: number = Date.now()
 ): AgentPanelSceneEntryModel {
 	if (entry.type === "thinking") {
@@ -1305,7 +1226,7 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 		};
 	}
 
-	const mapped = mapSessionEntryToConversationEntry(entry, turnState, activeToolCallId);
+	const mapped = mapSessionEntryToConversationEntry(entry, turnState);
 	if (mapped.type === "assistant") {
 		return {
 			id: mapped.id,

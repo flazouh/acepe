@@ -4,11 +4,10 @@ import { ACP_INBOUND_METHODS } from "../../constants/acp-methods.js";
 import {
 	normalizeInboundInteractionRequest,
 	toPermissionRequest,
-	toQuestionRequest,
 } from "../inbound-request-normalization.js";
 
 describe("normalizeInboundInteractionRequest", () => {
-	it("normalizes legacy ask-user-question metadata into a canonical question shape", () => {
+	it("treats legacy ask-user-question metadata as a permission fallback", () => {
 		const result = normalizeInboundInteractionRequest({
 			id: 12,
 			jsonrpc: "2.0",
@@ -43,44 +42,11 @@ describe("normalizeInboundInteractionRequest", () => {
 		}
 
 		const normalized = result.value;
-		expect(normalized.kind).toBe("question");
-		if (normalized.kind !== "question") {
-			throw new Error("Expected question request");
-		}
-
+		expect(normalized.kind).toBe("permission");
 		expect(normalized.alwaysOptionIds).toEqual(["allow_always"]);
-		expect(normalized.questions).toEqual([
-			{
-				question: "Choose one?",
-				header: "",
-				options: [{ label: "Yes", description: "" }],
-				multiSelect: false,
-			},
-		]);
-		expect(toQuestionRequest(normalized)).toEqual({
-			id: "tool-12",
-			sessionId: "session-12",
-			jsonRpcRequestId: 12,
-			replyHandler: {
-				kind: "json-rpc",
-				requestId: 12,
-			},
-			questions: [
-				{
-					question: "Choose one?",
-					header: "",
-					options: [{ label: "Yes", description: "" }],
-					multiSelect: false,
-				},
-			],
-			tool: {
-				messageID: "",
-				callID: "tool-12",
-			},
-		});
 	});
 
-	it("normalizes upstream AskUserQuestion raw input into a canonical question shape", () => {
+	it("does not parse upstream AskUserQuestion raw input into questions in TypeScript", () => {
 		const result = normalizeInboundInteractionRequest({
 			id: 13,
 			jsonrpc: "2.0",
@@ -114,17 +80,8 @@ describe("normalizeInboundInteractionRequest", () => {
 		}
 
 		const normalized = result.value;
-		expect(normalized.kind).toBe("question");
-		if (normalized.kind !== "question") {
-			throw new Error("Expected question request");
-		}
-
-		expect(normalized.questions[0].question).toBe("Which editor?");
-		expect(normalized.questions[0].header).toBe("Editor");
-		expect(normalized.questions[0].options).toEqual([
-			{ label: "Zed", description: "Fast" },
-			{ label: "VS Code", description: "Popular" },
-		]);
+		expect(normalized.kind).toBe("permission");
+		expect(normalized.toolLabel).toBe("AskUserQuestion");
 	});
 
 	it("normalizes standard permission requests into a canonical permission shape", () => {
@@ -165,7 +122,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			permission: "Bash",
 			patterns: [],
 			metadata: {
-				rawInput: { command: "bun test" },
+				diagnosticRawInput: { command: "bun test" },
 				parsedArguments: { command: "bun test" },
 				options: [
 					{ kind: "allow", name: "Allow", optionId: "allow" },
@@ -174,7 +131,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 			always: ["allow_always"],
 			tool: {
-				messageID: "",
+				messageID: null,
 				callID: "tool-14",
 			},
 		});
@@ -211,13 +168,11 @@ describe("normalizeInboundInteractionRequest", () => {
 			permission: "Write",
 			patterns: [],
 			metadata: {
-				rawInput: {},
-				parsedArguments: undefined,
-				options: [],
+				diagnosticRawInput: {},
 			},
 			always: [],
 			tool: {
-				messageID: "",
+				messageID: null,
 				callID: "permission-request-15",
 			},
 		});

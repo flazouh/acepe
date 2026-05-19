@@ -83,8 +83,6 @@ export type { SessionId } from "./session-id.js";
 export type { SessionModelState } from "./session-model-state.js";
 export type { SessionModes } from "./session-modes.js";
 export type { SessionResponse } from "./session-response.js";
-// Legacy session update types (for backward compatibility)
-export type { AvailableCommandsUpdate, CurrentModeUpdate } from "./session-update.js";
 export { SoundEffect } from "./sounds.js";
 // Terminal types
 export type { TerminalEnvVariable } from "./terminal-env-variable.js";
@@ -106,7 +104,7 @@ export { isConnected, needsContentLoad } from "./thread-state.js";
 export type { ThreadStatistics } from "./thread-stats.js";
 export type { ThreadStatus } from "./thread-status.js";
 export type { ThreadTableRow } from "./thread-table-row.js";
-export type { ToolCall, ToolCallUpdate } from "./tool-call.js";
+export type { ToolCall } from "./tool-call.js";
 export type { UserMessage } from "./user-message.js";
 export type { WaitForExitResult } from "./wait-for-exit-result.js";
 export type { WriteTextFileParams } from "./write-text-file-params.js";

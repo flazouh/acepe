@@ -20,7 +20,7 @@ import { onDestroy, onMount } from "svelte";
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
-import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "$lib/acp/constants/thread-list-constants.js";
 import {
 	copyCanonicalSessionToClipboard,
 	copyTextToClipboard,
@@ -64,8 +64,6 @@ import {
 	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
 } from "$lib/acp/store/queue/utils.js";
-import { selectSessionStatusForPresentation } from "$lib/acp/store/session-work-projection.js";
-import { deriveSessionWorkProjection } from "$lib/acp/store/session-work-projection.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
 	ThreadBoardItem,
@@ -123,6 +121,14 @@ const questionStore = getQuestionStore();
 const unseenStore = getUnseenStore();
 const selectionStore = getQuestionSelectionStore();
 const themeState = useTheme();
+
+function getCanonicalAgentIcon(agentId: string | null | undefined): string {
+	const providerBrand =
+		agentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata?.providerBrand ??
+		null;
+
+	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
+}
 const worktreeDefaultStore = getWorktreeDefaultStore();
 const isDev = import.meta.env.DEV;
 
@@ -307,7 +313,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			panelId: panel.id,
 			sessionId: queueItem.sessionId,
 			agentId: queueItem.agentId,
-			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId) ?? false,
+			autonomousEnabled: sessionStore.getSessionAutonomousEnabled(sessionId),
 			projectPath: queueItem.projectPath,
 			projectName: queueItem.projectName,
 			projectColor: queueItem.projectColor,
@@ -324,7 +330,9 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			todoProgress: queueItem.todoProgress,
 			connectionError: snapshot.connectionError ? snapshot.connectionError : null,
 			activeTurnFailure: snapshot.activeTurnFailure ?? null,
+			sessionStatus: queueItem.status,
 			state: queueItem.state,
+			workBucket: queueItem.workBucket,
 			sequenceId: metadata
 				? metadata.sequenceId !== undefined
 					? metadata.sequenceId
@@ -430,9 +438,9 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		id: item.sessionId,
 		title: richTitleResult.plainText,
 		richTitle: richTitleResult.richText,
-		agentIconSrc: getAgentIcon(item.agentId, themeState.effectiveTheme),
+		agentIconSrc: getCanonicalAgentIcon(item.agentId),
 		agentLabel: item.agentId,
-		isAutoMode: item.autonomousEnabled,
+		isAutoMode: item.autonomousEnabled === true,
 		projectName: item.projectName,
 		projectColor: item.projectColor,
 		projectIconSrc: item.projectIconSrc,
@@ -460,8 +468,9 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
-		sessionStore.getVisiblePermissionsForSessionBar(permissionStore.getForSession(item.sessionId))[0] ??
-		null;
+		sessionStore.getVisiblePermissionsForSessionBar(
+			permissionStore.getForSession(item.sessionId)
+		)[0] ?? null;
 	if (visiblePermission) {
 		return visiblePermission;
 	}
@@ -595,7 +604,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 			card: {
 				id: panel.id,
 				title,
-				agentIconSrc: getAgentIcon(panel.selectedAgentId, themeState.effectiveTheme),
+				agentIconSrc: getCanonicalAgentIcon(panel.selectedAgentId),
 				agentLabel: panel.selectedAgentId,
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : "Unknown",
@@ -1484,14 +1493,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 						sessionId={item.sessionId}
 						toolCalls={sessionStore.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
-						status={selectSessionStatusForPresentation(
-							deriveSessionWorkProjection({
-								state: item.state,
-								currentModeId: item.currentModeId,
-								connectionError: item.connectionError,
-								activeTurnFailure: item.activeTurnFailure ?? null,
-							})
-						)}
+						status={item.sessionStatus}
 						isStreaming={card.isStreaming}
 						compact={true}
 					/>

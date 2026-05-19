@@ -16,7 +16,12 @@ import type { ConfigOptionData } from "../../services/converted-session-types.js
 import { tauriClient } from "../../utils/tauri-client";
 import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
-import type { AgentAvailabilityKind, PersistedWorkspaceState, ResumeSessionResult } from "./types";
+import type {
+	AgentAvailabilityKind,
+	PersistedWorkspaceRestoreState,
+	PersistedWorkspaceState,
+	ResumeSessionResult,
+} from "./types";
 
 // ============================================
 // ACP AGENT API
@@ -206,7 +211,7 @@ export function saveWorkspaceState(state: PersistedWorkspaceState): ResultAsync<
 /**
  * Load workspace state from database.
  */
-export function loadWorkspaceState(): ResultAsync<PersistedWorkspaceState | null, AppError> {
+export function loadWorkspaceState(): ResultAsync<PersistedWorkspaceRestoreState | null, AppError> {
 	return tauriClient.workspace.loadWorkspaceState();
 }
 

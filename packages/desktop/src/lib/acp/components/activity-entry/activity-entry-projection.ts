@@ -219,18 +219,8 @@ export function projectTaskActivity(
 
 	const taskSubagentSummaries = getTaskSubagentSummaries(toolCall);
 	const rawChildren = toolCall.taskChildren ?? [];
-	const activeChildId = ((): string | null => {
-		if (turnState !== "streaming") return null;
-		for (let i = rawChildren.length - 1; i >= 0; i -= 1) {
-			const child = rawChildren[i];
-			if (child && child.status !== "completed" && child.status !== "failed") {
-				return child.id;
-			}
-		}
-		return null;
-	})();
 	const convertedChildren = rawChildren
-		.map((child) => mapToolCallToSceneEntry(child, turnState, false, activeChildId))
+		.map((child) => mapToolCallToSceneEntry(child, turnState, false))
 		.filter((e): e is AgentToolEntry => e.type === "tool_call");
 	const preferredChildIndex =
 		rawChildren.length > 0 && convertedChildren.length === rawChildren.length

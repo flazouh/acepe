@@ -15,11 +15,9 @@ function createExitPlanToolCall(id: string, plan: string, planFilePath: string):
 		id,
 		name: "ExitPlanMode",
 		arguments: {
-			kind: "other",
-			raw: {
-				plan,
-				planFilePath,
-			},
+			kind: "planMode",
+			plan,
+			plan_file_path: planFilePath,
 		},
 		status: "in_progress",
 		kind: "exit_plan_mode",
@@ -41,13 +39,15 @@ function createExitPlanPermission(
 		permission: "ExitPlanMode",
 		patterns: [],
 		metadata: {
-			rawInput: {
-				plan,
+			diagnosticRawInput: {
+				plan: "# Raw Plan\n\nThis should not be used.",
 				planFilePath,
 			},
 			parsedArguments: {
 				kind: "planMode",
 				mode: "default",
+				plan,
+				plan_file_path: planFilePath,
 			},
 			options: [],
 		},
@@ -70,6 +70,7 @@ function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
 		arguments: toolCall.arguments,
 		provider_status: toolCall.status,
 		operation_state: toolCall.status === "completed" ? "completed" : "running",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: toolCall.id },
 		kind: toolCall.kind ?? null,
 		title: null,
@@ -87,7 +88,7 @@ function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
 }
 
 describe("exit-plan-helpers", () => {
-	it("builds a display plan from exit-plan tool raw input when session plan is missing", () => {
+	it("builds a display plan from canonical exit-plan tool arguments when session plan is missing", () => {
 		const plan = "# Focused Plan\n\n- [ ] Fix exit-plan card";
 		const toolCall = createExitPlanToolCall("toolu_exit_plan", plan, "/tmp/focused-plan.md");
 

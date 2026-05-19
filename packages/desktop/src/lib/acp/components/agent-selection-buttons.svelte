@@ -1,11 +1,10 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
-import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
+import AgentIcon from "./agent-icon.svelte";
 
 interface Props {
 	readonly availableAgents: AgentInfo[];
@@ -13,9 +12,6 @@ interface Props {
 }
 
 let { availableAgents, onAgentSelect }: Props = $props();
-
-const themeState = useTheme();
-const theme = $derived(themeState.effectiveTheme);
 
 // Detect platform for modifier key display
 const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
@@ -57,7 +53,6 @@ onDestroy(() => {
 	<span class="text-sm text-muted-foreground">{"Choose your agent"}</span>
 	<div class="flex items-start justify-center gap-6">
 		{#each availableAgents as agent, index (agent.id)}
-			{@const iconSrc = getAgentIcon(agent.id, theme)}
 			{@const keyNumber = (index + 1).toString()}
 			<div class="flex flex-col items-center gap-2">
 				<Tooltip.Root>
@@ -67,7 +62,13 @@ onDestroy(() => {
 							class="h-14 w-14 p-2 rounded-lg"
 							onclick={() => onAgentSelect(agent.id)}
 						>
-							<img src={iconSrc} alt={agent.name} class="h-10 w-10" />
+							<AgentIcon
+								agentId={agent.id}
+								providerBrand={agent.provider_metadata?.providerBrand ?? null}
+								providerLabel={agent.provider_metadata?.displayName ?? agent.name}
+								class="h-10 w-10"
+								size={40}
+							/>
 						</Button>
 					</Tooltip.Trigger>
 					<Tooltip.Content>

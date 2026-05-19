@@ -9,7 +9,9 @@ import {
 	deriveLiveSessionLifecyclePresentation,
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
+	type LiveSessionWorkSource,
 } from "../live-session-work.js";
 import { selectSessionStatusForPresentation } from "../session-work-projection.js";
 
@@ -67,6 +69,7 @@ function makeCanonicalProjection(
 		turnState: activityKind === "idle" ? "Idle" : "Running",
 		activeTurnFailure,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {
 			models: null,
 			modes: null,
@@ -85,7 +88,8 @@ function makeCanonicalProjection(
 }
 
 interface MakeInputOptions {
-	readonly canonicalProjection?: LiveSessionWorkInput["canonicalProjection"];
+	readonly canonicalProjection?: CanonicalSessionProjection | null;
+	readonly source?: LiveSessionWorkSource;
 	readonly currentModeId?: string | null;
 	readonly hasPendingQuestion?: boolean;
 	readonly hasUnseenCompletion?: boolean;
@@ -96,6 +100,9 @@ function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
 		options.canonicalProjection === undefined
 			? makeCanonicalProjection()
 			: options.canonicalProjection;
+	const source =
+		options.source ??
+		liveSessionWorkSourceFromCanonicalProjection("session-1", canonicalProjection);
 	const pendingQuestion = options.hasPendingQuestion
 		? {
 				id: "question-1",
@@ -105,7 +112,7 @@ function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
 		: null;
 
 	return {
-		canonicalProjection,
+		source,
 		currentModeId: options.currentModeId ?? null,
 		interactionSnapshot: {
 			pendingQuestion,
@@ -276,12 +283,29 @@ describe("deriveLiveCanonicalActivity", () => {
 	it("returns neutral idle activity while canonical projection is absent", () => {
 		const canonicalActivity = deriveLiveCanonicalActivity(
 			makeInput({
-				canonicalProjection: null,
+				source: { kind: "no_session" },
 				hasPendingQuestion: true,
 			})
 		);
 
 		expect(canonicalActivity).toBe("idle");
+	});
+
+	it("fails visible when a real session has no canonical projection", () => {
+		const projection = deriveLiveSessionWorkProjection(
+			makeInput({
+				source: {
+					kind: "missing_canonical",
+					sessionId: "session-1",
+				},
+				hasPendingQuestion: true,
+			})
+		);
+
+		expect(projection.hasError).toBe(true);
+		expect(projection.state.connection).toBe("error");
+		expect(projection.canonicalActivity).toBe("error");
+		expect(selectSessionStatusForPresentation(projection)).toBe("error");
 	});
 });
 
@@ -314,7 +338,7 @@ describe("deriveLiveSessionWorkProjection", () => {
 	it("stays neutral before the first canonical projection arrives", () => {
 		const projection = deriveLiveSessionWorkProjection(
 			makeInput({
-				canonicalProjection: null,
+				source: { kind: "no_session" },
 				hasPendingQuestion: true,
 			})
 		);
@@ -328,7 +352,7 @@ describe("deriveLiveSessionWorkProjection", () => {
 	it("transitions from neutral null canonical state to canonical failure", () => {
 		const neutralProjection = deriveLiveSessionWorkProjection(
 			makeInput({
-				canonicalProjection: null,
+				source: { kind: "no_session" },
 			})
 		);
 		const failedProjection = deriveLiveSessionWorkProjection(
@@ -364,7 +388,10 @@ describe("deriveLiveSessionWorkProjection", () => {
 describe("deriveLiveSessionLifecyclePresentation", () => {
 	it("derives ready empty presentation from canonical lifecycle", () => {
 		const presentation = deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "idle"),
+			},
 			hasEntries: false,
 			hasLocalPendingSendIntent: false,
 		});
@@ -385,7 +412,10 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 
 	it("keeps pending local send as a submit affordance only", () => {
 		const presentation = deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "idle"),
+			},
 			hasEntries: false,
 			hasLocalPendingSendIntent: true,
 		});
@@ -396,14 +426,38 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 		expect(presentation.showReadyPlaceholder).toBe(true);
 	});
 
+	it("keeps unknown canonical transcript presence distinct from empty transcript", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "idle"),
+			},
+			hasEntries: null,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "connected",
+			contentPhase: "loading",
+			showConversation: false,
+			showReadyPlaceholder: false,
+		});
+	});
+
 	it("maps canonical activity to runtime-shaped presentation without machine state", () => {
 		const awaitingModel = deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: makeCanonicalProjection("ready", "awaiting_model"),
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "awaiting_model"),
+			},
 			hasEntries: true,
 			hasLocalPendingSendIntent: false,
 		});
 		const runningOperation = deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: makeCanonicalProjection("ready", "running_operation"),
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "running_operation"),
+			},
 			hasEntries: true,
 			hasLocalPendingSendIntent: false,
 		});
@@ -427,7 +481,7 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 
 	it("fails closed while canonical projection is absent", () => {
 		const presentation = deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: null,
+			source: { kind: "no_session" },
 			hasEntries: false,
 			hasLocalPendingSendIntent: false,
 		});
@@ -439,6 +493,23 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 			canSubmit: false,
 			showConversation: false,
 			showReadyPlaceholder: false,
+		});
+	});
+
+	it("preserves unknown submit actionability for real sessions without canonical projection", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: {
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			},
+			hasEntries: null,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "failed",
+			contentPhase: "loading",
+			canSubmit: null,
 		});
 	});
 });

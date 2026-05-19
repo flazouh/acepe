@@ -326,6 +326,34 @@ fn test_convert_tool_invocation_to_tool_call() {
     }
 }
 
+#[test]
+fn test_convert_tool_invocation_without_name_uses_canonical_identity() {
+    let properties = json!({
+        "part": {
+            "id": "call_func_missing_name",
+            "sessionID": "ses_abc",
+            "messageID": "msg_456",
+            "type": "tool-invocation",
+            "arguments": {
+                "command": "ls -la",
+                "description": "List files"
+            }
+        }
+    });
+
+    let result = convert_message_part_to_session_update(&properties);
+    assert!(result.is_some());
+
+    match result.unwrap() {
+        SessionUpdate::ToolCall { tool_call, .. } => {
+            assert_eq!(tool_call.id, "call_func_missing_name");
+            assert_eq!(tool_call.name, "Run");
+            assert!(matches!(tool_call.kind, Some(ToolKind::Execute)));
+        }
+        _ => panic!("Expected ToolCall"),
+    }
+}
+
 /// Test conversion of message.part.updated with tool result to ToolCallUpdate
 #[test]
 fn test_convert_tool_result_to_tool_call_update() {

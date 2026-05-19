@@ -12,266 +12,12 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
-import type { ToolArguments } from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
-
-function applyStreamingArguments(
-	store: SessionEntryStore,
-	sessionId: string,
-	toolCallId: string,
-	streamingArguments: Parameters<
-		SessionEntryStore["updateCompatibilityToolCallTranscriptEntry"]
-	>[1]["streamingArguments"]
-): void {
-	store.updateCompatibilityToolCallTranscriptEntry(sessionId, {
-		toolCallId,
-		status: null,
-		result: null,
-		content: null,
-		rawOutput: null,
-		title: null,
-		locations: null,
-		normalizedTodos: null,
-		normalizedQuestions: null,
-		streamingArguments,
-	});
-}
-
-function readProgressiveArguments(
-	store: SessionEntryStore,
-	sessionId: string,
-	toolCallId: string
-): ToolArguments | undefined {
-	const entry = readCompatibilityEntries(store, sessionId)
-		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
-	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
-}
-
-describe("SessionEntryStore - Streaming Arguments", () => {
-	let store: SessionEntryStore;
-
-	beforeEach(() => {
-		store = new SessionEntryStore();
-	});
-
-	describe("updateCompatibilityToolCallTranscriptEntry progressive arguments", () => {
-		it("should store and retrieve streaming arguments from transcript-only updates", () => {
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
-				],
-			});
-
-			const result = readProgressiveArguments(store, "session1", "tool1");
-			expect(result).toEqual({
-				kind: "edit",
-				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
-				],
-			});
-		});
-
-		it("should track tool calls per session", () => {
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool1",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool2",
-				name: "Search",
-				arguments: { kind: "search", query: null, file_path: null },
-				status: "pending",
-				kind: "search",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			store.recordCompatibilityToolCallTranscriptEntry("session2", {
-				id: "tool3",
-				name: "Read",
-				arguments: { kind: "read", file_path: null },
-				status: "pending",
-				kind: "read",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", { kind: "execute", command: "ls -la" });
-			applyStreamingArguments(store, "session1", "tool2", { kind: "search", query: "test" });
-			applyStreamingArguments(store, "session2", "tool3", {
-				kind: "read",
-				file_path: "/tmp/file",
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
-				kind: "execute",
-				command: "ls -la",
-			});
-			expect(readProgressiveArguments(store, "session1", "tool2")).toEqual({
-				kind: "search",
-				query: "test",
-			});
-			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
-				kind: "read",
-				file_path: "/tmp/file",
-			});
-		});
-
-		it("should overwrite when setting same tool call again", () => {
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v1", content: null }],
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
-			});
-		});
-	});
-
-	describe("progressive argument lookup helper", () => {
-		it("should return undefined for unknown tool call", () => {
-			expect(readProgressiveArguments(store, "session1", "unknown")).toBeUndefined();
-		});
-	});
-
-	describe("clearStreamingArguments", () => {
-		it("should clear streaming arguments", () => {
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeDefined();
-
-			store.clearStreamingArguments("tool1");
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
-		});
-	});
-
-	describe("clearEntries", () => {
-		it("should clear all streaming arguments for session", () => {
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool1",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			store.recordCompatibilityToolCallTranscriptEntry("session1", {
-				id: "tool2",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			store.recordCompatibilityToolCallTranscriptEntry("session2", {
-				id: "tool3",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", { kind: "execute", command: "a" });
-			applyStreamingArguments(store, "session1", "tool2", { kind: "execute", command: "b" });
-			applyStreamingArguments(store, "session2", "tool3", { kind: "execute", command: "c" });
-
-			// Clear session1
-			store.clearEntries("session1");
-
-			// session1's tool calls should be cleared
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
-			expect(readProgressiveArguments(store, "session1", "tool2")).toBeUndefined();
-
-			// session2's tool calls should remain
-			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
-				kind: "execute",
-				command: "c",
-			});
-		});
-	});
-});
+import {
+	preloadEntriesAndBuildIndex,
+	readStoredEntries,
+} from "./entry-store-test-access.js";
 
 describe("SessionEntryStore - Transcript Deltas", () => {
 	let store: SessionEntryStore;
@@ -302,7 +48,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.replaceTranscriptSnapshot("session-1", snapshot, new Date("2026-04-16T00:00:00.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -324,43 +70,6 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		store.recordCompatibilityToolCallTranscriptEntry("session-1", {
-			id: "tool-1",
-			name: "Edit File",
-			arguments: {
-				kind: "edit",
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
-			},
-			rawInput: {
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
-			},
-			status: "completed",
-			result: null,
-			kind: "edit",
-			title: "Edit File",
-			locations: null,
-			skillMeta: null,
-			normalizedQuestions: null,
-			normalizedTodos: null,
-			parentToolUseId: null,
-			taskChildren: null,
-			questionAnswer: null,
-			awaitingPlanApproval: false,
-			planApprovalRequestId: null,
-		});
-
 		store.replaceTranscriptSnapshot(
 			"session-1",
 			{
@@ -382,7 +91,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			timestamp
 		);
 
-		const [entry] = readCompatibilityEntries(store, "session-1");
+		const [entry] = readStoredEntries(store, "session-1");
 		expect(entry?.type).toBe("tool_call");
 		if (entry?.type !== "tool_call") {
 			throw new Error("expected tool call entry");
@@ -427,6 +136,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 				},
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				result: null,
 				kind: "edit",
@@ -524,7 +234,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:01.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "assistant-1",
 				type: "assistant",
@@ -587,7 +297,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "user-1",
 				type: "user",
@@ -606,7 +316,6 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					name: "Read file\nstdout ready",
 					arguments: { kind: "other", raw: null },
 					progressiveArguments: undefined,
-					rawInput: null,
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -623,6 +332,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					normalizedResult: null,
 				},
 				timestamp: new Date("2026-04-16T00:00:02.000Z"),
+				isStreaming: undefined,
 			},
 		]);
 
@@ -631,7 +341,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("does not reconcile canonical user append entries by matching optimistic text", () => {
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -661,7 +371,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:02.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1")).toEqual([
+		expect(readStoredEntries(store, "session-1")).toEqual([
 			{
 				id: "optimistic-user-local",
 				type: "user",
@@ -687,7 +397,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 	});
 
 	it("appends canonical user entries even when matching optimistic text exists before assistant output", () => {
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "optimistic-user-local",
 			type: "user",
 			message: {
@@ -698,7 +408,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			},
 			timestamp: new Date("2026-04-16T00:00:01.000Z"),
 		});
-		store.appendCompatibilityEntry("session-1", {
+		store.appendTranscriptEntry("session-1", {
 			id: "assistant-1",
 			type: "assistant",
 			message: {
@@ -730,12 +440,12 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		store.applyTranscriptDelta("session-1", delta, new Date("2026-04-16T00:00:03.000Z"));
 
-		expect(readCompatibilityEntries(store, "session-1").map((entry) => entry.id)).toEqual([
+		expect(readStoredEntries(store, "session-1").map((entry) => entry.id)).toEqual([
 			"optimistic-user-local",
 			"assistant-1",
 			"user-event-7",
 		]);
-		expect(readCompatibilityEntries(store, "session-1")[2]).toMatchObject({
+		expect(readStoredEntries(store, "session-1")[2]).toMatchObject({
 			id: "user-event-7",
 			type: "user",
 		});
@@ -748,240 +458,6 @@ function createUserMessage(text: string) {
 	return { content: contentBlock, chunks: [contentBlock] };
 }
 
-describe("SessionEntryStore - Assistant/Tool Boundary", () => {
-	let store: SessionEntryStore;
-
-	beforeEach(() => {
-		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
-	});
-
-	it("creates a new assistant entry after tool call boundary for the same messageId", async () => {
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "pre-tool thought " } },
-			"msg-1",
-			true
-		);
-
-		store.recordCompatibilityToolCallTranscriptEntry("session1", {
-			id: "tool-1",
-			name: "Read",
-			arguments: { kind: "read", file_path: "/tmp/file.txt" },
-			status: "completed",
-			kind: "read",
-			title: null,
-			locations: null,
-			skillMeta: null,
-			result: null,
-			awaitingPlanApproval: false,
-		});
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "post-tool final response" } },
-			"msg-1",
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-		expect(entries).toHaveLength(3);
-		expect(entries[0].type).toBe("assistant");
-		expect(entries[1].type).toBe("tool_call");
-		expect(entries[2].type).toBe("assistant");
-
-		const lastAssistant = entries[2];
-		expect(lastAssistant.id).not.toBe("msg-1");
-		if (lastAssistant.type === "assistant") {
-			expect(lastAssistant.message.chunks).toHaveLength(1);
-			expect(lastAssistant.message.chunks[0].type).toBe("message");
-			expect(lastAssistant.message.chunks[0].block).toEqual({
-				type: "text",
-				text: "post-tool final response",
-			});
-		}
-	});
-
-	it("merges multiple post-tool chunks with same messageId into one assistant entry", async () => {
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "pre-tool thought " } },
-			"msg-2",
-			true
-		);
-
-		store.recordCompatibilityToolCallTranscriptEntry("session1", {
-			id: "tool-2",
-			name: "Read",
-			arguments: { kind: "read", file_path: "/tmp/file.txt" },
-			status: "completed",
-			kind: "read",
-			title: null,
-			locations: null,
-			skillMeta: null,
-			result: null,
-			awaitingPlanApproval: false,
-		});
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "post-tool part 1 " } },
-			"msg-2",
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "post-tool part 2" } },
-			"msg-2",
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-		expect(entries).toHaveLength(3);
-		expect(entries[0].type).toBe("assistant");
-		expect(entries[1].type).toBe("tool_call");
-		expect(entries[2].type).toBe("assistant");
-
-		const postToolAssistant = entries[2];
-		if (postToolAssistant.type === "assistant") {
-			expect(postToolAssistant.message.chunks).toHaveLength(2);
-			expect(postToolAssistant.message.chunks[0].block).toEqual({
-				type: "text",
-				text: "post-tool part 1 ",
-			});
-			expect(postToolAssistant.message.chunks[1].block).toEqual({
-				type: "text",
-				text: "post-tool part 2",
-			});
-		}
-	});
-
-	it("does not repair provider-reused assistant ids in the compatibility chunk aggregator", async () => {
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "first answer" } },
-			"provider-message",
-			false
-		);
-
-		store.startNewAssistantTurn("session1");
-		store.appendCompatibilityEntry("session1", {
-			id: "user-2",
-			type: "user",
-			message: createUserMessage("second prompt"),
-			timestamp: new Date("2026-04-26T00:00:00.000Z"),
-		});
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "second " } },
-			"provider-message",
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "answer" } },
-			"provider-message",
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-		expect(entries).toHaveLength(2);
-		expect(entries[0].type).toBe("assistant");
-		expect(entries[1].type).toBe("user");
-
-		const firstAssistant = entries[0];
-		if (firstAssistant.type === "assistant") {
-			expect(firstAssistant.message.chunks).toHaveLength(3);
-			expect(firstAssistant.message.chunks[0].block).toEqual({
-				type: "text",
-				text: "first answer",
-			});
-			expect(firstAssistant.message.chunks[1].block).toEqual({
-				type: "text",
-				text: "second ",
-			});
-			expect(firstAssistant.message.chunks[2].block).toEqual({
-				type: "text",
-				text: "answer",
-			});
-		}
-	});
-
-	it("keeps canonical assistant deltas after a new user turn using Rust-owned entryId", () => {
-		store.applyTranscriptDelta(
-			"session1",
-			{
-				eventSeq: 1,
-				sessionId: "session1",
-				snapshotRevision: 1,
-				operations: [
-					{
-						kind: "appendEntry",
-						entry: {
-							entryId: "provider-message",
-							role: "assistant",
-							segments: [
-								{
-									kind: "text",
-									segmentId: "provider-message:segment:1",
-									text: "first answer",
-								},
-							],
-						},
-					},
-				],
-			},
-			new Date("2026-04-26T00:00:00.000Z")
-		);
-		store.appendCompatibilityEntry("session1", {
-			id: "user-2",
-			type: "user",
-			message: createUserMessage("second prompt"),
-			timestamp: new Date("2026-04-26T00:00:01.000Z"),
-		});
-		store.applyTranscriptDelta(
-			"session1",
-			{
-				eventSeq: 2,
-				sessionId: "session1",
-				snapshotRevision: 2,
-				operations: [
-					{
-						kind: "appendSegment",
-						entryId: "assistant-event-2",
-						role: "assistant",
-						segment: {
-							kind: "text",
-							segmentId: "assistant-event-2:segment:2",
-							text: "second answer",
-						},
-					},
-				],
-			},
-			new Date("2026-04-26T00:00:02.000Z")
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-		expect(entries).toHaveLength(3);
-		expect(entries[0].type).toBe("assistant");
-		expect(entries[1].type).toBe("user");
-		expect(entries[2].type).toBe("assistant");
-		expect(entries[2].id).toBe("assistant-event-2");
-		if (entries[0].type === "assistant") {
-			expect(entries[0].message.chunks[0].block).toEqual({
-				type: "text",
-				text: "first answer",
-			});
-		}
-		if (entries[2].type === "assistant") {
-			expect(entries[2].message.chunks[0].block).toEqual({
-				type: "text",
-				text: "second answer",
-			});
-		}
-	});
-});
 
 describe("SessionEntryStore - Synchronous Entry Writes", () => {
 	let store: SessionEntryStore;
@@ -990,30 +466,30 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		store = new SessionEntryStore();
 	});
 
-	describe("appendCompatibilityEntry", () => {
+	describe("appendTranscriptEntry", () => {
 		it("should make entries immediately available", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
+			preloadEntriesAndBuildIndex(store, "session1", []);
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Hello"),
 				timestamp: new Date(),
 			});
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("World"),
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
 
 		it("should handle updates and additions together", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1022,30 +498,30 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
 				timestamp: new Date(),
 			});
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("New"),
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 			expect((entries[1].message as { content: { text: string } }).content.text).toBe("New");
 		});
 	});
 
-	describe("replaceCompatibilityEntry", () => {
+	describe("replaceTranscriptEntry", () => {
 		it("should apply multiple updates to same index with last-write-wins", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1054,30 +530,30 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 1"),
 				timestamp: new Date(),
 			});
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Update 2 - final"),
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe(
 				"Update 2 - final"
 			);
 		});
 	});
 
-	describe("compatibility entry reads", () => {
+	describe("projected entry reads", () => {
 		it("should return stored entries", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1086,12 +562,12 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 		});
 
-		it("collapses replayed tool-call entries with the same tool id during preload", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+		it("preserves replayed tool-call entries with the same tool id during preload", () => {
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1-a",
 					type: "tool_call",
@@ -1128,13 +604,13 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const toolEntries = readCompatibilityEntries(store, "session1")
+			const toolEntries = readStoredEntries(store, "session1")
 				.filter((entry) => entry.type === "tool_call");
-			expect(toolEntries).toHaveLength(1);
+			expect(toolEntries).toHaveLength(2);
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -1157,7 +633,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1172,7 +648,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results for preloaded tools whose canonical kind must be inferred from arguments", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -1195,7 +671,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
 			const toolEntry = entries[0];
 			expect(toolEntry?.type).toBe("tool_call");
@@ -1210,7 +686,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("should see updates immediately", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1219,19 +695,19 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.replaceCompatibilityEntry("session1", 0, {
+			store.replaceTranscriptEntry("session1", 0, {
 				id: "e1",
 				type: "user",
 				message: createUserMessage("Updated"),
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect((entries[0].message as { content: { text: string } }).content.text).toBe("Updated");
 		});
 
 		it("should see additions immediately", () => {
-			store.preloadCompatibilityEntriesAndBuildIndex("session1", [
+			preloadEntriesAndBuildIndex(store, "session1", [
 				{
 					id: "e1",
 					type: "user",
@@ -1240,128 +716,15 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			store.appendCompatibilityEntry("session1", {
+			store.appendTranscriptEntry("session1", {
 				id: "e2",
 				type: "user",
 				message: createUserMessage("Second"),
 				timestamp: new Date(),
 			});
 
-			const entries = readCompatibilityEntries(store, "session1");
+			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(2);
 		});
-	});
-});
-
-describe("SessionEntryStore - Rapid Streaming Chunk Aggregation", () => {
-	let store: SessionEntryStore;
-
-	beforeEach(() => {
-		store = new SessionEntryStore();
-		store.preloadCompatibilityEntriesAndBuildIndex("session1", []);
-	});
-
-	it("should merge all chunks with same messageId into one assistant entry", async () => {
-		const messageId = "msg-streaming-test";
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "The " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "quick " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "brown " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "fox" } },
-			messageId,
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-
-		expect(entries).toHaveLength(1);
-		expect(entries[0].type).toBe("assistant");
-
-		if (entries[0].type === "assistant") {
-			expect(entries[0].message.chunks).toHaveLength(4);
-			expect(entries[0].message.chunks[0].block).toEqual({ type: "text", text: "The " });
-			expect(entries[0].message.chunks[1].block).toEqual({ type: "text", text: "quick " });
-			expect(entries[0].message.chunks[2].block).toEqual({ type: "text", text: "brown " });
-			expect(entries[0].message.chunks[3].block).toEqual({ type: "text", text: "fox" });
-		}
-	});
-
-	it("should merge all chunks with same messageId across multiple calls", async () => {
-		const messageId = "msg-across-calls";
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "First " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "batch " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "second " } },
-			messageId,
-			false
-		);
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "batch" } },
-			messageId,
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-
-		// Should be ONE entry with all 4 chunks
-		expect(entries).toHaveLength(1);
-		expect(entries[0].type).toBe("assistant");
-
-		if (entries[0].type === "assistant") {
-			expect(entries[0].message.chunks).toHaveLength(4);
-		}
-	});
-
-	it("should create separate entries for different messageIds", async () => {
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "Message 1" } },
-			"msg-1",
-			false
-		);
-
-		await store.aggregateCompatibilityAssistantChunk(
-			"session1",
-			{ content: { type: "text", text: "Message 2" } },
-			"msg-2",
-			false
-		);
-
-		const entries = readCompatibilityEntries(store, "session1");
-
-		// Different messageIds should create separate entries
-		expect(entries).toHaveLength(2);
-		expect(entries[0].id).toBe("msg-1");
-		expect(entries[1].id).toBe("msg-2");
 	});
 });

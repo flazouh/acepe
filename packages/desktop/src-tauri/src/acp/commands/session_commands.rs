@@ -20,11 +20,14 @@ use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
 use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
-use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
+use crate::acp::session_state_engine::selectors::{
+    select_session_graph_activity, SessionGraphCapabilities,
+};
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSnapshot,
 };
@@ -303,11 +306,13 @@ fn capabilities_from_new_session_response(
     SessionGraphCapabilities {
         models: Some(response.models.clone()),
         modes: Some(response.modes.clone()),
-        available_commands: response.available_commands.clone(),
-        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
-            response.config_options.clone(),
+        available_commands: Some(response.available_commands.clone()),
+        config_options: Some(
+            crate::acp::session_update::sanitize_config_options_for_canonical(
+                response.config_options.clone(),
+            ),
         ),
-        autonomous_enabled: policy_registry.is_autonomous(&response.session_id),
+        autonomous_enabled: Some(policy_registry.is_autonomous(&response.session_id)),
     }
 }
 
@@ -437,7 +442,7 @@ async fn prepare_autonomous_capability_emit<R: tauri::Runtime>(
     let mut capabilities = runtime_registry
         .snapshot_for_session(session_id)
         .capabilities;
-    capabilities.autonomous_enabled = enabled;
+    capabilities.autonomous_enabled = Some(enabled);
 
     Ok(AutonomousCapabilityEmit {
         event_hub,
@@ -562,6 +567,30 @@ pub async fn acp_get_session_state(
             .and_then(|context| context.source_path.clone())
             .or_else(|| descriptor.as_ref().and_then(|facts| facts.source_path.clone()));
         let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
+        let turn_state = projection_session
+            .map(|session| session.turn_state.clone())
+            .unwrap_or(crate::acp::projections::SessionTurnState::Idle);
+        let message_count = projection_session
+            .map(|session| session.message_count)
+            .unwrap_or(0);
+        let active_turn_failure =
+            projection_session.and_then(|session| session.active_turn_failure.clone());
+        let last_terminal_turn_id =
+            projection_session.and_then(|session| session.last_terminal_turn_id.clone());
+        let lifecycle = runtime_snapshot.lifecycle.clone();
+        let capabilities = runtime_snapshot.capabilities.clone();
+        let activity = select_session_graph_activity(
+            &lifecycle,
+            &turn_state,
+            &operations,
+            &interactions,
+            active_turn_failure.as_ref(),
+        );
+        let active_streaming_tail = select_active_streaming_tail(
+            &turn_state,
+            &activity,
+            &transcript_snapshot,
+        );
         let found = SessionOpenFound {
             requested_session_id: session_id.clone(),
             canonical_session_id: canonical_session_id.clone(),
@@ -581,19 +610,14 @@ pub async fn acp_get_session_state(
             ),
             operations,
             interactions,
-            turn_state: projection_session
-                .map(|session| session.turn_state.clone())
-                .unwrap_or(crate::acp::projections::SessionTurnState::Idle),
-            message_count: projection_session
-                .map(|session| session.message_count)
-                .unwrap_or(0),
-            last_agent_message_id: projection_session
-                .and_then(|session| session.last_agent_message_id.clone()),
-            lifecycle: runtime_snapshot.lifecycle.clone(),
-            capabilities: runtime_snapshot.capabilities.clone(),
-            active_turn_failure: projection_session.and_then(|session| session.active_turn_failure.clone()),
-            last_terminal_turn_id: projection_session
-                .and_then(|session| session.last_terminal_turn_id.clone()),
+            turn_state,
+            message_count,
+            activity,
+            active_streaming_tail,
+            lifecycle,
+            capabilities,
+            active_turn_failure,
+            last_terminal_turn_id,
         };
 
         Ok(build_snapshot_envelope(&found))
@@ -1312,9 +1336,9 @@ where
                         attempt_id,
                         models: response.models,
                         modes: response.modes,
-                        available_commands: response.available_commands,
-                        config_options: response.config_options,
-                        autonomous_enabled,
+                        available_commands: Some(response.available_commands),
+                        config_options: Some(response.config_options),
+                        autonomous_enabled: Some(autonomous_enabled),
                     };
                     emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::info!(
@@ -2019,7 +2043,7 @@ mod transcript_buffer_tests {
                                 turn_state: crate::acp::projections::SessionTurnState::Idle,
                                 active_turn_failure: None,
                                 last_terminal_turn_id: None,
-                                last_agent_message_id: None,
+                                active_streaming_tail: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -2048,7 +2072,7 @@ mod transcript_buffer_tests {
                                 turn_state: crate::acp::projections::SessionTurnState::Idle,
                                 active_turn_failure: None,
                                 last_terminal_turn_id: None,
-                                last_agent_message_id: None,
+                                active_streaming_tail: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -2181,7 +2205,7 @@ mod transcript_buffer_tests {
                             interactions: vec![],
                             turn_state: crate::acp::projections::SessionTurnState::Running,
                             message_count: 2,
-                            last_agent_message_id: None,
+                            active_streaming_tail: None,
                             active_turn_failure: None,
                             last_terminal_turn_id: None,
                             lifecycle: crate::acp::session_state_engine::selectors::SessionGraphLifecycle::ready(),
@@ -2356,16 +2380,13 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
                 buffer.inner().discard(&session_id, "session_closed");
             }
 
-            let agent_id_str = session_registry
-                .get_agent_id(&session_id)
-                .map(|a| a.as_str().to_string())
-                .unwrap_or_else(|| "unknown".to_string());
+            let agent_id = session_registry.get_agent_id(&session_id);
 
             if let Some(client_arc) = session_registry.remove(&session_id, "acp_close_session") {
                 // Get exclusive access and stop the client
                 tracing::warn!(
                     session_id = %redact_session_id(&session_id),
-                    agent_id = %agent_id_str,
+                    agent_id = ?agent_id,
                     reason = "acp_close_session",
                     "Stopping session client from explicit close request"
                 );
@@ -2497,7 +2518,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     skill_meta: None,
                     locations: None,
                     normalized_questions: None,
@@ -2918,13 +2939,13 @@ mod tests {
                 attempt_id: 1,
                 models: crate::acp::client_session::default_session_model_state(),
                 modes: crate::acp::client_session::default_modes(),
-                available_commands: vec![crate::acp::session_update::AvailableCommand {
+                available_commands: Some(vec![crate::acp::session_update::AvailableCommand {
                     name: "compact".to_string(),
                     description: "Compact".to_string(),
                     input: None,
-                }],
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                }]),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
 
@@ -2934,7 +2955,15 @@ mod tests {
             snapshot.lifecycle.status,
             crate::acp::lifecycle::LifecycleStatus::Ready
         );
-        assert_eq!(snapshot.capabilities.available_commands.len(), 1);
+        assert_eq!(
+            snapshot
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -2943,7 +2972,7 @@ mod tests {
 
         assert_eq!(snapshot.graph_revision, 0);
         assert!(snapshot.capabilities.modes.is_none());
-        assert!(snapshot.capabilities.available_commands.is_empty());
+        assert!(snapshot.capabilities.available_commands.is_none());
     }
 
     #[tokio::test]

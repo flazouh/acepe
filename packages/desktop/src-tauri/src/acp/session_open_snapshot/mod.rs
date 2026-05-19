@@ -23,9 +23,11 @@ use crate::acp::projections::{
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
+use crate::acp::session_state_engine::graph::{select_active_streaming_tail, ActiveStreamingTail};
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    select_session_graph_activity, SessionGraphActivity, SessionGraphCapabilities,
+    SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::{
@@ -221,8 +223,8 @@ pub struct SessionOpenFound {
     pub interactions: Vec<InteractionSnapshot>,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_agent_message_id: Option<String>,
+    pub activity: SessionGraphActivity,
+    pub active_streaming_tail: Option<ActiveStreamingTail>,
     // --- Canonical lifecycle/actionability authority ---
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
@@ -550,11 +552,6 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     } else {
         session_snap.and_then(|session| session.last_terminal_turn_id.clone())
     };
-    let last_agent_message_id = if projection_is_behind_journal {
-        None
-    } else {
-        session_snap.and_then(|session| session.last_agent_message_id.clone())
-    };
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
@@ -579,6 +576,15 @@ pub async fn session_open_result_from_provider_owned_snapshot(
             capabilities.clone(),
         );
     }
+    let activity = select_session_graph_activity(
+        &lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+    let active_streaming_tail =
+        select_active_streaming_tail(&turn_state, &activity, &transcript_snapshot);
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: requested_session_id.to_string(),
@@ -601,7 +607,8 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         interactions,
         turn_state,
         message_count,
-        last_agent_message_id,
+        activity,
+        active_streaming_tail,
         lifecycle,
         capabilities,
         active_turn_failure,
@@ -644,6 +651,19 @@ pub async fn session_open_result_for_new_session(
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
 
+    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(last_event_seq, &[]);
+    let operations = vec![];
+    let interactions = vec![];
+    let turn_state = SessionTurnState::Idle;
+    let active_turn_failure = None;
+    let activity = select_session_graph_activity(
+        &input.lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: session_id.clone(),
         canonical_session_id: session_id.clone(),
@@ -655,16 +675,17 @@ pub async fn session_open_result_for_new_session(
         project_path: input.project_path,
         worktree_path: input.worktree_path,
         source_path: input.source_path,
-        transcript_snapshot: TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
+        transcript_snapshot,
         session_title: resolve_canonical_session_title(None, &session_id, None),
-        operations: vec![],
-        interactions: vec![],
-        turn_state: SessionTurnState::Idle,
+        operations,
+        interactions,
+        turn_state,
         message_count: 0,
-        last_agent_message_id: None,
+        activity,
+        active_streaming_tail: None,
         lifecycle: input.lifecycle,
         capabilities: input.capabilities,
-        active_turn_failure: None,
+        active_turn_failure,
         last_terminal_turn_id: None,
     }))
 }
@@ -763,7 +784,7 @@ mod tests {
                     file_path: Some("/provider/README.md".to_string()),
                     source_context: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::Completed,
                 result: None,
                 kind: Some(ToolKind::Read),
@@ -793,7 +814,7 @@ mod tests {
                     file_path: Some("/provider/README.md".to_string()),
                     source_context: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::Completed,
                 result: None,
                 kind: Some(ToolKind::Read),
@@ -823,7 +844,7 @@ mod tests {
                     file_path: Some("/provider/README.md".to_string()),
                     source_context: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(ToolKind::Read),
@@ -849,8 +870,11 @@ mod tests {
             message: ToolCallData {
                 id: id.to_string(),
                 name: "create_plan".to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
-                raw_input: None,
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
+                diagnostic_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::CreatePlan),
@@ -923,13 +947,13 @@ mod tests {
         let capabilities = SessionGraphCapabilities {
             models: None,
             modes: None,
-            available_commands: vec![AvailableCommand {
+            available_commands: Some(vec![AvailableCommand {
                 name: "list".to_string(),
                 description: "List files".to_string(),
                 input: None,
-            }],
-            config_options: Vec::new(),
-            autonomous_enabled: true,
+            }]),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(true),
         };
 
         let result = session_open_result_for_new_session(
@@ -957,8 +981,16 @@ mod tests {
             crate::acp::lifecycle::LifecycleStatus::Reserved
         );
         assert!(!found.lifecycle.actionability.can_send);
-        assert_eq!(found.capabilities.available_commands.len(), 1);
-        assert!(found.capabilities.autonomous_enabled);
+        assert_eq!(
+            found
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
+        assert_eq!(found.capabilities.autonomous_enabled, Some(true));
         // open_token must be a valid UUID
         assert!(Uuid::parse_str(&found.open_token).is_ok());
     }
@@ -1022,7 +1054,7 @@ mod tests {
             crate::acp::lifecycle::LifecycleStatus::Detached
         );
         assert!(found.lifecycle.actionability.can_resume);
-        assert!(found.capabilities.available_commands.is_empty());
+        assert!(found.capabilities.available_commands.is_none());
         assert_eq!(found.operations.len(), 1);
         let operation = &found.operations[0];
         assert_eq!(operation.tool_call_id, "provider-read");

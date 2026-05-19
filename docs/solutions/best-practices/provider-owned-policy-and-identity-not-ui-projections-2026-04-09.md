@@ -61,11 +61,7 @@ private resolveProviderMetadata(
 	agentId: string,
 	providerMetadata: ProviderMetadataProjection | null | undefined
 ): ProviderMetadataProjection {
-	return resolveProviderMetadataProjection(
-		agentId,
-		providerMetadata ?? preferencesStore.getCachedProviderMetadata(agentId),
-		agentId
-	);
+	return providerMetadata ?? preferencesStore.getCachedProviderMetadata(agentId);
 }
 ```
 
@@ -132,18 +128,14 @@ Copilot now owns its project-local `.agents` shape directly, including:
 
 For flat Copilot agent files, the invokable slash token comes from the filename, not the frontmatter `name`. `code-review.agent.md` must resolve to `code-review` even when `name` is omitted or set to a display label.
 
-The live split selector follows the same rule: use backend-projected groups first and fall back to client parsing only when the backend did not project a grouped model family.
+The live split selector follows the same rule: use backend-projected groups. If the backend did not project a grouped model family, the split reasoning selector is not enabled.
 
 ```ts
 const reasoningBaseGroupsFromDisplay = $derived.by(() =>
 	groupReasoningModelsFromDisplay(modelsDisplay)
 );
 const reasoningBaseGroups = $derived.by(() =>
-	usesVariantSelector
-		? reasoningBaseGroupsFromDisplay.length > 0
-			? reasoningBaseGroupsFromDisplay
-			: groupCodexModelsByBase(availableModels)
-		: []
+	usesVariantSelector ? reasoningBaseGroupsFromDisplay : []
 );
 ```
 
@@ -157,7 +149,7 @@ Once shared code starts “figuring out” provider behavior from UI projection 
 2. override and resume flows drift from the effective provider actually in use,
 3. new providers have to preserve accidental heuristics instead of implementing a clear contract.
 
-The explicit `providerMetadata` seam fixes that. The frontend can still render provider marks and grouped selectors from `modelsDisplay`, but policy now comes from typed provider metadata, grouped identity comes from model ids, replay identity comes from `history_session_id`, and preconnection slash behavior comes from `preconnectionSlashMode` plus provider-owned loaders. That is the difference between provider-neutral styling and genuinely agent-agnostic architecture.
+The explicit `providerMetadata` seam fixes that. The frontend can still render grouped selectors from `modelsDisplay`, but provider marks and policy now come from typed provider metadata, grouped identity comes from model ids, replay identity comes from `history_session_id`, and preconnection slash behavior comes from `preconnectionSlashMode` plus provider-owned loaders. That is the difference between provider-neutral styling and genuinely agent-agnostic architecture.
 
 ## When to Apply
 
@@ -174,11 +166,7 @@ The explicit `providerMetadata` seam fixes that. The frontend can still render p
 
 ```ts
 const cachedModelsDisplay = modelsDisplay ?? preferencesStore.getCachedModelsDisplay(agentId);
-return resolveProviderMetadataProjection(
-	agentId,
-	getProviderMetadataFromModelsDisplay(cachedModelsDisplay),
-	agentId
-);
+return inferProviderMetadataFromDisplayLabels(cachedModelsDisplay);
 ```
 
 This makes reconnect behavior depend on display projection.

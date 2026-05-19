@@ -1,5 +1,6 @@
 import type {
 	AssistantTextDeltaPayload,
+	ActiveStreamingTail,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -30,6 +31,7 @@ export type CanonicalSessionProjection = {
 	readonly turnState: SessionTurnState;
 	readonly activeTurnFailure: ActiveTurnFailure | null;
 	readonly lastTerminalTurnId: string | null;
+	readonly activeStreamingTail: ActiveStreamingTail | null;
 	readonly capabilities: SessionGraphCapabilities;
 	readonly tokenStream: ReadonlyMap<string, RowTokenStream>;
 	readonly clockAnchor: SessionClockAnchor | null;

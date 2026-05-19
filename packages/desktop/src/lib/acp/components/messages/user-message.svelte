@@ -13,11 +13,17 @@ import CommandOutputCard from "./command-output-card.svelte";
 import ContentBlockRouter from "./content-block-router.svelte";
 import { normalizeToProjectRelativePath } from "./logic/file-chip-diff-enhancer.js";
 
-let { message }: { message: UserMessage } = $props();
+let {
+	message,
+	projectPath: propProjectPath,
+}: {
+	message: UserMessage;
+	projectPath?: string;
+} = $props();
 
 const sessionContext = useSessionContext();
-const projectPath = $derived(sessionContext?.projectPath);
 const ownerPanelId = $derived(sessionContext?.panelId);
+const projectPath = $derived(propProjectPath);
 const panelStore = getPanelStore();
 
 type ProcessedChunk =
@@ -87,7 +93,7 @@ function handleTokenClick(tokenType: string, value: string) {
 					{:else if chunk.type === "text"}
 						<RichTokenText text={chunk.text} onTokenClick={handleTokenClick} />
 					{:else}
-						<ContentBlockRouter block={chunk.block} />
+						<ContentBlockRouter block={chunk.block} {projectPath} />
 					{/if}
 				</div>
 			{/each}

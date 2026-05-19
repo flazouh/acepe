@@ -8,28 +8,20 @@ import type { SessionStatus } from "./session-status.js";
 import type { TaskProgress } from "./task-progress.js";
 
 /**
- * Session - the unified data model for conversations.
+ * Session - legacy full conversation DTO.
  *
- * A Session is the unified concept that:
- * - Can be historical (idle, loaded from JSONL) or connected (ready/streaming with ACP)
- * - Has conversation entries and an optional plan
- * - Can have model/mode selection
- * - Tracks ACP connection state
+ * Prefer focused selectors and canonical projections for new code:
+ * - cold identity and metadata come from SessionCold
+ * - lifecycle/activity/failure/capability truth comes from the Rust-owned
+ *   SessionStateGraph projection
+ * - transcript rows come from canonical transcript snapshot/delta projection
+ * - operation details come from the canonical operation graph
  *
- * This interface composes from focused types:
- * - SessionIdentity: Immutable lookup keys (id, projectPath, agentId)
- * - SessionMetadata: Rarely changing data (title, timestamps, sourcePath)
- * - SessionCapabilities: ACP configuration (available models, modes, commands)
- * - Plus hot state fields (status, isConnected, etc.) and content (entries)
- *
- * The Session type is reconstructed at runtime by merging:
- * - Cold data (SessionCold = Identity + Metadata) from the store
- * - Hot state (SessionTransientProjection) from the hot state store
- * - Capabilities from ACP connection
- * - Entries from the entry store
+ * This type remains for component boundaries that still consume a combined
+ * shape. Do not treat it as a source of truth or add repair/fallback logic here.
  */
 export interface Session extends SessionIdentity, SessionMetadata, SessionCapabilities {
-	// Hot state fields (from SessionTransientProjection, merged at runtime)
+	// Canonical-derived presentation fields.
 	readonly status: SessionStatus;
 	readonly isConnected: boolean;
 	readonly isStreaming: boolean;
@@ -41,22 +33,8 @@ export interface Session extends SessionIdentity, SessionMetadata, SessionCapabi
 	readonly currentModel: Model | null;
 	readonly currentMode: Mode | null;
 
-	// Content fields (from EntryStore, merged at runtime)
+	// Projected transcript content.
 	readonly entries: ReadonlyArray<SessionEntry>;
 	readonly entryCount: number;
 	readonly taskProgress: TaskProgress | null;
 }
-
-// Re-export all extracted types for backward compatibility
-export type { Mode } from "./mode.js";
-export type { Model } from "./model.js";
-export type { SessionCapabilities } from "./session-capabilities.js";
-export type { SessionCold } from "./session-cold.js";
-export type { SessionEntry } from "./session-entry.js";
-export { isToolCallEntry } from "./session-entry.js";
-export type { SessionIdentity } from "./session-identity.js";
-export type { SessionLinkedPr, SessionPrLinkMode } from "./session-linked-pr.js";
-export type { SessionMetadata } from "./session-metadata.js";
-export type { SessionStatus } from "./session-status.js";
-export type { SessionSummary } from "./session-summary.js";
-export type { TaskProgress } from "./task-progress.js";

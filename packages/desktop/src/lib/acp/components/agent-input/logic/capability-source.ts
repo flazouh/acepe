@@ -9,6 +9,7 @@ import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
 
 export type CapabilitySourceKind =
 	| "liveSession"
+	| "missingCanonicalSession"
 	| "preconnectionResolved"
 	| "persistedCache"
 	| "preconnectionPartial"
@@ -16,20 +17,75 @@ export type CapabilitySourceKind =
 
 export interface CapabilitySourceResolution {
 	readonly source: CapabilitySourceKind;
-	readonly availableModes: readonly Mode[];
-	readonly availableModels: readonly Model[];
+	readonly availableModes: readonly Mode[] | null;
+	readonly availableModels: readonly Model[] | null;
 	readonly modelsDisplay: ModelsForDisplay | null;
 	readonly providerMetadata: ProviderMetadataProjection | null;
-	readonly status: ResolvedCapabilities["status"] | "liveSession" | "persistedCache";
+	readonly status:
+		| ResolvedCapabilities["status"]
+		| "liveSession"
+		| "missingCanonicalSession"
+		| "persistedCache";
 }
 
+export type SessionCapabilitySource =
+	| {
+			readonly kind: "no_session";
+	  }
+	| {
+			readonly kind: "canonical";
+			readonly capabilities: SessionCapabilities;
+	  }
+	| {
+			readonly kind: "missing_canonical";
+			readonly sessionId: string;
+	  };
+
 interface ResolveCapabilitySourceInput {
-	readonly sessionCapabilities: SessionCapabilities | null;
+	readonly sessionSource: SessionCapabilitySource;
 	readonly preconnectionCapabilities: ResolvedCapabilities | null;
 	readonly cachedModes: readonly Mode[];
 	readonly cachedModels: readonly Model[];
 	readonly cachedModelsDisplay: ModelsForDisplay | null;
 	readonly providerMetadata: ProviderMetadataProjection | null;
+}
+
+export function sessionCapabilitySourceFromCapabilities(
+	sessionId: string | null,
+	sessionCapabilities: SessionCapabilities | null
+): SessionCapabilitySource {
+	if (sessionId === null) {
+		return {
+			kind: "no_session",
+		};
+	}
+
+	if (sessionCapabilities === null) {
+		return {
+			kind: "missing_canonical",
+			sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical",
+		capabilities: sessionCapabilities,
+	};
+}
+
+export function resolveCapabilityContextProviderMetadata(input: {
+	readonly sessionSource: SessionCapabilitySource;
+	readonly selectedAgentProviderMetadata: ProviderMetadataProjection | null;
+}): ProviderMetadataProjection | null {
+	if (input.sessionSource.kind === "canonical") {
+		return input.sessionSource.capabilities.providerMetadata ?? null;
+	}
+
+	if (input.sessionSource.kind === "missing_canonical") {
+		return null;
+	}
+
+	return input.selectedAgentProviderMetadata;
 }
 
 function toModes(capabilities: ResolvedCapabilities): Mode[] {
@@ -116,8 +172,8 @@ function resolveFallbackCapabilitySource(
 function buildResolution(
 	source: CapabilitySourceKind,
 	status: CapabilitySourceResolution["status"],
-	availableModes: readonly Mode[],
-	availableModels: readonly Model[],
+	availableModes: readonly Mode[] | null,
+	availableModels: readonly Model[] | null,
 	modelsDisplay: ModelsForDisplay | null,
 	providerMetadata: ProviderMetadataProjection | null
 ): CapabilitySourceResolution {
@@ -134,8 +190,19 @@ function buildResolution(
 export function resolveCapabilitySource(
 	input: ResolveCapabilitySourceInput
 ): CapabilitySourceResolution {
-	const liveCapabilities = input.sessionCapabilities;
-	if (liveCapabilities !== null) {
+	if (input.sessionSource.kind === "missing_canonical") {
+		return buildResolution(
+			"missingCanonicalSession",
+			"missingCanonicalSession",
+			[],
+			[],
+			null,
+			null
+		);
+	}
+
+	if (input.sessionSource.kind === "canonical") {
+		const liveCapabilities = input.sessionSource.capabilities;
 		return buildResolution(
 			"liveSession",
 			"liveSession",

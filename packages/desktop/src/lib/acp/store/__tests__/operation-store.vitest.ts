@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OperationSnapshot } from "../../../services/acp-types.js";
+import type { OperationSnapshot, TranscriptSnapshot } from "../../../services/acp-types.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
 import { createLongSessionFixture } from "../../testing/long-session-fixture.js";
 import {
@@ -9,6 +9,7 @@ import {
 	OperationStore,
 } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
+import { preloadEntriesAndBuildIndex } from "./entry-store-test-access.js";
 
 function createExecuteToolCall(
 	id: string,
@@ -53,6 +54,7 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 		kind: overrides?.kind ?? "execute",
 		provider_status: overrides?.provider_status ?? "in_progress",
 		operation_state: overrides?.operation_state ?? "running",
+	awaiting_plan_approval: false,
 		source_link: overrides?.source_link ?? {
 			kind: "transcript_linked",
 			entry_id: "tool-1",
@@ -81,6 +83,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "pending",
 				operation_state: "pending",
+	awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo" },
 				command: "mkdir demo",
 			}),
@@ -103,6 +106,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "in_progress",
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo" },
 				progressive_arguments: { kind: "execute", command: "mkdir demo && cd demo" },
 				command: "mkdir demo && cd demo",
@@ -120,6 +124,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo && cd demo" },
 				progressive_arguments: null,
 				result: "done",
@@ -188,6 +193,7 @@ describe("OperationStore", () => {
 				kind: "task",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				title: "Task",
 				arguments: { kind: "other", raw: {} },
 				result: null,
@@ -200,6 +206,7 @@ describe("OperationStore", () => {
 				tool_call_id: "task-child",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "go test ./..." },
 				command: "go test ./...",
 				parent_tool_call_id: "task-parent",
@@ -222,7 +229,7 @@ describe("OperationStore", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
-		entryStore.preloadCompatibilityEntriesAndBuildIndex("session-1", [
+		preloadEntriesAndBuildIndex(entryStore, "session-1", [
 			createToolCallEntry(createExecuteToolCall("tool-1", "git status")),
 		]);
 
@@ -241,6 +248,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "pending",
 				operation_state: "pending",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -261,6 +269,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "ls" },
@@ -299,6 +308,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -319,6 +329,7 @@ describe("OperationStore", () => {
 				kind: null,
 				provider_status: "in_progress",
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "grep needle" },
@@ -349,6 +360,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -369,6 +381,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "bun test" },
@@ -420,6 +433,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "Run command",
 				arguments: { kind: "execute", command: "printf hello" },
@@ -453,6 +467,7 @@ describe("OperationStore", () => {
 				kind: null,
 				provider_status: "in_progress",
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "Todo list",
 				arguments: { kind: "other", raw: {} },
@@ -503,6 +518,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "First",
@@ -537,6 +553,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",
@@ -558,6 +575,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",
@@ -584,10 +602,12 @@ describe("OperationStore", () => {
 		operationStore.applySessionOperationPatches("session-1", [
 			createOperationSnapshot({
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 			createOperationSnapshot({
 				operation_state: "running",
+	awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 		]);
@@ -599,6 +619,7 @@ describe("OperationStore", () => {
 		operationStore.applySessionOperationPatches("session-1", [
 			createOperationSnapshot({
 				operation_state: "completed",
+	awaiting_plan_approval: false,
 				provider_status: "completed",
 				result: "done",
 			}),
@@ -618,12 +639,14 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-cancelled",
 				operation_provenance_key: "tool-cancelled",
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 			}),
 			createOperationSnapshot({
 				id: "op-cancelled",
 				tool_call_id: "tool-cancelled",
 				operation_provenance_key: "tool-cancelled",
 				operation_state: "cancelled",
+	awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 			createOperationSnapshot({
@@ -631,12 +654,14 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-degraded",
 				operation_provenance_key: "tool-degraded",
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 			}),
 			createOperationSnapshot({
 				id: "op-degraded",
 				tool_call_id: "tool-degraded",
 				operation_provenance_key: "tool-degraded",
 				operation_state: "degraded",
+	awaiting_plan_approval: false,
 				provider_status: "failed",
 			}),
 		]);
@@ -654,6 +679,7 @@ describe("OperationStore", () => {
 		operationStore.replaceSessionOperations("session-1", [
 			createOperationSnapshot({
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 		]);
@@ -697,6 +723,7 @@ describe("OperationStore", () => {
 					tool_call_id: testCase.toolCallId,
 					operation_provenance_key: testCase.toolCallId,
 					operation_state: testCase.terminalState,
+	awaiting_plan_approval: false,
 					provider_status: testCase.providerStatus,
 				}),
 				createOperationSnapshot({
@@ -704,6 +731,7 @@ describe("OperationStore", () => {
 					tool_call_id: testCase.toolCallId,
 					operation_provenance_key: testCase.toolCallId,
 					operation_state: "running",
+	awaiting_plan_approval: false,
 					provider_status: "in_progress",
 				}),
 			]);
@@ -722,7 +750,7 @@ describe("OperationStore", () => {
 		expect(buildCanonicalOperationId("a:b", "c")).not.toBe(buildCanonicalOperationId("a", "b:c"));
 	});
 
-	it("transcript-only tool updates do not overwrite canonical operation state", () => {
+	it("transcript snapshots do not overwrite canonical operation state", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
@@ -736,6 +764,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "blocked",
+	awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",
@@ -753,21 +782,23 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
 
-		entryStore.recordCompatibilityToolCallTranscriptEntry(
-			"session-1",
-			createExecuteToolCall("tool-1", "pwd", { status: "in_progress" })
-		);
-		entryStore.updateCompatibilityToolCallTranscriptEntry("session-1", {
-			toolCallId: "tool-1",
-			status: "in_progress",
-			result: null,
-			content: null,
-			rawOutput: null,
-			title: null,
-			locations: null,
-			normalizedTodos: null,
-			normalizedQuestions: null,
-		});
+		const snapshot: TranscriptSnapshot = {
+			revision: 1,
+			entries: [
+				{
+					entryId: "tool-1",
+					role: "tool",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "tool-1:tool",
+							text: "Run command",
+						},
+					],
+				},
+			],
+		};
+		entryStore.replaceTranscriptSnapshot("session-1", snapshot, new Date());
 
 		const operation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(operation?.operationState).toBe("blocked");

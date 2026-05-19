@@ -619,7 +619,7 @@ fn test_tool_arguments_enter_plan_mode() {
     let raw = json!({"mode": "code"});
     let args = ToolArguments::from_raw(ToolKind::EnterPlanMode, raw);
     match args {
-        ToolArguments::PlanMode { mode } => {
+        ToolArguments::PlanMode { mode, .. } => {
             assert_eq!(mode, Some("code".to_string()));
         }
         _ => panic!("Expected PlanMode variant"),
@@ -631,7 +631,7 @@ fn test_tool_arguments_exit_plan_mode() {
     let raw = json!({"modeId": "write"});
     let args = ToolArguments::from_raw(ToolKind::ExitPlanMode, raw);
     match args {
-        ToolArguments::PlanMode { mode } => {
+        ToolArguments::PlanMode { mode, .. } => {
             assert_eq!(mode, Some("write".to_string()));
         }
         _ => panic!("Expected PlanMode variant"),
@@ -644,12 +644,26 @@ fn test_tool_arguments_exit_plan_mode_preserves_plan_payload() {
         "plan": "# Fix Plan Card\n\nRender the actual plan body.",
         "planFilePath": "/repo/.claude/plans/fix-plan-card.md"
     });
-    let args = ToolArguments::from_raw(ToolKind::ExitPlanMode, raw.clone());
+    let args = ToolArguments::from_raw(ToolKind::ExitPlanMode, raw);
     match args {
-        ToolArguments::Other { raw: parsed_raw } => {
-            assert_eq!(parsed_raw, raw);
+        ToolArguments::PlanMode {
+            mode,
+            plan,
+            plan_file_path,
+            title,
+        } => {
+            assert_eq!(mode, None);
+            assert_eq!(
+                plan.as_deref(),
+                Some("# Fix Plan Card\n\nRender the actual plan body.")
+            );
+            assert_eq!(
+                plan_file_path.as_deref(),
+                Some("/repo/.claude/plans/fix-plan-card.md")
+            );
+            assert_eq!(title.as_deref(), Some("Fix Plan Card"));
         }
-        _ => panic!("Expected Other variant with raw plan payload"),
+        _ => panic!("Expected PlanMode variant with canonical plan payload"),
     }
 }
 
@@ -658,7 +672,7 @@ fn test_tool_arguments_other() {
     let raw = json!({"custom_field": "custom_value"});
     let args = ToolArguments::from_raw(ToolKind::Other, raw.clone());
     match args {
-        ToolArguments::Other { raw: raw_data } => {
+        ToolArguments::Other { raw: raw_data, .. } => {
             assert_eq!(raw_data, raw);
         }
         _ => panic!("Expected Other variant"),

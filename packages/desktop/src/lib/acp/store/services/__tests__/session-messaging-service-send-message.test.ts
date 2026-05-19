@@ -42,7 +42,8 @@ function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeo
 
 function createMockDeps() {
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn().mockReturnValue(DEFAULT_TRANSIENT_PROJECTION),
+		getSessionAcpSessionId: vi.fn().mockReturnValue(null),
+		getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
 		getSessionCanSend: vi.fn().mockReturnValue(true),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue("ready"),
 		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
@@ -81,8 +82,6 @@ function createMockDeps() {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -257,9 +256,6 @@ describe("SessionMessagingService.sendMessage", () => {
 
 	it("does not first-send activate source-backed created sessions", async () => {
 		const deps = createMockDeps();
-		(deps.stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			DEFAULT_TRANSIENT_PROJECTION
-		);
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
 		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue("reserved");
 		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({

@@ -5,6 +5,7 @@ import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { deriveSessionState } from "../../session-state.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import type { UrgencyInfo } from "../../urgency.js";
 import { classifyItem } from "../queue-section-utils.js";
 import { buildQueueItem, buildQueueSessionSnapshot, type QueueSessionSnapshot } from "../utils.js";
@@ -48,6 +49,7 @@ function makeCanonicalProjection(
 		turnState: activityKind === "idle" ? "Idle" : "Running",
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {
 			models: null,
 			modes: null,
@@ -110,6 +112,17 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
+	const workBucket =
+		overrides.workBucket ??
+		selectSessionWorkBucket(
+			deriveSessionWorkProjection({
+				state,
+				currentModeId,
+				connectionError: overrides.connectionError ?? null,
+				activeTurnFailure: overrides.activeTurnFailure ?? null,
+				canonicalActivity: null,
+			})
+		);
 
 	return {
 		id: "session-1",
@@ -126,6 +139,7 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		isStreaming,
 		isThinking,
 		status: "ready",
+		workBucket,
 		updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 		currentModeId,
 		connectionError: null,
@@ -506,7 +520,7 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.status).toBe("error");
 	});
 
-	it("uses neutral work state without canonical input", () => {
+	it("fails visible when a queue session has no canonical projection", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",
 			agentId: "opencode",
@@ -532,6 +546,7 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.currentModeId).toBeNull();
 		expect(snapshot.connectionError).toBeNull();
 		expect(snapshot.activeTurnFailure).toBeNull();
-		expect(snapshot.status).toBe("idle");
+		expect(snapshot.status).toBe("error");
+		expect(snapshot.workBucket).toBe("error");
 	});
 });

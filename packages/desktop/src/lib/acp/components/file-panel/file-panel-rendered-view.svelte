@@ -1,6 +1,6 @@
 <script lang="ts">
 import MarkdownText from "../messages/markdown-text.svelte";
-import type { FilePanelFormatKind } from "./file-panel-format.js";
+import type { FilePanelFormatKind } from "./format/types.js";
 
 interface Props {
 	content: string;

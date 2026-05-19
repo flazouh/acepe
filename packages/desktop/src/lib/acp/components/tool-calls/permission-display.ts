@@ -2,16 +2,8 @@ import type { ToolArguments } from "../../../services/converted-session-types.js
 import type { PermissionRequest } from "../../types/permission.js";
 import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 
-type PermissionRawInput = {
-	command?: string | null;
-	filePath?: string | null;
-	file_path?: string | null;
-	path?: string | null;
-};
-
 type PermissionMetadataShape = {
 	parsedArguments?: ToolArguments | null;
-	rawInput?: PermissionRawInput | null;
 };
 
 function getMetadata(permission: PermissionRequest): PermissionMetadataShape | null {
@@ -127,20 +119,17 @@ export function extractPermissionToolKind(permission: PermissionRequest): Permis
 export function extractPermissionCommand(permission: PermissionRequest): string | null {
 	const metadata = getMetadata(permission);
 
-	// Prefer Rust-parsed arguments (agent-agnostic)
 	const parsed = metadata?.parsedArguments;
 	if (parsed?.kind === "execute" && parsed.command) {
 		return parsed.command;
 	}
 
-	// Legacy fallback
-	return metadata?.rawInput?.command ?? null;
+	return null;
 }
 
 export function extractPermissionFilePath(permission: PermissionRequest): string | null {
 	const metadata = getMetadata(permission);
 
-	// Prefer Rust-parsed arguments (agent-agnostic)
 	const parsed = metadata?.parsedArguments;
 	if (parsed) {
 		switch (parsed.kind) {
@@ -160,13 +149,6 @@ export function extractPermissionFilePath(permission: PermissionRequest): string
 				break;
 		}
 	}
-
-	// Legacy fallback
-	const rawInput = metadata?.rawInput;
-	const rawInputPath = normalizePath(
-		rawInput?.file_path ?? rawInput?.filePath ?? rawInput?.path ?? null
-	);
-	if (rawInputPath) return rawInputPath;
 
 	return extractPathFromPermissionLabel(permission.permission);
 }

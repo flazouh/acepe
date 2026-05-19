@@ -10,6 +10,7 @@ import {
 	getAgentModelDefaultsEntries,
 	getAgentsByProviderOrder,
 	getProviderDefaultLabel,
+	resolveSettingsProviderMetadata,
 	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
 
@@ -220,6 +221,64 @@ describe("getAgentsByProviderOrder", () => {
 	});
 });
 
+describe("resolveSettingsProviderMetadata", () => {
+	it("prefers installed agent metadata over stale cached metadata", () => {
+		const installed: ProviderMetadataProjection = {
+			providerBrand: "copilot",
+			displayName: "GitHub Copilot",
+			displayOrder: 30,
+			supportsModelDefaults: false,
+			variantGroup: "plain",
+			defaultAlias: undefined,
+			reasoningEffortSupport: false,
+			preconnectionSlashMode: "projectScoped",
+			preconnectionCapabilityMode: "projectScoped",
+			implicitSessionCreationMode: "allowed",
+		};
+		const cached: ProviderMetadataProjection = {
+			providerBrand: "copilot",
+			displayName: "Stale Copilot",
+			displayOrder: 99,
+			supportsModelDefaults: true,
+			variantGroup: "plain",
+			defaultAlias: "stale",
+			reasoningEffortSupport: false,
+			preconnectionSlashMode: "unsupported",
+			preconnectionCapabilityMode: "unsupported",
+			implicitSessionCreationMode: "explicitUserAction",
+		};
+
+		expect(
+			resolveSettingsProviderMetadata({
+				agentProviderMetadata: installed,
+				cachedProviderMetadata: cached,
+			})
+		).toBe(installed);
+	});
+
+	it("uses cached metadata only when installed agent metadata is absent", () => {
+		const cached: ProviderMetadataProjection = {
+			providerBrand: "custom",
+			displayName: "Custom Agent",
+			displayOrder: 65535,
+			supportsModelDefaults: true,
+			variantGroup: "plain",
+			defaultAlias: undefined,
+			reasoningEffortSupport: false,
+			preconnectionSlashMode: "unsupported",
+			preconnectionCapabilityMode: "unsupported",
+			implicitSessionCreationMode: "explicitUserAction",
+		};
+
+		expect(
+			resolveSettingsProviderMetadata({
+				agentProviderMetadata: undefined,
+				cachedProviderMetadata: cached,
+			})
+		).toBe(cached);
+	});
+});
+
 describe("resolveSettingsCapabilitySource", () => {
 	it("uses resolved preconnection capabilities before empty caches", () => {
 		const resolution = resolveSettingsCapabilitySource({
@@ -277,7 +336,7 @@ describe("resolveSettingsCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("preconnectionResolved");
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
+		expect(resolution.availableModels?.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
 		expect(resolution.modelsDisplay?.groups).toHaveLength(1);
 	});
 });

@@ -24,18 +24,6 @@ Object.defineProperty(globalThis, "sessionStorage", {
 });
 
 const sessionStoreState = vi.hoisted(() => ({
-	runtimeState: null as null | {
-		connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
-		contentPhase: "empty" | "loading" | "loaded";
-		activityPhase: "idle" | "running" | "waiting_for_user";
-		canSubmit: boolean;
-		canCancel: boolean;
-		showStop: boolean;
-		showThinking: boolean;
-		showConnectingOverlay: boolean;
-		showConversation: boolean;
-		showReadyPlaceholder: boolean;
-	},
 	hotState: {
 		turnState: "idle" as "idle" | "running" | "completed" | "error",
 		status: "idle" as "idle" | "loading" | "connecting" | "ready" | "streaming" | "error",
@@ -77,7 +65,6 @@ vi.mock("mode-watcher", () => ({
 
 vi.mock("../../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
-		getSessionRuntimeState: () => sessionStoreState.runtimeState,
 		getHotState: () => sessionStoreState.hotState,
 		getCanonicalSessionProjection: () => sessionStoreState.canonicalProjection,
 		getSessionCurrentModeId: () => null,
@@ -163,6 +150,7 @@ function createCanonicalProjection(
 		turnState: activityKind === "idle" ? "Idle" : "Running",
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {
 			models: null,
 			modes: null,
@@ -219,7 +207,6 @@ function renderContent(
 describe("AgentPanelContent", () => {
 	afterEach(() => {
 		cleanup();
-		sessionStoreState.runtimeState = null;
 		sessionStoreState.hotState = {
 			turnState: "idle",
 			status: "idle",
@@ -249,18 +236,6 @@ describe("AgentPanelContent", () => {
 	});
 
 	it("derives waiting-state from graph-backed awaiting-model activity", () => {
-		sessionStoreState.runtimeState = {
-			connectionPhase: "connected",
-			contentPhase: "loaded",
-			activityPhase: "idle",
-			canSubmit: true,
-			canCancel: false,
-			showStop: false,
-			showThinking: false,
-			showConnectingOverlay: false,
-			showConversation: true,
-			showReadyPlaceholder: false,
-		};
 		sessionStoreState.canonicalProjection = createCanonicalProjection("awaiting_model");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
@@ -271,18 +246,6 @@ describe("AgentPanelContent", () => {
 	});
 
 	it("does not report waiting-state for graph-backed running operations", () => {
-		sessionStoreState.runtimeState = {
-			connectionPhase: "connected",
-			contentPhase: "loaded",
-			activityPhase: "idle",
-			canSubmit: true,
-			canCancel: false,
-			showStop: false,
-			showThinking: false,
-			showConnectingOverlay: false,
-			showConversation: true,
-			showReadyPlaceholder: false,
-		};
 		sessionStoreState.canonicalProjection = createCanonicalProjection("running_operation");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });

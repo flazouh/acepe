@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentToolThinking } from "@acepe/ui/agent-panel";
-import { useSessionContext } from "../../hooks/use-session-context.js";
 import { groupAssistantChunks } from "../../logic/assistant-chunk-grouper.js";
 import { sanitizeAssistantText } from "../../logic/assistant-text-sanitizer.js";
 import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
@@ -48,7 +47,7 @@ function resolveAssistantMessage(candidate: AssistantMessage | undefined): Assis
 	if (import.meta.env.DEV) {
 		console.warn("[ASSISTANT_MESSAGE_INVALID_PROP]", {
 			isStreaming,
-			projectPath: propProjectPath ?? sessionContext?.projectPath,
+			projectPath: propProjectPath,
 			hasCandidate: candidate !== undefined,
 		});
 	}
@@ -56,9 +55,7 @@ function resolveAssistantMessage(candidate: AssistantMessage | undefined): Assis
 	return EMPTY_ASSISTANT_MESSAGE;
 }
 
-// Get projectPath from session context, with prop fallback
-const sessionContext = useSessionContext();
-const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
+const projectPath = $derived(propProjectPath);
 const safeMessage = $derived(resolveAssistantMessage(message));
 
 const groupedChunks = $derived.by(() => {
@@ -246,7 +243,7 @@ $effect(() => {
 								{#if group.type === "text"}
 									<ContentBlockRouter
 										block={{ type: "text", text: group.text }}
-										isStreaming={isStreaming && isLastThoughtTextGroup}
+										isStreaming={isStreaming && !hasMessageContent && isLastThoughtTextGroup}
 										{projectPath}
 										{streamingAnimationMode}
 									/>

@@ -470,7 +470,7 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
                                 ),
                                 questions,
                                 tool: Some(ToolReference {
-                                    message_id: String::new(),
+                                    message_id: None,
                                     call_id: tool_call_id.clone(),
                                 }),
                             },
@@ -733,7 +733,7 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
             tracing::info!(
                 session_id = %self.session_id,
                 tool_name = %request.tool_name,
-                tool_call_id = tool_use_id.unwrap_or("unknown"),
+                tool_call_id = ?tool_use_id,
                 "cc-sdk PermissionRequest hook ignored for AskUserQuestion"
             );
             return Ok(cc_sdk::HookJSONOutput::Sync(cc_sdk::SyncHookJSONOutput {
@@ -1302,11 +1302,12 @@ impl ClaudeCcSdkClient {
         }
 
         if let Some(model_id) = &self.pending_model_id {
-            model_state.current_model_id = model_id.clone();
-        } else if model_state.current_model_id == "auto" && model_state.available_models.len() == 1
+            model_state.current_model_id = Some(model_id.clone());
+        } else if model_state.current_model_id.as_deref() == Some("auto")
+            && model_state.available_models.len() == 1
         {
             if let Some(model) = model_state.available_models.first() {
-                model_state.current_model_id = model.model_id.clone();
+                model_state.current_model_id = Some(model.model_id.clone());
             }
         }
         let cwd = self
@@ -1335,7 +1336,7 @@ impl ClaudeCcSdkClient {
 
         tracing::info!(
             provider = %self.provider.id(),
-            current_model_id = %model_state.current_model_id,
+            current_model_id = ?model_state.current_model_id,
             available_model_ids = ?model_state
                 .available_models
                 .iter()
@@ -1708,7 +1709,7 @@ async fn run_streaming_bridge(
                                 .record_with_input(
                                     tool_call.name.clone(),
                                     tool_call.id.clone(),
-                                    tool_call.raw_input.as_ref(),
+                                    tool_call.diagnostic_input.as_ref(),
                                 )
                                 .await;
                             approval_callback_tracker
@@ -1924,7 +1925,7 @@ fn build_permission_request_update(
     tool_call_id: &str,
     request_id: u64,
     tool_name: &str,
-    raw_input: &Value,
+    diagnostic_input: &Value,
     has_always_option: bool,
     agent_type: AgentType,
     auto_accepted: bool,
@@ -1938,8 +1939,8 @@ fn build_permission_request_update(
                 crate::acp::session_update::InteractionReplyHandler::json_rpc(request_id),
             ),
             permission: tool_name.to_string(),
-            patterns: build_permission_patterns(raw_input),
-            metadata: build_permission_metadata(tool_name, raw_input, agent_type),
+            patterns: build_permission_patterns(diagnostic_input),
+            metadata: build_permission_metadata(tool_name, diagnostic_input, agent_type),
             always: if has_always_option {
                 vec!["allow_always".to_string()]
             } else {
@@ -1947,7 +1948,7 @@ fn build_permission_request_update(
             },
             auto_accepted,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },
@@ -2003,10 +2004,10 @@ fn is_exit_plan_permission(tool_name: &str, agent_type: AgentType) -> bool {
     get_parser(agent_type).detect_tool_kind(tool_name) == ToolKind::ExitPlanMode
 }
 
-fn build_permission_patterns(raw_input: &Value) -> Vec<String> {
+fn build_permission_patterns(diagnostic_input: &Value) -> Vec<String> {
     ["command", "file_path", "filePath", "path", "query"]
         .into_iter()
-        .filter_map(|key| raw_input.get(key).and_then(Value::as_str))
+        .filter_map(|key| diagnostic_input.get(key).and_then(Value::as_str))
         .map(ToString::to_string)
         .collect()
 }
@@ -2024,17 +2025,24 @@ fn build_reusable_permission_key_from_patterns(
     Some(format!("{permission_name}::{}", patterns.join("||")))
 }
 
-fn build_reusable_permission_key(tool_name: &str, raw_input: &Value) -> Option<String> {
-    build_reusable_permission_key_from_patterns(tool_name, &build_permission_patterns(raw_input))
+fn build_reusable_permission_key(tool_name: &str, diagnostic_input: &Value) -> Option<String> {
+    build_reusable_permission_key_from_patterns(
+        tool_name,
+        &build_permission_patterns(diagnostic_input),
+    )
 }
 
-fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: AgentType) -> Value {
+fn build_permission_metadata(
+    tool_name: &str,
+    diagnostic_input: &Value,
+    agent_type: AgentType,
+) -> Value {
     let parser = get_parser(agent_type);
     let parsed_arguments = serde_json::to_value(
         classify_raw_tool_call(
             parser,
             tool_name,
-            raw_input,
+            diagnostic_input,
             ToolClassificationHints {
                 name: Some(tool_name),
                 title: Some(tool_name),
@@ -2048,7 +2056,7 @@ fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: Age
     .ok();
 
     let mut metadata = serde_json::Map::from_iter([
-        ("rawInput".to_string(), raw_input.clone()),
+        ("diagnosticRawInput".to_string(), diagnostic_input.clone()),
         ("options".to_string(), Value::Array(Vec::new())),
     ]);
 
@@ -2337,8 +2345,14 @@ fn dispatch_cc_sdk_update(
     let updates_to_emit = collect_cc_sdk_updates_for_dispatch(&update, task_reconciler, provider);
 
     for emitted_update in updates_to_emit {
-        let sid = emitted_update.session_id().unwrap_or("unknown").to_string();
-        log_emitted_event(&sid, &emitted_update);
+        let Some(session_id) = emitted_update.session_id() else {
+            tracing::warn!(
+                update_type = ?std::mem::discriminant(&emitted_update),
+                "Dropping cc-sdk session update without session identity"
+            );
+            continue;
+        };
+        log_emitted_event(session_id, &emitted_update);
         dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
     }
 }
@@ -2614,11 +2628,13 @@ fn promoted_claude_session_capabilities(
     SessionGraphCapabilities {
         models: Some(snapshot.models),
         modes: Some(snapshot.modes),
-        available_commands: snapshot.available_commands,
-        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
-            snapshot.config_options,
+        available_commands: Some(snapshot.available_commands),
+        config_options: Some(
+            crate::acp::session_update::sanitize_config_options_for_canonical(
+                snapshot.config_options,
+            ),
         ),
-        autonomous_enabled,
+        autonomous_enabled: Some(autonomous_enabled),
     }
 }
 
@@ -3328,8 +3344,9 @@ mod tests {
                 name: "Agent".to_string(),
                 arguments: ToolArguments::Other {
                     raw: serde_json::Value::Null,
+                    intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(ToolKind::Task),
@@ -3366,7 +3383,7 @@ mod tests {
                         "subagent_type": "Explore"
                     })),
                 },
-                raw_input: Some(serde_json::json!({
+                diagnostic_input: Some(serde_json::json!({
                     "description": "Find all tool call components",
                     "prompt": "Inventory tool call cards in the codebase",
                     "subagent_type": "Explore"
@@ -3428,7 +3445,7 @@ mod tests {
                 file_path: Some(file_path.to_string()),
                 source_context: None,
             },
-            raw_input: Some(serde_json::json!({ "file_path": file_path })),
+            diagnostic_input: Some(serde_json::json!({ "file_path": file_path })),
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -3467,7 +3484,7 @@ mod tests {
                 id: id.to_string(),
                 name: name.to_string(),
                 arguments,
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(kind),
@@ -3978,6 +3995,20 @@ mod tests {
     }
 
     // --- PermissionBridge tests ---
+
+    #[test]
+    fn permission_metadata_marks_original_payload_as_diagnostic() {
+        let raw_input = serde_json::json!({
+            "command": "echo ok"
+        });
+
+        let metadata = build_permission_metadata("Bash", &raw_input, AgentType::ClaudeCode);
+
+        assert_eq!(metadata["diagnosticRawInput"], raw_input);
+        assert!(metadata.get("rawInput").is_none());
+        assert_eq!(metadata["parsedArguments"]["kind"], "execute");
+        assert_eq!(metadata["options"], serde_json::json!([]));
+    }
 
     #[test]
     fn permission_bridge_next_id_is_sequential() {
@@ -4573,7 +4604,7 @@ mod tests {
                 )),
                 questions: questions.clone(),
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: "toolu_stream_only".to_string(),
                 }),
             },
@@ -6028,7 +6059,7 @@ mod tests {
                     multi_select: false,
                 }],
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: "toolu_stream_only".to_string(),
                 }),
             },
@@ -6447,7 +6478,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     status: ToolCallStatus::InProgress,
                     result: None,
                     kind: Some(ToolKind::Read),
@@ -6498,7 +6529,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     status: ToolCallStatus::InProgress,
                     result: None,
                     kind: Some(ToolKind::Read),
@@ -6541,6 +6572,50 @@ mod tests {
             }
             other => panic!("expected tool call update, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn dispatch_cc_sdk_update_drops_update_without_session_identity() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+
+        dispatch_cc_sdk_update(
+            &dispatcher,
+            &task_reconciler,
+            &provider,
+            SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "toolu_missing_session".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file.rs".to_string()),
+                        source_context: None,
+                    },
+                    diagnostic_input: None,
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: None,
+            },
+        );
+
+        let captured = sink.lock().expect("sink lock");
+        assert!(captured.is_empty());
     }
 
     #[tokio::test]
@@ -7055,15 +7130,15 @@ mod tests {
         let projection_registry = Arc::new(ProjectionRegistry::new());
         let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
         let mut models = default_session_model_state();
-        models.current_model_id = "claude-opus-4-7".to_string();
+        models.current_model_id = Some("claude-opus-4-7".to_string());
         let mut modes = default_modes();
         modes.current_mode_id = "plan".to_string();
         let capabilities = SessionGraphCapabilities {
             models: Some(models),
             modes: Some(modes),
-            available_commands: Vec::new(),
-            config_options: Vec::new(),
-            autonomous_enabled: true,
+            available_commands: Some(Vec::new()),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(true),
         };
 
         reserve_promoted_claude_session(
@@ -7086,7 +7161,7 @@ mod tests {
                 .models
                 .expect("models preserved")
                 .current_model_id,
-            "claude-opus-4-7"
+            Some("claude-opus-4-7".to_string())
         );
         assert_eq!(
             checkpoint
@@ -7096,7 +7171,7 @@ mod tests {
                 .current_mode_id,
             "plan"
         );
-        assert!(checkpoint.capabilities.autonomous_enabled);
+        assert_eq!(checkpoint.capabilities.autonomous_enabled, Some(true));
     }
 
     #[tokio::test]

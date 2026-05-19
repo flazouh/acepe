@@ -20,7 +20,7 @@ export interface SessionWorkProjectionInput {
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
-	readonly canonicalActivity?: CanonicalSessionActivity | null;
+	readonly canonicalActivity: CanonicalSessionActivity | null;
 }
 
 export interface SessionWorkProjection {
@@ -118,7 +118,7 @@ export function deriveSessionWorkProjection(
 		state: input.state,
 		currentModeId: input.currentModeId,
 		effectiveModeId,
-		canonicalActivity: input.canonicalActivity ?? null,
+		canonicalActivity: input.canonicalActivity,
 		intentFamily: resolveIntentFamily(input.state, effectiveModeId),
 		compactActivityKind:
 			input.canonicalActivity != null

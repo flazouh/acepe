@@ -11,7 +11,6 @@ import { z } from "zod";
 import type { JsonValue, ToolArguments } from "../../services/converted-session-types.js";
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
-import { QuestionItemSchema } from "./tool-call-content.schema.js";
 
 /**
  * Maps a Zod parse error to ProtocolError for neverthrow Result types.
@@ -31,22 +30,6 @@ export const JsonRpcRequestSchema = z.object({
 	params: z.unknown(),
 });
 export type JsonRpcRequest = z.infer<typeof JsonRpcRequestSchema>;
-
-/**
- * Question data for AskUserQuestion tool (from _meta.askUserQuestion or rawInput.questions).
- */
-export const AskUserQuestionDataSchema = z.object({
-	questions: z.array(QuestionItemSchema),
-});
-export type AskUserQuestionData = z.infer<typeof AskUserQuestionDataSchema>;
-
-/**
- * rawInput shape when tool is AskUserQuestion (upstream v0.18+).
- * Questions come from rawInput.questions instead of _meta.askUserQuestion.
- */
-export const RawInputWithQuestionsSchema = z.object({
-	questions: z.array(QuestionItemSchema),
-});
 
 const PermissionOptionSchema = z.object({
 	kind: z.string(),
@@ -79,11 +62,6 @@ export const RequestPermissionParamsSchema = z
 		sessionId: z.string(),
 		options: z.array(PermissionOptionSchema).optional().default([]),
 		toolCall: ToolCallSchema,
-		_meta: z
-			.object({
-				askUserQuestion: AskUserQuestionDataSchema.optional(),
-			})
-			.optional(),
 	})
 	.passthrough();
 export type RequestPermissionParams = z.infer<typeof RequestPermissionParamsSchema>;

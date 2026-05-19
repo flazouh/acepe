@@ -1,4 +1,4 @@
-import type { SessionSummary } from "../application/dto/session.js";
+import type { SessionSummary } from "../application/dto/session-summary.js";
 import type { SessionLinkedPr, SessionPrLinkMode } from "../application/dto/session-linked-pr.js";
 import type { SessionActivityInfo } from "../components/session-list/session-list-types.js";
 
@@ -52,7 +52,7 @@ export type SessionDisplayItem = {
 	/**
 	 * Number of entries in the session.
 	 */
-	entryCount?: number;
+	entryCount?: number | null;
 
 	/**
 	 * Whether the session is currently connected to an agent.

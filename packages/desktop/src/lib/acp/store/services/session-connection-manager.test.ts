@@ -5,6 +5,7 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
+import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
@@ -63,6 +64,23 @@ function createResidualHotState(
 			previewState: null,
 		},
 	};
+}
+
+function mockResidualStateReader(
+	stateReader: ISessionStateReader,
+	input: {
+		acpSessionId?: string | null;
+		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
+		modelPerMode?: Record<string, string>;
+	} = {}
+): void {
+	const state = createResidualHotState(input);
+	(stateReader.getSessionAcpSessionId as ReturnType<typeof vi.fn>).mockReturnValue(
+		state.acpSessionId
+	);
+	(
+		stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>
+	).mockReturnValue(state.autonomousTransition !== "idle");
 }
 
 function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
@@ -128,7 +146,6 @@ function createMockEventHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn(),
 		isPreloaded: vi.fn(),
-		getHotState: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
@@ -184,16 +201,16 @@ function mockResumeWithLifecycleEvent(responseData: {
 		availableModes: Array<{ id: string; name: string; description: string | null }>;
 	};
 	models: SessionModelState;
-	availableCommands?: AvailableCommand[];
-	configOptions?: ConfigOptionData[];
-	autonomousEnabled?: boolean;
+	availableCommands?: AvailableCommand[] | null;
+	configOptions?: ConfigOptionData[] | null;
+	autonomousEnabled?: boolean | null;
 }) {
 	nextLifecycleResult = {
 		models: responseData.models,
 		modes: responseData.modes,
-		availableCommands: responseData.availableCommands ?? [],
-		configOptions: responseData.configOptions ?? [],
-		autonomousEnabled: responseData.autonomousEnabled ?? false,
+		availableCommands: responseData.availableCommands ?? null,
+		configOptions: responseData.configOptions ?? null,
+		autonomousEnabled: responseData.autonomousEnabled ?? null,
 	};
 	resumeSession.mockReturnValue(okAsync(undefined));
 }
@@ -214,7 +231,8 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -259,8 +277,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -289,7 +305,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(baseSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -318,7 +334,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("applies the stored Autonomous profile after reconnecting a disconnected session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -389,7 +405,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			createdAt: new Date(),
 			parentId: null,
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
@@ -436,7 +452,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -472,7 +488,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	});
 
 	it("clears Autonomous when reconnecting into a mode that does not support it", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "plan",
@@ -501,12 +517,12 @@ describe("SessionConnectionManager.connectSession", () => {
 		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
 	});
 
-	it("ignores cached provider metadata when restoring autonomous policy on reconnect", async () => {
+	it("does not write cached provider metadata back as live reconnect metadata", async () => {
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			...baseSession,
 			agentId: "custom-agent",
 		} satisfies SessionCold);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		getCachedModelsDisplay.mockReturnValue({
 			groups: [],
 			presentation: {
@@ -568,12 +584,8 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
-			"custom-agent",
-			expect.objectContaining({
-				displayName: "Launch Profile Agent",
-			})
-		);
+		expect(updateProviderMetadataCache).toHaveBeenCalledWith("custom-agent", undefined);
+		expect(getCachedProviderMetadata).not.toHaveBeenCalled();
 	});
 
 	it("uses the lifecycle event model for current mode on connect", async () => {
@@ -674,18 +686,6 @@ describe("SessionConnectionManager.connectSession", () => {
 			models: {
 				currentModelId: "default",
 				availableModels: [{ modelId: "default", name: "Default", description: null }],
-				providerMetadata: {
-					providerBrand: "claude-code",
-					displayName: "Claude Code",
-					displayOrder: 10,
-					supportsModelDefaults: true,
-					variantGroup: "plain",
-					defaultAlias: "default",
-					reasoningEffortSupport: false,
-					preconnectionSlashMode: "startupGlobal",
-					preconnectionCapabilityMode: "startupGlobal",
-				implicitSessionCreationMode: "allowed",
-				},
 				modelsDisplay: {
 					groups: [],
 					presentation: {
@@ -716,23 +716,47 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
 			"claude-code",
-			expect.objectContaining({
-				presentation: expect.objectContaining({
-					provider: expect.objectContaining({
-						providerBrand: "claude-code",
-					}),
-				}),
-			}),
-			expect.objectContaining({
-				providerBrand: "claude-code",
-			})
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "claudeLike",
+					usageMetrics: "contextWindowOnly",
+				},
+			}
 		);
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
-			"claude-code",
-			expect.objectContaining({
-				providerBrand: "claude-code",
-			})
-		);
+		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
+		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
+			{ id: "build", name: "Build", description: undefined },
+		]);
+	});
+
+	it("does not overwrite model cache when resumed capabilities omit model list", async () => {
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: null,
+			},
+			availableCommands: [],
+		});
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler(), {
+			agentOverrideId: "claude-code",
+		});
+		result._unsafeUnwrap();
+
+		expect(updateModelsCache).not.toHaveBeenCalled();
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "build", name: "Build", description: undefined },
 		]);
@@ -832,7 +856,19 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
 	});
 
-	it("hydrates provider metadata into model display caches on connect", async () => {
+	it("passes backend provider metadata into model display caches on connect", async () => {
+		const providerMetadata = {
+			providerBrand: "codex",
+			displayName: "Codex",
+			displayOrder: 50,
+			supportsModelDefaults: true,
+			variantGroup: "reasoningEffort",
+			defaultAlias: undefined,
+			reasoningEffortSupport: true,
+			preconnectionSlashMode: "startupGlobal",
+			preconnectionCapabilityMode: "startupGlobal",
+			implicitSessionCreationMode: "allowed",
+		} satisfies ProviderMetadataProjection;
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			...baseSession,
 			agentId: "codex",
@@ -858,7 +894,8 @@ describe("SessionConnectionManager.connectSession", () => {
 						usageMetrics: "spendAndContext",
 					},
 				},
-			},
+				providerMetadata,
+			} as SessionModelState & { providerMetadata: ProviderMetadataProjection },
 			availableCommands: [],
 		});
 
@@ -876,21 +913,13 @@ describe("SessionConnectionManager.connectSession", () => {
 
 		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
 			"codex",
-			expect.objectContaining({
-				presentation: expect.objectContaining({
-					provider: expect.objectContaining({
-						providerBrand: "codex",
-						displayName: "Codex",
-						displayOrder: 50,
-						supportsModelDefaults: true,
-						variantGroup: "reasoningEffort",
-						reasoningEffortSupport: true,
-					}),
-				}),
-			}),
-			expect.objectContaining({
-				providerBrand: "codex",
-			})
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "providerGrouped",
+					usageMetrics: "spendAndContext",
+				},
+			}
 		);
 	});
 
@@ -1062,7 +1091,8 @@ describe("SessionConnectionManager.createSession", () => {
 	const agentId = "codex";
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -1107,8 +1137,6 @@ describe("SessionConnectionManager.createSession", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1773,7 +1801,8 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -1818,8 +1847,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -1848,9 +1875,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("ready");
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
@@ -1897,7 +1922,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(createResidualHotState());
+		mockResidualStateReader(stateReader);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue("build");
@@ -1955,9 +1980,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2003,7 +2026,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 				availableModes: [{ id: "build", name: "Build", description: null }],
 			},
 			models: {
-				currentModelId: "",
+				currentModelId: null,
 				availableModels: [],
 			},
 			availableCommands: [],
@@ -2027,9 +2050,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("rejects Autonomous changes while a local transition is pending", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ autonomousTransition: "enabling" })
-		);
+		mockResidualStateReader(stateReader, { autonomousTransition: "enabling" });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2092,9 +2113,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2130,9 +2149,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	});
 
 	it("disables backend Autonomous when switching from build into plan mode", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2169,10 +2186,45 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(hotState.updateHotState).not.toHaveBeenCalled();
 	});
 
+	it("does not sync Autonomous during mode switch when canonical autonomous state is unknown", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		setMode.mockReturnValue(okAsync(undefined));
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
+		expect(setSessionAutonomous).not.toHaveBeenCalled();
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
+	});
+
 	it("does not mutate hot state directly when setting model", async () => {
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
@@ -2220,7 +2272,8 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const stateReader: ISessionStateReader = {
-		getHotState: vi.fn(),
+		getSessionAcpSessionId: vi.fn(),
+		getSessionAutonomousTransitionBusy: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		getSessionLifecycleStatus: vi.fn(),
 		getGraphTranscriptRevision: vi.fn(),
@@ -2265,8 +2318,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
-		clearStreamingAssistantEntry: vi.fn(),
-		startNewAssistantTurn: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
 
@@ -2295,9 +2346,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
-		(stateReader.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: sessionId })
-		);
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(
 			"activating"
 		);
@@ -2346,14 +2395,8 @@ describe("SessionConnectionManager.disconnectSession", () => {
 	it("clears only local hot state when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
-			getHotState: vi.fn(
-				(): SessionTransientProjection => ({
-					acpSessionId: "acp-1",
-					autonomousTransition: "idle",
-					modelPerMode: {},
-					statusChangedAt: Date.now(),
-				})
-			),
+			getSessionAcpSessionId: vi.fn(() => "acp-1"),
+			getSessionAutonomousTransitionBusy: vi.fn(() => false),
 			getSessionCanSend: vi.fn(() => null),
 			getSessionLifecycleStatus: vi.fn(() => null),
 			getGraphTranscriptRevision: vi.fn(() => undefined),
@@ -2410,8 +2453,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			isPreloaded: vi.fn(),
 			markPreloaded: vi.fn(),
 			clearEntries: vi.fn(),
-			clearStreamingAssistantEntry: vi.fn(),
-			startNewAssistantTurn: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
 		};
 

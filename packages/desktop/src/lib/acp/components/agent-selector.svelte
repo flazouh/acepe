@@ -3,17 +3,21 @@ import { Colors } from "@acepe/ui/colors";
 import { Selector } from "@acepe/ui";
 import type { ButtonVariant } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { Heart } from "phosphor-svelte";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
 import { getAgentPreferencesStore } from "../store/index.js";
 import { capitalizeName } from "../utils/index.js";
 import { createLogger } from "../utils/logger.js";
+import AgentIcon from "./agent-icon.svelte";
 import SelectorCheck from "./selector-check.svelte";
+import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 
 interface AgentSelectorProps {
-	availableAgents: readonly { id: string; name: string }[];
+	availableAgents: readonly {
+		readonly id: string;
+		readonly name: string;
+		readonly provider_metadata?: ProviderMetadataProjection;
+	}[];
 	currentAgentId: string | null;
 	onAgentChange: (agentId: string) => void;
 	isLoading?: boolean;
@@ -46,7 +50,6 @@ const logger = createLogger({
 	name: "Agent Selector",
 });
 
-const themeState = useTheme();
 const agentPreferencesStore = getAgentPreferencesStore();
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
@@ -95,14 +98,13 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 			<Skeleton class="h-4 w-4 shrink-0 rounded" />
 			<Skeleton class="h-3 w-20" />
 		{:else if displayAgent}
-			{@const icon = getAgentIcon(displayAgent.id, themeState.effectiveTheme)}
-			{#if icon}
-				<img
-					src={icon}
-					alt={displayAgent.name}
-					class="h-4 w-4 shrink-0"
-				/>
-			{/if}
+			<AgentIcon
+				agentId={displayAgent.id}
+				providerBrand={displayAgent.provider_metadata?.providerBrand ?? null}
+				providerLabel={displayAgent.provider_metadata?.displayName ?? displayAgent.name}
+				class="h-4 w-4 shrink-0"
+				size={16}
+			/>
 		{/if}
 	{/snippet}
 
@@ -112,16 +114,19 @@ const displayAgent = $derived(currentAgent ?? availableAgents[0] ?? null);
 		</div>
 	{:else}
 		{#each availableAgents as agent (agent.id)}
-			{@const icon = getAgentIcon(agent.id, themeState.effectiveTheme)}
 			{@const isSelected = agent.id === currentAgentId}
 			<DropdownMenu.Item
 				onSelect={() => handleAgentSelect(agent.id)}
 				class="group/item py-1 {isSelected ? 'bg-accent' : ''}"
 			>
 				<div class="flex items-center gap-2 w-full">
-					{#if icon}
-						<img src={icon} alt={agent.name} class="h-4 w-4 shrink-0" />
-					{/if}
+					<AgentIcon
+						agentId={agent.id}
+						providerBrand={agent.provider_metadata?.providerBrand ?? null}
+						providerLabel={agent.provider_metadata?.displayName ?? agent.name}
+						class="h-4 w-4 shrink-0"
+						size={16}
+					/>
 					<span class="flex-1 text-sm truncate">{capitalizeName(agent.name)}</span>
 					<button
 						type="button"

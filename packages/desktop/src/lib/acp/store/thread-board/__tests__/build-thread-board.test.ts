@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionState } from "../../session-state.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import { buildThreadBoard, classifyThreadBoardStatus } from "../build-thread-board.js";
 import type { ThreadBoardSource } from "../thread-board-item.js";
 import { THREAD_BOARD_STATUS_ORDER } from "../thread-board-status.js";
@@ -68,6 +69,23 @@ function makeState(
 }
 
 function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSource {
+	const state = overrides.state !== undefined ? overrides.state : makeState();
+	const currentModeId = overrides.currentModeId !== undefined ? overrides.currentModeId : null;
+	const connectionError = overrides.connectionError !== undefined ? overrides.connectionError : null;
+	const activeTurnFailure =
+		overrides.activeTurnFailure !== undefined ? overrides.activeTurnFailure : null;
+	const workBucket =
+		overrides.workBucket ??
+		selectSessionWorkBucket(
+			deriveSessionWorkProjection({
+				state,
+				currentModeId,
+				connectionError,
+				activeTurnFailure,
+				canonicalActivity: null,
+			})
+		);
+
 	return {
 		panelId: overrides.panelId !== undefined ? overrides.panelId : "panel-1",
 		sessionId: overrides.sessionId !== undefined ? overrides.sessionId : "session-1",
@@ -80,7 +98,7 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		projectIconSrc: overrides.projectIconSrc !== undefined ? overrides.projectIconSrc : null,
 		title: overrides.title !== undefined ? overrides.title : "Thread",
 		lastActivityAt: overrides.lastActivityAt !== undefined ? overrides.lastActivityAt : 1000,
-		currentModeId: overrides.currentModeId !== undefined ? overrides.currentModeId : null,
+		currentModeId,
 		currentToolKind: overrides.currentToolKind !== undefined ? overrides.currentToolKind : null,
 		currentStreamingToolCall:
 			overrides.currentStreamingToolCall !== undefined ? overrides.currentStreamingToolCall : null,
@@ -89,10 +107,11 @@ function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSour
 		insertions: overrides.insertions !== undefined ? overrides.insertions : 0,
 		deletions: overrides.deletions !== undefined ? overrides.deletions : 0,
 		todoProgress: overrides.todoProgress !== undefined ? overrides.todoProgress : null,
-		connectionError: overrides.connectionError !== undefined ? overrides.connectionError : null,
-		activeTurnFailure:
-			overrides.activeTurnFailure !== undefined ? overrides.activeTurnFailure : null,
-		state: overrides.state !== undefined ? overrides.state : makeState(),
+		connectionError,
+		activeTurnFailure,
+		sessionStatus: overrides.sessionStatus !== undefined ? overrides.sessionStatus : "ready",
+		state,
+		workBucket,
 		sequenceId: overrides.sequenceId !== undefined ? overrides.sequenceId : null,
 	};
 }
@@ -188,6 +207,19 @@ describe("classifyThreadBoardStatus", () => {
 });
 
 describe("buildThreadBoard", () => {
+	it("preserves unknown autonomous capability on board items", () => {
+		const groups = buildThreadBoard([
+			makeSource({
+				sessionId: "session-unknown-autonomous",
+				autonomousEnabled: null,
+			}),
+		]);
+		const items = groups.flatMap((group) => group.items);
+
+		expect(items).toHaveLength(1);
+		expect(items[0]?.autonomousEnabled).toBeNull();
+	});
+
 	it("emits stable groups in board order", () => {
 		const groups = buildThreadBoard([
 			makeSource({

@@ -9,7 +9,7 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import type { TabBarTab } from "../../store/tab-bar-store.svelte.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
-import { Colors } from "../../utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import AgentIcon from "../agent-icon.svelte";
 
 interface Props {
@@ -40,7 +40,7 @@ let containerElement: HTMLSpanElement | undefined = $state();
 let textElement: HTMLSpanElement | undefined = $state();
 
 const displayTitle = $derived(normalizeTitleForDisplay(tab.title ?? "") || "New Thread");
-const hasTurns = $derived(tab.conversationPreview.length > 0);
+const hasTurns = $derived((tab.conversationPreview?.length ?? 0) > 0);
 
 // ARIA label for state icon
 const stateAriaLabel = $derived.by(() => {
@@ -158,13 +158,15 @@ function handleClose(e: MouseEvent) {
 		{/snippet}
 	</Tooltip.Trigger>
 	{#if hasTurns}
-		{@const firstTurn = tab.conversationPreview[0]}
+		{@const firstTurn = tab.conversationPreview?.[0] ?? null}
 		<Tooltip.Content
 			side="bottom"
 			sideOffset={4}
 			class="max-w-[320px] z-[10005] transition-none duration-0"
 		>
-			<p class="text-xs leading-snug text-foreground">{firstTurn.text}</p>
+			{#if firstTurn}
+				<p class="text-xs leading-snug text-foreground">{firstTurn.text}</p>
+			{/if}
 		</Tooltip.Content>
 	{/if}
 </Tooltip.Root>

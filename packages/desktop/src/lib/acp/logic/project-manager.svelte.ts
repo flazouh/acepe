@@ -2,7 +2,7 @@ import { okAsync, ResultAsync } from "neverthrow";
 import { SvelteDate } from "svelte/reactivity";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
-import { resolveProjectColor } from "../utils/colors.js";
+import { resolveProjectColor } from "@acepe/ui/colors";
 import { ProjectClient } from "./project-client.js";
 
 /**

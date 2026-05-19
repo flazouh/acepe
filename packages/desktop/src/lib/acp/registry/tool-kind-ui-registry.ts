@@ -122,6 +122,22 @@ function formatBrowserTitle(funcName: string): string {
 	return BROWSER_TITLE_MAP[funcName] ?? formatOtherToolName(funcName);
 }
 
+function getBrowserSubtitle(toolCall: ToolCall): string {
+	if (toolCall.arguments.kind !== "browser") {
+		return "";
+	}
+
+	const action = toolCall.arguments.action;
+	const selector = toolCall.arguments.selector;
+	const script = toolCall.arguments.script;
+
+	if (action && selector) return `${action} -> ${truncateText(selector, 30)}`;
+	if (action) return action;
+	if (selector) return truncateText(selector, 40);
+	if (script) return truncateText(script.replace(/\s+/g, " "), 40);
+	return "";
+}
+
 /**
  * Tool Kind UI Registry
  *
@@ -183,6 +199,24 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 				return truncateText(normalized, 50);
 			}
 			// Fallback to title (from task children summary)
+			return toolCall.title ?? "";
+		},
+	},
+
+	shell_input: {
+		title: (toolCall, turnState) => {
+			const status = getToolStatus(toolCall, turnState);
+			return status.isPending ? "Writing shell input" : "Wrote shell input";
+		},
+		subtitle: (toolCall) => {
+			if (toolCall.arguments.kind !== "shellInput") {
+				return toolCall.title ?? "";
+			}
+			const shellId = toolCall.arguments.shell_id?.trim();
+			const input = toolCall.arguments.input?.trim();
+			if (shellId && input) return truncateText(`Shell ${shellId}: ${input}`, 50);
+			if (input) return truncateText(`Input: ${input}`, 50);
+			if (shellId) return `Shell ${shellId}`;
 			return toolCall.title ?? "";
 		},
 	},
@@ -423,20 +457,7 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			const funcName = extractBrowserFuncName(name);
 			return formatBrowserTitle(funcName);
 		},
-		subtitle: (toolCall) => {
-			if (toolCall.arguments.kind !== "browser") return "";
-			const raw = toolCall.arguments.raw;
-			if (typeof raw !== "object" || raw === null) return "";
-			const obj = raw as Record<string, unknown>;
-			const action = typeof obj.action === "string" ? obj.action : null;
-			const selector = typeof obj.selector === "string" ? obj.selector : null;
-			const script = typeof obj.script === "string" ? obj.script : null;
-			if (action && selector) return `${action} → ${truncateText(selector, 30)}`;
-			if (action) return action;
-			if (selector) return truncateText(selector, 40);
-			if (script) return truncateText(script.replace(/\s+/g, " "), 40);
-			return "";
-		},
+		subtitle: getBrowserSubtitle,
 	},
 
 	sql: {
@@ -467,14 +488,14 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			if (toolCall.arguments.kind !== "unclassified") {
 				return "Unclassified Tool";
 			}
-			return formatOtherToolName(toolCall.arguments.raw_name || toolCall.name || "tool");
+			return formatOtherToolName(toolCall.arguments.provider_name || toolCall.name || "tool");
 		},
 		subtitle: (toolCall) => {
 			if (toolCall.arguments.kind !== "unclassified") return "";
 			if (toolCall.arguments.arguments_preview) {
 				return truncateText(toolCall.arguments.arguments_preview, 50);
 			}
-			const formatted = formatOtherToolName(toolCall.arguments.raw_name || toolCall.name);
+			const formatted = formatOtherToolName(toolCall.arguments.provider_name || toolCall.name);
 			const title = toolCall.title?.trim();
 			return title && formatted === title ? "" : formatted;
 		},

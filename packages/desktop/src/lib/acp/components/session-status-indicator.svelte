@@ -4,7 +4,7 @@ import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import type { SessionStatus } from "../state/index.js";
 
-import { Colors } from "../utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 
 interface SessionStatusIndicatorProps {
 	/** Current status of the session */

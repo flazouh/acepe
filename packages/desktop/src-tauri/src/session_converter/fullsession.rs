@@ -534,7 +534,7 @@ fn project_tool_event(
             result: result.map(serde_json::Value::String),
             kind: Some(classified.kind),
             arguments: classified.arguments,
-            raw_input: Some(input.clone()),
+            diagnostic_input: Some(input.clone()),
             skill_meta,
             locations: None,
             normalized_questions: classified.normalized_questions,

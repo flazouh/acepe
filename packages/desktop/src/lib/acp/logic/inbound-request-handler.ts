@@ -24,14 +24,11 @@ import {
 } from "../schemas/inbound-request.schema.js";
 import { api } from "../store/api.js";
 import type { PermissionRequest } from "../types/permission.js";
-import type { QuestionRequest } from "../types/question.js";
 import { createLogger } from "../utils/logger.js";
 import { openAcpEventSource } from "./acp-event-bridge.js";
 import {
-	type NormalizedInboundQuestionRequest,
 	normalizeInboundInteractionRequest,
 	toPermissionRequest,
-	toQuestionRequest,
 } from "./inbound-request-normalization.js";
 
 const logger = createLogger({
@@ -45,39 +42,27 @@ const logger = createLogger({
 export type OnPermissionRequest = (permission: PermissionRequest) => void;
 
 /**
- * Callback type for question request events (AskUserQuestion tool).
- */
-export type OnQuestionRequest = (question: QuestionRequest) => void;
-
-/**
  * Handler for inbound JSON-RPC requests from the ACP subprocess.
  */
 export class InboundRequestHandler {
 	private unlistenFn: (() => void) | null = null;
 	private onPermissionRequest: OnPermissionRequest | null = null;
-	private onQuestionRequest: OnQuestionRequest | null = null;
 
 	/**
 	 * Start listening for inbound requests.
 	 *
 	 * @param onPermissionRequest - Callback for permission requests
-	 * @param onQuestionRequest - Callback for question requests (AskUserQuestion)
 	 */
-	start(
-		onPermissionRequest: OnPermissionRequest,
-		onQuestionRequest?: OnQuestionRequest
-	): ResultAsync<void, AcpError> {
+	start(onPermissionRequest: OnPermissionRequest): ResultAsync<void, AcpError> {
 		logger.info("InboundRequestHandler.start() called");
 
 		if (this.unlistenFn !== null) {
 			logger.debug("Inbound request handler already running, skipping duplicate start");
 			this.onPermissionRequest = onPermissionRequest;
-			this.onQuestionRequest = onQuestionRequest !== undefined ? onQuestionRequest : null;
 			return okAsync(undefined);
 		}
 
 		this.onPermissionRequest = onPermissionRequest;
-		this.onQuestionRequest = onQuestionRequest !== undefined ? onQuestionRequest : null;
 
 		return openAcpEventSource((envelope) => {
 			if (envelope.eventName !== "acp-inbound-request") {
@@ -158,11 +143,6 @@ export class InboundRequestHandler {
 		}
 
 		const normalizedRequest = normalizedResult.value;
-		if (normalizedRequest.kind === "question" && this.onQuestionRequest) {
-			this.handleQuestionRequest(normalizedRequest);
-			return;
-		}
-
 		const permission = toPermissionRequest(normalizedRequest);
 
 		logger.debug("Created permission request from inbound request", {
@@ -173,27 +153,6 @@ export class InboundRequestHandler {
 		// Dispatch to the registered callback
 		if (this.onPermissionRequest) {
 			this.onPermissionRequest(permission);
-		}
-	}
-
-	/**
-	 * Handle an AskUserQuestion request that was sent via requestPermission.
-	 *
-	 * The ACP agent's AskUserQuestion tool uses the requestPermission mechanism
-	 * with _meta.askUserQuestion containing the question data.
-	 */
-	private handleQuestionRequest(request: NormalizedInboundQuestionRequest): void {
-		const question: QuestionRequest = toQuestionRequest(request);
-
-		logger.debug("Created question request from inbound request (AskUserQuestion)", {
-			questionId: question.id,
-			jsonRpcRequestId: request.jsonRpcRequestId,
-			questionCount: question.questions.length,
-		});
-
-		// Dispatch to the question callback
-		if (this.onQuestionRequest) {
-			this.onQuestionRequest(question);
 		}
 	}
 

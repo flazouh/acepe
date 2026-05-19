@@ -193,18 +193,4 @@ describe("EventSubscriber", () => {
 		});
 	});
 
-	describe("deprecated unsubscribe method", () => {
-		it("removes all listeners", async () => {
-			const subscriber = new EventSubscriber();
-			const listener1 = vi.fn();
-			const listener2 = vi.fn();
-
-			await subscriber.subscribe(listener1);
-			await subscriber.subscribe(listener2);
-			expect(subscriber.listenerCount).toBe(2);
-
-			subscriber.unsubscribe();
-			expect(subscriber.listenerCount).toBe(0);
-		});
-	});
 });

@@ -244,6 +244,7 @@ describe("workspace sidebar state persistence", () => {
 			{ id: "tab-1", groupId: "group-1", projectPath: "/workspace/app", createdAt: 1 },
 			{ id: "tab-2", groupId: "group-1", projectPath: "/workspace/app", createdAt: 2 },
 		]);
+		expect("terminalPanels" in savedState).toBe(false);
 	});
 
 	it("persists and restores worktree session context", () => {

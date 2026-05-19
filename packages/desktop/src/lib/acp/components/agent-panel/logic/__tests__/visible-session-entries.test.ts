@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionEntry } from "../../../../application/dto/session.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { resolveVisibleSessionEntries } from "../visible-session-entries.js";
 
 function createErrorEntry(

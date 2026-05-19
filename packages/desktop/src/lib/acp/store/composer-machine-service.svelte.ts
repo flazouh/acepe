@@ -17,7 +17,7 @@ type ComposerActor = ReturnType<typeof createActor<typeof composerMachine>>;
 export interface ComposerSessionCommitState {
 	readonly modeId: string | null;
 	readonly modelId: string | null;
-	readonly autonomousEnabled: boolean;
+	readonly autonomousEnabled: boolean | null;
 }
 
 export class ComposerMachineService {

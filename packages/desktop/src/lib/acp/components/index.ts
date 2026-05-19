@@ -20,7 +20,6 @@ export { default as ProjectSelector } from "./project-selector.svelte";
 export { QueueSection } from "./queue/index.js";
 export { SessionList } from "./session-list/index.js";
 export { default as SessionStatusIndicator } from "./session-status-indicator.svelte";
-export { default as SessionView } from "./session-view.svelte";
 export { default as SessionHeader } from "./thread-header.svelte";
 // Tool call components
 export * from "./tool-calls/index.js";

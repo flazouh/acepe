@@ -151,7 +151,7 @@ pub async fn save_user_setting(
             capture_unexpected_command_error(
                 "save_user_setting",
                 "Failed to save user setting",
-                e.to_string(),
+                format!("key={key}; error={e}"),
             )
         })?;
 
@@ -189,7 +189,7 @@ pub async fn get_user_setting(
             capture_unexpected_command_error(
                 "get_user_setting",
                 "Failed to load user setting",
-                e.to_string(),
+                format!("key={key}; error={e}"),
             )
         })?;
 

@@ -113,14 +113,13 @@ impl CursorParser {
         &self,
         explicit_name: Option<&str>,
         title: Option<&str>,
-    ) -> String {
+    ) -> Option<String> {
         explicit_name
             .map(str::trim)
             .filter(|name| !name.is_empty())
             .map(str::to_string)
             .or_else(|| title.and_then(Self::extract_tool_name_from_title))
             .or_else(|| title.map(str::to_string))
-            .unwrap_or_else(|| "unknown".to_string())
     }
 
     fn extract_tool_name_from_title(title: &str) -> Option<String> {
@@ -233,7 +232,7 @@ impl CursorParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            name: Some(name),
             arguments,
             status: ToolCallStatus::Pending,
             kind: Some(kind),
@@ -268,13 +267,16 @@ impl CursorParser {
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, Some(&raw_arguments));
         let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
-        let raw_name = tool_name_ref
+        let provider_name = tool_name_ref
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string);
 
         // Name-derived kind is specific; payload kind is a coarse fallback.
-        let name_kind = CursorAdapter::normalize(&effective_name);
+        let name_kind = effective_name
+            .as_deref()
+            .map(CursorAdapter::normalize)
+            .unwrap_or(ToolKind::Other);
         let kind = if name_kind != ToolKind::Other {
             name_kind
         } else {
@@ -297,7 +299,7 @@ impl CursorParser {
             inject_path_hint(&mut raw_arguments, kind, location_path);
         }
 
-        let name = raw_name.unwrap_or_else(|| "unknown".to_string());
+        let name = provider_name;
 
         Ok(RawToolCallInput {
             id,
@@ -407,10 +409,14 @@ impl CursorParser {
         let kind = if synthesized_edit {
             ToolKind::Edit
         } else {
-            CursorAdapter::normalize(&effective_name)
+            effective_name
+                .as_deref()
+                .map(CursorAdapter::normalize)
+                .unwrap_or(ToolKind::Other)
         };
 
-        let tool_name = kind_utils::display_name_for_tool(kind, &effective_name);
+        let tool_name =
+            kind_utils::display_name_for_tool(kind, effective_name.as_deref().unwrap_or(""));
 
         let status = Some(
             acp_fields::extract_status(data)

@@ -107,6 +107,7 @@ function createGraph(capabilities: SessionGraphCapabilities): SessionStateGraph 
 		messageCount: 0,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		lifecycle: createReadyLifecycle(),
 		activity: createIdleActivity(),
 		capabilities,
@@ -127,28 +128,21 @@ function addColdSession(store: SessionStore): void {
 }
 
 describe("SessionStore canonical projection accessors", () => {
-		it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
-			const store = new SessionStore();
+	it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
+		const store = new SessionStore();
 
-			expect(store.getSessionTurnState("session-1")).toBeNull();
-			expect(store.getSessionConnectionError("session-1")).toBeNull();
-			expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-			expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
-			expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
-			expect(store.getSessionCurrentModeId("session-1")).toBeNull();
-			expect(store.getSessionCurrentModelId("session-1")).toBeNull();
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([]);
-		expect(store.getSessionConfigOptions("session-1")).toEqual([]);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
-		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
-		expect(store.getSessionCapabilities("session-1")).toEqual({
-			availableModels: [],
-			availableModes: [],
-			availableCommands: [],
-			revision: null,
-			pendingMutationId: null,
-			previewState: "partial",
-		});
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
+		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+		expect(store.getSessionCurrentModeId("session-1")).toBeNull();
+		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
+		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.getSessionCapabilities("session-1")).toBeNull();
 	});
 
 	it("derives all capability accessors from the canonical projection", () => {
@@ -157,7 +151,7 @@ describe("SessionStore canonical projection accessors", () => {
 
 		store.applySessionStateGraph(createGraph(createCapabilities()));
 
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
 		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
@@ -220,5 +214,103 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingMutationId: null,
 			previewState: "canonical",
 		});
+	});
+
+	it("preserves missing canonical autonomous state inside materialized capabilities", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: capabilities.models,
+				modes: capabilities.modes,
+				availableCommands: capabilities.availableCommands,
+				configOptions: capabilities.configOptions,
+			})
+		);
+
+		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+	});
+
+	it("preserves missing canonical command and config capability lists", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: capabilities.models,
+				modes: capabilities.modes,
+				autonomousEnabled: capabilities.autonomousEnabled,
+			})
+		);
+
+		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
+			availableCommands: null,
+			configOptions: null,
+		});
+	});
+
+	it("preserves missing canonical model and mode capability lists", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: null,
+				modes: null,
+				availableCommands: capabilities.availableCommands,
+				configOptions: capabilities.configOptions,
+				autonomousEnabled: capabilities.autonomousEnabled,
+			})
+		);
+
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
+			availableModels: null,
+			availableModes: null,
+		});
+	});
+
+	it("does not synthesize provider display metadata when canonical capabilities omit it", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		store.applySessionStateGraph(createGraph(createCapabilities()));
+
+		const capabilities = store.getSessionCapabilities("session-1");
+		expect(capabilities?.modelsDisplay).toBeUndefined();
+		expect(capabilities?.providerMetadata).toBeUndefined();
+	});
+
+	it("preserves canonical current ids even when display lists omit them", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		store.applySessionStateGraph(
+			createGraph({
+				models: {
+					currentModelId: "vendor/model-base",
+					availableModels: [],
+				},
+				modes: {
+					currentModeId: "code",
+					availableModes: [],
+				},
+				availableCommands: [],
+				configOptions: [],
+				autonomousEnabled: false,
+			})
+		);
+
+		expect(store.getSessionCurrentModeId("session-1")).toBe("code");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("vendor/model-base");
+		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
+		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
 	});
 });

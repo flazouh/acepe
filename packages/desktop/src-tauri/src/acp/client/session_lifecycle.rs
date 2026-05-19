@@ -144,7 +144,9 @@ impl AcpClient {
             provider_metadata: Some(resolved_capabilities.provider_metadata),
         };
         response.modes = crate::acp::client::SessionModes {
-            current_mode_id: resolved_capabilities.current_mode_id,
+            current_mode_id: resolved_capabilities
+                .current_mode_id
+                .unwrap_or_else(|| "build".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.set_active_session_id(Some(response.session_id.clone()));
@@ -260,7 +262,9 @@ impl AcpClient {
             provider_metadata: Some(resolved_capabilities.provider_metadata),
         };
         response.modes = crate::acp::client::SessionModes {
-            current_mode_id: resolved_capabilities.current_mode_id,
+            current_mode_id: resolved_capabilities
+                .current_mode_id
+                .unwrap_or_else(|| "build".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.set_active_session_id(Some(session_id.clone()));
@@ -318,7 +322,9 @@ impl AcpClient {
             provider_metadata: Some(resolved_capabilities.provider_metadata),
         };
         response.modes = crate::acp::client::SessionModes {
-            current_mode_id: resolved_capabilities.current_mode_id,
+            current_mode_id: resolved_capabilities
+                .current_mode_id
+                .unwrap_or_else(|| "build".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.set_active_session_id(Some(response.session_id.clone()));

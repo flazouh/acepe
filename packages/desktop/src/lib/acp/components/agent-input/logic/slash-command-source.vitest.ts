@@ -5,7 +5,7 @@ import {
 } from "./slash-command-source.js";
 
 describe("resolveSlashCommandSource", () => {
-	it("falls back to preconnection commands when a connected session has no live commands", () => {
+	it("does not fall back to preconnection commands when a connected session has no live commands", () => {
 		const source = resolveSlashCommandSource({
 			liveCommands: [],
 			hasConnectedSession: true,
@@ -14,9 +14,9 @@ describe("resolveSlashCommandSource", () => {
 		});
 
 		expect(source).toEqual({
-			source: "preconnection",
-			commands: [{ name: "ce:review", description: "Review changes" }],
-			tokenType: "skill",
+			source: "none",
+			commands: [],
+			tokenType: "command",
 		});
 	});
 

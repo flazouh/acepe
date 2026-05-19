@@ -3,7 +3,7 @@ import { ProjectLetterBadge } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 import type { Project } from "../logic/project-manager.svelte.js";
-import { TAG_COLORS } from "../utils/colors.js";
+import { TAG_COLORS } from "@acepe/ui/colors";
 
 interface Props {
 	/** Project object containing name and color */

@@ -39,8 +39,8 @@ pub enum ParseResult {
     Raw {
         params: Value,
         error: String,
-        session_id: String,
-        update_type: String,
+        session_id: Option<String>,
+        update_type: Option<String>,
     },
     /// Not a session update notification
     NotSessionUpdate,
@@ -76,13 +76,13 @@ pub fn normalize_session_update_params(params: &Value) -> Option<Value> {
 }
 
 /// Extract session ID from params, checking multiple field names.
-pub fn extract_session_id(params: &Value) -> String {
+pub fn extract_session_id(params: &Value) -> Option<String> {
     params
         .get("sessionId")
         .or_else(|| params.get("session_id"))
         .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string()
+        .filter(|session_id| !session_id.is_empty())
+        .map(str::to_string)
 }
 
 /// Check if this is a session update notification by method name.
@@ -131,10 +131,10 @@ fn parse_session_update_notification_for_context(
         .and_then(|u| u.get("sessionUpdate"))
         .or_else(|| params.get("sessionUpdate"))
         .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+        .map(str::to_string);
 
     tracing::debug!(
-        session_update_type = %session_update_type,
+        session_update_type = ?session_update_type,
         "Processing session update notification"
     );
 
@@ -146,7 +146,7 @@ fn parse_session_update_notification_for_context(
                 params: params.clone(),
                 error: "params is not an object".to_string(),
                 session_id: extract_session_id(params),
-                update_type: session_update_type.to_string(),
+                update_type: session_update_type.clone(),
             }
         }
     };
@@ -155,9 +155,11 @@ fn parse_session_update_notification_for_context(
     match parse_session_update_with_agent::<serde_json::Error>(&normalized, agent) {
         Ok(update) => {
             // Log successful parsing of tool calls specifically
-            if session_update_type == "tool_call" || session_update_type == "toolCall" {
+            if session_update_type.as_deref() == Some("tool_call")
+                || session_update_type.as_deref() == Some("toolCall")
+            {
                 tracing::debug!(
-                    session_update_type = %session_update_type,
+                    session_update_type = ?session_update_type,
                     "Successfully parsed tool_call session update"
                 );
             }
@@ -165,7 +167,7 @@ fn parse_session_update_notification_for_context(
         }
         Err(e) => {
             tracing::warn!(
-                session_update_type = %session_update_type,
+                session_update_type = ?session_update_type,
                 error = %e,
                 normalized_data = %normalized,
                 "Failed to parse session update"
@@ -174,7 +176,7 @@ fn parse_session_update_notification_for_context(
                 params: params.clone(),
                 error: e.to_string(),
                 session_id: extract_session_id(params),
-                update_type: session_update_type.to_string(),
+                update_type: session_update_type,
             }
         }
     }
@@ -198,7 +200,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::UserMessageSegmentAppended,
                 Some(SessionDomainEventPayload::UserMessageSegmentAppended {
-                    message_id: String::new(),
+                    message_id: None,
                     part_id: None,
                     text,
                 }),
@@ -214,7 +216,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::AssistantMessageSegmentAppended,
                 Some(SessionDomainEventPayload::AssistantMessageSegmentAppended {
-                    message_id: message_id.clone().unwrap_or_default(),
+                    message_id: message_id.clone(),
                     part_id: part_id.clone(),
                     text,
                 }),
@@ -230,7 +232,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::AssistantThoughtSegmentAppended,
                 Some(SessionDomainEventPayload::AssistantThoughtSegmentAppended {
-                    message_id: message_id.clone().unwrap_or_default(),
+                    message_id: message_id.clone(),
                     part_id: part_id.clone(),
                     text,
                 }),
@@ -275,14 +277,11 @@ pub fn session_update_to_domain_event(
         SessionUpdate::ToolCallUpdate { update, .. } => {
             let status = update.status.clone().unwrap_or(ToolCallStatus::InProgress);
             Some((
-                SessionDomainEventKind::OperationUpserted,
-                Some(SessionDomainEventPayload::OperationUpserted {
+                SessionDomainEventKind::OperationStatusUpdated,
+                Some(SessionDomainEventPayload::OperationStatusUpdated {
                     operation_id: update.tool_call_id.clone(),
                     tool_call_id: update.tool_call_id.clone(),
-                    tool_name: String::new(),
-                    tool_kind: ToolKind::Unclassified,
                     status,
-                    parent_operation_id: None,
                 }),
             ))
         }
@@ -362,7 +361,111 @@ fn extract_chunk_text(chunk: &ContentChunk) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::types::ContentBlock;
     use serde_json::json;
+
+    #[test]
+    fn assistant_message_domain_event_preserves_missing_message_id() {
+        let update = SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some("session-1".to_string()),
+            produced_at_monotonic_ms: None,
+        };
+
+        let Some((_, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected assistant message domain event payload");
+        };
+
+        match payload {
+            SessionDomainEventPayload::AssistantMessageSegmentAppended { message_id, .. } => {
+                assert_eq!(message_id, None);
+            }
+            other => panic!(
+                "expected assistant message segment payload, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn assistant_thought_domain_event_preserves_missing_message_id() {
+        let update = SessionUpdate::AgentThoughtChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "thinking".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some("session-1".to_string()),
+        };
+
+        let Some((_, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected assistant thought domain event payload");
+        };
+
+        match payload {
+            SessionDomainEventPayload::AssistantThoughtSegmentAppended { message_id, .. } => {
+                assert_eq!(message_id, None);
+            }
+            other => panic!(
+                "expected assistant thought segment payload, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn tool_call_update_domain_event_does_not_fabricate_tool_identity() {
+        let update = SessionUpdate::ToolCallUpdate {
+            update: crate::acp::session_update::ToolCallUpdateData {
+                tool_call_id: "tool-search-1".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: None,
+                content: None,
+                raw_output: None,
+                title: None,
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        let Some((kind, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected operation status domain event payload");
+        };
+
+        assert!(matches!(
+            kind,
+            SessionDomainEventKind::OperationStatusUpdated
+        ));
+        match payload {
+            SessionDomainEventPayload::OperationStatusUpdated {
+                operation_id,
+                tool_call_id,
+                status,
+            } => {
+                assert_eq!(operation_id, "tool-search-1");
+                assert_eq!(tool_call_id, "tool-search-1");
+                assert!(matches!(status, ToolCallStatus::Completed));
+            }
+            other => panic!("expected operation status payload, got {:?}", other),
+        }
+    }
 
     mod normalize_session_update_params {
         use super::*;
@@ -456,13 +559,13 @@ mod tests {
         #[test]
         fn extracts_camel_case_session_id() {
             let params = json!({ "sessionId": "sess-123" });
-            assert_eq!(extract_session_id(&params), "sess-123");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("sess-123"));
         }
 
         #[test]
         fn extracts_snake_case_session_id() {
             let params = json!({ "session_id": "sess-456" });
-            assert_eq!(extract_session_id(&params), "sess-456");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("sess-456"));
         }
 
         #[test]
@@ -471,13 +574,19 @@ mod tests {
                 "sessionId": "camel",
                 "session_id": "snake"
             });
-            assert_eq!(extract_session_id(&params), "camel");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("camel"));
         }
 
         #[test]
-        fn returns_unknown_when_missing() {
+        fn returns_none_when_missing() {
             let params = json!({ "other": "value" });
-            assert_eq!(extract_session_id(&params), "unknown");
+            assert_eq!(extract_session_id(&params), None);
+        }
+
+        #[test]
+        fn returns_none_when_empty() {
+            let params = json!({ "sessionId": "" });
+            assert_eq!(extract_session_id(&params), None);
         }
     }
 
@@ -644,8 +753,35 @@ mod tests {
                 ParseResult::Raw {
                     session_id, error, ..
                 } => {
-                    assert_eq!(session_id, "sess-123");
+                    assert_eq!(session_id.as_deref(), Some("sess-123"));
                     assert!(!error.is_empty());
+                }
+                _ => panic!("Expected Raw, got {:?}", result),
+            }
+        }
+
+        #[test]
+        fn raw_parse_result_preserves_absent_update_type() {
+            let json = json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "sessionId": "sess-123",
+                    "update": {
+                        "randomField": true
+                    }
+                }
+            });
+
+            let result = parse_session_update_notification(&json);
+            match result {
+                ParseResult::Raw {
+                    update_type,
+                    session_id,
+                    ..
+                } => {
+                    assert_eq!(session_id.as_deref(), Some("sess-123"));
+                    assert_eq!(update_type, None);
                 }
                 _ => panic!("Expected Raw, got {:?}", result),
             }

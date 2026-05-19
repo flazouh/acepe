@@ -68,7 +68,7 @@ export interface SessionListItem {
 	/** Total lines removed across session edits */
 	deletions?: number;
 	/** Number of entries in the session */
-	entryCount?: number;
+	entryCount?: number | null;
 	/** Worktree path if this session runs in a worktree */
 	worktreePath?: string;
 	/** True when the session points to a deleted worktree */

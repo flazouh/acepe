@@ -202,15 +202,8 @@ fn resolve_identity_impl(
         } else {
             name.to_string()
         }
-    } else if kind != ToolKind::Other {
-        canonical_tool_call_name_for_kind(kind).to_string()
     } else {
-        hints
-            .name
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| "unknown".to_string())
+        canonical_tool_call_name_for_kind(kind).to_string()
     };
 
     ToolIdentity { name, kind }
@@ -220,7 +213,7 @@ fn parse_arguments_once(
     parser: &dyn AgentParser,
     raw_arguments: &serde_json::Value,
     identity: &ToolIdentity,
-    raw_name: Option<&str>,
+    provider_name: Option<&str>,
     title: Option<&str>,
     kind_hint: Option<&str>,
 ) -> ToolArguments {
@@ -232,7 +225,7 @@ fn parse_arguments_once(
         return build_unclassified(
             &RawClassificationInput {
                 id: "",
-                name: raw_name,
+                name: provider_name,
                 title,
                 kind_hint,
                 arguments: raw_arguments,
@@ -263,6 +256,10 @@ fn parse_arguments_once(
             if identity.kind == ToolKind::Other {
                 ToolArguments::Other {
                     raw: raw_arguments.clone(),
+                    intent: crate::acp::parsers::arguments::extract_parser_string(
+                        raw_arguments,
+                        &["intent"],
+                    ),
                 }
             } else {
                 ToolArguments::from_raw(identity.kind, raw_arguments.clone())

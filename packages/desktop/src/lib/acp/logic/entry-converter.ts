@@ -206,7 +206,7 @@ export function convertRustEntriesToStoredEntries(entries: RustStoredEntry[]): S
 }
 
 /**
- * Live entry from MessageProcessor.
+ * Live entry already in thread-entry schema.
  * These entries already have the correct schema (toolCall with arguments, not input).
  */
 export type LiveProcessedEntry =
@@ -218,10 +218,10 @@ export type LiveProcessedEntry =
 /**
  * Convert a live processed entry to StoredEntry format.
  *
- * Used for entries from MessageProcessor which already have the correct schema.
+ * Used for entries that already have the correct thread-entry schema.
  * Unlike Rust entries, live entries have toolCall with `arguments` not `input`.
  *
- * @param entry - Entry from MessageProcessor
+ * @param entry - Thread entry
  * @returns StoredEntry for frontend storage
  */
 export function convertLiveEntryToStoredEntry(entry: LiveProcessedEntry): StoredEntry {

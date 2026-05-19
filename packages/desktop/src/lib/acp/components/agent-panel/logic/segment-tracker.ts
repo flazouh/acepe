@@ -1,4 +1,4 @@
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 
 /**
  * Represents a conversation segment starting with a user message.

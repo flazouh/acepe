@@ -83,19 +83,6 @@ export class EventSubscriber {
 	}
 
 	/**
-	 * Unsubscribe all listeners and clean up the Tauri listener.
-	 * @deprecated Use unsubscribeById for proper cleanup. This removes ALL listeners.
-	 */
-	unsubscribe(): void {
-		this.listeners.clear();
-		this.sessionStateListeners.clear();
-		if (this.unlistenFn) {
-			this.unlistenFn();
-			this.unlistenFn = null;
-		}
-	}
-
-	/**
 	 * Get the number of active listeners.
 	 */
 	get listenerCount(): number {

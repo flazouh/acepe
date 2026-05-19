@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, Button } from "@acepe/ui";
+import { BrandLockup, BrandShaderBackground, Button, type ProviderBrand } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { ArrowRight } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
@@ -29,12 +29,12 @@ import ProjectTable from "../add-repository/project-table.svelte";
 import { getOnboardingSelectableAgents } from "./onboarding-agent-discovery.js";
 import type { WelcomeScreenProps } from "./welcome-screen-props.js";
 
-const SPLASH_AGENTS: { id: string; alt: string }[] = [
-	{ id: "claude-code", alt: "Claude" },
-	{ id: "copilot", alt: "GitHub Copilot" },
-	{ id: "codex", alt: "Codex" },
-	{ id: "cursor", alt: "Cursor" },
-	{ id: "opencode", alt: "OpenCode" },
+const SPLASH_AGENTS: { brand: ProviderBrand; alt: string }[] = [
+	{ brand: "claude-code", alt: "Claude" },
+	{ brand: "copilot", alt: "GitHub Copilot" },
+	{ brand: "codex", alt: "Codex" },
+	{ brand: "cursor", alt: "Cursor" },
+	{ brand: "opencode", alt: "OpenCode" },
 ];
 
 // Vendor labels grounded in reality — confident product data, not marketing copy.
@@ -412,9 +412,9 @@ function trackPointer(event: PointerEvent) {
 
 			<!-- Agent strip: full-color brand marks, unframed. -->
 			<div class="flex items-center gap-3">
-				{#each SPLASH_AGENTS as agent (agent.id)}
+				{#each SPLASH_AGENTS as agent (agent.brand)}
 					<div class="flex size-8 items-center justify-center rounded-lg bg-white/[0.04]">
-						<AgentIcon agentId={agent.id} size={18} />
+						<AgentIcon agentId={agent.brand} providerBrand={agent.brand} providerLabel={agent.alt} size={18} />
 					</div>
 				{/each}
 			</div>
@@ -471,6 +471,8 @@ function trackPointer(event: PointerEvent) {
 						>
 							<AgentIcon
 								agentId={agent.id}
+								providerBrand={agent.providerMetadata?.providerBrand ?? null}
+								providerLabel={agent.providerMetadata?.displayName ?? agent.name}
 								size={20}
 								class="agent-icon {isSelected ? '' : 'agent-icon--monochrome'}"
 							/>

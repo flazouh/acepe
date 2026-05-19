@@ -7,6 +7,7 @@ import type { AgentGridItem } from "@acepe/ui/agent-panel";
 import { AppSessionItem as AppSessionItemComponent } from "@acepe/ui/app-layout";
 import type { AppSessionItemType } from "@acepe/ui/app-layout";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import Header from "$lib/components/header.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
@@ -44,31 +45,31 @@ const mockGridAgents: AgentGridItem[] = $derived([
 	{
 		id: "claude-code",
 		name: "Claude Code",
-		iconSrc: `/svgs/agents/claude/claude-icon-${theme}.svg`,
+		iconSrc: getProviderBrandIconSrc("claude-code", theme),
 		available: true,
 	},
 	{
 		id: "codex",
 		name: "Codex",
-		iconSrc: `/svgs/agents/codex/codex-icon-${theme}.svg`,
+		iconSrc: getProviderBrandIconSrc("codex", theme),
 		available: true,
 	},
 	{
 		id: "copilot",
 		name: "Copilot",
-		iconSrc: `/svgs/agents/copilot/copilot-icon-${theme}.svg`,
+		iconSrc: getProviderBrandIconSrc("copilot", theme),
 		available: true,
 	},
 	{
 		id: "cursor",
 		name: "Cursor",
-		iconSrc: `/svgs/agents/cursor/cursor-icon-${theme}.svg`,
+		iconSrc: getProviderBrandIconSrc("cursor", theme),
 		available: true,
 	},
 	{
 		id: "opencode",
 		name: "OpenCode",
-		iconSrc: `/svgs/agents/opencode/opencode-logo-${theme}.svg`,
+		iconSrc: getProviderBrandIconSrc("opencode", theme),
 		available: true,
 	},
 ]);
@@ -529,7 +530,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 	<!-- Left agent panel -->
 	<div class="parallel-panel parallel-panel-muted relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
 		<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1.5">
-			<img src="/svgs/agents/claude/claude-icon-dark.svg" alt="Claude" class="h-3 w-3" />
+			<img src={getProviderBrandIconSrc("claude-code", theme)} alt="Claude" class="h-3 w-3" />
 			<span class="font-mono text-[8px] font-medium text-foreground/70">claude · auth</span>
 			<span class="ml-auto h-1.5 w-1.5 rounded-full bg-success animate-pulse"></span>
 		</div>
@@ -546,7 +547,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 	<!-- Middle agent panel (focused) -->
 	<div class="parallel-panel parallel-panel-active relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
 		<div class="flex items-center gap-1.5 border-b border-border/50 px-2 py-1.5" style="background: color-mix(in srgb, #9858FF 12%, transparent);">
-			<img src="/svgs/agents/cursor/cursor-icon-dark.svg" alt="Cursor" class="h-3 w-3" />
+			<img src={getProviderBrandIconSrc("cursor", theme)} alt="Cursor" class="h-3 w-3" />
 			<span class="font-mono text-[8px] font-semibold text-foreground">cursor · ui</span>
 			<span class="ml-auto flex h-1.5 w-1.5">
 				<span class="absolute inline-flex h-1.5 w-1.5 animate-ping rounded-full opacity-75" style="background: #22C55E;"></span>
@@ -567,7 +568,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 	<!-- Right agent panel -->
 	<div class="parallel-panel parallel-panel-muted relative flex flex-1 flex-col overflow-hidden rounded-md border bg-card">
 		<div class="flex items-center gap-1.5 border-b border-border/40 bg-muted/40 px-2 py-1.5">
-			<img src="/svgs/agents/codex/codex-icon-dark.svg" alt="Codex" class="h-3 w-3" />
+			<img src={getProviderBrandIconSrc("codex", theme)} alt="Codex" class="h-3 w-3" />
 			<span class="font-mono text-[8px] font-medium text-foreground/70">codex · api</span>
 			<span class="ml-auto h-1.5 w-1.5 rounded-full bg-warning animate-pulse"></span>
 		</div>

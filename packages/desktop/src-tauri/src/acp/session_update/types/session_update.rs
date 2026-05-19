@@ -141,11 +141,12 @@ pub enum SessionUpdate {
         attempt_id: u64,
         models: SessionModelState,
         modes: SessionModes,
-        #[serde(default)]
-        available_commands: Vec<AvailableCommand>,
-        #[serde(default)]
-        config_options: Vec<ConfigOptionData>,
-        autonomous_enabled: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        available_commands: Option<Vec<AvailableCommand>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        config_options: Option<Vec<ConfigOptionData>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        autonomous_enabled: Option<bool>,
     },
 
     /// Emitted by the async resume task when session connection fails.

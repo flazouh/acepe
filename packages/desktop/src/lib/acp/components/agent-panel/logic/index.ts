@@ -40,6 +40,7 @@ export {
 } from "./transcript-viewport-diagnostics.js";
 export { replayTranscriptViewportEvents } from "./transcript-viewport-replay.js";
 export {
+	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "./optimistic-user-entry.js";

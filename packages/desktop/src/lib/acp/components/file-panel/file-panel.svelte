@@ -12,7 +12,8 @@ import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";
 import { createLogger } from "../../utils/logger.js";
 import FilePanelCsvView from "./file-panel-csv-view.svelte";
-import { type FilePanelDisplayMode, getFilePanelDisplayOptions } from "./file-panel-format.js";
+import type { FilePanelDisplayMode } from "./format/types.js";
+import { getDisplayOptions } from "./format/registry.js";
 import FilePanelHeader from "./file-panel-header.svelte";
 import { getRawEditorConfig } from "./file-panel-raw-editor-mode.js";
 import FilePanelReadView from "./file-panel-read-view.svelte";
@@ -78,7 +79,7 @@ const fileName = $derived(filePath.split("/").pop() ?? filePath);
 
 // Detect language for Monaco editor
 const language = $derived(getLanguageFromFilename(filePath));
-const displayOptions = $derived(getFilePanelDisplayOptions(filePath));
+const displayOptions = $derived(getDisplayOptions(filePath));
 let displayMode = $state<FilePanelDisplayMode>("raw");
 let editorMode = $state<"write" | "read">("read");
 let lastDisplayOptionsKey = $state("");

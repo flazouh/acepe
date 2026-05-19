@@ -1,4 +1,4 @@
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 
 import { buildSegments, type ConversationSegment, findSegmentForIndex } from "./segment-tracker.js";
 

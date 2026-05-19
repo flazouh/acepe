@@ -2,7 +2,6 @@ import type {
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
-	SessionGraphActionability,
 	SessionGraphActivity,
 	SessionGraphActivityKind,
 	SessionGraphCapabilities,
@@ -30,85 +29,6 @@ export type {
 	SessionStateSnapshotMaterialization,
 };
 
-function isActiveOperation(operation: OperationSnapshot): boolean {
-	return (
-		operation.operation_state === "pending" ||
-		operation.operation_state === "running" ||
-		operation.operation_state === "blocked"
-	);
-}
-
-function selectSessionGraphActivity(input: {
-	lifecycle: SessionGraphLifecycle;
-	turnState: SessionStateGraph["turnState"];
-	operations: OperationSnapshot[];
-	interactions: InteractionSnapshot[];
-	activeTurnFailure?: SessionStateGraph["activeTurnFailure"];
-}): SessionGraphActivity {
-	const activeOperations = input.operations.filter(isActiveOperation);
-	const blockingInteraction =
-		input.interactions.find((interaction) => interaction.state === "Pending") ?? null;
-	const dominantOperationId = activeOperations[0]?.id ?? null;
-
-	if (input.lifecycle.status === "failed" || input.activeTurnFailure != null) {
-		return {
-			kind: "error",
-			activeOperationCount: activeOperations.length,
-			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
-			dominantOperationId,
-			blockingInteractionId: blockingInteraction?.id ?? null,
-		};
-	}
-
-	if (input.lifecycle.status === "detached" || input.lifecycle.status === "archived") {
-		return {
-			kind: "paused",
-			activeOperationCount: activeOperations.length,
-			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
-			dominantOperationId,
-			blockingInteractionId: blockingInteraction?.id ?? null,
-		};
-	}
-
-	if (blockingInteraction !== null) {
-		return {
-			kind: "waiting_for_user",
-			activeOperationCount: activeOperations.length,
-			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
-			dominantOperationId,
-			blockingInteractionId: blockingInteraction.id,
-		};
-	}
-
-	if (activeOperations.length > 0) {
-		return {
-			kind: "running_operation",
-			activeOperationCount: activeOperations.length,
-			activeSubagentCount: activeOperations.filter((operation) => operation.kind === "task").length,
-			dominantOperationId,
-			blockingInteractionId: null,
-		};
-	}
-
-	if (input.turnState === "Running") {
-		return {
-			kind: "awaiting_model",
-			activeOperationCount: 0,
-			activeSubagentCount: 0,
-			dominantOperationId: null,
-			blockingInteractionId: null,
-		};
-	}
-
-	return {
-		kind: "idle",
-		activeOperationCount: 0,
-		activeSubagentCount: 0,
-		dominantOperationId: null,
-		blockingInteractionId: null,
-	};
-}
-
 export function graphFromSessionOpenFound(found: SessionOpenFound): SessionStateGraph {
 	assertOpenFoundHasGraphAuthority(found);
 	return {
@@ -129,16 +49,11 @@ export function graphFromSessionOpenFound(found: SessionOpenFound): SessionState
 		interactions: found.interactions,
 		turnState: found.turnState,
 		messageCount: found.messageCount,
+		activeStreamingTail: found.activeStreamingTail ?? null,
 		activeTurnFailure: found.activeTurnFailure,
 		lastTerminalTurnId: found.lastTerminalTurnId,
 		lifecycle: found.lifecycle,
-		activity: selectSessionGraphActivity({
-			lifecycle: found.lifecycle,
-			turnState: found.turnState,
-			operations: found.operations,
-			interactions: found.interactions,
-			activeTurnFailure: found.activeTurnFailure,
-		}),
+		activity: found.activity,
 		capabilities: found.capabilities,
 	};
 }
@@ -149,6 +64,9 @@ function assertOpenFoundHasGraphAuthority(found: SessionOpenFound): void {
 	}
 	if (!found.capabilities) {
 		throw new Error("Session open result is missing canonical capabilities authority");
+	}
+	if (!found.activity) {
+		throw new Error("Session open result is missing canonical activity authority");
 	}
 }
 

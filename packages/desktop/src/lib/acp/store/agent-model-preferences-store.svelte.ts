@@ -15,9 +15,7 @@ import { okAsync, ResultAsync } from "neverthrow";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
 	type ModelsForDisplay,
-	normalizeModelsForDisplay,
 	type ProviderMetadataProjection,
-	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
@@ -156,21 +154,11 @@ export function updateModelsCache(agentId: string, models: Model[]): void {
  * Get cached display-ready model groups for a specific agent.
  */
 export function getCachedModelsDisplay(agentId: string): ModelsForDisplay | null {
-	return normalizeModelsForDisplay(
-		agentId,
-		availableModelsDisplayCache[agentId] ?? null,
-		undefined,
-		getCachedProviderMetadata(agentId)
-	);
+	return availableModelsDisplayCache[agentId] ?? null;
 }
 
 export function getCachedProviderMetadata(agentId: string): ProviderMetadataProjection | null {
-	const providerMetadata = availableProviderMetadataCache[agentId];
-	if (!providerMetadata) {
-		return null;
-	}
-
-	return resolveProviderMetadataProjection(agentId, providerMetadata, agentId);
+	return availableProviderMetadataCache[agentId] ?? null;
 }
 
 /**
@@ -179,17 +167,10 @@ export function getCachedProviderMetadata(agentId: string): ProviderMetadataProj
  */
 export function updateModelsDisplayCache(
 	agentId: string,
-	modelsDisplay: ModelsForDisplay | undefined,
-	providerMetadata?: ProviderMetadataProjection | null
+	modelsDisplay: ModelsForDisplay | undefined
 ): void {
-	const normalizedModelsDisplay = normalizeModelsForDisplay(
-		agentId,
-		modelsDisplay ?? null,
-		undefined,
-		providerMetadata ?? getCachedProviderMetadata(agentId)
-	);
-	if (normalizedModelsDisplay) {
-		availableModelsDisplayCache[agentId] = normalizedModelsDisplay;
+	if (modelsDisplay) {
+		availableModelsDisplayCache[agentId] = modelsDisplay;
 	} else {
 		delete availableModelsDisplayCache[agentId];
 	}
@@ -201,11 +182,7 @@ export function updateProviderMetadataCache(
 	providerMetadata: ProviderMetadataProjection | undefined
 ): void {
 	if (providerMetadata) {
-		availableProviderMetadataCache[agentId] = resolveProviderMetadataProjection(
-			agentId,
-			providerMetadata,
-			agentId
-		);
+		availableProviderMetadataCache[agentId] = providerMetadata;
 	} else {
 		delete availableProviderMetadataCache[agentId];
 	}
@@ -384,17 +361,9 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 		.get<Record<string, ProviderMetadataProjection>>(AGENT_PROVIDER_METADATA_CACHE_KEY)
 		.map((persisted) => {
 			if (persisted && typeof persisted === "object") {
-				const normalizedPersisted: Record<string, ProviderMetadataProjection> = {};
-				for (const [agentId, providerMetadata] of Object.entries(persisted)) {
-					normalizedPersisted[agentId] = resolveProviderMetadataProjection(
-						agentId,
-						providerMetadata,
-						agentId
-					);
-				}
-				availableProviderMetadataCache = normalizedPersisted;
+				availableProviderMetadataCache = persisted;
 				logger_instance.debug("Loaded cached provider metadata", {
-					agents: Object.keys(normalizedPersisted).length,
+					agents: Object.keys(persisted).length,
 				});
 			}
 			return undefined;
@@ -411,16 +380,9 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 		.get<Record<string, ModelsForDisplay>>(AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY)
 		.map((persisted) => {
 			if (persisted && typeof persisted === "object") {
-				const normalizedPersisted: Record<string, ModelsForDisplay> = {};
-				for (const [agentId, modelsDisplay] of Object.entries(persisted)) {
-					const normalizedModelsDisplay = normalizeModelsForDisplay(agentId, modelsDisplay);
-					if (normalizedModelsDisplay) {
-						normalizedPersisted[agentId] = normalizedModelsDisplay;
-					}
-				}
-				availableModelsDisplayCache = normalizedPersisted;
+				availableModelsDisplayCache = persisted;
 				logger_instance.debug("Loaded cached available models display", {
-					agents: Object.keys(normalizedPersisted).length,
+					agents: Object.keys(persisted).length,
 				});
 			}
 			return undefined;

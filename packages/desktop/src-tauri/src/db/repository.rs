@@ -16,9 +16,9 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseTransaction, DbConn,
-    EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
-    TransactionTrait,
+    sea_query::OnConflict, ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait,
+    DatabaseTransaction, DbConn, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -609,25 +609,19 @@ impl AppSettingsRepository {
     pub async fn set(db: &DbConn, key: &str, value: &str) -> Result<()> {
         tracing::debug!(key = %key, "Saving app setting");
 
-        let existing = AppSetting::find_by_id(key).one(db).await?;
-
-        if let Some(_existing_model) = existing {
-            // Update existing
-            let active = crate::db::entities::app_setting::ActiveModel {
-                key: Set(key.to_string()),
-                value: Set(value.to_string()),
-            };
-            active.update(db).await?;
-            tracing::info!(key = %key, "App setting updated");
-        } else {
-            // Create new
-            let active = crate::db::entities::app_setting::ActiveModel {
-                key: Set(key.to_string()),
-                value: Set(value.to_string()),
-            };
-            AppSetting::insert(active).exec(db).await?;
-            tracing::info!(key = %key, "App setting created");
-        }
+        let active = crate::db::entities::app_setting::ActiveModel {
+            key: Set(key.to_string()),
+            value: Set(value.to_string()),
+        };
+        AppSetting::insert(active)
+            .on_conflict(
+                OnConflict::column(crate::db::entities::app_setting::Column::Key)
+                    .update_column(crate::db::entities::app_setting::Column::Value)
+                    .to_owned(),
+            )
+            .exec(db)
+            .await?;
+        tracing::info!(key = %key, "App setting saved");
 
         Ok(())
     }

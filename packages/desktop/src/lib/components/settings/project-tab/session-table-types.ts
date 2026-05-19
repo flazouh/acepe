@@ -1,4 +1,4 @@
-import type { SessionStatus } from "$lib/acp/application/dto/session.js";
+import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 
 /**
  * Row data for the session table.
@@ -11,7 +11,7 @@ export interface SessionTableRow {
 	projectColor: string;
 	agentId: string;
 	status: SessionStatus;
-	entryCount: number;
+	entryCount: number | null;
 	isConnected: boolean;
 	isStreaming: boolean;
 	updatedAt: Date;

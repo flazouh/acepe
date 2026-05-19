@@ -6,7 +6,11 @@ import {
 	TOKEN_REVEAL_FADE_MS,
 	TOKEN_REVEAL_STEP_MS,
 } from "../messages/token-reveal-motion.js";
-import type { StreamingReproPhase, StreamingReproPreset } from "./streaming-repro-controller";
+import {
+	resolveStreamingReproActiveTailRowId,
+	type StreamingReproPhase,
+	type StreamingReproPreset,
+} from "./streaming-repro-controller";
 
 function resolveTokenRevealMode(phase: StreamingReproPhase): "smooth" | "instant" {
 	if (phase.reducedMotion === true || phase.streamingAnimationMode === "instant") {
@@ -21,13 +25,13 @@ function resolvePreviousPhaseWordCount(
 	phaseIndex: number,
 	phase: StreamingReproPhase
 ): number {
-	if (phase.lastAgentMessageId === null) {
+	if (phase.activeStreamingTailRowId === null) {
 		return 0;
 	}
 
 	for (let index = phaseIndex - 1; index >= 0; index -= 1) {
 		const previousPhase = preset.phases[index];
-		if (previousPhase?.lastAgentMessageId !== phase.lastAgentMessageId) {
+		if (previousPhase?.activeStreamingTailRowId !== phase.activeStreamingTailRowId) {
 			continue;
 		}
 
@@ -43,7 +47,7 @@ export function buildStreamingReproTokenRevealCss(input: {
 	readonly phase: StreamingReproPhase;
 	readonly phaseElapsedMs: number;
 }): TokenRevealCss | undefined {
-	if (input.phase.lastAgentMessageId === null) {
+	if (resolveStreamingReproActiveTailRowId(input.phase) === null) {
 		return undefined;
 	}
 
@@ -96,12 +100,13 @@ export function applyStreamingReproTokenReveal(input: {
 		phaseElapsedMs: input.phaseElapsedMs,
 	});
 
-	if (tokenRevealCss === undefined || input.phase.lastAgentMessageId === null) {
+	const activeStreamingTailRowId = resolveStreamingReproActiveTailRowId(input.phase);
+	if (tokenRevealCss === undefined || activeStreamingTailRowId === null) {
 		return input.entries;
 	}
 
 	return input.entries.map((entry) => {
-		if (entry.type !== "assistant" || entry.id !== input.phase.lastAgentMessageId) {
+		if (entry.type !== "assistant" || entry.id !== activeStreamingTailRowId) {
 			return entry;
 		}
 

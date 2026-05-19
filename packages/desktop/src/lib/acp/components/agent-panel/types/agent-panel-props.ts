@@ -2,7 +2,7 @@ import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte";
 import type { FilePanel } from "../../../store/file-panel-type.js";
-import type { ModifiedFilesState } from "../../modified-files/types/modified-files-state.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 
 /**
  * Props for the AgentPanel component.

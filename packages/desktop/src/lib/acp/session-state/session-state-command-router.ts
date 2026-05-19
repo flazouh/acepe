@@ -8,6 +8,7 @@ import type {
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
+	ActiveStreamingTail,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	SessionTurnState,
@@ -60,7 +61,7 @@ export type SessionStateCommand =
 			turnState: SessionTurnState;
 			activeTurnFailure: TurnFailureSnapshot | null;
 			lastTerminalTurnId: string | null;
-			lastAgentMessageId: string | null | undefined;
+			activeStreamingTail: ActiveStreamingTail | null | undefined;
 			operationPatches: OperationSnapshot[];
 			interactionPatches: InteractionSnapshot[];
 	  }
@@ -155,15 +156,15 @@ export function routeSessionStateEnvelope(
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
 			const includesLastTerminalTurnId = changedFields?.includes("lastTerminalTurnId") ?? false;
-			const includesLastAgentMessageId =
-				changedFields?.includes("lastAgentMessageId") ?? false;
+			const includesActiveStreamingTail =
+				changedFields?.includes("activeStreamingTail") ?? false;
 			const includesGraphState =
 				changedFields === null ||
 				includesActivity ||
 				includesTurnState ||
 				includesActiveTurnFailure ||
 				includesLastTerminalTurnId ||
-				includesLastAgentMessageId;
+				includesActiveStreamingTail;
 			if (
 				operationPatches.length > 0 ||
 				interactionPatches.length > 0 ||
@@ -176,8 +177,8 @@ export function routeSessionStateEnvelope(
 					turnState: envelope.payload.delta.turnState,
 					activeTurnFailure: envelope.payload.delta.activeTurnFailure ?? null,
 					lastTerminalTurnId: envelope.payload.delta.lastTerminalTurnId ?? null,
-					lastAgentMessageId: includesLastAgentMessageId
-						? (envelope.payload.delta.lastAgentMessageId ?? null)
+					activeStreamingTail: includesActiveStreamingTail
+						? (envelope.payload.delta.activeStreamingTail ?? null)
 						: undefined,
 					operationPatches,
 					interactionPatches,

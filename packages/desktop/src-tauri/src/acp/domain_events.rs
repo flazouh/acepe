@@ -24,6 +24,7 @@ pub enum SessionDomainEventKind {
     AssistantThoughtSegmentAppended,
     OperationUpserted,
     OperationChildLinked,
+    OperationStatusUpdated,
     OperationCompleted,
     InteractionUpserted,
     InteractionResolved,
@@ -61,17 +62,17 @@ pub enum SessionDomainEventPayload {
         turn_id: Option<String>,
     },
     UserMessageSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
     AssistantMessageSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
     AssistantThoughtSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
@@ -86,6 +87,11 @@ pub enum SessionDomainEventPayload {
     OperationChildLinked {
         parent_operation_id: String,
         child_operation_id: String,
+    },
+    OperationStatusUpdated {
+        operation_id: String,
+        tool_call_id: String,
+        status: ToolCallStatus,
     },
     OperationCompleted {
         operation_id: String,

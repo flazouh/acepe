@@ -7,7 +7,7 @@ import { IconChevronsLeft } from "@tabler/icons-svelte";
 import { IconChevronsRight } from "@tabler/icons-svelte";
 import { IconSearch } from "@tabler/icons-svelte";
 import { IconSelector } from "@tabler/icons-svelte";
-import type { SessionSummary } from "$lib/acp/application/dto/session.js";
+import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { cn } from "$lib/utils.js";
 import ActionsCell from "./columns/actions-cell.svelte";
@@ -186,7 +186,7 @@ function titleCase(s: string): string {
 						{titleCase(row.agentId)}
 					</span>
 					<span class="w-10 text-right text-muted-foreground tabular-nums">
-						{row.entryCount}
+						{row.entryCount ?? "-"}
 					</span>
 					<span class="w-20 text-right text-muted-foreground tabular-nums">
 						{formatDate(row.updatedAt)}

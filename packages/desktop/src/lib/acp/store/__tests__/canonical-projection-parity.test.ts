@@ -51,6 +51,7 @@ function createRunningOperation(): OperationSnapshot {
 		child_tool_call_ids: [],
 		child_operation_ids: [],
 		operation_state: "blocked",
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 	};
 }
@@ -140,6 +141,7 @@ function createRepresentativeGraph(): SessionStateGraph {
 		messageCount: 2,
 		activeTurnFailure: null,
 		lastTerminalTurnId: "turn-previous",
+		activeStreamingTail: null,
 		lifecycle,
 		// Cold-open recomputes activity from operations/interactions; this fixture
 		// must match that derived activity for the parity assertion to be meaningful.
@@ -207,6 +209,8 @@ function createSessionOpenFoundFromGraph(graph: SessionStateGraph): SessionOpenF
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
+		activity: graph.activity,
+		activeStreamingTail: graph.activeStreamingTail,
 		lifecycle: graph.lifecycle,
 		capabilities: graph.capabilities,
 		activeTurnFailure: graph.activeTurnFailure,
@@ -251,7 +255,7 @@ describe("canonical projection parity", () => {
 			coldStore.getSessionCapabilities("session-1")
 		);
 		expect(liveStore.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(liveStore.getSessionTurnState("session-1")).toBe("Running");
+		expect(liveStore.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 		expect(liveStore.getSessionLastTerminalTurnId("session-1")).toBe("turn-previous");
 		expect(liveStore.getSessionCurrentModeId("session-1")).toBe("build");
 		expect(liveStore.getSessionCurrentModelId("session-1")).toBe("gpt-5");

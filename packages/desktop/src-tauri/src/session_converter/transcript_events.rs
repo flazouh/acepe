@@ -441,4 +441,85 @@ mod tests {
         assert_eq!(events[0].transcript_seq, 0);
         assert_eq!(events[1].transcript_seq, 1);
     }
+
+    #[test]
+    fn canonical_events_keep_reused_provider_id_out_of_display_identity() {
+        let session = session_with_messages(vec![
+            OrderedMessage {
+                uuid: "a-text".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-reused".to_string()),
+                timestamp: "2026-05-17T00:00:01Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "I will inspect it first.".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+            OrderedMessage {
+                uuid: "a-tool".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-reused".to_string()),
+                timestamp: "2026-05-17T00:00:02Z".to_string(),
+                content_blocks: vec![ContentBlock::ToolUse {
+                    id: "toolu_read".to_string(),
+                    name: "Read".to_string(),
+                    input: json!({ "file_path": "/tmp/a" }),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+            OrderedMessage {
+                uuid: "a-later-text".to_string(),
+                parent_uuid: None,
+                role: "assistant".to_string(),
+                provider_message_id: Some("msg-reused".to_string()),
+                timestamp: "2026-05-17T00:00:03Z".to_string(),
+                content_blocks: vec![ContentBlock::Text {
+                    text: "The file is clean.".to_string(),
+                }],
+                model: None,
+                usage: None,
+                error: None,
+                request_id: Some("req-1".to_string()),
+                is_meta: false,
+                source_tool_use_id: None,
+                tool_use_result: None,
+                source_tool_assistant_uuid: None,
+            },
+        ]);
+
+        let events = materialize_canonical_transcript_events(&session, AgentType::ClaudeCode);
+        let display_ids: Vec<&str> = events
+            .iter()
+            .map(|event| event.display_id.as_str())
+            .collect();
+        let provider_msg_ids: Vec<Option<&str>> = events
+            .iter()
+            .map(|event| event.provider_msg_id.as_deref())
+            .collect();
+
+        assert_eq!(display_ids, vec!["a-text", "toolu_read", "a-later-text"]);
+        assert_eq!(
+            provider_msg_ids,
+            vec![Some("msg-reused"), Some("msg-reused"), Some("msg-reused")]
+        );
+        assert_eq!(events[0].transcript_seq, 0);
+        assert_eq!(events[1].transcript_seq, 1);
+        assert_eq!(events[2].transcript_seq, 2);
+    }
 }

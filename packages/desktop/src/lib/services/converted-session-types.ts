@@ -57,7 +57,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } |
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[] | null; config_options?: ConfigOptionData[] | null; autonomous_enabled?: boolean | null } |
 /**
  * Emitted by the async resume task when session connection fails.
  *
@@ -82,7 +82,7 @@ export type ContentChunk = { content: ContentBlock; aggregationHint?: ChunkAggre
 /**
  * Tool call data.
  */
-export type ToolCallData = { id: string; name: string; arguments: ToolArguments; rawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null;
+export type ToolCallData = { id: string; name: string; arguments: ToolArguments; diagnosticRawInput?: JsonValue | null; status: ToolCallStatus; result?: JsonValue | null; kind?: ToolKind | null; title?: string | null; locations?: ToolCallLocation[] | null; skillMeta?: SkillMeta | null;
 /**
  * Normalized questions extracted from question tool calls.
  * This provides a unified format for questions across all agents.
@@ -177,7 +177,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
  * `edits` is always a non-empty Vec. Single-file edits have exactly one entry;
  * multi-file edits (OpenCode `patch`, Codex multi-entry `changes` map) have N entries.
  */
-{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; raw_name: string; raw_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue }
+{ kind: "edit"; edits: EditEntry[] } | { kind: "execute"; command?: string | null } | { kind: "shellInput"; shell_id?: string | null; input?: string | null } | { kind: "search"; query?: string | null; file_path?: string | null } | { kind: "glob"; pattern?: string | null; path?: string | null } | { kind: "fetch"; url?: string | null } | { kind: "webSearch"; query?: string | null } | { kind: "think"; description?: string | null; prompt?: string | null; subagent_type?: string | null; skill?: string | null; skill_args?: string | null; raw?: JsonValue | null } | { kind: "taskOutput"; task_id?: string | null; timeout?: number | null } | { kind: "move"; from?: string | null; to?: string | null } | { kind: "delete"; file_path?: string | null; file_paths?: string[] | null } | { kind: "planMode"; mode?: string | null; plan?: string | null; plan_file_path?: string | null; title?: string | null } | { kind: "toolSearch"; query?: string | null; max_results?: number | null } | { kind: "browser"; raw: JsonValue; action?: string | null; selector?: string | null; script?: string | null } | { kind: "sql"; query?: string | null; description?: string | null } | { kind: "unclassified"; provider_name: string; provider_kind_hint?: string | null; title?: string | null; arguments_preview?: string | null; signals_tried: string[] } | { kind: "other"; raw: JsonValue; intent?: string | null }
 
 /**
  * Tool call update data.
@@ -370,7 +370,7 @@ export type PlanConfidence = "high" | "medium"
 /**
  * Tool kind for routing to appropriate UI components.
  */
-export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
+export type ToolKind = "read" | "read_lints" | "edit" | "execute" | "shell_input" | "search" | "glob" | "fetch" | "web_search" | "think" | "todo" | "question" | "task" | "task_output" | "skill" | "move" | "delete" | "enter_plan_mode" | "exit_plan_mode" | "create_plan" | "tool_search" | "browser" | "sql" | "unclassified" | "other"
 
 /**
  * Tool call status.
@@ -399,7 +399,7 @@ hint: string }
 /**
  * Tool reference for permission/question requests.
  */
-export type ToolReference = { messageId: string; callId: string }
+export type ToolReference = { messageId?: string | null; callId: string }
 
 /**
  * Question option.

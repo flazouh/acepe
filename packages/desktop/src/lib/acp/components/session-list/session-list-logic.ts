@@ -1,4 +1,5 @@
-import type { SessionEntry, SessionSummary } from "../../application/dto/session.js";
+import type { SessionEntry } from "../../application/dto/session-entry.js";
+import type { SessionSummary } from "../../application/dto/session-summary.js";
 import type { Project } from "../../logic/project-manager.svelte.js";
 import type { Checkpoint } from "../../types/checkpoint.js";
 import { extractProjectName } from "../../utils/path-utils.js";
@@ -9,7 +10,6 @@ import {
 	createProjectNameMap,
 } from "../../utils/project-utils.js";
 import type {
-	LastToolInfo,
 	SessionActivityInfo,
 	SessionGroup,
 	SessionListItem,
@@ -19,7 +19,6 @@ import type {
 export { createProjectColorMap, createProjectIconSrcMap, createProjectNameMap };
 
 import type { ToolCall } from "../../types/tool-call.js";
-import type { ToolKind } from "../../types/tool-kind.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { truncateText } from "../../utils/tool-state-utils.js";
 
@@ -42,105 +41,6 @@ export function createLoadingSessionGroups(projects: readonly Project[]): Sessio
 			projectIconSrc: project.iconPath ?? null,
 			sessions: [],
 		}));
-}
-
-/**
- * Extracts tool info from a single session entry.
- */
-function extractToolTarget(toolCall: ToolCall, kind: ToolKind): string {
-	const args = toolCall.arguments;
-	switch (kind) {
-		case "read":
-		case "delete":
-			if (args.kind === "read" || args.kind === "delete") {
-				const path = args.file_path;
-				return path ? path.split("/").pop() || path : "";
-			}
-			return "";
-		case "edit":
-			if (args.kind === "edit") {
-				const path = args.edits[0]?.filePath;
-				return path ? path.split("/").pop() || path : "";
-			}
-			return "";
-		case "execute":
-			if (args.kind === "execute" && args.command) {
-				return truncateText(args.command.replace(/\\\s*\n\s*/g, " ").trim(), 50);
-			}
-			return "";
-		case "search":
-			return args.kind === "search" && args.query ? truncateText(args.query, 40) : "";
-		case "glob":
-			return args.kind === "glob" && args.pattern ? truncateText(args.pattern, 40) : "";
-		case "think":
-		case "task":
-			if (args.kind === "think" && args.description) {
-				return truncateText(args.description, 50);
-			}
-			return toolCall.title ?? "";
-		default:
-			return toolCall.title ?? "";
-	}
-}
-
-function extractToolInfoFromEntry(entry: SessionEntry): LastToolInfo | null {
-	if (entry.type !== "tool_call") return null;
-
-	const toolCall = entry.message;
-	const kind = (toolCall.kind || "other") as ToolKind;
-	const name = toolCall.title || toolCall.name;
-	const target = extractToolTarget(toolCall, kind);
-
-	return { name, target: target || "", kind };
-}
-
-/**
- * Extracts current (streaming) tool info by scanning entries in reverse.
- * Finds the most recent tool_call entry with isStreaming = true.
- */
-export function extractCurrentToolInfo(entries: readonly SessionEntry[]): LastToolInfo | null {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type !== "tool_call" || !entry.isStreaming) continue;
-
-		const info = extractToolInfoFromEntry(entry);
-		if (info) return info;
-	}
-	return null;
-}
-
-/**
- * Extracts last tool info by scanning entries in reverse.
- * Finds the most recent tool_call entry (streaming or completed).
- */
-export function extractLastToolInfo(entries: readonly SessionEntry[]): LastToolInfo | null {
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type !== "tool_call") continue;
-
-		const info = extractToolInfoFromEntry(entry);
-		if (info) return info;
-	}
-	return null;
-}
-
-/**
- * Extracts todo progress from session entries.
- * Scans entries in reverse to find the most recent TodoWrite with normalizedTodos.
- */
-export function extractTodoProgress(entries: readonly SessionEntry[]): TodoProgressInfo | null {
-	// Find the most recent TodoWrite tool call with normalized todos
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type !== "tool_call") continue;
-
-		const todoProgress = extractTodoProgressFromToolCall(entry.message);
-		if (todoProgress !== null) {
-			return todoProgress;
-		}
-	}
-
-	return null;
 }
 
 export function extractTodoProgressFromToolCall(
@@ -177,28 +77,6 @@ export function extractTodoProgressFromToolCall(
 }
 
 /**
- * Extracts activity info for a streaming session.
- */
-export function extractActivityInfo(
-	session: SessionSummary,
-	entries: readonly SessionEntry[]
-): SessionActivityInfo | null {
-	// Only show activity for streaming sessions
-	if (!session.isStreaming) return null;
-
-	const todoProgress = extractTodoProgress(entries);
-	const currentTool = extractCurrentToolInfo(entries);
-	const lastTool = extractLastToolInfo(entries);
-
-	return {
-		isStreaming: true,
-		todoProgress,
-		currentTool,
-		lastTool,
-	};
-}
-
-/**
  * Session with optional entries for activity extraction.
  * Extends SessionSummary with entries for streaming sessions.
  */
@@ -213,7 +91,7 @@ export interface SessionWithEntries extends SessionSummary {
  * Performance: Does NOT read entries for all sessions. Entry reads in a $derived
  * chain create SvelteMap dependencies that fire on every rAF during streaming,
  * causing all SessionItem components to re-render. Instead, uses checkpoint-based
- * diff stats and derives streaming status from the session's isStreaming flag.
+ * diff stats and uses the canonical-derived session streaming flag.
  */
 export function createDisplayItems(
 	sessions: readonly SessionWithEntries[],
@@ -258,7 +136,7 @@ export function createDisplayItems(
 			parentId: session.parentId,
 			insertions: diffStats?.insertions ?? 0,
 			deletions: diffStats?.deletions ?? 0,
-			entryCount: session.entryCount ?? 0,
+			entryCount: session.entryCount,
 			worktreePath: session.worktreePath,
 			worktreeDeleted: session.worktreeDeleted,
 			prNumber: session.prNumber,

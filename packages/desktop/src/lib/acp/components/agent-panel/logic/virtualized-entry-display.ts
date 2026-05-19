@@ -4,7 +4,7 @@ import type {
 	TokenRevealCss,
 } from "@acepe/ui/agent-panel";
 import { groupAssistantChunks } from "@acepe/ui/agent-panel";
-import type { SessionEntry } from "../../../application/dto/session.js";
+import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { AssistantMessage } from "../../../types/assistant-message.js";
 
 type ThinkingEntry = {

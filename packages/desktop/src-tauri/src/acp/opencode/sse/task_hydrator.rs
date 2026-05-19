@@ -318,7 +318,7 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
         id: current.id,
         name: incoming.name,
         arguments: incoming.arguments,
-        raw_input: incoming.raw_input.or(current.raw_input),
+        diagnostic_input: incoming.diagnostic_input.or(current.diagnostic_input),
         status: next_status,
         result: incoming.result.or(current.result),
         kind: incoming.kind.or(current.kind),

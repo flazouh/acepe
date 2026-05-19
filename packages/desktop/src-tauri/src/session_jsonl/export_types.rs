@@ -28,11 +28,11 @@ use crate::acp::session_open_snapshot::{
 };
 use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphActionability, SessionGraphActivity,
-    SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
-    SessionGraphRevision, SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta,
-    SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
-    SessionStateSnapshotMaterialization,
+    ActiveStreamingTail, ActiveStreamingTailContentKind, CapabilityPreviewState,
+    SessionGraphActionability, SessionGraphActivity, SessionGraphActivityKind,
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphRevision,
+    SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta, SessionStateEnvelope,
+    SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -95,154 +95,6 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
-
-export const BUILTIN_PROVIDER_METADATA_BY_AGENT_ID: Record<string, ProviderMetadataProjection> = {
-	"claude-code": {
-		providerBrand: "claude-code",
-		displayName: "Claude Code",
-		displayOrder: 10,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: "default",
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-	copilot: {
-		providerBrand: "copilot",
-		displayName: "GitHub Copilot",
-		displayOrder: 30,
-		supportsModelDefaults: false,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "projectScoped",
-		preconnectionCapabilityMode: "projectScoped",
-		implicitSessionCreationMode: "allowed",
-	},
-	cursor: {
-		providerBrand: "cursor",
-		displayName: "Cursor",
-		displayOrder: 20,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: "auto",
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-	opencode: {
-		providerBrand: "opencode",
-		displayName: "OpenCode",
-		displayOrder: 40,
-		supportsModelDefaults: true,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "projectScoped",
-		preconnectionCapabilityMode: "projectScoped",
-		implicitSessionCreationMode: "explicitUserAction",
-	},
-	codex: {
-		providerBrand: "codex",
-		displayName: "Codex",
-		displayOrder: 50,
-		supportsModelDefaults: true,
-		variantGroup: "reasoningEffort",
-		defaultAlias: undefined,
-		reasoningEffortSupport: true,
-		preconnectionSlashMode: "startupGlobal",
-		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
-	},
-};
-
-function cloneProviderMetadataProjection(
-	providerMetadata: ProviderMetadataProjection
-): ProviderMetadataProjection {
-	return {
-		providerBrand: providerMetadata.providerBrand,
-		displayName: providerMetadata.displayName,
-		displayOrder: providerMetadata.displayOrder,
-		supportsModelDefaults: providerMetadata.supportsModelDefaults,
-		variantGroup: providerMetadata.variantGroup,
-		defaultAlias: providerMetadata.defaultAlias,
-		reasoningEffortSupport: providerMetadata.reasoningEffortSupport,
-		preconnectionSlashMode: providerMetadata.preconnectionSlashMode,
-		preconnectionCapabilityMode:
-			providerMetadata.preconnectionCapabilityMode ?? providerMetadata.preconnectionSlashMode,
-		implicitSessionCreationMode:
-			providerMetadata.implicitSessionCreationMode ?? "explicitUserAction",
-	};
-}
-
-export function resolveProviderMetadataProjection(
-	agentId: string,
-	providerMetadata: ProviderMetadataProjection | null | undefined,
-	fallbackDisplayName?: string
-): ProviderMetadataProjection {
-	if (providerMetadata) {
-		return cloneProviderMetadataProjection(providerMetadata);
-	}
-
-	const builtInProviderMetadata = BUILTIN_PROVIDER_METADATA_BY_AGENT_ID[agentId];
-	if (builtInProviderMetadata) {
-		return cloneProviderMetadataProjection(builtInProviderMetadata);
-	}
-
-	return {
-		providerBrand: "custom",
-		displayName: fallbackDisplayName ?? agentId,
-		displayOrder: 65535,
-		supportsModelDefaults: false,
-		variantGroup: "plain",
-		defaultAlias: undefined,
-		reasoningEffortSupport: false,
-		preconnectionSlashMode: "unsupported",
-		preconnectionCapabilityMode: "unsupported",
-		implicitSessionCreationMode: "explicitUserAction",
-	};
-}
-
-export function getProviderMetadataFromModelsDisplay(
-	modelsDisplay: ModelsForDisplay | null | undefined
-): ProviderMetadataProjection | null {
-	return modelsDisplay?.presentation?.provider ?? null;
-}
-
-export function normalizeModelsForDisplay(
-	agentId: string,
-	modelsDisplay: ModelsForDisplay | null | undefined,
-	fallbackDisplayName?: string,
-	providerMetadataOverride?: ProviderMetadataProjection | null
-): ModelsForDisplay | null {
-	if (!modelsDisplay) {
-		return null;
-	}
-
-	const providerMetadata = resolveProviderMetadataProjection(
-		agentId,
-		providerMetadataOverride ?? getProviderMetadataFromModelsDisplay(modelsDisplay),
-		fallbackDisplayName
-	);
-	const presentation = modelsDisplay.presentation;
-	const displayFamily =
-		presentation?.displayFamily ??
-		(providerMetadata.variantGroup === "reasoningEffort"
-			? "codexReasoningEffort"
-			: "providerGrouped");
-
-	return {
-		groups: modelsDisplay.groups,
-		presentation: {
-			displayFamily,
-			usageMetrics: presentation?.usageMetrics ?? "spendAndContext",
-			provider: providerMetadata,
-		},
-	};
-}
 "#;
 
 /// Creates a specta configuration that allows BigInt for i64 types
@@ -486,6 +338,8 @@ pub fn export_all_types() {
     export_acp_type!(CapabilityPreviewState);
     export_acp_type!(SessionGraphActivityKind);
     export_acp_type!(SessionGraphActivity);
+    export_acp_type!(ActiveStreamingTailContentKind);
+    export_acp_type!(ActiveStreamingTail);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);

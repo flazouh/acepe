@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
 	resolveVisibleAssistantMessageGroups,
 	shouldStreamAssistantTextContent,
+	shouldStreamAssistantThoughtContent,
 } from "../agent-assistant-message-visible-groups.js";
 
 test("active token timing does not hide canonical text within the current text group", () => {
@@ -112,4 +113,28 @@ test("assistant text content streams only while token timing is absent", () => {
 	).toBe(false);
 	expect(shouldStreamAssistantTextContent({ isStreaming: true })).toBe(true);
 	expect(shouldStreamAssistantTextContent({ isStreaming: false })).toBe(false);
+});
+
+test("assistant thought content streams only before message content starts", () => {
+	expect(
+		shouldStreamAssistantThoughtContent({
+			isStreaming: true,
+			hasMessageContent: false,
+			isLastThoughtTextGroup: true,
+		})
+	).toBe(true);
+	expect(
+		shouldStreamAssistantThoughtContent({
+			isStreaming: true,
+			hasMessageContent: true,
+			isLastThoughtTextGroup: true,
+		})
+	).toBe(false);
+	expect(
+		shouldStreamAssistantThoughtContent({
+			isStreaming: true,
+			hasMessageContent: false,
+			isLastThoughtTextGroup: false,
+		})
+	).toBe(false);
 });

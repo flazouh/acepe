@@ -48,6 +48,50 @@ fn has_plan_payload(raw_arguments: &serde_json::Value) -> bool {
     extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]).is_some()
 }
 
+fn extract_plan_title_from_markdown(plan: &str) -> Option<String> {
+    for line in plan.lines() {
+        let trimmed = line.trim();
+        let heading_level = trimmed.chars().take_while(|ch| *ch == '#').count();
+        if heading_level == 0 || heading_level > 6 {
+            continue;
+        }
+
+        let title = trimmed
+            .get(heading_level..)?
+            .trim()
+            .trim_end_matches('#')
+            .trim();
+        if !title.is_empty() {
+            return Some(title.to_string());
+        }
+    }
+
+    None
+}
+
+fn parse_plan_mode_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
+    let plan = extract_parser_string(raw_arguments, &["plan", "content", "planMarkdown"]);
+    let title = extract_parser_string(raw_arguments, &["title"])
+        .or_else(|| plan.as_deref().and_then(extract_plan_title_from_markdown));
+
+    ToolArguments::PlanMode {
+        mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),
+        plan,
+        plan_file_path: extract_parser_string(
+            raw_arguments,
+            &[
+                "planFilePath",
+                "planPath",
+                "filePath",
+                "plan_file_path",
+                "file_path",
+                "path",
+            ],
+        ),
+        title,
+    }
+}
+
 pub(crate) fn parse_generic_edit_arguments(raw_arguments: &serde_json::Value) -> ToolArguments {
     let file_path = extract_parser_string(raw_arguments, &["file_path", "filePath", "path"]);
     let move_from = extract_parser_string(raw_arguments, &["move_from", "moveFrom"]);
@@ -292,6 +336,10 @@ pub(crate) fn parse_tool_kind_arguments(
         ToolKind::Execute => ToolArguments::Execute {
             command: parse_parser_command_string(raw_arguments, &["command", "cmd"]),
         },
+        ToolKind::ShellInput => ToolArguments::ShellInput {
+            shell_id: extract_parser_string(raw_arguments, &["shellId", "shell_id", "shell"]),
+            input: extract_parser_string(raw_arguments, &["input", "text", "chars"]),
+        },
         ToolKind::Search => ToolArguments::Search {
             query: extract_parser_string(raw_arguments, &["query", "pattern"])
                 .or_else(|| {
@@ -405,14 +453,10 @@ pub(crate) fn parse_tool_kind_arguments(
             ),
         },
         ToolKind::ExitPlanMode | ToolKind::CreatePlan if has_plan_payload(raw_arguments) => {
-            ToolArguments::Other {
-                raw: raw_arguments.clone(),
-            }
+            parse_plan_mode_arguments(raw_arguments)
         }
         ToolKind::EnterPlanMode | ToolKind::ExitPlanMode | ToolKind::CreatePlan => {
-            ToolArguments::PlanMode {
-                mode: extract_parser_string(raw_arguments, &["mode", "modeId"]),
-            }
+            parse_plan_mode_arguments(raw_arguments)
         }
         ToolKind::ToolSearch => ToolArguments::ToolSearch {
             query: extract_parser_string(raw_arguments, &["query"]),
@@ -420,13 +464,32 @@ pub(crate) fn parse_tool_kind_arguments(
         },
         ToolKind::Browser => ToolArguments::Browser {
             raw: raw_arguments.clone(),
+            action: extract_parser_string(raw_arguments, &["action"]),
+            selector: extract_parser_string(raw_arguments, &["selector"]),
+            script: extract_parser_string(raw_arguments, &["script"]),
         },
         ToolKind::Unclassified => ToolArguments::Unclassified {
-            raw_name: extract_parser_string(raw_arguments, &["raw_name", "rawName", "name"])
-                .unwrap_or_default(),
-            raw_kind_hint: extract_parser_string(
+            provider_name: extract_parser_string(
                 raw_arguments,
-                &["raw_kind_hint", "rawKindHint", "kind_hint", "kindHint"],
+                &[
+                    "provider_name",
+                    "providerName",
+                    "raw_name",
+                    "rawName",
+                    "name",
+                ],
+            )
+            .unwrap_or_default(),
+            provider_kind_hint: extract_parser_string(
+                raw_arguments,
+                &[
+                    "provider_kind_hint",
+                    "providerKindHint",
+                    "raw_kind_hint",
+                    "rawKindHint",
+                    "kind_hint",
+                    "kindHint",
+                ],
             ),
             title: extract_parser_string(raw_arguments, &["title"]),
             arguments_preview: parse_parser_string_or_json(
@@ -441,6 +504,56 @@ pub(crate) fn parse_tool_kind_arguments(
         },
         ToolKind::Other => ToolArguments::Other {
             raw: raw_arguments.clone(),
+            intent: extract_parser_string(raw_arguments, &["intent"]),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parses_browser_display_fields_from_raw_arguments() {
+        let args = parse_tool_kind_arguments(
+            ToolKind::Browser,
+            &json!({
+                "action": "click",
+                "selector": "[data-testid='submit']",
+                "script": "document.body.innerText",
+            }),
+        );
+
+        match args {
+            ToolArguments::Browser {
+                action,
+                selector,
+                script,
+                ..
+            } => {
+                assert_eq!(action.as_deref(), Some("click"));
+                assert_eq!(selector.as_deref(), Some("[data-testid='submit']"));
+                assert_eq!(script.as_deref(), Some("document.body.innerText"));
+            }
+            other => panic!("expected browser arguments, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_other_display_intent_from_raw_arguments() {
+        let args = parse_tool_kind_arguments(
+            ToolKind::Other,
+            &json!({
+                "intent": "Viewing extracted lines",
+            }),
+        );
+
+        match args {
+            ToolArguments::Other { intent, .. } => {
+                assert_eq!(intent.as_deref(), Some("Viewing extracted lines"));
+            }
+            other => panic!("expected other arguments, got {other:?}"),
+        }
     }
 }

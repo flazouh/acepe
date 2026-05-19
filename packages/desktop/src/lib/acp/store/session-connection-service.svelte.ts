@@ -8,9 +8,7 @@
  * - State machine event dispatching
  *
  * Machine snapshots are cached in a SvelteMap so that `getState()` reads
- * establish Svelte reactive dependencies. Components using
- * `$derived(store.getSessionRuntimeState(id))` automatically re-evaluate
- * when the machine transitions.
+ * establish Svelte reactive dependencies for canonical selectors.
  */
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";

@@ -1,7 +1,6 @@
 import { okAsync, ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BUILTIN_PROVIDER_METADATA_BY_AGENT_ID } from "$lib/services/acp-provider-metadata.js";
-import type { ResolvedCapabilities } from "$lib/services/acp-types.js";
+import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import {
 	PreconnectionCapabilitiesState,
 	resetForTesting,
@@ -17,6 +16,19 @@ function createDeferred<T>() {
 	return { promise, resolve, reject };
 }
 
+const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadataProjection = {
+	providerBrand: "claude-code",
+	displayName: "Claude Code",
+	displayOrder: 10,
+	supportsModelDefaults: true,
+	variantGroup: "plain",
+	defaultAlias: "default",
+	reasoningEffortSupport: false,
+	preconnectionSlashMode: "startupGlobal",
+	preconnectionCapabilityMode: "startupGlobal",
+	implicitSessionCreationMode: "allowed",
+};
+
 function makeResolvedCapabilities(): ResolvedCapabilities {
 	return {
 		status: "resolved",
@@ -31,7 +43,7 @@ function makeResolvedCapabilities(): ResolvedCapabilities {
 			],
 			presentation: undefined,
 		},
-		providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+		providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 		availableModes: [{ id: "build", name: "Build" }],
 		currentModeId: "build",
 	};

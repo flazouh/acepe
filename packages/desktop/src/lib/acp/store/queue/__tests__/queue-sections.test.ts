@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionState } from "../../session-state.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import { classifyItem, groupIntoSections, isNeedsReview } from "../queue-section-utils.js";
 import type { QueueItem } from "../types.js";
 
@@ -113,6 +114,17 @@ function makeItem(
 					: "none",
 			hasUnseenCompletion: hasUnseenCompletion ?? false,
 		});
+	const workBucket =
+		rest.workBucket ??
+		selectSessionWorkBucket(
+			deriveSessionWorkProjection({
+				state,
+				currentModeId,
+				connectionError: rest.connectionError ?? null,
+				activeTurnFailure: rest.activeTurnFailure ?? null,
+				canonicalActivity: null,
+			})
+		);
 
 	const item: QueueItem = {
 		sessionId: "s-1",
@@ -137,6 +149,7 @@ function makeItem(
 		pendingQuestion: null,
 		status: "ready",
 		connectionError: null,
+		workBucket,
 		...rest,
 		pendingPlanApproval,
 		state, // Always use computed or provided state
@@ -148,9 +161,7 @@ describe("classifyItem", () => {
 	it("should treat ready + unseen as needs review", () => {
 		expect(
 			isNeedsReview({
-				status: "ready",
-				connectionError: null,
-				state: makeState({ hasUnseenCompletion: true }),
+				workBucket: "needs_review",
 			})
 		).toBe(true);
 	});
@@ -158,9 +169,7 @@ describe("classifyItem", () => {
 	it("should not treat ready without unseen as needs review", () => {
 		expect(
 			isNeedsReview({
-				status: "ready",
-				connectionError: null,
-				state: makeState({ hasUnseenCompletion: false }),
+				workBucket: "idle",
 			})
 		).toBe(false);
 	});
@@ -173,7 +182,7 @@ describe("classifyItem", () => {
 		expect(classifyItem(makeItem({ hasPendingPermission: true }))).toBe("answer_needed");
 	});
 
-	it("should classify error status as error", () => {
+	it("should classify error bucket as error", () => {
 		expect(classifyItem(makeItem({ hasError: true, status: "error" }))).toBe("error");
 	});
 
@@ -193,13 +202,13 @@ describe("classifyItem", () => {
 		).toBe("error");
 	});
 
-	it("should classify streaming without plan mode as working", () => {
+	it("should classify working bucket as working", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "code" }))
 		).toBe("working");
 	});
 
-	it("should classify streaming with plan mode as planning", () => {
+	it("should classify planning bucket as planning", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "plan" }))
 		).toBe("planning");
@@ -248,7 +257,7 @@ describe("classifyItem", () => {
 		expect(classifyItem(item)).toBe("planning");
 	});
 
-	it("should classify ready status as needs_review", () => {
+	it("should classify needs-review bucket as needs_review", () => {
 		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe(
 			"needs_review"
 		);

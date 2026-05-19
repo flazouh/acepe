@@ -449,7 +449,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         interactions: Vec::new(),
         turn_state: crate::acp::projections::SessionTurnState::Idle,
         message_count: 0,
-        last_agent_message_id: None,
+        active_streaming_tail: None,
         active_turn_failure: None,
         last_terminal_turn_id: None,
         lifecycle: SessionGraphLifecycle::ready(),
@@ -515,7 +515,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 name: "GPT-5".to_string(),
                 description: None,
             }],
-            current_model_id: "gpt-5".to_string(),
+            current_model_id: Some("gpt-5".to_string()),
             ..default_session_model_state()
         },
         modes: SessionModes {
@@ -526,12 +526,12 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 description: None,
             }],
         },
-        available_commands: vec![crate::acp::session_update::AvailableCommand {
+        available_commands: Some(vec![crate::acp::session_update::AvailableCommand {
             name: "edit".to_string(),
             description: "Edit files".to_string(),
             input: None,
-        }],
-        config_options: vec![crate::acp::session_update::ConfigOptionData {
+        }]),
+        config_options: Some(vec![crate::acp::session_update::ConfigOptionData {
             id: "sandbox".to_string(),
             name: "sandbox".to_string(),
             category: "runtime".to_string(),
@@ -539,8 +539,8 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
             description: None,
             current_value: Some(json!("workspace-write")),
             options: Vec::new(),
-        }],
-        autonomous_enabled: false,
+        }]),
+        autonomous_enabled: Some(false),
     };
 
     runtime_registry.apply_session_update_with_graph_seed("session-1", 6, &update);
@@ -573,11 +573,28 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                     .models
                     .as_ref()
                     .expect("models")
-                    .current_model_id,
-                "gpt-5"
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
-            assert_eq!(graph.capabilities.available_commands.len(), 1);
-            assert_eq!(graph.capabilities.config_options.len(), 1);
+            assert_eq!(
+                graph
+                    .capabilities
+                    .available_commands
+                    .as_ref()
+                    .expect("available commands")
+                    .len(),
+                1
+            );
+            assert_eq!(
+                graph
+                    .capabilities
+                    .config_options
+                    .as_ref()
+                    .expect("config options")
+                    .len(),
+                1
+            );
         }
         payload => panic!("expected snapshot payload, got {payload:?}"),
     }
@@ -703,7 +720,7 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
                     }],
-                    current_model_id: "claude-sonnet-4.6".to_string(),
+                    current_model_id: Some("claude-sonnet-4.6".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -746,7 +763,10 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
     assert_eq!(factory_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.load_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(response.models.current_model_id, "claude-sonnet-4.6");
+    assert_eq!(
+        response.models.current_model_id.as_deref(),
+        Some("claude-sonnet-4.6")
+    );
     assert_eq!(response.modes.current_mode_id, "plan");
 
     let stored_client_arc = session_registry
@@ -782,7 +802,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
                     }],
-                    current_model_id: "claude-sonnet-4.6".to_string(),
+                    current_model_id: Some("claude-sonnet-4.6".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -829,7 +849,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
     assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.load_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(response.models.current_model_id, "gpt-5");
+    assert_eq!(response.models.current_model_id.as_deref(), Some("gpt-5"));
     assert_eq!(response.modes.current_mode_id, "build");
 
     let stored_client_arc = session_registry
@@ -1516,7 +1536,7 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
                         name: "GPT-5".to_string(),
                         description: None,
                     }],
-                    current_model_id: "gpt-5".to_string(),
+                    current_model_id: Some("gpt-5".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -1946,7 +1966,7 @@ impl AgentClient for MockAgentClient {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-5".to_string(),
+                current_model_id: Some("gpt-5".to_string()),
                 models_display: Default::default(),
                 provider_metadata: None,
             },
@@ -1983,7 +2003,7 @@ impl AgentClient for MockAgentClient {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-5".to_string(),
+                current_model_id: Some("gpt-5".to_string()),
                 models_display: Default::default(),
                 provider_metadata: None,
             },
@@ -2099,16 +2119,16 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-4".to_string(),
+                current_model_id: Some("gpt-4".to_string()),
                 ..default_session_model_state()
             }),
             modes: Some(SessionModes {
                 current_mode_id: "build".to_string(),
                 available_modes: vec![],
             }),
-            available_commands: vec![],
-            config_options: vec![],
-            autonomous_enabled: false,
+            available_commands: Some(vec![]),
+            config_options: Some(vec![]),
+            autonomous_enabled: Some(false),
         },
     );
 
@@ -2166,8 +2186,12 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
                 "pending envelope should carry mutation id"
             );
             assert_eq!(
-                capabilities.models.expect("models").current_model_id,
-                "gpt-5".to_string()
+                capabilities
+                    .models
+                    .expect("models")
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
         }
         _ => panic!("expected pending capabilities payload"),
@@ -2184,8 +2208,12 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
             assert_eq!(revision.graph_revision, 6);
             assert_eq!(pending_mutation_id, None);
             assert_eq!(
-                capabilities.models.expect("models").current_model_id,
-                "gpt-5".to_string()
+                capabilities
+                    .models
+                    .expect("models")
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
         }
         _ => panic!("expected confirmed capabilities payload"),
@@ -2209,9 +2237,9 @@ async fn set_mode_emits_pending_then_confirmed_capabilities_envelopes() {
                 current_mode_id: "build".to_string(),
                 available_modes: vec![],
             }),
-            available_commands: vec![],
-            config_options: vec![],
-            autonomous_enabled: false,
+            available_commands: Some(vec![]),
+            config_options: Some(vec![]),
+            autonomous_enabled: Some(false),
         },
     );
 
@@ -2305,9 +2333,9 @@ async fn set_mode_failure_emits_corrective_failed_capabilities_envelope() {
                 current_mode_id: "build".to_string(),
                 available_modes: vec![],
             }),
-            available_commands: vec![],
-            config_options: vec![],
-            autonomous_enabled: false,
+            available_commands: Some(vec![]),
+            config_options: Some(vec![]),
+            autonomous_enabled: Some(false),
         },
     );
 
@@ -2403,8 +2431,8 @@ async fn set_config_option_emits_sanitized_capabilities_envelopes() {
         SessionGraphCapabilities {
             models: None,
             modes: None,
-            available_commands: vec![],
-            config_options: vec![crate::acp::session_update::ConfigOptionData {
+            available_commands: Some(vec![]),
+            config_options: Some(vec![crate::acp::session_update::ConfigOptionData {
                 id: "api-key".to_string(),
                 name: "API Key".to_string(),
                 category: "auth".to_string(),
@@ -2412,8 +2440,8 @@ async fn set_config_option_emits_sanitized_capabilities_envelopes() {
                 description: None,
                 current_value: None,
                 options: Vec::new(),
-            }],
-            autonomous_enabled: false,
+            }]),
+            autonomous_enabled: Some(false),
         },
     );
 
@@ -2480,7 +2508,14 @@ async fn set_config_option_emits_sanitized_capabilities_envelopes() {
             ..
         } => {
             assert_eq!(preview_state, CapabilityPreviewState::Pending);
-            assert_eq!(capabilities.config_options[0].current_value, None);
+            assert_eq!(
+                capabilities
+                    .config_options
+                    .as_ref()
+                    .expect("config options")[0]
+                    .current_value,
+                None
+            );
         }
         _ => panic!("expected pending capabilities payload"),
     }
@@ -2492,7 +2527,14 @@ async fn set_config_option_emits_sanitized_capabilities_envelopes() {
             ..
         } => {
             assert_eq!(preview_state, CapabilityPreviewState::Canonical);
-            assert_eq!(capabilities.config_options[0].current_value, None);
+            assert_eq!(
+                capabilities
+                    .config_options
+                    .as_ref()
+                    .expect("config options")[0]
+                    .current_value,
+                None
+            );
         }
         _ => panic!("expected confirmed capabilities payload"),
     }
@@ -2513,9 +2555,9 @@ async fn set_session_autonomous_emits_canonical_capabilities_envelope() {
         SessionGraphCapabilities {
             models: None,
             modes: None,
-            available_commands: vec![],
-            config_options: vec![],
-            autonomous_enabled: false,
+            available_commands: Some(vec![]),
+            config_options: Some(vec![]),
+            autonomous_enabled: Some(false),
         },
     );
 
@@ -2555,7 +2597,7 @@ async fn set_session_autonomous_emits_canonical_capabilities_envelope() {
         } => {
             assert_eq!(preview_state, CapabilityPreviewState::Canonical);
             assert_eq!(pending_mutation_id, None);
-            assert!(capabilities.autonomous_enabled);
+            assert_eq!(capabilities.autonomous_enabled, Some(true));
         }
         _ => panic!("expected capabilities payload"),
     }

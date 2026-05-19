@@ -202,7 +202,7 @@ mod claude_code_parse_tool_call {
             crate::acp::session_update::ToolArguments::Read { file_path, .. } => {
                 file_path.as_deref()
             }
-            crate::acp::session_update::ToolArguments::Other { raw } => {
+            crate::acp::session_update::ToolArguments::Other { raw, .. } => {
                 raw.get("file_path").and_then(|v| v.as_str())
             }
             _ => None,

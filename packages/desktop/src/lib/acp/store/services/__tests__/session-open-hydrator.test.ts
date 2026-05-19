@@ -40,6 +40,14 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 		interactions,
 		turnState,
 		messageCount,
+		activity: overrides?.activity ?? {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		activeStreamingTail: overrides?.activeStreamingTail ?? null,
 		lifecycle: {
 			status: "ready",
 			actionability: {
@@ -76,6 +84,8 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 		interactions: found.interactions,
 		turnState: found.turnState,
 		messageCount: found.messageCount,
+		activity: found.activity,
+		activeStreamingTail: found.activeStreamingTail,
 		capabilities: found.capabilities,
 		activeTurnFailure: found.activeTurnFailure ?? null,
 		lastTerminalTurnId: found.lastTerminalTurnId ?? null,
@@ -332,6 +342,7 @@ describe("SessionOpenHydrator", () => {
 			kind: "read" as const,
 			provider_status: "in_progress" as const,
 			operation_state: "running" as const,
+	awaiting_plan_approval: false,
 			source_link: { kind: "transcript_linked" as const, entry_id: "tool-read-entry-1" },
 			title: "Read /repo/src/main.ts",
 			arguments: { kind: "read" as const, file_path: "/repo/src/main.ts" },

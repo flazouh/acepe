@@ -9,7 +9,7 @@ import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
-import { Colors, COLOR_NAMES } from "../../utils/colors.js";
+import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
 import { mapCanonicalTurnStateToHotTurnState } from "../../store/canonical-turn-state-mapping.js";
@@ -58,7 +58,7 @@ const isRepresentedByToolCall = $derived.by(() => {
 	return sessionStore.isPermissionRepresentedByToolCall(currentPermission, sessionId);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
-const effectiveTurnState = $derived(sessionStore.getSessionTurnState(sessionId));
+const effectiveTurnState = $derived(sessionStore.getSessionStateGraph(sessionId)?.turnState ?? null);
 const currentToolCall = $derived.by((): ToolCall | null => {
 	const toolCallId = currentPermission?.tool?.callID;
 	if (!toolCallId) {

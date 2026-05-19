@@ -15,7 +15,7 @@ import {
  * Tool-call reference used to anchor a permission request to an existing tool row.
  */
 export interface PermissionToolReference {
-	messageID: string;
+	messageID: string | null;
 	callID: string;
 }
 
@@ -32,7 +32,7 @@ export interface PermissionOptionMetadata {
  * Permission metadata consumed by the desktop UI.
  */
 export interface PermissionMetadata {
-	rawInput?: JsonValue;
+	diagnosticRawInput?: JsonValue;
 	parsedArguments?: ToolArguments | null;
 	options?: PermissionOptionMetadata[];
 }
@@ -46,10 +46,9 @@ export interface PermissionRequestBatchMember {
 }
 
 /**
- * ACP permission metadata always carries the original tool payload and options.
+ * ACP permission metadata carries diagnostic original tool payload and options.
  */
 export interface AcpPermissionMetadata extends PermissionMetadata {
-	rawInput: JsonValue;
 	options: PermissionOptionMetadata[];
 }
 
@@ -133,6 +132,11 @@ export interface AcpPermissionRequest extends PermissionRequest {
 }
 
 type PermissionRequestMetadataInput = PermissionMetadata | JsonValue;
+type PermissionMetadataInputObject = {
+	readonly diagnosticRawInput?: JsonValue;
+	readonly parsedArguments?: ToolArguments | null;
+	readonly options?: readonly PermissionOptionMetadata[] | JsonValue;
+};
 type PermissionRequestToolInput = PermissionToolReference | ToolReference | null | undefined;
 type PermissionRequestReplyHandlerInput =
 	| InteractionReplyHandler
@@ -153,12 +157,64 @@ export interface PermissionRequestBuilderInput {
 	tool?: PermissionRequestToolInput;
 }
 
+function isPermissionOptionMetadata(
+	value: PermissionOptionMetadata | JsonValue
+): value is PermissionOptionMetadata {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		typeof value.kind === "string" &&
+		typeof value.name === "string" &&
+		typeof value.optionId === "string"
+	);
+}
+
+function readPermissionOptions(
+	value: readonly PermissionOptionMetadata[] | JsonValue | undefined
+): PermissionOptionMetadata[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+
+	const options: PermissionOptionMetadata[] = [];
+	for (const item of value) {
+		if (isPermissionOptionMetadata(item)) {
+			options.push({
+				kind: item.kind,
+				name: item.name,
+				optionId: item.optionId,
+			});
+		}
+	}
+
+	return options.length > 0 ? options : undefined;
+}
+
 function normalizePermissionMetadata(value: PermissionRequestMetadataInput): PermissionMetadata {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		return {};
 	}
 
-	return value;
+	const input = value as PermissionMetadataInputObject;
+	const diagnosticRawInput = input.diagnosticRawInput;
+	const parsedArguments = input.parsedArguments;
+	const options = readPermissionOptions(input.options);
+	const metadata: PermissionMetadata = {};
+
+	if (diagnosticRawInput !== undefined) {
+		metadata.diagnosticRawInput = diagnosticRawInput;
+	}
+
+	if (parsedArguments !== undefined) {
+		metadata.parsedArguments = parsedArguments;
+	}
+
+	if (options !== undefined) {
+		metadata.options = options;
+	}
+
+	return metadata;
 }
 
 function normalizePermissionToolReference(
@@ -173,7 +229,7 @@ function normalizePermissionToolReference(
 	}
 
 	return {
-		messageID: tool.messageId,
+		messageID: tool.messageId ?? null,
 		callID: tool.callId,
 	};
 }
@@ -240,7 +296,10 @@ function selectPreferredMetadata(
 		return incoming;
 	}
 
-	if (existing.rawInput === undefined && incoming.rawInput !== undefined) {
+	if (
+		existing.diagnosticRawInput === undefined &&
+		incoming.diagnosticRawInput !== undefined
+	) {
 		return incoming;
 	}
 

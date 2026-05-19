@@ -35,7 +35,7 @@ import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
-import { getProjectColor, TAG_COLORS } from "../../../utils/colors";
+import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
@@ -64,6 +64,7 @@ import {
 	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
+	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
 	mapCanonicalTurnStateToHotTurnState,
@@ -79,7 +80,7 @@ import { materializeAgentPanelSceneFromGraph } from "../../../session-state/agen
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
-import { getAgentIcon } from "../../../constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
@@ -210,7 +211,7 @@ setThinkingPreferences({
 	},
 	onToggleDefaultExpand: () => {
 		chatPreferencesStore?.setThinkingBlockCollapsedByDefault(
-			!chatPreferencesStore.thinkingBlockCollapsedByDefault,
+			!chatPreferencesStore.thinkingBlockCollapsedByDefault
 		);
 	},
 });
@@ -379,24 +380,24 @@ const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null)
 const preSessionPendingUserEntry = $derived(
 	sessionId === null || sessionId === undefined ? (panelHotState?.pendingUserEntry ?? null) : null
 );
-const hasCanonicalUserEntryInGraph = $derived.by(() => {
-	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
-	return entries.some((entry) => entry.role === "user");
-});
-const hasCanonicalMatchingPendingUserEntry = $derived.by(() => {
+const canonicalUserEntryPresence = $derived.by(() => {
 	const pending = sessionPendingSendIntent;
-	if (pending === null) {
-		return false;
-	}
-	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
-	return entries.some((entry) => entry.role === "user" && entry.attemptId === pending.attemptId);
+	const transcriptEntries =
+		sessionId === null || sessionId === undefined
+			? []
+			: (sessionStateGraph?.transcriptSnapshot.entries ?? null);
+	return deriveCanonicalUserEntryPresence({
+		transcriptEntries,
+		pendingAttemptId: pending?.attemptId ?? null,
+	});
 });
 const optimisticUserEntryForGraph = $derived(
 	resolveOptimisticUserEntryForGraph({
 		panelPendingUserEntry: panelHotState?.pendingUserEntry ?? null,
 		sessionPendingOptimisticEntry: sessionPendingSendIntent?.optimisticEntry ?? null,
-		hasCanonicalUserEntry: hasCanonicalUserEntryInGraph,
-		hasCanonicalMatchingPendingUserEntry: hasCanonicalMatchingPendingUserEntry,
+		hasCanonicalUserEntry: canonicalUserEntryPresence.hasCanonicalUserEntry,
+		hasCanonicalMatchingPendingUserEntry:
+			canonicalUserEntryPresence.hasCanonicalMatchingPendingUserEntry,
 	})
 );
 const hasImmediatePendingSendIntent = $derived(
@@ -418,11 +419,15 @@ const firstMessageAttachments = $derived.by(() => {
 
 const visibleEntryCount = $derived(
 	resolveVisibleEntryCount({
-		canonicalEntryCount: sessionStateGraph?.transcriptSnapshot.entries.length ?? 0,
+		canonicalEntryCount:
+			sessionId === null || sessionId === undefined
+				? 0
+				: (sessionStateGraph?.transcriptSnapshot.entries.length ?? null),
 		optimisticUserEntry: optimisticUserEntryForGraph,
 	})
 );
-const hasMessages = $derived(visibleEntryCount > 0);
+const knownVisibleEntryCount = $derived(visibleEntryCount ?? 0);
+const hasMessages = $derived(visibleEntryCount !== null && visibleEntryCount > 0);
 const sessionProjectPath = $derived(sessionIdentity?.projectPath ?? null);
 const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
 const sessionWorktreePath = $derived(sessionIdentity?.worktreePath ?? null);
@@ -496,8 +501,6 @@ function prepareForNextUserReveal() {
 		panelId: effectivePanelId,
 		sessionId,
 		entryCount: visibleEntryCount,
-		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
-		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	contentRef?.prepareForNextUserReveal();
 	return effectivePanelId;
@@ -550,26 +553,47 @@ const browserSidebarUrl = $derived(
 	panelId ? (panelStore.getHotState(panelId)?.browserSidebarUrl ?? null) : null
 );
 // Canonical lifecycle presentation from Rust-owned graph projection.
-const runtimeState = $derived(
+const lifecyclePresentation = $derived(
 	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
 );
 const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
 const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
-const canonicalSessionTurnState = $derived(
-	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
+const canonicalPanelSessionSource = $derived.by(() => {
+	if (sessionId === null) {
+		return {
+			kind: "no_session" as const,
+		};
+	}
+
+	if (sessionStateGraph === null) {
+		return {
+			kind: "missing_canonical" as const,
+			sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical" as const,
+		lifecycle: sessionStateGraph.lifecycle,
+		activity: sessionStateGraph.activity,
+		turnState: sessionStateGraph.turnState,
+	};
+});
+const canonicalSessionTurnState = $derived<SessionTurnState | null>(
+	canonicalPanelSessionSource.kind === "canonical" ? canonicalPanelSessionSource.turnState : null
 );
-const effectiveCanonicalSessionTurnState = $derived(
-	(sessionStateGraph?.turnState ?? canonicalSessionTurnState) as SessionTurnState | null
-);
-const effectiveCanonicalActivity = $derived(sessionStateGraph?.activity ?? canonicalProjection?.activity ?? null);
+const canonicalSessionActivity = $derived(sessionStateGraph?.activity ?? null);
+const canonicalSessionLifecycle = $derived(sessionStateGraph?.lifecycle ?? null);
 const sessionTurnState = $derived(
-	effectiveCanonicalSessionTurnState !== null
-		? mapCanonicalTurnStateToHotTurnState(effectiveCanonicalSessionTurnState)
-		: "idle"
+	canonicalPanelSessionSource.kind === "missing_canonical"
+		? "error"
+		: canonicalPanelSessionSource.kind === "canonical"
+			? mapCanonicalTurnStateToHotTurnState(canonicalPanelSessionSource.turnState)
+			: "idle"
 );
-const entriesCount = $derived(visibleEntryCount);
+const entriesCount = $derived(knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
 // NOTE: Must be defined before panelVisibility which uses effectiveProjectPath
@@ -608,18 +632,16 @@ const agentName = $derived.by(() => {
 });
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
-			lifecycle: canonicalProjection?.lifecycle ?? null,
-			activity: effectiveCanonicalActivity,
-			turnState: effectiveCanonicalSessionTurnState,
-			hasEntries: visibleEntryCount > 0,
-			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
-			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
-		})
-	);
+		source: canonicalPanelSessionSource,
+		hasEntries: hasMessages,
+		hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
+		hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
+	})
+);
 const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
 const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
 const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
-const isAwaitingModelResponse = $derived(effectiveCanonicalActivity?.kind === "awaiting_model");
+const isAwaitingModelResponse = $derived(canonicalSessionActivity?.kind === "awaiting_model");
 const showPlanningIndicator = $derived(canonicalPanelSessionState.showPlanningIndicator);
 const sessionCanSubmit = $derived(canonicalPanelSessionState.canSubmit);
 const sessionShowStop = $derived(canonicalPanelSessionState.showStop);
@@ -692,7 +714,7 @@ const errorDismissed = $derived(
 
 // Panel view state: single discriminated union from all inputs
 const viewStateInput = $derived({
-	runtimeState,
+	lifecyclePresentation,
 	entriesCount,
 	hasSession,
 	isAwaitingModelResponse,
@@ -739,7 +761,7 @@ $effect(() => {
 		sessionId: sessionId ?? null,
 		viewState: viewState.kind,
 		pendingUserEntry: panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false,
-		entriesCount: visibleEntryCount,
+		entriesCount: knownVisibleEntryCount,
 		hasSession: sessionId !== null,
 		t_ms: Math.round(performance.now()),
 	});
@@ -752,8 +774,6 @@ $effect(() => {
 		sessionId,
 		viewState: viewState.kind,
 		entryCount: visibleEntryCount,
-		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
-		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	if (signature === lastPanelTraceSignature) {
 		return;
@@ -893,7 +913,21 @@ const sessionDiffStats = $derived.by(() => {
 const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
 
-const agentIconSrc = $derived(getAgentIcon(effectivePanelAgentId, effectiveTheme));
+const effectivePanelProviderBrand = $derived.by(() => {
+	if (!effectivePanelAgentId) {
+		return null;
+	}
+
+	const storeProviderBrand =
+		agentStore.agents.find((agent) => agent.id === effectivePanelAgentId)?.providerMetadata
+			?.providerBrand ?? null;
+	const listedProviderBrand =
+		availableAgents.find((agent) => agent.id === effectivePanelAgentId)?.provider_metadata
+			?.providerBrand ?? null;
+
+	return storeProviderBrand ?? listedProviderBrand;
+});
+const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
 const graphMaterializedScene = $derived(
 	materializeAgentPanelSceneFromGraph({
 		panelId: effectivePanelId,
@@ -947,6 +981,7 @@ const tokenRevealSceneEntries = $derived.by(() => {
 	const projection = canonicalProjection;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 	const sourceEntriesById = new Map<string, AgentPanelSceneEntryModel>();
+	const tokenRevealTailRowId = projection?.activeStreamingTail?.rowId ?? null;
 
 	for (const sourceEntry of graphMaterializedScene.conversation.entries) {
 		sourceEntriesById.set(sourceEntry.id, sourceEntry);
@@ -954,6 +989,9 @@ const tokenRevealSceneEntries = $derived.by(() => {
 
 	return graphSceneEntries.map((entry) => {
 		if (entry.type !== "assistant") {
+			return entry;
+		}
+		if (entry.id !== tokenRevealTailRowId) {
 			return entry;
 		}
 
@@ -1337,7 +1375,15 @@ let lastPanelId = $state<string | undefined>(undefined);
 
 // Restore review mode when session loads (deferred from workspace restore)
 $effect(() => {
-	if (!panelId || !sessionId || visibleEntryCount === 0 || reviewMode) return;
+	if (
+		!panelId ||
+		!sessionId ||
+		visibleEntryCount === null ||
+		visibleEntryCount === 0 ||
+		reviewMode
+	) {
+		return;
+	}
 
 	const pendingFileIndex = panelStore.consumePendingReviewRestore(panelId);
 	if (pendingFileIndex === null) return;
@@ -2171,7 +2217,9 @@ function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
 	}
 
 	const semanticInteractionId = event.interactionId ?? event.entryId;
-	const interaction = graph.interactions.find((candidate) => candidate.id === semanticInteractionId);
+	const interaction = graph.interactions.find(
+		(candidate) => candidate.id === semanticInteractionId
+	);
 	if (interaction === undefined || !("Question" in interaction.payload)) {
 		toast.error("Question is no longer available.");
 		return;
@@ -2219,9 +2267,11 @@ function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {
 	if (!sessionId) {
 		return undefined;
 	}
+	if (event.toolCallId === undefined) {
+		return undefined;
+	}
 
-	const toolCallId = event.toolCallId ?? event.entryId;
-	return permissionStore.getForToolCall(sessionId, toolCallId);
+	return permissionStore.getForToolCall(sessionId, event.toolCallId);
 }
 
 function replyToPlanPermission(event: AgentPanelPlanActionEvent, reply: "once" | "reject"): void {

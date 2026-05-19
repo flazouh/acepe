@@ -9,6 +9,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 
 import {
 	createStreamingReproController,
+	resolveStreamingReproActiveTailRowId,
 	type StreamingReproController,
 } from "./streaming-repro-controller";
 import {
@@ -53,7 +54,7 @@ function stopPhaseAnimationTick(): void {
 
 function shouldAnimateActivePhase(): boolean {
 	const phase = controller.activePhase;
-	if (phase.lastAgentMessageId === null) {
+	if (resolveStreamingReproActiveTailRowId(phase) === null) {
 		return false;
 	}
 	if (phase.reducedMotion === true || phase.streamingAnimationMode === "instant") {
@@ -121,7 +122,7 @@ const projectedSceneEntries = $derived.by(() => {
 
 const turnState = $derived<SessionTurnState>(activeGraph?.turnState ?? "Completed");
 const isWaitingForFirstAssistantText = $derived(
-	activeGraph?.activity.kind === "awaiting_model" && activeGraph.lastAgentMessageId === null
+	activeGraph?.activity.kind === "awaiting_model" && activeGraph.activeStreamingTail === null
 );
 
 function nextPhase(): void {

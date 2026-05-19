@@ -22,12 +22,14 @@ import type {
 	SessionStateGraph,
 	TurnFailureSnapshot,
 } from "$lib/services/acp-types.js";
+import type { SessionUpdate } from "$lib/services/converted-session-types.js";
 import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
-import { readCompatibilityEntries } from "./entry-store-test-access.js";
+import { readStoredEntries } from "./entry-store-test-access.js";
+import { deliverDiagnosticSessionUpdate } from "./session-store-test-access.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
@@ -67,6 +69,7 @@ function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): Op
 		child_tool_call_ids: overrides.child_tool_call_ids ?? [],
 		child_operation_ids: overrides.child_operation_ids ?? [],
 		operation_state: overrides.operation_state ?? "running",
+	awaiting_plan_approval: false,
 		source_link: overrides.source_link ?? {
 			kind: "transcript_linked",
 			entry_id: overrides.tool_call_id ?? "tool-1",
@@ -195,9 +198,9 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Failed",
 		messageCount: overrides.messageCount ?? 1,
-		lastAgentMessageId: overrides.lastAgentMessageId ?? null,
 		activeTurnFailure,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? "turn-1",
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? createGraphLifecycle(),
 		activity: overrides.activity ?? {
 			kind: activeTurnFailure === null ? "idle" : "error",
@@ -235,7 +238,8 @@ function createSessionOpenFoundFromGraph(
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activity: graph.activity,
+		activeStreamingTail: graph.activeStreamingTail,
 		lifecycle: graph.lifecycle,
 		capabilities: graph.capabilities,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
@@ -290,7 +294,7 @@ function getEntryStore(store: SessionStore): SessionEntryStore {
 }
 
 function getSessionEntries(store: SessionStore, sessionId: string) {
-	return readCompatibilityEntries(getEntryStore(store), sessionId);
+	return readStoredEntries(getEntryStore(store), sessionId);
 }
 
 function getCanonicalProjection(
@@ -316,7 +320,61 @@ afterEach(() => {
 });
 
 describe("SessionStore.applySessionStateGraph", () => {
-	it("applies transcript deltas against the current graph frontier, not the compatibility cache", () => {
+	it("treats raw assistant chunks as diagnostic and leaves transcript entries unchanged", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					transcriptSnapshot: {
+						revision: 1,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					lifecycle: createGraphLifecycle("ready"),
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+				})
+			)
+		);
+
+		const rawAssistantChunk: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-1",
+			message_id: "provider-msg-1",
+			part_id: "provider-part-1",
+			chunk: {
+				content: {
+					type: "text",
+					text: "raw lane text",
+				},
+			},
+		};
+
+		deliverDiagnosticSessionUpdate(store, rawAssistantChunk);
+
+		expect(getSessionEntries(store, "session-1")).toEqual([]);
+		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot).toEqual({
+			revision: 1,
+			entries: [],
+		});
+	});
+
+	it("applies transcript deltas against the current graph frontier, not the entry projection cache", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		const initialGraph = createSessionStateGraph({
@@ -341,10 +399,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -393,6 +451,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendSegment",
@@ -436,7 +495,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("replaces stale graph snapshots even when the compatibility cache transcript revision is ahead", () => {
+	it("replaces stale graph snapshots even when the entry projection cache transcript revision is ahead", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		const initialGraph = createSessionStateGraph({
@@ -461,10 +520,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -507,10 +566,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 		});
@@ -536,6 +595,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("reserved"),
 			activity: {
 				kind: "idle",
@@ -580,6 +640,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -615,6 +676,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -663,6 +725,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -698,6 +761,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -763,11 +827,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			command: "ls",
 			operation_state: "completed",
+	awaiting_plan_approval: false,
 		});
 		const restoredGraph = createSessionStateGraph({
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot,
 			operations: [restoredOperation],
@@ -778,6 +844,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 13,
@@ -806,6 +873,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-7",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			activity: createIdleActivity(),
 			revision: {
@@ -847,6 +915,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -914,6 +983,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -969,6 +1039,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: "/repo",
 					command: "pwd",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 				}),
 				createOperationSnapshot({
 					id: "op-2",
@@ -984,6 +1055,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: null,
 					command: "bun test",
 					operation_state: "running",
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -1026,6 +1098,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -1045,6 +1118,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 							},
 							command: "bun test",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],
@@ -1072,6 +1146,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -1090,6 +1165,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					id: "op-1",
 					tool_call_id: "tool-1",
 					operation_state: "completed",
+	awaiting_plan_approval: false,
 					provider_status: "completed",
 				}),
 			],
@@ -1122,6 +1198,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1145,6 +1222,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					activity: {
 						kind: "running_operation",
@@ -1189,6 +1267,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1221,7 +1300,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				message: "Usage limit reached",
 			},
 		});
-		expect(store.getSessionTurnState("session-1")).toBe("Failed");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Failed");
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-1",
@@ -1242,10 +1321,11 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 			})
 		);
 
-		expect(store.getSessionTurnState("session-1")).toBe("Completed");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Completed");
 		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
@@ -1310,12 +1390,10 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getHotState("session-1")).toMatchObject({
-			acpSessionId: "session-1",
-		});
+		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
 		expect(store.getSessionConfigOptions("session-1")).toEqual([
@@ -1406,7 +1484,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			autonomousEnabled: true,
 		});
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -1561,7 +1639,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("treats omitted models and modes in a capability envelope as canonical empty state", () => {
+	it("preserves omitted models and modes in a capability envelope as unknown state", () => {
 		const store = new SessionStore();
 		addColdSession(store, "session-1", "cursor");
 
@@ -1618,7 +1696,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([]);
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 	});
 
@@ -1641,6 +1721,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1659,6 +1740,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					activity: {
 						kind: "running_operation",
@@ -1676,7 +1758,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			)
 		);
 
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: true,
 			canCancel: true,
 		});
@@ -1702,6 +1784,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1713,7 +1796,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionState("session-1")).toMatchObject({
 			connection: "ready",
 		});
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: false,
 			canCancel: false,
 			canSubmit: true,
@@ -1730,6 +1813,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					revision: {
 						graphRevision: 7,
@@ -1768,6 +1852,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1793,6 +1878,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-restored",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1810,6 +1896,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1836,6 +1923,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1851,6 +1939,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 			revision: {
@@ -1886,6 +1975,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1895,6 +1985,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1941,7 +2032,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 		});
 		const fullGraph = createSessionStateGraph({
 			activeTurnFailure: null,
@@ -1969,7 +2059,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 		});
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(partialGraph));
@@ -2005,6 +2094,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							kind: "execute",
 							provider_status: "completed",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 							source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 							title: "Run command",
 							arguments: {
@@ -2028,9 +2118,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		store.applySessionStateEnvelope("session-1", envelope);
 
 		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
-		expect(store.getHotState("session-1")).toMatchObject({
-			acpSessionId: "session-1",
-		});
+		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
@@ -2041,7 +2129,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Running",
 			lastTerminalTurnId: null,
-			lastAgentMessageId: "assistant-1",
+					activeStreamingTail: null,
 			activity: {
 				kind: "awaiting_model",
 				activeOperationCount: 0,
@@ -2114,18 +2202,17 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						dominantOperationId: null,
 						blockingInteractionId: null,
 					},
-					turnState: "Running",
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					transcriptOperations: [],
-					operationPatches: [],
-					interactionPatches: [],
-					changedFields: ["activity"],
+						turnState: "Running",
+						activeTurnFailure: null,
+						lastTerminalTurnId: null,
+						activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+						transcriptOperations: [],
+						operationPatches: [],
+						interactionPatches: [],
+						changedFields: ["activity", "activeStreamingTail"],
+					},
 				},
-			},
 		});
-
-		expect(store.getSessionStateGraph("session-1")?.lastAgentMessageId).toBe("assistant-1");
 		const scene = materializeStoredScene(store);
 		const assistantRow = scene.conversation.entries.find(
 			(entry) => entry.type === "assistant" && entry.id === "assistant-1"
@@ -2142,6 +2229,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Completed",
 			lastTerminalTurnId: "turn-7",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 7,
@@ -2169,6 +2257,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Idle",
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 8,
@@ -2274,6 +2363,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [createOperationSnapshot()],
 					interactionPatches: [createPermissionInteractionSnapshot()],
@@ -2295,7 +2385,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			transcriptRevision: 7,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -2303,7 +2393,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		]);
 		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 	});
 
 	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {
@@ -2321,6 +2411,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operations: [
 						createOperationSnapshot({
 							operation_state: "blocked",
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2399,10 +2490,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "running",
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2474,10 +2567,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 							provider_status: "completed",
 						}),
 					],
@@ -2606,6 +2701,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -2622,6 +2718,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							result: "/repo",
 							command: "pwd",
 							operation_state: "completed",
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],
@@ -2691,6 +2788,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
 		expect(store.getSessionCanSend("session-1")).toBe(false);
 		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
+		expect(store.getSessionCapabilities("session-1")).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionStateGraph("session-1")?.lifecycle.status).toBe("failed");
+		expect(store.getSessionStateGraph("session-1")?.lifecycle.errorMessage).toBe(
+			"Connection dropped"
+		);
 		expect(store.getSessionState("session-1")).toMatchObject({
 			connection: "error",
 		});
@@ -2972,7 +3075,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
 			sessionSpendUsd: 0.42,
 			latestStepCostUsd: 0.42,
 			latestTokensTotal: 50000,
@@ -3012,7 +3115,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getHotState("session-1").usageTelemetry).toMatchObject({
+		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
 			contextBudget: null,
 			latestTokensTotal: 1200,
 			lastTelemetryEventId: "telemetry-2",
@@ -3071,7 +3174,22 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-live-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-live-1:block:0",
+										text: "follow-up question",
+									},
+								],
+							},
+						},
 						{
 							kind: "appendEntry",
 							entry: {
@@ -3125,6 +3243,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3230,6 +3349,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3289,12 +3409,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		await store.aggregateCompatibilityUserChunk("session-1", {
-			content: {
-				type: "text",
-				text: "follow-up question",
-			},
-		});
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
 			graphRevision: 8,
@@ -3316,17 +3430,45 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
-							kind: "appendEntry",
-							entry: {
-								entryId: "assistant-live-1",
-								role: "assistant",
-								segments: [
+							kind: "replaceSnapshot",
+							snapshot: {
+								revision: 8,
+								entries: [
 									{
-										kind: "text",
-										segmentId: "assistant-live-1:block:0",
-										text: "new live answer",
+										entryId: "assistant-history-1",
+										role: "assistant",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "assistant-history-1:block:0",
+												text: "existing answer",
+											},
+										],
+									},
+									{
+										entryId: "user-live-1",
+										role: "user",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "user-live-1:block:0",
+												text: "follow-up question",
+											},
+										],
+									},
+									{
+										entryId: "assistant-live-1",
+										role: "assistant",
+										segments: [
+											{
+												kind: "text",
+												segmentId: "assistant-live-1:block:0",
+												text: "new live answer",
+											},
+										],
 									},
 								],
 							},
@@ -3432,6 +3574,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3531,8 +3674,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					lifecycle: createGraphLifecycle("ready"),
 					turnState: "Running",
 					activity: createIdleActivity(),
-					lastAgentMessageId: "assistant-1",
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					activeTurnFailure: null,
 				})
 			)
@@ -3559,6 +3702,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendSegment",
@@ -3604,7 +3748,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activity: createIdleActivity(),
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
-					lastAgentMessageId: "msg_first",
+					activeStreamingTail: null,
 					messageCount: 2,
 					revision: {
 						graphRevision: 15,
@@ -3670,6 +3814,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3723,6 +3868,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						turnState: "Running",
 						activeTurnFailure: null,
 						lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
+					activeStreamingTail: null,
 						transcriptOperations: [
 							{
 								kind: "appendSegment",
@@ -3764,6 +3910,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8d0-b087-7721-a9e6-55ac2b04ce58",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -3796,7 +3943,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
-			lastAgentMessageId: "assistant-1",
+					activeStreamingTail: null,
 			messageCount: 2,
 			revision: {
 				graphRevision: 12,
@@ -3839,7 +3986,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-2",
-			lastAgentMessageId: "assistant-2",
+					activeStreamingTail: null,
 			messageCount: 4,
 			revision: {
 				graphRevision: 18,
@@ -3926,6 +4073,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3986,6 +4134,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4032,6 +4181,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4048,7 +4198,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const result = await store.sendMessage("session-1", "cursor UI diagnostic ping - reply ok");
 
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).toEqual({
+		expect(store.getSessionPendingSendIntent("session-1")).toEqual({
 			attemptId: expect.any(String),
 			startedAt: expect.any(Number),
 			baselineTranscriptRevision: 0,
@@ -4075,6 +4225,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [],
@@ -4088,7 +4239,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toMatchObject({
+		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId: expect.any(String),
 		});
 	});
@@ -4115,6 +4266,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4131,7 +4283,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		const result = await store.sendMessage("session-1", "cursor canonical handoff test");
 		expect(result.isOk()).toBe(true);
 
-		const pending = store.getHotState("session-1").pendingSendIntent;
+		const pending = store.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
 		expect(pending).not.toBeUndefined();
 		const attemptId = pending?.attemptId;
@@ -4147,6 +4299,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [
@@ -4173,7 +4326,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toMatchObject({
+		expect(store.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId,
 		});
 
@@ -4187,6 +4340,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 2,
 						entries: [
@@ -4213,7 +4367,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears pending send intent when the canonical turn completes without a user attempt id", async () => {
@@ -4238,6 +4392,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4253,7 +4408,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "codex terminal cleanup test");
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).not.toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -4265,6 +4420,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 2,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 2,
 						entries: [
@@ -4301,7 +4457,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("clears stale pending send intent from a completed canonical snapshot that already acknowledged the prompt text", async () => {
@@ -4326,6 +4482,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 2,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 10,
 						entries: [
@@ -4364,7 +4521,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		const result = await store.sendMessage("session-1", "copilot acknowledged prompt");
 		expect(result.isOk()).toBe(true);
-		expect(store.getHotState("session-1").pendingSendIntent).not.toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
 			"session-1",
@@ -4376,6 +4533,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 4,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 20,
 						entries: [
@@ -4434,7 +4592,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(store.getHotState("session-1").pendingSendIntent).toBeNull();
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
 	it("fails closed for a just-created session before canonical lifecycle hydration arrives", async () => {
@@ -4458,7 +4616,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(connectSession).not.toHaveBeenCalled();
 	});
 
-	it("marks restored local created sessions as loaded so the composer can submit", () => {
+	it("marks restored local created sessions as content loaded without canonical sendability", () => {
 		const store = new SessionStore();
 		store.addSession({
 			id: "session-1",
@@ -4473,11 +4631,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.setLocalCreatedSessionLoaded("session-1");
 
-		expect(store.getSessionRuntimeState("session-1")).toMatchObject({
-			connectionPhase: "disconnected",
-			contentPhase: "loaded",
-			canSubmit: true,
+		expect(store.getSessionUIState("session-1")).toMatchObject({
+			showConversation: true,
+			isReadOnly: true,
 		});
+		expect(store.getSessionCanSend("session-1")).toBe(null);
 	});
 
 	it("selects lifecycle presentation from canonical graph instead of runtime state", () => {
@@ -4491,6 +4649,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 7,
 						entries: [],
@@ -4536,6 +4695,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4588,6 +4748,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						messageCount: 1,
 						activeTurnFailure: null,
 						lastTerminalTurnId: null,
+					activeStreamingTail: null,
 						transcriptSnapshot: {
 							revision: 2,
 							entries: [],
@@ -4614,6 +4775,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [],
@@ -4647,13 +4809,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		await store.aggregateCompatibilityUserChunk("session-1", {
-			content: {
-				type: "text",
-				text: "existing prompt",
-			},
-		});
-
 		const result = await store.sendMessage("session-1", "cursor restored follow-up - reply ok");
 
 		expect(result.isErr()).toBe(true);

@@ -449,8 +449,9 @@ mod tests {
                 name: "Read".to_string(),
                 arguments: ToolArguments::Other {
                     raw: json!({ "file_path": "src/main.rs" }),
+                    intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 kind: Some(ToolKind::Read),
                 title: Some("Read src/main.rs".to_string()),
                 status: ToolCallStatus::Pending,
@@ -488,7 +489,7 @@ mod tests {
                 always: Vec::new(),
                 auto_accepted: false,
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: tool_call_id.to_string(),
                 }),
             },

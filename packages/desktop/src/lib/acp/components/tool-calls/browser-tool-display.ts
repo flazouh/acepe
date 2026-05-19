@@ -3,19 +3,6 @@ import type { NormalizedBrowserResult } from "../../types/normalized-tool-result
 import { isBrowserNormalizedResult } from "../../types/normalized-tool-result.js";
 import type { ToolCall } from "../../types/tool-call.js";
 
-function getBrowserRawArguments(toolCall: ToolCall): Record<string, unknown> | null {
-	if (toolCall.arguments.kind !== "browser" && toolCall.arguments.kind !== "other") {
-		return null;
-	}
-
-	const raw = toolCall.arguments.raw;
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-		return null;
-	}
-
-	return raw as Record<string, unknown>;
-}
-
 type JsonObject = { readonly [key: string]: JsonValue };
 
 function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {
@@ -103,15 +90,6 @@ export function parseBrowserToolResult(
 		screenshotUrl,
 		outcome,
 	};
-}
-
-export function extractBrowserScriptText(toolCall: ToolCall): string | null {
-	const raw = getBrowserRawArguments(toolCall);
-	if (!raw) {
-		return null;
-	}
-
-	return typeof raw.script === "string" ? raw.script : null;
 }
 
 export function extractBrowserDetailsText(toolCall: ToolCall): string | null {

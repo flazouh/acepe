@@ -10,7 +10,6 @@ use crate::acp::inbound_request_router::{
     ForwardedPermissionRequest, InboundRoutingDecision,
 };
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
-use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::parsers::AgentType;
 use crate::acp::pending_prompt_registry::{
     consume_matching_user_echo, discard_pending_prompt_echo,
@@ -21,8 +20,7 @@ use crate::acp::provider::AgentProvider;
 use crate::acp::provider_extensions::InboundResponseAdapter;
 use crate::acp::session_registry::SessionRegistry;
 use crate::acp::session_update::{
-    SessionUpdate, ToolArguments, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource,
+    SessionUpdate, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
 };
 use crate::acp::streaming_delta_batcher::StreamingDeltaBatcher;
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
@@ -451,8 +449,9 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     match provider.normalize_extension_method(method, &params, Some(id), current_session_id.as_deref()) {
                                         Ok(Some(event)) => {
                                             // Log the raw inbound extension request
-                                            let session_id_for_log = current_session_id.as_deref().unwrap_or("unknown");
-                                            log_streaming_event(session_id_for_log, &json);
+                                            if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                log_streaming_event(session_id_for_log, &json);
+                                            }
 
                                             if event.response_adapter.is_some() && ctx.is_replay_active.load(std::sync::atomic::Ordering::Acquire) {
                                                 tracing::info!(id = id, method = %method, "Auto-cancelling extension request during session replay");
@@ -479,7 +478,9 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                                 }
                                             }
                                             for update in event.updates {
-                                                log_emitted_event(session_id_for_log, &update);
+                                                if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                    log_emitted_event(session_id_for_log, &update);
+                                                }
                                                 enqueue_session_update(
                                                     &ctx.dispatcher,
                                                     &ctx.is_replay_active,
@@ -683,10 +684,13 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             if let Some(provider) = ctx.provider.as_ref() {
                                 match provider.normalize_extension_method(method, &params, None, current_session_id.as_deref()) {
                                     Ok(Some(event)) => {
-                                        let session_id_for_log = current_session_id.as_deref().unwrap_or("unknown");
-                                        log_streaming_event(session_id_for_log, &json);
+                                        if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                            log_streaming_event(session_id_for_log, &json);
+                                        }
                                         for update in event.updates {
-                                            log_emitted_event(session_id_for_log, &update);
+                                            if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                log_emitted_event(session_id_for_log, &update);
+                                            }
                                             enqueue_session_update(
                                                 &ctx.dispatcher,
                                                 &ctx.is_replay_active,
@@ -701,39 +705,25 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     }
                                 }
                             }
-                            // Record web search notification IDs for dedup with permission events.
-                            // Cursor emits a toolCall notification (ID like `tool_7319769b-...`) followed
-                            // ~555ms later by a permission request (ID like `web_search_0`). We record
-                            // the notification ID here keyed by (session_id, query) so that the permission
-                            // path can remap to the canonical notification ID.
-                            if ctx
-                                .provider
-                                .as_ref()
-                                .is_some_and(|provider| provider.records_web_search_notification_dedup())
-                                && json.pointer("/params/event").and_then(|v| v.as_str()) == Some("toolCall")
+                            // Record provider-normalized web-search notification IDs for
+                            // permission dedup with later synthetic permission events.
+                            if let (Some(provider), Some(session_id)) =
+                                (ctx.provider.as_deref(), current_session_id.as_ref())
                             {
-                                if let Some(tool_call_id) = json.pointer("/params/data/toolCallId").and_then(|v| v.as_str()) {
-                                    if ctx
-                                        .provider
-                                        .as_deref()
-                                        .is_some_and(|provider| provider.is_web_search_tool_call_id(tool_call_id))
-                                    {
-                                        if let Some(raw_input) = json.pointer("/params/data/rawInput") {
-                                            let args = parse_tool_kind_arguments(ToolKind::WebSearch, raw_input);
-                                            if let ToolArguments::WebSearch { query: Some(query) } = args {
-                                                if let (Ok(mut dedup), Some(sid)) = (
-                                                    ctx.web_search_dedup.lock(),
-                                                    current_session_id.as_ref(),
-                                                ) {
-                                                    tracing::debug!(
-                                                        tool_call_id = %tool_call_id,
-                                                        query = %query,
-                                                        "Recording web search notification for dedup"
-                                                    );
-                                                    dedup.record(sid.clone(), query, tool_call_id.to_string());
-                                                }
-                                            }
-                                        }
+                                if let Some(record) = provider
+                                    .extract_web_search_notification_dedup_record(method, &params)
+                                {
+                                    if let Ok(mut dedup) = ctx.web_search_dedup.lock() {
+                                        tracing::debug!(
+                                            tool_call_id = %record.tool_call_id,
+                                            query = %record.query,
+                                            "Recording web search notification for dedup"
+                                        );
+                                        dedup.record(
+                                            session_id.clone(),
+                                            record.query,
+                                            record.tool_call_id,
+                                        );
                                     }
                                 }
                             }

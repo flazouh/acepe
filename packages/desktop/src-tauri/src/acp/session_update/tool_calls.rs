@@ -31,7 +31,7 @@ pub(crate) struct RawToolCallUpdateInput {
 #[derive(Debug, Clone)]
 pub(crate) struct RawToolCallInput {
     pub id: String,
-    pub name: String,
+    pub name: Option<String>,
     pub arguments: serde_json::Value,
     pub status: ToolCallStatus,
     pub kind: Option<ToolKind>,
@@ -353,7 +353,7 @@ pub(crate) fn build_tool_call_from_raw(
         &raw.id,
         &raw.arguments,
         ToolClassificationHints {
-            name: Some(&raw.name),
+            name: raw.name.as_deref(),
             title: raw.title.as_deref(),
             kind: raw.kind,
             kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
@@ -380,7 +380,7 @@ pub(crate) fn build_tool_call_from_raw(
         id: raw.id.clone(),
         name: classified.name,
         arguments,
-        raw_input: Some(raw.arguments.clone()),
+        diagnostic_input: Some(raw.arguments.clone()),
         status,
         result: None,
         kind: Some(classified.kind),
@@ -512,7 +512,7 @@ mod tests {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "test-id".to_string(),
-            name: String::new(),
+            name: None,
             arguments: json!({}),
             status: ToolCallStatus::Pending,
             kind: Some(parser.detect_tool_kind(kind)),
@@ -688,11 +688,11 @@ mod tests {
     }
 
     #[test]
-    fn build_tool_call_from_raw_preserves_canonical_raw_input() {
+    fn build_tool_call_from_raw_preserves_diagnostic_input() {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "toolu_raw_input".to_string(),
-            name: "Bash".to_string(),
+            name: Some("Bash".to_string()),
             arguments: json!({
                 "command": "echo hi",
                 "description": "Say hi"
@@ -708,7 +708,7 @@ mod tests {
         let tool_call = build_tool_call_from_raw(parser, raw);
 
         assert_eq!(
-            tool_call.raw_input,
+            tool_call.diagnostic_input,
             Some(json!({
                 "command": "echo hi",
                 "description": "Say hi"
@@ -717,11 +717,45 @@ mod tests {
     }
 
     #[test]
+    fn tool_call_data_serializes_raw_payload_as_diagnostic() {
+        let tool_call = ToolCallData {
+            id: "toolu_raw_input".to_string(),
+            name: "Bash".to_string(),
+            arguments: ToolArguments::Execute {
+                command: Some("echo hi".to_string()),
+            },
+            diagnostic_input: Some(json!({ "command": "echo hi" })),
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Execute),
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        let serialized = serde_json::to_value(tool_call).expect("serialize tool call");
+
+        assert_eq!(
+            serialized["diagnosticRawInput"],
+            json!({ "command": "echo hi" })
+        );
+        assert!(serialized.get("rawInput").is_none());
+    }
+
+    #[test]
     fn build_tool_call_from_raw_repairs_missing_read_path_from_title_after_partial_parse() {
         let parser = &CursorParser as &dyn AgentParser;
         let raw = RawToolCallInput {
             id: "toolu_partial_read".to_string(),
-            name: "Read".to_string(),
+            name: Some("Read".to_string()),
             arguments: json!({
                 "offset": 0,
                 "limit": 200
@@ -783,8 +817,11 @@ mod tests {
             tool_call: ToolCallData {
                 id: tool_call_id.to_string(),
                 name: tool_name.to_string(),
-                arguments: ToolArguments::Other { raw: json!({}) },
-                raw_input: Some(json!({})),
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
+                },
+                diagnostic_input: Some(json!({})),
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::Other),

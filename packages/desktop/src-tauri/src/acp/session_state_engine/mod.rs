@@ -14,7 +14,7 @@ pub use bridge::{
 };
 pub use envelope::SessionStateEnvelope;
 pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
-pub use graph::SessionStateGraph;
+pub use graph::{ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStateGraph};
 pub use protocol::{
     CapabilityPreviewState, SessionStateDelta, SessionStatePayload,
     SessionStateSnapshotMaterialization,

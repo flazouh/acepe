@@ -127,8 +127,6 @@ function createSessionStore(input: {
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
-	sessionStore.getHotState = () => input.hotState;
-	sessionStore.getSessionRuntimeState = () => null;
 	sessionStore.getCanonicalSessionProjection = () =>
 		input.lifecycle === null
 			? null
@@ -138,6 +136,7 @@ function createSessionStore(input: {
 					turnState: input.lifecycle.status === "failed" ? "Failed" : "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					capabilities: {
 						models: null,
 						modes: null,
@@ -156,6 +155,7 @@ function createSessionStore(input: {
 	sessionStore.getSessionLifecycleStatus = () => input.lifecycle?.status ?? null;
 	sessionStore.getSessionConnectionError = () => input.lifecycle?.errorMessage ?? null;
 	sessionStore.getSessionActiveTurnFailure = () => null;
+	sessionStore.getSessionStatusChangedAt = () => input.hotState.statusChangedAt;
 	return sessionStore;
 }
 

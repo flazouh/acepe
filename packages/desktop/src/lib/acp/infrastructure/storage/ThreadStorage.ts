@@ -29,8 +29,7 @@ export interface StoredThread {
 	readonly createdAt: Date;
 	readonly updatedAt: Date;
 	readonly source: string;
-	/** Optional for backward compatibility, derived from projectPath */
-	readonly projectName?: string;
+	readonly projectName: string;
 }
 
 export interface StoredEntry {

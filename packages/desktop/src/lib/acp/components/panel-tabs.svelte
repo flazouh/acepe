@@ -6,7 +6,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import type { Project } from "../logic/project-manager.svelte.js";
 
-import { getProjectColor } from "../utils/colors.js";
+import { getProjectColor } from "@acepe/ui/colors";
 import AgentIcon from "./agent-icon.svelte";
 
 /**

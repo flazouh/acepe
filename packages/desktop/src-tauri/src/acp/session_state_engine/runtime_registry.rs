@@ -5,6 +5,7 @@ use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -346,6 +347,7 @@ impl SessionGraphRuntimeRegistry {
                     let projection = self.delta_projection_for_session(
                         request.session_id,
                         request.projection_registry,
+                        request.transcript_projection_registry,
                     );
                     let mut changed_fields = vec![
                         "operations".to_string(),
@@ -353,7 +355,7 @@ impl SessionGraphRuntimeRegistry {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ];
                     if is_transcript_bearing {
                         changed_fields.push("transcriptSnapshot".to_string());
@@ -399,7 +401,11 @@ impl SessionGraphRuntimeRegistry {
                 delta,
                 from_revision,
                 to_revision,
-                self.delta_projection_for_session(request.session_id, request.projection_registry),
+                self.delta_projection_for_session(
+                    request.session_id,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                ),
             )),
             SessionFrontierDecision::AcceptDelta { .. } => None,
         }
@@ -476,7 +482,7 @@ impl SessionGraphRuntimeRegistry {
                     "turnState".to_string(),
                     "activeTurnFailure".to_string(),
                     "lastTerminalTurnId".to_string(),
-                    "lastAgentMessageId".to_string(),
+                    "activeStreamingTail".to_string(),
                 ];
                 if is_transcript_bearing {
                     changed_fields.push("transcriptSnapshot".to_string());
@@ -497,6 +503,7 @@ impl SessionGraphRuntimeRegistry {
                     projection: self.delta_projection_for_session(
                         request.session_id,
                         request.projection_registry,
+                        request.transcript_projection_registry,
                     ),
                     transcript_operations,
                     operation_patches,
@@ -571,6 +578,11 @@ impl SessionGraphRuntimeRegistry {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let active_streaming_tail = select_active_streaming_tail(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+        );
 
         Some(SessionStateEnvelope {
             session_id: session_id.to_string(),
@@ -593,7 +605,7 @@ impl SessionGraphRuntimeRegistry {
                     interactions: projection_snapshot.interactions,
                     turn_state: session_snapshot.turn_state,
                     message_count: session_snapshot.message_count,
-                    last_agent_message_id: session_snapshot.last_agent_message_id,
+                    active_streaming_tail,
                     active_turn_failure: session_snapshot.active_turn_failure,
                     last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
                     lifecycle: runtime_snapshot.lifecycle,
@@ -608,6 +620,7 @@ impl SessionGraphRuntimeRegistry {
         &self,
         session_id: &str,
         projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
     ) -> DeltaSessionProjectionFields {
         let projection_snapshot = projection_registry.session_projection(session_id);
         let session_snapshot = projection_snapshot
@@ -621,12 +634,23 @@ impl SessionGraphRuntimeRegistry {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let transcript_snapshot = transcript_projection_registry
+            .snapshot_for_session(session_id)
+            .unwrap_or_else(|| TranscriptSnapshot {
+                revision: 0,
+                entries: Vec::new(),
+            });
+        let active_streaming_tail = select_active_streaming_tail(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+        );
         DeltaSessionProjectionFields {
             activity,
             turn_state: session_snapshot.turn_state,
             active_turn_failure: session_snapshot.active_turn_failure,
             last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
-            last_agent_message_id: session_snapshot.last_agent_message_id,
+            active_streaming_tail,
         }
     }
 }
@@ -660,7 +684,9 @@ impl SessionGraphRuntimeSnapshot {
                     models: Some(models.clone()),
                     modes: Some(modes.clone()),
                     available_commands: available_commands.clone(),
-                    config_options: sanitize_config_options_for_canonical(config_options.clone()),
+                    config_options: config_options
+                        .clone()
+                        .map(sanitize_config_options_for_canonical),
                     autonomous_enabled: *autonomous_enabled,
                 };
             }
@@ -691,7 +717,7 @@ impl SessionGraphRuntimeSnapshot {
                 }
             }
             SessionUpdate::AvailableCommandsUpdate { update, .. } => {
-                self.capabilities.available_commands = update.available_commands.clone();
+                self.capabilities.available_commands = Some(update.available_commands.clone());
             }
             SessionUpdate::CurrentModeUpdate { update, .. } => {
                 if let Some(modes) = self.capabilities.modes.as_mut() {
@@ -704,8 +730,9 @@ impl SessionGraphRuntimeSnapshot {
                 }
             }
             SessionUpdate::ConfigOptionUpdate { update, .. } => {
-                self.capabilities.config_options =
-                    sanitize_config_options_for_canonical(update.config_options.clone());
+                self.capabilities.config_options = Some(sanitize_config_options_for_canonical(
+                    update.config_options.clone(),
+                ));
             }
             _ => {}
         }
@@ -756,7 +783,7 @@ fn build_live_session_state_delta_envelope(
             "turnState".to_string(),
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
-            "lastAgentMessageId".to_string(),
+            "activeStreamingTail".to_string(),
         ],
     })
 }
@@ -1391,7 +1418,7 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
             }
@@ -1611,9 +1638,9 @@ mod tests {
             attempt_id: 1,
             models: default_session_model_state(),
             modes: default_modes(),
-            available_commands: Vec::new(),
-            config_options: Vec::new(),
-            autonomous_enabled: false,
+            available_commands: Some(Vec::new()),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(false),
         }
     }
 
@@ -1633,7 +1660,7 @@ mod tests {
             arguments: ToolArguments::Execute {
                 command: Some(command.to_string()),
             },
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(ToolKind::Execute),
@@ -1664,9 +1691,9 @@ mod tests {
                 attempt_id: 1,
                 models: default_session_model_state(),
                 modes: default_modes(),
-                available_commands: Vec::new(),
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                available_commands: Some(Vec::new()),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
         registry.apply_session_update(
@@ -1721,9 +1748,25 @@ mod tests {
                 .current_mode_id,
             "plan"
         );
-        assert_eq!(snapshot.capabilities.available_commands.len(), 1);
-        assert_eq!(snapshot.capabilities.config_options.len(), 1);
-        assert!(!snapshot.capabilities.autonomous_enabled);
+        assert_eq!(
+            snapshot
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
+        assert_eq!(
+            snapshot
+                .capabilities
+                .config_options
+                .as_ref()
+                .expect("config options")
+                .len(),
+            1
+        );
+        assert_eq!(snapshot.capabilities.autonomous_enabled, Some(false));
     }
 
     #[test]
@@ -1803,7 +1846,7 @@ mod tests {
                 turn_state: crate::acp::projections::SessionTurnState::Idle,
                 active_turn_failure: None,
                 last_terminal_turn_id: None,
-                last_agent_message_id: Some("assistant-1".to_string()),
+                active_streaming_tail: None,
             },
         );
 
@@ -1816,7 +1859,6 @@ mod tests {
                     delta.turn_state,
                     crate::acp::projections::SessionTurnState::Idle
                 );
-                assert_eq!(delta.last_agent_message_id.as_deref(), Some("assistant-1"));
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -1843,9 +1885,9 @@ mod tests {
                 attempt_id: 1,
                 models: default_session_model_state(),
                 modes: default_modes(),
-                available_commands: Vec::new(),
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                available_commands: Some(Vec::new()),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
 
@@ -1887,10 +1929,9 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
-                assert!(delta.last_agent_message_id.is_none());
             }
             other => panic!("expected delta payload, got {:?}", other),
         }

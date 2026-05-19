@@ -8,10 +8,10 @@ function makeToolCall(plan: string): ToolCall {
 	return {
 		id: "toolu_exit_plan",
 		name: "ExitPlanMode",
-		arguments: { kind: "planMode" },
-		rawInput: {
+		arguments: {
+			kind: "planMode",
 			plan,
-			planFilePath: "/Users/alex/.claude/plans/focused-plan.md",
+			plan_file_path: "/Users/alex/.claude/plans/focused-plan.md",
 		},
 		status: "in_progress",
 		kind: "exit_plan_mode",
@@ -27,13 +27,15 @@ function makePermission(plan: string): PermissionRequest {
 		permission: "ExitPlanMode",
 		patterns: [],
 		metadata: {
-			rawInput: {
-				plan,
+			diagnosticRawInput: {
+				plan: "# Raw Plan\n\nThis should not be used.",
 				planFilePath: "/Users/alex/.claude/plans/focused-plan.md",
 			},
 			parsedArguments: {
 				kind: "planMode",
 				mode: "default",
+				plan,
+				plan_file_path: "/Users/alex/.claude/plans/focused-plan.md",
 			},
 			options: [],
 		},
@@ -57,7 +59,7 @@ describe("buildQueueExitPlanCard", () => {
 		});
 	});
 
-	it("can build the card from permission metadata before the tool call has rich raw input", () => {
+	it("can build the card from permission metadata before the tool call is available", () => {
 		const plan = "# Permission Plan\n\nUse the permission payload as the fallback.";
 
 		const card = buildQueueExitPlanCard(null, makePermission(plan));
@@ -66,16 +68,13 @@ describe("buildQueueExitPlanCard", () => {
 		expect(card?.content).toBe(plan);
 	});
 
-	it("can build the card from canonical operation arguments when rawInput is absent", () => {
-		const plan = "# Restored Operation Plan\n\nUse arguments.raw from the graph operation.";
+	it("can build the card from canonical plan-mode arguments", () => {
+		const plan = "# Restored Operation Plan\n\nUse canonical plan fields from the graph operation.";
 		const toolCall = makeToolCall(plan);
-		toolCall.rawInput = null;
 		toolCall.arguments = {
-			kind: "other",
-			raw: {
-				plan,
-				planFilePath: "/Users/alex/.claude/plans/restored-operation-plan.md",
-			},
+			kind: "planMode",
+			plan,
+			plan_file_path: "/Users/alex/.claude/plans/restored-operation-plan.md",
 		};
 
 		const card = buildQueueExitPlanCard(toolCall, null);

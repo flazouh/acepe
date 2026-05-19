@@ -61,7 +61,11 @@ import {
 	resolveSlashCommandSource,
 	shouldShowSlashCommandDropdown,
 } from "./logic/slash-command-source.js";
-import { resolveCapabilitySource } from "./logic/capability-source.js";
+import {
+	resolveCapabilityContextProviderMetadata,
+	resolveCapabilitySource,
+	sessionCapabilitySourceFromCapabilities,
+} from "./logic/capability-source.js";
 import { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
 import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
 import { type SubmitIntent } from "../../logic/submit-intent.js";
@@ -199,6 +203,9 @@ const capabilitiesAgentId = $derived.by(() => {
 const sessionCapabilities = $derived(
 	props.sessionId ? sessionStore.getSessionCapabilities(props.sessionId) : null
 );
+const sessionCapabilitySource = $derived(
+	sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities)
+);
 const capabilitiesAgent = $derived.by(() => {
 	if (!capabilitiesAgentId) {
 		return null;
@@ -212,17 +219,12 @@ const capabilitiesAgent = $derived.by(() => {
 
 	return null;
 });
-const capabilitiesProviderMetadata = $derived.by(() => {
-	if (sessionCapabilities?.providerMetadata) {
-		return sessionCapabilities.providerMetadata;
-	}
-
-	if (capabilitiesAgent) {
-		return capabilitiesAgent.providerMetadata;
-	}
-
-	return null;
-});
+const capabilitiesProviderMetadata = $derived(
+	resolveCapabilityContextProviderMetadata({
+		sessionSource: sessionCapabilitySource,
+		selectedAgentProviderMetadata: capabilitiesAgent ? (capabilitiesAgent.providerMetadata ?? null) : null,
+	})
+);
 const preconnectionCapabilities = $derived.by(() =>
 	preconnectionCapabilitiesState.getCapabilities({
 		agentId: capabilitiesAgentId,
@@ -246,13 +248,13 @@ const sessionCurrentModelId = $derived(
 	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
 );
 const sessionAutonomousEnabled = $derived(
-	props.sessionId ? (sessionStore.getSessionAutonomousEnabled(props.sessionId) ?? false) : false
+	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : null
 );
 const sessionConfigOptions = $derived(
-	props.sessionId ? sessionStore.getSessionConfigOptions(props.sessionId) : []
+	props.sessionId ? (sessionStore.getSessionConfigOptions(props.sessionId) ?? []) : []
 );
 const sessionAvailableCommands = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableCommands(props.sessionId) : []
+	props.sessionId ? (sessionStore.getSessionAvailableCommands(props.sessionId) ?? []) : []
 );
 
 let previousComposerBindSessionId: string | null = null;
@@ -285,7 +287,7 @@ const cachedModelsDisplay = $derived(
 
 const capabilitySource = $derived.by(() =>
 	resolveCapabilitySource({
-		sessionCapabilities,
+		sessionSource: sessionCapabilitySource,
 		preconnectionCapabilities,
 		cachedModes,
 		cachedModels,
@@ -294,7 +296,7 @@ const capabilitySource = $derived.by(() =>
 	})
 );
 const effectiveCapabilityProviderMetadata = $derived(
-	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata
+	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata ?? null
 );
 const effectiveAvailableModes = $derived(capabilitySource.availableModes);
 
@@ -316,7 +318,6 @@ const effectiveCurrentModeId = $derived.by(() =>
 	})
 );
 
-
 const panelProvisionalAutonomousEnabled = $derived.by(() => {
 	if (props.panelId) {
 		return panelStore.getHotState(props.panelId).provisionalAutonomousEnabled;
@@ -331,7 +332,7 @@ const autonomousToggleActive = $derived.by(() => {
 		if (cs && cs.provisionalAutonomousEnabled !== null) {
 			return cs.provisionalAutonomousEnabled;
 		}
-		return sessionAutonomousEnabled;
+		return sessionAutonomousEnabled === true;
 	}
 	return panelProvisionalAutonomousEnabled;
 });
@@ -386,34 +387,36 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 		return [];
 	}
 
-	return getToolbarConfigOptions(sessionConfigOptions, effectiveAvailableModels).map(
-		(option): AgentInputConfigOption => {
-			const raw = option.currentValue;
-			const currentValue: string | number | boolean | null =
-				raw === null || raw === undefined
-					? null
-					: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
-						? raw
-						: null;
-			const options = option.options?.flatMap(
-				(opt): { value: string | number | boolean; name: string }[] => {
-					const v = opt.value;
-					if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-						return [{ value: v, name: opt.name }];
-					}
-					return [];
+	return getToolbarConfigOptions(
+		sessionConfigOptions,
+		effectiveAvailableModels,
+		effectiveModelsDisplay
+	).map((option): AgentInputConfigOption => {
+		const raw = option.currentValue;
+		const currentValue: string | number | boolean | null =
+			raw === null || raw === undefined
+				? null
+				: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
+					? raw
+					: null;
+		const options = option.options?.flatMap(
+			(opt): { value: string | number | boolean; name: string }[] => {
+				const v = opt.value;
+				if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+					return [{ value: v, name: opt.name }];
 				}
-			);
-			return {
-				id: option.id,
-				name: option.name,
-				category: option.category,
-				type: option.type,
-				currentValue,
-				options,
-			};
-		}
-	);
+				return [];
+			}
+		);
+		return {
+			id: option.id,
+			name: option.name,
+			category: option.category,
+			type: option.type,
+			currentValue,
+			options,
+		};
+	});
 });
 
 const liveAvailableCommands = $derived.by(() => {
@@ -475,7 +478,7 @@ const isSubmitDisabled = $derived(
 	props.disableSend
 		? true
 		: props.sessionId
-			? !(props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit ?? false)
+			? (props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit) !== true
 			: false
 );
 
@@ -818,8 +821,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession =
-				sessionLifecyclePresentation?.connectionPhase === "connected";
+			const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
 				capabilitiesAgentId &&
@@ -1091,17 +1093,17 @@ async function handleModeChange(modeId: string) {
 				provisionalModelId: effectiveCurrentModelId,
 				provisionalAutonomousEnabled: autonomousToggleActive,
 			},
-				async () => {
-					const shouldAnnounceForcedOff =
-						autonomousToggleActive &&
-						!resolveAutonomousSupport({
-							agentId: capabilitiesAgentId,
-							connectionPhase: sessionLifecyclePresentation
-								? sessionLifecyclePresentation.connectionPhase
-								: null,
-							currentUiModeId: modeId,
-							agents: agentStore.agents,
-						}).supported;
+			async () => {
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionLifecyclePresentation
+							? sessionLifecyclePresentation.connectionPhase
+							: null,
+						currentUiModeId: modeId,
+						agents: agentStore.agents,
+					}).supported;
 				const result = await sessionStore.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
@@ -1211,16 +1213,16 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-					const shouldAnnounceForcedOff =
-						autonomousToggleActive &&
-						!resolveAutonomousSupport({
-							agentId: capabilitiesAgentId,
-							connectionPhase: sessionLifecyclePresentation
-								? sessionLifecyclePresentation.connectionPhase
-								: null,
-							currentUiModeId: resolution.modeIdToApply,
-							agents: agentStore.agents,
-						}).supported;
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionLifecyclePresentation
+							? sessionLifecyclePresentation.connectionPhase
+							: null,
+						currentUiModeId: resolution.modeIdToApply,
+						agents: agentStore.agents,
+					}).supported;
 				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
@@ -1929,6 +1931,7 @@ $effect(() => {
 							availableModels={effectiveAvailableModels}
 							currentModelId={effectiveCurrentModelId}
 							modelsDisplay={effectiveModelsDisplay}
+							providerMetadata={effectiveCapabilityProviderMetadata}
 							onModelChange={handleModelChange}
 							isLoading={selectorsLoading}
 							panelId={props.panelId}

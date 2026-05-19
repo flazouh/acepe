@@ -12,7 +12,7 @@ import {
 import type { ModifiedFileEntry } from "../../../types/modified-file-entry.js";
 import type { ReviewDiffViewState } from "../../modified-files/components/review-diff-view-state.svelte.js";
 import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
-import type { ModifiedFilesState } from "../../modified-files/types/modified-files-state.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import ReviewBottomWidget from "../../review-panel/review-bottom-widget.svelte";
 import ReviewPanelDiff from "../../review-panel/review-panel-diff.svelte";
 import type {

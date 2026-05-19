@@ -50,7 +50,7 @@ export interface QueueUpdateInput {
 
 /**
  * Check if a session is active and should be shown in the queue.
- * Uses the unified session state model for consistent classification.
+ * Uses the canonical-derived work bucket for consistent classification.
  */
 function isActiveSession(item: QueueItem): boolean {
 	return classifyItem(item) !== null;
@@ -59,7 +59,7 @@ function isActiveSession(item: QueueItem): boolean {
 /**
  * Get sort priority for queue items.
  * Lower number = higher priority (sorted first).
- * Uses the unified session state model for consistent classification.
+ * Uses the canonical-derived work bucket for consistent classification.
  */
 function getItemPriority(item: QueueItem): number {
 	const bucket = classifyItem(item);

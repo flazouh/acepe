@@ -3,7 +3,10 @@ import { AgentPanelStatePanel } from "@acepe/ui/agent-panel";
 import { LoadingIcon } from "@acepe/ui/icons";
 import { mapCanonicalTurnStateToHotTurnState } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
-import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
+import {
+	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
+} from "../../../store/live-session-work.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -55,6 +58,9 @@ let sceneViewportRef: SceneContentViewport | null = $state(null);
 const canonicalProjection = $derived(
 	sessionId ? (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null) : null
 );
+const liveSessionSource = $derived(
+	liveSessionWorkSourceFromCanonicalProjection(sessionId ?? null, canonicalProjection)
+);
 const interactionSnapshot = $derived.by(() =>
 	isWaitingProp !== undefined || !sessionId || interactionStore == null
 		? {
@@ -73,7 +79,7 @@ const sessionWorkProjection = $derived.by(() => {
 	}
 
 	return deriveLiveSessionWorkProjection({
-		canonicalProjection,
+		source: liveSessionSource,
 		currentModeId: sessionId ? (sessionStore?.getSessionCurrentModeId(sessionId) ?? null) : null,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
@@ -85,7 +91,11 @@ const sessionWorkProjection = $derived.by(() => {
 });
 
 const turnState = $derived<TurnState>(
-	canonicalProjection != null ? mapCanonicalTurnStateToHotTurnState(canonicalProjection.turnState) : "idle"
+	liveSessionSource.kind === "missing_canonical"
+		? "error"
+		: liveSessionSource.kind === "canonical"
+			? mapCanonicalTurnStateToHotTurnState(liveSessionSource.projection.turnState)
+			: "idle"
 );
 const isStreaming = $derived(turnState === "streaming");
 const isWaitingForResponse = $derived(

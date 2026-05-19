@@ -176,7 +176,7 @@ impl CopilotParser {
             .or_else(|| infer_tool_kind_from_raw_arguments(&arguments))
             .unwrap_or(ToolKind::Other);
 
-        let name = explicit_name.unwrap_or_else(|| "unknown".to_string());
+        let name = explicit_name;
 
         let parent_tool_use_id = data
             .get("_meta")

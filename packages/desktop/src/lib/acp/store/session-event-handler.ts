@@ -7,7 +7,7 @@
 
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
 import type { TurnErrorUpdate } from "../types/turn-error.js";
-import type { SessionCold, SessionTransientProjection } from "./types.js";
+import type { SessionCold } from "./types.js";
 
 /**
  * Interface for handling session events.
@@ -26,10 +26,6 @@ export interface SessionEventHandler {
 	 */
 	isPreloaded(sessionId: string): boolean;
 
-	/**
-	 * Get hot state for a session.
-	 */
-	getHotState(sessionId: string): SessionTransientProjection;
 	getSessionCanSend(sessionId: string): boolean | null;
 	hasPendingCreationSession?(sessionId: string): boolean;
 	materializePendingCreationSession?(sessionId: string): boolean;

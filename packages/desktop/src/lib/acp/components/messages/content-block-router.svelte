@@ -1,5 +1,4 @@
 <script lang="ts">
-import { useSessionContext } from "../../hooks/use-session-context.js";
 import type { TokenRevealCss } from "@acepe/ui/agent-panel";
 import type { ContentBlock } from "../../schemas/content-block.schema.js";
 import {
@@ -27,8 +26,7 @@ let {
 	streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
 }: Props = $props();
 
-const sessionContext = useSessionContext();
-const projectPath = $derived(propProjectPath ?? sessionContext?.projectPath);
+const projectPath = $derived(propProjectPath);
 const validationResult = $derived(validateContentBlock(block));
 </script>
 

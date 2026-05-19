@@ -49,16 +49,21 @@ pub(crate) async fn handle_session_update_notification(
             }
 
             for normalized_update in updates_to_emit {
+                let Some(session_id) = normalized_update.session_id() else {
+                    tracing::warn!(
+                        update_type = ?std::mem::discriminant(&normalized_update),
+                        "Dropping session update without session identity"
+                    );
+                    continue;
+                };
+
                 // Route AvailableCommandsUpdate through non-streaming batcher to prevent
                 // JS event loop saturation from large command payloads (~19KB with 80+ commands)
                 if matches!(
                     &normalized_update,
                     SessionUpdate::AvailableCommandsUpdate { .. }
                 ) {
-                    let session_key = normalized_update
-                        .session_id()
-                        .unwrap_or("unknown")
-                        .to_string();
+                    let session_key = session_id.to_string();
                     for batched_update in
                         non_streaming_batcher.process(&session_key, normalized_update)
                     {
@@ -78,8 +83,9 @@ pub(crate) async fn handle_session_update_notification(
 
                 // Use batcher for streaming deltas
                 for batched_update in streaming_batcher.process(normalized_update) {
-                    let sid = batched_update.session_id().unwrap_or("unknown").to_string();
-                    log_emitted_event(&sid, &batched_update);
+                    if let Some(session_id) = batched_update.session_id() {
+                        log_emitted_event(session_id, &batched_update);
+                    }
                     dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
                 }
             }
@@ -91,7 +97,9 @@ pub(crate) async fn handle_session_update_notification(
             update_type,
         } => {
             // Log raw streaming data for debugging (dev only)
-            log_streaming_event(&session_id, json);
+            if let Some(session_id) = session_id.as_deref() {
+                log_streaming_event(session_id, json);
+            }
 
             let keys: Vec<&str> = params
                 .as_object()
@@ -99,8 +107,8 @@ pub(crate) async fn handle_session_update_notification(
                 .unwrap_or_default();
             tracing::error!(
                 agent = ?agent_type,
-                session_id = %session_id,
-                update_type = %update_type,
+                session_id = ?session_id,
+                update_type = ?update_type,
                 error = %error,
                 top_level_keys = ?keys,
                 "Failed to parse session update; dropping raw transport payload"
@@ -170,6 +178,47 @@ mod tests {
 
         let captured = captured_events.lock().expect("captured events lock");
         assert!(captured.is_empty());
+    }
+
+    #[tokio::test]
+    async fn session_update_without_session_id_is_dropped_before_batching() {
+        let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
+        let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
+        let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
+        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
+            dispatcher.clone(),
+            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
+        );
+        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+
+        let notification = json!({
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "availableCommandsUpdate",
+                    "availableCommands": [
+                        { "name": "compact", "description": "Compact context", "input": null }
+                    ]
+                }
+            }
+        });
+
+        handle_session_update_notification(
+            &dispatcher,
+            AgentType::ClaudeCode,
+            None,
+            &message_id_tracker,
+            &task_reconciler,
+            &mut streaming_batcher,
+            &mut non_streaming_batcher,
+            &notification,
+        )
+        .await;
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert!(captured.is_empty());
+        assert!(!non_streaming_batcher.has_pending());
     }
 
     #[tokio::test]

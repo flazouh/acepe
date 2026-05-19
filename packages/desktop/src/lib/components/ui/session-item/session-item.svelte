@@ -9,7 +9,7 @@ import { IconDotsVertical } from "@tabler/icons-svelte";
 import { IconX } from "@tabler/icons-svelte";
 import { Archive } from "phosphor-svelte";
 import { Tree } from "phosphor-svelte";
-import { COLOR_NAMES, Colors } from "$lib/acp/utils/colors.js";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
@@ -20,9 +20,9 @@ import {
 	extractPermissionCommand,
 	extractPermissionFilePath,
 } from "$lib/acp/components/tool-calls/permission-display.js";
+import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import {
 	AGENT_ICON_BASE_CLASS,
-	getAgentIcon,
 	UNKNOWN_TIME_TEXT,
 } from "$lib/acp/constants/thread-list-constants.js";
 import { formatTimeAgo } from "$lib/acp/logic/thread-list-date-utils.js";
@@ -37,6 +37,7 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
 } from "$lib/acp/store/live-session-work.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -47,7 +48,6 @@ import {
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import { selectSessionWorkBucket } from "$lib/acp/store/session-work-projection.js";
 import { sectionColor, type SectionedFeedSectionId } from "@acepe/ui/attention-queue";
-import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
@@ -94,7 +94,6 @@ let {
 	onOpenPr,
 }: Props = $props();
 
-const themeState = useTheme();
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const interactionStore = getInteractionStore();
@@ -110,13 +109,7 @@ const QUESTION_COLORS = [
 ];
 let archiveConfirmOpen = $state(false);
 
-function getThemedAgentIcon(agentId?: string): string {
-	return getAgentIcon(agentId ?? "claude-code", themeState.effectiveTheme);
-}
-
-function getAgentIconClass(): string {
-	return AGENT_ICON_BASE_CLASS;
-}
+const agentIconBaseClass = AGENT_ICON_BASE_CLASS;
 
 function formatTimeAgoSafe(date: Date): string {
 	const result = formatTimeAgo(date);
@@ -241,8 +234,11 @@ const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
+const sessionConnectionError = $derived(sessionStore.getSessionConnectionError(session.id));
 const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
-const currentStreamingToolCall = $derived(sessionStore.getSessionCurrentStreamingToolCall(session.id));
+const currentStreamingToolCall = $derived(
+	sessionStore.getSessionCurrentStreamingToolCall(session.id)
+);
 const lastToolCall = $derived(sessionStore.getSessionLastToolCall(session.id));
 const lastTodoToolCall = $derived(sessionStore.getSessionLastTodoToolCall(session.id));
 const currentToolKind = $derived(sessionStore.getSessionCurrentToolKind(session.id));
@@ -252,9 +248,12 @@ const interactionSnapshot = $derived.by(() =>
 	sessionStore.getSessionOperationInteractionSnapshot(session.id, interactionStore)
 );
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
+const liveSessionSource = $derived(
+	liveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
+);
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({
-		canonicalProjection,
+		source: liveSessionSource,
 		currentModeId,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -262,7 +261,7 @@ const liveSessionState = $derived.by(() =>
 );
 const sessionWorkProjection = $derived.by(() =>
 	deriveLiveSessionWorkProjection({
-		canonicalProjection,
+		source: liveSessionSource,
 		currentModeId,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -371,11 +370,7 @@ const statusText = $derived.by(() => {
 	}
 
 	if (sessionWorkProjection.hasError) {
-		const canonicalErrorMessage =
-			canonicalProjection?.lifecycle.errorMessage ??
-			canonicalProjection?.activeTurnFailure?.message ??
-			null;
-		return canonicalErrorMessage ?? "Connection error";
+		return sessionConnectionError ?? "Connection error";
 	}
 
 	if (previewActivityKind === "thinking") {
@@ -618,12 +613,10 @@ function handleNextQuestion() {
 
 			<div class="flex-1 min-w-0">
 				{#snippet agentBadge()}
-					<img
-						src={getThemedAgentIcon(session.agentId)}
-						alt={"Agent"}
-						class="{getAgentIconClass()} shrink-0 m-0.5"
-						width="12"
-						height="12"
+					<AgentIcon
+						agentId={session.agentId ?? "historical-session"}
+						class="{agentIconBaseClass} shrink-0 m-0.5"
+						size={12}
 					/>
 					{#if session.sequenceId != null && session.projectName != null && session.projectColor != null}
 						<ProjectLetterBadge

@@ -12,6 +12,7 @@ import type {
 
 import {
 	DEFAULT_STREAMING_REPRO_PRESETS,
+	resolveStreamingReproActiveTailRowId,
 	type StreamingReproPhase,
 	type StreamingReproPreset,
 } from "./streaming-repro-controller";
@@ -86,12 +87,14 @@ function createActivity(phase: StreamingReproPhase): SessionGraphActivity {
 }
 
 function createGraph(phase: StreamingReproPhase): SessionStateGraph {
+	const activeStreamingTailRowId =
+		phase.assistantStreaming === true ? resolveStreamingReproActiveTailRowId(phase) : null;
 	const transcriptEntries: TranscriptEntry[] = [
 		createTranscriptEntry("user-1", "user", "Explain umbrellas slowly."),
 	];
-	if (phase.lastAgentMessageId !== null) {
+	if (phase.activeStreamingTailRowId !== null) {
 		transcriptEntries.push(
-			createTranscriptEntry(phase.lastAgentMessageId, "assistant", phase.assistantText)
+			createTranscriptEntry(phase.activeStreamingTailRowId, "assistant", phase.assistantText)
 		);
 	}
 
@@ -115,9 +118,12 @@ function createGraph(phase: StreamingReproPhase): SessionStateGraph {
 		interactions: [],
 		turnState: phase.turnState,
 		messageCount: transcriptEntries.length,
-		lastAgentMessageId: phase.lastAgentMessageId,
 		activeTurnFailure: null,
 		lastTerminalTurnId: phase.turnState === "Completed" ? "turn-1" : null,
+		activeStreamingTail:
+			activeStreamingTailRowId === null
+				? null
+				: { rowId: activeStreamingTailRowId, contentKind: "message" },
 		lifecycle: createLifecycle(),
 		activity: createActivity(phase),
 		capabilities: createCapabilities(),
@@ -159,12 +165,13 @@ export function applyStreamingReproPhaseSceneOverrides(input: {
 		return input.entries;
 	}
 
+	const activeStreamingTailRowId = resolveStreamingReproActiveTailRowId(input.phase);
 	const entries: AgentPanelSceneEntryModel[] = [];
 	for (const entry of input.entries) {
 		if (
 			entry.type === "assistant" &&
-			input.phase.lastAgentMessageId !== null &&
-			entry.id === input.phase.lastAgentMessageId
+			activeStreamingTailRowId !== null &&
+			entry.id === activeStreamingTailRowId
 		) {
 			entries.push({
 				id: entry.id,

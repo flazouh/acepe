@@ -89,7 +89,11 @@ $effect(() => {
 				class={cn("group/provider-trigger h-8 gap-2 px-2", className)}
 			>
 				{#if store.currentProviderId}
-					<ProviderLogo providerId={store.currentProviderId} class="h-4 w-4" />
+					<ProviderLogo
+						providerId={store.currentProviderId}
+						providerName={store.currentProvider?.name}
+						class="h-4 w-4"
+					/>
 				{/if}
 				<span class="text-xs truncate max-w-[120px]">
 					{store.currentModel?.name ?? "Select model"}
@@ -129,7 +133,11 @@ $effect(() => {
 						class="group flex items-center gap-2"
 						onSelect={() => handleModelSelect(item.providerId, item.modelId)}
 					>
-						<ProviderLogo providerId={item.providerId} class="h-4 w-4" />
+						<ProviderLogo
+							providerId={item.providerId}
+							providerName={item.provider.name}
+							class="h-4 w-4"
+						/>
 						<span class="flex-1 truncate">{item.model.name}</span>
 						{#if item.providerId === store.currentProviderId && item.modelId === store.currentModelId}
 							<IconCheck class="h-4 w-4 text-primary" />
@@ -150,7 +158,11 @@ $effect(() => {
 						class="group flex items-center gap-2"
 						onSelect={() => handleModelSelect(item.providerId, item.modelId)}
 					>
-						<ProviderLogo providerId={item.providerId} class="h-4 w-4" />
+						<ProviderLogo
+							providerId={item.providerId}
+							providerName={item.provider.name}
+							class="h-4 w-4"
+						/>
 						<span class="flex-1 truncate">{item.model.name}</span>
 					</DropdownMenu.Item>
 				{/each}
@@ -160,7 +172,7 @@ $effect(() => {
 			<!-- All Providers -->
 			{#each filteredProviders as provider (provider.id)}
 				<DropdownMenu.Label class="flex items-center gap-2 px-2 py-1.5">
-					<ProviderLogo providerId={provider.id} class="h-4 w-4" />
+					<ProviderLogo providerId={provider.id} providerName={provider.name} class="h-4 w-4" />
 					{provider.name}
 				</DropdownMenu.Label>
 				{#each provider.models as model (model.id)}
@@ -168,7 +180,11 @@ $effect(() => {
 						class="group flex items-center gap-2 pl-4"
 						onSelect={() => handleModelSelect(provider.id, model.id)}
 					>
-						<ProviderLogo providerId={provider.id} class="h-3.5 w-3.5" />
+						<ProviderLogo
+							providerId={provider.id}
+							providerName={provider.name}
+							class="h-3.5 w-3.5"
+						/>
 						<span class="flex-1 truncate">{model.name}</span>
 						<button
 							onclick={(e) => {

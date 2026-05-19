@@ -431,6 +431,18 @@ fn test_provider_default_model_falls_back_when_defaults_missing() {
     assert_eq!(selected.as_deref(), Some("anthropic/claude-opus-4"));
 }
 
+/// Test provider default selection preserves absence when no connected default or fallback exists.
+#[test]
+fn test_provider_default_model_preserves_absence() {
+    let connected_set: std::collections::HashSet<&str> = ["anthropic"].into_iter().collect();
+    let provider_defaults = HashMap::new();
+
+    let selected =
+        OpenCodeHttpClient::get_provider_default_model(&connected_set, &provider_defaults, None);
+
+    assert_eq!(selected, None);
+}
+
 /// Test convert_api_response_to_message with user message containing text
 #[test]
 fn test_convert_user_message_with_text() {

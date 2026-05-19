@@ -19,7 +19,7 @@ import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
 import PrChecksSurface from "../shared/pr-checks-surface.svelte";
-import type { SessionLinkedPr } from "../../application/dto/session";
+import type { SessionLinkedPr } from "../../application/dto/session-linked-pr";
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
 import type { ShipCardData } from "../ship-card/ship-card-parser.js";
 

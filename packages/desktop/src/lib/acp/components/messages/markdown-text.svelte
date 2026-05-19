@@ -17,16 +17,12 @@
 		/** Whether content is currently streaming */
 		isStreaming?: boolean;
 		tokenRevealCss?: TokenRevealCss;
-		/**
-		 * Project path retained for API compatibility while Streamdown owns markdown rendering.
-		 */
 		projectPath?: string;
 		streamingAnimationMode?: StreamingAnimationMode;
 	}
 
 	const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
 	const sessionContext = useSessionContext();
-	const contextProjectPath = $derived(sessionContext?.projectPath);
 	const ownerPanelId = $derived(sessionContext?.panelId);
 	const panelStore = getPanelStore();
 
@@ -38,7 +34,7 @@
 		streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
 	}: Props = $props();
 
-	const projectPath = $derived(propProjectPath ?? contextProjectPath);
+	const projectPath = $derived(propProjectPath);
 	const streamdownMode = $derived(isStreaming ? "streaming" : "static");
 	const streamdownAnimation = $derived(
 		streamingAnimationMode === "smooth" ? undefined : false

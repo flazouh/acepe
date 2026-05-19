@@ -357,7 +357,7 @@ pub(crate) fn build_codex_native_session_model_state_with_state(
 
     SessionModelState {
         available_models,
-        current_model_id,
+        current_model_id: Some(current_model_id),
         models_display: Default::default(),
         provider_metadata: Some(provider_capabilities(AgentType::Codex).frontend_projection),
     }
@@ -478,7 +478,10 @@ mod tests {
         let response = build_codex_native_new_session_response("session-1".to_string());
 
         assert_eq!(response.session_id, "session-1");
-        assert_eq!(response.models.current_model_id, DEFAULT_CODEX_MODEL_ID);
+        assert_eq!(
+            response.models.current_model_id.as_deref(),
+            Some(DEFAULT_CODEX_MODEL_ID)
+        );
         assert!(response
             .models
             .available_models
@@ -610,7 +613,10 @@ mod tests {
 
         let response = build_codex_native_resume_session_response(&state);
 
-        assert_eq!(response.models.current_model_id, "gpt-oss-custom");
+        assert_eq!(
+            response.models.current_model_id.as_deref(),
+            Some("gpt-oss-custom")
+        );
         assert!(response
             .models
             .available_models

@@ -8,7 +8,7 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 
-import { Colors } from "../utils/colors.js";
+import { Colors } from "@acepe/ui/colors";
 import { resolveConfigOptionIconState } from "./config-option-selector-icon-state.js";
 
 interface ConfigOptionSelectorProps {
