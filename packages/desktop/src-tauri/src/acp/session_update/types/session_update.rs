@@ -135,7 +135,7 @@ pub enum SessionUpdate {
     UsageTelemetryUpdate { data: UsageTelemetryData },
 
     /// Emitted by the async resume task when session connection completes successfully.
-    /// Carries the session capabilities so the frontend can populate hot state.
+    /// Carries session capabilities so the frontend can update canonical projection.
     ConnectionComplete {
         session_id: String,
         attempt_id: u64,

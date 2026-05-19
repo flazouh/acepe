@@ -6,7 +6,7 @@ export type SessionLifecycleState = "created" | "persisted";
  * Session metadata - rarely changing, serializable data.
  *
  * These fields are persisted to the database and change infrequently.
- * Separate from identity (which never changes) and hot state (which changes often).
+ * Separate from identity (which never changes) and transient UI state (which changes often).
  */
 export interface SessionMetadata {
 	readonly title: string | null;

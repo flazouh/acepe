@@ -24,7 +24,7 @@ function createPanel(): Panel {
 	};
 }
 
-function createHotState(
+function createTransientProjection(
 	overrides: Partial<SessionTransientProjection> = {}
 ): SessionTransientProjection {
 	const base: SessionTransientProjection = {
@@ -97,7 +97,7 @@ function createPanelStore(): PanelStore {
 }
 
 function createSessionStore(input: {
-	readonly hotState: SessionTransientProjection;
+	readonly transientProjection: SessionTransientProjection;
 	readonly lifecycle: SessionGraphLifecycle | null;
 }): SessionStore {
 	const sessionStore = new SessionStore();
@@ -154,12 +154,12 @@ function createSessionStore(input: {
 	sessionStore.getSessionLifecycleStatus = () => input.lifecycle?.status ?? null;
 	sessionStore.getSessionConnectionError = () => input.lifecycle?.errorMessage ?? null;
 	sessionStore.getSessionActiveTurnFailure = () => null;
-	sessionStore.getSessionStatusChangedAt = () => input.hotState.statusChangedAt;
+	sessionStore.getSessionStatusChangedAt = () => input.transientProjection.statusChangedAt;
 	return sessionStore;
 }
 
 function createTabs(input: {
-	readonly hotState: SessionTransientProjection;
+	readonly transientProjection: SessionTransientProjection;
 	readonly lifecycle: SessionGraphLifecycle | null;
 }) {
 	const store = new UrgencyTabsStore(
@@ -171,9 +171,9 @@ function createTabs(input: {
 }
 
 describe("UrgencyTabsStore canonical authority", () => {
-	it("does not surface stale hot-state failures before a canonical projection exists", () => {
+	it("does not surface stale transient-projection failures before a canonical projection exists", () => {
 		const tabs = createTabs({
-			hotState: createHotState(),
+			transientProjection: createTransientProjection(),
 			lifecycle: null,
 		});
 
@@ -189,7 +189,7 @@ describe("UrgencyTabsStore canonical authority", () => {
 
 	it("surfaces failure from the first canonical failed envelope", () => {
 		const tabs = createTabs({
-			hotState: createHotState(),
+			transientProjection: createTransientProjection(),
 			lifecycle: createLifecycle("failed"),
 		});
 
@@ -205,7 +205,7 @@ describe("UrgencyTabsStore canonical authority", () => {
 
 	it("uses canonical lifecycle for connecting state", () => {
 		const tabs = createTabs({
-			hotState: createHotState(),
+			transientProjection: createTransientProjection(),
 			lifecycle: createLifecycle("reconnecting"),
 		});
 

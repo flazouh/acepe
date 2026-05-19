@@ -2092,7 +2092,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(assistantEntry.markdown).toContain("full unwrapped* width");
 	});
 
-	it("hydrates snapshot envelopes into transcript, operations, and hot state", () => {
+	it("hydrates snapshot envelopes into transcript, operations, and canonical projection", () => {
 		const store = new SessionStore();
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
@@ -2916,7 +2916,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 
 		// Canonical projection should carry "Running" from the previous full-graph projection,
-		// not "Idle" from an uninitialised hotState, proving no authority inversion.
+		// not "Idle" from uninitialised local state, proving no authority inversion.
 		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
 			turnState: "Running",
 		});
@@ -2961,7 +2961,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("hydrates capabilities envelopes into capability and hot-state selectors", () => {
+	it("hydrates capabilities envelopes into canonical capability selectors", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		store.applySessionStateGraph(

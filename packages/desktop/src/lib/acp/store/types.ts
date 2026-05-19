@@ -109,7 +109,7 @@ export interface SessionTransientProjection {
 }
 
 /**
- * Default hot state for new sessions.
+ * Default local transient projection for new sessions.
  */
 export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
 	acpSessionId: null,
