@@ -2173,6 +2173,43 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(hotState.updateHotState).not.toHaveBeenCalled();
 	});
 
+	it("does not sync Autonomous during mode switch when canonical autonomous state is unknown", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		setMode.mockReturnValue(okAsync(undefined));
+		(stateReader.getSessionAutonomousEnabled as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
+		expect(setSessionAutonomous).not.toHaveBeenCalled();
+		expect(hotState.updateHotState).not.toHaveBeenCalled();
+	});
+
 	it("does not mutate hot state directly when setting model", async () => {
 		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({

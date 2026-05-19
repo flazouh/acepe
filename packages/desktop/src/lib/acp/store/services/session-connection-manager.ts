@@ -108,8 +108,8 @@ function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string):
 	return reader.getSessionCurrentModeId(sessionId);
 }
 
-function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean {
-	return reader.getSessionAutonomousEnabled(sessionId) ?? false;
+function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean | null {
+	return reader.getSessionAutonomousEnabled(sessionId);
 }
 
 function canonicalCapabilities(
@@ -913,7 +913,9 @@ export class SessionConnectionManager {
 		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
 		const nextAutonomousEnabled =
-			oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
+			oldAutonomousEnabled === null
+				? null
+				: oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
 		logger.debug("Setting mode", { sessionId, modeId });
 
 		const applyMode = api.setMode(session.id, modeId);
@@ -924,7 +926,9 @@ export class SessionConnectionManager {
 
 				const syncAutonomousPolicy =
 					oldAutonomousEnabled !== nextAutonomousEnabled
-						? this.setSessionAutonomous(session.id, nextAutonomousEnabled)
+						? nextAutonomousEnabled === null
+							? okAsync(undefined)
+							: this.setSessionAutonomous(session.id, nextAutonomousEnabled)
 						: okAsync(undefined);
 
 				return syncAutonomousPolicy;
