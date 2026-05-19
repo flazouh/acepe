@@ -422,7 +422,7 @@ sessionStore.setCallbacks({
 		});
 
 		// Show completion popup notification when app is unfocused
-		const sessionTitle = sessionStore.getSessionCold(sessionId)?.title ?? "Task";
+		const sessionTitle = sessionStore.getSessionMetadata(sessionId)?.title ?? "Task";
 		showNotification(
 			{
 				id: `completion-${sessionId}-${Date.now()}`,
