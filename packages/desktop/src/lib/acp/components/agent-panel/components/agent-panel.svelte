@@ -64,6 +64,7 @@ import {
 	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
+	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
 	mapCanonicalTurnStateToHotTurnState,
@@ -379,24 +380,24 @@ const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null)
 const preSessionPendingUserEntry = $derived(
 	sessionId === null || sessionId === undefined ? (panelHotState?.pendingUserEntry ?? null) : null
 );
-const hasCanonicalUserEntryInGraph = $derived.by(() => {
-	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
-	return entries.some((entry) => entry.role === "user");
-});
-const hasCanonicalMatchingPendingUserEntry = $derived.by(() => {
+const canonicalUserEntryPresence = $derived.by(() => {
 	const pending = sessionPendingSendIntent;
-	if (pending === null) {
-		return false;
-	}
-	const entries = sessionStateGraph?.transcriptSnapshot.entries ?? [];
-	return entries.some((entry) => entry.role === "user" && entry.attemptId === pending.attemptId);
+	const transcriptEntries =
+		sessionId === null || sessionId === undefined
+			? []
+			: (sessionStateGraph?.transcriptSnapshot.entries ?? null);
+	return deriveCanonicalUserEntryPresence({
+		transcriptEntries,
+		pendingAttemptId: pending?.attemptId ?? null,
+	});
 });
 const optimisticUserEntryForGraph = $derived(
 	resolveOptimisticUserEntryForGraph({
 		panelPendingUserEntry: panelHotState?.pendingUserEntry ?? null,
 		sessionPendingOptimisticEntry: sessionPendingSendIntent?.optimisticEntry ?? null,
-		hasCanonicalUserEntry: hasCanonicalUserEntryInGraph,
-		hasCanonicalMatchingPendingUserEntry: hasCanonicalMatchingPendingUserEntry,
+		hasCanonicalUserEntry: canonicalUserEntryPresence.hasCanonicalUserEntry,
+		hasCanonicalMatchingPendingUserEntry:
+			canonicalUserEntryPresence.hasCanonicalMatchingPendingUserEntry,
 	})
 );
 const hasImmediatePendingSendIntent = $derived(

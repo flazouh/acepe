@@ -1,12 +1,43 @@
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import type { TranscriptEntry } from "../../../../services/acp-types.js";
+
+export interface CanonicalUserEntryPresence {
+	readonly hasCanonicalUserEntry: boolean | null;
+	readonly hasCanonicalMatchingPendingUserEntry: boolean | null;
+}
+
+export function deriveCanonicalUserEntryPresence(input: {
+	readonly transcriptEntries: readonly TranscriptEntry[] | null;
+	readonly pendingAttemptId: string | null;
+}): CanonicalUserEntryPresence {
+	if (input.transcriptEntries === null) {
+		return {
+			hasCanonicalUserEntry: null,
+			hasCanonicalMatchingPendingUserEntry: null,
+		};
+	}
+
+	return {
+		hasCanonicalUserEntry: input.transcriptEntries.some((entry) => entry.role === "user"),
+		hasCanonicalMatchingPendingUserEntry:
+			input.pendingAttemptId === null
+				? false
+				: input.transcriptEntries.some(
+						(entry) => entry.role === "user" && entry.attemptId === input.pendingAttemptId
+					),
+	};
+}
 
 export function resolveOptimisticUserEntryForGraph(input: {
 	readonly panelPendingUserEntry: SessionEntry | null;
 	readonly sessionPendingOptimisticEntry: SessionEntry | null;
-	readonly hasCanonicalUserEntry: boolean;
-	readonly hasCanonicalMatchingPendingUserEntry: boolean;
+	readonly hasCanonicalUserEntry: boolean | null;
+	readonly hasCanonicalMatchingPendingUserEntry: boolean | null;
 }): SessionEntry | null {
-	if (input.hasCanonicalMatchingPendingUserEntry) {
+	if (
+		input.hasCanonicalMatchingPendingUserEntry === true ||
+		input.hasCanonicalMatchingPendingUserEntry === null
+	) {
 		return null;
 	}
 
@@ -14,7 +45,7 @@ export function resolveOptimisticUserEntryForGraph(input: {
 		return input.sessionPendingOptimisticEntry;
 	}
 
-	if (input.hasCanonicalUserEntry) {
+	if (input.hasCanonicalUserEntry === true || input.hasCanonicalUserEntry === null) {
 		return null;
 	}
 
