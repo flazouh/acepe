@@ -637,7 +637,7 @@
 		readonly language: string;
 		readonly lineNumbers: boolean;
 		readonly startLine: number | undefined;
-		readonly children: ReactNode;
+		readonly children?: ReactNode;
 	}) {
 		const normalizedLanguage = normalizeCodeLanguage(language);
 		const languageLabel = getCodeLanguageLabel(normalizedLanguage);
