@@ -1,8 +1,8 @@
 <script lang="ts">
 import { ResultAsync } from "neverthrow";
 import { onMount } from "svelte";
-import { initializeHighlighter } from "$lib/acp/services/highlighter-pool.svelte.js";
 import { registerCursorThemeForPierreDiffs } from "$lib/acp/utils/pierre-diffs-theme.js";
+import { ensureWorkerPoolInitialized } from "$lib/acp/utils/worker-pool-singleton.js";
 import { initAnalytics } from "$lib/analytics.js";
 import ErrorBoundary from "$lib/components/error-boundary.svelte";
 import { Toaster } from "$lib/components/ui/sonner/index.js";
@@ -30,7 +30,7 @@ onMount(async () => {
 	// This pool is shared by all diff components (edit tool, review panel, etc.)
 	// Note: Intentionally not awaited - the pool can be used immediately and
 	// FileDiff gracefully falls back to main thread rendering until workers are ready
-	initializeHighlighter();
+	void ensureWorkerPoolInitialized();
 
 	// Note: Initial sync is triggered in +page.svelte AFTER the event listener
 	// is registered to avoid race conditions
