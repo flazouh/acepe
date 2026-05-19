@@ -21,7 +21,7 @@ import {
 	type SessionMachineSnapshot,
 	sessionMachine,
 } from "../../logic/session-machine";
-import { deriveSessionUIState } from "../../logic/session-ui-state";
+import { deriveSessionUIState } from "../../logic/__tests__/session-machine-ui-state-test-helper";
 import type { SessionEntry } from "../types";
 
 /**

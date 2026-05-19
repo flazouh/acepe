@@ -16,7 +16,7 @@ import {
 	type SessionMachineSnapshot,
 	sessionMachine,
 } from "../session-machine";
-import { deriveSessionUIState } from "../session-ui-state";
+import { deriveSessionUIState } from "./session-machine-ui-state-test-helper";
 
 describe("Session Machine", () => {
 	describe("Parallel State Progression", () => {
