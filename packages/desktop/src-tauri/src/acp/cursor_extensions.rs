@@ -178,7 +178,7 @@ pub fn normalize_cursor_extension(
 ) -> Result<ProviderExtensionEvent, String> {
     let session_id = current_session_id
         .filter(|value| !value.is_empty())
-        .unwrap_or("unknown")
+        .ok_or_else(|| format!("Cursor extension method {method} requires an active session id"))?
         .to_string();
 
     match strip_underscore_prefix(method) {
@@ -718,6 +718,22 @@ mod tests {
             }
             other => panic!("unexpected adapter: {other:?}"),
         }
+    }
+
+    #[test]
+    fn rejects_cursor_extension_without_active_session_id() {
+        let error = normalize_cursor_extension(
+            CURSOR_UPDATE_TODOS,
+            &json!({
+                "toolCallId": "tool-1",
+                "todos": []
+            }),
+            None,
+            None,
+        )
+        .expect_err("missing session id should be rejected");
+
+        assert!(error.contains("requires an active session id"));
     }
 
     #[test]
