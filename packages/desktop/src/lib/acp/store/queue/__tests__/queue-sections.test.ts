@@ -182,7 +182,7 @@ describe("classifyItem", () => {
 		expect(classifyItem(makeItem({ hasPendingPermission: true }))).toBe("answer_needed");
 	});
 
-	it("should classify error status as error", () => {
+	it("should classify error bucket as error", () => {
 		expect(classifyItem(makeItem({ hasError: true, status: "error" }))).toBe("error");
 	});
 
@@ -202,13 +202,13 @@ describe("classifyItem", () => {
 		).toBe("error");
 	});
 
-	it("should classify streaming without plan mode as working", () => {
+	it("should classify working bucket as working", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "code" }))
 		).toBe("working");
 	});
 
-	it("should classify streaming with plan mode as planning", () => {
+	it("should classify planning bucket as planning", () => {
 		expect(
 			classifyItem(makeItem({ status: "streaming", isStreaming: true, currentModeId: "plan" }))
 		).toBe("planning");
@@ -257,7 +257,7 @@ describe("classifyItem", () => {
 		expect(classifyItem(item)).toBe("planning");
 	});
 
-	it("should classify ready status as needs_review", () => {
+	it("should classify needs-review bucket as needs_review", () => {
 		expect(classifyItem(makeItem({ status: "ready", hasUnseenCompletion: true }))).toBe(
 			"needs_review"
 		);

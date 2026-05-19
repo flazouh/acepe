@@ -231,8 +231,7 @@ export function buildQueueItem(
 
 /**
  * Calculate urgency for a session.
- * Uses session.status directly - this should reflect the actual state
- * including "streaming" when the agent is actively working.
+ * Uses the canonical-derived queue snapshot status plus canonical failure fields.
  */
 export function calculateSessionUrgency(
 	session: QueueSessionSnapshot,
