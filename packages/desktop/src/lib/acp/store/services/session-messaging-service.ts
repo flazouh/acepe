@@ -17,7 +17,6 @@ import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
 import { getErrorCauseDetails } from "../../errors/error-cause-details.js";
 import { aggregateFileEditsFromToolCalls } from "../../logic/aggregate-file-edits.js";
-import { ConnectionState } from "../../logic/session-machine.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../../types/turn-error.js";
 import { normalizeActiveTurnFailure } from "../../types/turn-error.js";
@@ -335,16 +334,10 @@ export class SessionMessagingService {
 	 * Handle canonical turn completion side effects.
 	 */
 	handleCanonicalTurnComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
-		const machineState = this.connectionManager.getState(sessionId);
 		const canonical = this.stateReader.getCanonicalSessionProjection(sessionId);
 		this.recordTerminalTurnForSession(sessionId);
 		if (canonical?.turnState === "Completed") {
-			const connectionState = machineState?.connection ?? null;
-			if (
-				connectionState === ConnectionState.AWAITING_RESPONSE ||
-				connectionState === ConnectionState.STREAMING ||
-				connectionState === ConnectionState.PAUSED
-			) {
+			if (this.connectionManager.isResponseInProgress(sessionId)) {
 				this.connectionManager.sendResponseComplete(sessionId);
 				this.entryManager.finalizeStreamingEntries(sessionId);
 			}

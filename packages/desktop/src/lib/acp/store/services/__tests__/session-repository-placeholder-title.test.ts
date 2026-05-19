@@ -115,7 +115,7 @@ const connectionManager: IConnectionManager = {
 		throw new Error("Not implemented for test");
 	},
 	getMachine: () => null,
-	getState: () => null,
+	isResponseInProgress: () => false,
 	removeMachine: () => {},
 	isConnecting: () => false,
 	setConnecting: () => {},

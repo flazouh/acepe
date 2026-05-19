@@ -5,7 +5,6 @@
  * Extracted services use this for state machine operations.
  */
 
-import type { SessionMachineSnapshot } from "../../../logic/session-machine.js";
 /**
  * Interface for managing connection state machines.
  */
@@ -28,12 +27,6 @@ export interface IConnectionManager {
 	getMachine(sessionId: string): SessionMachineActor | null;
 
 	/**
-	 * Get session machine state.
-	 * Returns a reactive value when read inside Svelte $derived() blocks.
-	 */
-	getState(sessionId: string): SessionMachineSnapshot | null;
-
-	/**
 	 * Remove session machine when session is removed.
 	 */
 	removeMachine(sessionId: string): void;
@@ -46,6 +39,11 @@ export interface IConnectionManager {
 	 * Check if a session is currently connecting.
 	 */
 	isConnecting(sessionId: string): boolean;
+
+	/**
+	 * Check whether the local transport machine is still waiting for or streaming a response.
+	 */
+	isResponseInProgress(sessionId: string): boolean;
 
 	/**
 	 * Mark a session as connecting.

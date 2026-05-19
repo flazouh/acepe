@@ -280,7 +280,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),
@@ -1140,7 +1140,7 @@ describe("SessionConnectionManager.createSession", () => {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),
@@ -1931,7 +1931,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),
@@ -2402,7 +2402,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),
@@ -2537,7 +2537,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		const connectionManager: IConnectionManager = {
 			createOrGetMachine: vi.fn(),
 			getMachine: vi.fn(),
-			getState: vi.fn(),
+			isResponseInProgress: vi.fn(),
 			removeMachine: vi.fn(),
 			isConnecting: vi.fn(),
 			setConnecting: vi.fn(),

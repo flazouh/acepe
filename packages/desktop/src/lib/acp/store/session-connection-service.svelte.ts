@@ -15,6 +15,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { createActor } from "xstate";
 import {
 	ConnectionEvent,
+	ConnectionState,
 	ContentEvent,
 	type SessionMachineSnapshot,
 	sessionMachine,
@@ -87,6 +88,15 @@ export class SessionConnectionService implements IConnectionManager {
 	 */
 	getState(sessionId: string): SessionMachineSnapshot | null {
 		return this.snapshotCache.get(sessionId) ?? null;
+	}
+
+	isResponseInProgress(sessionId: string): boolean {
+		const state = this.getState(sessionId);
+		return (
+			state?.connection === ConnectionState.AWAITING_RESPONSE ||
+			state?.connection === ConnectionState.STREAMING ||
+			state?.connection === ConnectionState.PAUSED
+		);
 	}
 
 	/**

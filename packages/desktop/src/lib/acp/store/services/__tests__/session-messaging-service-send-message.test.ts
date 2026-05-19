@@ -88,7 +88,7 @@ function createMockDeps() {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),

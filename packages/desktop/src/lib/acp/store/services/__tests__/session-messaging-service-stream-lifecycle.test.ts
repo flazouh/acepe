@@ -84,7 +84,7 @@ function createMockDeps() {
 	const connectionManager: IConnectionManager = {
 		createOrGetMachine: vi.fn(),
 		getMachine: vi.fn(),
-		getState: vi.fn(),
+		isResponseInProgress: vi.fn(),
 		removeMachine: vi.fn(),
 		isConnecting: vi.fn(),
 		setConnecting: vi.fn(),
@@ -248,10 +248,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
-		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
-			content: "loaded",
-			connection: "streaming",
-		});
+		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
 		service.handleCanonicalTurnComplete(sessionId);
 
@@ -266,10 +263,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
-		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
-			content: "loaded",
-			connection: "ready",
-		});
+		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
 		service.handleCanonicalTurnComplete(sessionId);
 
@@ -283,10 +277,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		deps.stateReader.getCanonicalSessionProjection = vi
 			.fn()
 			.mockReturnValue(createCanonicalProjection({ turnState: "Completed" }));
-		(deps.connectionManager.getState as ReturnType<typeof vi.fn>).mockReturnValue({
-			content: "loaded",
-			connection: "ready",
-		});
+		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
 		service.handleCanonicalTurnComplete(sessionId);
 
