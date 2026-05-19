@@ -80,7 +80,7 @@ import { materializeAgentPanelSceneFromGraph } from "../../../session-state/agen
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
-import { getAgentIcon } from "../../../constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { derivePanelViewState } from "../../../logic/panel-visibility.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
@@ -211,7 +211,7 @@ setThinkingPreferences({
 	},
 	onToggleDefaultExpand: () => {
 		chatPreferencesStore?.setThinkingBlockCollapsedByDefault(
-			!chatPreferencesStore.thinkingBlockCollapsedByDefault,
+			!chatPreferencesStore.thinkingBlockCollapsedByDefault
 		);
 	},
 });
@@ -632,12 +632,12 @@ const agentName = $derived.by(() => {
 });
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
-			source: canonicalPanelSessionSource,
-			hasEntries: hasMessages,
-			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
-			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
-		})
-	);
+		source: canonicalPanelSessionSource,
+		hasEntries: hasMessages,
+		hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
+		hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
+	})
+);
 const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
 const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
 const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
@@ -913,7 +913,21 @@ const sessionDiffStats = $derived.by(() => {
 const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
 
-const agentIconSrc = $derived(getAgentIcon(effectivePanelAgentId, effectiveTheme));
+const effectivePanelProviderBrand = $derived.by(() => {
+	if (!effectivePanelAgentId) {
+		return null;
+	}
+
+	const storeProviderBrand =
+		agentStore.agents.find((agent) => agent.id === effectivePanelAgentId)?.providerMetadata
+			?.providerBrand ?? null;
+	const listedProviderBrand =
+		availableAgents.find((agent) => agent.id === effectivePanelAgentId)?.provider_metadata
+			?.providerBrand ?? null;
+
+	return storeProviderBrand ?? listedProviderBrand;
+});
+const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
 const graphMaterializedScene = $derived(
 	materializeAgentPanelSceneFromGraph({
 		panelId: effectivePanelId,
@@ -1361,7 +1375,13 @@ let lastPanelId = $state<string | undefined>(undefined);
 
 // Restore review mode when session loads (deferred from workspace restore)
 $effect(() => {
-	if (!panelId || !sessionId || visibleEntryCount === null || visibleEntryCount === 0 || reviewMode) {
+	if (
+		!panelId ||
+		!sessionId ||
+		visibleEntryCount === null ||
+		visibleEntryCount === 0 ||
+		reviewMode
+	) {
 		return;
 	}
 
@@ -2197,7 +2217,9 @@ function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
 	}
 
 	const semanticInteractionId = event.interactionId ?? event.entryId;
-	const interaction = graph.interactions.find((candidate) => candidate.id === semanticInteractionId);
+	const interaction = graph.interactions.find(
+		(candidate) => candidate.id === semanticInteractionId
+	);
 	if (interaction === undefined || !("Question" in interaction.payload)) {
 		toast.error("Question is no longer available.");
 		return;

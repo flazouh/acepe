@@ -20,7 +20,7 @@ import { onDestroy, onMount } from "svelte";
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
-import { getAgentIcon } from "$lib/acp/constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "$lib/acp/constants/thread-list-constants.js";
 import {
 	copyCanonicalSessionToClipboard,
 	copyTextToClipboard,
@@ -121,6 +121,14 @@ const questionStore = getQuestionStore();
 const unseenStore = getUnseenStore();
 const selectionStore = getQuestionSelectionStore();
 const themeState = useTheme();
+
+function getCanonicalAgentIcon(agentId: string | null | undefined): string {
+	const providerBrand =
+		agentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata?.providerBrand ??
+		null;
+
+	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
+}
 const worktreeDefaultStore = getWorktreeDefaultStore();
 const isDev = import.meta.env.DEV;
 
@@ -430,7 +438,7 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 		id: item.sessionId,
 		title: richTitleResult.plainText,
 		richTitle: richTitleResult.richText,
-		agentIconSrc: getAgentIcon(item.agentId, themeState.effectiveTheme),
+		agentIconSrc: getCanonicalAgentIcon(item.agentId),
 		agentLabel: item.agentId,
 		isAutoMode: item.autonomousEnabled === true,
 		projectName: item.projectName,
@@ -460,8 +468,9 @@ function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
 	const visiblePermission =
-		sessionStore.getVisiblePermissionsForSessionBar(permissionStore.getForSession(item.sessionId))[0] ??
-		null;
+		sessionStore.getVisiblePermissionsForSessionBar(
+			permissionStore.getForSession(item.sessionId)
+		)[0] ?? null;
 	if (visiblePermission) {
 		return visiblePermission;
 	}
@@ -595,7 +604,7 @@ function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 			card: {
 				id: panel.id,
 				title,
-				agentIconSrc: getAgentIcon(panel.selectedAgentId, themeState.effectiveTheme),
+				agentIconSrc: getCanonicalAgentIcon(panel.selectedAgentId),
 				agentLabel: panel.selectedAgentId,
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : "Unknown",

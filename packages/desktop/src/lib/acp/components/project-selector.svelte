@@ -8,7 +8,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 
-import { getAgentIcon } from "../constants/thread-list-constants.js";
+import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
 import type { Project } from "../logic/project-manager.svelte.js";
 import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { createLogger } from "../utils/logger.js";
@@ -158,7 +158,7 @@ function handleOpenChange(open: boolean) {
 	{/if}
 
 	{#if onImport}
-		{@const importIcon = getAgentIcon("claude-code", themeState.effectiveTheme)}
+		{@const importIcon = getProviderBrandIcon("claude-code", themeState.effectiveTheme)}
 		<DropdownMenu.Item onSelect={onImport} class="cursor-pointer">
 			{#if importIcon}
 				<img src={importIcon} alt="" class="mr-2 h-4 w-4 shrink-0" />

@@ -20,10 +20,6 @@ vi.mock("$lib/components/theme/context.svelte.js", () => ({
 	useTheme: () => ({ effectiveTheme: "dark" }),
 }));
 
-vi.mock("$lib/acp/constants/thread-list-constants.js", () => ({
-	getAgentIcon: () => "/agent-icon.svg",
-}));
-
 vi.mock("$lib/components/ui/spinner/index.js", async () => ({
 	Spinner: (await import("./fixtures/user-message-stub.svelte")).default,
 }));

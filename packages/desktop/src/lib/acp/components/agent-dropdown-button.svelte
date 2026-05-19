@@ -2,18 +2,17 @@
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { IconPlus } from "@tabler/icons-svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { getAgentIcon } from "../constants/thread-list-constants.js";
 import type { AgentInfo } from "../logic/agent-manager.js";
+import AgentIcon from "./agent-icon.svelte";
 
 interface Props {
 	projectPath: string;
 	projectName: string;
 	availableAgents: AgentInfo[];
-	effectiveTheme: "light" | "dark";
 	onSelect: (projectPath: string, agentId: string) => void;
 }
 
-let { projectPath, projectName, availableAgents, effectiveTheme, onSelect }: Props = $props();
+let { projectPath, projectName, availableAgents, onSelect }: Props = $props();
 
 const hasMultipleAgents = $derived(availableAgents.length > 1);
 const singleAgent = $derived(availableAgents.length === 1 ? availableAgents[0] : null);
@@ -57,7 +56,13 @@ function handleAgentSelect(agent: AgentInfo) {
 							class="p-1.5 rounded-md hover:bg-accent"
 							onclick={() => handleAgentSelect(agent)}
 						>
-							<img src={getAgentIcon(agent.id, effectiveTheme)} alt={agent.name} class="h-5 w-5" />
+							<AgentIcon
+								agentId={agent.id}
+								providerBrand={agent.provider_metadata?.providerBrand ?? null}
+								providerLabel={agent.provider_metadata?.displayName ?? agent.name}
+								class="h-5 w-5"
+								size={20}
+							/>
 						</DropdownMenu.Item>
 					</Tooltip.Trigger>
 					<Tooltip.Content>

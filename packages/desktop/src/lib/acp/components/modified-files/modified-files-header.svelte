@@ -24,7 +24,6 @@ import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";
 import type { Model } from "../../application/dto/model.js";
-import { getAgentIcon } from "../../constants/thread-list-constants.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import * as agentModelPrefs from "../../store/agent-model-preferences-store.svelte.js";
 import { getReviewPreferenceStore } from "../../store/review-preference-store.svelte.js";
@@ -32,6 +31,7 @@ import { sessionReviewStateStore } from "../../store/session-review-state-store.
 import { capitalizeName } from "../../utils/string-formatting.js";
 import { getModelDisplayName } from "../model-selector-logic.js";
 import SelectorCheck from "../selector-check.svelte";
+import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
 import {
@@ -513,16 +513,19 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 										</DropdownMenu.SubTrigger>
 										<DropdownMenu.SubContent class="w-[220px] max-h-[260px] overflow-y-auto p-0">
 											{#each availableAgents as agent (agent.id)}
-												{@const icon = getAgentIcon(agent.id, effectiveTheme)}
 												{@const isSelected = agent.id === effectiveAgentId}
 												<DropdownMenu.Item
 													onSelect={() => handleAgentPickerChange(agent.id)}
 													class="group/item py-0.5 {isSelected ? 'bg-accent' : ''}"
 												>
 													<div class="flex w-full min-w-0 items-center gap-1.5">
-														{#if icon}
-															<img src={icon} alt={agent.name} class="h-3.5 w-3.5 shrink-0" />
-														{/if}
+														<AgentIcon
+															agentId={agent.id}
+															providerBrand={agent.provider_metadata?.providerBrand ?? null}
+															providerLabel={agent.provider_metadata?.displayName ?? agent.name}
+															class="h-3.5 w-3.5 shrink-0"
+															size={14}
+														/>
 														<span class="flex-1 truncate text-[11px]">{capitalizeName(agent.name)}</span>
 														<SelectorCheck visible={isSelected} />
 													</div>

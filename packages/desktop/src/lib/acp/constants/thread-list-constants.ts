@@ -2,10 +2,19 @@
  * Constants for thread list operations.
  */
 
-/**
- * Agent icon paths mapping with light/dark variants.
- */
-export const AGENT_ICONS: Record<string, { light: string; dark: string }> = {
+import type { ProviderBrand } from "@acepe/ui";
+
+type ThemeIconPair = {
+	readonly light: string;
+	readonly dark: string;
+};
+
+const CUSTOM_PROVIDER_ICON: ThemeIconPair = {
+	light: "/svgs/agents/custom/custom-icon.svg",
+	dark: "/svgs/agents/custom/custom-icon.svg",
+};
+
+const PROVIDER_BRAND_ICONS: Record<ProviderBrand, ThemeIconPair> = {
 	opencode: {
 		light: "/svgs/agents/opencode/opencode-logo-light.svg",
 		dark: "/svgs/agents/opencode/opencode-logo-dark.svg",
@@ -26,30 +35,18 @@ export const AGENT_ICONS: Record<string, { light: string; dark: string }> = {
 		light: "/svgs/agents/codex/codex-icon-light.svg",
 		dark: "/svgs/agents/codex/codex-icon-dark.svg",
 	},
+	custom: CUSTOM_PROVIDER_ICON,
 } as const;
 
 /**
- * Default agent icon paths.
- * Uses Claude Code as default since most historical sessions are from Claude CLI.
- */
-export const DEFAULT_AGENT_ICON = {
-	light: "/svgs/agents/claude/claude-icon-light.svg",
-	dark: "/svgs/agents/claude/claude-icon-dark.svg",
-};
-
-/**
- * Get agent icon path for the current theme.
+ * Get provider icon path for the current theme.
  * Keys match app theme: "light" = asset for light theme, "dark" = asset for dark theme.
- * If agentId is null/undefined, logs a warning and returns default icon.
  */
-export function getAgentIcon(agentId: string | null | undefined, theme: "light" | "dark"): string {
-	if (!agentId) {
-		console.warn(
-			"[getAgentIcon] No agentId provided - this indicates a bug in agent context propagation"
-		);
-		return DEFAULT_AGENT_ICON[theme];
-	}
-	const icons = AGENT_ICONS[agentId] ?? DEFAULT_AGENT_ICON;
+export function getProviderBrandIcon(
+	providerBrand: ProviderBrand | null | undefined,
+	theme: "light" | "dark"
+): string {
+	const icons = providerBrand ? PROVIDER_BRAND_ICONS[providerBrand] : CUSTOM_PROVIDER_ICON;
 	return icons[theme];
 }
 
