@@ -198,7 +198,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::UserMessageSegmentAppended,
                 Some(SessionDomainEventPayload::UserMessageSegmentAppended {
-                    message_id: String::new(),
+                    message_id: None,
                     part_id: None,
                     text,
                 }),
@@ -214,7 +214,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::AssistantMessageSegmentAppended,
                 Some(SessionDomainEventPayload::AssistantMessageSegmentAppended {
-                    message_id: message_id.clone().unwrap_or_default(),
+                    message_id: message_id.clone(),
                     part_id: part_id.clone(),
                     text,
                 }),
@@ -230,7 +230,7 @@ pub fn session_update_to_domain_event(
             Some((
                 SessionDomainEventKind::AssistantThoughtSegmentAppended,
                 Some(SessionDomainEventPayload::AssistantThoughtSegmentAppended {
-                    message_id: message_id.clone().unwrap_or_default(),
+                    message_id: message_id.clone(),
                     part_id: part_id.clone(),
                     text,
                 }),
@@ -362,7 +362,67 @@ fn extract_chunk_text(chunk: &ContentChunk) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::types::ContentBlock;
     use serde_json::json;
+
+    #[test]
+    fn assistant_message_domain_event_preserves_missing_message_id() {
+        let update = SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some("session-1".to_string()),
+            produced_at_monotonic_ms: None,
+        };
+
+        let Some((_, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected assistant message domain event payload");
+        };
+
+        match payload {
+            SessionDomainEventPayload::AssistantMessageSegmentAppended { message_id, .. } => {
+                assert_eq!(message_id, None);
+            }
+            other => panic!(
+                "expected assistant message segment payload, got {:?}",
+                other
+            ),
+        }
+    }
+
+    #[test]
+    fn assistant_thought_domain_event_preserves_missing_message_id() {
+        let update = SessionUpdate::AgentThoughtChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "thinking".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: None,
+            session_id: Some("session-1".to_string()),
+        };
+
+        let Some((_, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected assistant thought domain event payload");
+        };
+
+        match payload {
+            SessionDomainEventPayload::AssistantThoughtSegmentAppended { message_id, .. } => {
+                assert_eq!(message_id, None);
+            }
+            other => panic!(
+                "expected assistant thought segment payload, got {:?}",
+                other
+            ),
+        }
+    }
 
     mod normalize_session_update_params {
         use super::*;

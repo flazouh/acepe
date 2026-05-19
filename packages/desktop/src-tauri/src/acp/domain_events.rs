@@ -61,17 +61,17 @@ pub enum SessionDomainEventPayload {
         turn_id: Option<String>,
     },
     UserMessageSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
     AssistantMessageSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
     AssistantThoughtSegmentAppended {
-        message_id: String,
+        message_id: Option<String>,
         part_id: Option<String>,
         text: String,
     },
