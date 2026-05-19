@@ -2407,7 +2407,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Used for cleanup when the app window closes.
 	 */
 	disconnectAllSessions(): void {
-		const connectedSessions = this.sessions.filter((s) => this.getSessionCanSend(s.id) ?? false);
+		const connectedSessions = this.sessions.filter((s) => this.getSessionCanSend(s.id) === true);
 		for (const session of connectedSessions) {
 			this.disconnectSession(session.id);
 		}
@@ -2474,9 +2474,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
+		const canonicalCanSend = this.getSessionCanSend(sessionId);
 		logger.info("sendMessage: store entrypoint", {
 			sessionId,
-			canSend: this.getSessionCanSend(sessionId) ?? false,
+			canSend: canonicalCanSend,
 			transcriptRevisionBeforeSend: this.getGraphTranscriptRevision(sessionId) ?? null,
 			preview: content.trim().slice(0, 120),
 		});
@@ -2507,7 +2508,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.updateSession(sessionId, { title: derivedTitle });
 			});
 
-		const canSend = this.getSessionCanSend(sessionId) ?? false;
+		const canSend = canonicalCanSend === true;
 		const lifecycleStatus = this.getSessionLifecycleStatus(sessionId);
 		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
 			session,
