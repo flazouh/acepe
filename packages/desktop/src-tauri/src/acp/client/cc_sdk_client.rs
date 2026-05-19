@@ -2344,8 +2344,14 @@ fn dispatch_cc_sdk_update(
     let updates_to_emit = collect_cc_sdk_updates_for_dispatch(&update, task_reconciler, provider);
 
     for emitted_update in updates_to_emit {
-        let sid = emitted_update.session_id().unwrap_or("unknown").to_string();
-        log_emitted_event(&sid, &emitted_update);
+        let Some(session_id) = emitted_update.session_id() else {
+            tracing::warn!(
+                update_type = ?std::mem::discriminant(&emitted_update),
+                "Dropping cc-sdk session update without session identity"
+            );
+            continue;
+        };
+        log_emitted_event(session_id, &emitted_update);
         dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
     }
 }
@@ -6565,6 +6571,50 @@ mod tests {
             }
             other => panic!("expected tool call update, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn dispatch_cc_sdk_update_drops_update_without_session_identity() {
+        let (dispatcher, sink) = AcpUiEventDispatcher::test_sink();
+        let provider = crate::acp::providers::claude_code::ClaudeCodeProvider;
+        let task_reconciler = Arc::new(std::sync::Mutex::new(
+            crate::acp::task_reconciler::TaskReconciler::new(),
+        ));
+
+        dispatch_cc_sdk_update(
+            &dispatcher,
+            &task_reconciler,
+            &provider,
+            SessionUpdate::ToolCall {
+                tool_call: ToolCallData {
+                    id: "toolu_missing_session".to_string(),
+                    name: "Read".to_string(),
+                    arguments: ToolArguments::Read {
+                        file_path: Some("/tmp/file.rs".to_string()),
+                        source_context: None,
+                    },
+                    diagnostic_input: None,
+                    status: ToolCallStatus::InProgress,
+                    result: None,
+                    kind: Some(ToolKind::Read),
+                    title: None,
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
+                },
+                session_id: None,
+            },
+        );
+
+        let captured = sink.lock().expect("sink lock");
+        assert!(captured.is_empty());
     }
 
     #[tokio::test]
