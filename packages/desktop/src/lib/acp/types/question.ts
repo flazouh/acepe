@@ -71,7 +71,7 @@ export interface QuestionRequest {
 	 * Optional reference to the tool call that triggered this question.
 	 */
 	tool?: {
-		messageID: string;
+		messageID: string | null;
 		callID: string;
 	};
 }

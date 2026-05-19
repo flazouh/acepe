@@ -247,13 +247,13 @@ export class InteractionStore {
 
 function toInteractionToolReference(
 	tool: ToolReference | null | undefined
-): { messageID: string; callID: string } | undefined {
+): { messageID: string | null; callID: string } | undefined {
 	if (tool === undefined || tool === null) {
 		return undefined;
 	}
 
 	return {
-		messageID: tool.messageId,
+		messageID: tool.messageId ?? null,
 		callID: tool.callId,
 	};
 }

@@ -346,7 +346,7 @@ fn normalize_cursor_ask_question(
                     }),
                 questions: canonical_questions,
                 tool: parsed.tool_call_id.as_ref().map(|id| ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: id.clone(),
                 }),
             },

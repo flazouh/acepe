@@ -116,7 +116,7 @@ export function toPermissionRequest(
 		},
 		always: request.alwaysOptionIds,
 		tool: {
-			messageID: "",
+			messageID: null,
 			callID: request.toolCallId,
 		},
 	});

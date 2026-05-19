@@ -489,7 +489,7 @@ mod tests {
                 always: Vec::new(),
                 auto_accepted: false,
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: tool_call_id.to_string(),
                 }),
             },

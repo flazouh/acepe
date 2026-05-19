@@ -15,7 +15,7 @@ import {
  * Tool-call reference used to anchor a permission request to an existing tool row.
  */
 export interface PermissionToolReference {
-	messageID: string;
+	messageID: string | null;
 	callID: string;
 }
 
@@ -229,7 +229,7 @@ function normalizePermissionToolReference(
 	}
 
 	return {
-		messageID: tool.messageId,
+		messageID: tool.messageId ?? null,
 		callID: tool.callId,
 	};
 }

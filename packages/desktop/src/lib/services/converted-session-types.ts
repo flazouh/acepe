@@ -399,7 +399,7 @@ hint: string }
 /**
  * Tool reference for permission/question requests.
  */
-export type ToolReference = { messageId: string; callId: string }
+export type ToolReference = { messageId?: string | null; callId: string }
 
 /**
  * Question option.

@@ -141,7 +141,7 @@ fn translate_permission_request(
             always: permission_always_options(method),
             auto_accepted: false,
             tool: item_id.map(|call_id| ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id,
             }),
         },
@@ -181,7 +181,7 @@ fn translate_question_request(
             )),
             questions,
             tool: item_id.map(|call_id| ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id,
             }),
         },

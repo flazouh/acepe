@@ -131,7 +131,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 			always: ["allow_always"],
 			tool: {
-				messageID: "",
+				messageID: null,
 				callID: "tool-14",
 			},
 		});
@@ -172,7 +172,7 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 			always: [],
 			tool: {
-				messageID: "",
+				messageID: null,
 				callID: "permission-request-15",
 			},
 		});

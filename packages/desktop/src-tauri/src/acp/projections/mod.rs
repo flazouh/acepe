@@ -1522,7 +1522,7 @@ impl ProjectionRegistry {
             json_rpc_request_id: Some(plan_approval_request_id),
             reply_handler: Some(InteractionReplyHandler::json_rpc(plan_approval_request_id)),
             tool_reference: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call.id.clone(),
             }),
             responded_at_event_seq: None,
@@ -1555,7 +1555,7 @@ impl ProjectionRegistry {
             reply_handler: Some(InteractionReplyHandler::http(tool_call.id.clone())),
             questions: question_items,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call.id.clone(),
             }),
         };
@@ -2679,7 +2679,7 @@ mod tests {
                     always: vec!["allow_always".to_string()],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -2696,7 +2696,7 @@ mod tests {
                     reply_handler: Some(InteractionReplyHandler::json_rpc(8)),
                     questions: vec![],
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-2".to_string(),
                     }),
                 },
@@ -4235,7 +4235,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -4298,7 +4298,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "exit-plan-tool".to_string(),
                     }),
                 },
@@ -4368,7 +4368,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "exit-plan-tool".to_string(),
                     }),
                 },
@@ -4437,7 +4437,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "tool-1".to_string(),
                     }),
                 },
@@ -4498,7 +4498,7 @@ mod tests {
                         multi_select: false,
                     }],
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "question-tool".to_string(),
                     }),
                 },
@@ -4610,7 +4610,7 @@ mod tests {
                     always: vec![],
                     auto_accepted: false,
                     tool: Some(ToolReference {
-                        message_id: String::new(),
+                        message_id: None,
                         call_id: "late-tool".to_string(),
                     }),
                 },

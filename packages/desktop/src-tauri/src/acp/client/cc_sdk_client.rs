@@ -470,7 +470,7 @@ impl cc_sdk::CanUseTool for AcepePermissionHandler {
                                 ),
                                 questions,
                                 tool: Some(ToolReference {
-                                    message_id: String::new(),
+                                    message_id: None,
                                     call_id: tool_call_id.clone(),
                                 }),
                             },
@@ -1947,7 +1947,7 @@ fn build_permission_request_update(
             },
             auto_accepted,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },
@@ -4597,7 +4597,7 @@ mod tests {
                 )),
                 questions: questions.clone(),
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: "toolu_stream_only".to_string(),
                 }),
             },
@@ -6052,7 +6052,7 @@ mod tests {
                     multi_select: false,
                 }],
                 tool: Some(ToolReference {
-                    message_id: String::new(),
+                    message_id: None,
                     call_id: "toolu_stream_only".to_string(),
                 }),
             },

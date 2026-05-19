@@ -274,7 +274,7 @@ fn build_canonical_interaction(
                 .collect(),
             auto_accepted,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },
@@ -298,7 +298,7 @@ fn build_question_update(
             reply_handler: Some(InteractionReplyHandler::json_rpc(request_id)),
             questions,
             tool: Some(ToolReference {
-                message_id: String::new(),
+                message_id: None,
                 call_id: tool_call_id.to_string(),
             }),
         },

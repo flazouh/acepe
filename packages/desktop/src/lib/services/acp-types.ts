@@ -149,7 +149,7 @@ export type ToolArguments = { kind: "read"; file_path?: string | null; source_co
 /**
  * Tool reference for permission/question requests.
  */
-export type ToolReference = { messageId: string; callId: string }
+export type ToolReference = { messageId?: string | null; callId: string }
 
 /**
  * Question option.

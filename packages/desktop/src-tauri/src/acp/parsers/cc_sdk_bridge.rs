@@ -417,7 +417,7 @@ fn build_question_request_update(
         )),
         questions,
         tool: Some(ToolReference {
-            message_id: String::new(),
+            message_id: None,
             call_id: tool_call.id.clone(),
         }),
     };
@@ -1859,6 +1859,13 @@ mod tests {
                     assert_eq!(
                         question.tool.as_ref().map(|tool| tool.call_id.as_str()),
                         Some("toolu_question_001")
+                    );
+                    assert_eq!(
+                        question
+                            .tool
+                            .as_ref()
+                            .and_then(|tool| tool.message_id.as_deref()),
+                        None
                     );
                 }
                 other => panic!("expected question request update, got {:?}", other),

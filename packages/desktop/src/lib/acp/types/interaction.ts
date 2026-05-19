@@ -5,7 +5,7 @@ import type { InteractionReplyHandler } from "./reply-handler.js";
 export type InteractionKind = "permission" | "question" | "plan_approval";
 
 export interface InteractionToolReference {
-	messageID: string;
+	messageID: string | null;
 	callID: string;
 }
 

@@ -5,7 +5,8 @@ use specta::Type;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolReference {
-    pub message_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
     pub call_id: String,
 }
 
