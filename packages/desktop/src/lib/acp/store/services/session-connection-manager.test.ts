@@ -1348,6 +1348,86 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(hotStateInit?.modelPerMode?.build).toBe("vendor/codex-enterprise/high");
 	});
 
+	it("does not infer a grouped model when canonical currentModelId has no group match", async () => {
+		newSession.mockReturnValue(
+			okAsync({
+				sessionId,
+				modes: {
+					currentModeId: "build",
+					availableModes: [{ id: "build", name: "Build", description: null }],
+				},
+				models: {
+					currentModelId: "missing-canonical-base",
+					availableModels: [
+						{
+							modelId: "safe-default",
+							name: "Safe Default",
+							description: null,
+						},
+						{
+							modelId: "vendor/codex-enterprise/high",
+							name: "codex-enterprise (high)",
+							description: null,
+						},
+					],
+					modelsDisplay: {
+						groups: [
+							{
+								label: "Codex Enterprise",
+								models: [
+									{
+										modelId: "vendor/codex-enterprise/high",
+										displayName: "High",
+										description: null,
+									},
+								],
+							},
+						],
+						presentation: {
+							displayFamily: "codexReasoningEffort",
+							usageMetrics: "spendAndContext",
+							provider: {
+								providerBrand: "codex",
+								displayName: "Codex",
+								displayOrder: 50,
+								supportsModelDefaults: true,
+								variantGroup: "reasoningEffort",
+								defaultAlias: undefined,
+								reasoningEffortSupport: true,
+							},
+						},
+					},
+					providerMetadata: {
+						providerBrand: "codex",
+						displayName: "Codex",
+						displayOrder: 50,
+						supportsModelDefaults: true,
+						variantGroup: "reasoningEffort",
+						defaultAlias: undefined,
+						reasoningEffortSupport: true,
+					},
+				},
+				availableCommands: [],
+			})
+		);
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
+		result._unsafeUnwrap();
+
+		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
+			.calls[0]?.[1];
+		expect(hotStateInit?.modelPerMode?.build).toBe("safe-default");
+	});
+
 	it("stores available commands from new session response", async () => {
 		const manager = createManager({
 			stateReader,

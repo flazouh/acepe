@@ -195,8 +195,7 @@ export class SessionConnectionManager {
 	private resolveModelFromDisplayGroup(
 		availableModels: readonly Model[],
 		currentModelId: string,
-		modelsDisplay: ModelsForDisplay | null | undefined,
-		providerMetadata: ProviderMetadataProjection | null | undefined
+		modelsDisplay: ModelsForDisplay | null | undefined
 	): Model | null {
 		if (!modelsDisplay || modelsDisplay.groups.length === 0) {
 			return null;
@@ -205,10 +204,7 @@ export class SessionConnectionManager {
 		const matchingGroup =
 			modelsDisplay.groups.find((group) =>
 				this.matchesDisplayGroupIdentity(group, currentModelId)
-			) ??
-			(providerMetadata?.variantGroup === "reasoningEffort" && modelsDisplay.groups.length === 1
-				? modelsDisplay.groups[0]
-				: null);
+			) ?? null;
 
 		if (!matchingGroup) {
 			return null;
@@ -245,8 +241,7 @@ export class SessionConnectionManager {
 	private resolveCurrentModel(
 		availableModels: readonly Model[],
 		currentModelId: string | null | undefined,
-		modelsDisplay: ModelsForDisplay | null | undefined,
-		providerMetadata: ProviderMetadataProjection | null | undefined
+		modelsDisplay: ModelsForDisplay | null | undefined
 	): Model | null {
 		if (availableModels.length === 0) {
 			return null;
@@ -261,8 +256,7 @@ export class SessionConnectionManager {
 			const groupedVariant = this.resolveModelFromDisplayGroup(
 				availableModels,
 				currentModelId,
-				modelsDisplay,
-				providerMetadata
+				modelsDisplay
 			);
 			if (groupedVariant) {
 				return groupedVariant;
@@ -397,8 +391,7 @@ export class SessionConnectionManager {
 				let currentModel = this.resolveCurrentModel(
 					availableModels,
 					currentModelId,
-					modelsDisplay,
-					providerMetadata
+					modelsDisplay
 				);
 				const explicitInitialMode = options.initialModeId
 					? (availableModes.find((mode) => mode.id === options.initialModeId) ?? null)
@@ -773,8 +766,7 @@ export class SessionConnectionManager {
 		const initialModel = this.resolveCurrentModel(
 			availableModels,
 			currentModelId,
-			modelsDisplay,
-			providerMetadata
+			modelsDisplay
 		);
 
 		// Cache available models and modes for settings/optimistic display
