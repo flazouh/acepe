@@ -101,6 +101,17 @@ function getProjectedProviderMetadata(
 	return getProviderMetadata(agent.id) ?? agent.providerMetadata ?? undefined;
 }
 
+export function resolveSettingsProviderMetadata(input: {
+	readonly agentProviderMetadata: ProviderMetadataProjection | null | undefined;
+	readonly cachedProviderMetadata: ProviderMetadataProjection | null;
+}): ProviderMetadataProjection | null {
+	if (input.agentProviderMetadata) {
+		return input.agentProviderMetadata;
+	}
+
+	return input.cachedProviderMetadata;
+}
+
 export function getAgentsByProviderOrder(
 	agents: readonly Agent[],
 	getProviderMetadata: (agentId: string) => ProviderMetadataProjection | null
