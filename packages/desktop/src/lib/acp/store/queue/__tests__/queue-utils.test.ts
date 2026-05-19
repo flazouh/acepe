@@ -5,6 +5,7 @@ import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { deriveSessionState } from "../../session-state.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import type { UrgencyInfo } from "../../urgency.js";
 import { classifyItem } from "../queue-section-utils.js";
 import { buildQueueItem, buildQueueSessionSnapshot, type QueueSessionSnapshot } from "../utils.js";
@@ -111,6 +112,17 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 			pendingPermission: null,
 			hasUnseenCompletion: false,
 		});
+	const workBucket =
+		overrides.workBucket ??
+		selectSessionWorkBucket(
+			deriveSessionWorkProjection({
+				state,
+				currentModeId,
+				connectionError: overrides.connectionError ?? null,
+				activeTurnFailure: overrides.activeTurnFailure ?? null,
+				canonicalActivity: null,
+			})
+		);
 
 	return {
 		id: "session-1",
@@ -127,6 +139,7 @@ function createSession(overrides: Partial<QueueSessionSnapshot> = {}): QueueSess
 		isStreaming,
 		isThinking,
 		status: "ready",
+		workBucket,
 		updatedAt: new Date("2026-03-30T12:00:00.000Z"),
 		currentModeId,
 		connectionError: null,

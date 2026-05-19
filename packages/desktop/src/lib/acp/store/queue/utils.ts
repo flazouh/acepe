@@ -18,7 +18,11 @@ import { checkpointStore } from "../checkpoint-store.svelte.js";
 import { deriveLiveSessionState, deriveLiveSessionWorkProjection } from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
-import { selectSessionStatusForPresentation } from "../session-work-projection.js";
+import {
+	selectSessionStatusForPresentation,
+	selectSessionWorkBucket,
+	type SessionWorkBucket,
+} from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
@@ -45,6 +49,7 @@ export interface QueueSessionSnapshot {
 	readonly isStreaming: boolean;
 	readonly isThinking: boolean;
 	readonly status: SessionStatus;
+	readonly workBucket: SessionWorkBucket;
 	readonly updatedAt: Date;
 	readonly currentModeId: string | null;
 	/** Connection/agent error message (e.g. acp_resume_session failure) */
@@ -152,6 +157,7 @@ export function buildQueueSessionSnapshot(
 		isStreaming: workProjection.compactActivityKind === "streaming",
 		isThinking: workProjection.compactActivityKind === "thinking",
 		status: selectSessionStatusForPresentation(workProjection),
+		workBucket: selectSessionWorkBucket(workProjection),
 		updatedAt: input.updatedAt,
 		currentModeId: input.currentModeId,
 		connectionError: input.connectionError,
@@ -208,6 +214,7 @@ export function buildQueueItem(
 		pendingQuestion,
 		pendingPlanApproval,
 		status: session.status,
+		workBucket: session.workBucket,
 		connectionError: session.connectionError ?? null,
 		activeTurnFailure: session.activeTurnFailure ?? null,
 		state: session.state,

@@ -1,10 +1,12 @@
 import type { TodoProgressInfo } from "$lib/acp/components/session-list/session-list-types.js";
+import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 import type { ToolKind } from "$lib/acp/types/tool-kind.js";
 import type { ActiveTurnFailure } from "$lib/acp/types/turn-error.js";
 import type { SessionLinkedPr } from "../../application/dto/session-linked-pr.js";
 
 import type { SessionState } from "../session-state.js";
+import type { SessionWorkBucket } from "../session-work-projection.js";
 
 import type { ThreadBoardStatus } from "./thread-board-status.js";
 
@@ -29,7 +31,9 @@ export interface ThreadBoardSource {
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
+	readonly sessionStatus: SessionStatus;
 	readonly state: SessionState;
+	readonly workBucket: SessionWorkBucket;
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;
 	readonly worktreeDeleted?: boolean;
@@ -57,7 +61,9 @@ export interface ThreadBoardItem {
 	readonly todoProgress: TodoProgressInfo | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure?: ActiveTurnFailure | null;
+	readonly sessionStatus: SessionStatus;
 	readonly state: SessionState;
+	readonly workBucket: SessionWorkBucket;
 	readonly sequenceId: number | null;
 	readonly worktreePath?: string | null;
 	readonly worktreeDeleted?: boolean;

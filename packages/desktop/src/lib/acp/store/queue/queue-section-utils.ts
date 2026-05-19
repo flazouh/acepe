@@ -5,11 +5,6 @@
  * so it can be tested in plain .ts test files.
  */
 
-import {
-	deriveSessionWorkProjection,
-	selectQueueWorkBucket,
-	selectSessionWorkBucket,
-} from "../session-work-projection.js";
 import type { QueueItem } from "./types.js";
 
 /**
@@ -36,37 +31,19 @@ const SECTION_ORDER: readonly QueueSectionId[] = [
 ];
 
 /**
- * A session needs review only when:
- * - The LLM turn has reached ready state
- * - The completion is still unseen by the user
+ * A session needs review only when the canonical-derived queue bucket says so.
  */
 export function isNeedsReview(
-	item: Pick<QueueItem, "status" | "state" | "connectionError" | "activeTurnFailure">
+	item: Pick<QueueItem, "workBucket">
 ): boolean {
-	return (
-		selectSessionWorkBucket(
-			deriveSessionWorkProjection({
-				state: item.state,
-				currentModeId: null,
-				connectionError: item.connectionError,
-				activeTurnFailure: item.activeTurnFailure ?? null,
-			})
-		) === "needs_review"
-	);
+	return item.workBucket === "needs_review";
 }
 
 /**
- * Classify a queue item into a section using the unified session state model.
+ * Classify a queue item from the canonical-derived work bucket.
  */
 export function classifyItem(item: QueueItem): QueueSectionId | null {
-	return selectQueueWorkBucket(
-		deriveSessionWorkProjection({
-			state: item.state,
-			currentModeId: item.currentModeId,
-			connectionError: item.connectionError,
-			activeTurnFailure: item.activeTurnFailure ?? null,
-		})
-	);
+	return item.workBucket === "idle" ? null : item.workBucket;
 }
 
 /**

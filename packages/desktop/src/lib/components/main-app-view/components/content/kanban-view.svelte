@@ -64,8 +64,6 @@ import {
 	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
 } from "$lib/acp/store/queue/utils.js";
-import { selectSessionStatusForPresentation } from "$lib/acp/store/session-work-projection.js";
-import { deriveSessionWorkProjection } from "$lib/acp/store/session-work-projection.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
 	ThreadBoardItem,
@@ -324,7 +322,9 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			todoProgress: queueItem.todoProgress,
 			connectionError: snapshot.connectionError ? snapshot.connectionError : null,
 			activeTurnFailure: snapshot.activeTurnFailure ?? null,
+			sessionStatus: queueItem.status,
 			state: queueItem.state,
+			workBucket: queueItem.workBucket,
 			sequenceId: metadata
 				? metadata.sequenceId !== undefined
 					? metadata.sequenceId
@@ -1484,14 +1484,7 @@ function handleRejectPlanApproval(sessionId: string): void {
 						sessionId={item.sessionId}
 						toolCalls={sessionStore.getSessionToolCalls(item.sessionId)}
 						isConnected={item.state.connection === "connected"}
-						status={selectSessionStatusForPresentation(
-							deriveSessionWorkProjection({
-								state: item.state,
-								currentModeId: item.currentModeId,
-								connectionError: item.connectionError,
-								activeTurnFailure: item.activeTurnFailure ?? null,
-							})
-						)}
+						status={item.sessionStatus}
 						isStreaming={card.isStreaming}
 						compact={true}
 					/>
