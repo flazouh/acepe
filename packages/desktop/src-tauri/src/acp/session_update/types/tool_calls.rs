@@ -275,9 +275,10 @@ pub enum ToolArguments {
         description: Option<String>,
     },
     Unclassified {
-        raw_name: String,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        raw_kind_hint: Option<String>,
+        #[serde(alias = "raw_name")]
+        provider_name: String,
+        #[serde(alias = "raw_kind_hint", skip_serializing_if = "Option::is_none")]
+        provider_kind_hint: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         title: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -354,8 +355,8 @@ mod tests {
         let arguments = ToolArguments::from_raw(
             ToolKind::Unclassified,
             json!({
-                "raw_name": "",
-                "raw_kind_hint": "other",
+                "provider_name": "",
+                "provider_kind_hint": "other",
                 "title": "Mark all done",
                 "arguments_preview": "{\"query\":\"UPDATE todos\"}",
                 "signals_tried": ["ProviderNameMap", "ArgumentShape"]
@@ -365,12 +366,12 @@ mod tests {
         assert!(matches!(
             arguments,
             ToolArguments::Unclassified {
-                ref raw_name,
-                raw_kind_hint: Some(_),
+                ref provider_name,
+                provider_kind_hint: Some(_),
                 title: Some(_),
                 arguments_preview: Some(_),
                 ref signals_tried
-            } if raw_name.is_empty() && signals_tried.len() == 2
+            } if provider_name.is_empty() && signals_tried.len() == 2
         ));
         assert_eq!(arguments.tool_kind(), ToolKind::Unclassified);
     }

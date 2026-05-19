@@ -209,8 +209,8 @@ describe("getToolKindSubtitle", () => {
 			name: "",
 			arguments: {
 				kind: "unclassified",
-				raw_name: "mcp__server__CommandPalette",
-				raw_kind_hint: "other",
+				provider_name: "mcp__server__CommandPalette",
+				provider_kind_hint: "other",
 				signals_tried: ["provider-name", "kind-hint"],
 			},
 			status: "pending",

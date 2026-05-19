@@ -48,7 +48,7 @@ function operationTarget(args: ToolArguments): string {
 		case "sql":
 			return args.query ?? args.description ?? "";
 		case "unclassified":
-			return args.arguments_preview ?? args.title ?? args.raw_name;
+			return args.arguments_preview ?? args.title ?? args.provider_name;
 		case "readLints":
 		case "browser":
 		case "other":

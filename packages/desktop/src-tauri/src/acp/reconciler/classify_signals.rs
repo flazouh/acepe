@@ -252,8 +252,8 @@ pub(crate) fn build_unclassified(
     signals_tried: &[SignalName],
 ) -> ToolArguments {
     ToolArguments::Unclassified {
-        raw_name: raw.name.unwrap_or_default().trim().to_string(),
-        raw_kind_hint: raw
+        provider_name: raw.name.unwrap_or_default().trim().to_string(),
+        provider_kind_hint: raw
             .kind_hint
             .map(str::trim)
             .filter(|value| !value.is_empty())
@@ -428,14 +428,14 @@ mod tests {
 
         match arguments {
             ToolArguments::Unclassified {
-                raw_name,
-                raw_kind_hint,
+                provider_name,
+                provider_kind_hint,
                 title,
                 arguments_preview,
                 signals_tried,
             } => {
-                assert!(raw_name.is_empty());
-                assert_eq!(raw_kind_hint.as_deref(), Some("other"));
+                assert!(provider_name.is_empty());
+                assert_eq!(provider_kind_hint.as_deref(), Some("other"));
                 assert_eq!(title.as_deref(), Some("Mark all done"));
                 assert_eq!(
                     signals_tried,

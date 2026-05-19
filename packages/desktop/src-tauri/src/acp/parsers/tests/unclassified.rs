@@ -24,14 +24,14 @@ fn unclaimed_tool_call_should_classify_as_unclassified() {
     assert_eq!(tool_call.kind, Some(ToolKind::Unclassified));
     match tool_call.arguments {
         ToolArguments::Unclassified {
-            raw_name,
-            raw_kind_hint,
+            provider_name,
+            provider_kind_hint,
             title,
             signals_tried,
             ..
         } => {
-            assert!(raw_name.is_empty());
-            assert_eq!(raw_kind_hint.as_deref(), Some("other"));
+            assert!(provider_name.is_empty());
+            assert_eq!(provider_kind_hint.as_deref(), Some("other"));
             assert_eq!(title.as_deref(), Some("Generic tool"));
             assert!(!signals_tried.is_empty());
         }

@@ -268,7 +268,7 @@ impl CursorParser {
         // Resolve tool name: top-level `name`, then rawInput._toolName, then title.
         let tool_name_ref = acp_fields::extract_tool_name(data, Some(&raw_arguments));
         let effective_name = self.resolve_effective_tool_name(tool_name_ref, title.as_deref());
-        let raw_name = tool_name_ref
+        let provider_name = tool_name_ref
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string);
@@ -297,7 +297,7 @@ impl CursorParser {
             inject_path_hint(&mut raw_arguments, kind, location_path);
         }
 
-        let name = raw_name.unwrap_or_else(|| "unknown".to_string());
+        let name = provider_name.unwrap_or_else(|| "unknown".to_string());
 
         Ok(RawToolCallInput {
             id,

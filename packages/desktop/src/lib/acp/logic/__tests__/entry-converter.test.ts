@@ -282,7 +282,7 @@ describe("entry-converter", () => {
 						name: "unknown",
 						status: "pending",
 						kind: "unclassified",
-						input: { raw_name: "mcp__x__Thing", raw_kind_hint: "other" },
+						input: { provider_name: "mcp__x__Thing", provider_kind_hint: "other" },
 					},
 					timestamp: "2024-01-01T00:00:00Z",
 				};
@@ -292,8 +292,8 @@ describe("entry-converter", () => {
 
 				expect(toolCall.kind).toBe("unclassified");
 				expect(toolCall.arguments).toEqual({
-					raw_name: "mcp__x__Thing",
-					raw_kind_hint: "other",
+					provider_name: "mcp__x__Thing",
+					provider_kind_hint: "other",
 				});
 			});
 

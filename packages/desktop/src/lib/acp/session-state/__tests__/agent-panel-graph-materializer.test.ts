@@ -923,8 +923,8 @@ describe("agent panel graph materializer", () => {
 					title: "",
 					arguments: {
 						kind: "unclassified",
-						raw_name: "write_bash",
-						raw_kind_hint: null,
+						provider_name: "write_bash",
+						provider_kind_hint: null,
 						title: null,
 						arguments_preview: null,
 						signals_tried: ["ProviderNameMap", "ArgumentShape"],

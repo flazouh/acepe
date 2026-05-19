@@ -151,11 +151,11 @@ pub fn canonical_name_for_kind(kind: ToolKind) -> &'static str {
 
 /// Return the canonical display name for a known tool kind,
 /// or fall back to the raw name for unknown tools.
-pub fn display_name_for_tool(kind: ToolKind, raw_name: &str) -> String {
+pub fn display_name_for_tool(kind: ToolKind, provider_name: &str) -> String {
     if kind != ToolKind::Other {
         canonical_name_for_kind(kind).to_string()
     } else {
-        raw_name.to_string()
+        provider_name.to_string()
     }
 }
 

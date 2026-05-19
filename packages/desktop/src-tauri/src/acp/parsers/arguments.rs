@@ -469,11 +469,27 @@ pub(crate) fn parse_tool_kind_arguments(
             script: extract_parser_string(raw_arguments, &["script"]),
         },
         ToolKind::Unclassified => ToolArguments::Unclassified {
-            raw_name: extract_parser_string(raw_arguments, &["raw_name", "rawName", "name"])
-                .unwrap_or_default(),
-            raw_kind_hint: extract_parser_string(
+            provider_name: extract_parser_string(
                 raw_arguments,
-                &["raw_kind_hint", "rawKindHint", "kind_hint", "kindHint"],
+                &[
+                    "provider_name",
+                    "providerName",
+                    "raw_name",
+                    "rawName",
+                    "name",
+                ],
+            )
+            .unwrap_or_default(),
+            provider_kind_hint: extract_parser_string(
+                raw_arguments,
+                &[
+                    "provider_kind_hint",
+                    "providerKindHint",
+                    "raw_kind_hint",
+                    "rawKindHint",
+                    "kind_hint",
+                    "kindHint",
+                ],
             ),
             title: extract_parser_string(raw_arguments, &["title"]),
             arguments_preview: parse_parser_string_or_json(

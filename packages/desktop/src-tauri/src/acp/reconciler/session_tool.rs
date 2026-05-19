@@ -220,7 +220,7 @@ fn parse_arguments_once(
     parser: &dyn AgentParser,
     raw_arguments: &serde_json::Value,
     identity: &ToolIdentity,
-    raw_name: Option<&str>,
+    provider_name: Option<&str>,
     title: Option<&str>,
     kind_hint: Option<&str>,
 ) -> ToolArguments {
@@ -232,7 +232,7 @@ fn parse_arguments_once(
         return build_unclassified(
             &RawClassificationInput {
                 id: "",
-                name: raw_name,
+                name: provider_name,
                 title,
                 kind_hint,
                 arguments: raw_arguments,

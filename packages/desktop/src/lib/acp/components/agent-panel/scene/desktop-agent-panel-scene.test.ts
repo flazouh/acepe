@@ -1087,8 +1087,8 @@ describe("desktop agent panel scene adapter", () => {
 					name: "unknown",
 					arguments: {
 						kind: "unclassified",
-						raw_name: "unknown",
-						raw_kind_hint: "other",
+						provider_name: "unknown",
+						provider_kind_hint: "other",
 						title: "Mystery tool",
 						arguments_preview: '{"foo":"bar"}',
 						signals_tried: ["provider_name_map", "argument_shape"],

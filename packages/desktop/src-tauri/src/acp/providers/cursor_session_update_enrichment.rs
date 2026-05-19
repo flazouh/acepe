@@ -454,14 +454,14 @@ fn tool_arguments_detail_score(arguments: &ToolArguments) -> usize {
             usize::from(query.is_some()) + usize::from(description.is_some())
         }
         ToolArguments::Unclassified {
-            raw_name,
-            raw_kind_hint,
+            provider_name,
+            provider_kind_hint,
             title,
             arguments_preview,
             signals_tried,
         } => {
-            usize::from(!raw_name.is_empty())
-                + usize::from(raw_kind_hint.is_some())
+            usize::from(!provider_name.is_empty())
+                + usize::from(provider_kind_hint.is_some())
                 + usize::from(title.is_some())
                 + usize::from(arguments_preview.is_some())
                 + usize::from(!signals_tried.is_empty())

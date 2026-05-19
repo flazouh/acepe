@@ -488,14 +488,14 @@ export const TOOL_KIND_UI_REGISTRY: Record<ToolKind, ToolKindUI> = {
 			if (toolCall.arguments.kind !== "unclassified") {
 				return "Unclassified Tool";
 			}
-			return formatOtherToolName(toolCall.arguments.raw_name || toolCall.name || "tool");
+			return formatOtherToolName(toolCall.arguments.provider_name || toolCall.name || "tool");
 		},
 		subtitle: (toolCall) => {
 			if (toolCall.arguments.kind !== "unclassified") return "";
 			if (toolCall.arguments.arguments_preview) {
 				return truncateText(toolCall.arguments.arguments_preview, 50);
 			}
-			const formatted = formatOtherToolName(toolCall.arguments.raw_name || toolCall.name);
+			const formatted = formatOtherToolName(toolCall.arguments.provider_name || toolCall.name);
 			const title = toolCall.title?.trim();
 			return title && formatted === title ? "" : formatted;
 		},
