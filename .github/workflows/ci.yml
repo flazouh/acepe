@@ -309,6 +309,7 @@ jobs:
           set -o pipefail
           cargo clippy --all-targets --no-default-features -- -D warnings
           cargo test --no-default-features -- --skip claude_history::export_types
+          cargo check --no-default-features --features auto-download
 
       - name: gpui-agent-panel-poc clippy + test
         if: env.RUN_GPUI_POC == 'true'
