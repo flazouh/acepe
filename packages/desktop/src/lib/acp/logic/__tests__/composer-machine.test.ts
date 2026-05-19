@@ -56,6 +56,24 @@ describe("composer machine", () => {
 		expect(store.selectorsDisabled).toBe(true);
 	});
 
+	it("preserves missing canonical submit policy instead of coercing it to false", () => {
+		const actor = createActor(composerMachine, { input: { sessionId: "s1" } });
+		actor.start();
+		actor.send({
+			type: "SESSION_BOUND",
+			committedModeId: "build",
+			committedModelId: "m1",
+			committedAutonomousEnabled: false,
+		});
+
+		const store = deriveStoreComposerState({
+			machineSnapshot: actor.getSnapshot(),
+			sessionSubmitPolicy: null,
+		});
+
+		expect(store.canSubmit).toBeNull();
+	});
+
 	it("clears blocking on CONFIG_BLOCK_FAIL", () => {
 		const actor = createActor(composerMachine, { input: { sessionId: "s1" } });
 		actor.start();

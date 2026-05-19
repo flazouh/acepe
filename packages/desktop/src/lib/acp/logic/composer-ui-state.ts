@@ -30,7 +30,7 @@ export function getComposerPhase(
  * Store-facing composer policy shape exposed through SessionStore.
  */
 export interface StoreComposerState {
-	readonly canSubmit: boolean;
+	readonly canSubmit: boolean | null;
 	readonly isBlocked: boolean;
 	readonly isDispatching: boolean;
 	readonly selectorsDisabled: boolean;
@@ -59,8 +59,9 @@ export function deriveStoreComposerState(input: DeriveComposerStateInput): Store
 	const isDispatching = phase === "dispatching";
 	const selectorsDisabled = isBlocked || isDispatching;
 
-	const canonicalCanSubmit = input.sessionSubmitPolicy?.canSubmit ?? false;
-	const canSubmit = canonicalCanSubmit && !isBlocked && !isDispatching;
+	const canonicalCanSubmit = input.sessionSubmitPolicy?.canSubmit ?? null;
+	const canSubmit =
+		canonicalCanSubmit === null ? null : canonicalCanSubmit && !isBlocked && !isDispatching;
 
 	return {
 		canSubmit,
