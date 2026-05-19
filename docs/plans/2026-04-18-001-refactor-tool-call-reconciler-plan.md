@@ -57,7 +57,7 @@ Streaming lives inside the reconciler (same state machine, more events), not bes
 ## Requirements Trace
 
 - **R1.** `sql` tool calls (arguments containing a SQL `query` string) classify as `ToolKind::Sql` with a typed `Sql { query?, description? }` arguments variant. Regression case from session `aafd454a` must resolve to `Sql`.
-- **R2.** Tool calls that no signal claims reach the UI as `ToolKind::Unclassified` with a typed `Unclassified { raw_name, raw_kind_hint, title, signals_tried, arguments_preview }` variant — never as `Other` + `"Unknown"`.
+- **R2.** Tool calls that no signal claims reach the UI as `ToolKind::Unclassified` with a typed `Unclassified { provider_name, provider_kind_hint, title, signals_tried, arguments_preview }` variant — never as `Other` + `"Unknown"`.
 - **R3.** Classification is a single deterministic function: `reconcile(raw_event, session_state) → (SemanticToolCall, State)`. No scoring, no floats, no probabilistic tie-breaks.
 - **R4.** Streaming tool calls (`tool_call_added` → N × `tool_call_delta` → `tool_call_completed`) feed the same reconciler. The `streaming_accumulator` stops holding independent normalization logic for todos/questions — those become reconciler outputs that accumulate in state.
 - **R5.** Frontend `converted-session-types.ts` performs zero re-classification. It consumes the typed union produced by the reconciler.
@@ -121,7 +121,7 @@ None required. The ACP schema is owned by the repo; the problem is internal.
 |---|---|
 | **Deterministic precedence, no scoring.** Order is (1) explicit provider name map → (2) argument-shape classifier → (3) ACP `kind` payload hint → (4) title heuristic → (5) `Unclassified`. First match wins. | User approved this explicitly in session. Scoring is only justified when signals are genuinely ambiguous; ours are not. Precedence is debuggable, testable, and branchless at the decision level. |
 | **Argument-shape sits at priority 2, above `kind` hint.** | Providers rename tools but rarely change argument schemas. The `sql` regression is exactly this: `kind: "other"` + `name: "unknown"` + `rawInput.query: "UPDATE ..."` — argument shape is the only reliable signal. |
-| **`Unclassified` is a first-class variant, not a null hole.** It carries `raw_name`, `raw_kind_hint`, `title`, `arguments_preview`, `signals_tried: Vec<SignalName>`. | Lets the UI render an intentional fallback and gives us a diagnostic trail in the streaming log for every classification miss. Replaces the silent `Other + "Unknown"` failure mode. |
+| **`Unclassified` is a first-class variant, not a null hole.** It carries provider metadata (`provider_name`, `provider_kind_hint`), `title`, `arguments_preview`, `signals_tried: Vec<SignalName>`. | Lets the UI render an intentional fallback and gives us a diagnostic trail in the streaming log for every classification miss. Replaces the silent `Other + "Unknown"` failure mode. |
 | **`Sql` becomes a typed variant with `{ query, description? }`.** | SQL tool is first-class in at least Copilot CLI and likely others. Today it's Other + Unknown. Cost is two enum lines + a parser branch. |
 | **Single reconciler module owns all classification.** New home: `packages/desktop/src-tauri/src/acp/reconciler/`. Delete `tool_classification.rs` and `parsers/kind.rs`; provider adapters shrink to a `Reconciler` trait impl each. | Three modules → one. Eliminates the provider-knowledge leak in `kind.rs`. |
 | **Streaming is state inside the reconciler.** Each provider's `Reconciler` impl holds optional per-tool-call state; `tool_call_added` / `tool_call_delta` / `tool_call_completed` all feed it. `streaming_accumulator.rs`'s todo/question/plan normalization moves inside. | One pipeline instead of two. Non-streamed and streamed todos share a code path. |
@@ -137,7 +137,7 @@ None required. The ACP schema is owned by the repo; the problem is internal.
   **A:** Per-provider trait impl. Each provider's `Reconciler` owns its name map + any streaming quirks. Shared argument-shape/kind/title/Unclassified logic lives in a default trait method or shared helper module *without* provider strings.
 
 - **Q:** Does `Unclassified` need to carry the raw ACP payload?
-  **A:** No. Carry `raw_name`, `raw_kind_hint`, `title`, `arguments_preview` (truncated JSON, cap ~512 bytes), `signals_tried`. The full raw payload is already in `ToolCallData.raw_input` for debugging.
+  **A:** No. Carry `provider_name`, `provider_kind_hint`, `title`, `arguments_preview` (truncated JSON, cap ~512 bytes), `signals_tried`. Full provider input is diagnostic-only (`diagnostic_input` in Rust, `diagnosticRawInput` at boundary/permission metadata surfaces) and must not be part of the app-facing `ToolCall` display model.
 
 - **Q:** Should we delete `ToolKind::Other`?
   **A:** No, but narrow its role. `Other` remains only for legacy persisted sessions and explicit generic fallbacks we intentionally preserve. The new reconciler does **not** emit `Other` for classification misses; those become `Unclassified`.
@@ -223,8 +223,8 @@ fn classify(
     return (
         ToolKind::Unclassified,
         ToolArguments::Unclassified {
-            raw_name: raw.name,
-            raw_kind_hint: raw.kind_hint,
+            provider_name: raw.name,
+            provider_kind_hint: raw.kind_hint,
             title: raw.title,
             arguments_preview: preview(raw.arguments),
             signals_tried,
@@ -335,11 +335,11 @@ UI renders a SQL card with the query preview instead of a generic "Unknown" card
 **Approach:**
 - Add `ToolKind::Sql` and `ToolKind::Unclassified` with `as_str()` entries `"sql"` and `"unclassified"`.
 - Add `ToolArguments::Sql { query: Option<String>, description: Option<String> }`.
-- Add `ToolArguments::Unclassified { raw_name: String, raw_kind_hint: Option<String>, title: Option<String>, arguments_preview: Option<String>, signals_tried: Vec<String> }`. Keep `signals_tried` as `Vec<String>` for specta-friendly TS codegen; the internal Rust enum is `SignalName` and is stringified at the boundary.
+- Add `ToolArguments::Unclassified { provider_name: String, provider_kind_hint: Option<String>, title: Option<String>, arguments_preview: Option<String>, signals_tried: Vec<String> }`. Keep `signals_tried` as `Vec<String>` for specta-friendly TS codegen; the internal Rust enum is `SignalName` and is stringified at the boundary.
 - Update `ToolArguments::tool_kind()` to return `Sql` / `Unclassified` for the new variants.
 - Extend `packages/desktop/src/lib/acp/types/operation.ts` so `Operation` / `OperationKind` cover the two new variants in lockstep with `ToolArguments`.
 - Extend `canonical_name_for_kind` in `session_to_markdown.rs` so markdown export has explicit `Sql` / `Unclassified` labels while full label-authority migration remains deferred.
-- Every frontend switch on `ToolKind` or `ToolArguments.kind` gets new arms. Start with `tool-display-utils.ts`: `Sql` → "SQL", `Unclassified` → derive from `raw_name` if present else "Tool".
+- Every frontend switch on `ToolKind` or `ToolArguments.kind` gets new arms. Start with `tool-display-utils.ts`: `Sql` → "SQL", `Unclassified` → derive from `provider_name` if present else "Tool".
 - After the new variants compile, add the failing SQL regression and Unclassified tests using the committed fixture from Unit 1. This is the red step for the refactor.
 - Run `cargo check`, then `cargo test --lib session_jsonl::export_types::tests::export_types` inside `packages/desktop/src-tauri/`, then `bun run check` — every missing match arm is a compile error and a to-do list.
 
@@ -572,13 +572,13 @@ UI renders a SQL card with the query preview instead of a generic "Unknown" card
 **Dependencies:** Unit 4
 
 **Files:**
-- Modify: `packages/desktop/src-tauri/src/acp/reconciler/mod.rs` (emit `tracing::warn!` with `tool_call_id`, `agent`, `raw_name`, `signals_tried` every time `Unclassified` is produced)
+- Modify: `packages/desktop/src-tauri/src/acp/reconciler/mod.rs` (emit `tracing::warn!` with `tool_call_id`, `agent`, `provider_name`, `signals_tried` every time `Unclassified` is produced)
 - Modify: `packages/desktop/src-tauri/src/acp/streaming_log.rs` (ensure the warn surfaces in the per-session JSONL so we can triage)
 - Test: inline in `reconciler/mod.rs`
 
 **Approach:**
 - `tracing::warn!` is the minimum bar; no metrics backend in scope. The existing `streaming_log` already captures tracing events for the session, so the warn shows up in `packages/desktop/src-tauri/logs/streaming/<session>.jsonl` naturally.
-- Log payload: structured fields `agent`, `tool_call_id`, `raw_name`, `raw_kind_hint`, `title`, `signals_tried` (comma-joined string for readability).
+- Log payload: structured fields `agent`, `tool_call_id`, `provider_name`, `provider_kind_hint`, `title`, `signals_tried` (comma-joined string for readability).
 
 **Patterns to follow:**
 - Existing `tracing::debug!` in `session_update/tool_calls.rs::parse_tool_call_from_acp_with_agent` for the structured-fields shape.

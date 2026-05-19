@@ -61,7 +61,7 @@ In practice, the stable precedence is:
 2. argument-shape classification
 3. ACP kind hint
 4. title heuristic
-5. `Unclassified { raw_name, raw_kind_hint, title, arguments_preview, signals_tried }`
+5. `Unclassified { provider_name, provider_kind_hint, title, arguments_preview, signals_tried }`
 
 ## What Changed
 
@@ -97,6 +97,11 @@ When a provider emits:
 the backend already has enough evidence to classify it as SQL. If it does not, the UI is forced to guess from presentation metadata and every consumer will guess differently.
 
 A deterministic reconciler fixes that by making the ambiguity boundary explicit. Known tools become typed variants. Unknown tools become `Unclassified` with diagnostics. Nothing silently degrades into a generic `Other` blob.
+
+Current naming rule: provider-origin fields must be named as provider metadata or diagnostics.
+Use `provider_name` / `provider_kind_hint` inside `Unclassified`, and keep full provider
+input as `diagnostic_input` / `diagnosticRawInput` only at boundary or permission metadata
+surfaces. The app-facing `ToolCall` display model must not carry `diagnosticRawInput`.
 
 ## Prevention
 
