@@ -67,7 +67,7 @@ import {
 	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
-	mapCanonicalTurnStateToHotTurnState,
+	mapCanonicalTurnStateToPresentationStatus,
 	matchesWorktreeSetupContext,
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
@@ -159,8 +159,8 @@ import {
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
 
-// Canonical-to-hot turn state mapping is provided by the shared logic module
-// (mapCanonicalTurnStateToHotTurnState) imported above.
+// Canonical-to-presentation turn state mapping is provided by the shared logic module
+// (mapCanonicalTurnStateToPresentationStatus) imported above.
 
 // ✅ Destructure props - this is idiomatic Svelte 5
 let {
@@ -590,7 +590,7 @@ const sessionTurnState = $derived(
 	canonicalPanelSessionSource.kind === "missing_canonical"
 		? "error"
 		: canonicalPanelSessionSource.kind === "canonical"
-			? mapCanonicalTurnStateToHotTurnState(canonicalPanelSessionSource.turnState)
+			? mapCanonicalTurnStateToPresentationStatus(canonicalPanelSessionSource.turnState)
 			: "idle"
 );
 const entriesCount = $derived(knownVisibleEntryCount);

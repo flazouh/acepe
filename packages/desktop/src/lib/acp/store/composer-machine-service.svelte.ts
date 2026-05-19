@@ -70,7 +70,7 @@ export class ComposerMachineService {
 	}
 
 	/**
-	 * Re-seeds committed config from canonical hot state and clears ephemeral composer state.
+	 * Re-seeds committed config from canonical session projection and clears ephemeral composer state.
 	 * Call when the composer binds to a session (including reopen / panel switch).
 	 * Skipped while dispatching so an in-flight send is not torn down by SESSION_BOUND.
 	 */

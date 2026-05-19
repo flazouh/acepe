@@ -12,7 +12,7 @@ import type { PermissionRequest } from "../../types/permission.js";
 import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
-import { mapCanonicalTurnStateToHotTurnState } from "../../store/canonical-turn-state-mapping.js";
+import { mapCanonicalTurnStateToPresentationStatus } from "../../store/canonical-turn-state-mapping.js";
 import { extractCompactPermissionDisplay } from "./permission-display.js";
 import { useTheme } from "../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
@@ -119,7 +119,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 
 		{#snippet editPreview()}
 			{#if showEditPreview && currentToolCall}
-				{@const mappedTurnState = effectiveTurnState !== null ? mapCanonicalTurnStateToHotTurnState(effectiveTurnState) : undefined}
+				{@const mappedTurnState = effectiveTurnState !== null ? mapCanonicalTurnStateToPresentationStatus(effectiveTurnState) : undefined}
 				{@const sceneEntry = mapToolCallToSceneEntry(currentToolCall, mappedTurnState, false, null)}
 				{#if sceneEntry.type === "tool_call" && sceneEntry.editDiffs !== undefined}
 					<AgentToolEdit

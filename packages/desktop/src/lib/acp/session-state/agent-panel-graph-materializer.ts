@@ -25,7 +25,7 @@ import {
 	mapSessionEntryToConversationEntry,
 	mapToolCallToSceneEntry,
 } from "../components/agent-panel/scene/desktop-agent-panel-scene.js";
-import { mapCanonicalTurnStateToHotTurnState } from "../store/canonical-turn-state-mapping.js";
+import { mapCanonicalTurnStateToPresentationStatus } from "../store/canonical-turn-state-mapping.js";
 import { normalizeToolResult } from "../store/services/tool-result-normalizer.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
@@ -458,7 +458,7 @@ function materializeOperationEntry(
 	const presentationState = state === "degraded" ? "degraded_operation" : "resolved";
 	const mapped = mapToolCallToSceneEntry(
 		toolCall,
-		mapCanonicalTurnStateToHotTurnState(graph.turnState),
+		mapCanonicalTurnStateToPresentationStatus(graph.turnState),
 		false,
 		{
 			canonicalStatus: mapOperationStateToToolPresentationStatus(state),

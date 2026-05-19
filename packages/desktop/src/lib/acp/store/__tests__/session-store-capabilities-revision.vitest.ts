@@ -218,7 +218,7 @@ describe("SessionStore capability revision handling", () => {
 		});
 	});
 
-	it("projects pending capability envelopes into canonical hot state", () => {
+	it("projects pending capability envelopes into canonical session projection", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		seedProjection(store, createRevision(7), createCapabilities("build", "gpt-4.1"));

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentPanelStatePanel } from "@acepe/ui/agent-panel";
 import { LoadingIcon } from "@acepe/ui/icons";
-import { mapCanonicalTurnStateToHotTurnState } from "../logic";
+import { mapCanonicalTurnStateToPresentationStatus } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import {
 	deriveLiveSessionWorkProjection,
@@ -94,7 +94,7 @@ const turnState = $derived<TurnState>(
 	liveSessionSource.kind === "missing_canonical"
 		? "error"
 		: liveSessionSource.kind === "canonical"
-			? mapCanonicalTurnStateToHotTurnState(liveSessionSource.projection.turnState)
+			? mapCanonicalTurnStateToPresentationStatus(liveSessionSource.projection.turnState)
 			: "idle"
 );
 const isStreaming = $derived(turnState === "streaming");

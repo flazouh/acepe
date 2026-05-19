@@ -5,7 +5,7 @@
  * All functions use neverthrow Result types for error handling.
  */
 
-export { mapCanonicalTurnStateToHotTurnState } from "../../../store/canonical-turn-state-mapping";
+export { mapCanonicalTurnStateToPresentationStatus } from "../../../store/canonical-turn-state-mapping";
 export { copyCanonicalSessionToClipboard, copyTextToClipboard } from "./clipboard-manager";
 export { derivePanelErrorInfo } from "./connection-ui";
 export { resolveEffectiveProjectPath } from "./effective-project-path";
