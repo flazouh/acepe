@@ -12,11 +12,9 @@
  */
 
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
-import {
-	type ModelsForDisplay,
-	normalizeModelsForDisplay,
-	type ProviderMetadataProjection,
-	resolveProviderMetadataProjection,
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
 } from "../../../services/acp-provider-metadata.js";
 import type {
 	SessionModelState as AcpSessionModelState,
@@ -161,13 +159,6 @@ export class SessionConnectionManager {
 		return modeId === CanonicalModeId.BUILD;
 	}
 
-	private resolveProviderMetadata(
-		agentId: string,
-		providerMetadata: ProviderMetadataProjection | null | undefined
-	): ProviderMetadataProjection {
-		return resolveProviderMetadataProjection(agentId, providerMetadata, agentId);
-	}
-
 	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
 		return api.setSessionAutonomous(sessionId, enabled);
 	}
@@ -205,7 +196,7 @@ export class SessionConnectionManager {
 		availableModels: readonly Model[],
 		currentModelId: string,
 		modelsDisplay: ModelsForDisplay | null | undefined,
-		providerMetadata: ProviderMetadataProjection
+		providerMetadata: ProviderMetadataProjection | null | undefined
 	): Model | null {
 		if (!modelsDisplay || modelsDisplay.groups.length === 0) {
 			return null;
@@ -215,7 +206,7 @@ export class SessionConnectionManager {
 			modelsDisplay.groups.find((group) =>
 				this.matchesDisplayGroupIdentity(group, currentModelId)
 			) ??
-			(providerMetadata.variantGroup === "reasoningEffort" && modelsDisplay.groups.length === 1
+			(providerMetadata?.variantGroup === "reasoningEffort" && modelsDisplay.groups.length === 1
 				? modelsDisplay.groups[0]
 				: null);
 
@@ -252,7 +243,6 @@ export class SessionConnectionManager {
 	 * Some agents return a base model ID while available models include variant suffixes.
 	 */
 	private resolveCurrentModel(
-		agentId: string,
 		availableModels: readonly Model[],
 		currentModelId: string | null | undefined,
 		modelsDisplay: ModelsForDisplay | null | undefined,
@@ -268,12 +258,11 @@ export class SessionConnectionManager {
 				return exact;
 			}
 
-			const resolvedProviderMetadata = this.resolveProviderMetadata(agentId, providerMetadata);
 			const groupedVariant = this.resolveModelFromDisplayGroup(
 				availableModels,
 				currentModelId,
 				modelsDisplay,
-				resolvedProviderMetadata
+				providerMetadata
 			);
 			if (groupedVariant) {
 				return groupedVariant;
@@ -331,10 +320,7 @@ export class SessionConnectionManager {
 					const modelState = getProviderAwareSessionModelState(result.models);
 					const rawModels = modelState.availableModels;
 					const rawProviderMetadata = modelState.providerMetadata;
-					const providerMetadata = this.resolveProviderMetadata(
-						options.agentId,
-						rawProviderMetadata
-					);
+					const providerMetadata = rawProviderMetadata ?? undefined;
 					const availableModels: Model[] =
 						rawModels === undefined
 							? []
@@ -352,13 +338,7 @@ export class SessionConnectionManager {
 									name: m.name,
 									description: m.description ?? undefined,
 								}));
-					const modelsDisplay =
-						normalizeModelsForDisplay(
-							options.agentId,
-							modelState.modelsDisplay,
-							options.agentId,
-							providerMetadata
-						) ?? undefined;
+					const modelsDisplay = modelState.modelsDisplay ?? undefined;
 
 					if (rawModels !== undefined) {
 						preferencesStore.updateModelsCache(options.agentId, availableModels);
@@ -396,14 +376,8 @@ export class SessionConnectionManager {
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
 				} = modelState;
-				const providerMetadata = this.resolveProviderMetadata(options.agentId, rawProviderMetadata);
-				const modelsDisplay =
-					normalizeModelsForDisplay(
-						options.agentId,
-						rawModelsDisplay,
-						options.agentId,
-						providerMetadata
-					) ?? undefined;
+				const providerMetadata = rawProviderMetadata ?? undefined;
+				const modelsDisplay = rawModelsDisplay ?? undefined;
 
 				const rawModes = result.modes?.availableModes;
 				const availableModes: Mode[] =
@@ -425,7 +399,6 @@ export class SessionConnectionManager {
 							}));
 				let currentMode = availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
 				let currentModel = this.resolveCurrentModel(
-					options.agentId,
 					availableModels,
 					currentModelId,
 					modelsDisplay,
@@ -784,17 +757,8 @@ export class SessionConnectionManager {
 			modelsDisplay: rawModelsDisplay,
 			providerMetadata: rawProviderMetadata,
 		} = modelState;
-		const providerMetadata = this.resolveProviderMetadata(
-			effectiveAgentId,
-			rawProviderMetadata as ProviderMetadataProjection | undefined
-		);
-		const modelsDisplay =
-			normalizeModelsForDisplay(
-				effectiveAgentId,
-				rawModelsDisplay as ModelsForDisplay | undefined,
-				effectiveAgentId,
-				providerMetadata
-			) ?? undefined;
+		const providerMetadata = rawProviderMetadata ?? undefined;
+		const modelsDisplay = rawModelsDisplay ?? undefined;
 
 		const rawModes = data.modes?.availableModes;
 		const availableModes: Mode[] =
@@ -815,7 +779,6 @@ export class SessionConnectionManager {
 						description: m.description ?? undefined,
 					}));
 		const initialModel = this.resolveCurrentModel(
-			effectiveAgentId,
 			availableModels,
 			currentModelId,
 			modelsDisplay,

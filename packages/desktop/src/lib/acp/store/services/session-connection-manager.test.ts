@@ -5,6 +5,7 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
+import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
@@ -583,12 +584,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
-			"custom-agent",
-			expect.objectContaining({
-				displayName: "custom-agent",
-			})
-		);
+		expect(updateProviderMetadataCache).toHaveBeenCalledWith("custom-agent", undefined);
 		expect(getCachedProviderMetadata).not.toHaveBeenCalled();
 	});
 
@@ -720,23 +716,16 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
 			"claude-code",
-			expect.objectContaining({
-				presentation: expect.objectContaining({
-					provider: expect.objectContaining({
-						providerBrand: "claude-code",
-					}),
-				}),
-			}),
-			expect.objectContaining({
-				providerBrand: "claude-code",
-			})
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "claudeLike",
+					usageMetrics: "contextWindowOnly",
+				},
+			},
+			undefined
 		);
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith(
-			"claude-code",
-			expect.objectContaining({
-				providerBrand: "claude-code",
-			})
-		);
+		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "build", name: "Build", description: undefined },
 		]);
@@ -868,7 +857,19 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
 	});
 
-	it("hydrates provider metadata into model display caches on connect", async () => {
+	it("passes backend provider metadata into model display caches on connect", async () => {
+		const providerMetadata = {
+			providerBrand: "codex",
+			displayName: "Codex",
+			displayOrder: 50,
+			supportsModelDefaults: true,
+			variantGroup: "reasoningEffort",
+			defaultAlias: undefined,
+			reasoningEffortSupport: true,
+			preconnectionSlashMode: "startupGlobal",
+			preconnectionCapabilityMode: "startupGlobal",
+			implicitSessionCreationMode: "allowed",
+		} satisfies ProviderMetadataProjection;
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			...baseSession,
 			agentId: "codex",
@@ -894,7 +895,8 @@ describe("SessionConnectionManager.connectSession", () => {
 						usageMetrics: "spendAndContext",
 					},
 				},
-			},
+				providerMetadata,
+			} as SessionModelState & { providerMetadata: ProviderMetadataProjection },
 			availableCommands: [],
 		});
 
@@ -912,21 +914,14 @@ describe("SessionConnectionManager.connectSession", () => {
 
 		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
 			"codex",
-			expect.objectContaining({
-				presentation: expect.objectContaining({
-					provider: expect.objectContaining({
-						providerBrand: "codex",
-						displayName: "Codex",
-						displayOrder: 50,
-						supportsModelDefaults: true,
-						variantGroup: "reasoningEffort",
-						reasoningEffortSupport: true,
-					}),
-				}),
-			}),
-			expect.objectContaining({
-				providerBrand: "codex",
-			})
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "providerGrouped",
+					usageMetrics: "spendAndContext",
+				},
+			},
+			providerMetadata
 		);
 	});
 
