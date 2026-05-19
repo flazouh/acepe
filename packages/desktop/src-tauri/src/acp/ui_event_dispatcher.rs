@@ -2706,7 +2706,7 @@ mod tests {
                             segment,
                             ..
                         } => {
-                            assert_eq!(entry_id, "assistant-1");
+                            assert_eq!(entry_id, "assistant-event-1");
                             match segment {
                                 crate::acp::transcript_projection::TranscriptSegment::Text {
                                     text,
