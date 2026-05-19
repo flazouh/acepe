@@ -207,6 +207,19 @@ describe("classifyThreadBoardStatus", () => {
 });
 
 describe("buildThreadBoard", () => {
+	it("preserves unknown autonomous capability on board items", () => {
+		const groups = buildThreadBoard([
+			makeSource({
+				sessionId: "session-unknown-autonomous",
+				autonomousEnabled: null,
+			}),
+		]);
+		const items = groups.flatMap((group) => group.items);
+
+		expect(items).toHaveLength(1);
+		expect(items[0]?.autonomousEnabled).toBeNull();
+	});
+
 	it("emits stable groups in board order", () => {
 		const groups = buildThreadBoard([
 			makeSource({
