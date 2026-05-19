@@ -159,12 +159,14 @@ impl TranscriptEntry {
                 timestamp_ms: timestamp.as_deref().and_then(parse_timestamp_to_millis),
             }),
             StoredEntry::ToolCall {
-                message, timestamp, ..
+                id,
+                message,
+                timestamp,
             } => {
                 if should_skip_unanswered_historical_question_tool(message) {
                     return None;
                 }
-                let entry_id = normalize_tool_call_id(&message.id);
+                let entry_id = normalize_tool_call_id(id);
                 Some(Self {
                     entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Tool,
@@ -504,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    fn transcript_snapshot_uses_provider_tool_call_id_for_tool_row_identity() {
+    fn transcript_snapshot_uses_stored_tool_entry_id_for_tool_row_identity() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
             4,
             &[StoredEntry::ToolCall {
@@ -537,18 +539,18 @@ mod tests {
         );
 
         assert_eq!(snapshot.entries.len(), 1);
-        assert_eq!(snapshot.entries[0].entry_id, "provider-tool-id");
+        assert_eq!(snapshot.entries[0].entry_id, "jsonl-event-id");
         assert_eq!(
             snapshot.entries[0].segments,
             vec![TranscriptSegment::Text {
-                segment_id: "provider-tool-id:tool".to_string(),
+                segment_id: "jsonl-event-id:tool".to_string(),
                 text: "Read file".to_string(),
             }]
         );
     }
 
     #[test]
-    fn transcript_snapshot_deduplicates_tool_rows_by_provider_tool_call_id() {
+    fn transcript_snapshot_keeps_distinct_tool_rows_with_same_provider_tool_call_id() {
         let snapshot = TranscriptSnapshot::from_stored_entries(
             5,
             &[
@@ -609,15 +611,9 @@ mod tests {
             ],
         );
 
-        assert_eq!(snapshot.entries.len(), 1);
-        assert_eq!(snapshot.entries[0].entry_id, "provider-tool-id");
-        assert_eq!(
-            snapshot.entries[0].segments,
-            vec![TranscriptSegment::Text {
-                segment_id: "provider-tool-id:tool".to_string(),
-                text: "Read file".to_string(),
-            }]
-        );
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[0].entry_id, "jsonl-event-a");
+        assert_eq!(snapshot.entries[1].entry_id, "jsonl-event-b");
     }
 
     #[test]
