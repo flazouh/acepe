@@ -802,8 +802,8 @@ export class SessionConnectionManager {
 	 * The subprocess cleanup is fire-and-forget to avoid blocking the UI.
 	 */
 	disconnectSession(sessionId: string): void {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) return;
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) return;
 		this.pendingConnections.delete(sessionId);
 
 		// Disconnect in state machine
@@ -841,8 +841,8 @@ export class SessionConnectionManager {
 	 * Also tracks the model choice per mode for this session.
 	 */
 	setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
@@ -858,7 +858,7 @@ export class SessionConnectionManager {
 		}
 
 		return api
-			.setModel(session.id, modelId)
+			.setModel(sessionIdentity.id, modelId)
 			.map(() => {
 				logger.debug("Model set successfully", { sessionId, modelId });
 				return undefined;
@@ -881,8 +881,8 @@ export class SessionConnectionManager {
 	 * 3. Update per-mode model memory
 	 */
 	setMode(sessionId: string, modeId: string): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
@@ -902,7 +902,7 @@ export class SessionConnectionManager {
 				: oldAutonomousEnabled && this.supportsAutonomousMode(newMode ? newMode.id : undefined);
 		logger.debug("Setting mode", { sessionId, modeId });
 
-		const applyMode = api.setMode(session.id, modeId);
+		const applyMode = api.setMode(sessionIdentity.id, modeId);
 
 		return applyMode
 			.andThen(() => {
@@ -912,7 +912,7 @@ export class SessionConnectionManager {
 					oldAutonomousEnabled !== nextAutonomousEnabled
 						? nextAutonomousEnabled === null
 							? okAsync(undefined)
-							: this.setSessionAutonomous(session.id, nextAutonomousEnabled)
+							: this.setSessionAutonomous(sessionIdentity.id, nextAutonomousEnabled)
 						: okAsync(undefined);
 
 				return syncAutonomousPolicy;
@@ -946,7 +946,7 @@ export class SessionConnectionManager {
 
 				// No previous choice, check for default model for this mode
 				const modeType = this.getModeType(modeId);
-				const defaultModelId = preferencesStore.getDefaultModel(session.agentId, modeType);
+				const defaultModelId = preferencesStore.getDefaultModel(sessionIdentity.agentId, modeType);
 				if (
 					defaultModelId &&
 					availableModels.some((m) => m.id === defaultModelId) === true
@@ -973,8 +973,8 @@ export class SessionConnectionManager {
 		enabled: boolean,
 		eventHandler?: SessionEventHandler
 	): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 
@@ -1002,7 +1002,6 @@ export class SessionConnectionManager {
 			return new AgentError("setAutonomousEnabled", error instanceof Error ? error : undefined);
 		};
 
-		void session;
 		void eventHandler;
 
 		this.transientProjectionManager.updateTransientProjection(sessionId, {
@@ -1016,8 +1015,8 @@ export class SessionConnectionManager {
 	 * Set a configuration option for a session.
 	 */
 	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
@@ -1027,7 +1026,7 @@ export class SessionConnectionManager {
 		logger.debug("Setting config option", { sessionId, configId, value });
 
 		return api
-			.setConfigOption(session.id, configId, value)
+			.setConfigOption(sessionIdentity.id, configId, value)
 			.map(() => {
 				logger.debug("Config option set successfully", { sessionId, configId });
 			})
@@ -1045,8 +1044,8 @@ export class SessionConnectionManager {
 	 * Cancel streaming for a session.
 	 */
 	cancelStreaming(sessionId: string): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		// Cancellation only requires an active WebSocket connection — canSend is false
@@ -1056,7 +1055,7 @@ export class SessionConnectionManager {
 		}
 
 		return api
-			.stopStreaming(session.id)
+			.stopStreaming(sessionIdentity.id)
 			.map(() => {
 				// Transition machine STREAMING -> READY for machine-backed selectors.
 				this.connectionManager.sendResponseComplete(sessionId);

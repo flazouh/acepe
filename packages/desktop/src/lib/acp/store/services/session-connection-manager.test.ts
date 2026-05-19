@@ -1997,6 +1997,19 @@ describe("SessionConnectionManager autonomous policy", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: connectedSession.id,
+			projectPath: connectedSession.projectPath,
+			agentId: connectedSession.agentId,
+			worktreePath: connectedSession.worktreePath,
+		});
+		(stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
+			title: connectedSession.title,
+			createdAt: connectedSession.createdAt,
+			updatedAt: connectedSession.updatedAt,
+			sourcePath: connectedSession.sourcePath,
+			parentId: connectedSession.parentId,
+		});
 		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue("ready");
@@ -2472,6 +2485,19 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(connectedSession);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: connectedSession.id,
+			projectPath: connectedSession.projectPath,
+			agentId: connectedSession.agentId,
+			worktreePath: connectedSession.worktreePath,
+		});
+		(stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
+			title: connectedSession.title,
+			createdAt: connectedSession.createdAt,
+			updatedAt: connectedSession.updatedAt,
+			sourcePath: connectedSession.sourcePath,
+			parentId: connectedSession.parentId,
+		});
 		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(
 			"activating"
