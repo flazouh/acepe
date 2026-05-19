@@ -13,7 +13,8 @@ type SessionOpenStore = Pick<
 	| "setSessionLoading"
 	| "setSessionLoaded"
 	| "setLocalCreatedSessionLoaded"
-	| "getSessionCold"
+	| "getSessionIdentity"
+	| "getSessionMetadata"
 	| "connectSession"
 	| "clearSessionEntries"
 >;
@@ -42,8 +43,10 @@ interface HydratedReconnectOptions {
 	readonly sessionStore: SessionOpenStore;
 }
 
-function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
-	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
+function isProviderHistoryBackedSession(
+	sessionMetadata: NonNullable<ReturnType<SessionOpenStore["getSessionMetadata"]>>
+): boolean {
+	return sessionMetadata.sessionLifecycleState !== "created" || Boolean(sessionMetadata.sourcePath);
 }
 
 function reattachLocalCreatedSession(input: {
@@ -122,8 +125,9 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		return;
 	}
 
-	const session = sessionStore.getSessionCold(sessionId);
-	if (!session) {
+	const sessionIdentity = sessionStore.getSessionIdentity(sessionId);
+	const sessionMetadata = sessionStore.getSessionMetadata(sessionId);
+	if (!sessionIdentity || !sessionMetadata) {
 		logger.warn("Cannot open session because metadata is missing", {
 			source,
 			panelId,
@@ -132,10 +136,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		return;
 	}
 
-	const shouldAttemptLocalReattach = !isProviderHistoryBackedSession(session);
+	const shouldAttemptLocalReattach = !isProviderHistoryBackedSession(sessionMetadata);
 
 	inflightPanelIds.add(panelId);
-	if (isProviderHistoryBackedSession(session)) {
+	if (isProviderHistoryBackedSession(sessionMetadata)) {
 		sessionStore.clearSessionEntries(sessionId);
 	}
 	sessionStore.setSessionLoading(sessionId);
@@ -149,9 +153,9 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 
 	const openPromise = getSessionOpenResult(
 		sessionId,
-		session.projectPath,
-		session.agentId,
-		session.sourcePath
+		sessionIdentity.projectPath,
+		sessionIdentity.agentId,
+		sessionMetadata.sourcePath
 	)
 		.andThen((result) => {
 			if (result.outcome === "missing") {
@@ -169,7 +173,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						panelId,
 						sessionId,
 						sessionStore,
-						agentId: session.agentId,
+						agentId: sessionIdentity.agentId,
 					});
 				}
 				sessionStore.setSessionLoaded(sessionId);
@@ -196,7 +200,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						panelId,
 						sessionId,
 						sessionStore,
-						agentId: session.agentId,
+						agentId: sessionIdentity.agentId,
 					});
 				}
 				sessionStore.setSessionLoaded(sessionId);
@@ -231,7 +235,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						source,
 						panelId,
 						sessionId,
-						agentId: session.agentId,
+						agentId: sessionIdentity.agentId,
 						error,
 					});
 					return reattachLocalCreatedSession({
@@ -239,7 +243,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 						panelId,
 						sessionId,
 						sessionStore,
-						agentId: session.agentId,
+						agentId: sessionIdentity.agentId,
 					}).match(
 						() => undefined,
 						() => undefined

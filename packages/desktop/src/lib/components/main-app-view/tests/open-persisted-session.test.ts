@@ -16,6 +16,8 @@ type SessionOpenStore = Pick<
 	| "setSessionLoaded"
 	| "setLocalCreatedSessionLoaded"
 	| "getSessionCold"
+	| "getSessionIdentity"
+	| "getSessionMetadata"
 	| "connectSession"
 	| "clearSessionEntries"
 >;
@@ -26,9 +28,40 @@ type SessionOpenHydratorLike = Pick<
 >;
 type ExistingSession = NonNullable<ReturnType<SessionOpenStore["getSessionCold"]>>;
 
+interface TestSessionLookup {
+	readonly id: string;
+	readonly title: string | null;
+	readonly projectPath: string;
+	readonly agentId: string;
+	readonly sourcePath?: string;
+	readonly worktreePath?: string;
+	readonly createdAt: Date;
+	readonly updatedAt: Date;
+	readonly parentId: string | null;
+	readonly sessionLifecycleState?: "created" | "persisted";
+}
+
 describe("openPersistedSession", () => {
 	let sessionStore: SessionOpenStore;
 	let sessionOpenHydrator: SessionOpenHydratorLike;
+
+	function setSessionLookup(session: TestSessionLookup): void {
+		sessionStore.getSessionCold = mock(() => session);
+		sessionStore.getSessionIdentity = mock(() => ({
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: session.worktreePath,
+		}));
+		sessionStore.getSessionMetadata = mock(() => ({
+			title: session.title,
+			createdAt: session.createdAt,
+			updatedAt: session.updatedAt,
+			sourcePath: session.sourcePath,
+			sessionLifecycleState: session.sessionLifecycleState,
+			parentId: session.parentId,
+		}));
+	}
 
 	beforeEach(async () => {
 		({
@@ -45,17 +78,20 @@ describe("openPersistedSession", () => {
 			setLocalCreatedSessionLoaded: mock(() => {}),
 			clearSessionEntries: mock(() => {}),
 			connectSession: mock(() => okAsync({} as any)),
-			getSessionCold: mock(() => ({
-				id: "session-1",
-				title: "Session 1",
-				projectPath: "/project",
-				agentId: "claude-code",
-				sourcePath: "/tmp/session-1.jsonl",
-				createdAt: new Date(),
-				updatedAt: new Date(),
-				parentId: null,
-			})),
+			getSessionCold: mock(() => null),
+			getSessionIdentity: mock(() => undefined),
+			getSessionMetadata: mock(() => undefined),
 		} as unknown as SessionOpenStore;
+		setSessionLookup({
+			id: "session-1",
+			title: "Session 1",
+			projectPath: "/project",
+			agentId: "claude-code",
+			sourcePath: "/tmp/session-1.jsonl",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			parentId: null,
+		});
 
 		sessionOpenHydrator = {
 			beginAttempt: mock(() => "request-1"),
@@ -256,7 +292,7 @@ describe("openPersistedSession", () => {
 				});
 			};
 			sessionStore.connectSession = mock(connectSession);
-			sessionStore.getSessionCold = mock(() => ({
+			setSessionLookup({
 				id: sessionId,
 				title: "Session",
 				projectPath: "/project",
@@ -265,7 +301,7 @@ describe("openPersistedSession", () => {
 				createdAt: new Date(),
 				updatedAt: new Date(),
 				parentId: null,
-			}));
+			});
 			sessionOpenHydrator.beginAttempt = mock(() => `request-${sessionId}`);
 			sessionOpenHydrator.hydrateFound = mock(() => {
 				callOrder.push(`hydrate:${sessionId}`);
@@ -432,7 +468,7 @@ describe("openPersistedSession", () => {
 		const requestedId = "alias-provider-session";
 		const canonicalId = "acepe-canonical-uuid";
 
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: requestedId,
 			title: "Aliased session",
 			projectPath: "/project",
@@ -441,7 +477,7 @@ describe("openPersistedSession", () => {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			parentId: null,
-		}));
+		});
 		getSessionOpenResultMock.mockImplementation(() =>
 			okAsync(
 				createFoundResult(requestedId, {
@@ -527,7 +563,7 @@ describe("openPersistedSession", () => {
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
 		);
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: "session-1",
 			title: "Session 1",
 			projectPath: "/project",
@@ -536,7 +572,7 @@ describe("openPersistedSession", () => {
 			updatedAt: new Date(),
 			sessionLifecycleState: "created" as const,
 			parentId: null,
-		}));
+		});
 
 		openPersistedSession({
 			panelId: "panel-1",
@@ -564,7 +600,7 @@ describe("openPersistedSession", () => {
 					typeof getSessionOpenResultMock
 				>
 		);
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: "session-1",
 			title: "Session 1",
 			projectPath: "/project",
@@ -573,7 +609,7 @@ describe("openPersistedSession", () => {
 			updatedAt: new Date(),
 			sessionLifecycleState: "created" as const,
 			parentId: null,
-		}));
+		});
 
 		openPersistedSession({
 			panelId: "panel-1",
@@ -594,7 +630,7 @@ describe("openPersistedSession", () => {
 	});
 
 	it("hydrates local-created sessions when Rust can open a canonical snapshot", async () => {
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: "session-1",
 			title: "Session 1",
 			projectPath: "/project",
@@ -603,7 +639,7 @@ describe("openPersistedSession", () => {
 			updatedAt: new Date(),
 			sessionLifecycleState: "created" as const,
 			parentId: null,
-		}));
+		});
 
 		openPersistedSession({
 			panelId: "panel-1",
@@ -638,7 +674,7 @@ describe("openPersistedSession", () => {
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
 		);
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: "session-1",
 			title: "Session 1",
 			projectPath: "/project",
@@ -647,7 +683,7 @@ describe("openPersistedSession", () => {
 			updatedAt: new Date(),
 			sessionLifecycleState: "created" as const,
 			parentId: null,
-		}));
+		});
 		sessionStore.connectSession = mock(() =>
 			errAsync(new ConnectionError("session-1", new Error("Resource not found: Session session-1")))
 		);
@@ -739,7 +775,7 @@ describe("openPersistedSession", () => {
 	it("does not synthesize Cursor-specific copy for legacy store.db history sessions", async () => {
 		// GOD: agent-specific copy lives in TS failure-copy mapper (Unit 5),
 		// keyed on (agentId, lifecycle.failureReason) — never synthesized here.
-		sessionStore.getSessionCold = mock(() => ({
+		setSessionLookup({
 			id: "session-1",
 			title: "Cursor Session",
 			projectPath: "/project",
@@ -748,7 +784,7 @@ describe("openPersistedSession", () => {
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			parentId: null,
-		}));
+		});
 		getSessionOpenResultMock.mockImplementation(
 			() =>
 				okAsync({
