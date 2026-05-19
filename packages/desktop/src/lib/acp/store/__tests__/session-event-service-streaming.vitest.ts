@@ -1440,6 +1440,66 @@ describe("SessionEventService streaming delta handling", () => {
 		});
 	});
 
+	it("preserves missing command and config capability lists in connection materialization", async () => {
+		const connectedHandler = createMockHandler();
+		const { promise } = service.waitForConnectionMaterialization(
+			"session-ready-unknown-lists",
+			5000
+		);
+
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ready-unknown-lists",
+				graphRevision: 8,
+				lastEventSeq: 8,
+				payload: {
+					kind: "capabilities",
+					capabilities: {
+						models: {
+							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+							currentModelId: "claude-sonnet-4.6",
+						},
+						modes: {
+							currentModeId: "build",
+							availableModes: [{ id: "build", name: "Build", description: null }],
+						},
+						autonomousEnabled: true,
+					},
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 3,
+						lastEventSeq: 8,
+					},
+					pending_mutation_id: null,
+					preview_state: "canonical",
+				},
+			},
+			connectedHandler
+		);
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ready-unknown-lists",
+				graphRevision: 8,
+				lastEventSeq: 8,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 3,
+						lastEventSeq: 8,
+					},
+				},
+			},
+			connectedHandler
+		);
+
+		await expect(promise).resolves.toMatchObject({
+			availableCommands: null,
+			configOptions: null,
+		});
+	});
+
 	it("does not infer current mode from configOptionUpdate", () => {
 		const update: SessionUpdate = {
 			type: "configOptionUpdate",

@@ -78,8 +78,8 @@ export interface ConnectionCompleteData {
 		currentModeId?: string;
 		availableModes?: Array<{ id: string; name: string; description?: string | null }>;
 	};
-	availableCommands: AvailableCommand[];
-	configOptions: ConfigOptionData[];
+	availableCommands: AvailableCommand[] | null;
+	configOptions: ConfigOptionData[] | null;
 	autonomousEnabled: boolean | null;
 }
 
@@ -93,8 +93,8 @@ function materializedConnectionData(
 	return {
 		models: capabilities.models,
 		modes: capabilities.modes,
-		availableCommands: capabilities.availableCommands ?? [],
-		configOptions: capabilities.configOptions ?? [],
+		availableCommands: capabilities.availableCommands ?? null,
+		configOptions: capabilities.configOptions ?? null,
 		autonomousEnabled: capabilities.autonomousEnabled ?? null,
 	};
 }

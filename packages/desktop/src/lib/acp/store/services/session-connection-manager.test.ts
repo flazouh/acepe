@@ -200,15 +200,15 @@ function mockResumeWithLifecycleEvent(responseData: {
 		availableModes: Array<{ id: string; name: string; description: string | null }>;
 	};
 	models: SessionModelState;
-	availableCommands?: AvailableCommand[];
-	configOptions?: ConfigOptionData[];
+	availableCommands?: AvailableCommand[] | null;
+	configOptions?: ConfigOptionData[] | null;
 	autonomousEnabled?: boolean | null;
 }) {
 	nextLifecycleResult = {
 		models: responseData.models,
 		modes: responseData.modes,
-		availableCommands: responseData.availableCommands ?? [],
-		configOptions: responseData.configOptions ?? [],
+		availableCommands: responseData.availableCommands ?? null,
+		configOptions: responseData.configOptions ?? null,
 		autonomousEnabled: responseData.autonomousEnabled ?? null,
 	};
 	resumeSession.mockReturnValue(okAsync(undefined));
