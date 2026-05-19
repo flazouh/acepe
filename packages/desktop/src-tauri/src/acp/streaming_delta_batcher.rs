@@ -45,7 +45,7 @@ struct ToolDeltaParams {
 
 /// Accumulated delta for a single tool call.
 struct DeltaBuffer {
-    session_id: String,
+    session_id: Option<String>,
     accumulated: String,
     first_received: Instant,
     last_accessed: Instant,
@@ -61,7 +61,7 @@ struct DeltaBuffer {
 
 /// Accumulated text for a message chunk stream.
 struct MessageChunkBuffer {
-    session_id: String,
+    session_id: Option<String>,
     message_id: Option<String>,
     part_id: Option<String>,
     is_thought: bool,
@@ -78,7 +78,7 @@ struct MessageChunkBuffer {
 /// streams causes garbled text (words from different parts concatenated).
 #[derive(Hash, Eq, PartialEq, Clone)]
 struct MessageChunkKey {
-    session_id: String,
+    session_id: Option<String>,
     message_id: Option<String>,
     part_id: Option<String>,
     is_thought: bool,
@@ -163,7 +163,7 @@ impl StreamingDeltaBatcher {
             } => {
                 if let ContentBlock::Text { text } = &chunk.content {
                     return self.buffer_message_chunk(
-                        session_id.clone().unwrap_or_default(),
+                        session_id.clone(),
                         message_id.clone(),
                         part_id.clone(),
                         false, // not a thought
@@ -183,7 +183,7 @@ impl StreamingDeltaBatcher {
             } => {
                 if let ContentBlock::Text { text } = &chunk.content {
                     return self.buffer_message_chunk(
-                        session_id.clone().unwrap_or_default(),
+                        session_id.clone(),
                         message_id.clone(),
                         part_id.clone(),
                         true, // is a thought
@@ -215,7 +215,7 @@ impl StreamingDeltaBatcher {
             .delta_buffers
             .entry(params.tool_call_id.clone())
             .or_insert_with(|| DeltaBuffer {
-                session_id: params.session_id.clone().unwrap_or_default(),
+                session_id: params.session_id.clone(),
                 accumulated: String::with_capacity(INITIAL_BUFFER_CAPACITY),
                 first_received: now,
                 last_accessed: now,
@@ -261,7 +261,7 @@ impl StreamingDeltaBatcher {
     /// Buffer a message/thought chunk.
     fn buffer_message_chunk(
         &mut self,
-        session_id: String,
+        session_id: Option<String>,
         message_id: Option<String>,
         part_id: Option<String>,
         is_thought: bool,
@@ -348,7 +348,7 @@ impl StreamingDeltaBatcher {
                         arguments: None,
                         failure_reason: None,
                     },
-                    session_id: Some(buffer.session_id),
+                    session_id: buffer.session_id,
                 }];
             }
         }
@@ -371,14 +371,14 @@ impl StreamingDeltaBatcher {
                         chunk,
                         part_id: buffer.part_id,
                         message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
+                        session_id: buffer.session_id,
                     }];
                 } else {
                     return vec![SessionUpdate::AgentMessageChunk {
                         chunk,
                         part_id: buffer.part_id,
                         message_id: buffer.message_id,
-                        session_id: Some(buffer.session_id),
+                        session_id: buffer.session_id,
                         produced_at_monotonic_ms: None,
                     }];
                 }
@@ -502,7 +502,7 @@ impl StreamingDeltaBatcher {
                 arguments: None,
                 failure_reason: None,
             },
-            session_id: Some(buffer.session_id),
+            session_id: buffer.session_id,
         })
     }
 
@@ -523,14 +523,14 @@ impl StreamingDeltaBatcher {
                 chunk,
                 part_id: buffer.part_id,
                 message_id: buffer.message_id,
-                session_id: Some(buffer.session_id),
+                session_id: buffer.session_id,
             }
         } else {
             SessionUpdate::AgentMessageChunk {
                 chunk,
                 part_id: buffer.part_id,
                 message_id: buffer.message_id,
-                session_id: Some(buffer.session_id),
+                session_id: buffer.session_id,
                 produced_at_monotonic_ms: None,
             }
         })
@@ -674,14 +674,16 @@ impl StreamingDeltaBatcher {
         let mut results = Vec::new();
 
         for (tool_call_id, buffer) in
-            self.take_sorted_delta_buffers(|buf| buf.session_id == session_id)
+            self.take_sorted_delta_buffers(|buf| buf.session_id.as_deref() == Some(session_id))
         {
             if let Some(update) = Self::build_tool_delta_update(tool_call_id, buffer) {
                 results.push(update);
             }
         }
 
-        for (_, buffer) in self.take_sorted_message_buffers(|buf| buf.session_id == session_id) {
+        for (_, buffer) in
+            self.take_sorted_message_buffers(|buf| buf.session_id.as_deref() == Some(session_id))
+        {
             if let Some(update) = Self::build_message_chunk_update(buffer) {
                 results.push(update);
             }
@@ -696,7 +698,9 @@ impl StreamingDeltaBatcher {
     fn flush_message_buffers_for_session(&mut self, session_id: &str) -> Vec<SessionUpdate> {
         let mut results = Vec::new();
 
-        for (_, buffer) in self.take_sorted_message_buffers(|buf| buf.session_id == session_id) {
+        for (_, buffer) in
+            self.take_sorted_message_buffers(|buf| buf.session_id.as_deref() == Some(session_id))
+        {
             if let Some(update) = Self::build_message_chunk_update(buffer) {
                 results.push(update);
             }
@@ -962,6 +966,41 @@ mod tests {
     }
 
     #[test]
+    fn flush_all_preserves_missing_session_id_for_tool_deltas() {
+        let mut batcher = StreamingDeltaBatcher::new();
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "tool-1".to_string(),
+                status: None,
+                result: None,
+                content: None,
+                raw_output: None,
+                title: None,
+                locations: None,
+                streaming_input_delta: Some("hello".to_string()),
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: None,
+        };
+
+        let _ = batcher.process(update);
+        let flushed = batcher.flush_all();
+
+        assert_eq!(flushed.len(), 1);
+        match &flushed[0] {
+            SessionUpdate::ToolCallUpdate { session_id, .. } => {
+                assert_eq!(session_id, &None);
+            }
+            _ => panic!("Expected ToolCallUpdate"),
+        }
+    }
+
+    #[test]
     fn flush_all_returns_accumulated_messages() {
         let mut batcher = StreamingDeltaBatcher::new();
 
@@ -979,6 +1018,34 @@ mod tests {
             }
         } else {
             panic!("Expected AgentMessageChunk");
+        }
+    }
+
+    #[test]
+    fn flush_all_preserves_missing_session_id_for_message_chunks() {
+        let mut batcher = StreamingDeltaBatcher::new();
+        let update = SessionUpdate::AgentMessageChunk {
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: Some("msg-1".to_string()),
+            session_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        let _ = batcher.process(update);
+        let flushed = batcher.flush_all();
+
+        assert_eq!(flushed.len(), 1);
+        match &flushed[0] {
+            SessionUpdate::AgentMessageChunk { session_id, .. } => {
+                assert_eq!(session_id, &None);
+            }
+            _ => panic!("Expected AgentMessageChunk"),
         }
     }
 
