@@ -419,11 +419,15 @@ const firstMessageAttachments = $derived.by(() => {
 
 const visibleEntryCount = $derived(
 	resolveVisibleEntryCount({
-		canonicalEntryCount: sessionStateGraph?.transcriptSnapshot.entries.length ?? 0,
+		canonicalEntryCount:
+			sessionId === null || sessionId === undefined
+				? 0
+				: (sessionStateGraph?.transcriptSnapshot.entries.length ?? null),
 		optimisticUserEntry: optimisticUserEntryForGraph,
 	})
 );
-const hasMessages = $derived(visibleEntryCount > 0);
+const knownVisibleEntryCount = $derived(visibleEntryCount ?? 0);
+const hasMessages = $derived(visibleEntryCount !== null && visibleEntryCount > 0);
 const sessionProjectPath = $derived(sessionIdentity?.projectPath ?? null);
 const sessionAgentId = $derived(sessionIdentity?.agentId ?? null);
 const sessionWorktreePath = $derived(sessionIdentity?.worktreePath ?? null);
@@ -589,7 +593,7 @@ const sessionTurnState = $derived(
 			? mapCanonicalTurnStateToHotTurnState(canonicalPanelSessionSource.turnState)
 			: "idle"
 );
-const entriesCount = $derived(visibleEntryCount);
+const entriesCount = $derived(knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
 // NOTE: Must be defined before panelVisibility which uses effectiveProjectPath
@@ -629,7 +633,7 @@ const agentName = $derived.by(() => {
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
 			source: canonicalPanelSessionSource,
-			hasEntries: visibleEntryCount > 0,
+			hasEntries: hasMessages,
 			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
 		})
@@ -757,7 +761,7 @@ $effect(() => {
 		sessionId: sessionId ?? null,
 		viewState: viewState.kind,
 		pendingUserEntry: panelId ? panelStore.getHotState(panelId).pendingUserEntry !== null : false,
-		entriesCount: visibleEntryCount,
+		entriesCount: knownVisibleEntryCount,
 		hasSession: sessionId !== null,
 		t_ms: Math.round(performance.now()),
 	});
@@ -1357,7 +1361,9 @@ let lastPanelId = $state<string | undefined>(undefined);
 
 // Restore review mode when session loads (deferred from workspace restore)
 $effect(() => {
-	if (!panelId || !sessionId || visibleEntryCount === 0 || reviewMode) return;
+	if (!panelId || !sessionId || visibleEntryCount === null || visibleEntryCount === 0 || reviewMode) {
+		return;
+	}
 
 	const pendingFileIndex = panelStore.consumePendingReviewRestore(panelId);
 	if (pendingFileIndex === null) return;

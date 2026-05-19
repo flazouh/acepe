@@ -156,6 +156,15 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 });
 
 describe("resolveVisibleEntryCount", () => {
+	it("preserves unknown canonical entry count", () => {
+		const count = resolveVisibleEntryCount({
+			canonicalEntryCount: null,
+			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
+		});
+
+		expect(count).toBeNull();
+	});
+
 	it("counts the optimistic user entry while canonical entries are empty", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: 0,

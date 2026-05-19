@@ -53,9 +53,13 @@ export function resolveOptimisticUserEntryForGraph(input: {
 }
 
 export function resolveVisibleEntryCount(input: {
-	readonly canonicalEntryCount: number;
+	readonly canonicalEntryCount: number | null;
 	readonly optimisticUserEntry: SessionEntry | null;
-}): number {
+}): number | null {
+	if (input.canonicalEntryCount === null) {
+		return null;
+	}
+
 	if (input.canonicalEntryCount > 0) {
 		return input.canonicalEntryCount;
 	}
