@@ -19,7 +19,7 @@ interface NormalizedInboundInteractionBase {
 	jsonRpcRequestId: number;
 	toolCallId: string;
 	toolLabel: string;
-	rawInput: JsonValue;
+	diagnosticRawInput: JsonValue;
 	parsedArguments: ToolArguments | undefined;
 	options: RequestPermissionParams["options"];
 	alwaysOptionIds: string[];
@@ -63,7 +63,7 @@ function buildNormalizedBase(
 		jsonRpcRequestId: request.id,
 		toolCallId: getNormalizedToolCallId(request, params.toolCall),
 		toolLabel: getNormalizedToolLabel(params.toolCall),
-		rawInput: params.toolCall.rawInput,
+		diagnosticRawInput: params.toolCall.rawInput,
 		parsedArguments: params.toolCall.parsedArguments,
 		options: params.options,
 		alwaysOptionIds: params.options
@@ -89,7 +89,7 @@ export function normalizeInboundInteractionRequest(
 		jsonRpcRequestId: base.jsonRpcRequestId,
 		toolCallId: base.toolCallId,
 		toolLabel: base.toolLabel,
-		rawInput: base.rawInput,
+		diagnosticRawInput: base.diagnosticRawInput,
 		parsedArguments: base.parsedArguments,
 		options: base.options,
 		alwaysOptionIds: base.alwaysOptionIds,
@@ -110,7 +110,7 @@ export function toPermissionRequest(
 		permission: request.toolLabel,
 		patterns: [],
 		metadata: {
-			diagnosticRawInput: request.rawInput,
+			diagnosticRawInput: request.diagnosticRawInput,
 			parsedArguments: request.parsedArguments,
 			options: request.options,
 		},
