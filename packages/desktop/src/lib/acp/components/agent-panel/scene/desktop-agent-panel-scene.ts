@@ -1010,6 +1010,8 @@ function mapToolCallEntry(
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
+		startedAtMs: toolCall.startedAtMs ?? null,
+		completedAtMs: toolCall.completedAtMs ?? null,
 		command,
 		commandHtmls,
 		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
