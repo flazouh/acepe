@@ -169,7 +169,7 @@ const widthStyle = $derived(
 );
 const surfaceClass = $derived(
 	isFullscreenEmbedded
-		? "rounded-lg border-border/60 bg-background shadow-[0_16px_40px_rgba(0,0,0,0.24)]"
+		? "rounded border-border bg-input/30"
 		: "rounded-lg border-border/60 bg-background shadow-[0_12px_32px_rgba(0,0,0,0.14)]"
 );
 const currentWorktree = $derived(resolveCurrentWorktree(projectPath, worktrees));
@@ -856,7 +856,7 @@ async function handleOpenPr(prNumber: number) {
 		{/if}
 	</EmbeddedPanelHeader>
 
-	<div class="flex items-center gap-1 border-b border-border/30 px-2 py-1 shrink-0">
+	<div class="flex items-center gap-1 border-b border-border px-1 py-1 shrink-0">
 		<button
 			type="button"
 			class={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${activeSection === "changes" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}

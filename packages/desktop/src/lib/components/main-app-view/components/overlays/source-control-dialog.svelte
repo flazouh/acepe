@@ -50,16 +50,20 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 	>
 		{#snippet topLeft()}
 			<div class="flex min-w-0 items-center gap-1.5">
-				<ProjectLetterBadge
-					name={projectName}
-					color={project?.color ?? ""}
-					iconSrc={project?.iconPath ?? null}
-					size={18}
-					fontSize={10}
-				/>
-				<span class="truncate text-[11px] font-medium text-foreground leading-none">
-					{projectName}
-				</span>
+				<div
+					class="flex h-5 shrink-0 items-center gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				>
+					<ProjectLetterBadge
+						name={projectName}
+						color={project?.color ?? ""}
+						iconSrc={project?.iconPath ?? null}
+						size={14}
+						fontSize={9}
+					/>
+					<span class="truncate font-medium text-foreground leading-none">
+						{projectName}
+					</span>
+				</div>
 			</div>
 		{/snippet}
 
