@@ -216,6 +216,23 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 	});
 
+	it("preserves missing canonical autonomous state inside materialized capabilities", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: capabilities.models,
+				modes: capabilities.modes,
+				availableCommands: capabilities.availableCommands,
+				configOptions: capabilities.configOptions,
+			})
+		);
+
+		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+	});
+
 	it("preserves canonical current ids even when display lists omit them", () => {
 		const store = new SessionStore();
 		addColdSession(store);

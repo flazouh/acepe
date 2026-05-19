@@ -883,7 +883,7 @@ function sanitizeCanonicalCapabilities(
 		modes: capabilities.modes ?? null,
 		availableCommands: capabilities.availableCommands ?? [],
 		configOptions: sanitizeCanonicalConfigOptions(capabilities.configOptions ?? []),
-		autonomousEnabled: capabilities.autonomousEnabled ?? false,
+		autonomousEnabled: capabilities.autonomousEnabled,
 	};
 }
 
@@ -901,7 +901,7 @@ function projectGraphCapabilities(
 	modelsDisplay: ModelsForDisplay | undefined;
 	providerMetadata: ProviderMetadataProjection;
 	configOptions: ReadonlyArray<CanonicalConfigOptionData>;
-	autonomousEnabled: boolean;
+	autonomousEnabled: boolean | null;
 } {
 	const availableModels = mapGraphAvailableModels(capabilities);
 	const availableModes = mapGraphAvailableModes(capabilities);
@@ -942,7 +942,7 @@ function projectGraphCapabilities(
 		modelsDisplay,
 		providerMetadata,
 		configOptions: capabilities.configOptions ?? [],
-		autonomousEnabled: capabilities.autonomousEnabled ?? false,
+		autonomousEnabled: capabilities.autonomousEnabled ?? null,
 	};
 }
 
