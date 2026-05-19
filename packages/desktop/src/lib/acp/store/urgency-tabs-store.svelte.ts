@@ -13,10 +13,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { TAG_COLORS } from "@acepe/ui/colors";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
-import {
-	deriveLiveSessionWorkProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
-} from "./live-session-work.js";
+import { deriveLiveSessionWorkProjection } from "./live-session-work.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import { selectSessionWorkBucket } from "./session-work-projection.js";
@@ -207,15 +204,13 @@ export class UrgencyTabsStore {
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
-		const canonicalProjection =
-			sessionId !== null ? this.sessionStore.getCanonicalSessionProjection(sessionId) : null;
 
 		// Derive project path from session or panel
 		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
 		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
 		const title = sessionMetadata?.title ?? null;
 		const workProjection = deriveLiveSessionWorkProjection({
-			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, canonicalProjection),
+			source: this.sessionStore.getSessionLiveWorkSource(sessionId, true),
 			currentModeId:
 				sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null,
 			interactionSnapshot: {

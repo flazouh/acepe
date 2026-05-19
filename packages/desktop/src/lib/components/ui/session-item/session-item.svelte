@@ -37,8 +37,6 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
-	inactiveSessionWorkSourceFromCanonicalProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 } from "$lib/acp/store/live-session-work.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -234,7 +232,6 @@ function handleRenameKeydown(event: KeyboardEvent) {
 const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
-const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
 const sessionConnectionError = $derived(sessionStore.getSessionConnectionError(session.id));
 const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
 const currentStreamingToolCall = $derived(
@@ -250,9 +247,7 @@ const interactionSnapshot = $derived.by(() =>
 );
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
 const liveSessionSource = $derived(
-	isOpen
-		? liveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
-		: inactiveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
+	sessionStore.getSessionLiveWorkSource(session.id, isOpen)
 );
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({

@@ -109,7 +109,7 @@ function createGraph(
 		operations: [],
 		interactions: [],
 		turnState: "Running",
-		messageCount: 0,
+		messageCount: entries.length,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
 		activeStreamingTail: null,
@@ -137,6 +137,20 @@ describe("SessionStore canonical projection accessors", () => {
 		const store = new SessionStore();
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionListState("session-1")).toEqual({
+			status: "error",
+			isConnected: false,
+			isStreaming: false,
+		});
+		expect(store.getSessionMessageCount("session-1")).toBeNull();
+		expect(store.getSessionLiveWorkSource("session-1", true)).toEqual({
+			kind: "missing_canonical",
+			sessionId: "session-1",
+		});
+		expect(store.getSessionLiveWorkSource("session-1", false)).toEqual({
+			kind: "inactive_session",
+			sessionId: "session-1",
+		});
 		expect(store.getSessionTurnState("session-1")).toBeNull();
 		expect(store.getSessionTranscriptEntries("session-1")).toBeNull();
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
@@ -168,6 +182,15 @@ describe("SessionStore canonical projection accessors", () => {
 		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionListState("session-1")).toEqual({
+			status: "streaming",
+			isConnected: true,
+			isStreaming: true,
+		});
+		expect(store.getSessionMessageCount("session-1")).toBe(1);
+		expect(store.getSessionLiveWorkSource("session-1", true)).toMatchObject({
+			kind: "canonical",
+		});
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();

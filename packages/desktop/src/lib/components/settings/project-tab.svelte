@@ -1,10 +1,6 @@
 <script lang="ts">
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
-import {
-	buildSessionSummaryFromCold,
-	deriveSessionEntryCountFromCanonicalGraph,
-	deriveSessionListStateFromCanonical,
-} from "$lib/acp/application/dto/session-summary.js";
+import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 
 import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
@@ -26,12 +22,8 @@ const archiveStore = getSessionArchiveStore();
 const allSessions = $derived.by((): SessionSummary[] => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(sessionStore.sessions);
 	return coldSessions.map((cold) => {
-		const listState = deriveSessionListStateFromCanonical(
-			sessionStore.getCanonicalSessionProjection(cold.id)
-		);
-		const entryCount = deriveSessionEntryCountFromCanonicalGraph(
-			sessionStore.getSessionStateGraph(cold.id)
-		);
+		const listState = sessionStore.getSessionListState(cold.id);
+		const entryCount = sessionStore.getSessionMessageCount(cold.id);
 		return buildSessionSummaryFromCold({
 			cold,
 			listState,

@@ -69,8 +69,10 @@ import {
 } from "./operation-association.js";
 import {
 	deriveLiveSessionLifecyclePresentation,
+	inactiveSessionWorkSourceFromCanonicalProjection,
 	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionLifecyclePresentation,
+	type LiveSessionWorkSource,
 } from "./live-session-work.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import { SessionConnectionService } from "./session-connection-service.svelte.js";
@@ -97,6 +99,10 @@ import "../errors/app-error.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
+import {
+	deriveSessionListStateFromCanonical,
+	type SessionListState,
+} from "../application/dto/session-summary.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
@@ -1306,6 +1312,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
+	 * Canonical session-list status summary; uses Rust-owned lifecycle/activity only.
+	 */
+	getSessionListState(sessionId: string): SessionListState {
+		return deriveSessionListStateFromCanonical(this.canonicalProjections.get(sessionId) ?? null);
+	}
+
+	/**
+	 * Canonical message count; null means no canonical graph exists yet.
+	 */
+	getSessionMessageCount(sessionId: string): number | null {
+		return this.sessionStateGraphs.get(sessionId)?.messageCount ?? null;
+	}
+
+	/**
 	 * Canonical transcript entries; null means no canonical graph exists yet.
 	 */
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
@@ -1369,6 +1389,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			hasEntries: graph === null ? null : graph.transcriptSnapshot.entries.length > 0,
 			hasLocalPendingSendIntent: transientProjection.pendingSendIntent !== null,
 		});
+	}
+
+	getSessionLiveWorkSource(sessionId: string | null, active: boolean): LiveSessionWorkSource {
+		const projection = sessionId === null ? null : (this.canonicalProjections.get(sessionId) ?? null);
+		if (active) {
+			return liveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
+		}
+		return inactiveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
 	}
 
 	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {
