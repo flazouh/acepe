@@ -24,6 +24,7 @@ pub enum SessionDomainEventKind {
     AssistantThoughtSegmentAppended,
     OperationUpserted,
     OperationChildLinked,
+    OperationStatusUpdated,
     OperationCompleted,
     InteractionUpserted,
     InteractionResolved,
@@ -86,6 +87,11 @@ pub enum SessionDomainEventPayload {
     OperationChildLinked {
         parent_operation_id: String,
         child_operation_id: String,
+    },
+    OperationStatusUpdated {
+        operation_id: String,
+        tool_call_id: String,
+        status: ToolCallStatus,
     },
     OperationCompleted {
         operation_id: String,

@@ -275,14 +275,11 @@ pub fn session_update_to_domain_event(
         SessionUpdate::ToolCallUpdate { update, .. } => {
             let status = update.status.clone().unwrap_or(ToolCallStatus::InProgress);
             Some((
-                SessionDomainEventKind::OperationUpserted,
-                Some(SessionDomainEventPayload::OperationUpserted {
+                SessionDomainEventKind::OperationStatusUpdated,
+                Some(SessionDomainEventPayload::OperationStatusUpdated {
                     operation_id: update.tool_call_id.clone(),
                     tool_call_id: update.tool_call_id.clone(),
-                    tool_name: String::new(),
-                    tool_kind: ToolKind::Unclassified,
                     status,
-                    parent_operation_id: None,
                 }),
             ))
         }
@@ -421,6 +418,50 @@ mod tests {
                 "expected assistant thought segment payload, got {:?}",
                 other
             ),
+        }
+    }
+
+    #[test]
+    fn tool_call_update_domain_event_does_not_fabricate_tool_identity() {
+        let update = SessionUpdate::ToolCallUpdate {
+            update: crate::acp::session_update::ToolCallUpdateData {
+                tool_call_id: "tool-search-1".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: None,
+                content: None,
+                raw_output: None,
+                title: None,
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        let Some((kind, Some(payload))) = session_update_to_domain_event(&update) else {
+            panic!("expected operation status domain event payload");
+        };
+
+        assert!(matches!(
+            kind,
+            SessionDomainEventKind::OperationStatusUpdated
+        ));
+        match payload {
+            SessionDomainEventPayload::OperationStatusUpdated {
+                operation_id,
+                tool_call_id,
+                status,
+            } => {
+                assert_eq!(operation_id, "tool-search-1");
+                assert_eq!(tool_call_id, "tool-search-1");
+                assert!(matches!(status, ToolCallStatus::Completed));
+            }
+            other => panic!("expected operation status payload, got {:?}", other),
         }
     }
 
