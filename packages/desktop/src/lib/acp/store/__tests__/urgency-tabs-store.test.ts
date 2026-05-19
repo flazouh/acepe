@@ -30,7 +30,6 @@ function createHotState(
 	const base: SessionTransientProjection = {
 		acpSessionId: null,
 		autonomousTransition: "idle",
-		modelPerMode: {},
 		statusChangedAt: STATUS_CHANGED_AT,
 		pendingSendIntent: null,
 		capabilityMutationState: {

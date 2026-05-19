@@ -45,7 +45,6 @@ describe("SessionTransientProjectionStore", () => {
 
 			store.updateHotState("session1", {
 				acpSessionId: "acp-1",
-				modelPerMode: { build: "gpt-5" },
 			});
 			store.updateHotState("session1", {
 				autonomousTransition: "enabling",
@@ -53,7 +52,6 @@ describe("SessionTransientProjectionStore", () => {
 
 			expect(store.getHotState("session1")).toMatchObject({
 				acpSessionId: "acp-1",
-				modelPerMode: { build: "gpt-5" },
 				autonomousTransition: "enabling",
 			});
 		});

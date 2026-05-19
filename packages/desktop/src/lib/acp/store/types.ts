@@ -94,14 +94,10 @@ export interface SessionCapabilityMutationState {
  * actionability, and capabilities. This projection only carries local UI
  * affordances that have no canonical counterpart.
  *
- * modelPerMode: Tracks which model was selected per mode within this session.
- * Used to restore user's previous model choice when switching between modes.
- * Format: { modeId → modelId }
  */
 export interface SessionTransientProjection {
 	readonly acpSessionId: string | null;
 	readonly autonomousTransition: "idle" | "enabling" | "disabling";
-	readonly modelPerMode?: Record<string, string>;
 	/** Timestamp when canonical lifecycle last changed (for urgency sorting) */
 	readonly statusChangedAt: number;
 	/** Usage/cost and token telemetry (adapter-agnostic). */
@@ -118,7 +114,6 @@ export interface SessionTransientProjection {
 export const DEFAULT_TRANSIENT_PROJECTION: SessionTransientProjection = {
 	acpSessionId: null,
 	autonomousTransition: "idle",
-	modelPerMode: {},
 	statusChangedAt: Date.now(),
 	pendingSendIntent: null,
 	capabilityMutationState: {

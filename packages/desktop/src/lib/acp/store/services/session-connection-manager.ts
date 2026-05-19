@@ -551,11 +551,7 @@ export class SessionConnectionManager {
 								sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
 							};
 
-							this.hotStateManager.initializeHotState(sessionId, {
-								modelPerMode: currentMode
-									? { [currentMode.id]: currentModel?.id ? currentModel.id : "" }
-									: {},
-							});
+							this.hotStateManager.initializeHotState(sessionId);
 
 							this.stateWriter.addSession(sessionCold);
 
@@ -815,7 +811,6 @@ export class SessionConnectionManager {
 
 		this.hotStateManager.updateHotState(sessionId, {
 			acpSessionId: null,
-			modelPerMode: {},
 		});
 
 		// Close the session on the backend to kill the subprocess

@@ -50,13 +50,11 @@ function createResidualHotState(
 	input: {
 		acpSessionId?: string | null;
 		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
-		modelPerMode?: Record<string, string>;
 	} = {}
 ): SessionTransientProjection {
 	return {
 		acpSessionId: input.acpSessionId ?? null,
 		autonomousTransition: input.autonomousTransition ?? "idle",
-		modelPerMode: input.modelPerMode ?? {},
 		statusChangedAt: Date.now(),
 		pendingSendIntent: null,
 		capabilityMutationState: {
@@ -71,7 +69,6 @@ function mockResidualStateReader(
 	input: {
 		acpSessionId?: string | null;
 		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
-		modelPerMode?: Record<string, string>;
 	} = {}
 ): void {
 	const state = createResidualHotState(input);
@@ -1271,9 +1268,11 @@ describe("SessionConnectionManager.createSession", () => {
 			.calls[0]?.[0] as SessionCold;
 		expect(addedSession.id).toBe(sessionId);
 		expect(addedSession.agentId).toBe(agentId);
-		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[1];
-		expect(hotStateInit?.modelPerMode?.build).toBe("vendor/codex-enterprise/high");
+		expect(setSessionModelForMode).toHaveBeenCalledWith(
+			sessionId,
+			"build",
+			"vendor/codex-enterprise/high"
+		);
 	});
 
 	it("resolves grouped variants from display model ids instead of matching display labels", async () => {
@@ -1343,9 +1342,11 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[1];
-		expect(hotStateInit?.modelPerMode?.build).toBe("vendor/codex-enterprise/high");
+		expect(setSessionModelForMode).toHaveBeenCalledWith(
+			sessionId,
+			"build",
+			"vendor/codex-enterprise/high"
+		);
 	});
 
 	it("does not infer a grouped model when canonical currentModelId has no group match", async () => {
@@ -1423,9 +1424,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const hotStateInit = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock
-			.calls[0]?.[1];
-		expect(hotStateInit?.modelPerMode?.build).toBe("safe-default");
+		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "build", "safe-default");
 	});
 
 	it("stores available commands from new session response", async () => {
@@ -1457,7 +1456,8 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+		const initUpdate =
+			(hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "availableCommands")).toBe(false);
 	});
 
@@ -1474,12 +1474,11 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate).toMatchObject({
-			modelPerMode: {
-				build: "gpt-5.2-codex/high",
-			},
-		});
+		expect(setSessionModelForMode).toHaveBeenCalledWith(
+			sessionId,
+			"build",
+			"gpt-5.2-codex/high"
+		);
 		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
 	});
 
@@ -1672,9 +1671,6 @@ describe("SessionConnectionManager.createSession", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5.2-codex/medium");
-
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.modelPerMode?.plan).toBe("gpt-5.2-codex/medium");
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
 	});
 
@@ -1732,9 +1728,7 @@ describe("SessionConnectionManager.createSession", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5.2-codex/medium");
-
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.modelPerMode?.plan).toBe("gpt-5.2-codex/medium");
+		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
 	});
 
 	it("keeps the created session when explicit initial mode setup fails after backend session creation", async () => {
@@ -1785,8 +1779,11 @@ describe("SessionConnectionManager.createSession", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(stateWriter.addSession).toHaveBeenCalled();
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
-		expect(initUpdate?.modelPerMode?.build).toBe("gpt-5.2-codex/high");
+		expect(setSessionModelForMode).toHaveBeenCalledWith(
+			sessionId,
+			"build",
+			"gpt-5.2-codex/high"
+		);
 	});
 
 	it("returns the freshly created cold session even if the stateReader lookup has not caught up yet", async () => {
@@ -1863,7 +1860,8 @@ describe("SessionConnectionManager.createSession", () => {
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 
-		const initUpdate = (hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+		const initUpdate =
+			(hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "autonomousEnabled")).toBe(false);
 	});
 });
@@ -2575,7 +2573,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			sessionId,
 			expect.objectContaining({
 				acpSessionId: null,
-				modelPerMode: {},
 			})
 		);
 		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
