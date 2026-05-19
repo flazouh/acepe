@@ -65,15 +65,14 @@ fn assistant_tail_content_kind(entry: &TranscriptEntry) -> ActiveStreamingTailCo
     ActiveStreamingTailContentKind::Thought
 }
 
-fn find_assistant_entry_after_latest_user<'a>(
-    entries: &'a [TranscriptEntry],
-    entry_id: &str,
-) -> Option<&'a TranscriptEntry> {
+fn find_latest_assistant_entry_after_latest_user(
+    entries: &[TranscriptEntry],
+) -> Option<&TranscriptEntry> {
     for entry in entries.iter().rev() {
         if entry.role == TranscriptEntryRole::User {
             return None;
         }
-        if entry.role == TranscriptEntryRole::Assistant && entry.entry_id == entry_id {
+        if entry.role == TranscriptEntryRole::Assistant {
             return Some(entry);
         }
     }
@@ -85,7 +84,6 @@ pub fn select_active_streaming_tail(
     turn_state: &SessionTurnState,
     activity: &SessionGraphActivity,
     transcript_snapshot: &TranscriptSnapshot,
-    last_agent_message_id: Option<&str>,
 ) -> Option<ActiveStreamingTail> {
     if !matches!(turn_state, SessionTurnState::Running) {
         return None;
@@ -105,8 +103,7 @@ pub fn select_active_streaming_tail(
         }
     }
 
-    let last_agent_message_id = last_agent_message_id?;
-    let entry = find_assistant_entry_after_latest_user(entries, last_agent_message_id)?;
+    let entry = find_latest_assistant_entry_after_latest_user(entries)?;
     Some(ActiveStreamingTail {
         row_id: entry.entry_id.clone(),
         content_kind: assistant_tail_content_kind(entry),
@@ -161,7 +158,6 @@ mod tests {
                 text_entry("a1", TranscriptEntryRole::Assistant),
                 text_entry("a2", TranscriptEntryRole::Assistant),
             ]),
-            Some("a1"),
         );
 
         assert_eq!(
@@ -188,7 +184,6 @@ mod tests {
                 text_entry("a1", TranscriptEntryRole::Assistant),
                 text_entry("tool-1", TranscriptEntryRole::Tool),
             ]),
-            Some("a1"),
         );
 
         assert_eq!(result, None);
@@ -210,7 +205,6 @@ mod tests {
                 text_entry("a1", TranscriptEntryRole::Assistant),
                 text_entry("tool-1", TranscriptEntryRole::Tool),
             ]),
-            Some("a1"),
         );
 
         assert_eq!(

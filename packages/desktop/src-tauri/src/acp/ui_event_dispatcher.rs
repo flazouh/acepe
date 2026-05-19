@@ -834,12 +834,7 @@ impl AcpUiEventDispatcher {
             session_snapshot.active_turn_failure.as_ref(),
         );
         let active_streaming_tail = transcript_snapshot.as_ref().and_then(|snapshot| {
-            select_active_streaming_tail(
-                &session_snapshot.turn_state,
-                &activity,
-                snapshot,
-                session_snapshot.last_agent_message_id.as_deref(),
-            )
+            select_active_streaming_tail(&session_snapshot.turn_state, &activity, snapshot)
         });
         let operation_patches = match interaction_patch.canonical_operation_id.as_deref() {
             Some(operation_id) => match self.projection_registry.operation(operation_id) {
@@ -2243,14 +2238,6 @@ mod tests {
             }
             other => panic!("expected second delta payload, got {:?}", other),
         }
-
-        let snapshot = projection_registry
-            .snapshot_for_session("session-1")
-            .expect("projection snapshot");
-        assert_eq!(
-            snapshot.last_agent_message_id.as_deref(),
-            Some("assistant-event-1")
-        );
     }
 
     #[tokio::test]
@@ -2913,7 +2900,6 @@ mod tests {
             .expect("expected session snapshot");
         assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
         assert_eq!(snapshot.message_count, 1);
-        assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
         assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
         assert_eq!(snapshot.last_event_seq, 2);
     }

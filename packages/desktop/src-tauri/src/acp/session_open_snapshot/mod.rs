@@ -552,11 +552,6 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     } else {
         session_snap.and_then(|session| session.last_terminal_turn_id.clone())
     };
-    let last_agent_message_id = if projection_is_behind_journal {
-        None
-    } else {
-        session_snap.and_then(|session| session.last_agent_message_id.clone())
-    };
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let operations =
         sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
@@ -588,12 +583,8 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         &interactions,
         active_turn_failure.as_ref(),
     );
-    let active_streaming_tail = select_active_streaming_tail(
-        &turn_state,
-        &activity,
-        &transcript_snapshot,
-        last_agent_message_id.as_deref(),
-    );
+    let active_streaming_tail =
+        select_active_streaming_tail(&turn_state, &activity, &transcript_snapshot);
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: requested_session_id.to_string(),

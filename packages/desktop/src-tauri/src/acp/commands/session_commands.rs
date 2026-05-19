@@ -571,8 +571,6 @@ pub async fn acp_get_session_state(
         let message_count = projection_session
             .map(|session| session.message_count)
             .unwrap_or(0);
-        let last_agent_message_id = projection_session
-            .and_then(|session| session.last_agent_message_id.clone());
         let active_turn_failure =
             projection_session.and_then(|session| session.active_turn_failure.clone());
         let last_terminal_turn_id =
@@ -590,7 +588,6 @@ pub async fn acp_get_session_state(
             &turn_state,
             &activity,
             &transcript_snapshot,
-            last_agent_message_id.as_deref(),
         );
         let found = SessionOpenFound {
             requested_session_id: session_id.clone(),

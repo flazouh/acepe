@@ -582,7 +582,6 @@ impl SessionGraphRuntimeRegistry {
             &session_snapshot.turn_state,
             &activity,
             &transcript_snapshot,
-            session_snapshot.last_agent_message_id.as_deref(),
         );
 
         Some(SessionStateEnvelope {
@@ -645,7 +644,6 @@ impl SessionGraphRuntimeRegistry {
             &session_snapshot.turn_state,
             &activity,
             &transcript_snapshot,
-            session_snapshot.last_agent_message_id.as_deref(),
         );
         DeltaSessionProjectionFields {
             activity,

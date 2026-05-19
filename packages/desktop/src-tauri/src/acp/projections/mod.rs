@@ -48,7 +48,6 @@ pub struct SessionSnapshot {
     pub last_event_seq: i64,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
-    pub last_agent_message_id: Option<String>,
     pub active_tool_call_ids: Vec<String>,
     pub completed_tool_call_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -280,7 +279,6 @@ impl SessionSnapshot {
             last_event_seq: 0,
             turn_state: SessionTurnState::Idle,
             message_count: 0,
-            last_agent_message_id: None,
             active_tool_call_ids: Vec::new(),
             completed_tool_call_ids: Vec::new(),
             active_turn_failure: None,
@@ -307,10 +305,6 @@ fn start_running_turn(snapshot: &mut SessionSnapshot) {
     snapshot.turn_state = SessionTurnState::Running;
     snapshot.active_turn_failure = None;
     snapshot.last_terminal_turn_id = None;
-}
-
-fn synthetic_agent_message_id(event_seq: i64) -> String {
-    format!("assistant-event-{event_seq}")
 }
 
 fn should_ignore_turn_complete(snapshot: &SessionSnapshot, turn_id: Option<&str>) -> bool {
@@ -478,16 +472,10 @@ impl ProjectionRegistry {
         match update {
             SessionUpdate::UserMessageChunk { .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                snapshot.last_agent_message_id = None;
                 start_running_turn(&mut snapshot);
             }
-            SessionUpdate::AgentMessageChunk { message_id, .. } => {
+            SessionUpdate::AgentMessageChunk { .. } => {
                 snapshot.message_count = snapshot.message_count.saturating_add(1);
-                let live_message_id = message_id
-                    .clone()
-                    .or_else(|| snapshot.last_agent_message_id.clone())
-                    .unwrap_or_else(|| synthetic_agent_message_id(snapshot.last_event_seq));
-                snapshot.last_agent_message_id = Some(live_message_id);
                 if !preserves_terminal_turn(&snapshot) {
                     start_running_turn(&mut snapshot);
                 }
@@ -820,7 +808,7 @@ impl ProjectionRegistry {
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
                 }
-                StoredEntry::Assistant { id, .. } => {
+                StoredEntry::Assistant { .. } => {
                     self.cancel_active_tool_calls_for_historical_boundary(
                         session_id,
                         &snapshot.active_tool_call_ids,
@@ -830,7 +818,6 @@ impl ProjectionRegistry {
                         start_running_turn(&mut snapshot);
                     }
                     snapshot.message_count = snapshot.message_count.saturating_add(1);
-                    snapshot.last_agent_message_id = Some(id.clone());
                 }
                 StoredEntry::ToolCall { message, .. } => {
                     let message = normalize_tool_call_for_operation_ingress(message);
@@ -2101,7 +2088,6 @@ mod tests {
             .expect("expected session snapshot");
         assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
         assert_eq!(snapshot.message_count, 1);
-        assert_eq!(snapshot.last_agent_message_id.as_deref(), Some("msg-1"));
         assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
         assert_eq!(snapshot.last_event_seq, 2);
     }
@@ -2158,10 +2144,6 @@ mod tests {
         let snapshot = registry
             .snapshot_for_session("session-1")
             .expect("expected session snapshot");
-        assert_eq!(
-            snapshot.last_agent_message_id.as_deref(),
-            Some("assistant-event-2")
-        );
         assert_eq!(snapshot.turn_state, SessionTurnState::Running);
         assert_eq!(snapshot.last_event_seq, 3);
     }
@@ -2965,7 +2947,6 @@ mod tests {
                 last_event_seq: 5,
                 turn_state: SessionTurnState::Completed,
                 message_count: 2,
-                last_agent_message_id: Some("msg-2".to_string()),
                 active_tool_call_ids: vec![],
                 completed_tool_call_ids: vec!["tool-1".to_string()],
                 active_turn_failure: None,
