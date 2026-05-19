@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+	InteractionSnapshot,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -90,7 +91,8 @@ function createCapabilities(): SessionGraphCapabilities {
 
 function createGraph(
 	capabilities: SessionGraphCapabilities,
-	entries: TranscriptEntry[] = []
+	entries: TranscriptEntry[] = [],
+	interactions: InteractionSnapshot[] = []
 ): SessionStateGraph {
 	const revision = createRevision(7);
 	return {
@@ -107,7 +109,7 @@ function createGraph(
 			entries,
 		},
 		operations: [],
-		interactions: [],
+		interactions,
 		turnState: "Running",
 		messageCount: entries.length,
 		activeTurnFailure: null,
@@ -116,6 +118,43 @@ function createGraph(
 		lifecycle: createReadyLifecycle(),
 		activity: createIdleActivity(),
 		capabilities,
+	};
+}
+
+function createQuestionInteraction(): InteractionSnapshot {
+	return {
+		id: "question-1",
+		session_id: "session-1",
+		kind: "Question",
+		state: "Pending",
+		json_rpc_request_id: 12,
+		reply_handler: null,
+		tool_reference: null,
+		responded_at_event_seq: null,
+		response: null,
+		payload: {
+			Question: {
+				id: "question-1",
+				sessionId: "session-1",
+				jsonRpcRequestId: 12,
+				replyHandler: null,
+				questions: [
+					{
+						question: "Continue?",
+						header: "Decision",
+						options: [
+							{
+								label: "Yes",
+								description: "Continue the task.",
+							},
+						],
+						multiSelect: false,
+					},
+				],
+				tool: null,
+			},
+		},
+		canonical_operation_id: null,
 	};
 }
 
@@ -143,6 +182,8 @@ describe("SessionStore canonical projection accessors", () => {
 			isStreaming: false,
 		});
 		expect(store.getSessionMessageCount("session-1")).toBeNull();
+		expect(store.getSessionAgentPanelCanonicalSource("session-1")).toBeNull();
+		expect(store.getSessionQuestionInteraction("session-1", "question-1")).toBeNull();
 		expect(store.getSessionLiveWorkSource("session-1", true)).toEqual({
 			kind: "missing_canonical",
 			sessionId: "session-1",
@@ -186,6 +227,12 @@ describe("SessionStore canonical projection accessors", () => {
 		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		const panelSource = store.getSessionAgentPanelCanonicalSource("session-1");
+		expect(panelSource?.canonicalSessionId).toBe("session-1");
+		expect(panelSource?.transcriptSnapshot.entries).toBe(transcriptEntries);
+		expect(panelSource?.operations).toEqual([]);
+		expect(panelSource && "capabilities" in panelSource).toBe(false);
+		expect(panelSource && "projectPath" in panelSource).toBe(false);
 		expect(store.getSessionListState("session-1")).toEqual({
 			status: "streaming",
 			isConnected: true,
@@ -242,6 +289,19 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+	});
+
+	it("returns pending question interactions through the question selector only", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const questionInteraction = createQuestionInteraction();
+
+		store.applySessionStateGraph(createGraph(createCapabilities(), [], [questionInteraction]));
+
+		expect(store.getSessionQuestionInteraction("session-1", "question-1")).toBe(
+			questionInteraction
+		);
+		expect(store.getSessionQuestionInteraction("session-1", "missing-question")).toBeNull();
 	});
 
 	it("preserves missing canonical autonomous state inside materialized capabilities", () => {

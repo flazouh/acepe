@@ -8,8 +8,9 @@ import type {
 } from "@acepe/ui/agent-panel";
 import type {
 	SessionGraphActivity,
-	SessionStateGraph,
+	SessionTurnState,
 } from "$lib/services/acp-types.js";
+import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
@@ -32,7 +33,7 @@ export type AgentPanelDisplayRow =
 
 export interface AgentPanelDisplayInput {
 	readonly panelId: string;
-	readonly graph: SessionStateGraph | null;
+	readonly graph: AgentPanelCanonicalSource | null;
 	readonly header: {
 		readonly title: string;
 		readonly agentName?: string | null;
@@ -87,7 +88,7 @@ export function createAgentPanelDisplayMemory(): AgentPanelDisplayMemory {
 	};
 }
 
-function mapTurnState(turnState: SessionStateGraph["turnState"] | null): TurnState {
+function mapTurnState(turnState: SessionTurnState | null): TurnState {
 	if (turnState === "Running") {
 		return "streaming";
 	}
@@ -102,7 +103,7 @@ function mapTurnState(turnState: SessionStateGraph["turnState"] | null): TurnSta
 
 function isBusy(
 	activity: SessionGraphActivity | null,
-	turnState: SessionStateGraph["turnState"] | null
+	turnState: SessionTurnState | null
 ): boolean {
 	return (
 		activity?.kind === "running_operation" ||

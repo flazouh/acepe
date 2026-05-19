@@ -17,7 +17,6 @@ import type {
 	InteractionSnapshot,
 	OperationDegradationReason,
 	OperationSnapshot,
-	SessionStateGraph,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
 import type { SessionEntry } from "../application/dto/session-entry.js";
@@ -29,6 +28,7 @@ import { mapCanonicalTurnStateToPresentationStatus } from "../store/canonical-tu
 import { normalizeToolResult } from "../store/services/tool-result-normalizer.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
+import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
 
@@ -52,7 +52,7 @@ export interface AgentPanelGraphHeaderInput {
 
 export interface AgentPanelGraphMaterializerInput {
 	readonly panelId: string;
-	readonly graph: SessionStateGraph | null;
+	readonly graph: AgentPanelCanonicalSource | null;
 	readonly header: AgentPanelGraphHeaderInput;
 	readonly composer?: AgentPanelComposerModel | null;
 	readonly strips?: readonly AgentPanelStripModel[];
@@ -170,7 +170,7 @@ function shouldLogUnresolvedToolDiagnostics(): boolean {
 
 function logUnresolvedToolDiagnostics(
 	entry: TranscriptEntry,
-	graph: SessionStateGraph,
+	graph: AgentPanelCanonicalSource,
 	index: OperationIndex
 ): void {
 	if (!shouldLogUnresolvedToolDiagnostics()) {
@@ -208,7 +208,7 @@ function logUnresolvedToolDiagnostics(
 	});
 }
 
-function mapGraphStatus(graph: SessionStateGraph): AgentPanelSessionStatus {
+function mapGraphStatus(graph: AgentPanelCanonicalSource): AgentPanelSessionStatus {
 	const lifecycleStatus = graph.lifecycle.status;
 	if (
 		lifecycleStatus === "failed" ||
@@ -240,7 +240,7 @@ function mapGraphStatus(graph: SessionStateGraph): AgentPanelSessionStatus {
 	return graph.transcriptSnapshot.entries.length > 0 ? "idle" : "connected";
 }
 
-function materializeLifecycle(graph: SessionStateGraph): AgentPanelLifecycleModel {
+function materializeLifecycle(graph: AgentPanelCanonicalSource): AgentPanelLifecycleModel {
 	return {
 		status: graph.lifecycle.status,
 		detachedReason: graph.lifecycle.detachedReason ?? null,
@@ -259,7 +259,7 @@ function materializeLifecycle(graph: SessionStateGraph): AgentPanelLifecycleMode
 	};
 }
 
-function buildLifecycleActions(graph: SessionStateGraph): AgentPanelActionDescriptor[] {
+function buildLifecycleActions(graph: AgentPanelCanonicalSource): AgentPanelActionDescriptor[] {
 	const actions: AgentPanelActionDescriptor[] = [];
 
 	if (graph.lifecycle.actionability.canResume) {
@@ -424,7 +424,7 @@ export function applySceneTextLimits(entry: AgentToolEntry): AgentToolEntry {
 
 function materializeOperationEntry(
 	operation: OperationSnapshot,
-	graph: SessionStateGraph,
+	graph: AgentPanelCanonicalSource,
 	index: OperationIndex,
 	visitedOperationIds: Set<string>,
 	displayEntryId: string | null
@@ -484,7 +484,7 @@ function materializeOperationEntry(
 
 function materializeMissingToolEntry(
 	entry: TranscriptEntry,
-	graph: SessionStateGraph
+	graph: AgentPanelCanonicalSource
 ): AgentPanelSceneEntryModel {
 	const text = truncateDisplayText(segmentText(entry), AGENT_PANEL_SCENE_TEXT_LIMITS.result) ?? "";
 	const isLiveRace = graph.turnState === "Running";
@@ -515,7 +515,7 @@ function materializeMissingToolEntry(
 
 function materializeTranscriptEntry(
 	entry: TranscriptEntry,
-	graph: SessionStateGraph,
+	graph: AgentPanelCanonicalSource,
 	index: OperationIndex,
 	isStreaming: boolean
 ): AgentPanelSceneEntryModel {
@@ -567,7 +567,7 @@ function materializeTranscriptEntry(
 
 function questionInteractionToSceneEntry(
 	interaction: InteractionSnapshot,
-	graph: SessionStateGraph
+	graph: AgentPanelCanonicalSource
 ): AgentPanelSceneEntryModel | null {
 	if (interaction.kind !== "Question" || interaction.state !== "Pending") {
 		return null;
@@ -609,7 +609,7 @@ function questionInteractionToSceneEntry(
 	};
 }
 
-function materializeConversation(graph: SessionStateGraph): {
+function materializeConversation(graph: AgentPanelCanonicalSource): {
 	entries: readonly AgentPanelSceneEntryModel[];
 	isStreaming: boolean;
 } {

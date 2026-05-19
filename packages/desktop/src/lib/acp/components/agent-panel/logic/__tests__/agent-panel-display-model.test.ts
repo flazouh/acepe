@@ -106,6 +106,7 @@ function createGraph(input: {
 	readonly activity: SessionGraphActivity;
 	readonly canSend?: boolean;
 	readonly transcriptRevision?: number;
+	readonly activeStreamingTailRowId?: string | null;
 }): SessionStateGraph {
 	const transcriptSnapshot = createTranscriptSnapshot(input.entries);
 	const transcriptRevision = input.transcriptRevision ?? transcriptSnapshot.revision;
@@ -132,7 +133,13 @@ function createGraph(input: {
 		messageCount: input.entries.length,
 		activeTurnFailure: null,
 		lastTerminalTurnId: input.turnState === "Completed" ? "turn-1" : null,
-		activeStreamingTail: null,
+		activeStreamingTail:
+			input.activeStreamingTailRowId === undefined || input.activeStreamingTailRowId === null
+				? null
+				: {
+						rowId: input.activeStreamingTailRowId,
+						contentKind: "message",
+					},
 		lifecycle: createLifecycle(input.canSend ?? true),
 		activity: input.activity,
 		capabilities: createCapabilities(),
@@ -252,6 +259,7 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
+			activeStreamingTailRowId: "assistant-1",
 		});
 
 		const model = buildAgentPanelBaseModel({

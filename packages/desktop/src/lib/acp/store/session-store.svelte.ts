@@ -27,6 +27,7 @@ import type {
 	InteractionSnapshot,
 	JsonValue,
 	OperationSnapshot,
+	QuestionData,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
@@ -48,6 +49,10 @@ import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
+import {
+	agentPanelCanonicalSourceFromGraph,
+	type AgentPanelCanonicalSource,
+} from "../session-state/agent-panel-canonical-source.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import { canonicalAgentIdToString, isBuiltInCanonicalAgentId } from "../types/agent-id.js";
@@ -158,6 +163,17 @@ type LiveSessionStateGraphConsumer = {
 	replaceSessionStateGraph(graph: SessionStateGraph): void;
 	applySessionInteractionPatches?(snapshots: ReadonlyArray<InteractionSnapshot>): void;
 };
+
+export type SessionQuestionInteractionSnapshot = InteractionSnapshot & {
+	readonly kind: "Question";
+	readonly payload: { readonly Question: QuestionData };
+};
+
+function isSessionQuestionInteraction(
+	interaction: InteractionSnapshot
+): interaction is SessionQuestionInteractionSnapshot {
+	return interaction.kind === "Question" && "Question" in interaction.payload;
+}
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
@@ -1353,6 +1369,37 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
 		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+	}
+
+	getSessionAgentPanelCanonicalSource(sessionId: string): AgentPanelCanonicalSource | null {
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
+			return null;
+		}
+
+		return agentPanelCanonicalSourceFromGraph(graph);
+	}
+
+	getSessionQuestionInteraction(
+		sessionId: string,
+		interactionId: string
+	): SessionQuestionInteractionSnapshot | null {
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
+			return null;
+		}
+
+		for (const interaction of graph.interactions) {
+			if (interaction.id !== interactionId) {
+				continue;
+			}
+			if (!isSessionQuestionInteraction(interaction)) {
+				return null;
+			}
+			return interaction;
+		}
+
+		return null;
 	}
 
 	getSessionMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {

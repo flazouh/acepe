@@ -540,8 +540,12 @@ const browserSidebarUrl = $derived(
 const lifecyclePresentation = $derived(
 	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
 );
-const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
-const canonicalSessionActivity = $derived(sessionId ? sessionStore.getSessionActivity(sessionId) : null);
+const agentPanelCanonicalSource = $derived(
+	sessionId ? sessionStore.getSessionAgentPanelCanonicalSource(sessionId) : null
+);
+const canonicalSessionActivity = $derived(
+	sessionId ? sessionStore.getSessionActivity(sessionId) : null
+);
 const canonicalSessionLifecycle = $derived(
 	sessionId ? sessionStore.getSessionLifecycle(sessionId) : null
 );
@@ -913,7 +917,7 @@ const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, 
 const graphMaterializedScene = $derived(
 	materializeAgentPanelSceneFromGraph({
 		panelId: effectivePanelId,
-		graph: sessionStateGraph,
+		graph: agentPanelCanonicalSource,
 		header: {
 			title: graphHeaderTitle,
 			subtitle: sessionTitle,
@@ -934,7 +938,7 @@ const graphMaterializedScene = $derived(
 const agentPanelBaseDisplayModel = $derived(
 	buildAgentPanelBaseModel({
 		panelId: effectivePanelId,
-		graph: sessionStateGraph,
+		graph: agentPanelCanonicalSource,
 		header: {
 			title: graphHeaderTitle,
 			agentName,
@@ -2191,17 +2195,14 @@ function handleQueueStripSendNow(messageId: string): void {
 }
 
 function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
-	const graph = sessionStateGraph;
-	if (graph === null) {
+	if (sessionId === null) {
 		toast.error("Question is not ready yet.");
 		return;
 	}
 
 	const semanticInteractionId = event.interactionId ?? event.entryId;
-	const interaction = graph.interactions.find(
-		(candidate) => candidate.id === semanticInteractionId
-	);
-	if (interaction === undefined || !("Question" in interaction.payload)) {
+	const interaction = sessionStore.getSessionQuestionInteraction(sessionId, semanticInteractionId);
+	if (interaction === null) {
 		toast.error("Question is no longer available.");
 		return;
 	}
