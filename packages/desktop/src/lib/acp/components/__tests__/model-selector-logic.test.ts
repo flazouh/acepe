@@ -364,9 +364,9 @@ describe("model-selector-logic", () => {
 			expect(result?.fullModelId).toBe("gpt-5.3-codex/low");
 		});
 
-		it("falls back to first available variant when current is missing", () => {
+		it("returns null when current model id has no canonical display match", () => {
 			const result = getCurrentReasoningVariant(groups, "missing");
-			expect(result?.fullModelId).toBe("gpt-5.3-codex/low");
+			expect(result).toBeNull();
 		});
 	});
 

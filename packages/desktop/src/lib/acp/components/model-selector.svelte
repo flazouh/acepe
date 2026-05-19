@@ -128,7 +128,7 @@ const selectedReasoningBaseGroup = $derived.by(() => {
 		return null;
 	}
 	if (!selectedReasoningVariant) {
-		return reasoningBaseGroups[0] ?? null;
+		return currentModelId ? null : (reasoningBaseGroups[0] ?? null);
 	}
 	return (
 		reasoningBaseGroups.find(

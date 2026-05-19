@@ -141,6 +141,10 @@ export function getCurrentReasoningVariant(
 		}
 	}
 
+	if (currentModelId) {
+		return null;
+	}
+
 	return baseGroups[0]?.variants[0] ?? null;
 }
 
