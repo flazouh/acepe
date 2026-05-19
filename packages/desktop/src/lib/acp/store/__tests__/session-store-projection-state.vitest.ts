@@ -4631,9 +4631,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.setLocalCreatedSessionLoaded("session-1");
 
-		expect(store.getSessionUIState("session-1")).toMatchObject({
-			showConversation: true,
-			isReadOnly: true,
+		expect(store.getSessionState("session-1")).toMatchObject({
+			content: "loaded",
+			connection: "disconnected",
 		});
 		expect(store.getSessionCanSend("session-1")).toBe(null);
 	});

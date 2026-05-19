@@ -48,10 +48,6 @@ import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
-import {
-	deriveSessionUIState,
-	type SessionUIState,
-} from "../logic/session-ui-state";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
@@ -1695,16 +1691,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getSessionState(sessionId: string): SessionMachineSnapshot | null {
 		return this.connectionService.getState(sessionId);
-	}
-
-	/**
-	 * Get derived UI state for a session.
-	 * Derives directly from the XState machine - single source of truth.
-	 */
-	getSessionUIState(sessionId: string): SessionUIState | null {
-		const state = this.connectionService.getState(sessionId);
-		if (!state) return null;
-		return deriveSessionUIState(state);
 	}
 
 	/**
