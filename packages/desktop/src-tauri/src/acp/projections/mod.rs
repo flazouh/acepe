@@ -1647,28 +1647,11 @@ fn plan_mode_arguments_have_plan(arguments: &ToolArguments) -> bool {
 }
 
 fn read_exit_plan_arguments_from_permission(permission: &PermissionData) -> Option<ToolArguments> {
-    let parsed_arguments = permission
+    permission
         .metadata
         .get("parsedArguments")
         .and_then(|value| serde_json::from_value::<ToolArguments>(value.clone()).ok())
-        .filter(plan_mode_arguments_have_plan);
-    if parsed_arguments.is_some() {
-        return parsed_arguments;
-    }
-
-    let diagnostic_raw_input = permission.metadata.get("diagnosticRawInput")?;
-    let has_plan_text = diagnostic_raw_input
-        .get("plan")
-        .and_then(Value::as_str)
-        .is_some_and(|plan| !plan.trim().is_empty());
-    if has_plan_text {
-        return Some(ToolArguments::from_raw(
-            ToolKind::ExitPlanMode,
-            diagnostic_raw_input.clone(),
-        ));
-    }
-
-    None
+        .filter(plan_mode_arguments_have_plan)
 }
 
 fn create_session_tool_key(session_id: &str, tool_call_id: &str) -> String {
@@ -4357,6 +4340,74 @@ mod tests {
                 plan: Some(plan.to_string()),
                 plan_file_path: Some("/repo/docs/plans/fix-plan-card.md".to_string()),
                 title: Some("Fix Plan Card".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn exit_plan_permission_does_not_enrich_operation_from_diagnostic_raw_input() {
+        let registry = ProjectionRegistry::new();
+        let mut plan_tool_call = create_execute_tool_call(
+            "exit-plan-tool",
+            "exit plan mode",
+            ToolCallStatus::InProgress,
+        );
+        plan_tool_call.name = "ExitPlanMode".to_string();
+        plan_tool_call.kind = Some(ToolKind::ExitPlanMode);
+        plan_tool_call.title = Some("Plan ready".to_string());
+        plan_tool_call.arguments = ToolArguments::Other {
+            raw: json!({}),
+            intent: None,
+        };
+        plan_tool_call.raw_input = Some(json!({}));
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: plan_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-exit-plan".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(42),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(42)),
+                    permission: "ExitPlanMode".to_string(),
+                    patterns: vec![],
+                    metadata: json!({
+                        "diagnosticRawInput": {
+                            "plan": "# Raw Plan\n\nThis must stay diagnostic.",
+                            "planFilePath": "/repo/docs/plans/raw-plan.md"
+                        },
+                        "options": []
+                    }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: Some(ToolReference {
+                        message_id: String::new(),
+                        call_id: "exit-plan-tool".to_string(),
+                    }),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let operation = registry
+            .operation_for_tool_call("session-1", "exit-plan-tool")
+            .expect("expected exit-plan operation");
+
+        assert_eq!(operation.operation_state, OperationState::Blocked);
+        assert!(!operation.awaiting_plan_approval);
+        assert_eq!(operation.plan_approval_request_id, None);
+        assert_eq!(
+            operation.arguments,
+            ToolArguments::Other {
+                raw: json!({}),
+                intent: None
             }
         );
     }
