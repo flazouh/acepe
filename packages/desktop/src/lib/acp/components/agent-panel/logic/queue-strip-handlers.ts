@@ -1,4 +1,8 @@
 import type { MessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
+import {
+	queuedMessageId,
+	type QueuedMessageId,
+} from "../../../store/message-queue/types.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 
 type QueuedMessage = {
@@ -14,7 +18,7 @@ export type AgentInputQueueRestore = {
 /** Cancel a queued message and restore its text into the composer. */
 export function cancelQueuedMessageAndRestoreInput(options: {
 	sessionId: string;
-	messageId: string;
+	messageId: QueuedMessageId;
 	queueMessages: readonly QueuedMessage[];
 	agentInputRef: AgentInputQueueRestore | null;
 	messageQueueStore: MessageQueueStore;
@@ -23,7 +27,7 @@ export function cancelQueuedMessageAndRestoreInput(options: {
 	if (!agentInputRef) {
 		return;
 	}
-	const queuedMessage = queueMessages.find((message) => message.id === messageId);
+	const queuedMessage = queueMessages.find((message) => queuedMessageId(message) === messageId);
 	if (!queuedMessage) {
 		return;
 	}
@@ -33,7 +37,7 @@ export function cancelQueuedMessageAndRestoreInput(options: {
 
 export function removeAttachmentFromQueuedMessage(options: {
 	sessionId: string;
-	messageId: string;
+	messageId: QueuedMessageId;
 	attachmentId: string;
 	messageQueueStore: MessageQueueStore;
 }): void {
@@ -53,7 +57,7 @@ export function clearMessageQueue(options: {
 
 export function sendQueuedMessageNow(options: {
 	sessionId: string;
-	messageId: string;
+	messageId: QueuedMessageId;
 	messageQueueStore: MessageQueueStore;
 }): void {
 	options.messageQueueStore.sendNow(options.sessionId, options.messageId);

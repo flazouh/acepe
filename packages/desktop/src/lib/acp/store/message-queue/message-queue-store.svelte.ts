@@ -13,7 +13,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { Attachment } from "../../components/agent-input/types/attachment.js";
 import type { AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
-import type { QueuedMessage } from "./types.js";
+import { queuedMessageId, type QueuedMessage, type QueuedMessageId } from "./types.js";
 
 const logger = createLogger({ id: "message-queue-store", name: "MessageQueueStore" });
 
@@ -62,14 +62,18 @@ export interface MessageQueueStore {
 	getQueue(sessionId: string): readonly QueuedMessage[];
 	/** Enqueue a message. Returns false if the queue is full. */
 	enqueue(sessionId: string, content: string, attachments: readonly Attachment[]): boolean;
-	updateMessage(sessionId: string, messageId: string, content: string): boolean;
-	removeMessage(sessionId: string, messageId: string): void;
+	updateMessage(sessionId: string, messageId: QueuedMessageId, content: string): boolean;
+	removeMessage(sessionId: string, messageId: QueuedMessageId): void;
 	/** Remove a single attachment from a queued message. */
-	removeAttachmentFromMessage(sessionId: string, messageId: string, attachmentId: string): void;
+	removeAttachmentFromMessage(
+		sessionId: string,
+		messageId: QueuedMessageId,
+		attachmentId: string
+	): void;
 	clearQueue(sessionId: string): void;
 	drainNext(sessionId: string): void;
 	/** Send a specific queued message immediately, removing it from the queue. */
-	sendNow(sessionId: string, messageId: string): void;
+	sendNow(sessionId: string, messageId: QueuedMessageId): void;
 	pause(sessionId: string): void;
 	resume(sessionId: string): void;
 	isPaused(sessionId: string): boolean;
@@ -124,17 +128,21 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 		bumpVersion(sessionId);
 		logger.debug("Message enqueued", {
 			sessionId,
-			messageId: message.id,
+			messageId: queuedMessageId(message),
 			queueSize: queue.length + 1,
 		});
 		return true;
 	}
 
-	function updateMessage(sessionId: string, messageId: string, content: string): boolean {
+	function updateMessage(
+		sessionId: string,
+		messageId: QueuedMessageId,
+		content: string
+	): boolean {
 		const queue = queues.get(sessionId);
 		if (!queue) return false;
 
-		const index = queue.findIndex((message) => message.id === messageId);
+		const index = queue.findIndex((message) => queuedMessageId(message) === messageId);
 		if (index === -1) return false;
 
 		const nextQueue = queue.map((message, messageIndex) => {
@@ -142,7 +150,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 				return message;
 			}
 			return {
-				id: message.id,
+				id: queuedMessageId(message),
 				content,
 				attachments: message.attachments,
 				queuedAt: message.queuedAt,
@@ -154,11 +162,11 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 		return true;
 	}
 
-	function removeMessage(sessionId: string, messageId: string): void {
+	function removeMessage(sessionId: string, messageId: QueuedMessageId): void {
 		const queue = queues.get(sessionId);
 		if (!queue) return;
 
-		const filtered = queue.filter((m) => m.id !== messageId);
+		const filtered = queue.filter((message) => queuedMessageId(message) !== messageId);
 		if (filtered.length === 0) {
 			queues.delete(sessionId);
 			clearVersion(sessionId);
@@ -170,17 +178,17 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 
 	function removeAttachmentFromMessage(
 		sessionId: string,
-		messageId: string,
+		messageId: QueuedMessageId,
 		attachmentId: string
 	): void {
 		const queue = queues.get(sessionId);
 		if (!queue) return;
 
 		const nextQueue = queue.map((message) => {
-			if (message.id !== messageId) return message;
+			if (queuedMessageId(message) !== messageId) return message;
 			const filtered = message.attachments.filter((a) => a.id !== attachmentId);
 			return {
-				id: message.id,
+				id: queuedMessageId(message),
 				content: message.content,
 				attachments: filtered,
 				queuedAt: message.queuedAt,
@@ -215,7 +223,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 
 		drainingIds.add(sessionId);
 
-		logger.debug("Draining next message", { sessionId, messageId: next.id });
+		logger.debug("Draining next message", { sessionId, messageId: queuedMessageId(next) });
 
 		sender
 			.sendMessage(sessionId, next.content, next.attachments)
@@ -232,17 +240,17 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 				pausedIds.add(sessionId);
 				logger.warn("Drain failed, re-inserted and paused", {
 					sessionId,
-					messageId: next.id,
+					messageId: queuedMessageId(next),
 					error,
 				});
 			});
 	}
 
-	function sendNow(sessionId: string, messageId: string): void {
+	function sendNow(sessionId: string, messageId: QueuedMessageId): void {
 		const queue = queues.get(sessionId);
 		if (!queue) return;
 
-		const index = queue.findIndex((m) => m.id === messageId);
+		const index = queue.findIndex((message) => queuedMessageId(message) === messageId);
 		if (index === -1) return;
 
 		const target = queue[index];
@@ -255,7 +263,10 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			clearVersion(sessionId);
 		}
 
-		logger.debug("Sending queued message now", { sessionId, messageId: target.id });
+		logger.debug("Sending queued message now", {
+			sessionId,
+			messageId: queuedMessageId(target),
+		});
 
 		sender.sendMessage(sessionId, target.content, target.attachments).mapErr((error) => {
 			const current = queues.get(sessionId) ?? [];
@@ -264,7 +275,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			pausedIds.add(sessionId);
 			logger.warn("sendNow failed, re-inserted and paused", {
 				sessionId,
-				messageId: target.id,
+				messageId: queuedMessageId(target),
 				error,
 			});
 		});
