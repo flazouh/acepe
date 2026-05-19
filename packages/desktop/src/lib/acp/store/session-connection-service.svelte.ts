@@ -7,8 +7,8 @@
  * - Connection state tracking
  * - State machine event dispatching
  *
- * Machine snapshots are cached in a SvelteMap so that `getState()` reads
- * establish Svelte reactive dependencies for canonical selectors.
+ * Machine snapshots stay private to this service. SessionStore passes canonical
+ * lifecycle facts in; this service translates them into legacy machine events.
  */
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
@@ -42,7 +42,7 @@ export class SessionConnectionService implements IConnectionManager {
 	// State machines by session ID
 	private sessionMachines = new SvelteMap<string, SessionMachineActor>();
 
-	// Reactive snapshot cache — SvelteMap so getState() establishes Svelte dependencies
+	// Snapshot cache is private to the legacy connection machine owner.
 	private snapshotCache = new SvelteMap<string, SessionMachineSnapshot>();
 
 	// Actor subscriptions for cleanup on removal
@@ -64,8 +64,6 @@ export class SessionConnectionService implements IConnectionManager {
 			machine = createActor(sessionMachine, { input: { sessionId } });
 
 			// Subscribe BEFORE start() to capture initial state.
-			// Each transition synchronously writes to the SvelteMap,
-			// making getState() reactive for $derived consumers.
 			const sub = machine.subscribe((snapshot) => {
 				this.snapshotCache.set(sessionId, snapshot.value as SessionMachineSnapshot);
 			});
@@ -85,12 +83,12 @@ export class SessionConnectionService implements IConnectionManager {
 		return this.sessionMachines.get(sessionId) ?? null;
 	}
 
-	private getState(sessionId: string): SessionMachineSnapshot | null {
+	private getSnapshot(sessionId: string): SessionMachineSnapshot | null {
 		return this.snapshotCache.get(sessionId) ?? null;
 	}
 
 	isResponseInProgress(sessionId: string): boolean {
-		const state = this.getState(sessionId);
+		const state = this.getSnapshot(sessionId);
 		return (
 			state?.connection === ConnectionState.AWAITING_RESPONSE ||
 			state?.connection === ConnectionState.STREAMING ||
@@ -104,7 +102,7 @@ export class SessionConnectionService implements IConnectionManager {
 		turnState: SessionTurnState,
 		activeTurnFailure: ActiveTurnFailure | null
 	): void {
-		let machineState = this.getState(sessionId);
+		let machineState = this.getSnapshot(sessionId);
 
 		if (
 			lifecycle.status === "reserved" ||
@@ -136,20 +134,20 @@ export class SessionConnectionService implements IConnectionManager {
 			this.sendConnectionConnect(sessionId);
 			this.sendConnectionSuccess(sessionId);
 			this.sendCapabilitiesLoaded(sessionId);
-			machineState = this.getState(sessionId);
+			machineState = this.getSnapshot(sessionId);
 		} else if (machineState.connection === ConnectionState.CONNECTING) {
 			this.sendConnectionSuccess(sessionId);
 			this.sendCapabilitiesLoaded(sessionId);
-			machineState = this.getState(sessionId);
+			machineState = this.getSnapshot(sessionId);
 		} else if (machineState.connection === ConnectionState.WARMING_UP) {
 			this.sendCapabilitiesLoaded(sessionId);
-			machineState = this.getState(sessionId);
+			machineState = this.getSnapshot(sessionId);
 		} else if (machineState.connection === ConnectionState.ERROR) {
 			this.sendDisconnect(sessionId);
 			this.sendConnectionConnect(sessionId);
 			this.sendConnectionSuccess(sessionId);
 			this.sendCapabilitiesLoaded(sessionId);
-			machineState = this.getState(sessionId);
+			machineState = this.getSnapshot(sessionId);
 		}
 
 		if (machineState === null) {
