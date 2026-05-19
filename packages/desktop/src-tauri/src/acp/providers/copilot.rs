@@ -802,7 +802,7 @@ mod tests {
                     description: None,
                 },
             ],
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -819,7 +819,7 @@ mod tests {
         )
         .expect("copilot session defaults should apply");
 
-        assert_eq!(models.current_model_id, "gpt-4.1");
+        assert_eq!(models.current_model_id.as_deref(), Some("gpt-4.1"));
     }
 
     #[test]
@@ -846,7 +846,7 @@ mod tests {
                 name: "GPT-5.4".to_string(),
                 description: None,
             }],
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -863,7 +863,7 @@ mod tests {
         )
         .expect("copilot session defaults should accept managed config comments");
 
-        assert_eq!(models.current_model_id, "gpt-5.4");
+        assert_eq!(models.current_model_id.as_deref(), Some("gpt-5.4"));
     }
 
     #[test]
@@ -884,7 +884,7 @@ mod tests {
 
         let mut models = SessionModelState {
             available_models: vec![],
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -901,7 +901,7 @@ mod tests {
         )
         .expect("copilot session defaults should apply");
 
-        assert_eq!(models.current_model_id, "auto");
+        assert_eq!(models.current_model_id.as_deref(), Some("auto"));
         assert!(models.available_models.is_empty());
     }
 
@@ -927,7 +927,7 @@ mod tests {
                 name: "GPT-4.1".to_string(),
                 description: None,
             }],
-            current_model_id: "gpt-4.1".to_string(),
+            current_model_id: Some("gpt-4.1".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -944,7 +944,7 @@ mod tests {
         )
         .expect("copilot session defaults should apply");
 
-        assert_eq!(models.current_model_id, "gpt-4.1");
+        assert_eq!(models.current_model_id.as_deref(), Some("gpt-4.1"));
         assert_eq!(models.available_models.len(), 1);
         assert_eq!(models.available_models[0].model_id, "gpt-4.1");
     }

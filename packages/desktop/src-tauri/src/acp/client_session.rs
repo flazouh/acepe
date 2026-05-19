@@ -71,22 +71,18 @@ pub struct ResumeSessionResponse {
 pub struct SessionModelState {
     #[serde(default)]
     pub available_models: Vec<AvailableModel>,
-    #[serde(default = "default_current_model_id")]
-    pub current_model_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub current_model_id: Option<String>,
     #[serde(default)]
     pub models_display: ModelsForDisplay,
     #[serde(default, skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub provider_metadata: Option<FrontendProviderProjection>,
 }
 
-fn default_current_model_id() -> String {
-    "auto".to_string()
-}
-
 pub(crate) fn default_session_model_state() -> SessionModelState {
     SessionModelState {
         available_models: Vec::new(),
-        current_model_id: default_current_model_id(),
+        current_model_id: Some("auto".to_string()),
         models_display: ModelsForDisplay::default(),
         provider_metadata: None,
     }
@@ -107,7 +103,8 @@ pub(crate) fn apply_provider_model_fallback(
         return;
     }
 
-    if let Some(candidate) = provider.model_fallback_for_empty_list(&model_state.current_model_id) {
+    let current_model_id = model_state.current_model_id.as_deref().unwrap_or("");
+    if let Some(candidate) = provider.model_fallback_for_empty_list(current_model_id) {
         model_state.available_models.push(AvailableModel {
             model_id: candidate.model_id,
             name: candidate.name,

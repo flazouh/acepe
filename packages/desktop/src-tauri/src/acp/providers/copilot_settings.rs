@@ -36,8 +36,11 @@ pub fn apply_copilot_session_defaults_from_paths(
         return Ok(());
     };
 
-    let should_apply_model =
-        models.current_model_id.trim().is_empty() || models.current_model_id == "auto";
+    let should_apply_model = models
+        .current_model_id
+        .as_deref()
+        .map(|model_id| model_id.trim().is_empty() || model_id == "auto")
+        .unwrap_or(true);
     if !should_apply_model {
         return Ok(());
     }
@@ -47,7 +50,7 @@ pub fn apply_copilot_session_defaults_from_paths(
         .iter()
         .any(|model| model.model_id == configured_model_id)
     {
-        models.current_model_id = configured_model_id;
+        models.current_model_id = Some(configured_model_id);
         return Ok(());
     }
 

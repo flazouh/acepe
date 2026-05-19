@@ -521,11 +521,11 @@ pub trait AgentProvider: Send + Sync {
             ResolvedCapabilities {
                 status: crate::acp::capability_resolution::ResolvedCapabilityStatus::Unsupported,
                 available_models: Vec::new(),
-                current_model_id: String::new(),
+                current_model_id: None,
                 models_display: Default::default(),
                 provider_metadata,
                 available_modes: Vec::new(),
-                current_mode_id: String::new(),
+                current_mode_id: None,
             }
         })
     }

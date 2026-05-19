@@ -42,8 +42,11 @@ pub fn apply_opencode_session_defaults_from_paths(
         }
     }
 
-    let should_apply_model =
-        models.current_model_id.trim().is_empty() || models.current_model_id == "auto";
+    let should_apply_model = models
+        .current_model_id
+        .as_deref()
+        .map(|model_id| model_id.trim().is_empty() || model_id == "auto")
+        .unwrap_or(true);
     if !should_apply_model {
         return Ok(());
     }
@@ -52,7 +55,7 @@ pub fn apply_opencode_session_defaults_from_paths(
         return Ok(());
     };
 
-    models.current_model_id = configured_model_id.clone();
+    models.current_model_id = Some(configured_model_id.clone());
     if !models
         .available_models
         .iter()

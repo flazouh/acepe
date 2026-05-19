@@ -54,8 +54,11 @@ pub(crate) fn apply_claude_session_defaults(
     models: &mut SessionModelState,
     _modes: &mut SessionModes,
 ) -> AcpResult<()> {
-    let should_apply_model =
-        models.current_model_id.trim().is_empty() || models.current_model_id == "auto";
+    let should_apply_model = models
+        .current_model_id
+        .as_deref()
+        .map(|model_id| model_id.trim().is_empty() || model_id == "auto")
+        .unwrap_or(true);
     if !should_apply_model {
         return Ok(());
     }
@@ -69,7 +72,7 @@ pub(crate) fn apply_claude_session_defaults(
         return Ok(());
     };
 
-    models.current_model_id = configured_model_id.clone();
+    models.current_model_id = Some(configured_model_id.clone());
     if !models
         .available_models
         .iter()
@@ -428,7 +431,7 @@ mod tests {
 
         let mut models = SessionModelState {
             available_models: Vec::new(),
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -441,7 +444,10 @@ mod tests {
             apply_claude_session_defaults_with_home(&project, Some(&home), &mut models, &mut modes);
 
         assert!(result.is_ok());
-        assert_eq!(models.current_model_id, "claude-sonnet-4-6");
+        assert_eq!(
+            models.current_model_id.as_deref(),
+            Some("claude-sonnet-4-6")
+        );
         assert_eq!(models.available_models.len(), 1);
         assert_eq!(models.available_models[0].name, "Sonnet 4.6");
     }
@@ -452,8 +458,11 @@ mod tests {
         models: &mut SessionModelState,
         modes: &mut SessionModes,
     ) -> AcpResult<()> {
-        let should_apply_model =
-            models.current_model_id.trim().is_empty() || models.current_model_id == "auto";
+        let should_apply_model = models
+            .current_model_id
+            .as_deref()
+            .map(|model_id| model_id.trim().is_empty() || model_id == "auto")
+            .unwrap_or(true);
         if !should_apply_model {
             return Ok(());
         }
@@ -470,7 +479,7 @@ mod tests {
         };
 
         let _ = modes;
-        models.current_model_id = configured_model_id.clone();
+        models.current_model_id = Some(configured_model_id.clone());
         if !models
             .available_models
             .iter()

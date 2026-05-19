@@ -180,10 +180,10 @@ fn set_pending_model_id(
     model_id: &str,
 ) -> crate::acp::session_state_engine::selectors::SessionGraphCapabilities {
     if let Some(models) = capabilities.models.as_mut() {
-        models.current_model_id = model_id.to_string();
+        models.current_model_id = Some(model_id.to_string());
     } else {
         let mut models = crate::acp::client_session::default_session_model_state();
-        models.current_model_id = model_id.to_string();
+        models.current_model_id = Some(model_id.to_string());
         capabilities.models = Some(models);
     }
     capabilities

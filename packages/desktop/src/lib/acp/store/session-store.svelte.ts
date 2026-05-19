@@ -908,9 +908,15 @@ function projectGraphCapabilities(
 } {
 	const availableModels = mapGraphAvailableModels(capabilities);
 	const availableModes = mapGraphAvailableModes(capabilities);
+	const modelState = capabilities.models as
+		| (NonNullable<SessionGraphCapabilities["models"]> & {
+				readonly providerMetadata?: ProviderMetadataProjection | null;
+		  })
+		| null
+		| undefined;
 	const providerMetadata = resolveProviderMetadataProjection(
 		agentId,
-		capabilities.models?.providerMetadata ?? null,
+		modelState?.providerMetadata ?? null,
 		agentId
 	);
 	const normalizedModelsDisplay =

@@ -1302,11 +1302,12 @@ impl ClaudeCcSdkClient {
         }
 
         if let Some(model_id) = &self.pending_model_id {
-            model_state.current_model_id = model_id.clone();
-        } else if model_state.current_model_id == "auto" && model_state.available_models.len() == 1
+            model_state.current_model_id = Some(model_id.clone());
+        } else if model_state.current_model_id.as_deref() == Some("auto")
+            && model_state.available_models.len() == 1
         {
             if let Some(model) = model_state.available_models.first() {
-                model_state.current_model_id = model.model_id.clone();
+                model_state.current_model_id = Some(model.model_id.clone());
             }
         }
         let cwd = self
@@ -1335,7 +1336,7 @@ impl ClaudeCcSdkClient {
 
         tracing::info!(
             provider = %self.provider.id(),
-            current_model_id = %model_state.current_model_id,
+            current_model_id = ?model_state.current_model_id,
             available_model_ids = ?model_state
                 .available_models
                 .iter()
@@ -7129,7 +7130,7 @@ mod tests {
         let projection_registry = Arc::new(ProjectionRegistry::new());
         let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
         let mut models = default_session_model_state();
-        models.current_model_id = "claude-opus-4-7".to_string();
+        models.current_model_id = Some("claude-opus-4-7".to_string());
         let mut modes = default_modes();
         modes.current_mode_id = "plan".to_string();
         let capabilities = SessionGraphCapabilities {
@@ -7160,7 +7161,7 @@ mod tests {
                 .models
                 .expect("models preserved")
                 .current_model_id,
-            "claude-opus-4-7"
+            Some("claude-opus-4-7".to_string())
         );
         assert_eq!(
             checkpoint

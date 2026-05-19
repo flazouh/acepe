@@ -42,13 +42,13 @@ export type ModelPresentationMetadata = { displayFamily: ModelDisplayFamily; usa
  */
 export type ModelsForDisplay = { groups: DisplayModelGroup[]; presentation?: ModelPresentationMetadata }
 
-export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string; modelsDisplay?: ModelsForDisplay; providerMetadata?: ProviderMetadataProjection }
+export type SessionModelState = { availableModels?: AvailableModel[]; currentModelId?: string | null; modelsDisplay?: ModelsForDisplay }
 
 export type SessionModes = { currentModeId?: string; availableModes?: AvailableMode[] }
 
 export type ResolvedCapabilityStatus = "resolved" | "partial" | "unsupported" | "failed"
 
-export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string }
+export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; availableModels: AvailableModel[]; currentModelId: string | null; modelsDisplay: ModelsForDisplay; providerMetadata: FrontendProviderProjection; availableModes: AvailableMode[]; currentModeId: string | null }
 
 /**
  * Configuration option value.

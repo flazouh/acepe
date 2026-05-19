@@ -27,11 +27,11 @@ pub enum ResolvedCapabilityStatus {
 pub struct ResolvedCapabilities {
     pub status: ResolvedCapabilityStatus,
     pub available_models: Vec<AvailableModel>,
-    pub current_model_id: String,
+    pub current_model_id: Option<String>,
     pub models_display: crate::acp::model_display::ModelsForDisplay,
     pub provider_metadata: FrontendProviderProjection,
     pub available_modes: Vec<AvailableMode>,
-    pub current_mode_id: String,
+    pub current_mode_id: Option<String>,
 }
 
 pub async fn discover_models_from_provider_cli(
@@ -92,21 +92,28 @@ pub async fn discover_models_from_provider_cli(
 }
 
 fn normalize_current_model_id(model_state: &mut SessionModelState) {
+    let Some(current_model_id) = model_state.current_model_id.as_deref() else {
+        if let Some(first_model) = model_state.available_models.first() {
+            model_state.current_model_id = Some(first_model.model_id.clone());
+        }
+        return;
+    };
+
     let has_current_model = model_state
         .available_models
         .iter()
-        .any(|model| model.model_id == model_state.current_model_id);
+        .any(|model| model.model_id == current_model_id);
 
     if has_current_model {
         return;
     }
 
     if let Some(first_model) = model_state.available_models.first() {
-        model_state.current_model_id = first_model.model_id.clone();
+        model_state.current_model_id = Some(first_model.model_id.clone());
         return;
     }
 
-    model_state.current_model_id.clear();
+    model_state.current_model_id = None;
 }
 
 fn finalize_status(
@@ -148,7 +155,7 @@ fn finalize_capabilities(
             .provider_metadata
             .unwrap_or_else(|| provider.frontend_projection()),
         available_modes: modes.available_modes,
-        current_mode_id: modes.current_mode_id,
+        current_mode_id: Some(modes.current_mode_id),
     })
 }
 
@@ -210,11 +217,11 @@ pub fn unsupported_capabilities(provider: &dyn AgentProvider) -> ResolvedCapabil
     ResolvedCapabilities {
         status: ResolvedCapabilityStatus::Unsupported,
         available_models: Vec::new(),
-        current_model_id: String::new(),
+        current_model_id: None,
         models_display: Default::default(),
         provider_metadata: provider.frontend_projection(),
         available_modes: Vec::new(),
-        current_mode_id: String::new(),
+        current_mode_id: None,
     }
 }
 
@@ -223,11 +230,11 @@ pub fn failed_capabilities(provider: &dyn AgentProvider, error: String) -> Resol
     ResolvedCapabilities {
         status: ResolvedCapabilityStatus::Failed,
         available_models: Vec::new(),
-        current_model_id: String::new(),
+        current_model_id: None,
         models_display: Default::default(),
         provider_metadata: provider.frontend_projection(),
         available_modes: default_modes().available_modes,
-        current_mode_id: "build".to_string(),
+        current_mode_id: Some("build".to_string()),
     }
 }
 
@@ -291,7 +298,7 @@ mod tests {
         let provider = TestProvider;
         let cwd = Path::new(".");
         let mut models = default_session_model_state();
-        models.current_model_id = "cursor-auto".to_string();
+        models.current_model_id = Some("cursor-auto".to_string());
 
         let resolved = resolve_static_capabilities(
             &provider,
@@ -303,7 +310,7 @@ mod tests {
         .expect("capability resolution should succeed");
 
         assert_eq!(resolved.status, ResolvedCapabilityStatus::Resolved);
-        assert_eq!(resolved.current_model_id, "cursor-auto");
+        assert_eq!(resolved.current_model_id.as_deref(), Some("cursor-auto"));
         assert_eq!(resolved.available_models.len(), 1);
         assert_eq!(resolved.available_models[0].model_id, "cursor-auto");
     }

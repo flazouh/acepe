@@ -515,7 +515,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 name: "GPT-5".to_string(),
                 description: None,
             }],
-            current_model_id: "gpt-5".to_string(),
+            current_model_id: Some("gpt-5".to_string()),
             ..default_session_model_state()
         },
         modes: SessionModes {
@@ -573,8 +573,9 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                     .models
                     .as_ref()
                     .expect("models")
-                    .current_model_id,
-                "gpt-5"
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
             assert_eq!(
                 graph
@@ -719,7 +720,7 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
                     }],
-                    current_model_id: "claude-sonnet-4.6".to_string(),
+                    current_model_id: Some("claude-sonnet-4.6".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -762,7 +763,10 @@ async fn resume_or_create_reuses_cached_snapshot_when_existing_client_is_already
     assert_eq!(factory_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.load_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(response.models.current_model_id, "claude-sonnet-4.6");
+    assert_eq!(
+        response.models.current_model_id.as_deref(),
+        Some("claude-sonnet-4.6")
+    );
     assert_eq!(response.modes.current_mode_id, "plan");
 
     let stored_client_arc = session_registry
@@ -798,7 +802,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
                         name: "Claude Sonnet 4.6".to_string(),
                         description: None,
                     }],
-                    current_model_id: "claude-sonnet-4.6".to_string(),
+                    current_model_id: Some("claude-sonnet-4.6".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -845,7 +849,7 @@ async fn resume_or_create_does_not_reuse_cached_snapshot_when_copilot_reports_mi
     assert_eq!(factory_calls.load(Ordering::SeqCst), 1);
     assert_eq!(existing_state.resume_calls.load(Ordering::SeqCst), 0);
     assert_eq!(existing_state.load_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(response.models.current_model_id, "gpt-5");
+    assert_eq!(response.models.current_model_id.as_deref(), Some("gpt-5"));
     assert_eq!(response.modes.current_mode_id, "build");
 
     let stored_client_arc = session_registry
@@ -1532,7 +1536,7 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
                         name: "GPT-5".to_string(),
                         description: None,
                     }],
-                    current_model_id: "gpt-5".to_string(),
+                    current_model_id: Some("gpt-5".to_string()),
                     models_display: Default::default(),
                     provider_metadata: None,
                 },
@@ -1962,7 +1966,7 @@ impl AgentClient for MockAgentClient {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-5".to_string(),
+                current_model_id: Some("gpt-5".to_string()),
                 models_display: Default::default(),
                 provider_metadata: None,
             },
@@ -1999,7 +2003,7 @@ impl AgentClient for MockAgentClient {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-5".to_string(),
+                current_model_id: Some("gpt-5".to_string()),
                 models_display: Default::default(),
                 provider_metadata: None,
             },
@@ -2115,7 +2119,7 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
                     name: "GPT-5".to_string(),
                     description: None,
                 }],
-                current_model_id: "gpt-4".to_string(),
+                current_model_id: Some("gpt-4".to_string()),
                 ..default_session_model_state()
             }),
             modes: Some(SessionModes {
@@ -2182,8 +2186,12 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
                 "pending envelope should carry mutation id"
             );
             assert_eq!(
-                capabilities.models.expect("models").current_model_id,
-                "gpt-5".to_string()
+                capabilities
+                    .models
+                    .expect("models")
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
         }
         _ => panic!("expected pending capabilities payload"),
@@ -2200,8 +2208,12 @@ async fn set_model_emits_pending_then_confirmed_capabilities_envelopes() {
             assert_eq!(revision.graph_revision, 6);
             assert_eq!(pending_mutation_id, None);
             assert_eq!(
-                capabilities.models.expect("models").current_model_id,
-                "gpt-5".to_string()
+                capabilities
+                    .models
+                    .expect("models")
+                    .current_model_id
+                    .as_deref(),
+                Some("gpt-5")
             );
         }
         _ => panic!("expected confirmed capabilities payload"),

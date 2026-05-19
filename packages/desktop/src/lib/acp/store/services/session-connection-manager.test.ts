@@ -690,18 +690,6 @@ describe("SessionConnectionManager.connectSession", () => {
 			models: {
 				currentModelId: "default",
 				availableModels: [{ modelId: "default", name: "Default", description: null }],
-				providerMetadata: {
-					providerBrand: "claude-code",
-					displayName: "Claude Code",
-					displayOrder: 10,
-					supportsModelDefaults: true,
-					variantGroup: "plain",
-					defaultAlias: "default",
-					reasoningEffortSupport: false,
-					preconnectionSlashMode: "startupGlobal",
-					preconnectionCapabilityMode: "startupGlobal",
-				implicitSessionCreationMode: "allowed",
-				},
 				modelsDisplay: {
 					groups: [],
 					presentation: {

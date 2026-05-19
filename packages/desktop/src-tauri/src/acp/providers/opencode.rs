@@ -197,7 +197,7 @@ impl AgentProvider for OpenCodeProvider {
                 Ok((available_models, current_model_id)) => {
                     let models = SessionModelState {
                         available_models,
-                        current_model_id,
+                        current_model_id: Some(current_model_id),
                         models_display: Default::default(),
                         provider_metadata: Some(self.frontend_projection()),
                     };
@@ -483,7 +483,7 @@ mod tests {
                     description: None,
                 },
             ],
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -500,7 +500,7 @@ mod tests {
         )
         .expect("opencode session defaults should apply");
 
-        assert_eq!(models.current_model_id, "openai/gpt-5.4");
+        assert_eq!(models.current_model_id.as_deref(), Some("openai/gpt-5.4"));
         assert_eq!(modes.current_mode_id, "plan");
     }
 
@@ -523,7 +523,7 @@ mod tests {
 
         let mut models = SessionModelState {
             available_models: vec![],
-            current_model_id: "auto".to_string(),
+            current_model_id: Some("auto".to_string()),
             models_display: Default::default(),
             provider_metadata: None,
         };
@@ -540,7 +540,10 @@ mod tests {
         )
         .expect("opencode session defaults should apply");
 
-        assert_eq!(models.current_model_id, "openrouter/qwen-coder");
+        assert_eq!(
+            models.current_model_id.as_deref(),
+            Some("openrouter/qwen-coder")
+        );
         assert_eq!(models.available_models.len(), 1);
         assert_eq!(models.available_models[0].model_id, "openrouter/qwen-coder");
     }
