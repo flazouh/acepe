@@ -76,7 +76,7 @@ export function deriveSessionListStateFromCanonical(
 ): SessionListState {
 	if (projection === null) {
 		return {
-			status: "idle",
+			status: "error",
 			isConnected: false,
 			isStreaming: false,
 		};

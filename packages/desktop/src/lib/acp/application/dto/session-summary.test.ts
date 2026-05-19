@@ -72,9 +72,9 @@ function projection(input: {
 }
 
 describe("deriveSessionListStateFromCanonical", () => {
-	it("returns neutral state when the canonical projection is missing", () => {
+	it("returns error state when the canonical projection is missing", () => {
 		expect(deriveSessionListStateFromCanonical(null)).toEqual({
-			status: "idle",
+			status: "error",
 			isConnected: false,
 			isStreaming: false,
 		});
