@@ -89,12 +89,6 @@ export const TIME_CONSTANTS = {
 } as const;
 
 /**
- * Default agent ID for historical conversations.
- * Uses Claude Code as default since most historical sessions are from Claude CLI.
- */
-export const DEFAULT_HISTORICAL_AGENT_ID = "claude-code";
-
-/**
  * Fallback text for unknown time.
  */
 export const UNKNOWN_TIME_TEXT = "Unknown";
