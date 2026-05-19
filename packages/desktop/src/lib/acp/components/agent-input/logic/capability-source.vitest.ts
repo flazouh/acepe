@@ -1,11 +1,37 @@
 import { describe, expect, it } from "vitest";
 
-import { BUILTIN_PROVIDER_METADATA_BY_AGENT_ID } from "$lib/services/acp-provider-metadata.js";
 import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
+import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 import {
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
 } from "./capability-source.js";
+
+const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadataProjection = {
+	providerBrand: "claude-code",
+	displayName: "Claude Code",
+	displayOrder: 10,
+	supportsModelDefaults: true,
+	variantGroup: "plain",
+	defaultAlias: "default",
+	reasoningEffortSupport: false,
+	preconnectionSlashMode: "startupGlobal",
+	preconnectionCapabilityMode: "startupGlobal",
+	implicitSessionCreationMode: "allowed",
+};
+
+const CURSOR_PROVIDER_METADATA: ProviderMetadataProjection = {
+	providerBrand: "cursor",
+	displayName: "Cursor",
+	displayOrder: 20,
+	supportsModelDefaults: true,
+	variantGroup: "plain",
+	defaultAlias: "auto",
+	reasoningEffortSupport: false,
+	preconnectionSlashMode: "startupGlobal",
+	preconnectionCapabilityMode: "startupGlobal",
+	implicitSessionCreationMode: "allowed",
+};
 
 function liveSession(capabilities: SessionCapabilities) {
 	return {
@@ -31,7 +57,7 @@ describe("resolveCapabilitySource", () => {
 				availableModels: [{ modelId: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" }],
 				currentModelId: "claude-sonnet-4-6",
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 				availableModes: [
 					{ id: "build", name: "Build" },
 					{ id: "plan", name: "Plan" },
@@ -41,7 +67,7 @@ describe("resolveCapabilitySource", () => {
 			cachedModes: [],
 			cachedModels: [],
 			cachedModelsDisplay: null,
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("preconnectionResolved");
@@ -56,21 +82,21 @@ describe("resolveCapabilitySource", () => {
 				availableModes: [{ id: "plan", name: "Plan" }],
 				availableCommands: [],
 				modelsDisplay: undefined,
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: {
 				status: "resolved",
 				availableModels: [{ modelId: "preconnection-model", name: "Preconnection Model" }],
 				currentModelId: "preconnection-model",
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 				availableModes: [{ id: "build", name: "Build" }],
 				currentModeId: "build",
 			},
 			cachedModes: [],
 			cachedModels: [],
 			cachedModelsDisplay: null,
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("liveSession");
@@ -85,13 +111,13 @@ describe("resolveCapabilitySource", () => {
 				availableModes: null,
 				availableCommands: [],
 				modelsDisplay: undefined,
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: null,
 			cachedModes: [{ id: "plan", name: "Plan" }],
 			cachedModels: [{ id: "cached-cursor-model", name: "Cached Cursor Model" }],
 			cachedModelsDisplay: null,
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("liveSession");
@@ -106,7 +132,7 @@ describe("resolveCapabilitySource", () => {
 				availableModes: [{ id: "build", name: "Build" }],
 				availableCommands: [],
 				modelsDisplay: undefined,
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: null,
 			cachedModes: [{ id: "plan", name: "Plan" }],
@@ -125,7 +151,7 @@ describe("resolveCapabilitySource", () => {
 				],
 				presentation: undefined,
 			},
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("liveSession");
@@ -141,14 +167,14 @@ describe("resolveCapabilitySource", () => {
 				availableModes: [],
 				availableCommands: [],
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: {
 				status: "partial",
 				availableModels: [],
 				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 				availableModes: [
 					{ id: "build", name: "Build" },
 					{ id: "plan", name: "Plan" },
@@ -158,7 +184,7 @@ describe("resolveCapabilitySource", () => {
 			cachedModes: [],
 			cachedModels: [],
 			cachedModelsDisplay: null,
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("liveSession");
@@ -175,7 +201,7 @@ describe("resolveCapabilitySource", () => {
 				availableModels: [],
 				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 				availableModes: [
 					{ id: "build", name: "Build" },
 					{ id: "plan", name: "Plan" },
@@ -188,7 +214,7 @@ describe("resolveCapabilitySource", () => {
 				groups: [{ label: "", models: [{ modelId: "cached-model", displayName: "Cached Model" }] }],
 				presentation: undefined,
 			},
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("persistedCache");
@@ -204,7 +230,7 @@ describe("resolveCapabilitySource", () => {
 				availableModels: [],
 				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 				availableModes: [
 					{ id: "build", name: "Build" },
 					{ id: "plan", name: "Plan" },
@@ -214,7 +240,7 @@ describe("resolveCapabilitySource", () => {
 			cachedModes: [],
 			cachedModels: [],
 			cachedModelsDisplay: { groups: [], presentation: undefined },
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("preconnectionPartial");
@@ -232,7 +258,7 @@ describe("resolveCapabilitySource", () => {
 				availableModels: [{ modelId: "preconnection-model", name: "Preconnection Model" }],
 				currentModelId: "preconnection-model",
 				modelsDisplay: { groups: [], presentation: undefined },
-				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				providerMetadata: CURSOR_PROVIDER_METADATA,
 				availableModes: [{ id: "build", name: "Build" }],
 				currentModeId: "build",
 			},
@@ -242,7 +268,7 @@ describe("resolveCapabilitySource", () => {
 				groups: [{ label: "", models: [{ modelId: "cached-model", displayName: "Cached Model" }] }],
 				presentation: undefined,
 			},
-			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			providerMetadata: CURSOR_PROVIDER_METADATA,
 		});
 
 		expect(resolution.source).toBe("missingCanonicalSession");
@@ -257,9 +283,9 @@ describe("resolveCapabilityContextProviderMetadata", () => {
 		expect(
 			resolveCapabilityContextProviderMetadata({
 				sessionSource: { kind: "no_session" },
-				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				selectedAgentProviderMetadata: CURSOR_PROVIDER_METADATA,
 			})
-		).toBe(BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor);
+		).toBe(CURSOR_PROVIDER_METADATA);
 	});
 
 	it("uses canonical provider metadata for a live session", () => {
@@ -270,11 +296,11 @@ describe("resolveCapabilityContextProviderMetadata", () => {
 					availableModes: [],
 					availableCommands: [],
 					modelsDisplay: undefined,
-					providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+					providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 				}),
-				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				selectedAgentProviderMetadata: CURSOR_PROVIDER_METADATA,
 			})
-		).toBe(BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"]);
+		).toBe(CLAUDE_CODE_PROVIDER_METADATA);
 	});
 
 	it("does not fall back to selected agent metadata when session canonical capabilities are missing", () => {
@@ -284,7 +310,7 @@ describe("resolveCapabilityContextProviderMetadata", () => {
 					kind: "missing_canonical",
 					sessionId: "session-1",
 				},
-				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+				selectedAgentProviderMetadata: CURSOR_PROVIDER_METADATA,
 			})
 		).toBeNull();
 	});

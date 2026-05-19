@@ -10,7 +10,6 @@ import type { ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
-import { resolveProviderMetadataProjection } from "../../services/acp-provider-metadata.js";
 import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";
@@ -87,7 +86,7 @@ export class AgentStore {
 						? a.autonomous_supported_mode_ids
 						: [],
 					default_selection_rank: a.default_selection_rank,
-					providerMetadata: resolveProviderMetadataProjection(a.id, a.provider_metadata, a.id),
+					providerMetadata: a.provider_metadata,
 					supportsProjectDiscovery: a.supports_project_discovery ?? false,
 				}));
 				this.agentsLoading = false;
