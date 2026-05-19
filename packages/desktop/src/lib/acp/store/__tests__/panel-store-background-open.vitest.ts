@@ -32,6 +32,33 @@ function createStore(sessionStubs: readonly SessionStub[] = []): PanelStore {
 			}
 			return null;
 		}),
+		getSessionIdentity: vi.fn((sessionId: string) => {
+			for (const session of sessionStubs) {
+				if (session.id === sessionId) {
+					return {
+						id: session.id,
+						projectPath: session.projectPath,
+						agentId: session.agentId,
+						worktreePath: session.worktreePath ?? undefined,
+					};
+				}
+			}
+			return undefined;
+		}),
+		getSessionMetadata: vi.fn((sessionId: string) => {
+			for (const session of sessionStubs) {
+				if (session.id === sessionId) {
+					return {
+						title: session.title,
+						createdAt: new Date("2026-01-01T00:00:00.000Z"),
+						updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+						sourcePath: session.sourcePath ?? undefined,
+						parentId: null,
+					};
+				}
+			}
+			return undefined;
+		}),
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),

@@ -258,7 +258,7 @@ export class PanelStore {
 	// Dependencies injected via constructor
 	constructor(
 		private sessionStore: SessionStore,
-		private agentStore: AgentStore,
+		_agentStore: AgentStore,
 		private onPersist: () => void
 	) {
 		this.embeddedTerminals = new EmbeddedTerminalStore(onPersist);
@@ -534,13 +534,22 @@ export class PanelStore {
 		readonly sessionSequenceId: number | null;
 	}> {
 		return this.panels.map((panel) => {
-			const session =
-				panel.sessionId !== null ? this.sessionStore.getSessionCold(panel.sessionId) : undefined;
+			const sessionIdentity =
+				panel.sessionId !== null
+					? this.sessionStore.getSessionIdentity(panel.sessionId)
+					: undefined;
+			const sessionMetadata =
+				panel.sessionId !== null
+					? this.sessionStore.getSessionMetadata(panel.sessionId)
+					: undefined;
 			return {
 				id: panel.id,
 				sessionProjectPath:
-					panel.sessionId !== null ? (session?.projectPath ?? null) : (panel.projectPath ?? null),
-				sessionSequenceId: session?.sequenceId ?? null,
+					panel.sessionId !== null
+						? (sessionIdentity?.projectPath ?? null)
+						: (panel.projectPath ?? null),
+				sessionSequenceId:
+					panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? null) : null,
 			};
 		});
 	}
@@ -565,8 +574,8 @@ export class PanelStore {
 	}
 
 	private createSessionPanel(sessionId: string, width: number, autoCreated: boolean): Panel {
-		const session = this.sessionStore.getSessionCold(sessionId);
-		const selectedAgentId = session ? session.agentId : this.agentStore.getDefaultAgentId();
+		const sessionIdentity = this.sessionStore.getSessionIdentity(sessionId);
+		const sessionMetadata = this.sessionStore.getSessionMetadata(sessionId);
 
 		return {
 			id: crypto.randomUUID(),
@@ -578,12 +587,12 @@ export class PanelStore {
 			pendingProjectSelection: false,
 			pendingWorktreeEnabled: null,
 			preparedWorktreeLaunch: null,
-			selectedAgentId,
-			projectPath: session ? session.projectPath : null,
-			agentId: session ? session.agentId : null,
-			sourcePath: session ? session.sourcePath : null,
-			worktreePath: session ? session.worktreePath : null,
-			sessionTitle: session ? session.title : null,
+			selectedAgentId: sessionIdentity?.agentId ?? null,
+			projectPath: sessionIdentity?.projectPath ?? null,
+			agentId: sessionIdentity?.agentId ?? null,
+			sourcePath: sessionMetadata?.sourcePath ?? null,
+			worktreePath: sessionIdentity?.worktreePath ?? null,
+			sessionTitle: sessionMetadata?.title ?? null,
 		};
 	}
 
@@ -938,12 +947,15 @@ export class PanelStore {
 	 */
 	updatePanelSession(panelId: string, sessionId: string | null): void {
 		logger.info("[worktree-flow] updatePanelSession", { panelId, sessionId });
-		const session = sessionId ? this.sessionStore.getSessionCold(sessionId) : null;
+		const sessionIdentity =
+			sessionId !== null ? this.sessionStore.getSessionIdentity(sessionId) : undefined;
+		const sessionMetadata =
+			sessionId !== null ? this.sessionStore.getSessionMetadata(sessionId) : undefined;
 		logger.info("[worktree-debug] updatePanelSession resolved session", {
 			panelId,
 			sessionId,
-			sessionProjectPath: session?.projectPath ?? null,
-			sessionWorktreePath: session?.worktreePath ?? null,
+			sessionProjectPath: sessionIdentity?.projectPath ?? null,
+			sessionWorktreePath: sessionIdentity?.worktreePath ?? null,
 			panelProjectPathBefore: this.panels.find((p) => p.id === panelId)?.projectPath ?? null,
 		});
 		this.panels = this.panels.map((p) =>
@@ -954,11 +966,15 @@ export class PanelStore {
 						pendingProjectSelection: false,
 						pendingWorktreeEnabled: sessionId === null ? (p.pendingWorktreeEnabled ?? null) : null,
 						preparedWorktreeLaunch: sessionId === null ? (p.preparedWorktreeLaunch ?? null) : null,
-						projectPath: sessionId === null ? p.projectPath : (session?.projectPath ?? null),
-						agentId: sessionId === null ? p.agentId : (session?.agentId ?? null),
-						sourcePath: sessionId === null ? p.sourcePath : (session?.sourcePath ?? null),
-						worktreePath: sessionId === null ? p.worktreePath : (session?.worktreePath ?? null),
-						sessionTitle: sessionId === null ? p.sessionTitle : (session?.title ?? null),
+						projectPath:
+							sessionId === null ? p.projectPath : (sessionIdentity?.projectPath ?? null),
+						agentId: sessionId === null ? p.agentId : (sessionIdentity?.agentId ?? null),
+						sourcePath:
+							sessionId === null ? p.sourcePath : (sessionMetadata?.sourcePath ?? null),
+						worktreePath:
+							sessionId === null ? p.worktreePath : (sessionIdentity?.worktreePath ?? null),
+						sessionTitle:
+							sessionId === null ? p.sessionTitle : (sessionMetadata?.title ?? null),
 					}
 				: p
 		);

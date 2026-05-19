@@ -27,6 +27,8 @@ let originalLocalStorageDescriptor: PropertyDescriptor | undefined;
 function createStore(): PanelStore {
 	const sessionStore = {
 		getSessionCold: vi.fn(() => null),
+		getSessionIdentity: vi.fn(() => undefined),
+		getSessionMetadata: vi.fn(() => undefined),
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -158,13 +160,22 @@ describe("PanelStore workspacePanels", () => {
 
 	it("hydrates panel metadata when attaching a session", () => {
 		const sessionStore = {
-			getSessionCold: vi.fn((sessionId: string) =>
+			getSessionIdentity: vi.fn((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 							id: "session-1",
 							projectPath: "/tmp/project",
 							agentId: "cursor",
+						}
+					: undefined
+			),
+			getSessionMetadata: vi.fn((sessionId: string) =>
+				sessionId === "session-1"
+					? {
 							title: "Hello",
+							createdAt: new Date("2026-01-01T00:00:00.000Z"),
+							updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+							parentId: null,
 						}
 					: null
 			),
@@ -215,13 +226,22 @@ describe("PanelStore workspacePanels", () => {
 
 	it("derives top-level agent project refs without rebuilding panel snapshots", () => {
 		const sessionStore = {
-			getSessionCold: vi.fn((sessionId: string) =>
+			getSessionIdentity: vi.fn((sessionId: string) =>
 				sessionId === "session-1"
 					? {
 							id: "session-1",
 							projectPath: "/tmp/project-b",
 							agentId: "cursor",
+						}
+					: undefined
+			),
+			getSessionMetadata: vi.fn((sessionId: string) =>
+				sessionId === "session-1"
+					? {
 							title: "Hello",
+							createdAt: new Date("2026-01-01T00:00:00.000Z"),
+							updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+							parentId: null,
 							sequenceId: 42,
 						}
 					: undefined
