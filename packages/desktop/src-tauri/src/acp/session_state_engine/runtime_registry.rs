@@ -355,7 +355,6 @@ impl SessionGraphRuntimeRegistry {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
                         "activeStreamingTail".to_string(),
                     ];
                     if is_transcript_bearing {
@@ -483,7 +482,6 @@ impl SessionGraphRuntimeRegistry {
                     "turnState".to_string(),
                     "activeTurnFailure".to_string(),
                     "lastTerminalTurnId".to_string(),
-                    "lastAgentMessageId".to_string(),
                     "activeStreamingTail".to_string(),
                 ];
                 if is_transcript_bearing {
@@ -608,7 +606,6 @@ impl SessionGraphRuntimeRegistry {
                     interactions: projection_snapshot.interactions,
                     turn_state: session_snapshot.turn_state,
                     message_count: session_snapshot.message_count,
-                    last_agent_message_id: session_snapshot.last_agent_message_id,
                     active_streaming_tail,
                     active_turn_failure: session_snapshot.active_turn_failure,
                     last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
@@ -655,7 +652,6 @@ impl SessionGraphRuntimeRegistry {
             turn_state: session_snapshot.turn_state,
             active_turn_failure: session_snapshot.active_turn_failure,
             last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
-            last_agent_message_id: session_snapshot.last_agent_message_id,
             active_streaming_tail,
         }
     }
@@ -786,7 +782,6 @@ fn build_live_session_state_delta_envelope(
             "turnState".to_string(),
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
-            "lastAgentMessageId".to_string(),
             "activeStreamingTail".to_string(),
         ],
     })
@@ -1422,7 +1417,6 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
                         "activeStreamingTail".to_string(),
                     ]
                 );
@@ -1835,7 +1829,6 @@ mod tests {
                 turn_state: crate::acp::projections::SessionTurnState::Idle,
                 active_turn_failure: None,
                 last_terminal_turn_id: None,
-                last_agent_message_id: Some("assistant-1".to_string()),
                 active_streaming_tail: None,
             },
         );
@@ -1849,7 +1842,6 @@ mod tests {
                     delta.turn_state,
                     crate::acp::projections::SessionTurnState::Idle
                 );
-                assert_eq!(delta.last_agent_message_id.as_deref(), Some("assistant-1"));
             }
             other => panic!("expected delta payload, got {:?}", other),
         }
@@ -1920,11 +1912,9 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
                         "activeStreamingTail".to_string(),
                     ]
                 );
-                assert!(delta.last_agent_message_id.is_none());
             }
             other => panic!("expected delta payload, got {:?}", other),
         }

@@ -49,7 +49,6 @@ export function graphFromSessionOpenFound(found: SessionOpenFound): SessionState
 		interactions: found.interactions,
 		turnState: found.turnState,
 		messageCount: found.messageCount,
-		lastAgentMessageId: found.lastAgentMessageId ?? null,
 		activeStreamingTail: found.activeStreamingTail ?? null,
 		activeTurnFailure: found.activeTurnFailure,
 		lastTerminalTurnId: found.lastTerminalTurnId,

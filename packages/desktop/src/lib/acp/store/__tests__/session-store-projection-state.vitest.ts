@@ -197,7 +197,6 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Failed",
 		messageCount: overrides.messageCount ?? 1,
-		lastAgentMessageId: overrides.lastAgentMessageId ?? null,
 		activeTurnFailure,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? "turn-1",
 		activeStreamingTail: overrides.activeStreamingTail ?? null,
@@ -238,7 +237,6 @@ function createSessionOpenFoundFromGraph(
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
 		activity: graph.activity,
 		activeStreamingTail: graph.activeStreamingTail,
 		lifecycle: graph.lifecycle,
@@ -400,7 +398,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
@@ -522,7 +519,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
@@ -569,7 +565,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
@@ -2026,7 +2021,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 		});
 		const fullGraph = createSessionStateGraph({
 			activeTurnFailure: null,
@@ -2054,7 +2048,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				],
 			},
-			lastAgentMessageId: "assistant-1",
 		});
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(partialGraph));
@@ -2125,7 +2118,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			turnState: "Running",
 			lastTerminalTurnId: null,
 					activeStreamingTail: null,
-			lastAgentMessageId: "assistant-1",
 			activity: {
 				kind: "awaiting_model",
 				activeOperationCount: 0,
@@ -2209,8 +2201,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					},
 				},
 		});
-
-		expect(store.getSessionStateGraph("session-1")?.lastAgentMessageId).toBe("assistant-1");
 		const scene = materializeStoredScene(store);
 		const assistantRow = scene.conversation.entries.find(
 			(entry) => entry.type === "assistant" && entry.id === "assistant-1"
@@ -3662,7 +3652,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					lifecycle: createGraphLifecycle("ready"),
 					turnState: "Running",
 					activity: createIdleActivity(),
-					lastAgentMessageId: "assistant-1",
 					lastTerminalTurnId: null,
 					activeStreamingTail: null,
 					activeTurnFailure: null,
@@ -3738,7 +3727,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
 					activeStreamingTail: null,
-					lastAgentMessageId: "msg_first",
 					messageCount: 2,
 					revision: {
 						graphRevision: 15,
@@ -3934,7 +3922,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
 					activeStreamingTail: null,
-			lastAgentMessageId: "assistant-1",
 			messageCount: 2,
 			revision: {
 				graphRevision: 12,
@@ -3978,7 +3965,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-2",
 					activeStreamingTail: null,
-			lastAgentMessageId: "assistant-2",
 			messageCount: 4,
 			revision: {
 				graphRevision: 18,

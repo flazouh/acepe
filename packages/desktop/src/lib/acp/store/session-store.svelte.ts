@@ -261,7 +261,6 @@ const SESSION_STATE_GRAPH_COPY_KEYS = [
 	"interactions",
 	"turnState",
 	"messageCount",
-	"lastAgentMessageId",
 	"activeStreamingTail",
 	"activeTurnFailure",
 	"lastTerminalTurnId",
@@ -301,7 +300,6 @@ function graphWithTranscriptSnapshot(
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
 		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
@@ -331,7 +329,6 @@ function graphWithLifecycle(
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
 		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
@@ -360,7 +357,6 @@ function graphWithCapabilities(
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
-		lastAgentMessageId: graph.lastAgentMessageId ?? null,
 		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
@@ -436,7 +432,6 @@ function graphWithPatches(input: {
 	readonly turnState: SessionTurnState;
 	readonly activeTurnFailure: TurnFailureSnapshot | null;
 	readonly lastTerminalTurnId: string | null;
-	readonly lastAgentMessageId: string | null | undefined;
 	readonly activeStreamingTail: SessionStateGraph["activeStreamingTail"] | undefined;
 	readonly operationPatches: readonly OperationSnapshot[];
 	readonly interactionPatches: readonly InteractionSnapshot[];
@@ -461,10 +456,6 @@ function graphWithPatches(input: {
 				: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
 		turnState: input.turnState,
 		messageCount: input.graph.messageCount,
-		lastAgentMessageId:
-			input.lastAgentMessageId === undefined
-				? (input.graph.lastAgentMessageId ?? null)
-				: input.lastAgentMessageId,
 		activeStreamingTail:
 			input.activeStreamingTail === undefined
 				? (input.graph.activeStreamingTail ?? null)
@@ -3251,7 +3242,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 							turnState: command.turnState,
 							activeTurnFailure: command.activeTurnFailure,
 							lastTerminalTurnId: command.lastTerminalTurnId,
-							lastAgentMessageId: command.lastAgentMessageId,
 							activeStreamingTail: command.activeStreamingTail,
 							operationPatches: command.operationPatches,
 							interactionPatches: command.interactionPatches,

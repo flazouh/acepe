@@ -223,8 +223,6 @@ pub struct SessionOpenFound {
     pub interactions: Vec<InteractionSnapshot>,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_agent_message_id: Option<String>,
     pub activity: SessionGraphActivity,
     pub active_streaming_tail: Option<ActiveStreamingTail>,
     // --- Canonical lifecycle/actionability authority ---
@@ -618,7 +616,6 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         interactions,
         turn_state,
         message_count,
-        last_agent_message_id,
         activity,
         active_streaming_tail,
         lifecycle,
@@ -693,7 +690,6 @@ pub async fn session_open_result_for_new_session(
         interactions,
         turn_state,
         message_count: 0,
-        last_agent_message_id: None,
         activity,
         active_streaming_tail: None,
         lifecycle: input.lifecycle,

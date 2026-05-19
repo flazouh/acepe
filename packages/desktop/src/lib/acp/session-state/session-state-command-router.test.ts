@@ -156,7 +156,6 @@ describe("routeSessionStateEnvelope", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
-				lastAgentMessageId: undefined,
 				activeStreamingTail: undefined,
 				operationPatches: [],
 				interactionPatches: [],
@@ -164,7 +163,7 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("routes live assistant id deltas as graph patches", () => {
+	it("routes active streaming tail deltas as graph patches", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 7,
@@ -186,12 +185,11 @@ describe("routeSessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
-					lastAgentMessageId: "assistant-1",
 					activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
-					changedFields: ["lastAgentMessageId", "activeStreamingTail"],
+					changedFields: ["activeStreamingTail"],
 				},
 			},
 		};
@@ -208,7 +206,6 @@ describe("routeSessionStateEnvelope", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
-				lastAgentMessageId: "assistant-1",
 				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 				operationPatches: [],
 				interactionPatches: [],

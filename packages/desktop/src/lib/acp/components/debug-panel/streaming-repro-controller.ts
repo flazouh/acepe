@@ -14,7 +14,7 @@ export interface StreamingReproPhase {
 	readonly assistantText: string;
 	readonly turnState: "Running" | "Completed";
 	readonly activityKind: "awaiting_model" | "idle";
-	readonly lastAgentMessageId: string | null;
+	readonly activeStreamingTailRowId: string | null;
 	readonly assistantStreaming: boolean;
 	readonly streamingAnimationMode?: "smooth" | "instant";
 	readonly reducedMotion?: boolean;
@@ -30,11 +30,7 @@ export interface StreamingReproPreset {
 export function resolveStreamingReproActiveTailRowId(
 	phase: StreamingReproPhase
 ): string | null {
-	if (phase.assistantStreaming !== true || phase.lastAgentMessageId === null) {
-		return null;
-	}
-
-	return phase.lastAgentMessageId;
+	return phase.activeStreamingTailRowId;
 }
 
 export interface StreamingReproRecordedAnswer {
@@ -88,7 +84,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 			assistantText: "",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: null,
+			activeStreamingTailRowId: null,
 			assistantStreaming: false,
 		},
 		{
@@ -97,7 +93,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 			assistantText: "Umbrellas are useful",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -106,7 +102,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 			assistantText: "Umbrellas are useful because they make bad weather easier to ignore.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -116,7 +112,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 				"Umbrellas are useful because they make bad weather easier to ignore. A small canopy can turn a wet walk into something calm.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -126,7 +122,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 				"Umbrellas are useful because they make bad weather easier to ignore.\n\n- Compact list item one\n- Compact list item two\n\n```ts\nconst canopy = \"calm\";\nconsole.log(canopy);\n```\n\nA small canopy can turn a wet walk into something calm, especially when the rain starts before you are ready.",
 			turnState: "Completed",
 			activityKind: "idle",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: false,
 		},
 	],
@@ -142,7 +138,7 @@ const FIRST_WORD_REGRESSION_PRESET: StreamingReproPreset = {
 			assistantText: "The",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -152,7 +148,7 @@ const FIRST_WORD_REGRESSION_PRESET: StreamingReproPreset = {
 				"The answer should stay fully visible when the canonical assistant text replaces the first streamed word.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -162,7 +158,7 @@ const FIRST_WORD_REGRESSION_PRESET: StreamingReproPreset = {
 				"The answer should stay fully visible when the canonical assistant text replaces the first streamed word.",
 			turnState: "Completed",
 			activityKind: "idle",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: false,
 		},
 	],
@@ -178,7 +174,7 @@ const FINAL_STEP_FADE_PRESET: StreamingReproPreset = {
 			assistantText: "Raincoats keep",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -187,7 +183,7 @@ const FINAL_STEP_FADE_PRESET: StreamingReproPreset = {
 			assistantText: "Raincoats keep commuters dry during long gray walks.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 	],
@@ -203,7 +199,7 @@ const COMPLETION_SNAP_FADE_PRESET: StreamingReproPreset = {
 			assistantText: "The answer begins",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -213,7 +209,7 @@ const COMPLETION_SNAP_FADE_PRESET: StreamingReproPreset = {
 				"The answer begins as a short prefix, then completes with enough fresh words to prove the final suffix can fade while the full text is already present.",
 			turnState: "Completed",
 			activityKind: "idle",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: false,
 		},
 	],
@@ -229,7 +225,7 @@ const RESTORED_COMPLETED_PRESET: StreamingReproPreset = {
 			assistantText: "Completed history mounts as full stable text with no replayed reveal.",
 			turnState: "Completed",
 			activityKind: "idle",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: false,
 		},
 	],
@@ -245,7 +241,7 @@ const REDUCED_MOTION_PRESET: StreamingReproPreset = {
 			assistantText: "Reduced motion should render all assistant text without word fade.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 			reducedMotion: true,
 		},
@@ -262,7 +258,7 @@ const INSTANT_MODE_PRESET: StreamingReproPreset = {
 			assistantText: "Instant mode should render all assistant text without word fade.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 			streamingAnimationMode: "instant",
 		},
@@ -279,7 +275,7 @@ const SAME_KEY_REWRITE_PRESET: StreamingReproPreset = {
 			assistantText: "Umbrellas stay visible",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 		{
@@ -288,7 +284,7 @@ const SAME_KEY_REWRITE_PRESET: StreamingReproPreset = {
 			assistantText: "Raincoats replace the answer without a blank blink.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 		},
 	],
@@ -304,7 +300,7 @@ const TEXT_RESOURCE_TEXT_PRESET: StreamingReproPreset = {
 			assistantText: "Text before resource. Text after resource remains in order.",
 			turnState: "Running",
 			activityKind: "awaiting_model",
-			lastAgentMessageId: "assistant-1",
+			activeStreamingTailRowId: "assistant-1",
 			assistantStreaming: true,
 			assistantMessageChunks: [
 				{ type: "message", block: { type: "text", text: "Text before resource. " } },

@@ -43,8 +43,6 @@ pub struct SessionStateGraph {
     pub interactions: Vec<InteractionSnapshot>,
     pub turn_state: SessionTurnState,
     pub message_count: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_agent_message_id: Option<String>,
     pub active_streaming_tail: Option<ActiveStreamingTail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_turn_failure: Option<TurnFailureSnapshot>,

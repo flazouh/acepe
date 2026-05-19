@@ -25,13 +25,13 @@ function resolvePreviousPhaseWordCount(
 	phaseIndex: number,
 	phase: StreamingReproPhase
 ): number {
-	if (phase.lastAgentMessageId === null) {
+	if (phase.activeStreamingTailRowId === null) {
 		return 0;
 	}
 
 	for (let index = phaseIndex - 1; index >= 0; index -= 1) {
 		const previousPhase = preset.phases[index];
-		if (previousPhase?.lastAgentMessageId !== phase.lastAgentMessageId) {
+		if (previousPhase?.activeStreamingTailRowId !== phase.activeStreamingTailRowId) {
 			continue;
 		}
 

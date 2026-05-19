@@ -133,7 +133,6 @@ function graph(): SessionStateGraph {
 		interactions: [],
 		turnState: "Completed",
 		messageCount: 4,
-		lastAgentMessageId: "assistant-2",
 		activeTurnFailure: null,
 		lastTerminalTurnId: "turn-1",
 		activeStreamingTail: null,

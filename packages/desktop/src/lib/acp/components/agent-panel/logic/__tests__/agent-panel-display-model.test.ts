@@ -105,7 +105,6 @@ function createGraph(input: {
 	readonly turnState: SessionStateGraph["turnState"];
 	readonly activity: SessionGraphActivity;
 	readonly canSend?: boolean;
-	readonly lastAgentMessageId?: string | null;
 	readonly transcriptRevision?: number;
 }): SessionStateGraph {
 	const transcriptSnapshot = createTranscriptSnapshot(input.entries);
@@ -131,7 +130,6 @@ function createGraph(input: {
 		interactions: [],
 		turnState: input.turnState,
 		messageCount: input.entries.length,
-		lastAgentMessageId: input.lastAgentMessageId ?? null,
 		activeTurnFailure: null,
 		lastTerminalTurnId: input.turnState === "Completed" ? "turn-1" : null,
 		activeStreamingTail: null,
@@ -206,7 +204,6 @@ describe("agent panel display model", () => {
 			],
 			turnState: "Completed",
 			activity: createIdleActivity(),
-			lastAgentMessageId: "assistant-1",
 		});
 
 		const model = buildModel(graph);
@@ -255,7 +252,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 
 		const model = buildAgentPanelBaseModel({
@@ -300,7 +296,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 
 		const model = buildModel(graph, createPendingUserEntry());
@@ -324,7 +319,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 		const firstResult = applyAgentPanelDisplayMemory(memory, buildModel(firstGraph));
 		const firstAssistant = findAssistantRow(firstResult.model, "assistant-1");
@@ -338,7 +332,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 			transcriptRevision: 13,
 		});
 		const replacementResult = applyAgentPanelDisplayMemory(
@@ -360,7 +353,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 		const firstResult = applyAgentPanelDisplayMemory(
 			createAgentPanelDisplayMemory(),
@@ -373,7 +365,6 @@ describe("agent panel display model", () => {
 			],
 			turnState: "Completed",
 			activity: createIdleActivity(),
-			lastAgentMessageId: "assistant-1",
 			transcriptRevision: 14,
 		});
 
@@ -398,7 +389,6 @@ describe("agent panel display model", () => {
 				turnState: "Running",
 				activity: createAwaitingModelActivity(),
 				canSend: false,
-				lastAgentMessageId: "assistant-1",
 				transcriptRevision: 100 + index,
 			});
 			result = applyAgentPanelDisplayMemory(result.memory, buildModel(graph));
@@ -418,7 +408,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 		const firstResult = applyAgentPanelDisplayMemory(
 			createAgentPanelDisplayMemory(),
@@ -432,7 +421,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 			transcriptRevision: 15,
 		});
 		const replacementResult = applyAgentPanelDisplayMemory(
@@ -496,7 +484,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-1",
 		});
 		const displayResult = applyAgentPanelDisplayMemory(
 			createAgentPanelDisplayMemory(),
@@ -546,7 +533,6 @@ describe("agent panel display model", () => {
 			turnState: "Running",
 			activity: createAwaitingModelActivity(),
 			canSend: false,
-			lastAgentMessageId: "assistant-live",
 		});
 		const displayResult = applyAgentPanelDisplayMemory(
 			createAgentPanelDisplayMemory(),

@@ -31,7 +31,6 @@ describe("streaming-repro-graph-fixtures", () => {
 		expect(graph.turnState).toBe("Running");
 		expect(graph.activity.kind).toBe("awaiting_model");
 		expect(graph.transcriptSnapshot.entries.map((entry) => entry.entryId)).toEqual(["user-1"]);
-		expect(graph.lastAgentMessageId).toBeNull();
 	});
 
 	it("materializes a streaming assistant entry for the first-token phase", () => {

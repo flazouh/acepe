@@ -87,13 +87,14 @@ function createActivity(phase: StreamingReproPhase): SessionGraphActivity {
 }
 
 function createGraph(phase: StreamingReproPhase): SessionStateGraph {
-	const activeStreamingTailRowId = resolveStreamingReproActiveTailRowId(phase);
+	const activeStreamingTailRowId =
+		phase.assistantStreaming === true ? resolveStreamingReproActiveTailRowId(phase) : null;
 	const transcriptEntries: TranscriptEntry[] = [
 		createTranscriptEntry("user-1", "user", "Explain umbrellas slowly."),
 	];
-	if (phase.lastAgentMessageId !== null) {
+	if (phase.activeStreamingTailRowId !== null) {
 		transcriptEntries.push(
-			createTranscriptEntry(phase.lastAgentMessageId, "assistant", phase.assistantText)
+			createTranscriptEntry(phase.activeStreamingTailRowId, "assistant", phase.assistantText)
 		);
 	}
 
@@ -117,7 +118,6 @@ function createGraph(phase: StreamingReproPhase): SessionStateGraph {
 		interactions: [],
 		turnState: phase.turnState,
 		messageCount: transcriptEntries.length,
-		lastAgentMessageId: phase.lastAgentMessageId,
 		activeTurnFailure: null,
 		lastTerminalTurnId: phase.turnState === "Completed" ? "turn-1" : null,
 		activeStreamingTail:

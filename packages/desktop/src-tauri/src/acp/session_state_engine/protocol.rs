@@ -37,8 +37,6 @@ pub struct SessionStateDelta {
     pub active_turn_failure: Option<TurnFailureSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_terminal_turn_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_agent_message_id: Option<String>,
     pub active_streaming_tail: Option<ActiveStreamingTail>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transcript_operations: Vec<TranscriptDeltaOperation>,

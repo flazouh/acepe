@@ -862,7 +862,6 @@ impl AcpUiEventDispatcher {
             "turnState".to_string(),
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
-            "lastAgentMessageId".to_string(),
             "activeStreamingTail".to_string(),
         ];
         if !operation_patches.is_empty() {
@@ -881,7 +880,6 @@ impl AcpUiEventDispatcher {
                 turn_state: session_snapshot.turn_state,
                 active_turn_failure: session_snapshot.active_turn_failure,
                 last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
-                last_agent_message_id: session_snapshot.last_agent_message_id,
                 active_streaming_tail,
             },
             transcript_operations: Vec::new(),
@@ -2436,7 +2434,6 @@ mod tests {
                         "turnState".to_string(),
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
-                        "lastAgentMessageId".to_string(),
                         "activeStreamingTail".to_string(),
                     ]
                 );

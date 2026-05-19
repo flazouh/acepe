@@ -59,7 +59,6 @@ impl SessionStateReducer {
                 graph.turn_state = delta.turn_state;
                 graph.active_turn_failure = delta.active_turn_failure;
                 graph.last_terminal_turn_id = delta.last_terminal_turn_id;
-                graph.last_agent_message_id = delta.last_agent_message_id;
                 graph.active_streaming_tail = delta.active_streaming_tail;
                 graph.revision = delta.to_revision;
             }
@@ -218,7 +217,6 @@ mod tests {
             interactions: Vec::new(),
             turn_state: SessionTurnState::Idle,
             message_count: 1,
-            last_agent_message_id: Some("assistant-1".to_string()),
             active_streaming_tail: None,
             active_turn_failure: None,
             last_terminal_turn_id: None,
@@ -282,7 +280,6 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             active_turn_failure: None,
             last_terminal_turn_id: None,
-            last_agent_message_id: None,
             active_streaming_tail: None,
             transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
                 entry_id: "assistant-1".to_string(),
@@ -333,7 +330,6 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             active_turn_failure: None,
             last_terminal_turn_id: None,
-            last_agent_message_id: None,
             active_streaming_tail: None,
             transcript_operations: vec![TranscriptDeltaOperation::ReplaceSnapshot {
                 snapshot: replacement_snapshot.clone(),
@@ -364,7 +360,6 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             active_turn_failure: None,
             last_terminal_turn_id: None,
-            last_agent_message_id: None,
             active_streaming_tail: None,
             transcript_operations: vec![TranscriptDeltaOperation::AppendSegment {
                 entry_id: "assistant-1".to_string(),
@@ -415,7 +410,6 @@ mod tests {
             turn_state: SessionTurnState::Failed,
             active_turn_failure: Some(active_turn_failure.clone()),
             last_terminal_turn_id: Some("turn-2".to_string()),
-            last_agent_message_id: Some("assistant-2".to_string()),
             active_streaming_tail: None,
             transcript_operations: Vec::new(),
             operation_patches: Vec::new(),
@@ -439,7 +433,6 @@ mod tests {
         assert_eq!(graph.turn_state, SessionTurnState::Failed);
         assert_eq!(graph.active_turn_failure, Some(active_turn_failure));
         assert_eq!(graph.last_terminal_turn_id, Some("turn-2".to_string()));
-        assert_eq!(graph.last_agent_message_id, Some("assistant-2".to_string()));
         assert_eq!(graph.revision, SessionGraphRevision::new(2, 1, 2));
     }
 
@@ -568,7 +561,6 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             active_turn_failure: None,
             last_terminal_turn_id: None,
-            last_agent_message_id: None,
             active_streaming_tail: None,
             transcript_operations: Vec::new(),
             operation_patches: vec![operation_snapshot(
@@ -624,7 +616,6 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             active_turn_failure: None,
             last_terminal_turn_id: None,
-            last_agent_message_id: None,
             active_streaming_tail: None,
             transcript_operations: Vec::new(),
             operation_patches: vec![operation_snapshot(

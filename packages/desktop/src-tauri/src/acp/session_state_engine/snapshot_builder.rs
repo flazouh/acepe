@@ -21,7 +21,6 @@ pub fn build_graph_from_open_found(found: &SessionOpenFound) -> SessionStateGrap
         interactions: found.interactions.clone(),
         turn_state: found.turn_state.clone(),
         message_count: found.message_count,
-        last_agent_message_id: found.last_agent_message_id.clone(),
         active_streaming_tail: found.active_streaming_tail.clone(),
         active_turn_failure: found.active_turn_failure.clone(),
         last_terminal_turn_id: found.last_terminal_turn_id.clone(),
@@ -66,7 +65,6 @@ mod tests {
             interactions: Vec::new(),
             turn_state: SessionTurnState::Idle,
             message_count: 0,
-            last_agent_message_id: Some("assistant-1".to_string()),
             activity: SessionGraphActivity::idle(),
             active_streaming_tail: None,
             lifecycle: SessionGraphLifecycle::ready(),
@@ -83,6 +81,6 @@ mod tests {
         assert_eq!(graph.revision.transcript_revision, 3);
         assert_eq!(graph.revision.last_event_seq, 11);
         assert_eq!(graph.activity.kind, SessionGraphActivityKind::Idle);
-        assert_eq!(graph.last_agent_message_id.as_deref(), Some("assistant-1"));
+        assert_eq!(graph.active_streaming_tail, None);
     }
 }

@@ -179,7 +179,6 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle",
 			messageCount: 0,
-			lastAgentMessageId: null,
 			activeTurnFailure: undefined,
 			lastTerminalTurnId: undefined,
 			activeStreamingTail: null,

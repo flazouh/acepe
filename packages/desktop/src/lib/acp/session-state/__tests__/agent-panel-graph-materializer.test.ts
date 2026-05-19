@@ -193,7 +193,6 @@ function createGraph(input: {
 	operations?: OperationSnapshot[];
 	interactions?: InteractionSnapshot[];
 	turnState?: SessionStateGraph["turnState"];
-	lastAgentMessageId?: string | null;
 	activeStreamingTail?: SessionStateGraph["activeStreamingTail"];
 	lifecycle?: SessionGraphLifecycle;
 	activity?: SessionGraphActivity;
@@ -218,7 +217,6 @@ function createGraph(input: {
 		interactions: input.interactions ?? [],
 		turnState: input.turnState ?? "Completed",
 		messageCount: input.transcriptSnapshot.entries.length,
-		lastAgentMessageId: input.lastAgentMessageId ?? null,
 		activeStreamingTail: input.activeStreamingTail ?? null,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
@@ -1591,7 +1589,6 @@ describe("agent panel graph materializer", () => {
 					dominantOperationId: null,
 					blockingInteractionId: null,
 				},
-				lastAgentMessageId: null,
 			});
 			const liveAssistantEntry: SessionEntry = {
 				id: "assistant-live-1",
@@ -1798,7 +1795,6 @@ describe("agent panel graph materializer", () => {
 					}),
 				],
 				turnState: "Running",
-				lastAgentMessageId: "a1",
 				activity: {
 					kind: "running_operation",
 					activeOperationCount: 1,
@@ -1829,7 +1825,6 @@ describe("agent panel graph materializer", () => {
 				transcriptSnapshot,
 				operations: [createOperationSnapshot()],
 				turnState: "Running",
-				lastAgentMessageId: "a1",
 				activeStreamingTail: { rowId: "a1", contentKind: "message" },
 				activity: {
 					kind: "awaiting_model",

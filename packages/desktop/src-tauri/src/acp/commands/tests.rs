@@ -449,7 +449,6 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         interactions: Vec::new(),
         turn_state: crate::acp::projections::SessionTurnState::Idle,
         message_count: 0,
-        last_agent_message_id: None,
         active_streaming_tail: None,
         active_turn_failure: None,
         last_terminal_turn_id: None,
