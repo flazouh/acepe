@@ -5,10 +5,6 @@
  * Extracted for testability and reuse.
  */
 
-import {
-	getProviderMetadataFromModelsDisplay,
-	type ProviderMetadataProjection,
-} from "../../services/acp-provider-metadata.js";
 import type {
 	DisplayableModel,
 	DisplayModelGroup,
@@ -188,12 +184,6 @@ export function getUsageMetricsPresentation(
 	return modelsDisplay?.presentation?.usageMetrics ?? null;
 }
 
-export function getProviderMetadata(
-	modelsDisplay: ModelsForDisplay | null | undefined
-): ProviderMetadataProjection | null {
-	return getProviderMetadataFromModelsDisplay(modelsDisplay);
-}
-
 export interface SplitSelectorState {
 	primaryOpen: boolean;
 	variantOpen: boolean;
@@ -236,16 +226,6 @@ export function closeSplitSelector(_: SplitSelectorState): SplitSelectorState {
 
 export function isSplitSelectorOpen(state: SplitSelectorState): boolean {
 	return state.primaryOpen || state.variantOpen;
-}
-
-export function getProviderMarkSource(
-	providerMetadata: ProviderMetadataProjection | null | undefined
-): string {
-	if (!providerMetadata) {
-		return "other";
-	}
-
-	return providerMetadata.providerBrand;
 }
 
 export function supportsReasoningEffortPicker(

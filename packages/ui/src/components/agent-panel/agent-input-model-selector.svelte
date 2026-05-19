@@ -1,177 +1,183 @@
 <script lang="ts">
-	import { Button } from "../button/index.js";
-	import { Input } from "../input/index.js";
-	import { LoadingIcon } from "../icons/index.js";
-	import { ProviderMark } from "../provider-mark/index.js";
-	import { Selector } from "../selector/index.js";
-	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { Colors } from "../../lib/colors.js";
-	import { Brain } from "phosphor-svelte";
+import { Button } from "../button/index.js";
+import { Input } from "../input/index.js";
+import { LoadingIcon } from "../icons/index.js";
+import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
+import { Selector } from "../selector/index.js";
+import * as DropdownMenu from "../dropdown-menu/index.js";
+import { Colors } from "../../lib/colors.js";
+import { Brain } from "phosphor-svelte";
 
-	import AgentInputModelFavoriteStar from "./agent-input-model-favorite-star.svelte";
-	import AgentInputModelModeBar from "./agent-input-model-mode-bar.svelte";
-	import AgentInputModelRow from "./agent-input-model-row.svelte";
+import AgentInputModelFavoriteStar from "./agent-input-model-favorite-star.svelte";
+import AgentInputModelModeBar from "./agent-input-model-mode-bar.svelte";
+import AgentInputModelRow from "./agent-input-model-row.svelte";
 
-	import type {
-		AgentInputModelSelectorGroup,
-		AgentInputModelSelectorItem,
-		AgentInputModelSelectorReasoningGroup,
-		AgentInputModelSelectorVariant,
-	} from "./agent-input-model-selector-types.js";
+import type {
+	AgentInputModelSelectorGroup,
+	AgentInputModelSelectorItem,
+	AgentInputModelSelectorReasoningGroup,
+	AgentInputModelSelectorVariant,
+} from "./agent-input-model-selector-types.js";
 
-	export type {
-		AgentInputModelSelectorGroup,
-		AgentInputModelSelectorItem,
-		AgentInputModelSelectorReasoningGroup,
-		AgentInputModelSelectorVariant,
-	};
+export type {
+	AgentInputModelSelectorGroup,
+	AgentInputModelSelectorItem,
+	AgentInputModelSelectorReasoningGroup,
+	AgentInputModelSelectorVariant,
+};
 
-	interface Props {
-		triggerLabel: string;
-		triggerProviderSource: string;
-		currentModelId: string | null;
-		modelGroups: readonly AgentInputModelSelectorGroup[];
-		favoriteModels?: readonly AgentInputModelSelectorItem[];
-		reasoningGroups?: readonly AgentInputModelSelectorReasoningGroup[];
-		selectedReasoningBaseId?: string | null;
-		selectedReasoningVariantId?: string | null;
-		primarySelectorLabel?: string;
-		primaryTriggerProviderSource?: string;
-		isLoading?: boolean;
-		searchPlaceholder?: string;
-		loadingLabel?: string;
-		noModelsLabel?: string;
-		noReasoningLevelsLabel?: string;
-		reasoningEffortTooltipLabel?: string;
-		planLabel?: string;
-		buildLabel?: string;
-		ontoggle?: (isOpen: boolean) => void;
-		onModelChange: (modelId: string) => void | Promise<void>;
-		onSetPlanDefault?: (modelId: string) => void;
-		onSetBuildDefault?: (modelId: string) => void;
-		onToggleFavorite?: (modelId: string) => void;
-		hideTriggerProviderMark?: boolean;
+interface Props {
+	triggerLabel: string;
+	triggerProviderBrand?: ProviderBrand | null;
+	triggerProviderLabel?: string;
+	currentModelId: string | null;
+	modelGroups: readonly AgentInputModelSelectorGroup[];
+	favoriteModels?: readonly AgentInputModelSelectorItem[];
+	reasoningGroups?: readonly AgentInputModelSelectorReasoningGroup[];
+	selectedReasoningBaseId?: string | null;
+	selectedReasoningVariantId?: string | null;
+	primarySelectorLabel?: string;
+	isLoading?: boolean;
+	searchPlaceholder?: string;
+	loadingLabel?: string;
+	noModelsLabel?: string;
+	noReasoningLevelsLabel?: string;
+	reasoningEffortTooltipLabel?: string;
+	planLabel?: string;
+	buildLabel?: string;
+	ontoggle?: (isOpen: boolean) => void;
+	onModelChange: (modelId: string) => void | Promise<void>;
+	onSetPlanDefault?: (modelId: string) => void;
+	onSetBuildDefault?: (modelId: string) => void;
+	onToggleFavorite?: (modelId: string) => void;
+	hideTriggerProviderMark?: boolean;
+	primaryTriggerProviderBrand?: ProviderBrand | null;
+	primaryTriggerProviderLabel?: string;
+}
+
+let {
+	triggerLabel,
+	triggerProviderBrand = null,
+	triggerProviderLabel,
+	currentModelId,
+	modelGroups,
+	favoriteModels = [],
+	reasoningGroups = [],
+	selectedReasoningBaseId = null,
+	selectedReasoningVariantId = null,
+	primarySelectorLabel = "Model",
+	isLoading = false,
+	searchPlaceholder = "Search models",
+	loadingLabel = "Loading models...",
+	noModelsLabel = "No models available",
+	noReasoningLevelsLabel = "No reasoning levels available",
+	reasoningEffortTooltipLabel = "Reasoning effort",
+	planLabel = "Plan",
+	buildLabel = "Build",
+	ontoggle,
+	onModelChange,
+	onSetPlanDefault,
+	onSetBuildDefault,
+	onToggleFavorite,
+	hideTriggerProviderMark = false,
+	primaryTriggerProviderBrand = triggerProviderBrand,
+	primaryTriggerProviderLabel = triggerProviderLabel,
+}: Props = $props();
+
+const MODEL_SEARCH_THRESHOLD = 8;
+
+let isOpen = $state(false);
+let isPrimarySelectorOpen = $state(false);
+let isVariantSelectorOpen = $state(false);
+let searchQuery = $state("");
+
+const usesVariantSelector = $derived(reasoningGroups.length > 0);
+const totalModelCount = $derived.by(() =>
+	usesVariantSelector
+		? reasoningGroups.reduce((count, group) => count + group.variants.length, 0)
+		: modelGroups.reduce((count, group) => count + group.items.length, 0)
+);
+const showFavorites = $derived(favoriteModels.length > 0);
+const showSearch = $derived(!usesVariantSelector && totalModelCount > MODEL_SEARCH_THRESHOLD);
+const selectedReasoningGroup = $derived.by(
+	() =>
+		reasoningGroups.find((group) => group.baseModelId === selectedReasoningBaseId) ??
+		reasoningGroups[0] ??
+		null
+);
+
+function toggleSplitSelector(): void {
+	const nextPrimaryOpen = !isPrimarySelectorOpen;
+	isPrimarySelectorOpen = nextPrimaryOpen;
+	isVariantSelectorOpen = false;
+	ontoggle?.(nextPrimaryOpen);
+}
+
+function closeSelectors(): void {
+	isOpen = false;
+	isPrimarySelectorOpen = false;
+	isVariantSelectorOpen = false;
+	ontoggle?.(false);
+}
+
+export function toggle(): void {
+	if (usesVariantSelector) {
+		toggleSplitSelector();
+		return;
 	}
 
-	let {
-		triggerLabel,
-		triggerProviderSource,
-		currentModelId,
-		modelGroups,
-		favoriteModels = [],
-		reasoningGroups = [],
-		selectedReasoningBaseId = null,
-		selectedReasoningVariantId = null,
-		primarySelectorLabel = "Model",
-		primaryTriggerProviderSource = triggerProviderSource,
-		isLoading = false,
-		searchPlaceholder = "Search models",
-		loadingLabel = "Loading models...",
-		noModelsLabel = "No models available",
-		noReasoningLevelsLabel = "No reasoning levels available",
-		reasoningEffortTooltipLabel = "Reasoning effort",
-		planLabel = "Plan",
-		buildLabel = "Build",
-		ontoggle,
-		onModelChange,
-		onSetPlanDefault,
-		onSetBuildDefault,
-		onToggleFavorite,
-		hideTriggerProviderMark = false,
-	}: Props = $props();
+	const nextOpen = !isOpen;
+	isOpen = nextOpen;
+	ontoggle?.(nextOpen);
+}
 
-	const MODEL_SEARCH_THRESHOLD = 8;
-
-	let isOpen = $state(false);
-	let isPrimarySelectorOpen = $state(false);
-	let isVariantSelectorOpen = $state(false);
-	let searchQuery = $state("");
-
-	const usesVariantSelector = $derived(reasoningGroups.length > 0);
-	const totalModelCount = $derived.by(() =>
-		usesVariantSelector
-			? reasoningGroups.reduce((count, group) => count + group.variants.length, 0)
-			: modelGroups.reduce((count, group) => count + group.items.length, 0)
-	);
-	const showFavorites = $derived(favoriteModels.length > 0);
-	const showSearch = $derived(!usesVariantSelector && totalModelCount > MODEL_SEARCH_THRESHOLD);
-	const selectedReasoningGroup = $derived.by(
-		() =>
-			reasoningGroups.find((group) => group.baseModelId === selectedReasoningBaseId) ??
-			reasoningGroups[0] ??
-			null
-	);
-
-	function toggleSplitSelector(): void {
-		const nextPrimaryOpen = !isPrimarySelectorOpen;
-		isPrimarySelectorOpen = nextPrimaryOpen;
+function setPrimaryOpen(open: boolean): void {
+	isPrimarySelectorOpen = open;
+	if (open) {
 		isVariantSelectorOpen = false;
-		ontoggle?.(nextPrimaryOpen);
 	}
+	ontoggle?.(open);
+}
 
-	function closeSelectors(): void {
-		isOpen = false;
+function setVariantOpen(open: boolean): void {
+	isVariantSelectorOpen = open;
+	if (open) {
 		isPrimarySelectorOpen = false;
-		isVariantSelectorOpen = false;
-		ontoggle?.(false);
+	}
+	ontoggle?.(open);
+}
+
+async function handleModelSelection(modelId: string): Promise<void> {
+	if (modelId !== currentModelId) {
+		await onModelChange(modelId);
+	}
+	closeSelectors();
+}
+
+function resolveSearchText(item: AgentInputModelSelectorItem): string {
+	return `${item.name} ${item.id} ${item.description ?? ""} ${item.providerLabel ?? ""} ${item.searchText ?? ""}`.toLowerCase();
+}
+
+const filteredGroups = $derived.by(() => {
+	if (!searchQuery.trim()) {
+		return modelGroups;
 	}
 
-	export function toggle(): void {
-		if (usesVariantSelector) {
-			toggleSplitSelector();
-			return;
-		}
+	const query = searchQuery.toLowerCase().trim();
+	return modelGroups
+		.map((group) => ({
+			label: group.label,
+			providerBrand: group.providerBrand ?? null,
+			providerLabel: group.providerLabel,
+			items: group.items.filter((item) => resolveSearchText(item).includes(query)),
+		}))
+		.filter((group) => group.items.length > 0);
+});
 
-		const nextOpen = !isOpen;
-		isOpen = nextOpen;
-		ontoggle?.(nextOpen);
-	}
-
-	function setPrimaryOpen(open: boolean): void {
-		isPrimarySelectorOpen = open;
-		if (open) {
-			isVariantSelectorOpen = false;
-		}
-		ontoggle?.(open);
-	}
-
-	function setVariantOpen(open: boolean): void {
-		isVariantSelectorOpen = open;
-		if (open) {
-			isPrimarySelectorOpen = false;
-		}
-		ontoggle?.(open);
-	}
-
-	async function handleModelSelection(modelId: string): Promise<void> {
-		if (modelId !== currentModelId) {
-			await onModelChange(modelId);
-		}
-		closeSelectors();
-	}
-
-	function resolveSearchText(item: AgentInputModelSelectorItem): string {
-		return `${item.name} ${item.id} ${item.description ?? ""} ${item.providerSource} ${item.searchText ?? ""}`.toLowerCase();
-	}
-
-	const filteredGroups = $derived.by(() => {
-		if (!searchQuery.trim()) {
-			return modelGroups;
-		}
-
-		const query = searchQuery.toLowerCase().trim();
-		return modelGroups
-			.map((group) => ({
-				label: group.label,
-				items: group.items.filter((item) => resolveSearchText(item).includes(query)),
-			}))
-			.filter((group) => group.items.length > 0);
-	});
-
-	const showGroups = $derived.by(() => {
-		const groups = filteredGroups;
-		return groups.some((group) => group.label) || groups.length > 1;
-	});
+const showGroups = $derived.by(() => {
+	const groups = filteredGroups;
+	return groups.some((group) => group.label) || groups.length > 1;
+});
 </script>
 
 {#if usesVariantSelector}
@@ -187,8 +193,12 @@
 				{#if isLoading}
 					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
 				{:else}
-					{#if !hideTriggerProviderMark}
-						<ProviderMark provider={primaryTriggerProviderSource} class="size-3.5" />
+					{#if !hideTriggerProviderMark && primaryTriggerProviderBrand}
+						<ProviderMark
+							brand={primaryTriggerProviderBrand}
+							label={primaryTriggerProviderLabel ?? primarySelectorLabel}
+							class="size-3.5"
+						/>
 					{/if}
 					<span class="truncate text-xs">{primarySelectorLabel}</span>
 				{/if}
@@ -205,7 +215,13 @@
 						}}
 					>
 						{#snippet leading()}
-							<ProviderMark provider={group.providerSource} class="size-3.5" />
+							{#if group.providerBrand}
+								<ProviderMark
+									brand={group.providerBrand}
+									label={group.providerLabel ?? group.baseModelName}
+									class="size-3.5"
+								/>
+							{/if}
 						{/snippet}
 						{#snippet actions()}
 							{#if group.preferredVariantId && (onSetPlanDefault || onSetBuildDefault)}
@@ -279,8 +295,12 @@
 				{#if isLoading}
 					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
 				{:else}
-					{#if !hideTriggerProviderMark}
-						<ProviderMark provider={triggerProviderSource} class="size-3.5" />
+					{#if !hideTriggerProviderMark && triggerProviderBrand}
+						<ProviderMark
+							brand={triggerProviderBrand}
+							label={triggerProviderLabel ?? triggerLabel}
+							class="size-3.5"
+						/>
 					{/if}
 					<span class="truncate text-xs">{triggerLabel}</span>
 				{/if}
@@ -307,10 +327,14 @@
 								}}
 							>
 								{#snippet leading()}
-								{#if !item.hideProviderMark}
-									<ProviderMark provider={item.providerSource} class="size-3.5" />
-								{/if}
-							{/snippet}
+									{#if !item.hideProviderMark && item.providerBrand}
+										<ProviderMark
+											brand={item.providerBrand}
+											label={item.providerLabel ?? item.name}
+											class="size-3.5"
+										/>
+									{/if}
+								{/snippet}
 							{#snippet actions()}
 								<div class="ml-auto flex items-center gap-1">
 									{#if onSetPlanDefault || onSetBuildDefault}
@@ -341,7 +365,13 @@
 				{#each filteredGroups as group, groupIndex (group.label)}
 					{#if showGroups}
 						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold">
-							<ProviderMark provider={group.label} class="size-3" />
+							{#if group.providerBrand}
+								<ProviderMark
+									brand={group.providerBrand}
+									label={group.providerLabel ?? group.label}
+									class="size-3"
+								/>
+							{/if}
 							{group.label}
 						</DropdownMenu.Label>
 					{/if}
@@ -355,10 +385,14 @@
 							}}
 						>
 							{#snippet leading()}
-								{#if !item.hideProviderMark}
-									<ProviderMark provider={item.providerSource} class="size-3.5" />
+								{#if !item.hideProviderMark && item.providerBrand}
+									<ProviderMark
+										brand={item.providerBrand}
+										label={item.providerLabel ?? item.name}
+										class="size-3.5"
+									/>
 								{/if}
-							{/snippet}
+						{/snippet}
 								{#snippet actions()}
 									<div class="ml-auto flex items-center gap-1">
 										{#if onSetPlanDefault || onSetBuildDefault}

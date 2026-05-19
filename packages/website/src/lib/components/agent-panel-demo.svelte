@@ -29,6 +29,7 @@ import type {
 	AgentPanelPrCardModel,
 	AgentPanelSceneModel,
 } from "@acepe/ui/agent-panel";
+import type { ProviderBrand } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
@@ -51,7 +52,8 @@ const noop = () => {};
 type DemoModelItem = {
 	id: string;
 	name: string;
-	providerSource: string;
+	providerBrand: ProviderBrand;
+	providerLabel: string;
 	isFavorite: boolean;
 	isBuildDefault: boolean;
 	isPlanDefault: boolean;
@@ -59,6 +61,8 @@ type DemoModelItem = {
 
 type DemoModelGroup = {
 	label: string;
+	providerBrand: ProviderBrand;
+	providerLabel: string;
 	items: DemoModelItem[];
 };
 
@@ -110,7 +114,8 @@ function createConfigOption(currentValue: "true" | "false"): DemoConfigOption {
 function createModelItem(params: {
 	id: string;
 	name: string;
-	providerSource: string;
+	providerBrand: ProviderBrand;
+	providerLabel: string;
 	isFavorite?: boolean;
 	isBuildDefault?: boolean;
 	isPlanDefault?: boolean;
@@ -118,7 +123,8 @@ function createModelItem(params: {
 	return {
 		id: params.id,
 		name: params.name,
-		providerSource: params.providerSource,
+		providerBrand: params.providerBrand,
+		providerLabel: params.providerLabel,
 		isFavorite: params.isFavorite ?? false,
 		isBuildDefault: params.isBuildDefault ?? false,
 		isPlanDefault: params.isPlanDefault ?? false,
@@ -505,18 +511,22 @@ let panels = $state<DemoPanel[]>([
 		modelGroups: [
 			{
 				label: "Anthropic",
+				providerBrand: "claude-code",
+				providerLabel: "Claude Code",
 				items: [
 					createModelItem({
 						id: "claude-sonnet-4",
 						name: "Claude Sonnet 4",
-						providerSource: "Anthropic",
+						providerBrand: "claude-code",
+						providerLabel: "Claude Code",
 						isFavorite: true,
 						isBuildDefault: true,
 					}),
 					createModelItem({
 						id: "claude-opus-4-6",
 						name: "Claude Opus 4.6",
-						providerSource: "Anthropic",
+						providerBrand: "claude-code",
+						providerLabel: "Claude Code",
 						isPlanDefault: true,
 					}),
 				],
@@ -549,18 +559,22 @@ let panels = $state<DemoPanel[]>([
 		modelGroups: [
 			{
 				label: "OpenAI",
+				providerBrand: "codex",
+				providerLabel: "Codex",
 				items: [
 					createModelItem({
 						id: "gpt-5.4",
 						name: "GPT-5.4",
-						providerSource: "OpenAI",
+						providerBrand: "codex",
+						providerLabel: "Codex",
 						isFavorite: true,
 						isPlanDefault: true,
 					}),
 					createModelItem({
 						id: "gpt-5.3-codex",
 						name: "GPT-5.3 Codex",
-						providerSource: "OpenAI",
+						providerBrand: "codex",
+						providerLabel: "Codex",
 						isBuildDefault: true,
 					}),
 				],
@@ -593,18 +607,22 @@ let panels = $state<DemoPanel[]>([
 		modelGroups: [
 			{
 				label: "Anthropic",
+				providerBrand: "cursor",
+				providerLabel: "Cursor",
 				items: [
 					createModelItem({
 						id: "claude-3-7-sonnet",
 						name: "Claude 3.7 Sonnet",
-						providerSource: "Anthropic",
+						providerBrand: "cursor",
+						providerLabel: "Cursor",
 						isFavorite: true,
 						isBuildDefault: true,
 					}),
 					createModelItem({
 						id: "claude-opus-4-6-website",
 						name: "Claude Opus 4.6",
-						providerSource: "Anthropic",
+						providerBrand: "cursor",
+						providerLabel: "Cursor",
 						isPlanDefault: true,
 					}),
 				],
@@ -832,7 +850,8 @@ let { bare = false }: Props = $props();
 									<AgentInputDivider />
 									<AgentInputModelSelector
 										triggerLabel={currentModel?.name ?? "Select model"}
-										triggerProviderSource={currentModel?.providerSource ?? ""}
+										triggerProviderBrand={currentModel?.providerBrand ?? null}
+										triggerProviderLabel={currentModel?.providerLabel}
 										currentModelId={panel.currentModelId}
 										modelGroups={panel.modelGroups}
 										favoriteModels={getFavoriteModels(panel)}

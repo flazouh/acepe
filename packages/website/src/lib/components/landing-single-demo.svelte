@@ -152,11 +152,14 @@ const availableModes = [{ id: "plan" }, { id: "build" }] as const;
 const modelGroups = $derived([
 	{
 		label: "Anthropic",
+		providerBrand: "claude-code" as const,
+		providerLabel: "Claude Code",
 		items: [
 			{
 				id: "claude-sonnet-4",
 				name: "Claude Sonnet 4",
-				providerSource: "Anthropic",
+				providerBrand: "claude-code" as const,
+				providerLabel: "Claude Code",
 				isFavorite: true,
 				isBuildDefault: true,
 				isPlanDefault: false,
@@ -164,7 +167,8 @@ const modelGroups = $derived([
 			{
 				id: "claude-opus-4-6",
 				name: "Claude Opus 4.6",
-				providerSource: "Anthropic",
+				providerBrand: "claude-code" as const,
+				providerLabel: "Claude Code",
 				isFavorite: false,
 				isBuildDefault: false,
 				isPlanDefault: true,
@@ -293,7 +297,8 @@ const favoriteModels = $derived(
 														<AgentInputDivider />
 														<AgentInputModelSelector
 															triggerLabel="Claude Sonnet 4"
-															triggerProviderSource="Anthropic"
+															triggerProviderBrand="claude-code"
+															triggerProviderLabel="Claude Code"
 															currentModelId="claude-sonnet-4"
 															{modelGroups}
 															{favoriteModels}

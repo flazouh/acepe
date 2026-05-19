@@ -222,7 +222,7 @@ const capabilitiesAgent = $derived.by(() => {
 const capabilitiesProviderMetadata = $derived(
 	resolveCapabilityContextProviderMetadata({
 		sessionSource: sessionCapabilitySource,
-		selectedAgentProviderMetadata: capabilitiesAgent ? capabilitiesAgent.providerMetadata : null,
+		selectedAgentProviderMetadata: capabilitiesAgent ? (capabilitiesAgent.providerMetadata ?? null) : null,
 	})
 );
 const preconnectionCapabilities = $derived.by(() =>
@@ -296,7 +296,7 @@ const capabilitySource = $derived.by(() =>
 	})
 );
 const effectiveCapabilityProviderMetadata = $derived(
-	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata
+	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata ?? null
 );
 const effectiveAvailableModes = $derived(capabilitySource.availableModes);
 
@@ -317,7 +317,6 @@ const effectiveCurrentModeId = $derived.by(() =>
 		visibleModes,
 	})
 );
-
 
 const panelProvisionalAutonomousEnabled = $derived.by(() => {
 	if (props.panelId) {
@@ -392,34 +391,32 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 		sessionConfigOptions,
 		effectiveAvailableModels,
 		effectiveModelsDisplay
-	).map(
-		(option): AgentInputConfigOption => {
-			const raw = option.currentValue;
-			const currentValue: string | number | boolean | null =
-				raw === null || raw === undefined
-					? null
-					: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
-						? raw
-						: null;
-			const options = option.options?.flatMap(
-				(opt): { value: string | number | boolean; name: string }[] => {
-					const v = opt.value;
-					if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-						return [{ value: v, name: opt.name }];
-					}
-					return [];
+	).map((option): AgentInputConfigOption => {
+		const raw = option.currentValue;
+		const currentValue: string | number | boolean | null =
+			raw === null || raw === undefined
+				? null
+				: typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
+					? raw
+					: null;
+		const options = option.options?.flatMap(
+			(opt): { value: string | number | boolean; name: string }[] => {
+				const v = opt.value;
+				if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+					return [{ value: v, name: opt.name }];
 				}
-			);
-			return {
-				id: option.id,
-				name: option.name,
-				category: option.category,
-				type: option.type,
-				currentValue,
-				options,
-			};
-		}
-	);
+				return [];
+			}
+		);
+		return {
+			id: option.id,
+			name: option.name,
+			category: option.category,
+			type: option.type,
+			currentValue,
+			options,
+		};
+	});
 });
 
 const liveAvailableCommands = $derived.by(() => {
@@ -824,8 +821,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		} else {
 			inputState.showFileDropdown = false;
 			inputState.fileQuery = "";
-			const hasConnectedSession =
-				sessionLifecyclePresentation?.connectionPhase === "connected";
+			const hasConnectedSession = sessionLifecyclePresentation?.connectionPhase === "connected";
 
 			if (
 				capabilitiesAgentId &&
@@ -1097,17 +1093,17 @@ async function handleModeChange(modeId: string) {
 				provisionalModelId: effectiveCurrentModelId,
 				provisionalAutonomousEnabled: autonomousToggleActive,
 			},
-				async () => {
-					const shouldAnnounceForcedOff =
-						autonomousToggleActive &&
-						!resolveAutonomousSupport({
-							agentId: capabilitiesAgentId,
-							connectionPhase: sessionLifecyclePresentation
-								? sessionLifecyclePresentation.connectionPhase
-								: null,
-							currentUiModeId: modeId,
-							agents: agentStore.agents,
-						}).supported;
+			async () => {
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionLifecyclePresentation
+							? sessionLifecyclePresentation.connectionPhase
+							: null,
+						currentUiModeId: modeId,
+						agents: agentStore.agents,
+					}).supported;
 				const result = await sessionStore.setMode(sessionId, modeId);
 				if (result.isErr()) {
 					toast.error("Failed to switch mode.");
@@ -1217,16 +1213,16 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-					const shouldAnnounceForcedOff =
-						autonomousToggleActive &&
-						!resolveAutonomousSupport({
-							agentId: capabilitiesAgentId,
-							connectionPhase: sessionLifecyclePresentation
-								? sessionLifecyclePresentation.connectionPhase
-								: null,
-							currentUiModeId: resolution.modeIdToApply,
-							agents: agentStore.agents,
-						}).supported;
+				const shouldAnnounceForcedOff =
+					autonomousToggleActive &&
+					!resolveAutonomousSupport({
+						agentId: capabilitiesAgentId,
+						connectionPhase: sessionLifecyclePresentation
+							? sessionLifecyclePresentation.connectionPhase
+							: null,
+						currentUiModeId: resolution.modeIdToApply,
+						agents: agentStore.agents,
+					}).supported;
 				const modeResult = await sessionStore.setMode(sessionId, resolution.modeIdToApply);
 				if (modeResult.isErr()) {
 					toast.error("Failed to switch mode.");
@@ -1935,6 +1931,7 @@ $effect(() => {
 							availableModels={effectiveAvailableModels}
 							currentModelId={effectiveCurrentModelId}
 							modelsDisplay={effectiveModelsDisplay}
+							providerMetadata={effectiveCapabilityProviderMetadata}
 							onModelChange={handleModelChange}
 							isLoading={selectorsLoading}
 							panelId={props.panelId}

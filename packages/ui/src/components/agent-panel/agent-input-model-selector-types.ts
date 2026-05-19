@@ -1,7 +1,10 @@
+import type { ProviderBrand } from "../provider-mark/index.js";
+
 export interface AgentInputModelSelectorItem {
 	id: string;
 	name: string;
-	providerSource: string;
+	providerBrand?: ProviderBrand | null;
+	providerLabel?: string;
 	description?: string;
 	searchText?: string;
 	isFavorite?: boolean;
@@ -12,6 +15,8 @@ export interface AgentInputModelSelectorItem {
 
 export interface AgentInputModelSelectorGroup {
 	label: string;
+	providerBrand?: ProviderBrand | null;
+	providerLabel?: string;
 	items: readonly AgentInputModelSelectorItem[];
 }
 
@@ -23,7 +28,8 @@ export interface AgentInputModelSelectorVariant {
 export interface AgentInputModelSelectorReasoningGroup {
 	baseModelId: string;
 	baseModelName: string;
-	providerSource: string;
+	providerBrand?: ProviderBrand | null;
+	providerLabel?: string;
 	preferredVariantId?: string | null;
 	isPlanDefault?: boolean;
 	isBuildDefault?: boolean;

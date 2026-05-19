@@ -235,6 +235,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 								{modeType}
 								{availableModels}
 								{modelsDisplay}
+								{providerMetadata}
 								{fallbackLabel}
 								isLoading={isModelsLoading}
 							/>

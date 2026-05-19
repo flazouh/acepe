@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ModelsForDisplay } from "../../../services/acp-provider-metadata.js";
+import type { ModelsForDisplay } from "../../../services/acp-types.js";
 import type { Model } from "../../application/dto/model.js";
 import { AGENT_IDS } from "../../types/agent-id.js";
 import {
@@ -7,7 +7,6 @@ import {
 	getCurrentReasoningVariant,
 	getModelDisplayFamily,
 	getModelDisplayName,
-	getProviderMetadata,
 	getUsageMetricsPresentation,
 	groupModelsForFallback,
 	groupReasoningModelsFromDisplay,
@@ -460,7 +459,7 @@ describe("model-selector-logic", () => {
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
 					preconnectionCapabilityMode: "startupGlobal",
-				implicitSessionCreationMode: "allowed",
+					implicitSessionCreationMode: "allowed",
 				},
 			},
 		};
@@ -472,21 +471,6 @@ describe("model-selector-logic", () => {
 		it("reads usage metrics presentation from backend metadata", () => {
 			expect(getUsageMetricsPresentation(modelsDisplay)).toBe("contextWindowOnly");
 			expect(isContextWindowOnlyMetrics(modelsDisplay)).toBe(true);
-		});
-
-		it("reads provider projection metadata from backend metadata", () => {
-			expect(getProviderMetadata(modelsDisplay)).toEqual({
-				providerBrand: "claude-code",
-				displayName: "Claude Code",
-				displayOrder: 10,
-				supportsModelDefaults: true,
-				variantGroup: "plain",
-				defaultAlias: "default",
-				reasoningEffortSupport: false,
-				preconnectionSlashMode: "startupGlobal",
-				preconnectionCapabilityMode: "startupGlobal",
-			implicitSessionCreationMode: "allowed",
-			});
 		});
 	});
 
