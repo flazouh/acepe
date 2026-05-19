@@ -44,7 +44,7 @@ export interface StoreComposerState {
 }
 
 export interface ComposerSessionSubmitPolicy {
-	readonly canSubmit: boolean;
+	readonly canSubmit: boolean | null;
 }
 
 export interface DeriveComposerStateInput {

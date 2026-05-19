@@ -52,7 +52,7 @@ export interface LiveSessionLifecyclePresentation {
 	readonly connectionPhase: ConnectionPhase;
 	readonly contentPhase: ContentPhase;
 	readonly activityPhase: ActivityPhase;
-	readonly canSubmit: boolean;
+	readonly canSubmit: boolean | null;
 	readonly canCancel: boolean;
 	readonly showStop: boolean;
 	readonly showThinking: boolean;
@@ -346,9 +346,14 @@ export function deriveLiveSessionLifecyclePresentation(
 		canonicalActivity === "paused";
 	const showThinking =
 		canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user";
+	const canonicalProjection = canonicalProjectionFromSource(input.source);
 	const canSubmit =
-		canonicalProjectionFromSource(input.source)?.lifecycle.actionability.canSend === true &&
-		!input.hasLocalPendingSendIntent;
+		input.source.kind === "no_session"
+			? false
+			: canonicalProjection === null
+				? null
+				: canonicalProjection.lifecycle.actionability.canSend === true &&
+					!input.hasLocalPendingSendIntent;
 	const showConversation = contentPhase === "loaded";
 
 	return {
@@ -364,7 +369,7 @@ export function deriveLiveSessionLifecyclePresentation(
 		showReadyPlaceholder:
 			!showConversation &&
 			input.hasEntries === false &&
-			canonicalProjectionFromSource(input.source)?.lifecycle.status === "ready" &&
+			canonicalProjection?.lifecycle.status === "ready" &&
 			canonicalActivity === "idle",
 	};
 }

@@ -477,7 +477,7 @@ const isSubmitDisabled = $derived(
 	props.disableSend
 		? true
 		: props.sessionId
-			? !(props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit ?? false)
+			? (props.sessionCanSubmit ?? sessionLifecyclePresentation?.canSubmit) !== true
 			: false
 );
 

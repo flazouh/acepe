@@ -495,4 +495,21 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 			showReadyPlaceholder: false,
 		});
 	});
+
+	it("preserves unknown submit actionability for real sessions without canonical projection", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: {
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			},
+			hasEntries: null,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "failed",
+			contentPhase: "loading",
+			canSubmit: null,
+		});
+	});
 });
