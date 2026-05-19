@@ -9,7 +9,10 @@ import type {
 	SessionStateGraph,
 } from "$lib/services/acp-types.js";
 import { InteractionStore } from "$lib/acp/store/interaction-store.svelte.js";
-import { createLiveInteractionGraphConsumer } from "../live-interaction-graph-consumer.js";
+import {
+	createLiveInteractionGraphConsumer,
+	createSessionOpenInteractionGraphConsumer,
+} from "../live-interaction-graph-consumer.js";
 
 function actionability(): SessionGraphActionability {
 	return {
@@ -190,5 +193,15 @@ describe("createLiveInteractionGraphConsumer", () => {
 		expect(showPermissionNotification).toHaveBeenCalledWith(
 			interactionStore.permissionsPending.get("permission-1")
 		);
+	});
+
+	it("updates interaction state for session-open hydration without notifications", () => {
+		const interactionStore = new InteractionStore();
+		const question = questionInteraction("question-1");
+		const consumer = createSessionOpenInteractionGraphConsumer({ interactionStore });
+
+		consumer.replaceSessionStateGraph(graph([question]));
+
+		expect(interactionStore.questionsPending.has("question-1")).toBe(true);
 	});
 });

@@ -11,6 +11,10 @@ interface LiveInteractionGraphConsumerInput {
 	readonly showPlanApprovalNotification: (approval: PlanApprovalInteraction) => void;
 }
 
+interface SessionOpenInteractionGraphConsumerInput {
+	readonly interactionStore: InteractionStore;
+}
+
 interface PendingInteractionIds {
 	readonly permissionIds: Set<string>;
 	readonly questionIds: Set<string>;
@@ -131,6 +135,18 @@ export function createLiveInteractionGraphConsumer(input: LiveInteractionGraphCo
 			const previousIds = collectPendingInteractionIdsForPatches(input.interactionStore, patches);
 			input.interactionStore.applySessionInteractionPatches(patches);
 			notifyNewPendingInteractions(input, collectPatchSessionIds(patches), previousIds);
+		},
+	};
+}
+
+export function createSessionOpenInteractionGraphConsumer(
+	input: SessionOpenInteractionGraphConsumerInput
+): {
+	readonly replaceSessionStateGraph: (graph: SessionStateGraph) => void;
+} {
+	return {
+		replaceSessionStateGraph(graph) {
+			input.interactionStore.replaceSessionStateGraph(graph);
 		},
 	};
 }

@@ -109,7 +109,10 @@ import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import { UpdateAvailablePage } from "./update-available/index.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
-import { createLiveInteractionGraphConsumer } from "./main-app-view/logic/live-interaction-graph-consumer.js";
+import {
+	createLiveInteractionGraphConsumer,
+	createSessionOpenInteractionGraphConsumer,
+} from "./main-app-view/logic/live-interaction-graph-consumer.js";
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -190,11 +193,11 @@ const urgencyTabsStore = createUrgencyTabsStore(panelStore, sessionStore, intera
 
 // Create tab bar store for flat, panel-ordered tabs with mode/state/tool indicators
 const tabBarStore = createTabBarStore(panelStore, sessionStore, interactionStore, unseenStore);
-const sessionOpenHydrator = new SessionOpenHydrator(sessionStore, panelStore, {
-	replaceSessionStateGraph(graph) {
-		interactionStore.replaceSessionStateGraph(graph);
-	},
-});
+const sessionOpenHydrator = new SessionOpenHydrator(
+	sessionStore,
+	panelStore,
+	createSessionOpenInteractionGraphConsumer({ interactionStore })
+);
 sessionStore.setSessionOpenHydrator(sessionOpenHydrator);
 // Create voice settings store (context for voice-section and agent-input-ui)
 const voiceSettingsStore = createVoiceSettingsStore();
