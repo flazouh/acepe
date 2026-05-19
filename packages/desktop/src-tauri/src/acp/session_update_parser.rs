@@ -40,7 +40,7 @@ pub enum ParseResult {
         params: Value,
         error: String,
         session_id: Option<String>,
-        update_type: String,
+        update_type: Option<String>,
     },
     /// Not a session update notification
     NotSessionUpdate,
@@ -131,10 +131,10 @@ fn parse_session_update_notification_for_context(
         .and_then(|u| u.get("sessionUpdate"))
         .or_else(|| params.get("sessionUpdate"))
         .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
+        .map(str::to_string);
 
     tracing::debug!(
-        session_update_type = %session_update_type,
+        session_update_type = ?session_update_type,
         "Processing session update notification"
     );
 
@@ -146,7 +146,7 @@ fn parse_session_update_notification_for_context(
                 params: params.clone(),
                 error: "params is not an object".to_string(),
                 session_id: extract_session_id(params),
-                update_type: session_update_type.to_string(),
+                update_type: session_update_type.clone(),
             }
         }
     };
@@ -155,9 +155,11 @@ fn parse_session_update_notification_for_context(
     match parse_session_update_with_agent::<serde_json::Error>(&normalized, agent) {
         Ok(update) => {
             // Log successful parsing of tool calls specifically
-            if session_update_type == "tool_call" || session_update_type == "toolCall" {
+            if session_update_type.as_deref() == Some("tool_call")
+                || session_update_type.as_deref() == Some("toolCall")
+            {
                 tracing::debug!(
-                    session_update_type = %session_update_type,
+                    session_update_type = ?session_update_type,
                     "Successfully parsed tool_call session update"
                 );
             }
@@ -165,7 +167,7 @@ fn parse_session_update_notification_for_context(
         }
         Err(e) => {
             tracing::warn!(
-                session_update_type = %session_update_type,
+                session_update_type = ?session_update_type,
                 error = %e,
                 normalized_data = %normalized,
                 "Failed to parse session update"
@@ -174,7 +176,7 @@ fn parse_session_update_notification_for_context(
                 params: params.clone(),
                 error: e.to_string(),
                 session_id: extract_session_id(params),
-                update_type: session_update_type.to_string(),
+                update_type: session_update_type,
             }
         }
     }
@@ -753,6 +755,33 @@ mod tests {
                 } => {
                     assert_eq!(session_id.as_deref(), Some("sess-123"));
                     assert!(!error.is_empty());
+                }
+                _ => panic!("Expected Raw, got {:?}", result),
+            }
+        }
+
+        #[test]
+        fn raw_parse_result_preserves_absent_update_type() {
+            let json = json!({
+                "jsonrpc": "2.0",
+                "method": "session/update",
+                "params": {
+                    "sessionId": "sess-123",
+                    "update": {
+                        "randomField": true
+                    }
+                }
+            });
+
+            let result = parse_session_update_notification(&json);
+            match result {
+                ParseResult::Raw {
+                    update_type,
+                    session_id,
+                    ..
+                } => {
+                    assert_eq!(session_id.as_deref(), Some("sess-123"));
+                    assert_eq!(update_type, None);
                 }
                 _ => panic!("Expected Raw, got {:?}", result),
             }

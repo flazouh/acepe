@@ -108,7 +108,7 @@ pub(crate) async fn handle_session_update_notification(
             tracing::error!(
                 agent = ?agent_type,
                 session_id = ?session_id,
-                update_type = %update_type,
+                update_type = ?update_type,
                 error = %error,
                 top_level_keys = ?keys,
                 "Failed to parse session update; dropping raw transport payload"
