@@ -833,8 +833,6 @@ async function handleOpenPr(prNumber: number) {
 
 		<HeaderTitleCell>
 			<div class="flex items-center gap-1.5 min-w-0">
-				<GitBranch size={14} weight="bold" class="shrink-0 text-muted-foreground" />
-				<span class="text-[11px] font-medium truncate">Source Control</span>
 				{#if currentWorktree}
 					<span
 						class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border/70 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
