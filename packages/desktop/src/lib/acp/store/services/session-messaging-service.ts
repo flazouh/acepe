@@ -334,9 +334,10 @@ export class SessionMessagingService {
 	 * Handle canonical turn completion side effects.
 	 */
 	handleCanonicalTurnComplete(sessionId: string, turnId?: TurnCompleteUpdate["turn_id"]): void {
-		const canonical = this.stateReader.getCanonicalSessionProjection(sessionId);
+		const turnState = this.stateReader.getSessionTurnState(sessionId);
+		const lastTerminalTurnId = this.stateReader.getSessionLastTerminalTurnId(sessionId);
 		this.recordTerminalTurnForSession(sessionId);
-		if (canonical?.turnState === "Completed") {
+		if (turnState === "Completed") {
 			if (this.connectionManager.isResponseInProgress(sessionId)) {
 				this.connectionManager.sendResponseComplete(sessionId);
 				this.entryManager.finalizeStreamingEntries(sessionId);
@@ -344,10 +345,7 @@ export class SessionMessagingService {
 			return;
 		}
 
-		if (
-			canonical?.turnState === "Failed" &&
-			matchesTurnId(canonical.lastTerminalTurnId, turnId ?? null)
-		) {
+		if (turnState === "Failed" && matchesTurnId(lastTerminalTurnId, turnId ?? null)) {
 			// Still finalize streaming entries — tool calls may have been streaming when
 			// the error occurred and need to stop shimmering.
 			this.entryManager.finalizeStreamingEntries(sessionId);
@@ -464,13 +462,11 @@ export class SessionMessagingService {
 	 * Handle canonical turn failure side effects from the backend.
 	 */
 	handleCanonicalTurnFailure(sessionId: string, update: TurnErrorUpdate): void {
-		const canonical = this.stateReader.getCanonicalSessionProjection(sessionId);
+		const turnState = this.stateReader.getSessionTurnState(sessionId);
+		const lastTerminalTurnId = this.stateReader.getSessionLastTerminalTurnId(sessionId);
 		const normalized = normalizeActiveTurnFailure(update);
 
-		if (
-			canonical?.turnState === "Failed" &&
-			matchesTurnId(canonical.lastTerminalTurnId, normalized.turnId)
-		) {
+		if (turnState === "Failed" && matchesTurnId(lastTerminalTurnId, normalized.turnId)) {
 			logger.warn("Ignoring duplicate turn error for terminal turn", {
 				sessionId,
 				turnId: normalized.turnId,

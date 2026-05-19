@@ -1352,6 +1352,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
 	}
 
+	/**
+	 * Canonical turn state; null means no canonical graph exists yet.
+	 */
+	getSessionTurnState(sessionId: string): SessionTurnState | null {
+		return this.sessionStateGraphs.get(sessionId)?.turnState ?? null;
+	}
+
 	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
 		const graph = this.sessionStateGraphs.get(sessionId) ?? null;

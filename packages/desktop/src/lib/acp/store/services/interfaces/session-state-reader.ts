@@ -5,8 +5,10 @@
  * Extracted services use this to access session data without circular dependencies.
  */
 
-import type { SessionGraphLifecycle } from "../../../../services/acp-types.js";
-import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
+import type {
+	SessionGraphLifecycle,
+	SessionTurnState,
+} from "../../../../services/acp-types.js";
 import type {
 	Mode,
 	Model,
@@ -40,6 +42,16 @@ export interface ISessionStateReader {
 	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null;
 
 	/**
+	 * Canonical turn state. Returns null before the first canonical graph.
+	 */
+	getSessionTurnState(sessionId: string): SessionTurnState | null;
+
+	/**
+	 * Canonical last terminal turn id; null means no canonical graph or no terminal turn.
+	 */
+	getSessionLastTerminalTurnId(sessionId: string): string | null;
+
+	/**
 	 * Canonical transcript revision. Used by local optimistic send cleanup to
 	 * distinguish newly acknowledged text from older identical prompts.
 	 */
@@ -64,12 +76,6 @@ export interface ISessionStateReader {
 	 * Canonical available modes. Returns null before canonical capabilities materialize.
 	 */
 	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> | null;
-
-	/**
-	 * Canonical session projection (lifecycle + activity + turn state + active
-	 * failure). Returns null before the first canonical envelope arrives.
-	 */
-	getCanonicalSessionProjection(sessionId: string): CanonicalSessionProjection | null;
 
 	/**
 	 * Canonical operation-backed tool calls for a session.

@@ -137,6 +137,7 @@ describe("SessionStore canonical projection accessors", () => {
 		const store = new SessionStore();
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionTurnState("session-1")).toBeNull();
 		expect(store.getSessionTranscriptEntries("session-1")).toBeNull();
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
@@ -167,6 +168,7 @@ describe("SessionStore canonical projection accessors", () => {
 		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();

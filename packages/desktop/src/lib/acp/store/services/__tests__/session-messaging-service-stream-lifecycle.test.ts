@@ -8,7 +8,6 @@
 
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
@@ -50,12 +49,13 @@ function createMockDeps() {
 		getSessionAutonomousTransitionBusy: vi.fn().mockReturnValue(false),
 		getSessionCanSend: vi.fn().mockReturnValue(null),
 		getSessionLifecycleStatus: vi.fn().mockReturnValue(null),
+		getSessionTurnState: vi.fn().mockReturnValue(null),
+		getSessionLastTerminalTurnId: vi.fn().mockReturnValue(null),
 		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
 		getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
 		getSessionCurrentModeId: vi.fn().mockReturnValue(null),
 		getSessionAvailableModels: vi.fn().mockReturnValue([]),
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
-		getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
@@ -101,54 +101,6 @@ function createMockDeps() {
 	};
 
 	return { stateReader, transientProjectionManager, entryManager, connectionManager };
-}
-
-function createCanonicalProjection(
-	overrides: Partial<CanonicalSessionProjection> = {}
-): CanonicalSessionProjection {
-	return {
-		lifecycle: overrides.lifecycle ?? {
-			status: "ready",
-			detachedReason: null,
-			failureReason: null,
-			errorMessage: null,
-			actionability: {
-				canSend: true,
-				canResume: false,
-				canRetry: false,
-				canArchive: true,
-				canConfigure: true,
-				recommendedAction: "send",
-				recoveryPhase: "none",
-				compactStatus: "ready",
-			},
-		},
-		activity: overrides.activity ?? {
-			kind: "idle",
-			activeOperationCount: 0,
-			activeSubagentCount: 0,
-			dominantOperationId: null,
-			blockingInteractionId: null,
-		},
-		turnState: overrides.turnState ?? "Idle",
-		activeTurnFailure: overrides.activeTurnFailure ?? null,
-		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
-		activeStreamingTail: overrides.activeStreamingTail ?? null,
-		capabilities: overrides.capabilities ?? {
-			models: null,
-			modes: null,
-			availableCommands: [],
-			configOptions: [],
-			autonomousEnabled: false,
-		},
-		tokenStream: overrides.tokenStream ?? new Map(),
-		clockAnchor: overrides.clockAnchor ?? null,
-		revision: overrides.revision ?? {
-			graphRevision: 1,
-			transcriptRevision: 1,
-			lastEventSeq: 1,
-		},
-	};
 }
 
 describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
@@ -271,9 +223,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("is idempotent when canonical turn state is already completed and machine is ready", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi
-			.fn()
-			.mockReturnValue(createCanonicalProjection({ turnState: "Completed" }));
+		deps.stateReader.getSessionTurnState = vi.fn().mockReturnValue("Completed");
 		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
 		service.handleCanonicalTurnComplete(sessionId);
@@ -299,19 +249,8 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("ignores a late turnComplete for a canonical failed turn", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
-			createCanonicalProjection({
-				turnState: "Failed",
-				activeTurnFailure: {
-					turnId: "turn-1",
-					message: "Usage limit reached",
-					code: "429",
-					kind: "recoverable",
-					source: "process",
-				},
-				lastTerminalTurnId: "turn-1",
-			})
-		);
+		deps.stateReader.getSessionTurnState = vi.fn().mockReturnValue("Failed");
+		deps.stateReader.getSessionLastTerminalTurnId = vi.fn().mockReturnValue("turn-1");
 
 		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
@@ -479,19 +418,8 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 	});
 
 	it("ignores duplicate canonical terminal errors for the same turn", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
-			createCanonicalProjection({
-				turnState: "Failed",
-				activeTurnFailure: {
-					turnId: "turn-1",
-					message: "You're out of extra usage",
-					code: null,
-					kind: "recoverable",
-					source: "unknown",
-				},
-				lastTerminalTurnId: "turn-1",
-			})
-		);
+		deps.stateReader.getSessionTurnState = vi.fn().mockReturnValue("Failed");
+		deps.stateReader.getSessionLastTerminalTurnId = vi.fn().mockReturnValue("turn-1");
 
 		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
@@ -500,19 +428,8 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 	});
 
 	it("ignores duplicate canonical terminal errors when both turn ids are null", () => {
-		deps.stateReader.getCanonicalSessionProjection = vi.fn().mockReturnValue(
-			createCanonicalProjection({
-				turnState: "Failed",
-				activeTurnFailure: {
-					turnId: null,
-					message: "You're out of extra usage",
-					code: null,
-					kind: "recoverable",
-					source: "unknown",
-				},
-				lastTerminalTurnId: null,
-			})
-		);
+		deps.stateReader.getSessionTurnState = vi.fn().mockReturnValue("Failed");
+		deps.stateReader.getSessionLastTerminalTurnId = vi.fn().mockReturnValue(null);
 
 		service.handleCanonicalTurnFailure(sessionId, {
 			type: "turnError",
