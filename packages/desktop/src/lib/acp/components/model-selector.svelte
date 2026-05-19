@@ -17,11 +17,10 @@ import { CanonicalModeId } from "../types/canonical-mode-id.js";
 import type { ModelId } from "../types/model-id.js";
 import { createLogger } from "../utils/logger.js";
 import {
-	getCodexCurrentVariant,
+	getCurrentReasoningVariant,
 	getModelDisplayName,
-	groupModelsByProvider,
+	groupModelsForFallback,
 	groupReasoningModelsFromDisplay,
-	groupCodexModelsByBase,
 	hasUsableModelsDisplayGroups,
 	isDefaultChoiceModelId,
 	isDefaultModel,
@@ -120,14 +119,10 @@ const reasoningBaseGroupsFromDisplay = $derived.by(() =>
 	groupReasoningModelsFromDisplay(modelsDisplay)
 );
 const reasoningBaseGroups = $derived.by(() =>
-	usesVariantSelector
-		? reasoningBaseGroupsFromDisplay.length > 0
-			? reasoningBaseGroupsFromDisplay
-			: groupCodexModelsByBase(availableModels)
-		: []
+	usesVariantSelector ? reasoningBaseGroupsFromDisplay : []
 );
 const selectedReasoningVariant = $derived.by(() =>
-	usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentModelId) : null
+	usesVariantSelector ? getCurrentReasoningVariant(reasoningBaseGroups, currentModelId) : null
 );
 const selectedReasoningBaseGroup = $derived.by(() => {
 	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
@@ -179,7 +174,6 @@ function getPreferredVariantId(baseModelId: string): string | null {
 			: undefined;
 	return (
 		matchingCurrent?.fullModelId ??
-		baseGroup.variants.find((variant) => variant.effort === "medium")?.fullModelId ??
 		baseGroup.variants[0]?.fullModelId ??
 		null
 	);
@@ -249,8 +243,8 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 		}));
 	}
 
-	return groupModelsByProvider(validModels).map((group) => ({
-		label: group.provider,
+	return groupModelsForFallback(validModels).map((group) => ({
+		label: group.label,
 		items: group.models.map(toSelectorItem),
 	}));
 });
@@ -265,7 +259,7 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 		isBuildDefault: isDefaultForBase(buildDefaultId, group.baseModelId),
 		variants: group.variants.map((variant) => ({
 			id: variant.fullModelId,
-			name: variant.effort,
+			name: variant.name,
 		})),
 	}))
 );

@@ -26,8 +26,8 @@ export interface SessionCapabilities {
 	readonly previewState?: CapabilityPreviewState;
 	readonly configOptions?: ReadonlyArray<ConfigOptionData> | null;
 	/**
-	 * Pre-computed display groups from backend. When present, model selector
-	 * uses this instead of client-side parsing (groupModelsByProvider, etc.).
+	 * Pre-computed display groups from backend. Model selector presentation
+	 * must come from this canonical metadata, not client-side provider parsing.
 	 */
 	readonly modelsDisplay?: ModelsForDisplay;
 	readonly providerMetadata?: ProviderMetadataProjection;

@@ -7,10 +7,9 @@ import {
 } from "@acepe/ui";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import {
-	getCodexCurrentVariant,
+	getCurrentReasoningVariant,
 	getModelDisplayName,
-	groupCodexModelsByBase,
-	groupModelsByProvider,
+	groupModelsForFallback,
 	groupReasoningModelsFromDisplay,
 	hasUsableModelsDisplayGroups,
 	isDefaultChoiceModelId,
@@ -56,14 +55,10 @@ const reasoningBaseGroupsFromDisplay = $derived.by(() =>
 	groupReasoningModelsFromDisplay(modelsDisplay)
 );
 const reasoningBaseGroups = $derived.by(() =>
-	usesVariantSelector
-		? reasoningBaseGroupsFromDisplay.length > 0
-			? reasoningBaseGroupsFromDisplay
-			: groupCodexModelsByBase(availableModels)
-		: []
+	usesVariantSelector ? reasoningBaseGroupsFromDisplay : []
 );
 const selectedReasoningVariant = $derived.by(() =>
-	usesVariantSelector ? getCodexCurrentVariant(reasoningBaseGroups, currentDefaultId) : null
+	usesVariantSelector ? getCurrentReasoningVariant(reasoningBaseGroups, currentDefaultId) : null
 );
 const selectedReasoningBaseGroup = $derived.by(() => {
 	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
@@ -134,8 +129,8 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 		}));
 	}
 
-	return groupModelsByProvider(validModels).map((group) => ({
-		label: group.provider,
+	return groupModelsForFallback(validModels).map((group) => ({
+		label: group.label,
 		items: group.models.map(toSelectorItem),
 	}));
 });
@@ -147,9 +142,7 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 				? (group.variants.find(
 						(variant) => variant.fullModelId === selectedReasoningVariant.fullModelId
 					)?.fullModelId ?? null)
-				: (group.variants.find((variant) => variant.effort === "medium")?.fullModelId ??
-					group.variants[0]?.fullModelId ??
-					null);
+				: (group.variants[0]?.fullModelId ?? null);
 		return {
 			baseModelId: group.baseModelId,
 			baseModelName: group.baseModelName,
@@ -157,7 +150,7 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 			preferredVariantId,
 			variants: group.variants.map((variant) => ({
 				id: variant.fullModelId,
-				name: variant.effort,
+				name: variant.name,
 			})),
 		};
 	})

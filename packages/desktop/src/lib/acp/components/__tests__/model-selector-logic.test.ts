@@ -3,22 +3,19 @@ import type { ModelsForDisplay } from "../../../services/acp-provider-metadata.j
 import type { Model } from "../../application/dto/model.js";
 import { AGENT_IDS } from "../../types/agent-id.js";
 import {
-	CODEX_REASONING_EFFORTS,
 	closeSplitSelector,
-	getCodexCurrentVariant,
+	getCurrentReasoningVariant,
 	getModelDisplayFamily,
 	getModelDisplayName,
-	getProviderFromModelId,
 	getProviderMetadata,
 	getUsageMetricsPresentation,
-	groupCodexModelsByBase,
-	groupModelsByProvider,
+	groupModelsForFallback,
+	groupReasoningModelsFromDisplay,
 	hasUsableModelsDisplayGroups,
 	isContextWindowOnlyMetrics,
 	isDefaultChoiceModelId,
 	isDefaultModel,
 	isSplitSelectorOpen,
-	parseCodexModelVariant,
 	setPrimarySelectorOpen,
 	setVariantSelectorOpen,
 	supportsReasoningEffortPicker,
@@ -225,96 +222,38 @@ describe("model-selector-logic", () => {
 		});
 	});
 
-	describe("getProviderFromModelId", () => {
-		it("returns 'Default' for 'default' modelId", () => {
-			expect(getProviderFromModelId("default")).toBe("Default");
-		});
-
-		it("extracts provider from slash-separated format", () => {
-			expect(getProviderFromModelId("anthropic/claude-3")).toBe("Anthropic");
-		});
-
-		it("extracts provider from colon-separated format", () => {
-			expect(getProviderFromModelId("openai:gpt-4")).toBe("OpenAI");
-		});
-
-		it("extracts provider from dot-separated format", () => {
-			expect(getProviderFromModelId("google.gemini-pro")).toBe("Google");
-		});
-
-		it("infers Anthropic from claude-family model ids", () => {
-			expect(getProviderFromModelId("claude-sonnet-4")).toBe("Anthropic");
-		});
-
-		it("infers OpenAI from gpt-family model ids", () => {
-			expect(getProviderFromModelId("gpt-5.3-codex")).toBe("OpenAI");
-		});
-
-		it("returns 'Other' for an unrecognized modelId without separator", () => {
-			expect(getProviderFromModelId("custom-model")).toBe("Other");
-		});
-
-		it("returns 'Other' for empty modelId", () => {
-			expect(getProviderFromModelId("")).toBe("Other");
-		});
-
-		it("capitalizes provider name", () => {
-			expect(getProviderFromModelId("ANTHROPIC/claude")).toBe("Anthropic");
-		});
-	});
-
-	describe("groupModelsByProvider", () => {
-		it("groups models by their provider", () => {
-			const models: Model[] = [
-				{ id: "anthropic/claude-3", name: "Claude 3", description: undefined },
-				{ id: "anthropic/claude-4", name: "Claude 4", description: undefined },
-				{ id: "openai/gpt-4", name: "GPT-4", description: undefined },
-			];
-
-			const result = groupModelsByProvider(models);
-
-			expect(result).toHaveLength(2);
-			expect(result[0].provider).toBe("Anthropic");
-			expect(result[0].models).toHaveLength(2);
-			expect(result[1].provider).toBe("OpenAI");
-			expect(result[1].models).toHaveLength(1);
-		});
-
-		it("puts 'Default' provider first", () => {
-			const models: Model[] = [
-				{ id: "anthropic/claude-3", name: "Claude 3", description: undefined },
-				{ id: "default", name: "Default", description: undefined },
-			];
-
-			const result = groupModelsByProvider(models);
-
-			expect(result[0].provider).toBe("Default");
-			expect(result[1].provider).toBe("Anthropic");
-		});
-
-		it("sorts providers alphabetically (except Default)", () => {
+	describe("groupModelsForFallback", () => {
+		it("uses one unbranded fallback group instead of inferring providers from model ids", () => {
 			const models: Model[] = [
 				{ id: "openai/gpt-4", name: "GPT-4", description: undefined },
 				{ id: "anthropic/claude", name: "Claude", description: undefined },
 				{ id: "google/gemini", name: "Gemini", description: undefined },
 			];
 
-			const result = groupModelsByProvider(models);
+			const result = groupModelsForFallback(models);
 
-			expect(result.map((g) => g.provider)).toEqual(["Anthropic", "Google", "OpenAI"]);
+			expect(result).toEqual([
+				{
+					label: "",
+					models: [
+						{ id: "anthropic/claude", name: "Claude", description: undefined },
+						{ id: "google/gemini", name: "Gemini", description: undefined },
+						{ id: "openai/gpt-4", name: "GPT-4", description: undefined },
+					],
+				},
+			]);
 		});
 
-		it("sorts models within each provider alphabetically by name", () => {
+		it("sorts fallback models alphabetically by name", () => {
 			const models: Model[] = [
 				{ id: "anthropic/claude-4", name: "Claude 4", description: undefined },
 				{ id: "anthropic/claude-2", name: "Claude 2", description: undefined },
 				{ id: "anthropic/claude-3", name: "Claude 3", description: undefined },
 			];
 
-			const result = groupModelsByProvider(models);
+			const result = groupModelsForFallback(models);
 
 			expect(result).toHaveLength(1);
-			expect(result[0].provider).toBe("Anthropic");
 			expect(result[0].models.map((m) => m.name)).toEqual(["Claude 2", "Claude 3", "Claude 4"]);
 		});
 
@@ -324,14 +263,14 @@ describe("model-selector-logic", () => {
 				{ id: undefined as unknown as string, name: "Invalid", description: undefined },
 			];
 
-			const result = groupModelsByProvider(models);
+			const result = groupModelsForFallback(models);
 
 			expect(result).toHaveLength(1);
 			expect(result[0].models).toHaveLength(1);
 		});
 
 		it("returns empty array for empty input", () => {
-			const result = groupModelsByProvider([]);
+			const result = groupModelsForFallback([]);
 
 			expect(result).toEqual([]);
 		});
@@ -345,138 +284,90 @@ describe("model-selector-logic", () => {
 		});
 	});
 
-	describe("CODEX_REASONING_EFFORTS", () => {
-		it("includes low, medium, high, xhigh", () => {
-			expect(CODEX_REASONING_EFFORTS).toEqual(["low", "medium", "high", "xhigh"]);
-		});
-	});
-
-	describe("parseCodexModelVariant", () => {
-		it("parses codex model id with reasoning suffix", () => {
-			const model: Model = {
-				id: "gpt-5.3-codex/medium",
-				name: "gpt-5.3-codex (medium)",
-				description: undefined,
-			};
-
-			expect(parseCodexModelVariant(model)).toEqual({
-				fullModelId: "gpt-5.3-codex/medium",
-				baseModelId: "gpt-5.3-codex",
-				effort: "medium",
-				name: "gpt-5.3-codex (medium)",
-				description: undefined,
+	describe("groupReasoningModelsFromDisplay", () => {
+		it("uses backend group labels and model display names without parsing model id suffixes", () => {
+			const groups = groupReasoningModelsFromDisplay({
+				groups: [
+					{
+						label: "GPT-5.3 Codex",
+						models: [
+							{ modelId: "gpt-5.3-codex/high", displayName: "High reasoning" },
+							{ modelId: "gpt-5.3-codex/low", displayName: "Low reasoning" },
+						],
+					},
+				],
+				presentation: {
+					displayFamily: "codexReasoningEffort",
+					usageMetrics: "spendAndContext",
+				},
 			});
-		});
 
-		it("parses xhigh effort and preserves description", () => {
-			const model: Model = {
-				id: "claude-sonnet/xhigh",
-				name: "Claude Sonnet (xhigh)",
-				description: "Maximum reasoning effort",
-			};
-
-			expect(parseCodexModelVariant(model)).toEqual({
-				fullModelId: "claude-sonnet/xhigh",
-				baseModelId: "claude-sonnet",
-				effort: "xhigh",
-				name: "Claude Sonnet (xhigh)",
-				description: "Maximum reasoning effort",
-			});
-		});
-
-		it("returns null for non-codex model ids without effort suffix", () => {
-			const model: Model = {
-				id: "gpt-5.3-codex",
-				name: "gpt-5.3-codex",
-				description: undefined,
-			};
-
-			expect(parseCodexModelVariant(model)).toBeNull();
-		});
-
-		it("returns null for invalid effort value", () => {
-			const model: Model = {
-				id: "gpt-5.3-codex/invalid",
-				name: "Invalid",
-				description: undefined,
-			};
-
-			expect(parseCodexModelVariant(model)).toBeNull();
-		});
-
-		it("returns null when slash is at start", () => {
-			const model: Model = {
-				id: "/medium",
-				name: "Medium",
-				description: undefined,
-			};
-
-			expect(parseCodexModelVariant(model)).toBeNull();
-		});
-
-		it("returns null when slash is at end", () => {
-			const model: Model = {
-				id: "gpt/",
-				name: "GPT",
-				description: undefined,
-			};
-
-			expect(parseCodexModelVariant(model)).toBeNull();
-		});
-	});
-
-	describe("groupCodexModelsByBase", () => {
-		it("groups variants under base model and sorts efforts", () => {
-			const models: Model[] = [
-				{ id: "gpt-5.3-codex/high", name: "high", description: undefined },
-				{ id: "gpt-5.3-codex/low", name: "low", description: undefined },
-				{ id: "gpt-5.3-codex/medium", name: "medium", description: undefined },
-				{ id: "gpt-5.2-codex/xhigh", name: "xhigh", description: undefined },
-				{ id: "gpt-5.2-codex/high", name: "high", description: undefined },
-			];
-
-			const result = groupCodexModelsByBase(models);
-			expect(result).toHaveLength(2);
-			expect(result[0]?.baseModelId).toBe("gpt-5.2-codex");
-			expect(result[0]?.variants.map((variant) => variant.effort)).toEqual(["high", "xhigh"]);
-			expect(result[1]?.baseModelId).toBe("gpt-5.3-codex");
-			expect(result[1]?.variants.map((variant) => variant.effort)).toEqual([
-				"low",
-				"medium",
-				"high",
+			expect(groups).toEqual([
+				{
+					baseModelId: "gpt-5.3-codex/high",
+					baseModelName: "GPT-5.3 Codex",
+					variants: [
+						{
+							fullModelId: "gpt-5.3-codex/high",
+							baseModelId: "gpt-5.3-codex/high",
+							name: "High reasoning",
+							description: undefined,
+						},
+						{
+							fullModelId: "gpt-5.3-codex/low",
+							baseModelId: "gpt-5.3-codex/high",
+							name: "Low reasoning",
+							description: undefined,
+						},
+					],
+				},
 			]);
 		});
 	});
 
-	describe("getCodexCurrentVariant", () => {
-		const groups = groupCodexModelsByBase([
-			{ id: "gpt-5.3-codex/low", name: "low", description: undefined },
-			{ id: "gpt-5.3-codex/medium", name: "medium", description: undefined },
-			{ id: "gpt-5.2-codex/high", name: "high", description: undefined },
-		]);
+	describe("getCurrentReasoningVariant", () => {
+		const groups = groupReasoningModelsFromDisplay({
+			groups: [
+				{
+					label: "GPT-5.3 Codex",
+					models: [
+						{ modelId: "gpt-5.3-codex/low", displayName: "Low" },
+						{ modelId: "gpt-5.3-codex/medium", displayName: "Medium" },
+					],
+				},
+				{
+					label: "GPT-5.2 Codex",
+					models: [{ modelId: "gpt-5.2-codex/high", displayName: "High" }],
+				},
+			],
+			presentation: {
+				displayFamily: "codexReasoningEffort",
+				usageMetrics: "spendAndContext",
+			},
+		});
 
 		it("returns null when baseGroups is empty", () => {
-			expect(getCodexCurrentVariant([], "gpt-5.3-codex/medium")).toBeNull();
+			expect(getCurrentReasoningVariant([], "gpt-5.3-codex/medium")).toBeNull();
 		});
 
 		it("returns first available variant when currentModelId is null", () => {
-			const result = getCodexCurrentVariant(groups, null);
-			expect(result?.fullModelId).toBe("gpt-5.2-codex/high");
+			const result = getCurrentReasoningVariant(groups, null);
+			expect(result?.fullModelId).toBe("gpt-5.3-codex/low");
 		});
 
 		it("returns exact current variant when present", () => {
-			const result = getCodexCurrentVariant(groups, "gpt-5.3-codex/medium");
+			const result = getCurrentReasoningVariant(groups, "gpt-5.3-codex/medium");
 			expect(result?.fullModelId).toBe("gpt-5.3-codex/medium");
 		});
 
-		it("falls back to first variant of current base model id", () => {
-			const result = getCodexCurrentVariant(groups, "gpt-5.3-codex");
+		it("falls back to first variant of current canonical group id", () => {
+			const result = getCurrentReasoningVariant(groups, "gpt-5.3-codex/low");
 			expect(result?.fullModelId).toBe("gpt-5.3-codex/low");
 		});
 
 		it("falls back to first available variant when current is missing", () => {
-			const result = getCodexCurrentVariant(groups, "missing");
-			expect(result?.fullModelId).toBe("gpt-5.2-codex/high");
+			const result = getCurrentReasoningVariant(groups, "missing");
+			expect(result?.fullModelId).toBe("gpt-5.3-codex/low");
 		});
 	});
 
