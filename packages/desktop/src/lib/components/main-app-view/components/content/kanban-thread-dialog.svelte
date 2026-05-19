@@ -67,7 +67,10 @@ const panelSnapshot = $derived.by(() => {
 	const hotState = panel ? panelStore.getHotState(panel.id) : null;
 	const identity =
 		panel && panel.sessionId !== null ? sessionStore.getSessionIdentity(panel.sessionId) : null;
-	const sessionProjectPath = identity ? identity.projectPath : panel ? panel.projectPath : null;
+	const sessionProjectPath =
+		panel && panel.sessionId !== null ? (identity?.projectPath ?? null) : panel ? panel.projectPath : null;
+	const sessionAgentId =
+		panel && panel.sessionId !== null ? (identity?.agentId ?? null) : panel ? panel.selectedAgentId : null;
 	const isWaitingForSession = panel ? panel.sessionId !== null && identity === undefined : false;
 
 	let project = null;
@@ -83,7 +86,7 @@ const panelSnapshot = $derived.by(() => {
 		sessionId: panel ? panel.sessionId : null,
 		width: panel && panel.width > 0 ? panel.width : 100,
 		pendingProjectSelection: panel ? panel.pendingProjectSelection : false,
-		selectedAgentId: panel ? panel.selectedAgentId : null,
+		selectedAgentId: sessionAgentId,
 		reviewMode: hotState ? hotState.reviewMode : false,
 		reviewFilesState: hotState ? hotState.reviewFilesState : null,
 		reviewFileIndex: hotState ? hotState.reviewFileIndex : 0,

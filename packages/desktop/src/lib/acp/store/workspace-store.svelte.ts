@@ -553,11 +553,24 @@ export class WorkspaceStore {
 						width: p.width,
 						pendingProjectSelection: p.pendingProjectSelection,
 						selectedAgentId: p.selectedAgentId,
-						projectPath: sessionIdentity?.projectPath ?? p.projectPath ?? null,
-						agentId: sessionIdentity?.agentId ?? p.agentId ?? null,
-						sourcePath: sessionMetadata?.sourcePath ? sessionMetadata.sourcePath : undefined,
-						worktreePath: sessionIdentity?.worktreePath ? sessionIdentity.worktreePath : undefined,
-						sessionTitle: sessionMetadata?.title || undefined,
+						projectPath:
+							p.sessionId !== null
+								? (sessionIdentity?.projectPath ?? null)
+								: (p.projectPath ?? null),
+						agentId:
+							p.sessionId !== null ? (sessionIdentity?.agentId ?? null) : (p.agentId ?? null),
+						sourcePath:
+							p.sessionId !== null
+								? (sessionMetadata?.sourcePath ?? undefined)
+								: (p.sourcePath ?? undefined),
+						worktreePath:
+							p.sessionId !== null
+								? (sessionIdentity?.worktreePath ?? undefined)
+								: (p.worktreePath ?? undefined),
+						sessionTitle:
+							p.sessionId !== null
+								? (sessionMetadata?.title ?? undefined)
+								: (p.sessionTitle ?? undefined),
 						scrollTop: this.providers.getPanelScrollTop?.(p.id) ?? 0,
 						planSidebarExpanded: hotState.planSidebarExpanded,
 						messageDraft: hotState.messageDraft || undefined,
@@ -570,7 +583,8 @@ export class WorkspaceStore {
 						embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
 						selectedEmbeddedTerminalTabId:
 							this.panelStore.embeddedTerminals.getSelectedTabId(p.id) || undefined,
-						sequenceId: sessionMetadata?.sequenceId ?? undefined,
+						sequenceId:
+							p.sessionId !== null ? (sessionMetadata?.sequenceId ?? undefined) : undefined,
 					};
 				}),
 				filePanels: serializeFilePanels(persistableFilePanels),

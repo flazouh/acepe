@@ -77,8 +77,8 @@ const agentId = $derived.by(() => {
 	if (panelId) {
 		const panel = panelStore.panels.find((candidatePanel) => candidatePanel.id === panelId);
 		if (panel?.sessionId) {
-			const session = sessionStore.getSessionCold(panel.sessionId);
-			return session?.agentId ?? panel.selectedAgentId;
+			const identity = sessionStore.getSessionIdentity(panel.sessionId);
+			return identity?.agentId ?? null;
 		}
 		return panel?.selectedAgentId;
 	}

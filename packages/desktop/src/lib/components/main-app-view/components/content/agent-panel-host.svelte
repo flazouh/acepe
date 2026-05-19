@@ -140,12 +140,20 @@ function handleCopyBoundaryReference(referenceId: string | null): void {
 }
 
 const panel = $derived(panelRef.current);
-const session = $derived.by(() => {
+const sessionIdentity = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null ? sessionStore.getSessionCold(sessionId) : undefined;
+	return sessionId !== null ? sessionStore.getSessionIdentity(sessionId) : undefined;
+});
+const sessionMetadata = $derived.by(() => {
+	const sessionId = panel?.sessionId ?? null;
+	return sessionId !== null ? sessionStore.getSessionMetadata(sessionId) : undefined;
 });
 const panelHotState = $derived(panel ? panelStore.getHotState(panel.id) : null);
-const projectPath = $derived(session?.projectPath ?? panel?.projectPath ?? null);
+const projectPath = $derived(
+	panel?.sessionId !== null && panel?.sessionId !== undefined
+		? (sessionIdentity?.projectPath ?? null)
+		: (panel?.projectPath ?? null)
+);
 const project = $derived.by(() => {
 	if (!projectPath) {
 		return null;
@@ -153,7 +161,10 @@ const project = $derived.by(() => {
 	return projectManager.projects.find((candidate) => candidate.path === projectPath) ?? null;
 });
 const selectedAgentId = $derived.by(() => {
-	const configuredAgentId = panel?.selectedAgentId ?? null;
+	const configuredAgentId =
+		panel?.sessionId !== null && panel?.sessionId !== undefined
+			? (sessionIdentity?.agentId ?? null)
+			: (panel?.selectedAgentId ?? null);
 	if (configuredAgentId === null) {
 		return null;
 	}
@@ -161,7 +172,7 @@ const selectedAgentId = $derived.by(() => {
 });
 const isWaitingForSession = $derived.by(() => {
 	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null && session === undefined;
+	return sessionId !== null && sessionIdentity === undefined;
 });
 const attachedFilePanels = $derived(panel ? panelStore.getAttachedFilePanels(panel.id) : []);
 const activeAttachedFilePanelId = $derived(
@@ -284,7 +295,7 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 			{@const boundaryError = normalizeBoundaryError(error)}
 			{@const boundaryReference = ensureErrorReference(boundaryError)}
 			{@const boundaryIssueDraft = buildAgentErrorIssueDraft({
-				agentId: selectedAgentId ?? session?.agentId ?? panel?.agentId ?? "unknown",
+				agentId: selectedAgentId ?? "unknown",
 				sessionId: panel?.sessionId ?? null,
 				projectPath,
 				worktreePath: null,
@@ -296,7 +307,10 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 				referenceId: boundaryReference.referenceId,
 				referenceSearchable: boundaryReference.searchable,
 				diagnosticsSummary: boundaryError.message,
-				sessionTitle: session?.title ?? panel?.sessionTitle ?? null,
+				sessionTitle:
+					panel?.sessionId !== null && panel?.sessionId !== undefined
+						? (sessionMetadata?.title ?? null)
+						: (panel?.sessionTitle ?? null),
 				panelConnectionState: null,
 			})}
 			<div class="flex h-full flex-1 items-center justify-center p-4">
