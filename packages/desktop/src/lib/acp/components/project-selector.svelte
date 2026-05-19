@@ -10,6 +10,7 @@ import { LOGGER_IDS } from "../constants/logger-ids.js";
 
 import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
 import type { Project } from "../logic/project-manager.svelte.js";
+import { AGENT_IDS } from "../types/agent-id.js";
 import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { createLogger } from "../utils/logger.js";
 import SelectorCheck from "./selector-check.svelte";
@@ -158,7 +159,7 @@ function handleOpenChange(open: boolean) {
 	{/if}
 
 	{#if onImport}
-		{@const importIcon = getProviderBrandIcon("claude-code", themeState.effectiveTheme)}
+		{@const importIcon = getProviderBrandIcon(AGENT_IDS.CLAUDE_CODE, themeState.effectiveTheme)}
 		<DropdownMenu.Item onSelect={onImport} class="cursor-pointer">
 			{#if importIcon}
 				<img src={importIcon} alt="" class="mr-2 h-4 w-4 shrink-0" />
