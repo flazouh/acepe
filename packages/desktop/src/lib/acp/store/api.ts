@@ -153,7 +153,9 @@ export function closeSession(sessionId: string): ResultAsync<void, AppError> {
 	return tauriClient.acp.closeSession(sessionId);
 }
 
-export function getSessionState(sessionId: string): ResultAsync<SessionStateEnvelope, AppError> {
+export function fetchCanonicalSessionStateEnvelope(
+	sessionId: string
+): ResultAsync<SessionStateEnvelope, AppError> {
 	return tauriClient.acp.getSessionState(sessionId);
 }
 
@@ -276,7 +278,7 @@ export const api = {
 	setConfigOption,
 	stopStreaming,
 	closeSession,
-	getSessionState,
+	fetchCanonicalSessionStateEnvelope,
 	replyInteraction,
 	respondInboundRequest,
 

@@ -3378,7 +3378,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		}
 
 		const refresh = api
-			.getSessionState(sessionId)
+			.fetchCanonicalSessionStateEnvelope(sessionId)
 			.andThen((envelope) => {
 				this.inflightSessionStateRefreshes.delete(sessionId);
 				if (envelope.payload.kind !== "snapshot") {

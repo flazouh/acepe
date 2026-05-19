@@ -6,7 +6,7 @@ const sendPromptMock = vi.fn();
 
 vi.mock("../api.js", () => ({
 	api: {
-		getSessionState: (...args: Parameters<typeof getSessionStateMock>) =>
+		fetchCanonicalSessionStateEnvelope: (...args: Parameters<typeof getSessionStateMock>) =>
 			getSessionStateMock(...args),
 		sendPrompt: (...args: Parameters<typeof sendPromptMock>) => sendPromptMock(...args),
 	},
