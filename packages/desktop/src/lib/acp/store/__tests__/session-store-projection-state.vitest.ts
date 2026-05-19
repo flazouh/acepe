@@ -620,18 +620,11 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
-		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
-			lifecycle: {
-				status: "reserved",
-				actionability: {
-					canSend: false,
-					recommendedAction: "wait",
-				},
-			},
-			turnState: "Idle",
-			activeTurnFailure: null,
-			revision: graph.revision,
-		});
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("reserved");
+		expect(store.getSessionCanSend("session-1")).toBe(false);
+		expect(store.getSessionTurnState("session-1")).toBe("Idle");
+		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.getSessionGraphRevision("session-1")).toEqual(graph.revision);
 	});
 
 	it("keeps open snapshot transcript entries spine-only while operations hold rich tool data before connect", () => {
@@ -1279,7 +1272,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		const graph = store.getSessionStateGraph("session-1");
 		expect(graph?.turnState).toBe("Completed");
 		expect(graph?.lastTerminalTurnId).toBe("turn-8");
-		expect(store.getCanonicalSessionProjection("session-1")?.turnState).toBe("Completed");
+		expect(store.getSessionTurnState("session-1")).toBe("Completed");
 	});
 
 	it("hydrates canonical failed-turn state from the graph snapshot", () => {
@@ -1287,18 +1280,12 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateGraph(createSessionStateGraph());
 
-		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
-			lifecycle: {
-				status: "reserved",
-			},
-			activity: {
-				kind: "error",
-			},
-			turnState: "Failed",
-			activeTurnFailure: {
-				turnId: "turn-1",
-				message: "Usage limit reached",
-			},
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("reserved");
+		expect(store.getSessionActivity("session-1")?.kind).toBe("error");
+		expect(store.getSessionTurnState("session-1")).toBe("Failed");
+		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+			turnId: "turn-1",
+			message: "Usage limit reached",
 		});
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Failed");
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
@@ -1478,12 +1465,8 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getCanonicalSessionProjection("session-1")?.capabilities).toMatchObject({
-			models: {
-				currentModelId: "gpt-5",
-			},
-			autonomousEnabled: true,
-		});
+		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
 		expect(store.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
@@ -1553,22 +1536,14 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
-			lifecycle: {
-				status: "ready",
-			},
-			turnState: "Running",
-			capabilities: {
-				models: {
-					currentModelId: "gpt-5",
-				},
-				autonomousEnabled: true,
-			},
-			revision: {
-				graphRevision: 8,
-				transcriptRevision: 7,
-				lastEventSeq: 8,
-			},
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 8,
+			transcriptRevision: 7,
+			lastEventSeq: 8,
 		});
 		expect(store.getSessionAvailableModels("session-1")).toEqual([
 			{
@@ -1583,6 +1558,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 	it("redacts unsafe config option values before writing canonical capabilities", () => {
 		const store = new SessionStore();
+		addColdSession(store);
 		const graph = createSessionStateGraph({
 			activeTurnFailure: null,
 			turnState: "Idle",
@@ -1618,9 +1594,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(
-			store.getCanonicalSessionProjection("session-1")?.capabilities.configOptions?.[0]
-		).toMatchObject({
+		expect(store.getSessionConfigOptions("session-1")?.[0]).toMatchObject({
 			id: "api-key",
 			currentValue: null,
 			options: [
@@ -1630,9 +1604,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				},
 			],
 		});
-		expect(
-			store.getCanonicalSessionProjection("session-1")?.capabilities.configOptions?.[1]
-		).toMatchObject({
+		expect(store.getSessionConfigOptions("session-1")?.[1]).toMatchObject({
 			id: "max-tokens",
 			currentValue: "4096",
 		});
@@ -2394,9 +2366,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionId: "session-1",
 			permission: "Read",
 		});
-		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
-		expect(store.getCanonicalSessionProjection("session-1")?.turnState).toBe("Running");
-		expect(store.getCanonicalSessionProjection("session-1")?.revision).toEqual({
+		expect(store.getSessionActivity("session-1")).toEqual(patchActivity);
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
 			graphRevision: 8,
 			transcriptRevision: 7,
 			lastEventSeq: 8,
@@ -2408,7 +2380,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				description: undefined,
 			},
 		]);
-		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
+		expect(store.getSessionActivity("session-1")).toEqual(patchActivity);
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 	});
 
@@ -2833,7 +2805,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual({
+		expect(store.getSessionActivity("session-1")).toEqual({
 			kind: "running_operation",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -2872,7 +2844,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual({
+		expect(store.getSessionActivity("session-1")).toEqual({
 			kind: "error",
 			activeOperationCount: 2,
 			activeSubagentCount: 1,
@@ -2916,9 +2888,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		// Canonical projection should carry "Running" from the previous full-graph projection,
 		// not "Idle" from uninitialised local state, proving no authority inversion.
-		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
-			turnState: "Running",
-		});
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
 	});
 
 	it("carries canonical activeTurnFailure from previous projection on lifecycle-only envelopes", () => {
@@ -2952,11 +2922,9 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getCanonicalSessionProjection("session-1")).toMatchObject({
-			activeTurnFailure: {
-				turnId: "turn-2",
-				message: "rate limit",
-			},
+		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
+			turnId: "turn-2",
+			message: "rate limit",
 		});
 	});
 

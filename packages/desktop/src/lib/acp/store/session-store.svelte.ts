@@ -1300,13 +1300,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.transientProjectionStore.getTransientProjection(sessionId);
 	}
 
-	/**
-	 * Get canonical graph projection for lifecycle/activity UI selectors.
-	 */
-	getCanonicalSessionProjection(sessionId: string): CanonicalSessionProjection | null {
-		return this.canonicalProjections.get(sessionId) ?? null;
-	}
-
 	getSessionStateGraph(sessionId: string): SessionStateGraph | null {
 		return this.sessionStateGraphs.get(sessionId) ?? null;
 	}
@@ -1374,6 +1367,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getSessionLifecycleStatus(sessionId: string): SessionGraphLifecycle["status"] | null {
 		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
+	}
+
+	getSessionActivity(sessionId: string): SessionGraphActivity | null {
+		return this.sessionStateGraphs.get(sessionId)?.activity ?? null;
+	}
+
+	getSessionGraphRevision(sessionId: string): SessionGraphRevision | null {
+		return this.sessionStateGraphs.get(sessionId)?.revision ?? null;
 	}
 
 	/**

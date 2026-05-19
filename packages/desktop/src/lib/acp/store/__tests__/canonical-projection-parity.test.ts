@@ -242,15 +242,11 @@ describe("canonical projection parity", () => {
 		addSession(liveStore);
 		liveStore.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
 
-		const coldProjection = coldStore.getCanonicalSessionProjection("session-1");
-		const liveProjection = liveStore.getCanonicalSessionProjection("session-1");
-		expect(coldProjection).not.toBeNull();
-		expect(liveProjection).not.toBeNull();
-		if (coldProjection === null || liveProjection === null) {
-			throw new Error("Expected both stores to have canonical projections");
-		}
-
-		expect(liveProjection).toEqual(coldProjection);
+		expect(coldStore.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(liveStore.hasSessionCanonicalProjection("session-1")).toBe(true);
+		expect(liveStore.getSessionStateGraph("session-1")).toEqual(
+			coldStore.getSessionStateGraph("session-1")
+		);
 		expect(liveStore.getSessionAvailableModels("session-1")).toEqual(
 			coldStore.getSessionAvailableModels("session-1")
 		);

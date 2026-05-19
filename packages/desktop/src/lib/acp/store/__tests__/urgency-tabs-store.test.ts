@@ -126,29 +126,16 @@ function createSessionStore(input: {
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
-	sessionStore.getCanonicalSessionProjection = () =>
+	sessionStore.getSessionLiveWorkSource = (sessionId) =>
 		input.lifecycle === null
-			? null
+			? { kind: "missing_canonical", sessionId: sessionId ?? "session-1" }
 			: {
-					lifecycle: input.lifecycle,
-					activity,
-					turnState: input.lifecycle.status === "failed" ? "Failed" : "Idle",
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					activeStreamingTail: null,
-					capabilities: {
-						models: null,
-						modes: null,
-						availableCommands: [],
-						configOptions: [],
-						autonomousEnabled: false,
-					},
-					tokenStream: new Map(),
-					clockAnchor: null,
-					revision: {
-						graphRevision: 1,
-						transcriptRevision: 1,
-						lastEventSeq: 1,
+					kind: "canonical",
+					projection: {
+						lifecycle: input.lifecycle,
+						activity,
+						turnState: input.lifecycle.status === "failed" ? "Failed" : "Idle",
+						activeTurnFailure: null,
 					},
 				};
 	sessionStore.getSessionLifecycleStatus = () => input.lifecycle?.status ?? null;

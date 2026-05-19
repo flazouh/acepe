@@ -457,7 +457,7 @@ describe("SessionStore.createSession", () => {
 		});
 
 		expect(store.hasPendingCreationSession("pending-session")).toBe(false);
-		expect(store.getCanonicalSessionProjection("pending-session")).toBeNull();
+		expect(store.hasSessionCanonicalProjection("pending-session")).toBe(false);
 
 		store.applySessionStateEnvelope(
 			"pending-session",
@@ -505,11 +505,7 @@ describe("SessionStore.createSession", () => {
 			)
 		);
 
-		expect(store.getCanonicalSessionProjection("pending-session")).toMatchObject({
-			lifecycle: {
-				status: "failed",
-			},
-			turnState: "Failed",
-		});
+		expect(store.getSessionLifecycleStatus("pending-session")).toBe("failed");
+		expect(store.getSessionTurnState("pending-session")).toBe("Failed");
 	});
 });
