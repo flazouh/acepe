@@ -894,6 +894,8 @@ function projectGraphCapabilities(
 	availableModels: Array<Model>;
 	availableModes: Array<Mode>;
 	availableCommands: AvailableCommand[];
+	currentModelId: string | null;
+	currentModeId: string | null;
 	currentModel: Model | null;
 	currentMode: Mode | null;
 	modelsDisplay: ModelsForDisplay | undefined;
@@ -933,6 +935,8 @@ function projectGraphCapabilities(
 		availableModels,
 		availableModes,
 		availableCommands: capabilities.availableCommands ?? [],
+		currentModelId,
+		currentModeId: normalizedCurrentModeId,
 		currentModel,
 		currentMode,
 		modelsDisplay,
@@ -1494,17 +1498,17 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical current mode id; null means no canonical projection or no selected mode.
+	 * Canonical current mode id; null means no canonical capabilities or no selected mode.
 	 */
 	getSessionCurrentModeId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentMode?.id ?? null;
+		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModeId ?? null;
 	}
 
 	/**
-	 * Canonical current model id; null means no canonical projection or no selected model.
+	 * Canonical current model id; null means no canonical capabilities or no selected model.
 	 */
 	getSessionCurrentModelId(sessionId: string): string | null {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModel?.id ?? null;
+		return this.getCanonicalProjectedCapabilities(sessionId)?.currentModelId ?? null;
 	}
 
 	/**

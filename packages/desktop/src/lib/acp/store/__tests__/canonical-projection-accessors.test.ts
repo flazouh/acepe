@@ -128,16 +128,16 @@ function addColdSession(store: SessionStore): void {
 }
 
 describe("SessionStore canonical projection accessors", () => {
-		it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
-			const store = new SessionStore();
+	it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
+		const store = new SessionStore();
 
-			expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
-			expect(store.getSessionConnectionError("session-1")).toBeNull();
-			expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
-			expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
-			expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
-			expect(store.getSessionCurrentModeId("session-1")).toBeNull();
-			expect(store.getSessionCurrentModelId("session-1")).toBeNull();
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionConnectionError("session-1")).toBeNull();
+		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
+		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
+		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
+		expect(store.getSessionCurrentModeId("session-1")).toBeNull();
+		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
 		expect(store.getSessionConfigOptions("session-1")).toBeNull();
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
@@ -214,5 +214,31 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingMutationId: null,
 			previewState: "canonical",
 		});
+	});
+
+	it("preserves canonical current ids even when display lists omit them", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		store.applySessionStateGraph(
+			createGraph({
+				models: {
+					currentModelId: "vendor/model-base",
+					availableModels: [],
+				},
+				modes: {
+					currentModeId: "code",
+					availableModes: [],
+				},
+				availableCommands: [],
+				configOptions: [],
+				autonomousEnabled: false,
+			})
+		);
+
+		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("vendor/model-base");
+		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
+		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
 	});
 });
