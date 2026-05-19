@@ -1,5 +1,6 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { ArrowLeft } from "@lucide/svelte";
 import type { BlogPostMetadata } from "./types.js";
 import type { Snippet } from "svelte";
@@ -22,37 +23,62 @@ function formatDate(isoDate: string): string {
 	});
 }
 
-// Create JSON-LD structured data for BlogPosting (reactive to metadata)
-const jsonLd = $derived({
-	"@context": "https://schema.org",
-	"@type": "BlogPosting",
-	headline: metadata.title,
-	description: metadata.description,
-	datePublished: metadata.date,
-	author: {
-		"@type": "Organization",
-		name: metadata.author || "Acepe",
+const postUrl = $derived(`https://acepe.dev/blog/${metadata.slug}`);
+const ogImage = $derived(metadata.ogImage ?? "/og-image.png");
+
+const jsonLd = $derived([
+	{
+		"@context": "https://schema.org",
+		"@type": "BlogPosting",
+		headline: metadata.title,
+		description: metadata.description,
+		datePublished: metadata.date,
+		dateModified: metadata.date,
+		mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
+		image: ogImage.startsWith("http") ? ogImage : `https://acepe.dev${ogImage}`,
+		author: {
+			"@type": "Organization",
+			name: metadata.author || "Acepe",
+			url: "https://acepe.dev",
+		},
+		publisher: {
+			"@type": "Organization",
+			name: "Acepe",
+			url: "https://acepe.dev",
+			logo: {
+				"@type": "ImageObject",
+				url: "https://acepe.dev/favicon-512x512.png",
+			},
+		},
+		articleSection: metadata.category ?? "Product",
+		...(metadata.readingTimeMinutes
+			? { timeRequired: `PT${metadata.readingTimeMinutes}M` }
+			: {}),
 	},
-	publisher: {
-		"@type": "Organization",
-		name: "Acepe",
+	{
+		"@context": "https://schema.org",
+		"@type": "BreadcrumbList",
+		itemListElement: [
+			{ "@type": "ListItem", position: 1, name: "Home", item: "https://acepe.dev/" },
+			{ "@type": "ListItem", position: 2, name: "Blog", item: "https://acepe.dev/blog" },
+			{ "@type": "ListItem", position: 3, name: metadata.title, item: postUrl },
+		],
 	},
-});
+]);
 </script>
 
-<svelte:head>
-	<title>{metadata.title} - Acepe Blog</title>
-	<meta name="description" content={metadata.description} />
-	<meta property="og:title" content={metadata.title} />
-	<meta property="og:description" content={metadata.description} />
-	<meta property="og:type" content="article" />
-	<meta property="og:url" content="https://acepe.dev/blog/{metadata.slug}" />
-	{#if metadata.ogImage}
-		<meta property="og:image" content={metadata.ogImage} />
-	{/if}
-	<meta property="article:published_time" content={metadata.date} />
-	{@html `<script type="application/ld+json">${JSON.stringify(jsonLd)}<\/script>`}
-</svelte:head>
+<Seo
+	title={metadata.title}
+	description={metadata.description}
+	type="article"
+	image={ogImage}
+	imageAlt={metadata.title}
+	publishedTime={metadata.date}
+	modifiedTime={metadata.date}
+	author={metadata.author ?? "Acepe"}
+	canonical={`/blog/${metadata.slug}`}
+	jsonLd={jsonLd}
+/>
 
 <Header {showDownload} {showLogin} />
 

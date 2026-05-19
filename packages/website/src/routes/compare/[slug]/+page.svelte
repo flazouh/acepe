@@ -1,5 +1,6 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { attentionQueueBlogPost, checkpointsBlogPost, sqlStudioBlogPost } from "$lib/blog/posts.js";
 import { Check, X, ArrowRight, Minus } from "@lucide/svelte";
 import type { ComparisonFeatureRow } from "$lib/compare/types.js";
@@ -26,16 +27,9 @@ let expandedFaqIndex = $state<number | null>(null);
 function toggleFaq(index: number): void {
 	expandedFaqIndex = expandedFaqIndex === index ? null : index;
 }
-</script>
 
-<svelte:head>
-	<title>{comparison.metaTitle}</title>
-	<meta name="description" content={comparison.metaDescription} />
-	<meta property="og:title" content={comparison.metaTitle} />
-	<meta property="og:description" content={comparison.metaDescription} />
-	<meta property="og:type" content="website" />
-	<meta property="og:url" content="https://acepe.dev/compare/{comparison.slug}" />
-	{@html `<script type="application/ld+json">${JSON.stringify({
+const compareJsonLd = $derived([
+	{
 		"@context": "https://schema.org",
 		"@type": "FAQPage",
 		mainEntity: comparison.faqs.map((faq) => ({
@@ -46,8 +40,40 @@ function toggleFaq(index: number): void {
 				text: faq.answer,
 			},
 		})),
-	})}</script>`}
-</svelte:head>
+	},
+	{
+		"@context": "https://schema.org",
+		"@type": "BreadcrumbList",
+		itemListElement: [
+			{
+				"@type": "ListItem",
+				position: 1,
+				name: "Home",
+				item: "https://acepe.dev/",
+			},
+			{
+				"@type": "ListItem",
+				position: 2,
+				name: "Compare",
+				item: "https://acepe.dev/compare",
+			},
+			{
+				"@type": "ListItem",
+				position: 3,
+				name: comparison.metaTitle,
+				item: `https://acepe.dev/compare/${comparison.slug}`,
+			},
+		],
+	},
+]);
+</script>
+
+<Seo
+	title={comparison.metaTitle}
+	description={comparison.metaDescription}
+	canonical={`/compare/${comparison.slug}`}
+	jsonLd={compareJsonLd}
+/>
 
 <div class="min-h-screen">
 	<Header

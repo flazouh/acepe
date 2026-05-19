@@ -1,5 +1,6 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 
 let { data } = $props();
 
@@ -87,10 +88,10 @@ const sections = [
 ];
 </script>
 
-<svelte:head>
-	<title>Terms of Use - Acepe</title>
-	<meta name="description" content="Acepe terms of use — FSL-1.1-ALv2 source-available license." />
-</svelte:head>
+<Seo
+	title="Terms of Use"
+	description="Acepe terms of use under the FSL-1.1-ALv2 source-available license. What you can and cannot do with the source and built app."
+/>
 
 <div class="min-h-screen">
 	<Header

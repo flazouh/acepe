@@ -2,7 +2,14 @@
 import { BrandLockup } from "@acepe/ui";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import AnimatedBackground from "$lib/components/animated-background.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 </script>
+
+<Seo
+	title="Sign in"
+	description="Sign in to Acepe."
+	noindex
+/>
 
 <div class="fixed inset-0 flex items-center justify-center">
 	<!-- Full Screen Shader Background -->

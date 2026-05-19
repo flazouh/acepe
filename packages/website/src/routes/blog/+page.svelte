@@ -1,6 +1,7 @@
 <script lang="ts">
 import { DiffPill } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
 import { getAllBlogPosts } from "$lib/blog/posts.js";
 import type { Component } from "svelte";
@@ -39,15 +40,34 @@ function formatDate(isoDate: string): string {
 		day: "numeric",
 	});
 }
+
+const blogJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "Blog",
+	name: "Acepe Blog",
+	url: "https://acepe.dev/blog",
+	description: "Product updates, deep dives, and how-to guides for the Acepe agentic developer environment.",
+	publisher: {
+		"@type": "Organization",
+		name: "Acepe",
+		url: "https://acepe.dev",
+	},
+	blogPost: getAllBlogPosts().map((post) => ({
+		"@type": "BlogPosting",
+		headline: post.title,
+		description: post.description,
+		datePublished: post.date,
+		url: `https://acepe.dev/blog/${post.slug}`,
+	})),
+};
 </script>
 
-<svelte:head>
-	<title>{"Blog"} - Acepe</title>
-	<meta name="description" content={"Product updates and how-to guides for the Acepe desktop app"} />
-	<meta property="og:title" content="{"Blog"} - Acepe" />
-	<meta property="og:description" content={"Product updates and how-to guides for the Acepe desktop app"} />
-	<meta property="og:type" content="website" />
-</svelte:head>
+<Seo
+	title="Blog"
+	description="Product updates, deep dives on agent UX, and how-to guides for getting more out of Acepe's agentic developer environment."
+	keywords={["Acepe blog", "AI coding agent", "Claude Code tips", "developer productivity"]}
+	jsonLd={blogJsonLd}
+/>
 
 <div class="min-h-screen">
 	<Header
