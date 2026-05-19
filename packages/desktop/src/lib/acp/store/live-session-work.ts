@@ -14,11 +14,26 @@ import {
 	type SessionWorkProjection,
 } from "./session-work-projection.js";
 
+export type LiveSessionCanonicalProjection = Pick<
+	CanonicalSessionProjection,
+	"lifecycle" | "activity" | "turnState" | "activeTurnFailure"
+>;
+
+export type LiveSessionWorkSource =
+	| {
+			readonly kind: "no_session";
+	  }
+	| {
+			readonly kind: "canonical";
+			readonly projection: LiveSessionCanonicalProjection;
+	  }
+	| {
+			readonly kind: "missing_canonical";
+			readonly sessionId: string;
+	  };
+
 export interface LiveSessionWorkInput {
-	readonly canonicalProjection?: Pick<
-		CanonicalSessionProjection,
-		"lifecycle" | "activity" | "activeTurnFailure"
-	> | null;
+	readonly source: LiveSessionWorkSource;
 	readonly currentModeId: string | null;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
@@ -28,10 +43,7 @@ export interface LiveSessionWorkInput {
 }
 
 export interface LiveSessionLifecyclePresentationInput {
-	readonly canonicalProjection?: Pick<
-		CanonicalSessionProjection,
-		"lifecycle" | "activity" | "activeTurnFailure"
-	> | null;
+	readonly source: LiveSessionWorkSource;
 	readonly hasEntries: boolean;
 	readonly hasLocalPendingSendIntent: boolean;
 }
@@ -58,11 +70,49 @@ type LiveConnectionState =
 	| "paused"
 	| "error";
 
+export function liveSessionWorkSourceFromCanonicalProjection(
+	sessionId: string | null,
+	canonicalProjection: LiveSessionCanonicalProjection | null
+): LiveSessionWorkSource {
+	if (sessionId === null) {
+		return { kind: "no_session" };
+	}
+
+	if (canonicalProjection === null) {
+		return {
+			kind: "missing_canonical",
+			sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical",
+		projection: canonicalProjection,
+	};
+}
+
+function canonicalProjectionFromSource(
+	source: LiveSessionWorkSource
+): LiveSessionCanonicalProjection | null {
+	if (source.kind !== "canonical") {
+		return null;
+	}
+
+	return source.projection;
+}
+
 function normalizeLifecycle(input: LiveSessionWorkInput): {
 	connectionPhase: "disconnected" | "connecting" | "connected" | "failed";
 	activityPhase: "idle" | "awaiting_model" | "running" | "paused";
 } {
-	const canonical = input.canonicalProjection;
+	if (input.source.kind === "missing_canonical") {
+		return {
+			connectionPhase: "failed",
+			activityPhase: "idle",
+		};
+	}
+
+	const canonical = canonicalProjectionFromSource(input.source);
 	if (canonical == null) {
 		return {
 			connectionPhase: "disconnected",
@@ -121,7 +171,11 @@ function canonicalActivityFromGraphActivity(
 }
 
 export function deriveLiveCanonicalActivity(input: LiveSessionWorkInput): CanonicalSessionActivity {
-	const canonical = input.canonicalProjection;
+	if (input.source.kind === "missing_canonical") {
+		return "error";
+	}
+
+	const canonical = canonicalProjectionFromSource(input.source);
 	if (canonical == null) {
 		return "idle";
 	}
@@ -195,8 +249,11 @@ export function deriveLiveSessionWorkProjection(
 ): SessionWorkProjection {
 	const state = deriveLiveSessionState(input);
 	const canonicalActivity = deriveLiveCanonicalActivity(input);
-	const canonical = input.canonicalProjection;
-	const connectionError = canonical?.lifecycle.errorMessage ?? null;
+	const canonical = canonicalProjectionFromSource(input.source);
+	const connectionError =
+		input.source.kind === "missing_canonical"
+			? `Canonical session state missing for ${input.source.sessionId}`
+			: (canonical?.lifecycle.errorMessage ?? null);
 	const activeTurnFailure = canonical?.activeTurnFailure ?? null;
 	return deriveSessionWorkProjection({
 		state,
@@ -216,7 +273,11 @@ export function selectLiveCompactActivityKind(
 function selectPresentationConnectionPhase(
 	input: LiveSessionLifecyclePresentationInput
 ): ConnectionPhase {
-	const canonical = input.canonicalProjection;
+	if (input.source.kind === "missing_canonical") {
+		return "failed";
+	}
+
+	const canonical = canonicalProjectionFromSource(input.source);
 	if (canonical == null) {
 		return "disconnected";
 	}
@@ -265,7 +326,7 @@ export function deriveLiveSessionLifecyclePresentation(
 	input: LiveSessionLifecyclePresentationInput
 ): LiveSessionLifecyclePresentation {
 	const canonicalActivity = deriveLiveCanonicalActivity({
-		canonicalProjection: input.canonicalProjection,
+		source: input.source,
 		currentModeId: null,
 		interactionSnapshot: {
 			pendingPlanApproval: null,
@@ -285,7 +346,7 @@ export function deriveLiveSessionLifecyclePresentation(
 	const showThinking =
 		canonicalActivity === "awaiting_model" || canonicalActivity === "waiting_for_user";
 	const canSubmit =
-		input.canonicalProjection?.lifecycle.actionability.canSend === true &&
+		canonicalProjectionFromSource(input.source)?.lifecycle.actionability.canSend === true &&
 		!input.hasLocalPendingSendIntent;
 	const showConversation = contentPhase === "loaded";
 
@@ -301,7 +362,7 @@ export function deriveLiveSessionLifecyclePresentation(
 		showConversation,
 		showReadyPlaceholder:
 			!showConversation &&
-			input.canonicalProjection?.lifecycle.status === "ready" &&
+			canonicalProjectionFromSource(input.source)?.lifecycle.status === "ready" &&
 			canonicalActivity === "idle",
 	};
 }

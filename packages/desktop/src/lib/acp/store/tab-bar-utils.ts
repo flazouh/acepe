@@ -11,6 +11,7 @@ import type { CanonicalSessionProjection } from "./canonical-session-projection.
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
 } from "./live-session-work.js";
 import type { SessionState } from "./session-state.js";
@@ -42,7 +43,7 @@ export interface PanelToTabInput {
 	readonly focusedPanelId: string | null;
 	readonly agentId: string | null;
 	readonly title: string | null;
-	readonly canonicalProjection?: CanonicalSessionProjection | null;
+	readonly canonicalProjection: CanonicalSessionProjection | null;
 	readonly transcriptEntries: ReadonlyArray<TranscriptEntry>;
 	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
@@ -270,7 +271,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 	const currentToolKind = providedCurrentToolKind;
 	const currentModeId = canonicalProjection?.capabilities.modes?.currentModeId ?? null;
 	const liveSessionInput: LiveSessionWorkInput = {
-		canonicalProjection,
+		source: liveSessionWorkSourceFromCanonicalProjection(panel.sessionId, canonicalProjection),
 		currentModeId,
 		interactionSnapshot: {
 			pendingQuestion,

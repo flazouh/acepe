@@ -13,7 +13,10 @@ import { SvelteMap } from "svelte/reactivity";
 import { TAG_COLORS } from "@acepe/ui/colors";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
-import { deriveLiveSessionWorkProjection } from "./live-session-work.js";
+import {
+	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
+} from "./live-session-work.js";
 import type { PanelStore } from "./panel-store.svelte.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import { selectSessionWorkBucket } from "./session-work-projection.js";
@@ -212,7 +215,7 @@ export class UrgencyTabsStore {
 		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
 		const title = sessionMetadata?.title ?? null;
 		const workProjection = deriveLiveSessionWorkProjection({
-			canonicalProjection,
+			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, canonicalProjection),
 			currentModeId:
 				sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null,
 			interactionSnapshot: {

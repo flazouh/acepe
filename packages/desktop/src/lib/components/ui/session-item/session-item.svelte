@@ -37,6 +37,7 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
+	liveSessionWorkSourceFromCanonicalProjection,
 } from "$lib/acp/store/live-session-work.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -253,9 +254,12 @@ const interactionSnapshot = $derived.by(() =>
 	sessionStore.getSessionOperationInteractionSnapshot(session.id, interactionStore)
 );
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
+const liveSessionSource = $derived(
+	liveSessionWorkSourceFromCanonicalProjection(session.id, canonicalProjection)
+);
 const liveSessionState = $derived.by(() =>
 	deriveLiveSessionState({
-		canonicalProjection,
+		source: liveSessionSource,
 		currentModeId,
 		interactionSnapshot,
 		hasUnseenCompletion,
@@ -263,7 +267,7 @@ const liveSessionState = $derived.by(() =>
 );
 const sessionWorkProjection = $derived.by(() =>
 	deriveLiveSessionWorkProjection({
-		canonicalProjection,
+		source: liveSessionSource,
 		currentModeId,
 		interactionSnapshot,
 		hasUnseenCompletion,

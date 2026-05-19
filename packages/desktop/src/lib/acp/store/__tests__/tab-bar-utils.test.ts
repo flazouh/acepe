@@ -89,10 +89,11 @@ function makeCanonicalProjection(
 function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 	return {
 		panel: makePanel(),
-			focusedPanelId: null,
-			agentId: "agent-1",
-			title: "Test Session",
-			transcriptEntries: [],
+		focusedPanelId: null,
+		agentId: "agent-1",
+		title: "Test Session",
+		canonicalProjection: makeCanonicalProjection(),
+		transcriptEntries: [],
 		currentToolKind: null,
 		pendingQuestion: null,
 		pendingPlanApproval: null,
@@ -166,10 +167,21 @@ describe("panelToTab", () => {
 			expect(tab.currentModeId).toBeNull();
 		});
 
-		it("produces disconnected idle state when canonical projection is null", () => {
-			const tab = panelToTab(makeInput({ canonicalProjection: null }));
+		it("produces disconnected idle state when no session exists", () => {
+			const tab = panelToTab(
+				makeInput({
+					panel: makePanel({ sessionId: null }),
+					canonicalProjection: null,
+				})
+			);
 			expect(tab.state.connection).toBe("disconnected");
 			expect(tab.state.activity.kind).toBe("idle");
+		});
+
+		it("fails visible when a real session has no canonical projection", () => {
+			const tab = panelToTab(makeInput({ canonicalProjection: null }));
+			expect(tab.state.connection).toBe("error");
+			expect(tab.workBucket).toBe("error");
 		});
 	});
 
@@ -241,7 +253,12 @@ describe("panelToTab", () => {
 		});
 
 		it("derives disconnected state from status=idle (no session)", () => {
-			const tab = panelToTab(makeInput({ canonicalProjection: null }));
+			const tab = panelToTab(
+				makeInput({
+					panel: makePanel({ sessionId: null }),
+					canonicalProjection: null,
+				})
+			);
 			expect(tab.state.connection).toBe("disconnected");
 		});
 

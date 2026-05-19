@@ -520,7 +520,7 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.status).toBe("error");
 	});
 
-	it("uses neutral work state without canonical input", () => {
+	it("fails visible when a queue session has no canonical projection", () => {
 		const snapshot = buildQueueSessionSnapshot({
 			id: "session-1",
 			agentId: "opencode",
@@ -546,6 +546,7 @@ describe("buildQueueSessionSnapshot", () => {
 		expect(snapshot.currentModeId).toBeNull();
 		expect(snapshot.connectionError).toBeNull();
 		expect(snapshot.activeTurnFailure).toBeNull();
-		expect(snapshot.status).toBe("idle");
+		expect(snapshot.status).toBe("error");
+		expect(snapshot.workBucket).toBe("error");
 	});
 });

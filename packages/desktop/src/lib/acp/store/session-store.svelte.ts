@@ -75,6 +75,7 @@ import {
 } from "./operation-association.js";
 import {
 	deriveLiveSessionLifecyclePresentation,
+	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionLifecyclePresentation,
 } from "./live-session-work.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
@@ -1382,7 +1383,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const hotState = this.hotStateStore.getHotState(sessionId);
 
 		return deriveLiveSessionLifecyclePresentation({
-			canonicalProjection: projection,
+			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, projection),
 			hasEntries: (graph?.transcriptSnapshot.entries.length ?? 0) > 0,
 			hasLocalPendingSendIntent: hotState.pendingSendIntent !== null,
 		});
