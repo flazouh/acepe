@@ -82,7 +82,7 @@ impl AgentClient for OpenCodeHttpClient {
             session_open: None,
             models: SessionModelState {
                 available_models,
-                current_model_id: Some(current_model_id),
+                current_model_id,
                 models_display: Default::default(),
                 provider_metadata: Some(self.provider.frontend_projection()),
             },
@@ -150,7 +150,7 @@ impl AgentClient for OpenCodeHttpClient {
         let mut response = ResumeSessionResponse {
             models: SessionModelState {
                 available_models,
-                current_model_id: Some(current_model_id),
+                current_model_id,
                 models_display: Default::default(),
                 provider_metadata: Some(self.provider.frontend_projection()),
             },

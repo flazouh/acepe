@@ -197,7 +197,7 @@ impl AgentProvider for OpenCodeProvider {
                 Ok((available_models, current_model_id)) => {
                     let models = SessionModelState {
                         available_models,
-                        current_model_id: Some(current_model_id),
+                        current_model_id,
                         models_display: Default::default(),
                         provider_metadata: Some(self.frontend_projection()),
                     };

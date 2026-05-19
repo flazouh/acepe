@@ -63,7 +63,9 @@ impl OpenCodeHttpClient {
     }
 
     /// Fetch available models from OpenCode's /provider endpoint.
-    pub(crate) async fn fetch_available_models(&self) -> AcpResult<(Vec<AvailableModel>, String)> {
+    pub(crate) async fn fetch_available_models(
+        &self,
+    ) -> AcpResult<(Vec<AvailableModel>, Option<String>)> {
         let base_url = self.base_url().await?;
         let url = format!("{}/provider", base_url);
 
@@ -148,12 +150,10 @@ impl OpenCodeHttpClient {
             )
         };
 
-        let current_model_id = current_model_id.unwrap_or_default();
-
         tracing::info!(
             models_count = available_models.len(),
             connected_providers = ?provider_response.connected,
-            current_model_id = %current_model_id,
+            current_model_id = ?current_model_id,
             "Fetched available models from OpenCode"
         );
 
