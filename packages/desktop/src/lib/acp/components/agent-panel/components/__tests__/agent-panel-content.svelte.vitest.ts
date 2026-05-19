@@ -3,7 +3,38 @@ import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionGraphActivityKind } from "../../../../../services/acp-types.js";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
-import type { CanonicalSessionProjection } from "../../../../store/canonical-session-projection.js";
+import type {
+	LiveSessionCanonicalProjection,
+	LiveSessionWorkSource,
+} from "../../../../store/live-session-work.js";
+
+type SessionStoreMockState = {
+	hotState: {
+		turnState: "idle" | "running" | "completed" | "error";
+		status: "idle" | "loading" | "connecting" | "ready" | "streaming" | "error";
+		currentMode: null;
+		connectionError: null;
+		activeTurnFailure: null;
+		activity: null | {
+			kind:
+				| "awaiting_model"
+				| "running_operation"
+				| "waiting_for_user"
+				| "paused"
+				| "error"
+				| "idle";
+			activeOperationCount: number;
+			activeSubagentCount: number;
+			dominantOperationId: string | null;
+			blockingInteractionId: string | null;
+		};
+	};
+	liveProjection: LiveSessionCanonicalProjection | null;
+};
+
+declare global {
+	var __agentPanelContentSessionStoreState: SessionStoreMockState;
+}
 
 const storageMock: Storage = {
 	length: 0,
@@ -23,29 +54,17 @@ Object.defineProperty(globalThis, "sessionStorage", {
 	value: storageMock,
 });
 
-const sessionStoreState = vi.hoisted(() => ({
+globalThis.__agentPanelContentSessionStoreState = {
 	hotState: {
-		turnState: "idle" as "idle" | "running" | "completed" | "error",
-		status: "idle" as "idle" | "loading" | "connecting" | "ready" | "streaming" | "error",
+		turnState: "idle",
+		status: "idle",
 		currentMode: null,
 		connectionError: null,
 		activeTurnFailure: null,
-		activity: null as null | {
-			kind:
-				| "awaiting_model"
-				| "running_operation"
-				| "waiting_for_user"
-				| "paused"
-				| "error"
-				| "idle";
-			activeOperationCount: number;
-			activeSubagentCount: number;
-			dominantOperationId: string | null;
-			blockingInteractionId: string | null;
-		},
+		activity: null,
 	},
-	canonicalProjection: null as CanonicalSessionProjection | null,
-}));
+	liveProjection: null,
+};
 
 vi.mock(
 	"svelte",
@@ -65,8 +84,28 @@ vi.mock("mode-watcher", () => ({
 
 vi.mock("../../../../store/session-store.svelte.js", () => ({
 	getSessionStore: () => ({
-		getHotState: () => sessionStoreState.hotState,
-		getCanonicalSessionProjection: () => sessionStoreState.canonicalProjection,
+		getHotState: () => globalThis.__agentPanelContentSessionStoreState.hotState,
+		getSessionLiveWorkSource: (
+			sessionId: string | null,
+			_active: boolean
+		): LiveSessionWorkSource => {
+			if (sessionId === null) {
+				return { kind: "no_session" };
+			}
+
+			const liveProjection = globalThis.__agentPanelContentSessionStoreState.liveProjection;
+			if (liveProjection === null) {
+				return {
+					kind: "missing_canonical",
+					sessionId,
+				};
+			}
+
+			return {
+				kind: "canonical",
+				projection: liveProjection,
+			};
+		},
 		getSessionCurrentModeId: () => null,
 		getSessionOperationInteractionSnapshot: () => ({
 			pendingQuestion: null,
@@ -122,7 +161,7 @@ import AgentPanelContent from "../agent-panel-content.svelte";
 
 function createCanonicalProjection(
 	activityKind: SessionGraphActivityKind
-): CanonicalSessionProjection {
+): LiveSessionCanonicalProjection {
 	return {
 		lifecycle: {
 			status: "ready",
@@ -149,22 +188,6 @@ function createCanonicalProjection(
 		},
 		turnState: activityKind === "idle" ? "Idle" : "Running",
 		activeTurnFailure: null,
-		lastTerminalTurnId: null,
-		activeStreamingTail: null,
-		capabilities: {
-			models: null,
-			modes: null,
-			availableCommands: [],
-			configOptions: [],
-			autonomousEnabled: false,
-		},
-		tokenStream: new Map(),
-		clockAnchor: null,
-		revision: {
-			graphRevision: 1,
-			transcriptRevision: 1,
-			lastEventSeq: 1,
-		},
 	};
 }
 
@@ -207,7 +230,7 @@ function renderContent(
 describe("AgentPanelContent", () => {
 	afterEach(() => {
 		cleanup();
-		sessionStoreState.hotState = {
+		globalThis.__agentPanelContentSessionStoreState.hotState = {
 			turnState: "idle",
 			status: "idle",
 			currentMode: null,
@@ -215,7 +238,7 @@ describe("AgentPanelContent", () => {
 			activeTurnFailure: null,
 			activity: null,
 		};
-		sessionStoreState.canonicalProjection = null;
+		globalThis.__agentPanelContentSessionStoreState.liveProjection = null;
 	});
 
 	it("renders the virtualized conversation list for active sessions", () => {
@@ -236,7 +259,8 @@ describe("AgentPanelContent", () => {
 	});
 
 	it("derives waiting-state from graph-backed awaiting-model activity", () => {
-		sessionStoreState.canonicalProjection = createCanonicalProjection("awaiting_model");
+		globalThis.__agentPanelContentSessionStoreState.liveProjection =
+			createCanonicalProjection("awaiting_model");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
@@ -246,7 +270,8 @@ describe("AgentPanelContent", () => {
 	});
 
 	it("does not report waiting-state for graph-backed running operations", () => {
-		sessionStoreState.canonicalProjection = createCanonicalProjection("running_operation");
+		globalThis.__agentPanelContentSessionStoreState.liveProjection =
+			createCanonicalProjection("running_operation");
 
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 
