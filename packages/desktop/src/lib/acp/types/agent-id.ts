@@ -25,8 +25,14 @@ export const AGENT_IDS = {
 
 const BUILT_IN_AGENT_ID_VALUES = new Set<string>(Object.values(AGENT_IDS));
 
+export type CanonicalAgentIdLike = string | { readonly custom: string };
+
 export function isBuiltInCanonicalAgentId(id: string): id is Extract<CanonicalAgentId, string> {
 	return BUILT_IN_AGENT_ID_VALUES.has(id);
+}
+
+export function canonicalAgentIdToString(agentId: CanonicalAgentIdLike): string {
+	return typeof agentId === "string" ? agentId : agentId.custom;
 }
 
 /**

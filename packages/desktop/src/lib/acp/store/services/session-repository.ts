@@ -19,6 +19,7 @@ import {
 	type SessionPrLinkMode,
 } from "../../application/dto/session-linked-pr.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
+import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
@@ -634,7 +635,7 @@ export class SessionRepository {
 	 * Convert HistoryEntry to Session format.
 	 */
 	private historyEntryToSession(entry: HistoryEntry): SessionCold {
-		const agentId = typeof entry.agentId === "string" ? entry.agentId : entry.agentId.custom;
+		const agentId = canonicalAgentIdToString(entry.agentId);
 
 		return {
 			id: entry.sessionId,

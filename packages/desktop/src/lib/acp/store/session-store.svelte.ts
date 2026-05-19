@@ -55,7 +55,7 @@ import {
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
-import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
+import { canonicalAgentIdToString, isBuiltInCanonicalAgentId } from "../types/agent-id.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
@@ -633,10 +633,6 @@ function buildResolvedSessionPrChecks(
 
 function hasActivePrChecks(checks: SessionLinkedPr["checks"]): boolean {
 	return checks.some((checkRun) => checkRun.status !== "COMPLETED");
-}
-
-function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string {
-	return typeof agentId === "string" ? agentId : agentId.custom;
 }
 
 function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> | null {
@@ -2054,7 +2050,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				canonicalSessionId,
 				{
 					projectPath: snapshot.projectPath,
-					agentId: normalizeCanonicalAgentId(snapshot.agentId),
+					agentId: canonicalAgentIdToString(snapshot.agentId),
 					worktreePath: snapshot.worktreePath ?? undefined,
 					title: snapshot.sessionTitle,
 					sourcePath: snapshot.sourcePath ?? undefined,
@@ -2066,7 +2062,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.addSession({
 				id: canonicalSessionId,
 				projectPath: snapshot.projectPath,
-				agentId: normalizeCanonicalAgentId(snapshot.agentId),
+				agentId: canonicalAgentIdToString(snapshot.agentId),
 				worktreePath: snapshot.worktreePath ?? undefined,
 				title: snapshot.sessionTitle,
 				updatedAt: preservedSession?.updatedAt ?? now,
@@ -2133,7 +2129,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.addSession({
 			id: sessionId,
 			projectPath: graph.projectPath,
-			agentId: normalizeCanonicalAgentId(graph.agentId),
+			agentId: canonicalAgentIdToString(graph.agentId),
 			worktreePath: graph.worktreePath ?? undefined,
 			title: pendingCreation.title ?? "New Thread",
 			updatedAt: now,
