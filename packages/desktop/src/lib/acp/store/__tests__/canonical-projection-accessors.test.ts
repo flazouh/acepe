@@ -175,7 +175,7 @@ describe("SessionStore canonical projection accessors", () => {
 	it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
 		const store = new SessionStore();
 
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBeNull();
 		expect(store.getSessionListState("session-1")).toEqual({
 			status: "error",
 			isConnected: false,
@@ -226,7 +226,7 @@ describe("SessionStore canonical projection accessors", () => {
 
 		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 		const panelSource = store.getSessionAgentPanelCanonicalSource("session-1");
 		expect(panelSource?.canonicalSessionId).toBe("session-1");
 		expect(panelSource?.transcriptSnapshot.entries).toBe(transcriptEntries);

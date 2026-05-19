@@ -1342,7 +1342,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.transientProjectionStore.getTransientProjection(sessionId);
 	}
 
-	getSessionStateGraph(sessionId: string): SessionStateGraph | null {
+	getSessionStateGraphForTest(sessionId: string): SessionStateGraph | null {
 		return this.sessionStateGraphs.get(sessionId) ?? null;
 	}
 

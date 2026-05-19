@@ -275,7 +275,7 @@ function createSnapshotEnvelope(
 }
 
 function materializeStoredScene(store: SessionStore, sessionId = "session-1") {
-	const graph = store.getSessionStateGraph(sessionId);
+	const graph = store.getSessionStateGraphForTest(sessionId);
 	if (graph === null) {
 		throw new Error(`Expected graph for ${sessionId}`);
 	}
@@ -368,7 +368,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		deliverDiagnosticSessionUpdate(store, rawAssistantChunk);
 
 		expect(getSessionEntries(store, "session-1")).toEqual([]);
-		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot).toEqual({
+		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual({
 			revision: 1,
 			entries: [],
 		});
@@ -472,7 +472,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 
 		expect(getSessionStateMock).not.toHaveBeenCalled();
-		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot).toEqual({
+		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual({
 			revision: 2,
 			entries: [
 				{
@@ -576,7 +576,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(recoveredGraph));
 
-		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot).toEqual(
+		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual(
 			recoveredGraph.transcriptSnapshot
 		);
 		expect(materializeStoredScene(store).conversation.entries).toMatchObject([
@@ -761,7 +761,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 
 		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
 
-		const restoredGraph = store.getSessionStateGraph("session-1");
+		const restoredGraph = store.getSessionStateGraphForTest("session-1");
 		expect(restoredGraph).not.toBeNull();
 		if (restoredGraph === null) {
 			throw new Error("Expected restored graph to be available for scene materialization");
@@ -1165,7 +1165,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			interactions: [createPermissionInteractionSnapshot()],
 		});
 		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
-		const beforeGraph = store.getSessionStateGraph("session-1");
+		const beforeGraph = store.getSessionStateGraphForTest("session-1");
 		if (beforeGraph === null) {
 			throw new Error("Expected graph before terminal delta");
 		}
@@ -1199,7 +1199,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				},
 			},
 		});
-		const afterGraph = store.getSessionStateGraph("session-1");
+		const afterGraph = store.getSessionStateGraphForTest("session-1");
 
 		expect(afterGraph?.operations).toBe(beforeGraph.operations);
 		expect(afterGraph?.interactions).toBe(beforeGraph.interactions);
@@ -1269,7 +1269,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		const graph = store.getSessionStateGraph("session-1");
+		const graph = store.getSessionStateGraphForTest("session-1");
 		expect(graph?.turnState).toBe("Completed");
 		expect(graph?.lastTerminalTurnId).toBe("turn-8");
 		expect(store.getSessionTurnState("session-1")).toBe("Completed");
@@ -1287,7 +1287,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnId: "turn-1",
 			message: "Usage limit reached",
 		});
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Failed");
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Failed");
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-1",
@@ -1312,7 +1312,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Completed");
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Completed");
 		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
@@ -1380,7 +1380,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
 		expect(store.getSessionConfigOptions("session-1")).toEqual([
@@ -2105,7 +2105,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.applySessionStateEnvelope("session-1", envelope);
 
-		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
+		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
 		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
@@ -2277,7 +2277,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
-		expect(store.getSessionStateGraph("session-1")?.transcriptSnapshot.entries).toEqual([
+		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot.entries).toEqual([
 			{
 				entryId: "assistant-history-7",
 				role: "assistant",
@@ -2360,7 +2360,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionStateGraph("session-1")?.operations).toHaveLength(1);
+		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
 		expect(interactions.permissionsPending.get("permission-1")).toMatchObject({
 			id: "permission-1",
 			sessionId: "session-1",
@@ -2381,7 +2381,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		]);
 		expect(store.getSessionActivity("session-1")).toEqual(patchActivity);
-		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 	});
 
 	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {
@@ -2431,7 +2431,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const blockedGraph = store.getSessionStateGraph("session-1");
+		const blockedGraph = store.getSessionStateGraphForTest("session-1");
 		expect(blockedGraph).not.toBeNull();
 		if (blockedGraph === null) {
 			throw new Error("Expected blocked graph");
@@ -2511,7 +2511,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		const graph = store.getSessionStateGraph("session-1");
+		const graph = store.getSessionStateGraphForTest("session-1");
 		expect(graph).not.toBeNull();
 		if (graph === null) {
 			throw new Error("Expected running graph");
@@ -2576,7 +2576,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		const completedGraph = store.getSessionStateGraph("session-1");
+		const completedGraph = store.getSessionStateGraphForTest("session-1");
 		expect(completedGraph).not.toBeNull();
 		if (completedGraph === null) {
 			throw new Error("Expected completed graph");
@@ -2649,7 +2649,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const pendingGraph = store.getSessionStateGraph("session-1");
+		const pendingGraph = store.getSessionStateGraphForTest("session-1");
 		expect(pendingGraph).not.toBeNull();
 		if (pendingGraph === null) {
 			throw new Error("Expected initial graph");
@@ -2715,7 +2715,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		const patchedGraph = store.getSessionStateGraph("session-1");
+		const patchedGraph = store.getSessionStateGraphForTest("session-1");
 		expect(patchedGraph?.transcriptSnapshot.revision).toBe(7);
 		expect(
 			materializeAgentPanelSceneFromGraph({
@@ -2778,8 +2778,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
 		expect(store.getSessionCapabilityRevision("session-1")).toBeNull();
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
-		expect(store.getSessionStateGraph("session-1")?.lifecycle.status).toBe("failed");
-		expect(store.getSessionStateGraph("session-1")?.lifecycle.errorMessage).toBe(
+		expect(store.getSessionStateGraphForTest("session-1")?.lifecycle.status).toBe("failed");
+		expect(store.getSessionStateGraphForTest("session-1")?.lifecycle.errorMessage).toBe(
 			"Connection dropped"
 		);
 		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
@@ -3308,7 +3308,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		);
 
 		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual([]);
-		expect(store.getSessionStateGraph("session-1")?.revision).toEqual({
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
 			graphRevision: 8,
 			transcriptRevision: 8,
 			lastEventSeq: 8,
@@ -3596,7 +3596,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		expect(
 			store
-				.getSessionStateGraph("session-1")
+				.getSessionStateGraphForTest("session-1")
 				?.transcriptSnapshot.entries.map((entry) => entry.entryId)
 		).toEqual(["provider-message", "user-2", "assistant-event-8"]);
 		expect(getSessionEntries(store, "session-1").map((entry) => entry.type)).toEqual([
@@ -3715,7 +3715,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		).toEqual(["assistant-1"]);
 		expect(
 			store
-				.getSessionStateGraph("session-1")
+				.getSessionStateGraphForTest("session-1")
 				?.transcriptSnapshot.entries.map((entry) => entry.entryId)
 		).toEqual(["assistant-1", "user-2"]);
 	});
