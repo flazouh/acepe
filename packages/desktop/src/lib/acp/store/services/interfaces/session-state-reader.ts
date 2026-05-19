@@ -8,6 +8,8 @@
 import type { SessionGraphLifecycle } from "../../../../services/acp-types.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import type {
+	Mode,
+	Model,
 	SessionCapabilities,
 	SessionCold,
 } from "../../types.js";
@@ -59,6 +61,16 @@ export interface ISessionStateReader {
 	 * projection has materialized.
 	 */
 	getSessionCapabilities(sessionId: string): SessionCapabilities | null;
+
+	/**
+	 * Canonical available models. Returns null before canonical capabilities materialize.
+	 */
+	getSessionAvailableModels(sessionId: string): ReadonlyArray<Model> | null;
+
+	/**
+	 * Canonical available modes. Returns null before canonical capabilities materialize.
+	 */
+	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> | null;
 
 	/**
 	 * Canonical session projection (lifecycle + activity + turn state + active

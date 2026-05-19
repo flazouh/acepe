@@ -72,6 +72,8 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 			availableModes: [],
 			availableCommands: [],
 		}),
+		getSessionAvailableModels: () => [],
+		getSessionAvailableModes: () => [],
 		getCanonicalSessionProjection: () => null,
 		getSessionToolCalls: () => [],
 		isPreloaded: () => false,

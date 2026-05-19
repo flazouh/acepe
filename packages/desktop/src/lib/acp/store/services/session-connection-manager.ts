@@ -39,7 +39,7 @@ import type {
 	ConnectionCompleteData,
 	SessionEventService,
 } from "../session-event-service.svelte.js";
-import type { Mode, Model, SessionCapabilities, SessionCold } from "../types.js";
+import type { Mode, Model, SessionCold } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -110,11 +110,18 @@ function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: stri
 	return reader.getSessionAutonomousEnabled(sessionId);
 }
 
-function canonicalCapabilities(
+function canonicalAvailableModels(
 	reader: ISessionStateReader,
 	sessionId: string
-): SessionCapabilities | null {
-	return reader.getSessionCapabilities(sessionId);
+): ReadonlyArray<Model> | null {
+	return reader.getSessionAvailableModels(sessionId);
+}
+
+function canonicalAvailableModes(
+	reader: ISessionStateReader,
+	sessionId: string
+): ReadonlyArray<Mode> | null {
+	return reader.getSessionAvailableModes(sessionId);
 }
 
 function canonicalWireOpen(reader: ISessionStateReader, sessionId: string): boolean {
@@ -881,11 +888,12 @@ export class SessionConnectionManager {
 			return errAsync(new ConnectionError(sessionId));
 		}
 
-		const capabilities = canonicalCapabilities(this.stateReader, sessionId);
-		if (capabilities === null) {
+		const availableModes = canonicalAvailableModes(this.stateReader, sessionId);
+		const availableModels = canonicalAvailableModels(this.stateReader, sessionId);
+		if (availableModes === null || availableModels === null) {
 			return errAsync(new ConnectionError(sessionId));
 		}
-		const newMode = capabilities.availableModes?.find((m) => m.id === modeId) ?? null;
+		const newMode = availableModes.find((m) => m.id === modeId) ?? null;
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
 		const nextAutonomousEnabled =
 			oldAutonomousEnabled === null
@@ -924,7 +932,7 @@ export class SessionConnectionManager {
 				const previousModelForMode = preferencesStore.getSessionModelForMode(sessionId, modeId);
 				if (
 					previousModelForMode &&
-					capabilities.availableModels?.some((m) => m.id === previousModelForMode) === true
+					availableModels.some((m) => m.id === previousModelForMode) === true
 				) {
 					// Restore user's previous choice for this mode
 					logger.debug("Restoring previous model choice for mode", {
@@ -940,7 +948,7 @@ export class SessionConnectionManager {
 				const defaultModelId = preferencesStore.getDefaultModel(session.agentId, modeType);
 				if (
 					defaultModelId &&
-					capabilities.availableModels?.some((m) => m.id === defaultModelId) === true
+					availableModels.some((m) => m.id === defaultModelId) === true
 				) {
 					logger.debug("Applying default model for mode", {
 						sessionId,
