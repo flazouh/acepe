@@ -5,10 +5,11 @@ use std::sync::{LazyLock, RwLock};
 
 use crate::acp::parsers::{AgentParser, AgentType, OpenCodeParser};
 use crate::acp::session_update::{
-    parse_normalized_questions, parse_normalized_todos, ContentChunk, PermissionData, QuestionData,
-    QuestionItem, QuestionOption, SessionUpdate, TodoItem, ToolArguments, ToolCallData,
-    ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource, UsageTelemetryData, UsageTelemetryTokens,
+    build_tool_call_from_raw, parse_normalized_questions, parse_normalized_todos, ContentChunk,
+    PermissionData, QuestionData, QuestionItem, QuestionOption, RawToolCallInput, SessionUpdate,
+    TodoItem, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
+    TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource, UsageTelemetryData,
+    UsageTelemetryTokens,
 };
 use crate::acp::types::ContentBlock;
 
@@ -262,17 +263,19 @@ fn extract_normalized_data(
     }
 }
 
-fn parse_opencode_tool_arguments(tool_name: &str, tool_input: &Value) -> ToolArguments {
+fn parse_opencode_tool_arguments(tool_name: Option<&str>, tool_input: &Value) -> ToolArguments {
     OpenCodeParser
-        .parse_typed_tool_arguments(Some(tool_name), tool_input, None)
+        .parse_typed_tool_arguments(tool_name, tool_input, None)
         .unwrap_or(ToolArguments::Other {
             raw: tool_input.clone(),
             intent: None,
         })
 }
 
-fn resolve_opencode_tool_kind(tool_name: &str, arguments: &ToolArguments) -> ToolKind {
-    let detected_kind = OpenCodeParser.detect_tool_kind(tool_name);
+fn resolve_opencode_tool_kind(tool_name: Option<&str>, arguments: &ToolArguments) -> ToolKind {
+    let detected_kind = tool_name
+        .map(|name| OpenCodeParser.detect_tool_kind(name))
+        .unwrap_or(ToolKind::Other);
     let argument_kind = arguments.tool_kind();
     // When arguments were upgraded (e.g. Fetch URL → WebSearch), prefer argument_kind.
     // Otherwise prefer detected_kind for specificity (e.g. Task vs Think).
@@ -283,6 +286,38 @@ fn resolve_opencode_tool_kind(tool_name: &str, arguments: &ToolArguments) -> Too
     } else {
         argument_kind
     }
+}
+
+fn normalized_part_tool_name(part: &OpenCodePart) -> Option<String> {
+    part.tool
+        .as_deref()
+        .or(part.name.as_deref())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+}
+
+fn build_opencode_tool_call(
+    tool_call_id: String,
+    tool_name: Option<String>,
+    tool_input: Value,
+    status: ToolCallStatus,
+    title: Option<String>,
+) -> ToolCallData {
+    build_tool_call_from_raw(
+        &OpenCodeParser,
+        RawToolCallInput {
+            id: tool_call_id,
+            name: tool_name,
+            arguments: tool_input,
+            status,
+            kind: None,
+            title,
+            suppress_title_read_path_hint: false,
+            parent_tool_use_id: None,
+            task_children: None,
+        },
+    )
 }
 
 /// Event envelope for SSE events
@@ -479,7 +514,12 @@ fn parse_task_children_from_metadata(
 
     let mut children = Vec::with_capacity(summary.len());
     for (index, item) in summary.iter().enumerate() {
-        let tool_name = item.get("tool").and_then(|v| v.as_str()).unwrap_or("Tool");
+        let tool_name = item
+            .get("tool")
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .map(str::to_string);
         let state = item.get("state");
         let title = state
             .and_then(|s| s.get("title"))
@@ -496,31 +536,15 @@ fn parse_task_children_from_metadata(
             .cloned()
             .unwrap_or_else(|| Value::Object(Default::default()));
 
-        let arguments = parse_opencode_tool_arguments(tool_name, &tool_input);
-        let tool_kind = resolve_opencode_tool_kind(tool_name, &arguments);
-        let (normalized_todos, normalized_questions) =
-            extract_normalized_data(tool_kind, tool_name, &tool_input);
-
-        children.push(ToolCallData {
-            id: format!("{parent_id}:summary-{index}"),
-            name: tool_name.to_string(),
-            arguments,
-            diagnostic_input: Some(tool_input.clone()),
-            status: map_tool_status(status),
-            result: None,
-            kind: Some(tool_kind),
+        let mut child = build_opencode_tool_call(
+            format!("{parent_id}:summary-{index}"),
+            tool_name,
+            tool_input,
+            map_tool_status(status),
             title,
-            locations: None,
-            skill_meta: None,
-            normalized_questions,
-            normalized_todos,
-            normalized_todo_update: None,
-            parent_tool_use_id: Some(parent_id.to_string()),
-            task_children: None,
-            question_answer: None,
-            awaiting_plan_approval: false,
-            plan_approval_request_id: None,
-        });
+        );
+        child.parent_tool_use_id = Some(parent_id.to_string());
+        children.push(child);
     }
 
     Some(children)
@@ -657,7 +681,7 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
         }
 
         "tool" | "tool-invocation" => {
-            let tool_name = part.tool.clone().or(part.name.clone()).unwrap_or_default();
+            let tool_name = normalized_part_tool_name(&part);
             let tool_call_id = part.call_id.clone().unwrap_or_else(|| part.id.clone());
             let state_status = part.state.as_ref().map(|s| s.status.as_str());
             let state_input = part.state.as_ref().and_then(|s| s.input.clone());
@@ -670,7 +694,7 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                 .unwrap_or_else(|| Value::Object(Default::default()));
 
             let log_tool_call_id = tool_call_id.clone();
-            let log_tool_name = tool_name.clone();
+            let log_tool_name = tool_name.as_deref().unwrap_or("<absent>").to_string();
 
             tracing::debug!(
                 part_id = %part.id,
@@ -685,15 +709,15 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                 "RECEIVED TOOL INVOCATION"
             );
 
-            let arguments = parse_opencode_tool_arguments(&tool_name, &tool_input);
-            let tool_kind = resolve_opencode_tool_kind(&tool_name, &arguments);
+            let arguments = parse_opencode_tool_arguments(tool_name.as_deref(), &tool_input);
+            let tool_kind = resolve_opencode_tool_kind(tool_name.as_deref(), &arguments);
 
             match state_status {
                 Some("completed") => {
                     let result = state_output.map(Value::String);
                     // Extract normalized data from tool input on completion
                     let (normalized_todos, normalized_questions) =
-                        extract_normalized_data(tool_kind, &tool_name, &tool_input);
+                        extract_normalized_data(tool_kind, &log_tool_name, &tool_input);
                     tracing::debug!(
                         tool_call_id = %log_tool_call_id,
                         tool_name = %log_tool_name,
@@ -749,34 +773,26 @@ pub(super) fn convert_message_part_to_session_update(properties: &Value) -> Part
                     }))
                 }
                 _ => {
-                    let is_task_tool = tool_name.to_lowercase().contains("task");
+                    let is_task_tool = tool_name
+                        .as_deref()
+                        .is_some_and(|name| name.to_lowercase().contains("task"));
                     let task_children = if is_task_tool {
                         parse_task_children_from_metadata(&tool_call_id, &state_metadata)
                     } else {
                         None
                     };
                     let (normalized_todos, normalized_questions) =
-                        extract_normalized_data(tool_kind, &tool_name, &tool_input);
-                    let tool_call = ToolCallData {
-                        id: tool_call_id,
-                        name: tool_name.clone(),
-                        arguments,
-                        diagnostic_input: Some(tool_input.clone()),
-                        status: ToolCallStatus::Pending,
-                        kind: Some(tool_kind),
-                        result: None,
-                        title: None,
-                        locations: None,
-                        skill_meta: None,
-                        normalized_questions,
-                        normalized_todos,
-                        normalized_todo_update: None,
-                        parent_tool_use_id: None,
-                        task_children,
-                        question_answer: None,
-                        awaiting_plan_approval: false,
-                        plan_approval_request_id: None,
-                    };
+                        extract_normalized_data(tool_kind, &log_tool_name, &tool_input);
+                    let mut tool_call = build_opencode_tool_call(
+                        tool_call_id,
+                        tool_name,
+                        tool_input.clone(),
+                        ToolCallStatus::Pending,
+                        None,
+                    );
+                    tool_call.normalized_questions = normalized_questions;
+                    tool_call.normalized_todos = normalized_todos;
+                    tool_call.task_children = task_children;
                     tracing::debug!(
                         tool_call_id = %log_tool_call_id,
                         tool_name = %log_tool_name,
