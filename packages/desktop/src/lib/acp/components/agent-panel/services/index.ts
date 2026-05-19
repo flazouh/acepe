@@ -38,4 +38,4 @@ export type { CreatePrWorkflowDeps } from "./agent-panel-ship-workflow.js";
 export { runCreatePrWorkflow, runMergePrWorkflow } from "./agent-panel-ship-workflow.js";
 export { subscribeGitWorktreeSetupChannel } from "./agent-panel-worktree-setup-channel.js";
 export { discardPreparedWorktreeSessionLaunch } from "./prepared-worktree-launch-service.js";
-export { prepareMidSessionWorktreeSwitch } from "./mid-session-worktree-switch-service.js";
+export { switchActiveSessionToWorktree } from "./mid-session-worktree-switch-service.js";

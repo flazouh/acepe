@@ -153,12 +153,12 @@ import {
 	openSessionRawFileInEditor,
 	openStreamingLog,
 	persistSessionWorktreePathAfterRename,
-	prepareMidSessionWorktreeSwitch,
 	removeWorktreeFromDisk,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
 	runPanelConnectionRetry,
 	scheduleCheckpointReloadAfterRevert,
+	switchActiveSessionToWorktree,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
 
@@ -2142,6 +2142,10 @@ function handlePreSessionWorktreeYes(): void {
 }
 
 function handleWorktreeSwitchContinue(): void {
+	if (!sessionId) {
+		worktreeSwitchError = "Cannot create worktree: active session missing.";
+		return;
+	}
 	const projectPath = sessionProjectPath ?? worktreeToggleProjectPath ?? "";
 	const agentId = effectivePanelAgentId;
 	if (!projectPath || !agentId) {
@@ -2150,15 +2154,18 @@ function handleWorktreeSwitchContinue(): void {
 	}
 	worktreeSwitchBusy = true;
 	worktreeSwitchError = null;
-	void prepareMidSessionWorktreeSwitch({ projectPath, agentId }).match(
+	void switchActiveSessionToWorktree({ sessionId, projectPath, agentId }).match(
 		(result) => {
 			worktreeSwitchBusy = false;
 			worktreeSwitchDialogOpen = false;
-			handlePreparedWorktreeLaunch(result.preparedLaunch);
-			handleWorktreeCreated(result.preparedLaunch.worktree);
-			if (panelId) {
-				panelStore.setPendingWorktreeEnabled(panelId, true);
-			}
+			preSessionWorktreeFailure = null;
+			activeWorktreePath = result.worktreePath;
+			activeWorktreeOwnerProjectPath = worktreeToggleProjectPath;
+			sessionStore.updateSession(sessionId, {
+				worktreeDeleted: false,
+				worktreePath: result.worktreePath,
+			});
+			toast.success("Future turns now use the new worktree.");
 		},
 		(error) => {
 			worktreeSwitchBusy = false;

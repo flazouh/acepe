@@ -125,7 +125,7 @@ fn reconnect_error_allows_cached_ready_snapshot(
     }
 }
 
-async fn reconnect_client_session(
+pub(super) async fn reconnect_client_session(
     client: &mut (dyn AgentClient + Send + Sync + 'static),
     session_id: &str,
     cwd: &str,

@@ -206,6 +206,7 @@ macro_rules! acp_command_entries {
             initialize: acp_initialize,
             new_session: acp_new_session,
             resume_session: acp_resume_session,
+            switch_session_to_worktree: acp_switch_session_to_worktree,
             fork_session: acp_fork_session,
             set_model: acp_set_model,
             set_mode: acp_set_mode,

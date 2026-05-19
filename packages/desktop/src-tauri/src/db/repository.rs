@@ -2513,19 +2513,20 @@ impl SessionMetadataRepository {
     ) -> Result<()> {
         tracing::debug!(session_id = %session_id, worktree_path = %worktree_path, "Setting worktree path");
 
-        let model = SessionMetadata::find_by_id(session_id).one(db).await?;
+        let txn = db.begin().await?;
+        let model = SessionMetadata::find_by_id(session_id).one(&txn).await?;
 
         if let Some(model) = model {
             let now = Utc::now();
             let mut active: session_metadata::ActiveModel = model.into();
             active.worktree_path = Set(Some(worktree_path.to_string()));
             active.updated_at = Set(now);
-            active.update(db).await?;
-            if let Some(existing_state) = AcepeSessionState::find_by_id(session_id).one(db).await? {
+            active.update(&txn).await?;
+            if let Some(existing_state) = AcepeSessionState::find_by_id(session_id).one(&txn).await? {
                 let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                 state_active.worktree_path = Set(Some(worktree_path.to_string()));
                 state_active.updated_at = Set(now);
-                state_active.update(db).await?;
+                state_active.update(&txn).await?;
             }
             tracing::info!(session_id = %session_id, "Worktree path set");
         } else {
@@ -2555,7 +2556,7 @@ impl SessionMetadataRepository {
                 created_at: Set(now),
                 updated_at: Set(now),
             };
-            SessionMetadata::insert(model).exec(db).await?;
+            SessionMetadata::insert(model).exec(&txn).await?;
             let state = acepe_session_state::ActiveModel {
                 session_id: Set(session_id.to_string()),
                 relationship: Set(AcepeSessionRelationship::Discovered.as_str().to_string()),
@@ -2568,9 +2569,10 @@ impl SessionMetadataRepository {
                 created_at: Set(now),
                 updated_at: Set(now),
             };
-            state.insert(db).await?;
+            state.insert(&txn).await?;
         }
 
+        txn.commit().await?;
         Ok(())
     }
 

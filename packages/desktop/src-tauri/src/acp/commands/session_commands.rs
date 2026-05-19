@@ -376,6 +376,7 @@ pub(crate) async fn acp_set_session_autonomous_for_handle<R: tauri::Runtime>(
     expected_acp_command_result(
         "acp_set_session_autonomous",
         async {
+            super::session_switch_gate::reject_if_session_switching(&session_id)?;
             tracing::debug!(
                 session_id = %session_id,
                 enabled,
@@ -1141,6 +1142,148 @@ pub async fn acp_new_session(
             session_open,
             ..result
         })
+    }
+    .await)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchSessionToWorktreeResponse {
+    pub worktree: crate::git::worktree::WorktreeInfo,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn acp_switch_session_to_worktree(
+    app: AppHandle,
+    session_id: String,
+    project_path: String,
+    agent_id: Option<String>,
+) -> CommandResult<SwitchSessionToWorktreeResponse> {
+    expected_acp_command_result("acp_switch_session_to_worktree", async {
+        let _gate = super::session_switch_gate::acquire_session_switch_gate(&session_id)?;
+        let project_path = validate_session_cwd(&project_path, ProjectAccessReason::Other)?;
+        let project_path_string = project_path.to_string_lossy().to_string();
+
+        let session_registry = app.state::<SessionRegistry>();
+        let _existing_client = session_registry.get(&session_id).map_err(SerializableAcpError::from)?;
+
+        let active_agent = app.state::<ActiveAgent>();
+        let agent_id_enum = resolve_requested_agent_id(agent_id.as_deref(), active_agent.get());
+        let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
+        let previous_capabilities = runtime_registry
+            .as_ref()
+            .map(|state| state.inner().snapshot_for_session(&session_id).capabilities);
+
+        let worktree =
+            crate::git::worktree::create_managed_worktree_for_session(&project_path_string, None)
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!("Failed to create worktree: {error}"),
+                })?;
+        let worktree_path = worktree.directory.clone();
+
+        let setup_result = crate::git::worktree_config::run_worktree_setup(
+            app.clone(),
+            worktree_path.clone(),
+            project_path_string.clone(),
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!("Failed to run worktree setup: {}", error.message),
+        })?;
+        if !setup_result.success {
+            let _ = crate::git::worktree::git_worktree_remove(worktree_path.clone(), true).await;
+            return Err(SerializableAcpError::InvalidState {
+                message: setup_result
+                    .error
+                    .unwrap_or_else(|| "Worktree setup failed".to_string()),
+            });
+        }
+
+        let registry = app.state::<Arc<AgentRegistry>>();
+        let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
+        let mut replacement_client = match create_and_initialize_client(
+            registry.inner(),
+            opencode_manager.inner(),
+            agent_id_enum.clone(),
+            app.clone(),
+            std::path::PathBuf::from(&worktree_path),
+            "switch session to worktree",
+        )
+        .await
+        {
+            Ok(client) => client,
+            Err(error) => {
+                let _ = crate::git::worktree::git_worktree_remove(worktree_path.clone(), true).await;
+                return Err(error);
+            }
+        };
+
+        let ready_snapshot = match reconnect_client_session(
+            replacement_client.as_mut(),
+            &session_id,
+            &worktree_path,
+            None,
+            "switch session to worktree",
+        )
+        .await
+        {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                replacement_client.stop();
+                let _ = crate::git::worktree::git_worktree_remove(worktree_path.clone(), true).await;
+                return Err(error);
+            }
+        };
+
+        if let Some(capabilities) = previous_capabilities {
+            if let Some(model_state) = capabilities.models {
+                if let Some(model_id) = model_state.current_model_id {
+                    if model_id != ready_snapshot.models.current_model_id.clone().unwrap_or_default()
+                    {
+                        replacement_client
+                            .set_session_model(session_id.clone(), model_id)
+                            .await
+                            .map_err(SerializableAcpError::from)?;
+                    }
+                }
+            }
+            if let Some(modes) = capabilities.modes {
+                if modes.current_mode_id != ready_snapshot.modes.current_mode_id {
+                    replacement_client
+                        .set_session_mode(session_id.clone(), modes.current_mode_id)
+                        .await
+                        .map_err(SerializableAcpError::from)?;
+                }
+            }
+        }
+
+        SessionMetadataRepository::set_worktree_path(
+            app.state::<DbConn>().inner(),
+            &session_id,
+            &worktree_path,
+            Some(&project_path_string),
+            Some(agent_id_enum.as_str()),
+        )
+        .await
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!("Failed to persist switched worktree path: {error}"),
+        })?;
+
+        if let Some(old_client) = session_registry.store(
+            session_id.clone(),
+            replacement_client,
+            agent_id_enum.clone(),
+        ) {
+            let mut old = lock_session_client(&old_client, "switch session to worktree: old lock")
+                .await?;
+            old.stop();
+        }
+        session_registry
+            .cache_ready_snapshot(&session_id, ready_snapshot)
+            .map_err(SerializableAcpError::from)?;
+
+        Ok(SwitchSessionToWorktreeResponse { worktree })
     }
     .await)
 }

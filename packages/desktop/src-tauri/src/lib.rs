@@ -41,7 +41,8 @@ use acp::commands::{
     acp_list_preconnection_capabilities, acp_list_preconnection_commands, acp_new_session,
     acp_read_text_file, acp_register_custom_agent, acp_reply_interaction,
     acp_respond_inbound_request, acp_resume_session, acp_send_prompt, acp_set_config_option,
-    acp_set_mode, acp_set_model, acp_set_session_autonomous, acp_uninstall_agent,
+    acp_set_mode, acp_set_model, acp_set_session_autonomous, acp_switch_session_to_worktree,
+    acp_uninstall_agent,
     acp_write_text_file,
 };
 use acp::event_bridge_server::start_event_bridge_server;
