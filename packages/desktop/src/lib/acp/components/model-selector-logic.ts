@@ -9,7 +9,6 @@ import { getProviderDisplayName } from "@acepe/ui";
 import {
 	getProviderMetadataFromModelsDisplay,
 	type ProviderMetadataProjection,
-	resolveProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
 	DisplayableModel,
@@ -354,22 +353,6 @@ export function closeSplitSelector(_: SplitSelectorState): SplitSelectorState {
 
 export function isSplitSelectorOpen(state: SplitSelectorState): boolean {
 	return state.primaryOpen || state.variantOpen;
-}
-
-export function resolveSelectorProviderMetadata(
-	agentId: string | null,
-	modelsDisplay: ModelsForDisplay | null | undefined
-): ProviderMetadataProjection | null {
-	const projectedProviderMetadata = getProviderMetadata(modelsDisplay);
-	if (projectedProviderMetadata) {
-		return projectedProviderMetadata;
-	}
-
-	if (!agentId) {
-		return null;
-	}
-
-	return resolveProviderMetadataProjection(agentId, null, agentId);
 }
 
 export function getProviderMarkSource(
