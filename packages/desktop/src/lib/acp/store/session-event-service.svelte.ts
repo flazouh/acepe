@@ -80,7 +80,7 @@ export interface ConnectionCompleteData {
 	};
 	availableCommands: AvailableCommand[];
 	configOptions: ConfigOptionData[];
-	autonomousEnabled: boolean;
+	autonomousEnabled: boolean | null;
 }
 
 function materializedConnectionData(
@@ -95,7 +95,7 @@ function materializedConnectionData(
 		modes: capabilities.modes,
 		availableCommands: capabilities.availableCommands ?? [],
 		configOptions: capabilities.configOptions ?? [],
-		autonomousEnabled: capabilities.autonomousEnabled ?? false,
+		autonomousEnabled: capabilities.autonomousEnabled ?? null,
 	};
 }
 

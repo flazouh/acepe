@@ -202,14 +202,14 @@ function mockResumeWithLifecycleEvent(responseData: {
 	models: SessionModelState;
 	availableCommands?: AvailableCommand[];
 	configOptions?: ConfigOptionData[];
-	autonomousEnabled?: boolean;
+	autonomousEnabled?: boolean | null;
 }) {
 	nextLifecycleResult = {
 		models: responseData.models,
 		modes: responseData.modes,
 		availableCommands: responseData.availableCommands ?? [],
 		configOptions: responseData.configOptions ?? [],
-		autonomousEnabled: responseData.autonomousEnabled ?? false,
+		autonomousEnabled: responseData.autonomousEnabled ?? null,
 	};
 	resumeSession.mockReturnValue(okAsync(undefined));
 }
