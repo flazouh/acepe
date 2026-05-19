@@ -233,6 +233,27 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
 	});
 
+	it("preserves missing canonical command and config capability lists", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: capabilities.models,
+				modes: capabilities.modes,
+				autonomousEnabled: capabilities.autonomousEnabled,
+			})
+		);
+
+		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
+			availableCommands: null,
+			configOptions: null,
+		});
+	});
+
 	it("preserves canonical current ids even when display lists omit them", () => {
 		const store = new SessionStore();
 		addColdSession(store);

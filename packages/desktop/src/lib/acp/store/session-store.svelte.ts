@@ -881,8 +881,11 @@ function sanitizeCanonicalCapabilities(
 	return {
 		models: capabilities.models ?? null,
 		modes: capabilities.modes ?? null,
-		availableCommands: capabilities.availableCommands ?? [],
-		configOptions: sanitizeCanonicalConfigOptions(capabilities.configOptions ?? []),
+		availableCommands: capabilities.availableCommands,
+		configOptions:
+			capabilities.configOptions === undefined
+				? undefined
+				: sanitizeCanonicalConfigOptions(capabilities.configOptions),
 		autonomousEnabled: capabilities.autonomousEnabled,
 	};
 }
@@ -893,14 +896,14 @@ function projectGraphCapabilities(
 ): {
 	availableModels: Array<Model>;
 	availableModes: Array<Mode>;
-	availableCommands: AvailableCommand[];
+	availableCommands: AvailableCommand[] | null;
 	currentModelId: string | null;
 	currentModeId: string | null;
 	currentModel: Model | null;
 	currentMode: Mode | null;
 	modelsDisplay: ModelsForDisplay | undefined;
 	providerMetadata: ProviderMetadataProjection;
-	configOptions: ReadonlyArray<CanonicalConfigOptionData>;
+	configOptions: ReadonlyArray<CanonicalConfigOptionData> | null;
 	autonomousEnabled: boolean | null;
 } {
 	const availableModels = mapGraphAvailableModels(capabilities);
@@ -934,14 +937,14 @@ function projectGraphCapabilities(
 	return {
 		availableModels,
 		availableModes,
-		availableCommands: capabilities.availableCommands ?? [],
+		availableCommands: capabilities.availableCommands ?? null,
 		currentModelId,
 		currentModeId: normalizedCurrentModeId,
 		currentModel,
 		currentMode,
 		modelsDisplay,
 		providerMetadata,
-		configOptions: capabilities.configOptions ?? [],
+		configOptions: capabilities.configOptions ?? null,
 		autonomousEnabled: capabilities.autonomousEnabled ?? null,
 	};
 }
@@ -1557,6 +1560,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			availableModels: projectedCapabilities.availableModels,
 			availableModes: projectedCapabilities.availableModes,
 			availableCommands: projectedCapabilities.availableCommands,
+			configOptions: projectedCapabilities.configOptions,
 			revision: projection.revision,
 			pendingMutationId: mutationState.pendingMutationId,
 			previewState:
