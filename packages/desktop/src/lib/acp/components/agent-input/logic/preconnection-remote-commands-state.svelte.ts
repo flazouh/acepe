@@ -49,6 +49,10 @@ export function shouldLoadRemotePreconnectionCommands(input: {
 	alreadyLoaded: boolean;
 	alreadyLoading: boolean;
 }): boolean {
+	if (input.hasConnectedSession) {
+		return false;
+	}
+
 	if (input.preconnectionSlashMode !== "projectScoped") {
 		return false;
 	}
