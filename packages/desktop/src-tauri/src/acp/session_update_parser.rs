@@ -39,7 +39,7 @@ pub enum ParseResult {
     Raw {
         params: Value,
         error: String,
-        session_id: String,
+        session_id: Option<String>,
         update_type: String,
     },
     /// Not a session update notification
@@ -76,13 +76,13 @@ pub fn normalize_session_update_params(params: &Value) -> Option<Value> {
 }
 
 /// Extract session ID from params, checking multiple field names.
-pub fn extract_session_id(params: &Value) -> String {
+pub fn extract_session_id(params: &Value) -> Option<String> {
     params
         .get("sessionId")
         .or_else(|| params.get("session_id"))
         .and_then(|v| v.as_str())
-        .unwrap_or("unknown")
-        .to_string()
+        .filter(|session_id| !session_id.is_empty())
+        .map(str::to_string)
 }
 
 /// Check if this is a session update notification by method name.
@@ -516,13 +516,13 @@ mod tests {
         #[test]
         fn extracts_camel_case_session_id() {
             let params = json!({ "sessionId": "sess-123" });
-            assert_eq!(extract_session_id(&params), "sess-123");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("sess-123"));
         }
 
         #[test]
         fn extracts_snake_case_session_id() {
             let params = json!({ "session_id": "sess-456" });
-            assert_eq!(extract_session_id(&params), "sess-456");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("sess-456"));
         }
 
         #[test]
@@ -531,13 +531,19 @@ mod tests {
                 "sessionId": "camel",
                 "session_id": "snake"
             });
-            assert_eq!(extract_session_id(&params), "camel");
+            assert_eq!(extract_session_id(&params).as_deref(), Some("camel"));
         }
 
         #[test]
-        fn returns_unknown_when_missing() {
+        fn returns_none_when_missing() {
             let params = json!({ "other": "value" });
-            assert_eq!(extract_session_id(&params), "unknown");
+            assert_eq!(extract_session_id(&params), None);
+        }
+
+        #[test]
+        fn returns_none_when_empty() {
+            let params = json!({ "sessionId": "" });
+            assert_eq!(extract_session_id(&params), None);
         }
     }
 
@@ -704,7 +710,7 @@ mod tests {
                 ParseResult::Raw {
                     session_id, error, ..
                 } => {
-                    assert_eq!(session_id, "sess-123");
+                    assert_eq!(session_id.as_deref(), Some("sess-123"));
                     assert!(!error.is_empty());
                 }
                 _ => panic!("Expected Raw, got {:?}", result),

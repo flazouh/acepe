@@ -91,7 +91,9 @@ pub(crate) async fn handle_session_update_notification(
             update_type,
         } => {
             // Log raw streaming data for debugging (dev only)
-            log_streaming_event(&session_id, json);
+            if let Some(session_id) = session_id.as_deref() {
+                log_streaming_event(session_id, json);
+            }
 
             let keys: Vec<&str> = params
                 .as_object()
@@ -99,7 +101,7 @@ pub(crate) async fn handle_session_update_notification(
                 .unwrap_or_default();
             tracing::error!(
                 agent = ?agent_type,
-                session_id = %session_id,
+                session_id = ?session_id,
                 update_type = %update_type,
                 error = %error,
                 top_level_keys = ?keys,
