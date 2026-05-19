@@ -16,10 +16,14 @@ function createStore(
 	const sessionStore = {
 		getSessionIdentity: vi.fn(() => null),
 		getSessionMetadata: vi.fn(() => null),
-		getHotState: vi.fn(() => null),
-		getCanonicalSessionProjection: vi.fn(() => null),
-		getSessionStateGraph: vi.fn(() => null),
+		getSessionTranscriptEntries: vi.fn(() => null),
+		getSessionCurrentModeId: vi.fn(() => null),
 		getSessionCurrentToolKind: vi.fn(() => null),
+		getSessionLiveWorkSource: vi.fn((sessionId: string | null) =>
+			sessionId === null
+				? { kind: "no_session" }
+				: { kind: "missing_canonical", sessionId }
+		),
 		getSessionOperationInteractionSnapshot: vi.fn(() => ({
 			pendingQuestion: null,
 			pendingQuestionOperation: null,
@@ -166,5 +170,37 @@ describe("TabBarStore non-agent tabs", () => {
 		);
 
 		expect(store.tabs.map((tab) => tab.panelId)).toEqual(["agent-1"]);
+	});
+
+	it("does not borrow panel identity for an existing session missing canonical identity", () => {
+		const store = createStore(
+			[
+				{
+					id: "agent-1",
+					kind: "agent",
+					ownerPanelId: null,
+					sessionId: "session-1",
+					width: 500,
+					pendingProjectSelection: false,
+					selectedAgentId: "selected-agent",
+					projectPath: "/projects/panel-only",
+					agentId: "panel-agent",
+					sessionTitle: null,
+				},
+			],
+			null
+		);
+
+		expect(store.tabs).toEqual([
+			expect.objectContaining({
+				panelId: "agent-1",
+				sessionId: "session-1",
+				agentId: null,
+				projectPath: null,
+				projectName: null,
+				projectColor: null,
+				sequenceId: null,
+			}),
+		]);
 	});
 });

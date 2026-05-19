@@ -205,9 +205,14 @@ export class UrgencyTabsStore {
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
 
-		// Derive project path from session or panel
-		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
-		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
+		// Session tabs fail closed when canonical identity is missing. Panel fields
+		// describe pre-session UI choice, not the identity of an existing session.
+		const projectPath =
+			sessionId !== null ? (sessionIdentity?.projectPath ?? null) : (panel.projectPath ?? null);
+		const agentId =
+			sessionId !== null
+				? (sessionIdentity?.agentId ?? null)
+				: (panel.agentId ?? panel.selectedAgentId ?? null);
 		const title = sessionMetadata?.title ?? null;
 		const workProjection = deriveLiveSessionWorkProjection({
 			source: this.sessionStore.getSessionLiveWorkSource(sessionId, true),

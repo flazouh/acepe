@@ -130,10 +130,14 @@ export class TabBarStore {
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
 		const pendingPermission = interactionSnapshot?.pendingPermission ?? null;
-		const agentId = sessionIdentity?.agentId ?? panel.agentId ?? panel.selectedAgentId ?? null;
+		const agentId =
+			sessionId !== null
+				? (sessionIdentity?.agentId ?? null)
+				: (panel.agentId ?? panel.selectedAgentId ?? null);
 		const title = sessionMetadata?.title ?? null;
 
-		const projectPath = sessionIdentity?.projectPath ?? panel.projectPath ?? null;
+		const projectPath =
+			sessionId !== null ? (sessionIdentity?.projectPath ?? null) : (panel.projectPath ?? null);
 		const projectName = projectPath ? extractProjectName(projectPath) : null;
 		const projectColor = projectPath
 			? (this.getProjectColor?.(projectPath) ?? generateFallbackProjectColor(projectPath))
@@ -156,7 +160,10 @@ export class TabBarStore {
 			projectColor,
 			projectIconSrc: projectPath ? (this.getProjectIconSrc?.(projectPath) ?? null) : null,
 			projectPath,
-			sequenceId: sessionMetadata?.sequenceId ?? panel.sequenceId ?? null,
+			sequenceId:
+				sessionId !== null
+					? (sessionMetadata?.sequenceId ?? null)
+					: (panel.sequenceId ?? null),
 		});
 	}
 }

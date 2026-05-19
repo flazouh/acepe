@@ -538,7 +538,8 @@ export class PanelStore {
 				panel.sessionId !== null ? this.sessionStore.getSessionCold(panel.sessionId) : undefined;
 			return {
 				id: panel.id,
-				sessionProjectPath: session?.projectPath ?? panel.projectPath ?? null,
+				sessionProjectPath:
+					panel.sessionId !== null ? (session?.projectPath ?? null) : (panel.projectPath ?? null),
 				sessionSequenceId: session?.sequenceId ?? null,
 			};
 		});
@@ -953,11 +954,11 @@ export class PanelStore {
 						pendingProjectSelection: false,
 						pendingWorktreeEnabled: sessionId === null ? (p.pendingWorktreeEnabled ?? null) : null,
 						preparedWorktreeLaunch: sessionId === null ? (p.preparedWorktreeLaunch ?? null) : null,
-						projectPath: session?.projectPath ?? p.projectPath,
-						agentId: session?.agentId ?? p.agentId,
-						sourcePath: session?.sourcePath ?? p.sourcePath,
-						worktreePath: session?.worktreePath ?? p.worktreePath,
-						sessionTitle: session?.title ?? p.sessionTitle,
+						projectPath: sessionId === null ? p.projectPath : (session?.projectPath ?? null),
+						agentId: sessionId === null ? p.agentId : (session?.agentId ?? null),
+						sourcePath: sessionId === null ? p.sourcePath : (session?.sourcePath ?? null),
+						worktreePath: sessionId === null ? p.worktreePath : (session?.worktreePath ?? null),
+						sessionTitle: sessionId === null ? p.sessionTitle : (session?.title ?? null),
 					}
 				: p
 		);

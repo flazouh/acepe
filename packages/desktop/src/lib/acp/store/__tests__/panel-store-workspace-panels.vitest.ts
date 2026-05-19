@@ -22,6 +22,8 @@ type GitDialogCapableStore = PanelStore & {
 	} | null;
 };
 
+let originalLocalStorageDescriptor: PropertyDescriptor | undefined;
+
 function createStore(): PanelStore {
 	const sessionStore = {
 		getSessionCold: vi.fn(() => null),
@@ -35,16 +37,25 @@ function createStore(): PanelStore {
 }
 
 beforeEach(() => {
+	originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 	const localStorageStub: Pick<Storage, "getItem" | "setItem" | "removeItem"> = {
 		getItem: vi.fn(() => null),
 		setItem: vi.fn(),
 		removeItem: vi.fn(),
 	};
-	vi.stubGlobal("localStorage", localStorageStub);
+	Object.defineProperty(globalThis, "localStorage", {
+		configurable: true,
+		value: localStorageStub,
+	});
 });
 
 afterEach(() => {
-	vi.unstubAllGlobals();
+	if (originalLocalStorageDescriptor === undefined) {
+		Reflect.deleteProperty(globalThis, "localStorage");
+		return;
+	}
+
+	Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
 });
 
 describe("PanelStore workspacePanels", () => {
@@ -181,6 +192,27 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("clears panel-owned session metadata when attaching a missing session", () => {
+		const store = createStore();
+
+		const panel = store.spawnPanel({
+			selectedAgentId: "cursor",
+			projectPath: "/tmp/project",
+		});
+
+		store.updatePanelSession(panel.id, "missing-session");
+
+		expect(store.panels[0]).toMatchObject({
+			id: panel.id,
+			sessionId: "missing-session",
+			projectPath: null,
+			agentId: null,
+			sourcePath: null,
+			worktreePath: null,
+			sessionTitle: null,
+		});
+	});
+
 	it("derives top-level agent project refs without rebuilding panel snapshots", () => {
 		const sessionStore = {
 			getSessionCold: vi.fn((sessionId: string) =>
@@ -221,6 +253,25 @@ describe("PanelStore workspacePanels", () => {
 			{
 				id: disconnectedPanel.id,
 				sessionProjectPath: "/tmp/project-a",
+				sessionSequenceId: null,
+			},
+		]);
+	});
+
+	it("does not use panel project path for existing sessions missing cold identity", () => {
+		const store = createStore();
+
+		const panel = store.spawnPanel({
+			projectPath: "/tmp/project-a",
+			selectedAgentId: "cursor",
+		});
+
+		store.updatePanelSession(panel.id, "missing-session");
+
+		expect(store.getTopLevelAgentPanelProjectRefs()).toEqual([
+			{
+				id: panel.id,
+				sessionProjectPath: null,
 				sessionSequenceId: null,
 			},
 		]);

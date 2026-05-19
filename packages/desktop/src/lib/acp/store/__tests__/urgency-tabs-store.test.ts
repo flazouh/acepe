@@ -99,6 +99,7 @@ function createPanelStore(): PanelStore {
 function createSessionStore(input: {
 	readonly transientProjection: SessionTransientProjection;
 	readonly lifecycle: SessionGraphLifecycle | null;
+	readonly hasSessionIdentity?: boolean;
 }): SessionStore {
 	const sessionStore = new SessionStore();
 	const activity = createIdleActivity();
@@ -112,20 +113,26 @@ function createSessionStore(input: {
 		sessionLifecycleState: "persisted",
 		parentId: null,
 	});
-	sessionStore.getSessionIdentity = () => ({
-		id: "session-1",
-		projectPath: "/repo",
-		agentId: "codex",
-		worktreePath: undefined,
-	});
-	sessionStore.getSessionMetadata = () => ({
-		title: "Session",
-		updatedAt: new Date("2026-04-28T00:00:00.000Z"),
-		createdAt: new Date("2026-04-28T00:00:00.000Z"),
-		sourcePath: undefined,
-		sessionLifecycleState: "persisted",
-		parentId: null,
-	});
+	sessionStore.getSessionIdentity = () =>
+		input.hasSessionIdentity === false
+			? undefined
+			: {
+					id: "session-1",
+					projectPath: "/repo",
+					agentId: "codex",
+					worktreePath: undefined,
+				};
+	sessionStore.getSessionMetadata = () =>
+		input.hasSessionIdentity === false
+			? undefined
+			: {
+					title: "Session",
+					updatedAt: new Date("2026-04-28T00:00:00.000Z"),
+					createdAt: new Date("2026-04-28T00:00:00.000Z"),
+					sourcePath: undefined,
+					sessionLifecycleState: "persisted",
+					parentId: null,
+				};
 	sessionStore.getSessionLiveWorkSource = (sessionId) =>
 		input.lifecycle === null
 			? { kind: "missing_canonical", sessionId: sessionId ?? "session-1" }
@@ -148,6 +155,7 @@ function createSessionStore(input: {
 function createTabs(input: {
 	readonly transientProjection: SessionTransientProjection;
 	readonly lifecycle: SessionGraphLifecycle | null;
+	readonly hasSessionIdentity?: boolean;
 }) {
 	const store = new UrgencyTabsStore(
 		createPanelStore(),
@@ -199,6 +207,21 @@ describe("UrgencyTabsStore canonical authority", () => {
 		expect(tabs[0]).toMatchObject({
 			isConnecting: true,
 			hasError: false,
+		});
+	});
+
+	it("does not borrow panel identity for an existing session missing canonical identity", () => {
+		const tabs = createTabs({
+			transientProjection: createTransientProjection(),
+			lifecycle: null,
+			hasSessionIdentity: false,
+		});
+
+		expect(tabs[0]).toMatchObject({
+			sessionId: "session-1",
+			agentId: null,
+			projectPath: null,
+			title: null,
 		});
 	});
 });
