@@ -361,12 +361,15 @@ const panelHotState = $derived(panelId ? panelStore.getHotState(panelId) : null)
 const preSessionPendingUserEntry = $derived(
 	sessionId === null || sessionId === undefined ? (panelHotState?.pendingUserEntry ?? null) : null
 );
+const canonicalTranscriptEntries = $derived(
+	sessionId === null || sessionId === undefined
+		? null
+		: sessionStore.getSessionTranscriptEntries(sessionId)
+);
 const canonicalUserEntryPresence = $derived.by(() => {
 	const pending = sessionPendingSendIntent;
 	const transcriptEntries =
-		sessionId === null || sessionId === undefined
-			? []
-			: (sessionStateGraph?.transcriptSnapshot.entries ?? null);
+		sessionId === null || sessionId === undefined ? [] : canonicalTranscriptEntries;
 	return deriveCanonicalUserEntryPresence({
 		transcriptEntries,
 		pendingAttemptId: pending?.attemptId ?? null,
@@ -403,7 +406,7 @@ const visibleEntryCount = $derived(
 		canonicalEntryCount:
 			sessionId === null || sessionId === undefined
 				? 0
-				: (sessionStateGraph?.transcriptSnapshot.entries.length ?? null),
+				: (canonicalTranscriptEntries?.length ?? null),
 		optimisticUserEntry: optimisticUserEntryForGraph,
 	})
 );
@@ -538,6 +541,13 @@ const lifecyclePresentation = $derived(
 	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
 );
 const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
+const canonicalSessionActivity = $derived(sessionId ? sessionStore.getSessionActivity(sessionId) : null);
+const canonicalSessionLifecycle = $derived(
+	sessionId ? sessionStore.getSessionLifecycle(sessionId) : null
+);
+const canonicalSessionTurnState = $derived<SessionTurnState | null>(
+	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
+);
 const canonicalPanelSessionSource = $derived.by(() => {
 	if (sessionId === null) {
 		return {
@@ -545,7 +555,7 @@ const canonicalPanelSessionSource = $derived.by(() => {
 		};
 	}
 
-	if (sessionStateGraph === null) {
+	if (canonicalSessionLifecycle === null) {
 		return {
 			kind: "missing_canonical" as const,
 			sessionId,
@@ -554,16 +564,11 @@ const canonicalPanelSessionSource = $derived.by(() => {
 
 	return {
 		kind: "canonical" as const,
-		lifecycle: sessionStateGraph.lifecycle,
-		activity: sessionStateGraph.activity,
-		turnState: sessionStateGraph.turnState,
+		lifecycle: canonicalSessionLifecycle,
+		activity: canonicalSessionActivity,
+		turnState: canonicalSessionTurnState,
 	};
 });
-const canonicalSessionTurnState = $derived<SessionTurnState | null>(
-	canonicalPanelSessionSource.kind === "canonical" ? canonicalPanelSessionSource.turnState : null
-);
-const canonicalSessionActivity = $derived(sessionStateGraph?.activity ?? null);
-const canonicalSessionLifecycle = $derived(sessionStateGraph?.lifecycle ?? null);
 const sessionTurnState = $derived(
 	canonicalPanelSessionSource.kind === "missing_canonical"
 		? "error"

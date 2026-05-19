@@ -1418,6 +1418,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.canonicalProjections.get(sessionId)?.lifecycle.status ?? null;
 	}
 
+	getSessionLifecycle(sessionId: string): SessionGraphLifecycle | null {
+		return this.sessionStateGraphs.get(sessionId)?.lifecycle ?? null;
+	}
+
 	getSessionActivity(sessionId: string): SessionGraphActivity | null {
 		return this.sessionStateGraphs.get(sessionId)?.activity ?? null;
 	}
