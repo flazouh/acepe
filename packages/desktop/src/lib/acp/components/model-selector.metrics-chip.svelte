@@ -29,7 +29,7 @@ const usageTelemetry = $derived.by(() => {
 
 const modelsDisplay = $derived.by(() => {
 	if (!sessionId) return null;
-	return sessionStore.getSessionCapabilities(sessionId)?.modelsDisplay ?? null;
+	return sessionStore.getSessionModelsDisplay(sessionId);
 });
 
 const contextWindow = $derived(usageTelemetry?.contextBudget?.maxTokens ?? null);

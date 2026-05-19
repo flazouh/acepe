@@ -7,6 +7,7 @@ import type {
 	SessionGraphRevision,
 	SessionStateGraph,
 } from "$lib/services/acp-types.js";
+import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 
 import { SessionStore } from "../session-store.svelte.js";
 
@@ -284,8 +285,39 @@ describe("SessionStore canonical projection accessors", () => {
 		store.applySessionStateGraph(createGraph(createCapabilities()));
 
 		const capabilities = store.getSessionCapabilities("session-1");
+		expect(store.getSessionModelsDisplay("session-1")).toBeNull();
 		expect(capabilities?.modelsDisplay).toBeUndefined();
 		expect(capabilities?.providerMetadata).toBeUndefined();
+	});
+
+	it("reads canonical model display metadata through a narrow selector", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const modelsDisplay: ModelsForDisplay = {
+			groups: [],
+			presentation: {
+				displayFamily: "claudeLike",
+				usageMetrics: "contextWindowOnly",
+			},
+		};
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: {
+					currentModelId: capabilities.models?.currentModelId ?? null,
+					availableModels: capabilities.models?.availableModels ?? [],
+					modelsDisplay,
+				},
+				modes: capabilities.modes,
+				availableCommands: capabilities.availableCommands,
+				configOptions: capabilities.configOptions,
+				autonomousEnabled: capabilities.autonomousEnabled,
+			})
+		);
+
+		expect(store.getSessionModelsDisplay("session-1")).toBe(modelsDisplay);
 	});
 
 	it("preserves canonical current ids even when display lists omit them", () => {

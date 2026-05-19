@@ -1503,6 +1503,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
+	 * Canonical model display metadata; null means no canonical capabilities projection.
+	 */
+	getSessionModelsDisplay(sessionId: string): ModelsForDisplay | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.modelsDisplay ?? null;
+	}
+
+	/**
 	 * Canonical-derived flat capability view; null means no canonical projection yet.
 	 */
 	getSessionCapabilities(sessionId: string): SessionCapabilities | null {
