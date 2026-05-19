@@ -642,10 +642,11 @@ export class SessionConnectionManager {
 		options?: ConnectSessionOptions
 	): ResultAsync<SessionCold, AppError> {
 		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!session || !sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
-		const effectiveAgentId = options?.agentOverrideId ?? session.agentId;
+		const effectiveAgentId = options?.agentOverrideId ?? sessionIdentity.agentId;
 
 		const canSend = canSendFromCanonical(this.stateReader, sessionId);
 		if (canSend) {
@@ -665,7 +666,7 @@ export class SessionConnectionManager {
 		// Start connection in state machine
 		this.connectionManager.sendConnectionConnect(sessionId);
 
-		const resumeCwd = session.projectPath;
+		const resumeCwd = sessionIdentity.projectPath;
 		const attemptId = nextAttemptId++;
 		const lifecycleWaiter = this.eventService.waitForConnectionMaterialization(
 			sessionId,
@@ -678,7 +679,7 @@ export class SessionConnectionManager {
 			.orElse((error) => {
 				logger.warn("Failed to load provider metadata before reconnect", {
 					sessionId,
-					agentId: session.agentId,
+					agentId: sessionIdentity.agentId,
 					error,
 				});
 				return okAsync(undefined);

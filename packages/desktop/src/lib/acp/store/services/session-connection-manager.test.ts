@@ -313,6 +313,19 @@ describe("SessionConnectionManager.connectSession", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(baseSession);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: baseSession.id,
+			projectPath: baseSession.projectPath,
+			agentId: baseSession.agentId,
+			worktreePath: baseSession.worktreePath,
+		});
+		(stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
+			title: baseSession.title,
+			createdAt: baseSession.createdAt,
+			updatedAt: baseSession.updatedAt,
+			sourcePath: baseSession.sourcePath,
+			parentId: baseSession.parentId,
+		});
 		mockResidualStateReader(stateReader);
 		(stateReader.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		(stateReader.getSessionLifecycleStatus as ReturnType<typeof vi.fn>).mockReturnValue(null);
@@ -530,6 +543,12 @@ describe("SessionConnectionManager.connectSession", () => {
 			...baseSession,
 			agentId: "custom-agent",
 		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: baseSession.id,
+			projectPath: baseSession.projectPath,
+			agentId: "custom-agent",
+			worktreePath: baseSession.worktreePath,
+		});
 		mockResidualStateReader(stateReader);
 		getCachedModelsDisplay.mockReturnValue({
 			groups: [],
@@ -881,6 +900,12 @@ describe("SessionConnectionManager.connectSession", () => {
 			...baseSession,
 			agentId: "codex",
 		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: baseSession.id,
+			projectPath: baseSession.projectPath,
+			agentId: "codex",
+			worktreePath: baseSession.worktreePath,
+		});
 		mockResumeWithLifecycleEvent({
 			modes: {
 				currentModeId: "build",
