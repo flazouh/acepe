@@ -10,7 +10,6 @@ import type { CanonicalSessionProjection } from "../../canonical-session-project
 import type {
 	Mode,
 	Model,
-	SessionCapabilities,
 	SessionCold,
 } from "../../types.js";
 import type { ToolCall } from "../../../types/tool-call.js";
@@ -55,12 +54,6 @@ export interface ISessionStateReader {
 	 * Canonical current mode id. Returns null when no canonical projection or selected mode exists.
 	 */
 	getSessionCurrentModeId(sessionId: string): string | null;
-
-	/**
-	 * Canonical capabilities projection. Returns null when no canonical
-	 * projection has materialized.
-	 */
-	getSessionCapabilities(sessionId: string): SessionCapabilities | null;
 
 	/**
 	 * Canonical available models. Returns null before canonical capabilities materialize.

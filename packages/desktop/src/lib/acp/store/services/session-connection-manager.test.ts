@@ -171,18 +171,12 @@ function createManager(deps: {
 		promise: Promise.resolve(nextLifecycleResult),
 		cancel: vi.fn(),
 	}));
-	if (deps.stateReader.getSessionCapabilities === undefined) {
-		Object.assign(deps.stateReader, { getSessionCapabilities: vi.fn() });
-	}
 	if (deps.stateReader.getSessionAvailableModels === undefined) {
 		Object.assign(deps.stateReader, { getSessionAvailableModels: vi.fn() });
 	}
 	if (deps.stateReader.getSessionAvailableModes === undefined) {
 		Object.assign(deps.stateReader, { getSessionAvailableModes: vi.fn() });
 	}
-	(deps.stateReader.getSessionCapabilities as ReturnType<typeof vi.fn>).mockImplementation(
-		(sessionId: string) => deps.capabilities.readCapabilities(sessionId)
-	);
 	(deps.stateReader.getSessionAvailableModels as ReturnType<typeof vi.fn>).mockImplementation(
 		(sessionId: string) => deps.capabilities.readCapabilities(sessionId)?.availableModels ?? null
 	);
@@ -247,7 +241,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getSessionCapabilities: vi.fn(),
 		getSessionAvailableModels: vi.fn(),
 		getSessionAvailableModes: vi.fn(),
 		getCanonicalSessionProjection: vi.fn(),
@@ -1109,7 +1102,6 @@ describe("SessionConnectionManager.createSession", () => {
 		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getSessionCapabilities: vi.fn(),
 		getSessionAvailableModels: vi.fn(),
 		getSessionAvailableModes: vi.fn(),
 		getCanonicalSessionProjection: vi.fn(),
@@ -1902,7 +1894,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getSessionCapabilities: vi.fn(),
 		getSessionAvailableModels: vi.fn(),
 		getSessionAvailableModes: vi.fn(),
 		getCanonicalSessionProjection: vi.fn(),
@@ -2375,7 +2366,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		getGraphTranscriptRevision: vi.fn(),
 		getSessionAutonomousEnabled: vi.fn(),
 		getSessionCurrentModeId: vi.fn(),
-		getSessionCapabilities: vi.fn(),
 		getSessionAvailableModels: vi.fn(),
 		getSessionAvailableModes: vi.fn(),
 		getCanonicalSessionProjection: vi.fn(),
@@ -2500,11 +2490,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			getGraphTranscriptRevision: vi.fn(() => undefined),
 			getSessionAutonomousEnabled: vi.fn(() => null),
 			getSessionCurrentModeId: vi.fn(() => null),
-			getSessionCapabilities: vi.fn(() => ({
-				availableModels: [],
-				availableModes: [],
-				availableCommands: [],
-			})),
 			getSessionAvailableModels: vi.fn(() => []),
 			getSessionAvailableModes: vi.fn(() => []),
 			getCanonicalSessionProjection: vi.fn(() => null),

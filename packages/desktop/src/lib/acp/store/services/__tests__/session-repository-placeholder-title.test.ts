@@ -54,11 +54,6 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 		getGraphTranscriptRevision: () => undefined,
 		getSessionAutonomousEnabled: () => null,
 		getSessionCurrentModeId: () => null,
-		getSessionCapabilities: () => ({
-			availableModels: [],
-			availableModes: [],
-			availableCommands: [],
-		}),
 		getSessionAvailableModels: () => [],
 		getSessionAvailableModes: () => [],
 		getCanonicalSessionProjection: () => null,

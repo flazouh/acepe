@@ -49,11 +49,6 @@ function createMockDeps() {
 		getGraphTranscriptRevision: vi.fn().mockReturnValue(undefined),
 		getSessionAutonomousEnabled: vi.fn().mockReturnValue(null),
 		getSessionCurrentModeId: vi.fn().mockReturnValue(null),
-		getSessionCapabilities: vi.fn().mockReturnValue({
-			availableModels: [],
-			availableModes: [],
-			availableCommands: [],
-		}),
 		getSessionAvailableModels: vi.fn().mockReturnValue([]),
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
 		getCanonicalSessionProjection: vi.fn().mockReturnValue(null),
