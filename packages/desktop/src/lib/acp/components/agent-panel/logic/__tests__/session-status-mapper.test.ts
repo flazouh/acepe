@@ -136,15 +136,18 @@ describe("mapCanonicalSessionToPanelStatus", () => {
 describe("deriveCanonicalAgentPanelSessionState", () => {
 	it("uses completed idle canonical state for send-ready reopened sessions", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: lifecycle("ready"),
-			activity: {
-				kind: "idle",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready"),
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Completed",
 			},
-			turnState: "Completed",
 			hasEntries: true,
 		});
 
@@ -160,9 +163,9 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 
 	it("keeps pre-canonical optimistic sends in warming presentation", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: null,
-			activity: null,
-			turnState: null,
+			source: {
+				kind: "no_session",
+			},
 			hasEntries: true,
 			hasOptimisticPendingEntry: true,
 		});
@@ -177,17 +180,39 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		});
 	});
 
+	it("fails visible when a real session has no canonical graph", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			},
+			hasEntries: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "error",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: false,
+			canSubmit: false,
+			showStop: false,
+		});
+	});
+
 	it("uses awaiting-model canonical state for planning and stop affordances", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: lifecycle("ready", false, false, false),
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, false),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Running",
 			},
-			turnState: "Running",
 			hasEntries: true,
 		});
 
@@ -203,15 +228,18 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 
 	it("uses cancelled canonical turn state as sendable idle feedback", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: lifecycle("ready", false, false, true),
-			activity: {
-				kind: "idle",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Cancelled",
 			},
-			turnState: "Cancelled",
 			hasEntries: true,
 		});
 
@@ -227,9 +255,12 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 
 	it("uses local pending send intent for immediate in-session planning feedback", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: lifecycle("ready", false, false, true),
-			activity: null,
-			turnState: "Completed",
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: null,
+				turnState: "Completed",
+			},
 			hasEntries: true,
 			hasLocalPendingSendIntent: true,
 		});
@@ -246,15 +277,18 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 
 	it("keeps stale canonical awaiting-model state running until canonical changes", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
-			lifecycle: lifecycle("ready", false, false, true),
-			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
-				activeSubagentCount: 0,
-				dominantOperationId: null,
-				blockingInteractionId: null,
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Running",
 			},
-			turnState: "Running",
 			hasEntries: true,
 		});
 

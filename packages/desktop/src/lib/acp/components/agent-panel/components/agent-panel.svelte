@@ -555,13 +555,38 @@ const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
 const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
-const canonicalSessionTurnState = $derived<SessionTurnState | null>(sessionStateGraph?.turnState ?? null);
+const canonicalPanelSessionSource = $derived.by(() => {
+	if (sessionId === null) {
+		return {
+			kind: "no_session" as const,
+		};
+	}
+
+	if (sessionStateGraph === null) {
+		return {
+			kind: "missing_canonical" as const,
+			sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical" as const,
+		lifecycle: sessionStateGraph.lifecycle,
+		activity: sessionStateGraph.activity,
+		turnState: sessionStateGraph.turnState,
+	};
+});
+const canonicalSessionTurnState = $derived<SessionTurnState | null>(
+	canonicalPanelSessionSource.kind === "canonical" ? canonicalPanelSessionSource.turnState : null
+);
 const canonicalSessionActivity = $derived(sessionStateGraph?.activity ?? null);
 const canonicalSessionLifecycle = $derived(sessionStateGraph?.lifecycle ?? null);
 const sessionTurnState = $derived(
-	canonicalSessionTurnState !== null
-		? mapCanonicalTurnStateToHotTurnState(canonicalSessionTurnState)
-		: "idle"
+	canonicalPanelSessionSource.kind === "missing_canonical"
+		? "error"
+		: canonicalPanelSessionSource.kind === "canonical"
+			? mapCanonicalTurnStateToHotTurnState(canonicalPanelSessionSource.turnState)
+			: "idle"
 );
 const entriesCount = $derived(visibleEntryCount);
 const hasSession = $derived(sessionId !== null);
@@ -602,9 +627,7 @@ const agentName = $derived.by(() => {
 });
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
-			lifecycle: canonicalSessionLifecycle,
-			activity: canonicalSessionActivity,
-			turnState: canonicalSessionTurnState,
+			source: canonicalPanelSessionSource,
 			hasEntries: visibleEntryCount > 0,
 			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
