@@ -20,11 +20,12 @@ export function shouldShowSlashCommandDropdown(input: {
 
 export function resolveSlashCommandSource(input: {
 	liveCommands: ReadonlyArray<AvailableCommand>;
+	hasSession: boolean;
 	hasConnectedSession: boolean;
 	selectedAgentId: string | null;
 	preconnectionCommands: ReadonlyArray<AvailableCommand>;
 }): SlashCommandSource {
-	if (input.hasConnectedSession) {
+	if (input.hasSession) {
 		if (input.liveCommands.length > 0) {
 			return {
 				source: "live",

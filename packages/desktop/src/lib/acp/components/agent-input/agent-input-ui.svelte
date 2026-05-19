@@ -460,9 +460,11 @@ const preconnectionAvailableCommands = $derived.by(() => {
 		skillCommands: preconnectionAgentSkillsStore.getCommandsForAgent(capabilitiesAgentId),
 	});
 });
+const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
 const slashCommandSource = $derived.by(() => {
 	return resolveSlashCommandSource({
 		liveCommands: liveAvailableCommands,
+		hasSession,
 		hasConnectedSession: sessionLifecyclePresentation?.connectionPhase === "connected",
 		selectedAgentId: capabilitiesAgentId,
 		preconnectionCommands: preconnectionAvailableCommands,
@@ -509,7 +511,6 @@ const isSessionConnecting = $derived(
 
 // Loading state only follows explicit connecting/loading signals.
 // Empty capabilities should show selector empty-state, not a perpetual loading shimmer.
-const hasSession = $derived(props.sessionId !== null && props.sessionId !== undefined);
 const hasCachedToolbarData = $derived(
 	hasToolbarCapabilityData({
 		visibleModesCount: visibleModes.length,
