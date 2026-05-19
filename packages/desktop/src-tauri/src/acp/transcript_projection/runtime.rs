@@ -1,5 +1,6 @@
 use crate::acp::session_update::{SessionUpdate, ToolCallData, ToolKind, TurnErrorData};
 use crate::acp::transcript_projection::delta::{TranscriptDelta, TranscriptDeltaOperation};
+use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -244,11 +245,12 @@ impl SessionTranscriptProjection {
                 if should_skip_unanswered_question_tool_row(tool_call) {
                     return None;
                 }
+                let entry_id = live_tool_entry_id_for_event_seq(event_seq);
                 let entry = TranscriptEntry {
-                    entry_id: tool_call.id.clone(),
+                    entry_id: entry_id.clone(),
                     role: TranscriptEntryRole::Tool,
                     segments: vec![TranscriptSegment::Text {
-                        segment_id: format!("{}:tool", tool_call.id),
+                        segment_id: format!("{entry_id}:tool"),
                         text: tool_call
                             .title
                             .clone()
@@ -798,7 +800,7 @@ mod tests {
             ]
         );
         assert_eq!(snapshot.entries[1].entry_id, "assistant-event-2");
-        assert_eq!(snapshot.entries[2].entry_id, "toolu_1");
+        assert_eq!(snapshot.entries[2].entry_id, "tool-event-3");
         assert_eq!(snapshot.entries[3].entry_id, "assistant-event-4");
         assert_eq!(snapshot.entries[1].segments.len(), 1);
         assert_eq!(snapshot.entries[3].segments.len(), 1);

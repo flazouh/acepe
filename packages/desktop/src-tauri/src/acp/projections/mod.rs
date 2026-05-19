@@ -10,6 +10,7 @@ use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, TodoItem, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
 };
+use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
@@ -487,6 +488,7 @@ impl ProjectionRegistry {
                 if preserves_terminal_turn(&snapshot) {
                     return;
                 }
+                let entry_id = live_tool_entry_id_for_event_seq(snapshot.last_event_seq);
                 let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
                 if should_skip_unanswered_question_tool_operation(&tool_call) {
                     self.register_converted_question_interaction(
@@ -505,7 +507,7 @@ impl ProjectionRegistry {
                     &tool_call,
                     None,
                     tool_call.parent_tool_use_id.clone(),
-                    OperationSourceLink::transcript_linked(tool_call.id.clone()),
+                    OperationSourceLink::transcript_linked(entry_id),
                 );
                 self.register_plan_approval_interaction(session_id, &tool_call);
                 start_running_turn(&mut snapshot);
@@ -2567,7 +2569,7 @@ mod tests {
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: "tool-1".to_string()
+                entry_id: "tool-event-1".to_string()
             }
         );
     }
@@ -2601,7 +2603,7 @@ mod tests {
         assert_eq!(
             operation.source_link,
             OperationSourceLink::TranscriptLinked {
-                entry_id: normalized_tool_call_id.to_string(),
+                entry_id: "tool-event-1".to_string(),
             }
         );
         assert_eq!(registry.session_operations("session-1").len(), 1);
