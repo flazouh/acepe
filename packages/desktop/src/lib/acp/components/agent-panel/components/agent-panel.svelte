@@ -496,8 +496,6 @@ function prepareForNextUserReveal() {
 		panelId: effectivePanelId,
 		sessionId,
 		entryCount: visibleEntryCount,
-		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
-		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	contentRef?.prepareForNextUserReveal();
 	return effectivePanelId;
@@ -752,8 +750,6 @@ $effect(() => {
 		sessionId,
 		viewState: viewState.kind,
 		entryCount: visibleEntryCount,
-		latestEntryId: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.entryId ?? null,
-		latestEntryType: sessionStateGraph?.transcriptSnapshot.entries.at(-1)?.role ?? null,
 	});
 	if (signature === lastPanelTraceSignature) {
 		return;
