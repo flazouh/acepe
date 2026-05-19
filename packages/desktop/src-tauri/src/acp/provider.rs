@@ -138,6 +138,12 @@ pub struct PlanAdapterPolicy {
     pub finalizes_wrapper_plan_on_turn_end: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebSearchNotificationDedupRecord {
+    pub tool_call_id: String,
+    pub query: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistoryReplayFamily {
     SharedCanonical,
@@ -538,15 +544,20 @@ pub trait AgentProvider: Send + Sync {
         false
     }
 
-    /// Provider-owned policy for whether shared stdout handling should record raw
-    /// web-search notification IDs for permission dedup remapping.
-    fn records_web_search_notification_dedup(&self) -> bool {
-        false
-    }
-
     /// Provider-owned classifier for raw tool-call IDs that encode web-search semantics.
     fn is_web_search_tool_call_id(&self, _id: &str) -> bool {
         false
+    }
+
+    /// Provider-owned parser for raw notification payloads that should create a
+    /// web-search dedup record. Shared stdout handling must not parse provider
+    /// rawInput directly.
+    fn extract_web_search_notification_dedup_record(
+        &self,
+        _method: &str,
+        _params: &Value,
+    ) -> Option<WebSearchNotificationDedupRecord> {
+        None
     }
 
     /// Provider extension normalizer hook (for custom notification/request methods).

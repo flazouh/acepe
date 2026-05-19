@@ -4,7 +4,7 @@
 
 use super::super::provider::{
     command_exists, AgentProvider, ModelFallbackCandidate, ProjectDiscoveryCompleteness,
-    ProjectPathListing, SpawnConfig,
+    ProjectPathListing, SpawnConfig, WebSearchNotificationDedupRecord,
 };
 use super::cursor_session_update_enrichment::enrich_cursor_session_update;
 use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
@@ -13,12 +13,13 @@ use crate::acp::cursor_extensions::{
     normalize_cursor_extension,
 };
 use crate::acp::error::{AcpError, AcpResult};
+use crate::acp::parsers::arguments::parse_tool_kind_arguments;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
-use crate::acp::session_update::SessionUpdate;
+use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolKind};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::history::session_context::SessionContext;
 use serde_json::{json, Value};
@@ -214,12 +215,35 @@ impl AgentProvider for CursorProvider {
         is_cursor_extension_pre_tool(json)
     }
 
-    fn records_web_search_notification_dedup(&self) -> bool {
-        true
-    }
-
     fn is_web_search_tool_call_id(&self, id: &str) -> bool {
         id.starts_with("web_search_") || id.starts_with("ws_")
+    }
+
+    fn extract_web_search_notification_dedup_record(
+        &self,
+        _method: &str,
+        params: &Value,
+    ) -> Option<WebSearchNotificationDedupRecord> {
+        if params.get("event").and_then(Value::as_str) != Some("toolCall") {
+            return None;
+        }
+
+        let tool_call_id = params
+            .pointer("/data/toolCallId")
+            .and_then(Value::as_str)
+            .filter(|id| self.is_web_search_tool_call_id(id))?;
+
+        let raw_input = params.pointer("/data/rawInput")?;
+        let arguments = parse_tool_kind_arguments(ToolKind::WebSearch, raw_input);
+        let query = match arguments {
+            ToolArguments::WebSearch { query: Some(query) } => query,
+            _ => return None,
+        };
+
+        Some(WebSearchNotificationDedupRecord {
+            tool_call_id: tool_call_id.to_string(),
+            query,
+        })
     }
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
@@ -690,6 +714,27 @@ mod tests {
             provider.task_reconciliation_policy(),
             TaskReconciliationPolicy::ExplicitParentIds
         );
+    }
+
+    #[test]
+    fn provider_extracts_web_search_notification_dedup_record() {
+        let provider = CursorProvider;
+        let params = json!({
+            "event": "toolCall",
+            "data": {
+                "toolCallId": "web_search_0",
+                "rawInput": {
+                    "query": "svelte 5 snippets"
+                }
+            }
+        });
+
+        let record = provider
+            .extract_web_search_notification_dedup_record("session/notification", &params)
+            .expect("cursor web search notification should produce dedup record");
+
+        assert_eq!(record.tool_call_id, "web_search_0");
+        assert_eq!(record.query, "svelte 5 snippets");
     }
 
     #[test]
