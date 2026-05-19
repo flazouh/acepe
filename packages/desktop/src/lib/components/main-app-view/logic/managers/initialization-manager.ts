@@ -518,7 +518,11 @@ export class InitializationManager {
 	private validateRestoredSessions(): ResultAsync<void, MainAppViewError> {
 		let clearedCount = 0;
 		for (const panel of this.panelStore.panels) {
-			if (panel.sessionId && !this.sessionStore.getSessionCold(panel.sessionId)) {
+			if (
+				panel.sessionId &&
+				(!this.sessionStore.getSessionIdentity(panel.sessionId) ||
+					!this.sessionStore.getSessionMetadata(panel.sessionId))
+			) {
 				if (this.canRecoverRegistryOnlyPanel(panel)) {
 					continue;
 				}
@@ -637,8 +641,9 @@ export class InitializationManager {
 		for (const panel of this.panelStore.panels) {
 			if (!panel.sessionId) continue;
 
-			const session = this.sessionStore.getSessionCold(panel.sessionId);
-			if (!session) {
+			const sessionIdentity = this.sessionStore.getSessionIdentity(panel.sessionId);
+			const sessionMetadata = this.sessionStore.getSessionMetadata(panel.sessionId);
+			if (!sessionIdentity || !sessionMetadata) {
 				const projectPath = panel.projectPath;
 				const agentId = panel.agentId;
 				if (!projectPath || !agentId) {

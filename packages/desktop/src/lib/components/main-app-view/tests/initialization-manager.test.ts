@@ -163,6 +163,33 @@ describe("InitializationManager", () => {
 			),
 			setSessions: mock(() => {}),
 			getSessionCold: mock(() => undefined),
+			getSessionIdentity: mock((sessionId: string) => {
+				const session = mockSessionStore.getSessionCold(sessionId);
+				if (!session) {
+					return undefined;
+				}
+				return {
+					id: session.id,
+					projectPath: session.projectPath,
+					agentId: session.agentId,
+					worktreePath: session.worktreePath,
+				};
+			}),
+			getSessionMetadata: mock((sessionId: string) => {
+				const session = mockSessionStore.getSessionCold(sessionId);
+				if (!session) {
+					return undefined;
+				}
+				return {
+					title: session.title,
+					createdAt: session.createdAt,
+					updatedAt: session.updatedAt,
+					sourcePath: session.sourcePath,
+					sessionLifecycleState: session.sessionLifecycleState,
+					parentId: session.parentId,
+					sequenceId: session.sequenceId,
+				};
+			}),
 		} as unknown as SessionStore;
 
 		mockAgentStore = {
