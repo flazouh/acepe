@@ -1,5 +1,4 @@
 <script lang="ts">
-import { X } from "phosphor-svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import AgentsModelsSection from "./sections/agents-models-section.svelte";
 import AppearanceSection from "./sections/appearance-section.svelte";
@@ -20,11 +19,10 @@ import { migrateSettingsSectionId, type SettingsSectionId } from "./settings-typ
 
 interface Props {
 	projectManager?: ProjectManager;
-	onClose?: () => void;
 	initialSection?: string;
 }
 
-let { projectManager, onClose, initialSection }: Props = $props();
+let { projectManager, initialSection }: Props = $props();
 
 // One-time seed from optional `initialSection`; user tab changes are local only after that.
 // svelte-ignore state_referenced_locally
@@ -39,24 +37,11 @@ function handleSectionChange(section: SettingsSectionId) {
 }
 </script>
 
-<div class="relative h-full w-full flex bg-background overflow-hidden">
-	<!-- Flush sidebar (full height) -->
+<div class="relative h-full w-full flex min-h-0 overflow-hidden rounded border border-border bg-input/30">
 	<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
 
-	<!-- Floating close button -->
-	<button
-		type="button"
-		class="absolute right-3 top-3 z-10 flex items-center justify-center size-6 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
-		title={"Close"}
-		aria-label={"Close"}
-		onclick={() => onClose?.()}
-	>
-		<X class="size-4" weight="bold" />
-	</button>
-
 	<div class="flex flex-1 min-w-0 min-h-0 flex-col">
-		<!-- Main content -->
-		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-16 pt-10 pb-16 text-[13px] lg:px-20 lg:pt-12 lg:pb-20 xl:px-24 xl:pt-14 xl:pb-24">
+		<main class="flex-1 min-w-0 min-h-0 overflow-auto px-8 pt-6 pb-10 text-[13px] lg:px-10 lg:pt-8 lg:pb-12">
 			{#if activeSection === "general"}
 				<GeneralSection />
 			{:else if activeSection === "appearance"}
@@ -101,3 +86,4 @@ function handleSectionChange(section: SettingsSectionId) {
 		</main>
 	</div>
 </div>
+

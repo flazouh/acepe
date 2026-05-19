@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
-import { FolderPlus } from "phosphor-svelte";
+import { FolderPlus, GearFine } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
@@ -109,6 +109,7 @@ import { SettingsPage } from "./settings-page/index.js";
 import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import { UpdateAvailablePage } from "./update-available/index.js";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -1311,33 +1312,29 @@ onDestroy(() => {
 	{/if}
 
 	<!-- Settings Modal -->
-	{#if viewState.settingsModalOpen}
-		<div
-			class="fixed inset-0 z-[var(--app-modal-z)] flex items-center justify-center bg-black/55 p-2 sm:p-4 md:p-5"
-			role="dialog"
-			aria-modal="true"
-			aria-label="Settings"
-			tabindex="-1"
-			use:focusOnMount
-			onclick={(event) => {
-				if (event.target === event.currentTarget) {
-					viewState.closeSettings();
-				}
-			}}
-			onkeydown={(e) => {
-				if (e.key === "Escape") {
-					e.stopPropagation();
-					viewState.closeSettings();
-				}
-			}}
-		>
-			<div
-				class="h-[min(800px,calc(100vh-1rem))] w-full max-w-[1180px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-[0_30px_80px_rgba(0,0,0,0.5)] sm:h-[min(800px,calc(100vh-2rem))] md:h-[min(800px,calc(100vh-2.5rem))]"
-			>
-				<SettingsPage {projectManager} onClose={() => viewState.closeSettings()} />
+	<WorkspaceDialogFrame
+		open={viewState.settingsModalOpen}
+		title="Settings"
+		closeLabel="Close settings"
+		contentOverflow="hidden"
+		onOpenChange={(open) => {
+			if (!open) {
+				viewState.closeSettings();
+			}
+		}}
+	>
+		{#snippet topLeft()}
+			<div class="flex min-w-0 items-center gap-1.5">
+				<div
+					class="flex h-5 shrink-0 items-center gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				>
+					<span class="font-medium text-foreground leading-none">Settings</span>
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/snippet}
+
+		<SettingsPage {projectManager} />
+	</WorkspaceDialogFrame>
 
 	<!-- File Explorer Modal (Cmd+I) -->
 	{#if viewState.fileExplorerVisible && fileExplorerProjectPaths.length > 0}

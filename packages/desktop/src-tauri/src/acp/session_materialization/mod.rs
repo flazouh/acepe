@@ -1,12 +1,17 @@
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::projections::{
     build_canonical_operation_id, OperationDegradationCode, OperationDegradationReason,
     OperationSnapshot, OperationSourceLink, OperationState, ProjectionRegistry,
     SessionProjectionSnapshot,
 };
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
-use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolCallStatus};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+use crate::acp::session_update::{
+    SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
+};
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
+use crate::session_jsonl::types::StoredEntry;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -25,7 +30,7 @@ pub(crate) fn materialize_provider_owned_thread_snapshot(
     transcript_revision: i64,
     snapshot: &ProviderOwnedSessionSnapshot,
 ) -> MaterializedThreadSnapshot {
-    let transcript_snapshot = if snapshot.canonical_transcript_events.is_empty() {
+    let mut transcript_snapshot = if snapshot.canonical_transcript_events.is_empty() {
         TranscriptSnapshot::from_stored_entries(
             transcript_revision,
             &snapshot.thread_snapshot.entries,
@@ -54,6 +59,13 @@ pub(crate) fn materialize_provider_owned_thread_snapshot(
             );
         }
         projection = registry.session_projection(session_id);
+    }
+    if snapshot.canonical_transcript_events.is_empty() {
+        transcript_snapshot = drop_unlinked_duplicate_replay_tool_rows(
+            transcript_snapshot,
+            &snapshot.thread_snapshot,
+            &projection.operations,
+        );
     }
     projection.operations =
         ensure_transcript_tool_operations(session_id, &transcript_snapshot, projection.operations);
@@ -99,6 +111,60 @@ pub(crate) fn ensure_transcript_tool_operations(
     }
 
     completed_operations
+}
+
+fn drop_unlinked_duplicate_replay_tool_rows(
+    transcript_snapshot: TranscriptSnapshot,
+    thread_snapshot: &SessionThreadSnapshot,
+    operations: &[OperationSnapshot],
+) -> TranscriptSnapshot {
+    let linked_entry_ids = operations
+        .iter()
+        .filter_map(|operation| match &operation.source_link {
+            OperationSourceLink::TranscriptLinked { entry_id } => Some(entry_id.clone()),
+            OperationSourceLink::Synthetic { .. } | OperationSourceLink::Degraded { .. } => None,
+        })
+        .collect::<HashSet<_>>();
+    let mut seen_tool_call_ids = HashSet::new();
+    let mut duplicate_unlinked_entry_ids = HashSet::new();
+
+    for stored_entry in &thread_snapshot.entries {
+        let StoredEntry::ToolCall { id, message, .. } = stored_entry else {
+            continue;
+        };
+        if should_skip_historical_question_tool(message) {
+            continue;
+        }
+
+        let entry_id = normalize_tool_call_id(id);
+        let tool_call_id = normalize_tool_call_id(&message.id);
+        if seen_tool_call_ids.insert(tool_call_id) {
+            continue;
+        }
+        if !linked_entry_ids.contains(&entry_id) {
+            duplicate_unlinked_entry_ids.insert(entry_id);
+        }
+    }
+
+    if duplicate_unlinked_entry_ids.is_empty() {
+        return transcript_snapshot;
+    }
+
+    TranscriptSnapshot {
+        revision: transcript_snapshot.revision,
+        entries: transcript_snapshot
+            .entries
+            .into_iter()
+            .filter(|entry| {
+                entry.role != TranscriptEntryRole::Tool
+                    || !duplicate_unlinked_entry_ids.contains(&entry.entry_id)
+            })
+            .collect(),
+    }
+}
+
+fn should_skip_historical_question_tool(tool_call: &ToolCallData) -> bool {
+    matches!(tool_call.kind, Some(ToolKind::Question)) && tool_call.question_answer.is_none()
 }
 
 fn degraded_transcript_tool_operation(session_id: &str, entry_id: &str) -> OperationSnapshot {
@@ -162,11 +228,12 @@ mod tests {
     use crate::acp::session_thread_snapshot::{
         ProviderOwnedSessionSnapshot, SessionThreadSnapshot,
     };
-    use crate::acp::session_update::{ToolArguments, ToolCallStatus};
+    use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::transcript_projection::{
         CanonicalTranscriptEvent, CanonicalTranscriptEventKind, TranscriptEntry,
         TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
     };
+    use crate::acp::types::CanonicalAgentId;
     use crate::session_jsonl::types::{
         StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
     };
@@ -223,6 +290,40 @@ mod tests {
                 entry_id: entry_id.to_string(),
             },
             degradation_reason: None,
+        }
+    }
+
+    fn replayed_read_tool_entry(
+        entry_id: &str,
+        tool_call_id: &str,
+        title: Option<&str>,
+    ) -> StoredEntry {
+        StoredEntry::ToolCall {
+            id: entry_id.to_string(),
+            message: ToolCallData {
+                id: tool_call_id.to_string(),
+                name: "Read".to_string(),
+                arguments: ToolArguments::Read {
+                    file_path: Some("/provider/README.md".to_string()),
+                    source_context: None,
+                },
+                diagnostic_input: None,
+                status: ToolCallStatus::Completed,
+                result: None,
+                kind: Some(ToolKind::Read),
+                title: title.map(str::to_string),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            timestamp: None,
         }
     }
 
@@ -284,6 +385,50 @@ mod tests {
         assert_eq!(
             first[0].operation_provenance_key,
             second[0].operation_provenance_key
+        );
+    }
+
+    #[test]
+    fn provider_owned_materialization_drops_unlinked_duplicate_replay_tool_rows() {
+        let provider_snapshot =
+            ProviderOwnedSessionSnapshot::from_thread_snapshot(SessionThreadSnapshot {
+                entries: vec![
+                    replayed_read_tool_entry("provider-read", "provider-read", Some("Read file")),
+                    replayed_read_tool_entry("provider-read-sparse-entry", "provider-read", None),
+                ],
+                title: "Provider title".to_string(),
+                created_at: "2026-04-23T00:00:00Z".to_string(),
+                current_mode_id: None,
+            });
+
+        let materialized = materialize_provider_owned_thread_snapshot(
+            "session-1",
+            Some(CanonicalAgentId::Copilot),
+            11,
+            &provider_snapshot,
+        );
+
+        assert_eq!(
+            materialized
+                .transcript_snapshot
+                .entries
+                .iter()
+                .map(|entry| entry.entry_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["provider-read"]
+        );
+        assert_eq!(materialized.projection.operations.len(), 1);
+        let operation = &materialized.projection.operations[0];
+        assert_eq!(operation.tool_call_id, "provider-read");
+        assert_eq!(operation.title.as_deref(), Some("Read file"));
+        assert_eq!(operation.kind, Some(ToolKind::Read));
+        assert_eq!(operation.operation_state, OperationState::Completed);
+        assert_eq!(operation.degradation_reason, None);
+        assert_eq!(
+            operation.source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: "provider-read".to_string()
+            }
         );
     }
 

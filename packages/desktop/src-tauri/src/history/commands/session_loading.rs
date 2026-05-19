@@ -3,12 +3,15 @@ use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::OperationSnapshot;
 use crate::acp::projections::OperationSourceLink;
 use crate::acp::projections::ProjectionRegistry;
+use crate::acp::projections::SessionProjectionSnapshot;
+use crate::acp::projections::SessionSnapshot;
 use crate::acp::provider::{HistoryReplayFamily, ProviderHistoryLoadError};
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::{SessionOpenError, SessionOpenMissing, SessionOpenResult};
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::TranscriptEntryRole;
+use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSegment;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::commands::observability::{
@@ -685,7 +688,7 @@ pub async fn get_session_open_result(
         .try_state::<Arc<crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry>>()
         .map(|state| state.inner().clone());
 
-    Ok(
+    let result =
         crate::acp::session_open_snapshot::session_open_result_from_provider_owned_snapshot(
             db.inner(),
             &hub,
@@ -694,8 +697,54 @@ pub async fn get_session_open_result(
             &session_id,
             &thread_content,
         )
-        .await,
-    )
+        .await;
+    restore_session_open_authority(&app, &result);
+    Ok(result)
+}
+
+fn restore_session_open_authority<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    result: &SessionOpenResult,
+) {
+    let SessionOpenResult::Found(found) = result else {
+        return;
+    };
+
+    if let Some(transcript_registry) = app.try_state::<Arc<TranscriptProjectionRegistry>>() {
+        transcript_registry.inner().restore_session_snapshot(
+            found.canonical_session_id.clone(),
+            found.transcript_snapshot.clone(),
+        );
+    }
+
+    if let Some(projection_registry) = app.try_state::<Arc<ProjectionRegistry>>() {
+        let session = SessionSnapshot {
+            session_id: found.canonical_session_id.clone(),
+            agent_id: Some(found.agent_id.clone()),
+            last_event_seq: found.last_event_seq,
+            turn_state: found.turn_state.clone(),
+            message_count: found.message_count,
+            active_tool_call_ids: Vec::new(),
+            completed_tool_call_ids: found
+                .operations
+                .iter()
+                .filter(|operation| {
+                    crate::acp::projections::is_terminal_operation_state(&operation.operation_state)
+                })
+                .map(|operation| operation.tool_call_id.clone())
+                .collect(),
+            active_turn_failure: found.active_turn_failure.clone(),
+            last_terminal_turn_id: found.last_terminal_turn_id.clone(),
+        };
+        projection_registry
+            .inner()
+            .restore_session_projection(SessionProjectionSnapshot {
+                session: Some(session),
+                operations: found.operations.clone(),
+                interactions: found.interactions.clone(),
+                runtime: None,
+            });
+    }
 }
 
 #[cfg(test)]
