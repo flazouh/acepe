@@ -2519,7 +2519,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     skill_meta: None,
                     locations: None,
                     normalized_questions: None,

@@ -386,7 +386,7 @@ pub struct ToolCallData {
     pub arguments: ToolArguments,
     #[serde(rename = "diagnosticRawInput")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub raw_input: Option<serde_json::Value>,
+    pub diagnostic_input: Option<serde_json::Value>,
     pub status: ToolCallStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
@@ -458,7 +458,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             name: String,
             arguments: serde_json::Value,
             #[serde(alias = "rawInput", rename = "diagnosticRawInput")]
-            raw_input: Option<serde_json::Value>,
+            diagnostic_input: Option<serde_json::Value>,
             status: ToolCallStatus,
             kind: Option<ToolKind>,
             result: Option<serde_json::Value>,
@@ -492,20 +492,25 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             &normalized_arguments,
             classification_hints,
         );
-        let classified_from_raw = raw
-            .raw_input
+        let classified_from_diagnostic_input = raw
+            .diagnostic_input
             .as_ref()
-            .map(|raw_input| {
-                classify_serialized_tool_call(agent, &raw.id, raw_input, classification_hints)
+            .map(|diagnostic_input| {
+                classify_serialized_tool_call(
+                    agent,
+                    &raw.id,
+                    diagnostic_input,
+                    classification_hints,
+                )
             })
             .filter(|classified| classified.kind != ToolKind::Other);
-        let use_raw_input = classified_from_raw.is_some();
-        let classified = classified_from_raw.unwrap_or(classified_from_arguments);
+        let use_diagnostic_input = classified_from_diagnostic_input.is_some();
+        let classified = classified_from_diagnostic_input.unwrap_or(classified_from_arguments);
         let kind = classified.kind;
         let name = classified.name;
         let arguments = classified.arguments;
-        let normalized_source = if use_raw_input {
-            raw.raw_input.clone().unwrap_or(normalized_arguments)
+        let normalized_source = if use_diagnostic_input {
+            raw.diagnostic_input.clone().unwrap_or(normalized_arguments)
         } else {
             normalized_arguments
         };
@@ -520,7 +525,7 @@ impl<'de> serde::Deserialize<'de> for ToolCallData {
             id: raw.id,
             name,
             arguments,
-            raw_input: raw.raw_input,
+            diagnostic_input: raw.diagnostic_input,
             status: raw.status,
             kind: Some(kind),
             result: raw.result,

@@ -267,8 +267,8 @@ fn enrich_tool_call_data(
         tool_call.arguments = merged_arguments;
     }
 
-    if tool_call.raw_input.is_none() {
-        tool_call.raw_input = Some(persisted.input.clone());
+    if tool_call.diagnostic_input.is_none() {
+        tool_call.diagnostic_input = Some(persisted.input.clone());
     }
 
     if tool_call.kind.is_none()
@@ -630,7 +630,7 @@ mod tests {
                     file_path: None,
                     source_context: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::Read),
@@ -655,7 +655,7 @@ mod tests {
             SessionUpdate::ToolCall { tool_call, .. } => {
                 assert_eq!(tool_call.arguments.tool_kind(), ToolKind::Read);
                 assert_eq!(
-                    tool_call.raw_input,
+                    tool_call.diagnostic_input,
                     Some(serde_json::json!({
                         "path": "/tmp/example.rs",
                         "offset": 1,

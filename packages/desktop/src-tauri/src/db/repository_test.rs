@@ -293,7 +293,7 @@ mod session_metadata_tests {
                     raw: json!({ "path": "/Users/test/project/README.md" }),
                     intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: crate::acp::session_update::ToolCallStatus::Pending,
                 kind: Some(crate::acp::session_update::ToolKind::Other),
                 result: None,

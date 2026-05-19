@@ -184,7 +184,7 @@ mod tests {
                 arguments: ToolArguments::Execute {
                     command: Some("ls".to_string()),
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::Execute),

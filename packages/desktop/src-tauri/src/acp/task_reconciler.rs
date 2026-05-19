@@ -125,20 +125,23 @@ impl TaskReconciler {
         }
 
         if self.active_tool_calls.contains_key(&tool_call.id) {
-            let incoming_has_material_raw_input = has_material_raw_input(&tool_call.raw_input);
+            let incoming_has_material_diagnostic_input =
+                has_material_diagnostic_input(&tool_call.diagnostic_input);
             let (merged_tool_call, should_cleanup, should_reemit_tool_call) = {
                 let existing = self
                     .active_tool_calls
                     .get_mut(&tool_call.id)
                     .expect("tool call should exist when duplicate is detected");
-                let existing_has_material_raw_input = has_material_raw_input(&existing.raw_input);
+                let existing_has_material_diagnostic_input =
+                    has_material_diagnostic_input(&existing.diagnostic_input);
                 let merged = merge_tool_call(existing.clone(), tool_call);
                 let is_terminal = is_terminal_status(&merged.status);
                 *existing = merged.clone();
                 (
                     merged,
                     is_terminal,
-                    incoming_has_material_raw_input && !existing_has_material_raw_input,
+                    incoming_has_material_diagnostic_input
+                        && !existing_has_material_diagnostic_input,
                 )
             };
             if should_cleanup {
@@ -496,7 +499,7 @@ fn merge_tool_call(current: ToolCallData, incoming: ToolCallData) -> ToolCallDat
         id: current.id,
         name: incoming.name,
         arguments: merge_tool_arguments(current.arguments, incoming.arguments),
-        raw_input: incoming.raw_input.or(current.raw_input),
+        diagnostic_input: incoming.diagnostic_input.or(current.diagnostic_input),
         status: incoming.status,
         result: incoming.result.or(current.result),
         kind: incoming.kind.or(current.kind),
@@ -522,8 +525,8 @@ fn is_terminal_status(status: &ToolCallStatus) -> bool {
     matches!(status, ToolCallStatus::Completed | ToolCallStatus::Failed)
 }
 
-fn has_material_raw_input(raw_input: &Option<serde_json::Value>) -> bool {
-    match raw_input {
+fn has_material_diagnostic_input(diagnostic_input: &Option<serde_json::Value>) -> bool {
+    match diagnostic_input {
         Some(serde_json::Value::Object(object)) => !object.is_empty(),
         Some(serde_json::Value::Null) | None => false,
         Some(_) => true,
@@ -547,7 +550,7 @@ mod tests {
                 skill_args: None,
                 raw: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -579,7 +582,7 @@ mod tests {
                 skill_args: None,
                 raw: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -605,7 +608,7 @@ mod tests {
                 file_path: Some("/test/file.rs".to_string()),
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -631,7 +634,7 @@ mod tests {
                 file_path: Some("/test/file.rs".to_string()),
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -649,7 +652,7 @@ mod tests {
         }
     }
 
-    fn make_exit_plan_tool_call(id: &str, raw_input: serde_json::Value) -> ToolCallData {
+    fn make_exit_plan_tool_call(id: &str, diagnostic_input: serde_json::Value) -> ToolCallData {
         ToolCallData {
             id: id.to_string(),
             name: "ExitPlanMode".to_string(),
@@ -659,7 +662,7 @@ mod tests {
                 plan_file_path: None,
                 title: None,
             },
-            raw_input: Some(raw_input),
+            diagnostic_input: Some(diagnostic_input),
             status: ToolCallStatus::InProgress,
             result: None,
             kind: Some(ToolKind::ExitPlanMode),
@@ -696,7 +699,10 @@ mod tests {
         match &outputs[0] {
             ReconcilerOutput::EmitToolCall(tool_call) => {
                 assert_eq!(
-                    tool_call.raw_input.as_ref().and_then(|raw| raw.get("plan")),
+                    tool_call
+                        .diagnostic_input
+                        .as_ref()
+                        .and_then(|raw| raw.get("plan")),
                     Some(&serde_json::json!("# Fix the thing"))
                 );
             }
@@ -1000,7 +1006,7 @@ mod tests {
                 file_path: None,
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -1023,7 +1029,7 @@ mod tests {
                 file_path: Some("/tmp/example.rs".to_string()),
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -1072,7 +1078,7 @@ mod tests {
                 raw: serde_json::Value::Null,
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: None,
@@ -1095,7 +1101,7 @@ mod tests {
                 raw: serde_json::Value::Null,
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: None,
@@ -1133,7 +1139,7 @@ mod tests {
                     content: None,
                 }],
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Edit),
@@ -1161,7 +1167,7 @@ mod tests {
                     content: None,
                 }],
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Completed,
             result: None,
             kind: Some(ToolKind::Edit),
@@ -1474,7 +1480,7 @@ mod tests {
                     content: None,
                 }],
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::InProgress,
             result: None,
             kind: Some(ToolKind::Edit),

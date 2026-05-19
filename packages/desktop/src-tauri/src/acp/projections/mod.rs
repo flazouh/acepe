@@ -2413,7 +2413,7 @@ mod tests {
             arguments: ToolArguments::Execute {
                 command: Some(command.to_string()),
             },
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(ToolKind::Execute),
@@ -2618,7 +2618,7 @@ mod tests {
                 raw: json!({}),
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -3080,7 +3080,7 @@ mod tests {
                             raw: json!({}),
                             intent: None,
                         },
-                        raw_input: None,
+                        diagnostic_input: None,
                         status: ToolCallStatus::Completed,
                         result: None,
                         kind: Some(ToolKind::Question),
@@ -3110,7 +3110,7 @@ mod tests {
                             raw: json!({}),
                             intent: None,
                         },
-                        raw_input: None,
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::CreatePlan),
@@ -3226,7 +3226,7 @@ mod tests {
                             }),
                             intent: None,
                         },
-                        raw_input: None,
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::Question),
@@ -3464,7 +3464,7 @@ mod tests {
                             raw: json!({}),
                             intent: None,
                         },
-                        raw_input: None,
+                        diagnostic_input: None,
                         status: ToolCallStatus::Pending,
                         result: None,
                         kind: Some(ToolKind::CreatePlan),
@@ -3854,7 +3854,7 @@ mod tests {
                 file_path: Some("/repo/README.md".to_string()),
                 source_context: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Completed,
             result: None,
             kind: Some(ToolKind::Read),
@@ -3900,7 +3900,7 @@ mod tests {
                 raw: serde_json::json!({}),
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Unclassified),
@@ -4075,7 +4075,7 @@ mod tests {
                 raw: json!({}),
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Task),
@@ -4264,7 +4264,7 @@ mod tests {
             raw: json!({}),
             intent: None,
         };
-        plan_tool_call.raw_input = Some(json!({}));
+        plan_tool_call.diagnostic_input = Some(json!({}));
 
         registry.apply_session_update(
             "session-1",
@@ -4340,7 +4340,7 @@ mod tests {
             raw: json!({}),
             intent: None,
         };
-        plan_tool_call.raw_input = Some(json!({}));
+        plan_tool_call.diagnostic_input = Some(json!({}));
 
         registry.apply_session_update(
             "session-1",

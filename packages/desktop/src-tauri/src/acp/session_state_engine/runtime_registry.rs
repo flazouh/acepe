@@ -1657,7 +1657,7 @@ mod tests {
             arguments: ToolArguments::Execute {
                 command: Some(command.to_string()),
             },
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(ToolKind::Execute),

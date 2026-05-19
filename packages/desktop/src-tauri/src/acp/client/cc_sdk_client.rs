@@ -1708,7 +1708,7 @@ async fn run_streaming_bridge(
                                 .record_with_input(
                                     tool_call.name.clone(),
                                     tool_call.id.clone(),
-                                    tool_call.raw_input.as_ref(),
+                                    tool_call.diagnostic_input.as_ref(),
                                 )
                                 .await;
                             approval_callback_tracker
@@ -1924,7 +1924,7 @@ fn build_permission_request_update(
     tool_call_id: &str,
     request_id: u64,
     tool_name: &str,
-    raw_input: &Value,
+    diagnostic_input: &Value,
     has_always_option: bool,
     agent_type: AgentType,
     auto_accepted: bool,
@@ -1938,8 +1938,8 @@ fn build_permission_request_update(
                 crate::acp::session_update::InteractionReplyHandler::json_rpc(request_id),
             ),
             permission: tool_name.to_string(),
-            patterns: build_permission_patterns(raw_input),
-            metadata: build_permission_metadata(tool_name, raw_input, agent_type),
+            patterns: build_permission_patterns(diagnostic_input),
+            metadata: build_permission_metadata(tool_name, diagnostic_input, agent_type),
             always: if has_always_option {
                 vec!["allow_always".to_string()]
             } else {
@@ -2003,10 +2003,10 @@ fn is_exit_plan_permission(tool_name: &str, agent_type: AgentType) -> bool {
     get_parser(agent_type).detect_tool_kind(tool_name) == ToolKind::ExitPlanMode
 }
 
-fn build_permission_patterns(raw_input: &Value) -> Vec<String> {
+fn build_permission_patterns(diagnostic_input: &Value) -> Vec<String> {
     ["command", "file_path", "filePath", "path", "query"]
         .into_iter()
-        .filter_map(|key| raw_input.get(key).and_then(Value::as_str))
+        .filter_map(|key| diagnostic_input.get(key).and_then(Value::as_str))
         .map(ToString::to_string)
         .collect()
 }
@@ -2024,17 +2024,24 @@ fn build_reusable_permission_key_from_patterns(
     Some(format!("{permission_name}::{}", patterns.join("||")))
 }
 
-fn build_reusable_permission_key(tool_name: &str, raw_input: &Value) -> Option<String> {
-    build_reusable_permission_key_from_patterns(tool_name, &build_permission_patterns(raw_input))
+fn build_reusable_permission_key(tool_name: &str, diagnostic_input: &Value) -> Option<String> {
+    build_reusable_permission_key_from_patterns(
+        tool_name,
+        &build_permission_patterns(diagnostic_input),
+    )
 }
 
-fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: AgentType) -> Value {
+fn build_permission_metadata(
+    tool_name: &str,
+    diagnostic_input: &Value,
+    agent_type: AgentType,
+) -> Value {
     let parser = get_parser(agent_type);
     let parsed_arguments = serde_json::to_value(
         classify_raw_tool_call(
             parser,
             tool_name,
-            raw_input,
+            diagnostic_input,
             ToolClassificationHints {
                 name: Some(tool_name),
                 title: Some(tool_name),
@@ -2048,7 +2055,7 @@ fn build_permission_metadata(tool_name: &str, raw_input: &Value, agent_type: Age
     .ok();
 
     let mut metadata = serde_json::Map::from_iter([
-        ("diagnosticRawInput".to_string(), raw_input.clone()),
+        ("diagnosticRawInput".to_string(), diagnostic_input.clone()),
         ("options".to_string(), Value::Array(Vec::new())),
     ]);
 
@@ -3330,7 +3337,7 @@ mod tests {
                     raw: serde_json::Value::Null,
                     intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(ToolKind::Task),
@@ -3367,7 +3374,7 @@ mod tests {
                         "subagent_type": "Explore"
                     })),
                 },
-                raw_input: Some(serde_json::json!({
+                diagnostic_input: Some(serde_json::json!({
                     "description": "Find all tool call components",
                     "prompt": "Inventory tool call cards in the codebase",
                     "subagent_type": "Explore"
@@ -3429,7 +3436,7 @@ mod tests {
                 file_path: Some(file_path.to_string()),
                 source_context: None,
             },
-            raw_input: Some(serde_json::json!({ "file_path": file_path })),
+            diagnostic_input: Some(serde_json::json!({ "file_path": file_path })),
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),
@@ -3468,7 +3475,7 @@ mod tests {
                 id: id.to_string(),
                 name: name.to_string(),
                 arguments,
-                raw_input: None,
+                diagnostic_input: None,
                 status: ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(kind),
@@ -6462,7 +6469,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     status: ToolCallStatus::InProgress,
                     result: None,
                     kind: Some(ToolKind::Read),
@@ -6513,7 +6520,7 @@ mod tests {
                         file_path: Some("/tmp/file.rs".to_string()),
                         source_context: None,
                     },
-                    raw_input: None,
+                    diagnostic_input: None,
                     status: ToolCallStatus::InProgress,
                     result: None,
                     kind: Some(ToolKind::Read),

@@ -415,7 +415,7 @@ mod tests {
                 file_path: Some("/tmp/example.txt".to_string()),
                 source_context: None,
             },
-            raw_input: Some(json!({ "file_path": "/tmp/example.txt" })),
+            diagnostic_input: Some(json!({ "file_path": "/tmp/example.txt" })),
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Read),

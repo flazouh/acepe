@@ -214,7 +214,7 @@ pub async fn load_thread_snapshot(
                                         raw: raw_arguments,
                                         intent: None,
                                     }),
-                                raw_input: None,
+                                diagnostic_input: None,
                                 skill_meta: None,
                                 locations: None,
                                 normalized_questions,

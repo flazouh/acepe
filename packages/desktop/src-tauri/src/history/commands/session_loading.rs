@@ -750,7 +750,7 @@ mod tests {
                     plan_file_path: None,
                     title: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status,
                 result: None,
                 kind: Some(kind),

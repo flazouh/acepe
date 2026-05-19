@@ -380,7 +380,7 @@ pub(crate) fn build_tool_call_from_raw(
         id: raw.id.clone(),
         name: classified.name,
         arguments,
-        raw_input: Some(raw.arguments.clone()),
+        diagnostic_input: Some(raw.arguments.clone()),
         status,
         result: None,
         kind: Some(classified.kind),
@@ -688,7 +688,7 @@ mod tests {
     }
 
     #[test]
-    fn build_tool_call_from_raw_preserves_canonical_raw_input() {
+    fn build_tool_call_from_raw_preserves_diagnostic_input() {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "toolu_raw_input".to_string(),
@@ -708,7 +708,7 @@ mod tests {
         let tool_call = build_tool_call_from_raw(parser, raw);
 
         assert_eq!(
-            tool_call.raw_input,
+            tool_call.diagnostic_input,
             Some(json!({
                 "command": "echo hi",
                 "description": "Say hi"
@@ -724,7 +724,7 @@ mod tests {
             arguments: ToolArguments::Execute {
                 command: Some("echo hi".to_string()),
             },
-            raw_input: Some(json!({ "command": "echo hi" })),
+            diagnostic_input: Some(json!({ "command": "echo hi" })),
             status: ToolCallStatus::InProgress,
             result: None,
             kind: Some(ToolKind::Execute),
@@ -821,7 +821,7 @@ mod tests {
                     raw: json!({}),
                     intent: None,
                 },
-                raw_input: Some(json!({})),
+                diagnostic_input: Some(json!({})),
                 status: ToolCallStatus::Pending,
                 result: None,
                 kind: Some(ToolKind::Other),

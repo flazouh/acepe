@@ -57,7 +57,7 @@ fn parse_task_children_from_metadata(
                 raw: serde_json::json!({}),
                 intent: None,
             },
-            raw_input: None,
+            diagnostic_input: None,
             skill_meta: None,
             locations: None,
             normalized_questions: None,
@@ -400,7 +400,7 @@ fn convert_opencode_assistant_message(
                         result: result.map(serde_json::Value::String),
                         kind: Some(classified.kind),
                         arguments: classified.arguments,
-                        raw_input: None,
+                        diagnostic_input: None,
                         skill_meta: None, // OpenCode doesn't support skill meta yet
                         locations: None,
                         normalized_questions: classified.normalized_questions,

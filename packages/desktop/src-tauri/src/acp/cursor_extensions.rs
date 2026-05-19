@@ -400,7 +400,7 @@ fn normalize_cursor_create_plan(
                     raw: params.clone(),
                     intent: None,
                 },
-                raw_input: Some(params.clone()),
+                diagnostic_input: Some(params.clone()),
                 status: ToolCallStatus::Completed,
                 result: None,
                 kind: Some(ToolKind::CreatePlan),

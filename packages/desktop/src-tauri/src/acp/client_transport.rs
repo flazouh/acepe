@@ -451,7 +451,7 @@ mod tests {
                     raw: json!({ "file_path": "src/main.rs" }),
                     intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 kind: Some(ToolKind::Read),
                 title: Some("Read src/main.rs".to_string()),
                 status: ToolCallStatus::Pending,

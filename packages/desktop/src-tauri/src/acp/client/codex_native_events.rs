@@ -333,7 +333,7 @@ fn translate_item_started(
             locations: synthesize_locations(&fields.arguments),
             title: synthesize_title(&fields.arguments).or(Some(fields.title)),
             arguments: fields.arguments,
-            raw_input: None,
+            diagnostic_input: None,
             status,
             result: None,
             kind: Some(fields.kind),

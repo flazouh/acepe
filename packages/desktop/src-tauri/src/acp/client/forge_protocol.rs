@@ -121,7 +121,7 @@ fn translate_tool_started(
             id: tool_call_id.to_string(),
             name: tool_name.to_string(),
             arguments,
-            raw_input: None,
+            diagnostic_input: None,
             status: ToolCallStatus::Pending,
             result: None,
             kind: Some(ToolKind::Other),

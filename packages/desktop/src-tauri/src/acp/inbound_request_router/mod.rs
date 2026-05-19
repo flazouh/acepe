@@ -696,7 +696,7 @@ mod tests {
                     raw: json!({}),
                     intent: None,
                 },
-                raw_input: None,
+                diagnostic_input: None,
                 status: crate::acp::session_update::ToolCallStatus::InProgress,
                 result: None,
                 kind: Some(crate::acp::session_update::ToolKind::WebSearch),
