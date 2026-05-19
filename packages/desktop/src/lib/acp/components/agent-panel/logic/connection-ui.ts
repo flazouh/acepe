@@ -29,15 +29,15 @@ interface PanelErrorInputs {
 	/**
 	 * Canonical lifecycle failure classification for the active session, or
 	 * `null` if none. Required so the panel can compose curated copy via
-	 * `failureCopy(agentId, failureReason)` instead of leaking raw provider
+	 * `failureCopy(agentDisplayName, failureReason)` instead of leaking raw provider
 	 * text into the inline error UI.
 	 */
 	readonly sessionFailureReason: FailureReason | null;
 	/**
-	 * Active session's agent id — used to key curated copy. Optional only for
-	 * pre-session call sites (where no session-level error can be present).
+	 * Active session's resolved agent display name. Optional for pre-session
+	 * call sites where no session-level error can be present.
 	 */
-	readonly agentId: string | null;
+	readonly agentDisplayName: string | null;
 }
 
 function summarize(details: string | null): string | null {
@@ -76,8 +76,8 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 
 	if (sessionHasError) {
 		const curated =
-			inputs.agentId !== null && inputs.sessionFailureReason !== null
-				? failureCopy(inputs.agentId, inputs.sessionFailureReason)
+			inputs.sessionFailureReason !== null
+				? failureCopy(inputs.agentDisplayName, inputs.sessionFailureReason)
 				: null;
 		const display = curated ?? inputs.sessionConnectionError;
 		return {

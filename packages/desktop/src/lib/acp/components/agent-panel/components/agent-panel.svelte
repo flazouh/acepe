@@ -680,7 +680,7 @@ const errorInfo = $derived.by(() =>
 		sessionTurnState: sessionTurnState,
 		activeTurnError,
 		sessionFailureReason,
-		agentId: sessionAgentId,
+		agentDisplayName: agentName,
 	})
 );
 // Deterministic local reference id derived purely from error content.

@@ -15,7 +15,7 @@ describe("derivePanelErrorInfo", () => {
 			sessionConnectionError: null,
 			activeTurnError: null,
 			sessionFailureReason: null,
-			agentId: null,
+			agentDisplayName: null,
 		});
 
 		expect(result.showError).toBe(true);
@@ -34,7 +34,7 @@ describe("derivePanelErrorInfo", () => {
 			sessionConnectionError: "Failed to resume session",
 			activeTurnError: null,
 			sessionFailureReason: null,
-			agentId: null,
+			agentDisplayName: null,
 		});
 
 		expect(result.showError).toBe(true);
@@ -52,7 +52,7 @@ describe("derivePanelErrorInfo", () => {
 			sessionConnectionError: "JSON-RPC error -32002 Resource not found Session abc",
 			activeTurnError: null,
 			sessionFailureReason: "sessionGoneUpstream",
-			agentId: "copilot",
+			agentDisplayName: "GitHub Copilot",
 		});
 
 		expect(result.showError).toBe(true);
@@ -69,7 +69,7 @@ describe("derivePanelErrorInfo", () => {
 			sessionConnectionError: "Transient connection blip",
 			activeTurnError: null,
 			sessionFailureReason: "resumeFailed",
-			agentId: "copilot",
+			agentDisplayName: "GitHub Copilot",
 		});
 
 		expect(result.details).toBe("Transient connection blip");
@@ -88,7 +88,7 @@ describe("derivePanelErrorInfo", () => {
 				kind: "recoverable",
 			},
 			sessionFailureReason: null,
-			agentId: null,
+			agentDisplayName: null,
 		});
 
 		expect(result.showError).toBe(true);
@@ -103,7 +103,7 @@ describe("derivePanelErrorInfo", () => {
 			sessionConnectionError: null,
 			activeTurnError: null,
 			sessionFailureReason: null,
-			agentId: null,
+			agentDisplayName: null,
 		});
 
 		expect(result.showError).toBe(false);
@@ -128,7 +128,7 @@ describe("derivePanelErrorInfo", () => {
 				source: "json_rpc",
 			},
 			sessionFailureReason: null,
-			agentId: null,
+			agentDisplayName: null,
 		});
 
 		expect(result.showError).toBe(true);
