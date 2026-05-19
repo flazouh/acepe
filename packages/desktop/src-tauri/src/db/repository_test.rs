@@ -13,8 +13,8 @@ mod session_metadata_tests {
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
-        CreationAttemptRepositoryError, CreationAttemptStatus, ProjectRepository,
-        SessionJournalEventRepository, SessionMetadataRepository,
+        AppSettingsRepository, CreationAttemptRepositoryError, CreationAttemptStatus,
+        ProjectRepository, SessionJournalEventRepository, SessionMetadataRepository,
     };
     use sea_orm::{ConnectionTrait, Database, DbConn, EntityTrait, Statement};
     use sea_orm_migration::MigratorTrait;
@@ -45,6 +45,30 @@ mod session_metadata_tests {
             SessionCompatibilityInput::default(),
         )
         .expect("replay context")
+    }
+
+    #[tokio::test]
+    async fn app_settings_set_is_atomic_for_concurrent_new_key_saves() {
+        let db = setup_test_db().await;
+        let values = ["first", "second", "third", "fourth"];
+        let results = futures::future::join_all(
+            values
+                .iter()
+                .map(|value| AppSettingsRepository::set(&db, "race_key", value)),
+        )
+        .await;
+
+        for result in results {
+            result.expect("concurrent app setting save should upsert");
+        }
+
+        let saved = AppSettingsRepository::get(&db, "race_key")
+            .await
+            .expect("load race key");
+        assert!(
+            values.contains(&saved.as_deref().expect("race key exists")),
+            "saved value should be one of the concurrent writes"
+        );
     }
 
     #[tokio::test]
