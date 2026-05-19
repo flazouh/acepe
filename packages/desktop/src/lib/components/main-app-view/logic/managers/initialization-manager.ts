@@ -587,10 +587,12 @@ export class InitializationManager {
 		const project = projects[0];
 
 		// Find panels with selectedAgentId but no session.
-		// Skip OpenCode at startup to avoid implicit agent startup side effects
-		// (notably macOS TCC prompt bursts) before explicit user action.
+		// Provider metadata owns whether startup may create a session without a click.
 		const panelsNeedingSessions = this.panelStore.panels.filter(
-			(p) => p.selectedAgentId && !p.sessionId && p.selectedAgentId !== "opencode"
+			(p) =>
+				p.selectedAgentId &&
+				!p.sessionId &&
+				this.canCreateImplicitSessionForAgent(p.selectedAgentId)
 		);
 
 		// Create sessions for each panel (in background, don't block)
@@ -613,6 +615,11 @@ export class InitializationManager {
 		}
 
 		return okAsync(undefined);
+	}
+
+	private canCreateImplicitSessionForAgent(agentId: string): boolean {
+		const agent = this.agentStore.agents.find((candidate) => candidate.id === agentId);
+		return agent?.providerMetadata?.implicitSessionCreationMode !== "explicitUserAction";
 	}
 
 	/**
