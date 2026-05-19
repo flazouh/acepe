@@ -1168,6 +1168,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Canonical graph selector state for lifecycle/activity/actionability consumers.
 	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
+	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
 
 	// Canonical tool execution domain state
@@ -1416,7 +1417,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
 		const session = this.getSessionCold(sessionId);
-		if (projection === null || session === undefined) {
+		if (
+			projection === null ||
+			session === undefined ||
+			this.canonicalCapabilitiesMaterialized.get(sessionId) !== true
+		) {
 			return null;
 		}
 		return projectGraphCapabilities(session.agentId, projection.capabilities);
@@ -1759,6 +1764,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 		this.sessionStateGraphs.set(graph.canonicalSessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
+		this.canonicalCapabilitiesMaterialized.set(graph.canonicalSessionId, true);
 		const activeTurnFailure = mapProjectionTurnFailure(graph.activeTurnFailure ?? null);
 		const nextLastTerminalTurnId = graph.lastTerminalTurnId ?? null;
 		this.canonicalProjections.set(graph.canonicalSessionId, {
@@ -2008,6 +2014,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.hotStateStore.removeHotState(sessionId);
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
+		this.canonicalCapabilitiesMaterialized.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.composerMachineService.removeMachine(sessionId);
 		preferencesStore.clearSessionModelPerMode(sessionId);
@@ -2079,6 +2086,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const graph = materializeSnapshotFromOpenFound(snapshot).graph;
 		this.sessionStateGraphs.set(canonicalSessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
+		this.canonicalCapabilitiesMaterialized.set(canonicalSessionId, true);
 		this.hotStateStore.updateHotState(canonicalSessionId, {
 			statusChangedAt: Date.now(),
 			capabilityMutationState: {
@@ -3112,6 +3120,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			if (command.kind === "applyLifecycle") {
 				const hotState = this.getHotState(sessionId);
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				const previousCapabilitiesMaterialized =
+					this.canonicalCapabilitiesMaterialized.get(sessionId) === true;
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
 				// Carry forward canonical turnState and activeTurnFailure from the previous full-graph
@@ -3152,6 +3162,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					clockAnchor: preservedStreamingState.clockAnchor,
 					revision: lifecycleRevision,
 				});
+				this.canonicalCapabilitiesMaterialized.set(
+					sessionId,
+					previousCapabilitiesMaterialized
+				);
 				if (previousGraph !== null) {
 					this.sessionStateGraphs.set(
 						sessionId,
@@ -3216,6 +3230,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				}
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
+				this.canonicalCapabilitiesMaterialized.set(sessionId, true);
 				void session;
 				if (previousProjection !== null) {
 					this.canonicalProjections.set(sessionId, {

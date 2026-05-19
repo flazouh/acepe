@@ -2772,6 +2772,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
 		expect(store.getSessionCanSend("session-1")).toBe(false);
 		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
+		expect(store.getSessionCapabilities("session-1")).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
 		expect(store.getSessionStateGraph("session-1")?.lifecycle.status).toBe("failed");
 		expect(store.getSessionStateGraph("session-1")?.lifecycle.errorMessage).toBe(
 			"Connection dropped"
