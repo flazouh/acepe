@@ -2,7 +2,8 @@
 import { GitPanel } from "$lib/acp/components/git-panel/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
-import * as Dialog from "@acepe/ui/dialog";
+import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -30,41 +31,58 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 }
 </script>
 
-<Dialog.Root open={gitDialog !== null} onOpenChange={handleOpenChange}>
-	{#if gitDialog}
-		{@const activeGitDialog = gitDialog}
-		{@const project =
-			projectManager.projects.find(
-				(candidate) => candidate.path === activeGitDialog.projectPath
-			) ?? null}
-		{@const projectName =
-			project?.name ??
-			activeGitDialog.projectPath.split("/").pop() ??
-			activeGitDialog.projectPath}
-		<Dialog.Content
-			class="flex h-[90vh] w-fit max-w-[96vw] items-center justify-center overflow-visible border-0 bg-transparent p-0 shadow-none"
-			showCloseButton={false}
-		>
-			{#key activeGitDialog.id}
-				<div class="h-full w-[min(1100px,96vw)] max-w-[1100px] min-w-0 overflow-hidden">
-					<GitPanel
-						panelId={activeGitDialog.id}
-						projectPath={activeGitDialog.projectPath}
-						{projectName}
-						projectColor={project?.color}
-						projectIconSrc={project?.iconPath ?? null}
-						width={activeGitDialog.width}
-						initialTarget={activeGitDialog.initialTarget}
-						voiceSessionId={activeGitDialog.id}
-						isFullscreenEmbedded={true}
-						hideProjectBadge={true}
-						onClose={() => panelStore.closeGitDialog()}
-						onResize={() => undefined}
-						onRequestGeneration={(prompt) =>
-							handleRequestGeneration(activeGitDialog.projectPath, prompt)}
-					/>
-				</div>
-			{/key}
-		</Dialog.Content>
-	{/if}
-</Dialog.Root>
+{#if gitDialog}
+	{@const activeGitDialog = gitDialog}
+	{@const project =
+		projectManager.projects.find(
+			(candidate) => candidate.path === activeGitDialog.projectPath
+		) ?? null}
+	{@const projectName =
+		project?.name ??
+		activeGitDialog.projectPath.split("/").pop() ??
+		activeGitDialog.projectPath}
+	<WorkspaceDialogFrame
+		open={true}
+		title="Source Control — {projectName}"
+		closeLabel="Close source control"
+		contentOverflow="hidden"
+		onOpenChange={handleOpenChange}
+	>
+		{#snippet topLeft()}
+			<div class="flex min-w-0 items-center gap-1.5">
+				<ProjectLetterBadge
+					name={projectName}
+					color={project?.color ?? ""}
+					iconSrc={project?.iconPath ?? null}
+					size={18}
+					fontSize={10}
+				/>
+				<span class="truncate text-[11px] font-medium text-foreground leading-none">
+					{projectName}
+				</span>
+			</div>
+		{/snippet}
+
+		{#key activeGitDialog.id}
+			<div class="h-full min-h-0 w-full overflow-hidden">
+				<GitPanel
+					panelId={activeGitDialog.id}
+					projectPath={activeGitDialog.projectPath}
+					{projectName}
+					projectColor={project?.color}
+					projectIconSrc={project?.iconPath ?? null}
+					width={activeGitDialog.width}
+					initialTarget={activeGitDialog.initialTarget}
+					voiceSessionId={activeGitDialog.id}
+					isFullscreenEmbedded={true}
+					hideProjectBadge={true}
+					hideHeaderClose={true}
+					onClose={() => panelStore.closeGitDialog()}
+					onResize={() => undefined}
+					onRequestGeneration={(prompt) =>
+						handleRequestGeneration(activeGitDialog.projectPath, prompt)}
+				/>
+			</div>
+		{/key}
+	</WorkspaceDialogFrame>
+{/if}

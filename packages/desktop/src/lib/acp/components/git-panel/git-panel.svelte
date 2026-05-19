@@ -92,6 +92,7 @@ interface Props {
 	voiceSessionId?: string | null;
 	isFullscreenEmbedded?: boolean;
 	hideProjectBadge?: boolean;
+	hideHeaderClose?: boolean;
 	onClose: () => void;
 	onResize: (panelId: string, delta: number) => void;
 	/** Callback to send a generation prompt to the active ACP session */
@@ -109,6 +110,7 @@ let {
 	voiceSessionId = null,
 	isFullscreenEmbedded = false,
 	hideProjectBadge = false,
+	hideHeaderClose = false,
 	onClose,
 	onResize,
 	onRequestGeneration,
@@ -847,9 +849,11 @@ async function handleOpenPr(prNumber: number) {
 			</div>
 		</HeaderTitleCell>
 
-		<HeaderActionCell withDivider={true}>
-			<CloseAction {onClose} />
-		</HeaderActionCell>
+		{#if !hideHeaderClose}
+			<HeaderActionCell withDivider={true}>
+				<CloseAction {onClose} />
+			</HeaderActionCell>
+		{/if}
 	</EmbeddedPanelHeader>
 
 	<div class="flex items-center gap-1 border-b border-border/30 px-2 py-1 shrink-0">

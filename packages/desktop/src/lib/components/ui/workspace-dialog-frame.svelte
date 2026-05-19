@@ -40,7 +40,7 @@ const bodyClass = $derived(
 	>
 		<Dialog.Title class="sr-only">{title}</Dialog.Title>
 		<div class="flex h-full min-h-0 flex-col">
-			<div class="flex min-h-6 shrink-0 items-center justify-between gap-2 px-1.5 pt-1.5">
+			<div class="flex min-h-6 shrink-0 items-center justify-between gap-2 px-1 pt-1">
 				<div class="min-w-0 flex-1">
 					{#if topLeft}
 						{@render topLeft()}
