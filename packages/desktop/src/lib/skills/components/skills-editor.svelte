@@ -1,5 +1,6 @@
 <script lang="ts">
 import { Copy, FileText, Lock, Puzzle } from "@lucide/svelte/icons";
+import { AGENT_IDS } from "$lib/acp/types/agent-id.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
 
@@ -26,7 +27,7 @@ function handleKeyDown(event: KeyboardEvent) {
 
 function handleCopyToClaudeCode() {
 	if (store.selectedPluginSkill) {
-		store.copyPluginSkillToAgent(store.selectedPluginSkill.id, "claude-code");
+		store.copyPluginSkillToAgent(store.selectedPluginSkill.id, AGENT_IDS.CLAUDE_CODE);
 	}
 }
 </script>
