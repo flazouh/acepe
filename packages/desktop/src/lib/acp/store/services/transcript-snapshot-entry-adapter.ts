@@ -1,6 +1,7 @@
 import {
 	toolCallIdFromEntry,
 	type SessionEntry,
+	userMessageIdFromEntry,
 } from "$lib/acp/application/dto/session-entry.js";
 import type {
 	TranscriptEntry,
@@ -144,7 +145,7 @@ export function appendTranscriptSegmentToSessionEntry(
 			id: entry.id,
 			type: "user",
 			message: {
-				id: entry.message.id,
+				id: userMessageIdFromEntry(entry),
 				content: toContentBlock(mergedText),
 				chunks: nextChunks,
 				sentAt: entry.message.sentAt,

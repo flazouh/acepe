@@ -50,6 +50,13 @@ export function isToolCallEntry(
 	return entry.type === "tool_call";
 }
 
+/** Type guard: narrows SessionEntry to the user variant. */
+export function isUserEntry(
+	entry: SessionEntry
+): entry is SessionEntryBase & { readonly type: "user"; readonly message: UserMessage } {
+	return entry.type === "user";
+}
+
 /**
  * Canonical tool identity for a tool_call entry.
  *
@@ -59,5 +66,17 @@ export function isToolCallEntry(
 export function toolCallIdFromEntry(
 	entry: SessionEntryBase & { readonly type: "tool_call"; readonly message: ToolCall }
 ): string {
+	return entry.message.id;
+}
+
+/**
+ * Canonical user-message identity for a user entry, when one is present.
+ *
+ * This id comes from the canonical transcript entry, not from an assistant
+ * provider container id.
+ */
+export function userMessageIdFromEntry(
+	entry: SessionEntryBase & { readonly type: "user"; readonly message: UserMessage }
+): string | undefined {
 	return entry.message.id;
 }
