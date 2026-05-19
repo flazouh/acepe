@@ -166,7 +166,9 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(false);
 		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
-		expect(store.getSessionCapabilities("session-1")).toBeNull();
+		expect(store.getSessionCapabilityRevision("session-1")).toBeNull();
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBeNull();
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 
 	it("derives all capability accessors from the canonical projection", () => {
@@ -231,33 +233,13 @@ describe("SessionStore canonical projection accessors", () => {
 			},
 		]);
 		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(true);
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableModels: [
-				{
-					id: "gpt-5",
-					name: "GPT-5",
-				},
-			],
-			availableModes: [
-				{
-					id: "build",
-					name: "Build",
-				},
-			],
-			availableCommands: [
-				{
-					name: "run",
-					description: "Run command",
-				},
-			],
-			revision: {
-				graphRevision: 7,
-				transcriptRevision: 7,
-				lastEventSeq: 7,
-			},
-			pendingMutationId: null,
-			previewState: "canonical",
+		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
 		});
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
 	});
 
 	it("preserves missing canonical autonomous state inside materialized capabilities", () => {
@@ -292,10 +274,6 @@ describe("SessionStore canonical projection accessors", () => {
 
 		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
 		expect(store.getSessionConfigOptions("session-1")).toBeNull();
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableCommands: null,
-			configOptions: null,
-		});
 	});
 
 	it("preserves missing canonical model and mode capability lists", () => {
@@ -315,10 +293,6 @@ describe("SessionStore canonical projection accessors", () => {
 
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionAvailableModes("session-1")).toBeNull();
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableModels: null,
-			availableModes: null,
-		});
 	});
 
 	it("does not synthesize provider display metadata when canonical capabilities omit it", () => {
@@ -327,11 +301,8 @@ describe("SessionStore canonical projection accessors", () => {
 
 		store.applySessionStateGraph(createGraph(createCapabilities()));
 
-		const capabilities = store.getSessionCapabilities("session-1");
 		expect(store.getSessionModelsDisplay("session-1")).toBeNull();
 		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
-		expect(capabilities?.modelsDisplay).toBeUndefined();
-		expect(capabilities?.providerMetadata).toBeUndefined();
 	});
 
 	it("reads canonical model display metadata through a narrow selector", () => {

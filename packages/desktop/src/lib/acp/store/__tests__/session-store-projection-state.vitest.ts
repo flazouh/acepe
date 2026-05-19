@@ -1406,26 +1406,26 @@ describe("SessionStore.applySessionStateGraph", () => {
 				options: [],
 			},
 		]);
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableModes: [
-				{
-					id: "plan",
-					name: "Plan",
-				},
-			],
-			availableModels: [
-				{
-					id: "gpt-5",
-					name: "GPT-5",
-				},
-			],
-			availableCommands: [
-				{
-					name: "run",
-					description: "Run a command",
-				},
-			],
-		});
+		expect(store.getSessionAvailableModes("session-1")).toEqual([
+			{
+				id: "plan",
+				name: "Plan",
+				description: undefined,
+			},
+		]);
+		expect(store.getSessionAvailableModels("session-1")).toEqual([
+			{
+				id: "gpt-5",
+				name: "GPT-5",
+				description: undefined,
+			},
+		]);
+		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+			{
+				name: "run",
+				description: "Run a command",
+			},
+		]);
 	});
 
 	it("carries canonical capabilities across lifecycle-only envelopes", () => {
@@ -1484,7 +1484,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			autonomousEnabled: true,
 		});
-		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
+		expect(store.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -1570,16 +1570,15 @@ describe("SessionStore.applySessionStateGraph", () => {
 				lastEventSeq: 8,
 			},
 		});
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableModels: [
-				{
-					id: "gpt-5",
-					name: "GPT-5",
-				},
-			],
-			pendingMutationId: "mutation-1",
-			previewState: "pending",
-		});
+		expect(store.getSessionAvailableModels("session-1")).toEqual([
+			{
+				id: "gpt-5",
+				name: "GPT-5",
+				description: undefined,
+			},
+		]);
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("pending");
 	});
 
 	it("redacts unsafe config option values before writing canonical capabilities", () => {
@@ -1696,7 +1695,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1")?.availableModels).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
@@ -2402,7 +2401,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			transcriptRevision: 7,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
+		expect(store.getSessionAvailableModels("session-1")).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -2805,7 +2804,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("failed");
 		expect(store.getSessionCanSend("session-1")).toBe(false);
 		expect(store.getSessionConnectionError("session-1")).toBe("Connection dropped");
-		expect(store.getSessionCapabilities("session-1")).toBeNull();
+		expect(store.getSessionCapabilityRevision("session-1")).toBeNull();
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionStateGraph("session-1")?.lifecycle.status).toBe("failed");
 		expect(store.getSessionStateGraph("session-1")?.lifecycle.errorMessage).toBe(
@@ -3024,26 +3023,26 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			availableModels: [
-				{
-					id: "claude-sonnet-4.6",
-					name: "Claude Sonnet 4.6",
-				},
-			],
-			availableModes: [
-				{
-					id: "build",
-					name: "Build",
-				},
-			],
-			availableCommands: [
-				{
-					name: "edit",
-					description: "Edit files",
-				},
-			],
-		});
+		expect(store.getSessionAvailableModels("session-1")).toEqual([
+			{
+				id: "claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+				description: undefined,
+			},
+		]);
+		expect(store.getSessionAvailableModes("session-1")).toEqual([
+			{
+				id: "build",
+				name: "Build",
+				description: undefined,
+			},
+		]);
+		expect(store.getSessionAvailableCommands("session-1")).toEqual([
+			{
+				name: "edit",
+				description: "Edit files",
+			},
+		]);
 		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("claude-sonnet-4.6");
 		expect(store.getSessionAvailableCommands("session-1")).toEqual([

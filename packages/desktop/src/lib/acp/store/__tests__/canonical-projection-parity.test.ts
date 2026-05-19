@@ -251,8 +251,23 @@ describe("canonical projection parity", () => {
 		}
 
 		expect(liveProjection).toEqual(coldProjection);
-		expect(liveStore.getSessionCapabilities("session-1")).toEqual(
-			coldStore.getSessionCapabilities("session-1")
+		expect(liveStore.getSessionAvailableModels("session-1")).toEqual(
+			coldStore.getSessionAvailableModels("session-1")
+		);
+		expect(liveStore.getSessionAvailableModes("session-1")).toEqual(
+			coldStore.getSessionAvailableModes("session-1")
+		);
+		expect(liveStore.getSessionAvailableCommands("session-1")).toEqual(
+			coldStore.getSessionAvailableCommands("session-1")
+		);
+		expect(liveStore.getSessionConfigOptions("session-1")).toEqual(
+			coldStore.getSessionConfigOptions("session-1")
+		);
+		expect(liveStore.getSessionCapabilityRevision("session-1")).toEqual(
+			coldStore.getSessionCapabilityRevision("session-1")
+		);
+		expect(liveStore.getSessionCapabilityPreviewState("session-1")).toBe(
+			coldStore.getSessionCapabilityPreviewState("session-1")
 		);
 		expect(liveStore.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(liveStore.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");

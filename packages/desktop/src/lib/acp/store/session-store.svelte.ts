@@ -1584,31 +1584,45 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical-derived flat capability view; null means no canonical projection yet.
+	 * Canonical capability revision; null means no materialized canonical capabilities.
 	 */
-	getSessionCapabilities(sessionId: string): SessionCapabilities | null {
+	getSessionCapabilityRevision(sessionId: string): SessionGraphRevision | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		const projectedCapabilities = this.getCanonicalProjectedCapabilities(sessionId);
-		if (projection === null || projectedCapabilities === null) {
+		if (
+			projection === null ||
+			this.getCanonicalProjectedCapabilities(sessionId) === null
+		) {
 			return null;
 		}
+		return projection.revision;
+	}
 
+	getSessionCapabilityPendingMutationId(sessionId: string): string | null {
+		if (this.getCanonicalProjectedCapabilities(sessionId) === null) {
+			return null;
+		}
 		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
 			pendingMutationId: null,
 			previewState: null,
 		};
-		return {
-			availableModels: projectedCapabilities.availableModels,
-			availableModes: projectedCapabilities.availableModes,
-			availableCommands: projectedCapabilities.availableCommands,
-			configOptions: projectedCapabilities.configOptions,
-			revision: projection.revision,
-			pendingMutationId: mutationState.pendingMutationId,
-			previewState:
-				mutationState.previewState ?? deriveCapabilityPreviewState(projection.capabilities),
-			modelsDisplay: projectedCapabilities.modelsDisplay,
-			providerMetadata: projectedCapabilities.providerMetadata,
+		return mutationState.pendingMutationId;
+	}
+
+	getSessionCapabilityPreviewState(
+		sessionId: string
+	): SessionCapabilities["previewState"] | null {
+		const projection = this.canonicalProjections.get(sessionId) ?? null;
+		if (
+			projection === null ||
+			this.getCanonicalProjectedCapabilities(sessionId) === null
+		) {
+			return null;
+		}
+		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
+			pendingMutationId: null,
+			previewState: null,
 		};
+		return mutationState.previewState ?? deriveCapabilityPreviewState(projection.capabilities);
 	}
 
 	/**

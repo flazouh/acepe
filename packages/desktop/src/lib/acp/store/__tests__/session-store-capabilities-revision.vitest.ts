@@ -189,11 +189,13 @@ describe("SessionStore capability revision handling", () => {
 
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			revision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
-			previewState: "canonical",
-			pendingMutationId: null,
+		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
 		});
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 
 	it("ignores stale lower-revision capabilities envelopes", () => {
@@ -212,10 +214,12 @@ describe("SessionStore capability revision handling", () => {
 
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			revision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
-			previewState: "canonical",
+		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
 		});
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
 	});
 
 	it("projects pending capability envelopes into canonical session projection", () => {
@@ -238,11 +242,13 @@ describe("SessionStore capability revision handling", () => {
 
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			revision: { graphRevision: 8, transcriptRevision: 8, lastEventSeq: 8 },
-			previewState: "pending",
-			pendingMutationId: "mutation-1",
+		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+			graphRevision: 8,
+			transcriptRevision: 8,
+			lastEventSeq: 8,
 		});
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("pending");
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
 	});
 
 	it("applies higher failed revisions as corrective envelopes", () => {
@@ -276,10 +282,12 @@ describe("SessionStore capability revision handling", () => {
 
 		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-4.1");
-		expect(store.getSessionCapabilities("session-1")).toMatchObject({
-			revision: { graphRevision: 9, transcriptRevision: 9, lastEventSeq: 9 },
-			previewState: "failed",
-			pendingMutationId: null,
+		expect(store.getSessionCapabilityRevision("session-1")).toEqual({
+			graphRevision: 9,
+			transcriptRevision: 9,
+			lastEventSeq: 9,
 		});
+		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("failed");
+		expect(store.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 	});
 });
