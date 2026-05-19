@@ -24,9 +24,7 @@ let {
 const themeState = useTheme();
 const agentStore = getAgentStore();
 
-const canonicalProviderMetadata = $derived(
-	agentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata ?? null
-);
+const canonicalProviderMetadata = $derived(agentStore.getProviderMetadata(agentId));
 const effectiveProviderBrand = $derived(
 	providerBrand ?? canonicalProviderMetadata?.providerBrand ?? "custom"
 );

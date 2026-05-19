@@ -168,6 +168,20 @@ describe("InitializationManager", () => {
 		mockAgentStore = {
 			agents: [],
 			loadAvailableAgents: mock(() => okAsync([])),
+			getAgent: mock((agentId: string | null | undefined) => {
+				if (!agentId) {
+					return null;
+				}
+				return mockAgentStore.agents.find((agent) => agent.id === agentId) ?? null;
+			}),
+			getProviderMetadata: mock((agentId: string | null | undefined) => {
+				if (!agentId) {
+					return null;
+				}
+				return (
+					mockAgentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata ?? null
+				);
+			}),
 		} as unknown as AgentStore;
 
 		mockPanelStore = {

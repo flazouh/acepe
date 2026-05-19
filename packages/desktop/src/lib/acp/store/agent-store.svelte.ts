@@ -159,6 +159,18 @@ export class AgentStore {
 		return resolveDefaultAgentId(this.agents);
 	}
 
+	getAgent(agentId: string | null | undefined): Agent | null {
+		if (!agentId) {
+			return null;
+		}
+
+		return this.agents.find((agent) => agent.id === agentId) ?? null;
+	}
+
+	getProviderMetadata(agentId: string | null | undefined): Agent["providerMetadata"] | null {
+		return this.getAgent(agentId)?.providerMetadata ?? null;
+	}
+
 	destroy() {
 		this.unlistenProgress?.();
 	}

@@ -618,8 +618,10 @@ export class InitializationManager {
 	}
 
 	private canCreateImplicitSessionForAgent(agentId: string): boolean {
-		const agent = this.agentStore.agents.find((candidate) => candidate.id === agentId);
-		return agent?.providerMetadata?.implicitSessionCreationMode !== "explicitUserAction";
+		return (
+			this.agentStore.getProviderMetadata(agentId)?.implicitSessionCreationMode !==
+			"explicitUserAction"
+		);
 	}
 
 	/**

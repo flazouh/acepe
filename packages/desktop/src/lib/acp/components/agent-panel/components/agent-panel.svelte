@@ -919,8 +919,7 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	}
 
 	const storeProviderBrand =
-		agentStore.agents.find((agent) => agent.id === effectivePanelAgentId)?.providerMetadata
-			?.providerBrand ?? null;
+		agentStore.getProviderMetadata(effectivePanelAgentId)?.providerBrand ?? null;
 	const listedProviderBrand =
 		availableAgents.find((agent) => agent.id === effectivePanelAgentId)?.provider_metadata
 			?.providerBrand ?? null;

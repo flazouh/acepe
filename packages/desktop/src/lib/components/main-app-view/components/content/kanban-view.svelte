@@ -123,9 +123,7 @@ const selectionStore = getQuestionSelectionStore();
 const themeState = useTheme();
 
 function getCanonicalAgentIcon(agentId: string | null | undefined): string {
-	const providerBrand =
-		agentStore.agents.find((agent) => agent.id === agentId)?.providerMetadata?.providerBrand ??
-		null;
+	const providerBrand = agentStore.getProviderMetadata(agentId)?.providerBrand ?? null;
 
 	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
 }
