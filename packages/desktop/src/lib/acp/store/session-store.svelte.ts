@@ -47,7 +47,6 @@ import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
-import type { SessionMachineSnapshot } from "../logic/session-machine";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
@@ -74,10 +73,7 @@ import {
 	type LiveSessionLifecyclePresentation,
 } from "./live-session-work.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
-import {
-	SessionConnectionService,
-	type SessionMachineActor,
-} from "./session-connection-service.svelte.js";
+import { SessionConnectionService } from "./session-connection-service.svelte.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 import {
 	SessionEventService,
@@ -1678,20 +1674,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 	// SESSION STATE MACHINE MANAGEMENT (delegated to connectionService)
 	// ============================================
-
-	/**
-	 * Get session machine for a session.
-	 */
-	getSessionMachine(sessionId: string): SessionMachineActor | null {
-		return this.connectionService.getMachine(sessionId);
-	}
-
-	/**
-	 * Get session machine state.
-	 */
-	getSessionState(sessionId: string): SessionMachineSnapshot | null {
-		return this.connectionService.getState(sessionId);
-	}
 
 	/**
 	 * Canonical composer policy for a session (config block, dispatch, selector disables).

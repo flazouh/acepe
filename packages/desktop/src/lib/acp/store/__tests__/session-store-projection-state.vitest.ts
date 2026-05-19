@@ -1708,12 +1708,23 @@ describe("SessionStore.applySessionStateGraph", () => {
 		store.applySessionStateGraph(
 			createSessionStateGraph({
 				turnState: "Running",
+				activeTurnFailure: null,
+				activity: {
+					kind: "running_operation",
+					activeOperationCount: 1,
+					activeSubagentCount: 0,
+					dominantOperationId: "op-1",
+					blockingInteractionId: null,
+				},
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
 
-		expect(store.getSessionState("session-1")).toMatchObject({
-			connection: "streaming",
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+			connectionPhase: "connected",
+			activityPhase: "running",
+			canCancel: true,
+			showStop: true,
 		});
 
 		store.applySessionStateGraph(
@@ -1726,8 +1737,11 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionState("session-1")).toMatchObject({
-			connection: "ready",
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+			connectionPhase: "connected",
+			activityPhase: "idle",
+			canCancel: false,
+			canSubmit: true,
 		});
 	});
 
@@ -1793,8 +1807,11 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionState("session-1")).toMatchObject({
-			connection: "ready",
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+			connectionPhase: "connected",
+			activityPhase: "idle",
+			canCancel: false,
+			canSubmit: true,
 		});
 		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
 			showStop: false,
@@ -2794,8 +2811,10 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionStateGraph("session-1")?.lifecycle.errorMessage).toBe(
 			"Connection dropped"
 		);
-		expect(store.getSessionState("session-1")).toMatchObject({
-			connection: "error",
+		expect(store.getSessionLifecyclePresentation("session-1")).toMatchObject({
+			connectionPhase: "failed",
+			canSubmit: false,
+			showStop: false,
 		});
 	});
 
@@ -4616,7 +4635,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(connectSession).not.toHaveBeenCalled();
 	});
 
-	it("marks restored local created sessions as content loaded without canonical sendability", () => {
+	it("keeps restored local created sessions without canonical sendability", () => {
 		const store = new SessionStore();
 		store.addSession({
 			id: "session-1",
@@ -4631,10 +4650,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 
 		store.setLocalCreatedSessionLoaded("session-1");
 
-		expect(store.getSessionState("session-1")).toMatchObject({
-			content: "loaded",
-			connection: "disconnected",
-		});
 		expect(store.getSessionCanSend("session-1")).toBe(null);
 	});
 
