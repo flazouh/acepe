@@ -17,8 +17,8 @@ export type CapabilitySourceKind =
 
 export interface CapabilitySourceResolution {
 	readonly source: CapabilitySourceKind;
-	readonly availableModes: readonly Mode[];
-	readonly availableModels: readonly Model[];
+	readonly availableModes: readonly Mode[] | null;
+	readonly availableModels: readonly Model[] | null;
 	readonly modelsDisplay: ModelsForDisplay | null;
 	readonly providerMetadata: ProviderMetadataProjection | null;
 	readonly status:
@@ -172,8 +172,8 @@ function resolveFallbackCapabilitySource(
 function buildResolution(
 	source: CapabilitySourceKind,
 	status: CapabilitySourceResolution["status"],
-	availableModes: readonly Mode[],
-	availableModels: readonly Model[],
+	availableModes: readonly Mode[] | null,
+	availableModels: readonly Model[] | null,
 	modelsDisplay: ModelsForDisplay | null,
 	providerMetadata: ProviderMetadataProjection | null
 ): CapabilitySourceResolution {

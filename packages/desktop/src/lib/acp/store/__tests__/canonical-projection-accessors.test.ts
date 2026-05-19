@@ -254,6 +254,29 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 	});
 
+	it("preserves missing canonical model and mode capability lists", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		const capabilities = createCapabilities();
+		store.applySessionStateGraph(
+			createGraph({
+				models: null,
+				modes: null,
+				availableCommands: capabilities.availableCommands,
+				configOptions: capabilities.configOptions,
+				autonomousEnabled: capabilities.autonomousEnabled,
+			})
+		);
+
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.getSessionCapabilities("session-1")).toMatchObject({
+			availableModels: null,
+			availableModes: null,
+		});
+	});
+
 	it("preserves canonical current ids even when display lists omit them", () => {
 		const store = new SessionStore();
 		addColdSession(store);

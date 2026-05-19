@@ -336,7 +336,7 @@ describe("resolveSettingsCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("preconnectionResolved");
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
+		expect(resolution.availableModels?.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
 		expect(resolution.modelsDisplay?.groups).toHaveLength(1);
 	});
 });

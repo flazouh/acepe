@@ -14,6 +14,14 @@ function liveSession(capabilities: SessionCapabilities) {
 	};
 }
 
+function modeIds(modes: readonly { id: string }[] | null): string[] | null {
+	return modes?.map((mode) => mode.id) ?? null;
+}
+
+function modelIds(models: readonly { id: string }[] | null): string[] | null {
+	return models?.map((model) => model.id) ?? null;
+}
+
 describe("resolveCapabilitySource", () => {
 	it("uses resolved preconnection capabilities before persisted caches for never-connected built-in agents", () => {
 		const resolution = resolveCapabilitySource({
@@ -37,8 +45,8 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("preconnectionResolved");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build", "plan"]);
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["claude-sonnet-4-6"]);
+		expect(modeIds(resolution.availableModes)).toEqual(["build", "plan"]);
+		expect(modelIds(resolution.availableModels)).toEqual(["claude-sonnet-4-6"]);
 	});
 
 	it("keeps live session capabilities ahead of preconnection data", () => {
@@ -66,8 +74,29 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("liveSession");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["plan"]);
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["live-model"]);
+		expect(modeIds(resolution.availableModes)).toEqual(["plan"]);
+		expect(modelIds(resolution.availableModels)).toEqual(["live-model"]);
+	});
+
+	it("preserves unknown live session capability lists", () => {
+		const resolution = resolveCapabilitySource({
+			sessionSource: liveSession({
+				availableModels: null,
+				availableModes: null,
+				availableCommands: [],
+				modelsDisplay: undefined,
+				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			}),
+			preconnectionCapabilities: null,
+			cachedModes: [{ id: "plan", name: "Plan" }],
+			cachedModels: [{ id: "cached-cursor-model", name: "Cached Cursor Model" }],
+			cachedModelsDisplay: null,
+			providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+		});
+
+		expect(resolution.source).toBe("liveSession");
+		expect(resolution.availableModes).toBeNull();
+		expect(resolution.availableModels).toBeNull();
 	});
 
 	it("does not fill missing live session models from cached capabilities", () => {
@@ -100,7 +129,7 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("liveSession");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build"]);
+		expect(modeIds(resolution.availableModes)).toEqual(["build"]);
 		expect(resolution.availableModels).toEqual([]);
 		expect(resolution.modelsDisplay).toBeNull();
 	});
@@ -117,7 +146,7 @@ describe("resolveCapabilitySource", () => {
 			preconnectionCapabilities: {
 				status: "partial",
 				availableModels: [],
-				currentModelId: "",
+				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
 				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
 				availableModes: [
@@ -144,7 +173,7 @@ describe("resolveCapabilitySource", () => {
 			preconnectionCapabilities: {
 				status: "partial",
 				availableModels: [],
-				currentModelId: "",
+				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
 				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
 				availableModes: [
@@ -163,8 +192,8 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("persistedCache");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build"]);
-		expect(resolution.availableModels.map((model) => model.id)).toEqual(["cached-model"]);
+		expect(modeIds(resolution.availableModes)).toEqual(["build"]);
+		expect(modelIds(resolution.availableModels)).toEqual(["cached-model"]);
 	});
 
 	it("ignores empty cached modelsDisplay placeholders when partial preconnection data exists", () => {
@@ -173,7 +202,7 @@ describe("resolveCapabilitySource", () => {
 			preconnectionCapabilities: {
 				status: "partial",
 				availableModels: [],
-				currentModelId: "",
+				currentModelId: null,
 				modelsDisplay: { groups: [], presentation: undefined },
 				providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
 				availableModes: [
@@ -189,7 +218,7 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(resolution.source).toBe("preconnectionPartial");
-		expect(resolution.availableModes.map((mode) => mode.id)).toEqual(["build", "plan"]);
+		expect(modeIds(resolution.availableModes)).toEqual(["build", "plan"]);
 	});
 
 	it("does not fall back to cached or preconnection data when a real session has no canonical capabilities", () => {

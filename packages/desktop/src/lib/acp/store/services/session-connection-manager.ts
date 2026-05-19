@@ -910,7 +910,7 @@ export class SessionConnectionManager {
 		if (capabilities === null) {
 			return errAsync(new ConnectionError(sessionId));
 		}
-		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
+		const newMode = capabilities.availableModes?.find((m) => m.id === modeId) ?? null;
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
 		const nextAutonomousEnabled =
 			oldAutonomousEnabled === null
@@ -949,7 +949,7 @@ export class SessionConnectionManager {
 				const previousModelForMode = preferencesStore.getSessionModelForMode(sessionId, modeId);
 				if (
 					previousModelForMode &&
-					capabilities.availableModels.some((m) => m.id === previousModelForMode)
+					capabilities.availableModels?.some((m) => m.id === previousModelForMode) === true
 				) {
 					// Restore user's previous choice for this mode
 					logger.debug("Restoring previous model choice for mode", {
@@ -963,7 +963,10 @@ export class SessionConnectionManager {
 				// No previous choice, check for default model for this mode
 				const modeType = this.getModeType(modeId);
 				const defaultModelId = preferencesStore.getDefaultModel(session.agentId, modeType);
-				if (defaultModelId && capabilities.availableModels.some((m) => m.id === defaultModelId)) {
+				if (
+					defaultModelId &&
+					capabilities.availableModels?.some((m) => m.id === defaultModelId) === true
+				) {
 					logger.debug("Applying default model for mode", {
 						sessionId,
 						modeId,

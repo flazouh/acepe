@@ -1639,7 +1639,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("treats omitted models and modes in a capability envelope as canonical empty state", () => {
+	it("preserves omitted models and modes in a capability envelope as unknown state", () => {
 		const store = new SessionStore();
 		addColdSession(store, "session-1", "cursor");
 
@@ -1696,7 +1696,9 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([]);
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 	});
 

@@ -641,8 +641,12 @@ function normalizeCanonicalAgentId(agentId: SessionOpenFound["agentId"]): string
 	return typeof agentId === "string" ? agentId : agentId.custom;
 }
 
-function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> {
-	const availableModels = capabilities.models?.availableModels ?? [];
+function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<Model> | null {
+	if (!capabilities.models) {
+		return null;
+	}
+
+	const availableModels = capabilities.models.availableModels ?? [];
 	return availableModels.map((model) => ({
 		id: model.modelId,
 		name: model.name,
@@ -650,8 +654,12 @@ function mapGraphAvailableModels(capabilities: SessionGraphCapabilities): Array<
 	}));
 }
 
-function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<Mode> {
-	const availableModes = capabilities.modes?.availableModes ?? [];
+function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<Mode> | null {
+	if (!capabilities.modes) {
+		return null;
+	}
+
+	const availableModes = capabilities.modes.availableModes ?? [];
 	return availableModes.map((mode) => ({
 		id: mode.id,
 		name: mode.name,
@@ -894,8 +902,8 @@ function projectGraphCapabilities(
 	agentId: string,
 	capabilities: SessionGraphCapabilities
 ): {
-	availableModels: Array<Model>;
-	availableModes: Array<Mode>;
+	availableModels: Array<Model> | null;
+	availableModes: Array<Mode> | null;
 	availableCommands: AvailableCommand[] | null;
 	currentModelId: string | null;
 	currentModeId: string | null;
@@ -933,12 +941,12 @@ function projectGraphCapabilities(
 	const currentMode =
 		normalizedCurrentModeId === null
 			? null
-			: (availableModes.find((mode) => mode.id === normalizedCurrentModeId) ?? null);
+			: (availableModes?.find((mode) => mode.id === normalizedCurrentModeId) ?? null);
 	const currentModelId = capabilities.models?.currentModelId ?? null;
 	const currentModel =
 		currentModelId === null
 			? null
-			: (availableModels.find((model) => model.id === currentModelId) ?? null);
+			: (availableModels?.find((model) => model.id === currentModelId) ?? null);
 
 	return {
 		availableModels,
