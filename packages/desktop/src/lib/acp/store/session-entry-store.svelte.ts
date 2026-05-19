@@ -223,7 +223,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			id: entry.id,
 			type: entry.type,
 			message: {
-				id: entry.message.id,
+				id: toolCallIdFromEntry(entry),
 				name: entry.message.name,
 				arguments: entry.message.arguments,
 				progressiveArguments: entry.message.progressiveArguments,

@@ -1,4 +1,7 @@
-import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
+import {
+	toolCallIdFromEntry,
+	type SessionEntry,
+} from "$lib/acp/application/dto/session-entry.js";
 import type {
 	TranscriptEntry,
 	TranscriptSegment,
@@ -174,7 +177,7 @@ export function appendTranscriptSegmentToSessionEntry(
 			id: entry.id,
 			type: "tool_call",
 			message: {
-				id: entry.message.id,
+				id: toolCallIdFromEntry(entry),
 				name: nextTitle.length > 0 ? nextTitle : entry.message.name,
 				arguments: entry.message.arguments,
 				progressiveArguments: entry.message.progressiveArguments,
