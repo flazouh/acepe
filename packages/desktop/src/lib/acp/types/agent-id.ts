@@ -20,7 +20,14 @@ export const AGENT_IDS = {
 	CURSOR: "cursor",
 	OPENCODE: "opencode",
 	CODEX: "codex",
+	FORGE: "forge",
 } as const satisfies Record<string, Extract<CanonicalAgentId, string>>;
+
+const BUILT_IN_AGENT_ID_VALUES = new Set<string>(Object.values(AGENT_IDS));
+
+export function isBuiltInCanonicalAgentId(id: string): id is Extract<CanonicalAgentId, string> {
+	return BUILT_IN_AGENT_ID_VALUES.has(id);
+}
 
 /**
  * Create an AgentId from a string.

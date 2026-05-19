@@ -55,6 +55,7 @@ import {
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
+import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
@@ -675,14 +676,7 @@ function emptySessionGraphCapabilities(): SessionGraphCapabilities {
 }
 
 function canonicalAgentIdFromSessionAgentId(agentId: string | null | undefined): CanonicalAgentId {
-	if (
-		agentId === "claude-code" ||
-		agentId === "copilot" ||
-		agentId === "cursor" ||
-		agentId === "opencode" ||
-		agentId === "codex" ||
-		agentId === "forge"
-	) {
+	if (agentId && isBuiltInCanonicalAgentId(agentId)) {
 		return agentId;
 	}
 
