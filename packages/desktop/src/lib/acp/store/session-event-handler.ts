@@ -7,7 +7,7 @@
 
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
 import type { TurnErrorUpdate } from "../types/turn-error.js";
-import type { SessionCold } from "./types.js";
+import type { SessionCold, SessionIdentity } from "./types.js";
 
 /**
  * Interface for handling session events.
@@ -20,6 +20,11 @@ export interface SessionEventHandler {
 	 * Get session cold data by ID from the store.
 	 */
 	getSessionCold(sessionId: string): SessionCold | undefined;
+
+	/**
+	 * Get canonical session identity by ID from the store.
+	 */
+	getSessionIdentity(sessionId: string): SessionIdentity | undefined;
 
 	/**
 	 * Check if a session's entries have been preloaded from disk.

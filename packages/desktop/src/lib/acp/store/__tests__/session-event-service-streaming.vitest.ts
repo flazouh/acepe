@@ -37,6 +37,11 @@ import type { SessionCold } from "../types.js";
 function createMockHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn().mockReturnValue({ id: "session-123" } as unknown as SessionCold),
+		getSessionIdentity: vi.fn().mockReturnValue({
+			id: "session-123",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		}),
 		isPreloaded: vi.fn().mockReturnValue(true),
 		getSessionCanSend: vi.fn().mockReturnValue(null),
 		updateUsageTelemetry: vi.fn(),
@@ -332,6 +337,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("buffers canonical session-state envelopes until the session is registered", async () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-pending-1",
 			graphRevision: 7,
@@ -354,6 +360,11 @@ describe("SessionEventService streaming delta handling", () => {
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-pending-1",
 		} as unknown as SessionCold);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-1",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		});
 		service.flushPendingEvents("session-pending-1", pendingHandler);
 		await new Promise((resolve) => {
 			setTimeout(resolve, 0);
@@ -369,6 +380,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("materializes pending creation sessions before applying canonical delta envelopes", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-pending-creation-1",
@@ -406,6 +418,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("materializes pending creation sessions before ignoring raw turn completion", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
 		const update: SessionUpdate = {
 			type: "turnComplete",
@@ -687,6 +700,7 @@ describe("SessionEventService streaming delta handling", () => {
 	it("should not aggregate text chunk when session does not exist yet", () => {
 		const missingSessionHandler = createMockHandler();
 		(missingSessionHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(missingSessionHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
@@ -815,6 +829,11 @@ describe("SessionEventService streaming delta handling", () => {
 			getSessionCold: vi
 				.fn()
 				.mockReturnValue({ id: sessionId, agentId: "claude-code" } as SessionCold),
+			getSessionIdentity: vi.fn().mockReturnValue({
+				id: sessionId,
+				projectPath: "/tmp/project",
+				agentId: "claude-code",
+			}),
 			isPreloaded: vi.fn().mockReturnValue(true),
 			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),
@@ -1726,6 +1745,11 @@ describe("SessionEventService streaming delta handling", () => {
 
 		const integrationHandler: SessionEventHandler = {
 			getSessionCold: vi.fn().mockReturnValue({ id: sessionId, agentId: "cursor" } as SessionCold),
+			getSessionIdentity: vi.fn().mockReturnValue({
+				id: sessionId,
+				projectPath: "/tmp/project",
+				agentId: "cursor",
+			}),
 			isPreloaded: vi.fn().mockReturnValue(true),
 			getSessionCanSend: vi.fn().mockReturnValue(null),
 			updateUsageTelemetry: vi.fn(),

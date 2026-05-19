@@ -142,6 +142,7 @@ vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 function createMockEventHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn(),
+		getSessionIdentity: vi.fn(),
 		isPreloaded: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		updateUsageTelemetry: vi.fn(),

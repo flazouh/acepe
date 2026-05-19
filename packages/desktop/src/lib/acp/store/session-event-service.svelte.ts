@@ -690,7 +690,7 @@ export class SessionEventService {
 	 * Check whether a session exists in the store.
 	 */
 	private hasKnownSession(handler: SessionEventHandler, sessionId: string): boolean {
-		return handler.getSessionCold(sessionId) !== undefined;
+		return handler.getSessionIdentity(sessionId) !== undefined;
 	}
 
 	private ensureKnownOrPendingCreationSession(
