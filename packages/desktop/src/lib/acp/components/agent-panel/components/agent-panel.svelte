@@ -555,16 +555,12 @@ const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
 const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
-const canonicalSessionTurnState = $derived(
-	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
-);
-const effectiveCanonicalSessionTurnState = $derived(
-	(sessionStateGraph?.turnState ?? canonicalSessionTurnState) as SessionTurnState | null
-);
-const effectiveCanonicalActivity = $derived(sessionStateGraph?.activity ?? canonicalProjection?.activity ?? null);
+const canonicalSessionTurnState = $derived<SessionTurnState | null>(sessionStateGraph?.turnState ?? null);
+const canonicalSessionActivity = $derived(sessionStateGraph?.activity ?? null);
+const canonicalSessionLifecycle = $derived(sessionStateGraph?.lifecycle ?? null);
 const sessionTurnState = $derived(
-	effectiveCanonicalSessionTurnState !== null
-		? mapCanonicalTurnStateToHotTurnState(effectiveCanonicalSessionTurnState)
+	canonicalSessionTurnState !== null
+		? mapCanonicalTurnStateToHotTurnState(canonicalSessionTurnState)
 		: "idle"
 );
 const entriesCount = $derived(visibleEntryCount);
@@ -606,9 +602,9 @@ const agentName = $derived.by(() => {
 });
 const canonicalPanelSessionState = $derived.by(() =>
 	deriveCanonicalAgentPanelSessionState({
-			lifecycle: canonicalProjection?.lifecycle ?? null,
-			activity: effectiveCanonicalActivity,
-			turnState: effectiveCanonicalSessionTurnState,
+			lifecycle: canonicalSessionLifecycle,
+			activity: canonicalSessionActivity,
+			turnState: canonicalSessionTurnState,
 			hasEntries: visibleEntryCount > 0,
 			hasOptimisticPendingEntry: preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: sessionPendingSendIntent !== null,
@@ -617,7 +613,7 @@ const canonicalPanelSessionState = $derived.by(() =>
 const panelSessionStatus = $derived(canonicalPanelSessionState.sessionStatus);
 const sessionIsConnected = $derived(canonicalPanelSessionState.isConnected);
 const sessionIsStreaming = $derived(canonicalPanelSessionState.isStreaming);
-const isAwaitingModelResponse = $derived(effectiveCanonicalActivity?.kind === "awaiting_model");
+const isAwaitingModelResponse = $derived(canonicalSessionActivity?.kind === "awaiting_model");
 const showPlanningIndicator = $derived(canonicalPanelSessionState.showPlanningIndicator);
 const sessionCanSubmit = $derived(canonicalPanelSessionState.canSubmit);
 const sessionShowStop = $derived(canonicalPanelSessionState.showStop);

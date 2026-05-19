@@ -1291,7 +1291,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				message: "Usage limit reached",
 			},
 		});
-		expect(store.getSessionTurnState("session-1")).toBe("Failed");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Failed");
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionActiveTurnFailure("session-1")).toMatchObject({
 			turnId: "turn-1",
@@ -1316,7 +1316,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		expect(store.getSessionTurnState("session-1")).toBe("Completed");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Completed");
 		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBe("turn-1");
 	});
@@ -1384,7 +1384,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionAcpSessionId("session-1")).toBe("session-1");
 		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
 		expect(store.getSessionCanSend("session-1")).toBe(true);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
 		expect(store.getSessionConfigOptions("session-1")).toEqual([
@@ -2381,7 +2381,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		]);
 		expect(store.getCanonicalSessionProjection("session-1")?.activity).toEqual(patchActivity);
-		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 	});
 
 	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {

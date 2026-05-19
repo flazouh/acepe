@@ -254,7 +254,7 @@ describe("canonical projection parity", () => {
 			coldStore.getSessionCapabilities("session-1")
 		);
 		expect(liveStore.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(liveStore.getSessionTurnState("session-1")).toBe("Running");
+		expect(liveStore.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
 		expect(liveStore.getSessionLastTerminalTurnId("session-1")).toBe("turn-previous");
 		expect(liveStore.getSessionCurrentModeId("session-1")).toBe("build");
 		expect(liveStore.getSessionCurrentModelId("session-1")).toBe("gpt-5");

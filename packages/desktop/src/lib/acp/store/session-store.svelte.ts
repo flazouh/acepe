@@ -1369,13 +1369,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical turn state; null means no canonical projection exists yet.
-	 */
-	getSessionTurnState(sessionId: string): SessionTurnState | null {
-		return this.canonicalProjections.get(sessionId)?.turnState ?? null;
-	}
-
-	/**
 	 * Canonical connection error copy; null means no canonical failure/detach message exists yet.
 	 */
 	getSessionConnectionError(sessionId: string): string | null {
