@@ -1,13 +1,11 @@
-function isScrollable(element: HTMLElement): boolean {
+function canBecomeScrollable(element: HTMLElement): boolean {
 	const style = window.getComputedStyle(element);
 	const overflowX = style.overflowX;
 	const overflowY = style.overflowY;
 	const canScrollX = overflowX === "auto" || overflowX === "scroll" || overflowX === "overlay";
 	const canScrollY = overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay";
-	const hasScrollableXContent = element.scrollWidth > element.clientWidth;
-	const hasScrollableYContent = element.scrollHeight > element.clientHeight;
 
-	return (canScrollX && hasScrollableXContent) || (canScrollY && hasScrollableYContent);
+	return canScrollX || canScrollY;
 }
 
 export function getScrollEventTargets(node: HTMLElement): EventTarget[] {
@@ -15,7 +13,7 @@ export function getScrollEventTargets(node: HTMLElement): EventTarget[] {
 	let currentParent: HTMLElement | null = node.parentElement;
 
 	while (currentParent) {
-		if (isScrollable(currentParent)) {
+		if (canBecomeScrollable(currentParent)) {
 			targets.push(currentParent);
 		}
 		currentParent = currentParent.parentElement;

@@ -11,6 +11,8 @@ interface AgentPanelEffectiveWidthInput {
 	planSidebarColumnWidth: number;
 	showBrowserSidebar: boolean;
 	browserSidebarColumnWidth: number;
+	showTerminalSidebar: boolean;
+	terminalSidebarColumnWidth: number;
 }
 
 interface AttachedPaneLayoutInput {
@@ -33,6 +35,10 @@ export function resolveAgentPanelEffectiveWidth(input: AgentPanelEffectiveWidthI
 
 	if (input.showBrowserSidebar) {
 		width += input.browserSidebarColumnWidth;
+	}
+
+	if (input.showTerminalSidebar) {
+		width += input.terminalSidebarColumnWidth;
 	}
 
 	return width;

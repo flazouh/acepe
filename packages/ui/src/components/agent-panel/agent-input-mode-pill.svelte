@@ -43,8 +43,6 @@
 		if (modeId === buildModeId) return "var(--build-icon)";
 		return "currentColor";
 	}
-
-	const selectedIndex = $derived(modes.findIndex((m) => m.id === currentModeId));
 </script>
 
 <div
@@ -54,11 +52,14 @@
 >
 	{#each modes as mode (mode.id)}
 		{@const isSelected = mode.id === currentModeId}
+		{@const label = modeLabel(mode)}
 		<button
 			type="button"
 			{disabled}
 			aria-pressed={isSelected}
-			class="inline-flex h-7 flex-1 items-center justify-center gap-1 px-2 text-[11px] font-medium leading-none transition-colors
+			aria-label={label}
+			title={label}
+			class="inline-flex h-7 w-7 shrink-0 items-center justify-center transition-colors
 				{isSelected ? 'bg-background dark:bg-input/30 text-foreground' : 'text-muted-foreground hover:text-foreground'}
 				{disabled ? 'cursor-default opacity-50' : 'cursor-pointer'}"
 			onclick={() => { if (!disabled) onModeChange(mode.id); }}
@@ -68,7 +69,6 @@
 			{:else}
 				<BuildIcon size="sm" class="shrink-0" style="color: {isSelected ? iconColor(mode.id) : 'currentColor'}" />
 			{/if}
-			{modeLabel(mode)}
 		</button>
 	{/each}
 </div>

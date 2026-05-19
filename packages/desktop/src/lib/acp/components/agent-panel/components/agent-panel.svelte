@@ -100,6 +100,7 @@ import {
 } from "../../../types/reply-handler.js";
 import { AgentPanelFooter as SharedFooter } from "@acepe/ui/agent-panel";
 import WorktreeFooterButton from "../../shared/worktree-footer-button.svelte";
+import WorktreeTogglePill from "../../shared/worktree-toggle-pill.svelte";
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
@@ -112,6 +113,7 @@ import { BrowserPanel as BrowserPanelComponent } from "../../browser-panel/index
 import {
 	AgentPanelTrailingPaneLayout,
 	AgentPanelWorktreeCloseConfirmPopover,
+	AgentPanelWorktreeSwitchDialog,
 } from "@acepe/ui/agent-panel";
 import ScrollToBottomButton from "./scroll-to-bottom-button.svelte";
 import {
@@ -151,6 +153,7 @@ import {
 	openSessionRawFileInEditor,
 	openStreamingLog,
 	persistSessionWorktreePathAfterRename,
+	prepareMidSessionWorktreeSwitch,
 	removeWorktreeFromDisk,
 	runCreatePrWorkflow,
 	runMergePrWorkflow,
@@ -1081,6 +1084,7 @@ const hasPlan = $derived(planState.plan !== null);
 const ATTACHED_COLUMN_WIDTH = 450;
 const PLAN_SIDEBAR_COLUMN_WIDTH = 450;
 const BROWSER_SIDEBAR_COLUMN_WIDTH = 500;
+const TERMINAL_SIDEBAR_COLUMN_WIDTH = 500;
 const ATTACHED_COLUMN_GAP_WIDTH = 2;
 
 // Dynamic minimum width reported by the toolbar's intrinsic content measurement.
@@ -1096,6 +1100,9 @@ let streamingShipData = $state<import("../../ship-card/ship-card-parser.js").Shi
 );
 let prCardRenderKey = $state(0);
 let preSessionWorktreeFailure = $state<string | null>(null);
+let worktreeSwitchDialogOpen = $state(false);
+let worktreeSwitchBusy = $state(false);
+let worktreeSwitchError = $state<string | null>(null);
 let agentInputRef = $state<{
 	retrySend: () => void;
 	restoreQueuedMessage: (draft: string, attachments: readonly Attachment[]) => void;
@@ -1266,6 +1273,8 @@ const effectiveWidth = $derived.by(() =>
 		planSidebarColumnWidth: PLAN_SIDEBAR_COLUMN_WIDTH,
 		showBrowserSidebar,
 		browserSidebarColumnWidth: BROWSER_SIDEBAR_COLUMN_WIDTH,
+		showTerminalSidebar: Boolean(isTerminalDrawerOpen && effectivePathForGit),
+		terminalSidebarColumnWidth: TERMINAL_SIDEBAR_COLUMN_WIDTH,
 	})
 );
 
@@ -2114,9 +2123,54 @@ function handlePreSessionWorktreeYes(): void {
 	if (store.globalDefault) {
 		void store.set(false);
 	}
+	// Mid-session switch: the session is live and not yet attached to a worktree.
+	// Surface a confirmation dialog instead of silently flipping pending state,
+	// so the user can choose whether existing changes stay in the source checkout.
+	if (
+		sessionId !== null &&
+		hasMessages &&
+		effectiveActiveWorktreePath === null &&
+		!panelPreparedWorktreeLaunch
+	) {
+		worktreeSwitchError = null;
+		worktreeSwitchDialogOpen = true;
+		return;
+	}
 	if (panelId) {
 		panelStore.setPendingWorktreeEnabled(panelId, true);
 	}
+}
+
+function handleWorktreeSwitchContinue(): void {
+	const projectPath = sessionProjectPath ?? worktreeToggleProjectPath ?? "";
+	const agentId = effectivePanelAgentId;
+	if (!projectPath || !agentId) {
+		worktreeSwitchError = "Cannot create worktree: project or agent missing.";
+		return;
+	}
+	worktreeSwitchBusy = true;
+	worktreeSwitchError = null;
+	void prepareMidSessionWorktreeSwitch({ projectPath, agentId }).match(
+		(result) => {
+			worktreeSwitchBusy = false;
+			worktreeSwitchDialogOpen = false;
+			handlePreparedWorktreeLaunch(result.preparedLaunch);
+			handleWorktreeCreated(result.preparedLaunch.worktree);
+			if (panelId) {
+				panelStore.setPendingWorktreeEnabled(panelId, true);
+			}
+		},
+		(error) => {
+			worktreeSwitchBusy = false;
+			worktreeSwitchError = error.message || "Failed to create worktree.";
+		}
+	);
+}
+
+function handleWorktreeSwitchCancel(): void {
+	if (worktreeSwitchBusy) return;
+	worktreeSwitchDialogOpen = false;
+	worktreeSwitchError = null;
 }
 
 function handlePreSessionWorktreeNo(): void {
@@ -2517,16 +2571,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			onCopyInlineErrorReference={handleCopyInlineErrorReference}
 			inlineErrorIssueDraft={inlineErrorIssueDraft}
 			onIssueFromInlineError={handleIssueFromInlineError}
-			{showPreSessionWorktreeCard}
-			{worktreePending}
-			worktreeToggleProjectPath={worktreeToggleProjectPath}
-			effectiveProjectName={effectiveProjectName ?? null}
-			{preSessionWorktreeFailure}
-			onPreSessionWorktreeYes={handlePreSessionWorktreeYes}
-			onPreSessionWorktreeNo={handlePreSessionWorktreeNo}
-			onPreSessionWorktreeAlways={handlePreSessionWorktreeAlways}
-			onPreSessionWorktreeDismiss={handlePreSessionWorktreeDismiss}
-			onRetryWorktree={handleRetryWorktree}
 			{worktreeSetupState}
 			{agentInstallState}
 			{sessionId}
@@ -2687,28 +2731,25 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 									label={footerWorktreeStatus.primaryLabel}
 									mode={footerWorktreeStatus.mode}
 								/>
+							{:else if showPreSessionWorktreeCard && worktreeToggleProjectPath}
+								<WorktreeTogglePill
+									enabled={worktreePending}
+									projectPath={worktreeToggleProjectPath}
+									failureMessage={preSessionWorktreeFailure}
+									onToggle={() => {
+										if (worktreePending) {
+											handlePreSessionWorktreeNo();
+										} else {
+											handlePreSessionWorktreeYes();
+										}
+									}}
+									onRetry={handleRetryWorktree}
+									onDismiss={handlePreSessionWorktreeDismiss}
+								/>
 							{/if}
 						</div>
 					{/snippet}
 				</SharedFooter>
-			{/if}
-		</div>
-	{/snippet}
-
-	{#snippet bottomDrawer()}
-		<div style:display={reviewMode ? "none" : undefined}>
-			{#if
-				(viewState.kind === "conversation" || viewState.kind === "ready" || viewState.kind === "error") &&
-				isTerminalDrawerOpen &&
-				panelId &&
-				effectivePathForGit
-			}
-				<AgentPanelTerminalDrawer
-					{panelId}
-					effectiveCwd={effectivePathForGit}
-					embeddedTerminals={panelStore.embeddedTerminals}
-					onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
-				/>
 			{/if}
 		</div>
 	{/snippet}
@@ -2718,6 +2759,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			<AgentPanelTrailingPaneLayout
 				showPlan={Boolean(hasPlan && planState.plan && showPlanSidebar)}
 				showBrowser={Boolean(showBrowserSidebar)}
+				showTerminal={Boolean(isTerminalDrawerOpen && effectivePathForGit)}
 			>
 				{#snippet plan()}
 					<PlanSidebar
@@ -2743,6 +2785,22 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 							onResize={() => {}}
 						/>
 					</div>
+				{/snippet}
+				{#snippet terminal()}
+					{#if effectivePathForGit}
+						<div
+							class="flex flex-col h-full border-l border-border/50 shrink-0"
+							style="min-width: {TERMINAL_SIDEBAR_COLUMN_WIDTH}px; width: {TERMINAL_SIDEBAR_COLUMN_WIDTH}px; max-width: {TERMINAL_SIDEBAR_COLUMN_WIDTH}px;"
+						>
+							<AgentPanelTerminalDrawer
+								{panelId}
+								effectiveCwd={effectivePathForGit}
+								embeddedTerminals={panelStore.embeddedTerminals}
+								variant="side"
+								onClose={() => panelStore.setEmbeddedTerminalDrawerOpen(panelId, false)}
+							/>
+						</div>
+					{/if}
 				{/snippet}
 			</AgentPanelTrailingPaneLayout>
 		{/if}
@@ -2850,4 +2908,21 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	confirmDisabled={worktreeDirtyCheckPending}
 	onCancel={handleWorktreeCloseCancel}
 	onConfirmRemoveAndClose={handleWorktreeRemoveAndClose}
+/>
+
+<AgentPanelWorktreeSwitchDialog
+	bind:open={worktreeSwitchDialogOpen}
+	title="Start using a worktree?"
+	description="Future agent changes can go into a fresh worktree. Existing changes from this session stay in the current checkout."
+	continueLabel="Continue in new worktree"
+	continueHelperText="Existing changes stay in the current checkout. Future turns use the new worktree."
+	moveLabel="Move session changes"
+	moveHelperText="Coming soon — requires proving each file is fully session-owned."
+	cancelLabel="Cancel"
+	moveAvailable={false}
+	moveUnavailableReason="Moving session changes is not available yet. Continue creates a new worktree and leaves existing changes untouched."
+	busy={worktreeSwitchBusy}
+	errorMessage={worktreeSwitchError ?? undefined}
+	onContinue={handleWorktreeSwitchContinue}
+	onCancel={handleWorktreeSwitchCancel}
 />

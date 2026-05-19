@@ -90,7 +90,7 @@ export {
 	AgentPanelFooterChrome,
 	AgentPanelHeader,
 	AgentPanelInstallCard,
-	AgentPanelPreSessionWorktreeCard,
+	AgentPanelWorktreeTogglePill,
 	AgentPanelLayout,
 	AgentPanelModifiedFileRow,
 	AgentPanelModifiedFilesTrailingControls,

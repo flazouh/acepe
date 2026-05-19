@@ -40,10 +40,6 @@ interface Props {
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when collapsed project paths change */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
-	/** Called when terminal button is clicked for a project */
-	onOpenTerminal?: (projectPath: string) => void;
-	/** Called when browser button is clicked for a project */
-	onOpenBrowser?: (projectPath: string) => void;
 	/** Called when git panel button is clicked for a project */
 	onOpenGitPanel?: (projectPath: string) => void;
 	/** Called when PR badge is clicked on a session row */
@@ -83,8 +79,6 @@ let {
 	onRemoveProject,
 	onSelectFile,
 	onCollapsedProjectPathsChange,
-	onOpenTerminal,
-	onOpenBrowser,
 	onOpenGitPanel,
 	onOpenPr,
 	onArchiveSession,
@@ -193,8 +187,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onProjectClick}
 	{onSelectFile}
 	{onCollapsedProjectPathsChange}
-	{onOpenTerminal}
-	{onOpenBrowser}
 	{onOpenGitPanel}
 	{onOpenPr}
 	{onArchiveSession}

@@ -18,7 +18,7 @@ describe("shouldShowPreSessionWorktreeCard", () => {
 		expect(shouldShowPreSessionWorktreeCard(baseInput())).toBe(true);
 	});
 
-	it("hides after the user has sent a message", () => {
+	it("stays visible after the user has sent a message", () => {
 		const input = baseInput();
 
 		expect(
@@ -30,6 +30,21 @@ describe("shouldShowPreSessionWorktreeCard", () => {
 				worktreeSetupVisible: input.worktreeSetupVisible,
 				hasMessages: true,
 			})
-		).toBe(false);
+		).toBe(true);
+	});
+
+	it("stays visible after a session attaches", () => {
+		const input = baseInput();
+
+		expect(
+			shouldShowPreSessionWorktreeCard({
+				sessionId: "session-1",
+				pendingProjectSelection: input.pendingProjectSelection,
+				worktreeToggleProjectPath: input.worktreeToggleProjectPath,
+				hasPendingWorktreeSetup: input.hasPendingWorktreeSetup,
+				worktreeSetupVisible: input.worktreeSetupVisible,
+				hasMessages: true,
+			})
+		).toBe(true);
 	});
 });

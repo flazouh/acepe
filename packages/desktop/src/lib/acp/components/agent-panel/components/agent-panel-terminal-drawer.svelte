@@ -22,9 +22,10 @@ interface Props {
 	effectiveCwd: string;
 	embeddedTerminals: EmbeddedTerminalStore;
 	onClose: () => void;
+	variant?: "bottom" | "side";
 }
 
-let { panelId, effectiveCwd, embeddedTerminals, onClose }: Props = $props();
+let { panelId, effectiveCwd, embeddedTerminals, onClose, variant = "bottom" }: Props = $props();
 
 // ---- State ----
 
@@ -128,19 +129,21 @@ function handleResizePointerUp(): void {
 }
 </script>
 
-<SharedAgentPanelTerminalDrawer height={clampedHeight}>
-	{#snippet resizeHandle()}
-		<div
-			class="h-px hover:h-[3px] cursor-row-resize shrink-0 bg-border hover:bg-primary/50 transition-all
-				{isResizing ? 'h-[3px] bg-primary/50' : ''}"
-			role="separator"
-			aria-orientation="horizontal"
-			onpointerdown={handleResizePointerDown}
-			onpointermove={handleResizePointerMove}
-			onpointerup={handleResizePointerUp}
-			onpointercancel={handleResizePointerUp}
-		></div>
-	{/snippet}
+<SharedAgentPanelTerminalDrawer height={variant === "bottom" ? clampedHeight : null}>
+	{#if variant === "bottom"}
+		{#snippet resizeHandle()}
+			<div
+				class="h-px hover:h-[3px] cursor-row-resize shrink-0 bg-border hover:bg-primary/50 transition-all
+					{isResizing ? 'h-[3px] bg-primary/50' : ''}"
+				role="separator"
+				aria-orientation="horizontal"
+				onpointerdown={handleResizePointerDown}
+				onpointermove={handleResizePointerMove}
+				onpointerup={handleResizePointerUp}
+				onpointercancel={handleResizePointerUp}
+			></div>
+		{/snippet}
+	{/if}
 
 	{#snippet tabs()}
 		{#each terminalTabs as tab, i (tab.id)}
