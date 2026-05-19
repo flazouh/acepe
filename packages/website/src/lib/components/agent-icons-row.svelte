@@ -1,39 +1,35 @@
 <script lang="ts">
+import type { ProviderBrand } from "@acepe/ui";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 import { cn } from "$lib/utils.js";
 
 const AGENTS: {
-	id: string;
+	providerBrand: ProviderBrand;
 	alt: string;
-	iconPath: (theme: "light" | "dark") => string;
 	sizeMultiplier?: number;
 }[] = [
 	{
-		id: "claude-code",
+		providerBrand: "claude-code",
 		alt: "Claude",
-		iconPath: (theme) => `/svgs/agents/claude/claude-icon-${theme}.svg`,
 	},
 	{
-		id: "codex",
+		providerBrand: "codex",
 		alt: "Codex",
-		iconPath: (theme) => `/svgs/agents/codex/codex-icon-${theme}.svg`,
 	},
 	{
-		id: "cursor",
+		providerBrand: "cursor",
 		alt: "Cursor",
-		iconPath: (theme) => `/svgs/agents/cursor/cursor-icon-${theme}.svg`,
 		sizeMultiplier: 0.88,
 	},
 	{
-		id: "copilot",
+		providerBrand: "copilot",
 		alt: "Copilot",
-		iconPath: (theme) => `/svgs/agents/copilot/copilot-icon-${theme}.svg`,
 		sizeMultiplier: 0.88,
 	},
 	{
-		id: "opencode",
+		providerBrand: "opencode",
 		alt: "OpenCode",
-		iconPath: (theme) => `/svgs/agents/opencode/opencode-logo-${theme}.svg`,
 		sizeMultiplier: 0.88,
 	},
 ];
@@ -49,10 +45,10 @@ const theme = $derived($websiteThemeStore);
 </script>
 
 <div class={cn('flex items-center justify-center gap-2', className)}>
-	{#each AGENTS as agent (agent.id)}
+	{#each AGENTS as agent (agent.providerBrand)}
 		<div class="flex shrink-0 items-center justify-center" style="width: {size}px; height: {size}px;">
 			<img
-				src={agent.iconPath(theme)}
+				src={getProviderBrandIconSrc(agent.providerBrand, theme)}
 				alt={agent.alt}
 				width={Math.round(size * (agent.sizeMultiplier ?? 1))}
 				height={Math.round(size * (agent.sizeMultiplier ?? 1))}

@@ -33,9 +33,9 @@ import type { ProviderBrand } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
+import { getProviderBrandIconSrc, type Theme } from "$lib/provider-brand-icons.js";
 
 type DemoModeId = "plan" | "build";
-type DemoAgentKey = "claude" | "codex" | "cursor";
 type DemoConversationEntry = AgentPanelSceneModel["conversation"]["entries"][number];
 
 type DemoConfigOption = {
@@ -72,7 +72,7 @@ type DemoPanel = {
 	status: AgentPanelSceneModel["status"];
 	subtitle: string | null;
 	agentLabel: string | null;
-	agentKey: DemoAgentKey;
+	providerBrand: ProviderBrand;
 	projectLabel: string;
 	projectColor: string;
 	sequenceId: number;
@@ -129,18 +129,6 @@ function createModelItem(params: {
 		isBuildDefault: params.isBuildDefault ?? false,
 		isPlanDefault: params.isPlanDefault ?? false,
 	};
-}
-
-function resolveAgentIcon(agentKey: DemoAgentKey, currentTheme: string): string {
-	if (agentKey === "codex") {
-		return `/svgs/agents/codex/codex-icon-${currentTheme}.svg`;
-	}
-
-	if (agentKey === "cursor") {
-		return `/svgs/agents/cursor/cursor-icon-${currentTheme}.svg`;
-	}
-
-	return `/svgs/agents/claude/claude-icon-${currentTheme}.svg`;
 }
 
 function getCurrentModel(panel: DemoPanel): DemoModelItem | null {
@@ -467,7 +455,7 @@ const demoPrCardModel: AgentPanelPrCardModel = {
 	],
 };
 
-function buildScene(panel: DemoPanel, currentTheme: string): AgentPanelSceneModel {
+function buildScene(panel: DemoPanel, currentTheme: Theme): AgentPanelSceneModel {
 	return {
 		panelId: panel.id,
 		status: panel.status,
@@ -476,7 +464,7 @@ function buildScene(panel: DemoPanel, currentTheme: string): AgentPanelSceneMode
 			subtitle: panel.subtitle,
 			status: panel.status,
 			agentLabel: panel.agentLabel,
-			agentIconSrc: resolveAgentIcon(panel.agentKey, currentTheme),
+			agentIconSrc: getProviderBrandIconSrc(panel.providerBrand, currentTheme),
 			projectLabel: panel.projectLabel,
 			projectColor: panel.projectColor,
 			sequenceId: panel.sequenceId,
@@ -500,7 +488,7 @@ let panels = $state<DemoPanel[]>([
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
-		agentKey: "claude",
+		providerBrand: "claude-code",
 		projectLabel: "acepe.dev",
 		projectColor: "#9858FF",
 		sequenceId: 12,
@@ -548,7 +536,7 @@ let panels = $state<DemoPanel[]>([
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
-		agentKey: "codex",
+		providerBrand: "codex",
 		projectLabel: "desktop",
 		projectColor: "#4AD0FF",
 		sequenceId: 4,
@@ -596,7 +584,7 @@ let panels = $state<DemoPanel[]>([
 		status: "connected",
 		subtitle: null,
 		agentLabel: null,
-		agentKey: "cursor",
+		providerBrand: "cursor",
 		projectLabel: "website",
 		projectColor: "#FF8D20",
 		sequenceId: 9,

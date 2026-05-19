@@ -30,15 +30,9 @@ import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 
 const theme = $derived($websiteThemeStore);
-
-function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
-	if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
-	if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
-	if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
-	return `/svgs/agents/claude/claude-icon-${t}.svg`;
-}
 
 const sidebarGroups = $derived<AppProjectGroup[]>([
 	{ name: "acepe", color: "#9858FF", sessions: [] },
@@ -55,7 +49,7 @@ const tabs = $derived<AppTab[]>([
 		title: "how to run a w",
 		projectName: "acepe",
 		projectColor: "#9858FF",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		mode: "build",
 		status: "idle",
 		isFocused: activeTabId === "single-tab-1",
@@ -65,7 +59,7 @@ const tabs = $derived<AppTab[]>([
 		title: "for our websit",
 		projectName: "acepe",
 		projectColor: "#9858FF",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		mode: "build",
 		status: "idle",
 		isFocused: activeTabId === "single-tab-2",
@@ -75,7 +69,7 @@ const tabs = $derived<AppTab[]>([
 		title: "i would like yo",
 		projectName: "VC",
 		projectColor: "#E879F9",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		mode: "build",
 		status: "done",
 		isFocused: activeTabId === "single-tab-3",
@@ -91,7 +85,7 @@ const scene = $derived<AgentPanelSceneModel>({
 		subtitle: null,
 		status: "connected",
 		agentLabel: null,
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		projectLabel: "VC",
 		projectColor: "#E879F9",
 		sequenceId: 3,

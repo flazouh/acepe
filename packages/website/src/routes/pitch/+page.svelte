@@ -2,6 +2,7 @@
 import { browser } from "$app/environment";
 import { BrandLockup } from "@acepe/ui";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import { formatPitchProofValue, pitchSections } from "$lib/pitch/content.js";
 
 const positioningRows = [
@@ -93,11 +94,11 @@ const viewModes = [
 let activeView = $state("agent");
 
 const agentIcons = [
-	{ name: "Claude Code", icon: "/svgs/agents/claude/claude-icon-dark.svg" },
-	{ name: "Codex", icon: "/svgs/agents/codex/codex-icon-dark.svg" },
-	{ name: "Cursor", icon: "/svgs/agents/cursor/cursor-icon-dark.svg" },
-	{ name: "Copilot", icon: "/svgs/agents/copilot/copilot-icon-dark.svg" },
-	{ name: "OpenCode", icon: "/svgs/agents/opencode/opencode-logo-dark.svg" },
+	{ name: "Claude Code", icon: getProviderBrandIconSrc("claude-code", "dark") },
+	{ name: "Codex", icon: getProviderBrandIconSrc("codex", "dark") },
+	{ name: "Cursor", icon: getProviderBrandIconSrc("cursor", "dark") },
+	{ name: "Copilot", icon: getProviderBrandIconSrc("copilot", "dark") },
+	{ name: "OpenCode", icon: getProviderBrandIconSrc("opencode", "dark") },
 ] as const;
 const slideTitleClass =
 	"max-w-4xl whitespace-pre-line text-3xl leading-[1.12] font-semibold tracking-[0.015em] sm:text-[2.75rem]";

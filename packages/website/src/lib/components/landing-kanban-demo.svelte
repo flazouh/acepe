@@ -1,13 +1,15 @@
 <script lang="ts">
 import { GitBranch, ChatCircle, Lightning } from "phosphor-svelte";
+import type { ProviderBrand } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 
 interface IllustrationCard {
 	id: string;
 	titleWidth: number;
-	agent: "claude" | "codex" | "cursor" | "opencode";
+	providerBrand: ProviderBrand;
 	projectColor: string;
 	insertions: number;
 	deletions: number;
@@ -24,13 +26,6 @@ interface IllustrationColumn {
 
 const theme = $derived($websiteThemeStore);
 
-function agentIcon(agent: IllustrationCard["agent"], t: string): string {
-	if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
-	if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
-	if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
-	return `/svgs/agents/claude/claude-icon-${t}.svg`;
-}
-
 const columns: readonly IllustrationColumn[] = [
 	{
 		id: "input",
@@ -41,7 +36,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c1",
 				titleWidth: 78,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 4,
 				deletions: 0,
@@ -50,7 +45,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c1b",
 				titleWidth: 64,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 2,
 				deletions: 1,
@@ -59,7 +54,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c1c",
 				titleWidth: 70,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 7,
 				deletions: 0,
@@ -68,7 +63,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c1d",
 				titleWidth: 82,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 3,
 				deletions: 2,
@@ -85,7 +80,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c2",
 				titleWidth: 82,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 11,
 				deletions: 2,
@@ -94,7 +89,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c3",
 				titleWidth: 70,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 8,
 				deletions: 0,
@@ -103,7 +98,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c3b",
 				titleWidth: 76,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 5,
 				deletions: 0,
@@ -112,7 +107,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c3c",
 				titleWidth: 68,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 13,
 				deletions: 4,
@@ -121,7 +116,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c3d",
 				titleWidth: 80,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 9,
 				deletions: 1,
@@ -138,7 +133,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c4",
 				titleWidth: 88,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 38,
 				deletions: 9,
@@ -147,7 +142,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c5",
 				titleWidth: 74,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 6,
 				deletions: 1,
@@ -156,7 +151,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c5b",
 				titleWidth: 80,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 17,
 				deletions: 3,
@@ -165,7 +160,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c5c",
 				titleWidth: 72,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 24,
 				deletions: 8,
@@ -174,7 +169,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c5d",
 				titleWidth: 84,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 12,
 				deletions: 2,
@@ -191,7 +186,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c6",
 				titleWidth: 84,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 52,
 				deletions: 14,
@@ -200,7 +195,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c7",
 				titleWidth: 68,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 29,
 				deletions: 11,
@@ -209,7 +204,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c7b",
 				titleWidth: 72,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 18,
 				deletions: 6,
@@ -218,7 +213,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c7c",
 				titleWidth: 78,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 41,
 				deletions: 9,
@@ -227,7 +222,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c7d",
 				titleWidth: 66,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 23,
 				deletions: 5,
@@ -244,7 +239,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c8",
 				titleWidth: 76,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 14,
 				deletions: 4,
@@ -253,7 +248,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c9",
 				titleWidth: 72,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 21,
 				deletions: 5,
@@ -262,7 +257,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c9b",
 				titleWidth: 68,
-				agent: "claude",
+				providerBrand: "claude-code",
 				projectColor: "#9858FF",
 				insertions: 9,
 				deletions: 2,
@@ -271,7 +266,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c9c",
 				titleWidth: 80,
-				agent: "codex",
+				providerBrand: "codex",
 				projectColor: "#4AD0FF",
 				insertions: 33,
 				deletions: 7,
@@ -280,7 +275,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c9d",
 				titleWidth: 74,
-				agent: "cursor",
+				providerBrand: "cursor",
 				projectColor: "#18D6C3",
 				insertions: 16,
 				deletions: 3,
@@ -289,7 +284,7 @@ const columns: readonly IllustrationColumn[] = [
 			{
 				id: "c9e",
 				titleWidth: 82,
-				agent: "opencode",
+				providerBrand: "opencode",
 				projectColor: "#FF8D20",
 				insertions: 28,
 				deletions: 6,
@@ -322,7 +317,7 @@ let { bare = false }: Props = $props();
 								<div class="card">
 									<div class="card-top">
 										<div class="card-agent">
-											<img src={agentIcon(card.agent, theme)} alt="" />
+											<img src={getProviderBrandIconSrc(card.providerBrand, theme)} alt="" />
 										</div>
 										<span class="card-project-dot" style="background: {card.projectColor};"></span>
 										<div class="card-spacer"></div>

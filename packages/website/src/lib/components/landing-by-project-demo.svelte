@@ -31,15 +31,9 @@ import type { AgentPanelSceneModel } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 
 const theme = $derived($websiteThemeStore);
-
-function agentIcon(agent: "claude" | "codex" | "cursor" | "opencode", t: string): string {
-	if (agent === "codex") return `/svgs/agents/codex/codex-icon-${t}.svg`;
-	if (agent === "cursor") return `/svgs/agents/cursor/cursor-icon-${t}.svg`;
-	if (agent === "opencode") return `/svgs/agents/opencode/opencode-logo-${t}.svg`;
-	return `/svgs/agents/claude/claude-icon-${t}.svg`;
-}
 
 // Queue items for the attention queue
 interface DemoQueueItem {
@@ -177,7 +171,7 @@ const queueItems = $derived<DemoQueueItem[]>([
 	{
 		id: "q1",
 		title: "Unblock review queue",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		projectName: "acepe.dev",
 		projectColor: "#9858FF",
 		statusText: "Editing agent-panel-shell.svelte",
@@ -187,7 +181,7 @@ const queueItems = $derived<DemoQueueItem[]>([
 	{
 		id: "q2",
 		title: "Audit panel regressions",
-		agentIconSrc: agentIcon("codex", theme),
+		agentIconSrc: getProviderBrandIconSrc("codex", theme),
 		projectName: "desktop",
 		projectColor: "#4AD0FF",
 		statusText: "Searching panel parity surfaces",
@@ -205,7 +199,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s1",
 				title: "Unblock review queue",
-				agentIconSrc: agentIcon("claude", theme),
+				agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 				status: "running",
 				isActive: activeProjectPath === ACEPE_PATH && activeSessionId === "s1",
 				timeAgo: "2m",
@@ -218,7 +212,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s2",
 				title: "Polish release notes",
-				agentIconSrc: agentIcon("cursor", theme),
+				agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 				status: "done",
 				isActive: activeProjectPath === ACEPE_PATH && activeSessionId === "s2",
 				timeAgo: "14m",
@@ -230,7 +224,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s3",
 				title: "Fix hero spacing",
-				agentIconSrc: agentIcon("claude", theme),
+				agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 				status: "done",
 				isActive: activeProjectPath === ACEPE_PATH && activeSessionId === "s3",
 				timeAgo: "1h",
@@ -249,7 +243,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s4",
 				title: "Audit panel regressions",
-				agentIconSrc: agentIcon("codex", theme),
+				agentIconSrc: getProviderBrandIconSrc("codex", theme),
 				status: "running",
 				isActive: activeProjectPath === DESKTOP_PATH && activeSessionId === "s4",
 				timeAgo: "5m",
@@ -262,7 +256,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s5",
 				title: "Worktree isolation bug",
-				agentIconSrc: agentIcon("claude", theme),
+				agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 				status: "error",
 				isActive: activeProjectPath === DESKTOP_PATH && activeSessionId === "s5",
 				timeAgo: "22m",
@@ -273,7 +267,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s8",
 				title: "Ship kanban polish",
-				agentIconSrc: agentIcon("cursor", theme),
+				agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 				status: "done",
 				isActive: activeProjectPath === DESKTOP_PATH && activeSessionId === "s8",
 				timeAgo: "34m",
@@ -292,7 +286,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s6",
 				title: "Fix auth middleware",
-				agentIconSrc: agentIcon("opencode", theme),
+				agentIconSrc: getProviderBrandIconSrc("opencode", theme),
 				status: "idle",
 				isActive: activeProjectPath === API_PATH && activeSessionId === "s6",
 				timeAgo: "45m",
@@ -302,7 +296,7 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 			{
 				id: "s7",
 				title: "Rate limiter config",
-				agentIconSrc: agentIcon("codex", theme),
+				agentIconSrc: getProviderBrandIconSrc("codex", theme),
 				status: "done",
 				isActive: activeProjectPath === API_PATH && activeSessionId === "s7",
 				timeAgo: "2h",
@@ -320,12 +314,12 @@ const sidebarGroups = $derived<DemoSidebarGroup[]>([
 const projectPanels = $derived<DemoProjectPanel[]>([
 	{
 		sessionId: "s1",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		scene: createScene({
 			panelId: "by-project-s1",
 			title: "Unblock review queue",
 			agentLabel: "Claude Code",
-			agentIconSrc: agentIcon("claude", theme),
+			agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 			projectLabel: "acepe.dev",
 			projectColor: "#9858FF",
 			sequenceId: 12,
@@ -345,12 +339,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s2",
-		agentIconSrc: agentIcon("cursor", theme),
+		agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 		scene: createScene({
 			panelId: "by-project-s2",
 			title: "Polish release notes",
 			agentLabel: "Cursor",
-			agentIconSrc: agentIcon("cursor", theme),
+			agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 			projectLabel: "acepe.dev",
 			projectColor: "#9858FF",
 			sequenceId: 9,
@@ -370,12 +364,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s3",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		scene: createScene({
 			panelId: "by-project-s3",
 			title: "Fix hero spacing",
 			agentLabel: "Claude Code",
-			agentIconSrc: agentIcon("claude", theme),
+			agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 			projectLabel: "acepe.dev",
 			projectColor: "#9858FF",
 			sequenceId: 6,
@@ -395,12 +389,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s4",
-		agentIconSrc: agentIcon("codex", theme),
+		agentIconSrc: getProviderBrandIconSrc("codex", theme),
 		scene: createScene({
 			panelId: "by-project-s4",
 			title: "Audit panel regressions",
 			agentLabel: "Codex",
-			agentIconSrc: agentIcon("codex", theme),
+			agentIconSrc: getProviderBrandIconSrc("codex", theme),
 			projectLabel: "desktop",
 			projectColor: "#4AD0FF",
 			sequenceId: 4,
@@ -420,12 +414,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s5",
-		agentIconSrc: agentIcon("claude", theme),
+		agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 		scene: createScene({
 			panelId: "by-project-s5",
 			title: "Worktree isolation bug",
 			agentLabel: "Claude Code",
-			agentIconSrc: agentIcon("claude", theme),
+			agentIconSrc: getProviderBrandIconSrc("claude-code", theme),
 			projectLabel: "desktop",
 			projectColor: "#4AD0FF",
 			sequenceId: 3,
@@ -446,12 +440,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s8",
-		agentIconSrc: agentIcon("cursor", theme),
+		agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 		scene: createScene({
 			panelId: "by-project-s8",
 			title: "Ship kanban polish",
 			agentLabel: "Cursor",
-			agentIconSrc: agentIcon("cursor", theme),
+			agentIconSrc: getProviderBrandIconSrc("cursor", theme),
 			projectLabel: "desktop",
 			projectColor: "#4AD0FF",
 			sequenceId: 8,
@@ -471,12 +465,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s6",
-		agentIconSrc: agentIcon("opencode", theme),
+		agentIconSrc: getProviderBrandIconSrc("opencode", theme),
 		scene: createScene({
 			panelId: "by-project-s6",
 			title: "Fix auth middleware",
 			agentLabel: "OpenCode",
-			agentIconSrc: agentIcon("opencode", theme),
+			agentIconSrc: getProviderBrandIconSrc("opencode", theme),
 			projectLabel: "api",
 			projectColor: "#FF8D20",
 			sequenceId: 2,
@@ -496,12 +490,12 @@ const projectPanels = $derived<DemoProjectPanel[]>([
 	},
 	{
 		sessionId: "s7",
-		agentIconSrc: agentIcon("codex", theme),
+		agentIconSrc: getProviderBrandIconSrc("codex", theme),
 		scene: createScene({
 			panelId: "by-project-s7",
 			title: "Rate limiter config",
 			agentLabel: "Codex",
-			agentIconSrc: agentIcon("codex", theme),
+			agentIconSrc: getProviderBrandIconSrc("codex", theme),
 			projectLabel: "api",
 			projectColor: "#FF8D20",
 			sequenceId: 1,
