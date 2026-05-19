@@ -722,8 +722,7 @@ describe("SessionConnectionManager.connectSession", () => {
 					displayFamily: "claudeLike",
 					usageMetrics: "contextWindowOnly",
 				},
-			},
-			undefined
+			}
 		);
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
@@ -920,8 +919,7 @@ describe("SessionConnectionManager.connectSession", () => {
 					displayFamily: "providerGrouped",
 					usageMetrics: "spendAndContext",
 				},
-			},
-			providerMetadata
+			}
 		);
 	});
 

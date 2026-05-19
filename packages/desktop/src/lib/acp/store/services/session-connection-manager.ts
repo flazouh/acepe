@@ -344,11 +344,7 @@ export class SessionConnectionManager {
 						preferencesStore.updateModelsCache(options.agentId, availableModels);
 					}
 					preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-					preferencesStore.updateModelsDisplayCache(
-						options.agentId,
-						modelsDisplay,
-						providerMetadata
-					);
+					preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
 					if (rawModes !== undefined) {
 						preferencesStore.updateModesCache(options.agentId, availableModes);
 					}
@@ -525,11 +521,7 @@ export class SessionConnectionManager {
 								preferencesStore.updateModelsCache(options.agentId, availableModels);
 							}
 							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-							preferencesStore.updateModelsDisplayCache(
-								options.agentId,
-								modelsDisplay,
-								providerMetadata
-							);
+							preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
 							if (rawModes !== undefined) {
 								preferencesStore.updateModesCache(options.agentId, availableModes);
 							}
@@ -790,7 +782,7 @@ export class SessionConnectionManager {
 			preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
 		}
 		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay, providerMetadata);
+		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay);
 		if (rawModes !== undefined) {
 			preferencesStore.updateModesCache(effectiveAgentId, availableModes);
 		}
