@@ -226,14 +226,15 @@ export class SessionMessagingService {
 		content: string,
 		attachments: readonly Attachment[] = []
 	): ResultAsync<void, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		const sessionMetadata = this.stateReader.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const lifecycleStatus = this.stateReader.getSessionLifecycleStatus(sessionId);
 		const canonicalCanSend = this.stateReader.getSessionCanSend(sessionId);
 		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
-			session,
+			sessionMetadata,
 			lifecycleStatus,
 		});
 		const canSend = canonicalCanSend === true;
@@ -374,12 +375,12 @@ export class SessionMessagingService {
 	 * Tracks edit count to avoid duplicate checkpoints.
 	 */
 	private createAutoCheckpointIfNeeded(sessionId: string): void {
-		const session = this.stateReader.getSessionCold(sessionId);
-		if (!session?.projectPath) {
+		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+		if (!sessionIdentity?.projectPath) {
 			logger.warn("Auto-checkpoint skipped: no projectPath", {
 				sessionId,
-				hasSession: !!session,
-				projectPath: session?.projectPath ?? null,
+				hasSession: !!sessionIdentity,
+				projectPath: sessionIdentity?.projectPath ?? null,
 			});
 			return;
 		}
@@ -425,15 +426,15 @@ export class SessionMessagingService {
 			sessionId,
 			fileCount: modifiedFilePaths.length,
 			filePaths: modifiedFilePaths,
-			projectPath: session.projectPath,
+			projectPath: sessionIdentity.projectPath,
 		});
 
 		// Auto-checkpoint (fire-and-forget - failure logged but not propagated)
 		checkpointStore
-			.createCheckpoint(sessionId, session.projectPath, modifiedFilePaths, {
+			.createCheckpoint(sessionId, sessionIdentity.projectPath, modifiedFilePaths, {
 				isAuto: true,
-				worktreePath: session.worktreePath,
-				agentId: session.agentId,
+				worktreePath: sessionIdentity.worktreePath,
+				agentId: sessionIdentity.agentId,
 			})
 			.match(
 				(checkpoint) => {
@@ -451,7 +452,7 @@ export class SessionMessagingService {
 						error: errorDetails.formatted,
 						errorChain: errorDetails.chain,
 						rootCause: errorDetails.rootCause,
-						projectPath: session.projectPath,
+						projectPath: sessionIdentity.projectPath,
 						filePaths: modifiedFilePaths,
 					});
 				}

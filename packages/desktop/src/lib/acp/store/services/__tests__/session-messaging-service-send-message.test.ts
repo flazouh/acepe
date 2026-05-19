@@ -65,6 +65,17 @@ function createMockDeps() {
 			updatedAt: new Date(),
 			parentId: null,
 		}),
+		getSessionIdentity: vi.fn().mockReturnValue({
+			id: "session-1",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		}),
+		getSessionMetadata: vi.fn().mockReturnValue({
+			title: "Test Session",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			parentId: null,
+		}),
 		getAllSessions: vi.fn(),
 	};
 
@@ -146,10 +157,12 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
 		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue("reserved");
-		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-1",
 			projectPath: "/tmp/project",
 			agentId: "cursor",
+		});
+		(deps.stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
 			title: "New Thread",
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -229,10 +242,12 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
 		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue(null);
-		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-1",
 			projectPath: "/tmp/project",
 			agentId: "cursor",
+		});
+		(deps.stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
 			title: "Restored Thread",
 			createdAt: new Date(),
 			updatedAt: new Date(),
@@ -256,10 +271,12 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
 		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue("reserved");
-		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-1",
 			projectPath: "/tmp/project",
 			agentId: "cursor",
+		});
+		(deps.stateReader.getSessionMetadata as ReturnType<typeof vi.fn>).mockReturnValue({
 			title: "Restored Thread",
 			createdAt: new Date(),
 			updatedAt: new Date(),

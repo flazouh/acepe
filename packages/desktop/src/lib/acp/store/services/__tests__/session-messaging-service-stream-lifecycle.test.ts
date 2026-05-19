@@ -60,6 +60,8 @@ function createMockDeps() {
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue(null),
+		getSessionIdentity: vi.fn().mockReturnValue(undefined),
+		getSessionMetadata: vi.fn().mockReturnValue(undefined),
 		getAllSessions: vi.fn(),
 	};
 
@@ -285,14 +287,10 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "streaming",
 		});
-		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
 			projectPath: "/tmp/project",
 			agentId: "opencode",
-			title: "Test Session",
-			createdAt: new Date(),
-			updatedAt: new Date(),
-			parentId: null,
 		});
 		(deps.stateReader.getSessionToolCalls as ReturnType<typeof vi.fn>).mockReturnValue([
 			{

@@ -2518,6 +2518,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		attachments: readonly Attachment[] = []
 	): ResultAsync<void, AppError> {
 		const session = this.getSessionCold(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
 		if (!session) {
 			if (this.pendingCreationSessions.has(sessionId)) {
 				return this.messagingSvc
@@ -2527,6 +2528,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						return error;
 					});
 			}
+			return errAsync(new SessionNotFoundError(sessionId));
+		}
+		if (!sessionMetadata) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const canonicalCanSend = this.getSessionCanSend(sessionId);
@@ -2566,7 +2570,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const canSend = canonicalCanSend === true;
 		const lifecycleStatus = this.getSessionLifecycleStatus(sessionId);
 		const canActivateFirstPrompt = canActivateCreatedSessionWithFirstPrompt({
-			session,
+			sessionMetadata,
 			lifecycleStatus,
 		});
 

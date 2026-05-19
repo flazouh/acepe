@@ -249,6 +249,8 @@ describe("SessionConnectionManager.connectSession", () => {
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
+		getSessionIdentity: vi.fn(),
+		getSessionMetadata: vi.fn(),
 		getAllSessions: vi.fn(),
 	};
 
@@ -1111,6 +1113,8 @@ describe("SessionConnectionManager.createSession", () => {
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
+		getSessionIdentity: vi.fn(),
+		getSessionMetadata: vi.fn(),
 		getAllSessions: vi.fn(),
 	};
 
@@ -1904,6 +1908,8 @@ describe("SessionConnectionManager autonomous policy", () => {
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
+		getSessionIdentity: vi.fn(),
+		getSessionMetadata: vi.fn(),
 		getAllSessions: vi.fn(),
 	};
 
@@ -2377,6 +2383,8 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		isPreloaded: vi.fn(),
 		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn(),
+		getSessionIdentity: vi.fn(),
+		getSessionMetadata: vi.fn(),
 		getAllSessions: vi.fn(),
 	};
 
@@ -2505,6 +2513,17 @@ describe("SessionConnectionManager.disconnectSession", () => {
 				id: sessionId,
 				projectPath: "/tmp/project",
 				agentId: "opencode",
+				title: "Test",
+				updatedAt: new Date(),
+				createdAt: new Date(),
+				parentId: null,
+			})),
+			getSessionIdentity: vi.fn(() => ({
+				id: sessionId,
+				projectPath: "/tmp/project",
+				agentId: "opencode",
+			})),
+			getSessionMetadata: vi.fn(() => ({
 				title: "Test",
 				updatedAt: new Date(),
 				createdAt: new Date(),

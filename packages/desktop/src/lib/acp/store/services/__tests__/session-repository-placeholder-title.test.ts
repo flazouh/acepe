@@ -62,6 +62,28 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 		isPreloaded: (sessionId: string) => state.preloadedSessionIds.has(sessionId),
 		getSessionsForProject: () => [],
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
+		getSessionIdentity: (id: string) => {
+			const session = state.sessions.find((candidate) => candidate.id === id);
+			if (!session) return undefined;
+			return {
+				id: session.id,
+				projectPath: session.projectPath,
+				agentId: session.agentId,
+				worktreePath: session.worktreePath,
+			};
+		},
+		getSessionMetadata: (id: string) => {
+			const session = state.sessions.find((candidate) => candidate.id === id);
+			if (!session) return undefined;
+			return {
+				title: session.title,
+				createdAt: session.createdAt,
+				updatedAt: session.updatedAt,
+				sourcePath: session.sourcePath,
+				parentId: session.parentId,
+				sequenceId: session.sequenceId,
+			};
+		},
 		getAllSessions: () => state.sessions,
 	};
 }

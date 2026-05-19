@@ -13,6 +13,8 @@ import type {
 	Mode,
 	Model,
 	SessionCold,
+	SessionIdentity,
+	SessionMetadata,
 } from "../../types.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 
@@ -96,6 +98,16 @@ export interface ISessionStateReader {
 	 * Get session cold data by ID from the lookup map (O(1)).
 	 */
 	getSessionCold(id: string): SessionCold | undefined;
+
+	/**
+	 * Get canonical session identity fields by ID.
+	 */
+	getSessionIdentity(id: string): SessionIdentity | undefined;
+
+	/**
+	 * Get canonical session metadata fields by ID.
+	 */
+	getSessionMetadata(id: string): SessionMetadata | undefined;
 
 	/**
 	 * Get all sessions (cold data only).
