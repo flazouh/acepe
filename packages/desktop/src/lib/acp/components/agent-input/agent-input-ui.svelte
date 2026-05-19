@@ -62,6 +62,7 @@ import {
 	shouldShowSlashCommandDropdown,
 } from "./logic/slash-command-source.js";
 import {
+	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
 	sessionCapabilitySourceFromCapabilities,
 } from "./logic/capability-source.js";
@@ -202,6 +203,9 @@ const capabilitiesAgentId = $derived.by(() => {
 const sessionCapabilities = $derived(
 	props.sessionId ? sessionStore.getSessionCapabilities(props.sessionId) : null
 );
+const sessionCapabilitySource = $derived(
+	sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities)
+);
 const capabilitiesAgent = $derived.by(() => {
 	if (!capabilitiesAgentId) {
 		return null;
@@ -215,17 +219,12 @@ const capabilitiesAgent = $derived.by(() => {
 
 	return null;
 });
-const capabilitiesProviderMetadata = $derived.by(() => {
-	if (sessionCapabilities?.providerMetadata) {
-		return sessionCapabilities.providerMetadata;
-	}
-
-	if (capabilitiesAgent) {
-		return capabilitiesAgent.providerMetadata;
-	}
-
-	return null;
-});
+const capabilitiesProviderMetadata = $derived(
+	resolveCapabilityContextProviderMetadata({
+		sessionSource: sessionCapabilitySource,
+		selectedAgentProviderMetadata: capabilitiesAgent ? capabilitiesAgent.providerMetadata : null,
+	})
+);
 const preconnectionCapabilities = $derived.by(() =>
 	preconnectionCapabilitiesState.getCapabilities({
 		agentId: capabilitiesAgentId,
@@ -288,7 +287,7 @@ const cachedModelsDisplay = $derived(
 
 const capabilitySource = $derived.by(() =>
 	resolveCapabilitySource({
-		sessionSource: sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities),
+		sessionSource: sessionCapabilitySource,
 		preconnectionCapabilities,
 		cachedModes,
 		cachedModels,

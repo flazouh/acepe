@@ -73,6 +73,21 @@ export function sessionCapabilitySourceFromCapabilities(
 	};
 }
 
+export function resolveCapabilityContextProviderMetadata(input: {
+	readonly sessionSource: SessionCapabilitySource;
+	readonly selectedAgentProviderMetadata: ProviderMetadataProjection | null;
+}): ProviderMetadataProjection | null {
+	if (input.sessionSource.kind === "canonical") {
+		return input.sessionSource.capabilities.providerMetadata ?? null;
+	}
+
+	if (input.sessionSource.kind === "missing_canonical") {
+		return null;
+	}
+
+	return input.selectedAgentProviderMetadata;
+}
+
 function toModes(capabilities: ResolvedCapabilities): Mode[] {
 	return capabilities.availableModes.map((mode) => ({
 		id: mode.id,

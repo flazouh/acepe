@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { BUILTIN_PROVIDER_METADATA_BY_AGENT_ID } from "$lib/services/acp-provider-metadata.js";
 import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
-import { resolveCapabilitySource } from "./capability-source.js";
+import {
+	resolveCapabilityContextProviderMetadata,
+	resolveCapabilitySource,
+} from "./capability-source.js";
 
 function liveSession(capabilities: SessionCapabilities) {
 	return {
@@ -217,5 +220,43 @@ describe("resolveCapabilitySource", () => {
 		expect(resolution.availableModes).toEqual([]);
 		expect(resolution.availableModels).toEqual([]);
 		expect(resolution.modelsDisplay).toBeNull();
+	});
+});
+
+describe("resolveCapabilityContextProviderMetadata", () => {
+	it("uses selected agent metadata before a session exists", () => {
+		expect(
+			resolveCapabilityContextProviderMetadata({
+				sessionSource: { kind: "no_session" },
+				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			})
+		).toBe(BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor);
+	});
+
+	it("uses canonical provider metadata for a live session", () => {
+		expect(
+			resolveCapabilityContextProviderMetadata({
+				sessionSource: liveSession({
+					availableModels: [],
+					availableModes: [],
+					availableCommands: [],
+					modelsDisplay: undefined,
+					providerMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"],
+				}),
+				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			})
+		).toBe(BUILTIN_PROVIDER_METADATA_BY_AGENT_ID["claude-code"]);
+	});
+
+	it("does not fall back to selected agent metadata when session canonical capabilities are missing", () => {
+		expect(
+			resolveCapabilityContextProviderMetadata({
+				sessionSource: {
+					kind: "missing_canonical",
+					sessionId: "session-1",
+				},
+				selectedAgentProviderMetadata: BUILTIN_PROVIDER_METADATA_BY_AGENT_ID.cursor,
+			})
+		).toBeNull();
 	});
 });
