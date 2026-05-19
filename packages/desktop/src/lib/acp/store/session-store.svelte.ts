@@ -1430,7 +1430,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	materializePendingCreationSession(sessionId: string): boolean {
-		if (this.getSessionCold(sessionId)) {
+		if (this.getSessionIdentity(sessionId)) {
 			this.pendingCreationSessions.delete(sessionId);
 			return true;
 		}
@@ -2261,13 +2261,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {
-		const session = this.getSessionCold(sessionId);
-		if (!session) {
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionMetadata) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 
 		const trimmedTitle = title.trim();
-		if (trimmedTitle === "" || trimmedTitle === session.title) {
+		if (trimmedTitle === "" || trimmedTitle === sessionMetadata.title) {
 			return okAsync(undefined);
 		}
 
@@ -2351,7 +2351,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			placeholderTitle?: string | null;
 		}
 	): void {
-		if (this.getSessionCold(sessionId)) {
+		if (this.getSessionIdentity(sessionId)) {
 			return;
 		}
 		const now = new Date();
@@ -2543,7 +2543,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		const send = () =>
 			this.messagingSvc.sendMessage(sessionId, content, attachments).map(() => {
-				const currentTitle = this.getSessionCold(sessionId)?.title;
+				const currentTitle = this.getSessionMetadata(sessionId)?.title;
 				logger.debug("[sendMessage] After message sent, checking title update", {
 					sessionId,
 					currentTitle: currentTitle?.substring(0, 100),
