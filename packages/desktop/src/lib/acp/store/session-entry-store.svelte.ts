@@ -6,20 +6,15 @@
  * - Synchronous entry mutations for immediate UI updates
  *
  * Delegates to extracted managers:
- * - TranscriptToolCallBuffer: tool call CRUD, child-parent reconciliation, streaming args
  * - EntryIndexManager: O(1) entryId and toolCallId lookups
  *
  * Note: This file uses native Map/Set/Date for internal indexes and timestamps
  * that are NOT meant to be reactive. Only entriesById uses SvelteMap for
- * fine-grained reactivity. Streaming arguments reactivity is in TranscriptToolCallBuffer.
+ * fine-grained reactivity.
  */
 
 import { SvelteMap } from "svelte/reactivity";
 import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-types.js";
-import type {
-	ToolCallData,
-	ToolCallUpdateData,
-} from "../../services/converted-session-types.js";
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
@@ -31,7 +26,6 @@ import {
 	convertTranscriptEntryToSessionEntry,
 	convertTranscriptSnapshotToSessionEntries,
 } from "./services/transcript-snapshot-entry-adapter.js";
-import { TranscriptToolCallBuffer } from "./services/transcript-tool-call-buffer.svelte.js";
 import type { SessionEntry } from "./types.js";
 import { isToolCallEntry } from "./types.js";
 
@@ -55,16 +49,12 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	// Extracted index manager for O(1) entryId and toolCallId lookups
 	private readonly entryIndex = new EntryIndexManager();
 
-	// Transcript-only tool row buffer; product operation state lives in OperationStore.
-	private readonly transcriptToolCallBuffer: TranscriptToolCallBuffer;
-
 	// Track which sessions have been preloaded
 	private preloadedIds = new Set<string>();
 	private readonly transcriptRevisionBySession = new Map<string, number>();
 
 	constructor(operationStore?: OperationStore) {
 		this.operationStore = operationStore ?? new OperationStore();
-		this.transcriptToolCallBuffer = new TranscriptToolCallBuffer(this, this.entryIndex);
 	}
 
 	// ============================================
@@ -334,51 +324,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		this.preloadedIds.delete(sessionId);
 		this.transcriptRevisionBySession.delete(sessionId);
 
-		this.transcriptToolCallBuffer.clearSession(sessionId);
 		this.operationStore.clearSession(sessionId);
-	}
-
-	// ============================================
-	// TOOL CALLS (delegated to TranscriptToolCallBuffer)
-	// ============================================
-
-	/**
-	 * Canonical transcript tool-call row writer from full ToolCallData.
-	 */
-	private recordTranscriptToolCallEntry(sessionId: string, toolCallData: ToolCallData): void {
-		this.transcriptToolCallBuffer.createEntry(sessionId, toolCallData).match(
-			() => {},
-			(e) =>
-				logger.warn("Failed to create tool call entry", {
-					sessionId,
-					toolCallId: toolCallData.id,
-					error: e,
-				})
-		);
-	}
-
-	/**
-	 * Canonical transcript tool-call row update.
-	 * Operation truth is not created here; canonical operation data arrives through
-	 * Rust-authored session graph snapshots and patches.
-	 */
-	private updateTranscriptToolCallEntry(sessionId: string, update: ToolCallUpdateData): void {
-		this.transcriptToolCallBuffer.updateEntry(sessionId, update).match(
-			() => {},
-			(e) =>
-				logger.warn("Failed to update tool call entry", {
-					sessionId,
-					toolCallId: update.toolCallId,
-					error: e,
-				})
-		);
-	}
-
-	/**
-	 * Clear streaming arguments for a tool call.
-	 */
-	clearStreamingArguments(toolCallId: string): void {
-		this.transcriptToolCallBuffer.clearStreamingArguments(toolCallId);
 	}
 
 	/**

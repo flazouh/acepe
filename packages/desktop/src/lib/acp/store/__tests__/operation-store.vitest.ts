@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { OperationSnapshot } from "../../../services/acp-types.js";
+import type { OperationSnapshot, TranscriptSnapshot } from "../../../services/acp-types.js";
 import type { ToolCallData } from "../../../services/converted-session-types.js";
 import { createLongSessionFixture } from "../../testing/long-session-fixture.js";
 import {
@@ -9,11 +9,7 @@ import {
 	OperationStore,
 } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
-import {
-	preloadEntriesAndBuildIndex,
-	recordTranscriptToolCallEntry,
-	updateTranscriptToolCallEntry,
-} from "./entry-store-test-access.js";
+import { preloadEntriesAndBuildIndex } from "./entry-store-test-access.js";
 
 function createExecuteToolCall(
 	id: string,
@@ -754,7 +750,7 @@ describe("OperationStore", () => {
 		expect(buildCanonicalOperationId("a:b", "c")).not.toBe(buildCanonicalOperationId("a", "b:c"));
 	});
 
-	it("transcript-only tool updates do not overwrite canonical operation state", () => {
+	it("transcript snapshots do not overwrite canonical operation state", () => {
 		const operationStore = new OperationStore();
 		const entryStore = new SessionEntryStore(operationStore);
 
@@ -786,21 +782,23 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getByToolCallId("session-1", "tool-1")?.operationState).toBe("blocked");
 
-		recordTranscriptToolCallEntry(entryStore,
-			"session-1",
-			createExecuteToolCall("tool-1", "pwd", { status: "in_progress" })
-		);
-		updateTranscriptToolCallEntry(entryStore, "session-1", {
-			toolCallId: "tool-1",
-			status: "in_progress",
-			result: null,
-			content: null,
-			rawOutput: null,
-			title: null,
-			locations: null,
-			normalizedTodos: null,
-			normalizedQuestions: null,
-		});
+		const snapshot: TranscriptSnapshot = {
+			revision: 1,
+			entries: [
+				{
+					entryId: "tool-1",
+					role: "tool",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "tool-1:tool",
+							text: "Run command",
+						},
+					],
+				},
+			],
+		};
+		entryStore.replaceTranscriptSnapshot("session-1", snapshot, new Date());
 
 		const operation = operationStore.getByToolCallId("session-1", "tool-1");
 		expect(operation?.operationState).toBe("blocked");

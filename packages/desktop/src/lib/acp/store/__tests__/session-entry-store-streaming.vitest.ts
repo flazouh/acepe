@@ -12,272 +12,12 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
-import type {
-	ToolArguments,
-	ToolCallUpdateData,
-} from "../../../services/converted-session-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
 	preloadEntriesAndBuildIndex,
 	readStoredEntries,
-	recordTranscriptToolCallEntry,
-	updateTranscriptToolCallEntry,
 } from "./entry-store-test-access.js";
-
-function applyStreamingArguments(
-	store: SessionEntryStore,
-	sessionId: string,
-	toolCallId: string,
-	streamingArguments: ToolCallUpdateData["streamingArguments"]
-): void {
-	updateTranscriptToolCallEntry(store, sessionId, {
-		toolCallId,
-		status: null,
-		result: null,
-		content: null,
-		rawOutput: null,
-		title: null,
-		locations: null,
-		normalizedTodos: null,
-		normalizedQuestions: null,
-		streamingArguments,
-	});
-}
-
-function readProgressiveArguments(
-	store: SessionEntryStore,
-	sessionId: string,
-	toolCallId: string
-): ToolArguments | undefined {
-	const entry = readStoredEntries(store, sessionId)
-		.find((candidate) => candidate.type === "tool_call" && candidate.message.id === toolCallId);
-	return entry?.type === "tool_call" ? entry.message.progressiveArguments : undefined;
-}
-
-describe("SessionEntryStore - Streaming Arguments", () => {
-	let store: SessionEntryStore;
-
-	beforeEach(() => {
-		store = new SessionEntryStore();
-	});
-
-	describe("updateTranscriptToolCallEntry progressive arguments", () => {
-		it("should store and retrieve streaming arguments from transcript-only updates", () => {
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
-				],
-			});
-
-			const result = readProgressiveArguments(store, "session1", "tool1");
-			expect(result).toEqual({
-				kind: "edit",
-				edits: [
-					{ filePath: "/path/to/file.ts", oldString: null, newString: "content", content: null },
-				],
-			});
-		});
-
-		it("should track tool calls per session", () => {
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool1",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool2",
-				name: "Search",
-				arguments: { kind: "search", query: null, file_path: null },
-				status: "pending",
-				kind: "search",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			recordTranscriptToolCallEntry(store, "session2", {
-				id: "tool3",
-				name: "Read",
-				arguments: { kind: "read", file_path: null },
-				status: "pending",
-				kind: "read",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", { kind: "execute", command: "ls -la" });
-			applyStreamingArguments(store, "session1", "tool2", { kind: "search", query: "test" });
-			applyStreamingArguments(store, "session2", "tool3", {
-				kind: "read",
-				file_path: "/tmp/file",
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
-				kind: "execute",
-				command: "ls -la",
-			});
-			expect(readProgressiveArguments(store, "session1", "tool2")).toEqual({
-				kind: "search",
-				query: "test",
-			});
-			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
-				kind: "read",
-				file_path: "/tmp/file",
-			});
-		});
-
-		it("should overwrite when setting same tool call again", () => {
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v1", content: null }],
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toEqual({
-				kind: "edit",
-				edits: [{ filePath: "/a", oldString: null, newString: "v2", content: null }],
-			});
-		});
-	});
-
-	describe("progressive argument lookup helper", () => {
-		it("should return undefined for unknown tool call", () => {
-			expect(readProgressiveArguments(store, "session1", "unknown")).toBeUndefined();
-		});
-	});
-
-	describe("clearStreamingArguments", () => {
-		it("should clear streaming arguments", () => {
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [{ filePath: null, oldString: null, newString: null, content: null }],
-				},
-				status: "pending",
-				kind: "edit",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", {
-				kind: "edit",
-				edits: [{ filePath: "/x", oldString: null, newString: "content", content: null }],
-			});
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeDefined();
-
-			store.clearStreamingArguments("tool1");
-
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
-		});
-	});
-
-	describe("clearEntries", () => {
-		it("should clear all streaming arguments for session", () => {
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool1",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			recordTranscriptToolCallEntry(store, "session1", {
-				id: "tool2",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			recordTranscriptToolCallEntry(store, "session2", {
-				id: "tool3",
-				name: "Bash",
-				arguments: { kind: "execute", command: null },
-				status: "pending",
-				kind: "execute",
-				title: null,
-				locations: null,
-				skillMeta: null,
-				result: null,
-				awaitingPlanApproval: false,
-			});
-			applyStreamingArguments(store, "session1", "tool1", { kind: "execute", command: "a" });
-			applyStreamingArguments(store, "session1", "tool2", { kind: "execute", command: "b" });
-			applyStreamingArguments(store, "session2", "tool3", { kind: "execute", command: "c" });
-
-			// Clear session1
-			store.clearEntries("session1");
-
-			// session1's tool calls should be cleared
-			expect(readProgressiveArguments(store, "session1", "tool1")).toBeUndefined();
-			expect(readProgressiveArguments(store, "session1", "tool2")).toBeUndefined();
-
-			// session2's tool calls should remain
-			expect(readProgressiveArguments(store, "session2", "tool3")).toEqual({
-				kind: "execute",
-				command: "c",
-			});
-		});
-	});
-});
 
 describe("SessionEntryStore - Transcript Deltas", () => {
 	let store: SessionEntryStore;
@@ -330,43 +70,6 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 	it("keeps transcript snapshot tool rows as spine entries instead of preserving structured operation data", () => {
 		const timestamp = new Date("2026-04-16T00:00:00.000Z");
-		recordTranscriptToolCallEntry(store, "session-1", {
-			id: "tool-1",
-			name: "Edit File",
-			arguments: {
-				kind: "edit",
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
-			},
-			diagnosticRawInput: {
-				edits: [
-					{
-						filePath: "/tmp/example.ts",
-						oldString: "before",
-						newString: "after",
-					},
-				],
-			},
-			status: "completed",
-			result: null,
-			kind: "edit",
-			title: "Edit File",
-			locations: null,
-			skillMeta: null,
-			normalizedQuestions: null,
-			normalizedTodos: null,
-			parentToolUseId: null,
-			taskChildren: null,
-			questionAnswer: null,
-			awaitingPlanApproval: false,
-			planApprovalRequestId: null,
-		});
-
 		store.replaceTranscriptSnapshot(
 			"session-1",
 			{
@@ -613,7 +316,6 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					name: "Read file\nstdout ready",
 					arguments: { kind: "other", raw: null },
 					progressiveArguments: undefined,
-					diagnosticRawInput: null,
 					status: "completed",
 					result: null,
 					kind: "other",
@@ -630,6 +332,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 					normalizedResult: null,
 				},
 				timestamp: new Date("2026-04-16T00:00:02.000Z"),
+				isStreaming: undefined,
 			},
 		]);
 
