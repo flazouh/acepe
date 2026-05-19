@@ -1475,7 +1475,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			autonomousEnabled: true,
 		});
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",
@@ -1687,7 +1687,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 		});
 
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([]);
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([]);
 		expect(store.getSessionCurrentModelId("session-1")).toBeNull();
 	});
 
@@ -2373,7 +2373,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			transcriptRevision: 7,
 			lastEventSeq: 8,
 		});
-		expect(store.getSessionCapabilities("session-1").availableModels).toEqual([
+		expect(store.getSessionCapabilities("session-1")?.availableModels).toEqual([
 			{
 				id: "gpt-5",
 				name: "GPT-5",

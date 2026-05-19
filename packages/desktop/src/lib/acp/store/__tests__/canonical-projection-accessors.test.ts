@@ -142,14 +142,7 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.getSessionConfigOptions("session-1")).toEqual([]);
 		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
 		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
-		expect(store.getSessionCapabilities("session-1")).toEqual({
-			availableModels: [],
-			availableModes: [],
-			availableCommands: [],
-			revision: null,
-			pendingMutationId: null,
-			previewState: "partial",
-		});
+		expect(store.getSessionCapabilities("session-1")).toBeNull();
 	});
 
 	it("derives all capability accessors from the canonical projection", () => {

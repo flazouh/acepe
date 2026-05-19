@@ -148,7 +148,7 @@ export function resolveSettingsCapabilitySource(input: {
 	providerMetadata: ProviderMetadataProjection | null;
 }): CapabilitySourceResolution {
 	return resolveCapabilitySource({
-		sessionCapabilities: null,
+		sessionSource: { kind: "no_session" },
 		preconnectionCapabilities: input.preconnectionCapabilities,
 		cachedModes: input.cachedModes,
 		cachedModels: input.cachedModels,

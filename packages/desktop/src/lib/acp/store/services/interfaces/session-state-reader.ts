@@ -55,10 +55,10 @@ export interface ISessionStateReader {
 	getSessionCurrentModeId(sessionId: string): string | null;
 
 	/**
-	 * Canonical capabilities projection. Returns empty capabilities when no
-	 * canonical projection has materialized.
+	 * Canonical capabilities projection. Returns null when no canonical
+	 * projection has materialized.
 	 */
-	getSessionCapabilities(sessionId: string): SessionCapabilities;
+	getSessionCapabilities(sessionId: string): SessionCapabilities | null;
 
 	/**
 	 * Canonical session projection (lifecycle + activity + turn state + active

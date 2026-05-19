@@ -115,7 +115,7 @@ function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: stri
 function canonicalCapabilities(
 	reader: ISessionStateReader,
 	sessionId: string
-): SessionCapabilities {
+): SessionCapabilities | null {
 	return reader.getSessionCapabilities(sessionId);
 }
 
@@ -911,6 +911,9 @@ export class SessionConnectionManager {
 		}
 
 		const capabilities = canonicalCapabilities(this.stateReader, sessionId);
+		if (capabilities === null) {
+			return errAsync(new ConnectionError(sessionId));
+		}
 		const newMode = capabilities.availableModes.find((m) => m.id === modeId);
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
 		const nextAutonomousEnabled =

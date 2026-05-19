@@ -1531,20 +1531,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical-derived flat capability view; empty means no canonical projection yet.
+	 * Canonical-derived flat capability view; null means no canonical projection yet.
 	 */
-	getSessionCapabilities(sessionId: string): SessionCapabilities {
+	getSessionCapabilities(sessionId: string): SessionCapabilities | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
 		const projectedCapabilities = this.getCanonicalProjectedCapabilities(sessionId);
 		if (projection === null || projectedCapabilities === null) {
-			return {
-				availableModels: [],
-				availableModes: [],
-				availableCommands: [],
-				revision: null,
-				pendingMutationId: null,
-				previewState: "partial",
-			};
+			return null;
 		}
 
 		const mutationState = this.getHotState(sessionId).capabilityMutationState ?? {

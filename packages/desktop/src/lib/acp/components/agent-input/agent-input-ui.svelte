@@ -61,7 +61,10 @@ import {
 	resolveSlashCommandSource,
 	shouldShowSlashCommandDropdown,
 } from "./logic/slash-command-source.js";
-import { resolveCapabilitySource } from "./logic/capability-source.js";
+import {
+	resolveCapabilitySource,
+	sessionCapabilitySourceFromCapabilities,
+} from "./logic/capability-source.js";
 import { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
 import { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
 import { type SubmitIntent } from "../../logic/submit-intent.js";
@@ -285,7 +288,7 @@ const cachedModelsDisplay = $derived(
 
 const capabilitySource = $derived.by(() =>
 	resolveCapabilitySource({
-		sessionCapabilities,
+		sessionSource: sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities),
 		preconnectionCapabilities,
 		cachedModes,
 		cachedModels,
