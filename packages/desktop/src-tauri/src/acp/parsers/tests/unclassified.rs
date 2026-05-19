@@ -9,7 +9,7 @@ fn unclaimed_tool_call_should_classify_as_unclassified() {
     let parser = get_parser(AgentType::ClaudeCode);
     let raw = RawToolCallInput {
         id: "tool-unclassified".to_string(),
-        name: String::new(),
+        name: None,
         arguments: json!({}),
         status: ToolCallStatus::Pending,
         kind: Some(ToolKind::Other),

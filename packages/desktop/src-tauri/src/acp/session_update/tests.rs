@@ -510,7 +510,14 @@ mod parse_tool_call_from_acp {
         let result: Result<ToolCallData, serde_json::Error> = parse_tool_call_from_acp(&data);
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().name, "Tool");
+        let tool_call = result.unwrap();
+        assert_eq!(tool_call.name, "Tool");
+        match tool_call.arguments {
+            ToolArguments::Unclassified { provider_name, .. } => {
+                assert!(provider_name.is_empty());
+            }
+            other => panic!("Expected Unclassified arguments, got {other:?}"),
+        }
     }
 
     #[test]

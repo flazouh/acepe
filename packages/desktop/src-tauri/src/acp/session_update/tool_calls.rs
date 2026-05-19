@@ -31,7 +31,7 @@ pub(crate) struct RawToolCallUpdateInput {
 #[derive(Debug, Clone)]
 pub(crate) struct RawToolCallInput {
     pub id: String,
-    pub name: String,
+    pub name: Option<String>,
     pub arguments: serde_json::Value,
     pub status: ToolCallStatus,
     pub kind: Option<ToolKind>,
@@ -353,7 +353,7 @@ pub(crate) fn build_tool_call_from_raw(
         &raw.id,
         &raw.arguments,
         ToolClassificationHints {
-            name: Some(&raw.name),
+            name: raw.name.as_deref(),
             title: raw.title.as_deref(),
             kind: raw.kind,
             kind_hint: raw.kind.as_ref().map(ToolKind::as_str),
@@ -512,7 +512,7 @@ mod tests {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "test-id".to_string(),
-            name: String::new(),
+            name: None,
             arguments: json!({}),
             status: ToolCallStatus::Pending,
             kind: Some(parser.detect_tool_kind(kind)),
@@ -692,7 +692,7 @@ mod tests {
         let parser = get_parser(current_agent().unwrap_or(AgentType::ClaudeCode));
         let raw = RawToolCallInput {
             id: "toolu_raw_input".to_string(),
-            name: "Bash".to_string(),
+            name: Some("Bash".to_string()),
             arguments: json!({
                 "command": "echo hi",
                 "description": "Say hi"
@@ -755,7 +755,7 @@ mod tests {
         let parser = &CursorParser as &dyn AgentParser;
         let raw = RawToolCallInput {
             id: "toolu_partial_read".to_string(),
-            name: "Read".to_string(),
+            name: Some("Read".to_string()),
             arguments: json!({
                 "offset": 0,
                 "limit": 200

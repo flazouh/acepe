@@ -202,15 +202,8 @@ fn resolve_identity_impl(
         } else {
             name.to_string()
         }
-    } else if kind != ToolKind::Other {
-        canonical_tool_call_name_for_kind(kind).to_string()
     } else {
-        hints
-            .name
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| "unknown".to_string())
+        canonical_tool_call_name_for_kind(kind).to_string()
     };
 
     ToolIdentity { name, kind }

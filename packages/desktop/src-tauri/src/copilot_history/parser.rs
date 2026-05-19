@@ -291,7 +291,7 @@ pub(crate) fn convert_events_to_updates(
                     }
                     let raw = RawToolCallInput {
                         id: tool_request.tool_call_id,
-                        name: tool_request.name,
+                        name: Some(tool_request.name),
                         arguments: tool_request.arguments,
                         status: ToolCallStatus::Pending,
                         kind: None,
@@ -344,7 +344,7 @@ pub(crate) fn convert_events_to_updates(
                 }
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    name: data.tool_name,
+                    name: Some(data.tool_name),
                     arguments: data.arguments,
                     status: ToolCallStatus::InProgress,
                     kind: None,
@@ -402,7 +402,7 @@ pub(crate) fn convert_events_to_updates(
                     .or_else(|| Some("Task".to_string()));
                 let raw = RawToolCallInput {
                     id: data.tool_call_id,
-                    name: "Task".to_string(),
+                    name: Some("Task".to_string()),
                     arguments: json!({
                         "description": title.clone(),
                         "prompt": data.agent_description,

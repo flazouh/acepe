@@ -263,7 +263,7 @@ fn translate_assistant(
                 let parser = get_parser(agent);
                 let raw = RawToolCallInput {
                     id: tu.id,
-                    name: tu.name,
+                    name: Some(tu.name),
                     arguments: tu.input,
                     status: ToolCallStatus::InProgress,
                     kind: None,

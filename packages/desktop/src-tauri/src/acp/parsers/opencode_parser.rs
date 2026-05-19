@@ -146,7 +146,7 @@ impl OpenCodeParser {
 
         Ok(RawToolCallInput {
             id,
-            name,
+            name: Some(name),
             arguments,
             status: ToolCallStatus::Pending,
             kind: Some(kind),

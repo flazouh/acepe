@@ -430,7 +430,7 @@ impl CodexParser {
         let provisional_name = explicit_name
             .map(str::to_string)
             .or_else(|| title.clone())
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_default();
         let normalized_name_kind = CodexAdapter::normalize(&provisional_name);
         let argument_kind = Self::infer_kind_from_arguments(&arguments);
         let inferred_kind = Self::resolve_kind(
@@ -444,8 +444,7 @@ impl CodexParser {
         let name = explicit_name
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| "unknown".to_string());
+            .map(str::to_string);
         let kind = Some(inferred_kind);
         let mut arguments = if inferred_kind == ToolKind::Other {
             raw_arguments
@@ -545,7 +544,7 @@ impl CodexParser {
         let provisional_name = explicit_name
             .map(str::to_string)
             .or_else(|| title.clone())
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_default();
         let normalized_name_kind = CodexAdapter::normalize(&provisional_name);
         let argument_kind = raw_input.as_ref().and_then(Self::infer_kind_from_arguments);
         let inferred_kind = Self::resolve_kind(
