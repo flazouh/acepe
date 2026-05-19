@@ -81,6 +81,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ activityKind: "streaming", modeId: "plan" }),
 			currentModeId: null,
 			connectionError: null,
+			canonicalActivity: null,
 		});
 
 		expect(projection.effectiveModeId).toBe("plan");
@@ -93,6 +94,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ activityKind: "thinking" }),
 			currentModeId: "build",
 			connectionError: null,
+			canonicalActivity: null,
 		});
 
 		expect(projection.intentFamily).toBe("working");
@@ -104,6 +106,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ activityKind: "paused" }),
 			currentModeId: "plan",
 			connectionError: null,
+			canonicalActivity: null,
 		});
 
 		expect(projection.compactActivityKind).toBe("paused");
@@ -116,6 +119,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ hasUnseenCompletion: true }),
 			currentModeId: null,
 			connectionError: null,
+			canonicalActivity: null,
 		});
 
 		expect(projection.needsReview).toBe(true);
@@ -128,6 +132,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ hasUnseenCompletion: false }),
 			currentModeId: null,
 			connectionError: null,
+			canonicalActivity: null,
 		});
 
 		expect(projection.needsReview).toBe(false);
@@ -144,6 +149,7 @@ describe("deriveSessionWorkProjection", () => {
 			}),
 			currentModeId: null,
 			connectionError: "Session failed",
+			canonicalActivity: null,
 		});
 
 		expect(projection.hasSecondaryError).toBe(true);
@@ -156,6 +162,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState({ connection: "error" }),
 			currentModeId: null,
 			connectionError: "Session failed",
+			canonicalActivity: null,
 		});
 
 		expect(projection.hasError).toBe(true);
@@ -168,6 +175,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState(),
 			currentModeId: null,
 			connectionError: "Resume failed",
+			canonicalActivity: null,
 		});
 
 		expect(projection.hasError).toBe(true);
@@ -179,6 +187,7 @@ describe("deriveSessionWorkProjection", () => {
 			state: makeState(),
 			currentModeId: null,
 			connectionError: null,
+			canonicalActivity: null,
 			activeTurnFailure: {
 				turnId: "turn-1",
 				message: "Usage limit reached",
