@@ -7,7 +7,7 @@
  */
 
 import type { PanelErrorInfo } from "../components/agent-panel/logic/connection-ui";
-import type { ConnectionPhase, ContentPhase } from "./session-ui-state";
+import type { ConnectionPhase, ContentPhase } from "./session-phases";
 
 // ── Discriminated Union ────────────────────────────────────────
 

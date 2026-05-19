@@ -1,10 +1,10 @@
 import type { SessionGraphActivity } from "../../services/acp-types.js";
-import type { CanonicalSessionActivity } from "../logic/session-activity.js";
 import type {
 	ActivityPhase,
 	ConnectionPhase,
 	ContentPhase,
-} from "../logic/session-ui-state.js";
+} from "../logic/session-phases.js";
+import type { CanonicalSessionActivity } from "../logic/session-activity.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";

@@ -1,4 +1,4 @@
-import type { ConnectionPhase } from "../../../logic/session-ui-state.js";
+import type { ConnectionPhase } from "../../../logic/session-phases.js";
 import type { Agent } from "../../../store/types.js";
 
 function getSupportedModeIds(agent: Agent | undefined): ReadonlyArray<string> {

@@ -1,4 +1,4 @@
-import type { ActivityPhase, ConnectionPhase } from "$lib/acp/logic/session-ui-state.js";
+import type { ActivityPhase, ConnectionPhase } from "$lib/acp/logic/session-phases.js";
 
 export interface LiveSessionPanelSyncInput {
 	readonly sessionId: string;

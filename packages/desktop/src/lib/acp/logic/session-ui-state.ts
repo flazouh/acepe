@@ -8,6 +8,7 @@
 import type { SessionMachineSnapshot } from "./session-machine";
 
 import { ConnectionState, ContentState } from "./session-machine";
+export type { ActivityPhase, ConnectionPhase, ContentPhase } from "./session-phases";
 
 /**
  * Derived UI state from session machine.
@@ -41,10 +42,6 @@ export interface SessionUIState {
 	/** Session is read-only (connection: disconnected) */
 	isReadOnly: boolean;
 }
-
-export type ConnectionPhase = "disconnected" | "connecting" | "connected" | "failed";
-export type ContentPhase = "empty" | "loading" | "loaded";
-export type ActivityPhase = "idle" | "running" | "waiting_for_user";
 
 /**
  * Derive UI state from machine snapshot.
