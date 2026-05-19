@@ -28,11 +28,11 @@ use crate::acp::session_open_snapshot::{
 };
 use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_state_engine::{
-    CapabilityPreviewState, SessionGraphActionability, SessionGraphActivity,
-    SessionGraphActivityKind, SessionGraphCapabilities, SessionGraphLifecycle,
-    SessionGraphRevision, SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta,
-    SessionStateEnvelope, SessionStateGraph, SessionStatePayload,
-    SessionStateSnapshotMaterialization,
+    ActiveStreamingTail, ActiveStreamingTailContentKind, CapabilityPreviewState,
+    SessionGraphActionability, SessionGraphActivity, SessionGraphActivityKind,
+    SessionGraphCapabilities, SessionGraphLifecycle, SessionGraphRevision,
+    SessionRecommendedAction, SessionRecoveryPhase, SessionStateDelta, SessionStateEnvelope,
+    SessionStateGraph, SessionStatePayload, SessionStateSnapshotMaterialization,
 };
 use crate::acp::session_update::{
     AvailableCommand, AvailableCommandsData, ChunkAggregationHint, CommandInput, ConfigOptionData,
@@ -486,6 +486,8 @@ pub fn export_all_types() {
     export_acp_type!(CapabilityPreviewState);
     export_acp_type!(SessionGraphActivityKind);
     export_acp_type!(SessionGraphActivity);
+    export_acp_type!(ActiveStreamingTailContentKind);
+    export_acp_type!(ActiveStreamingTail);
     export_acp_type!(SessionStateGraph);
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateDelta);

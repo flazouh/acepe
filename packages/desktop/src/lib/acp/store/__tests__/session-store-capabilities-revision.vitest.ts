@@ -97,6 +97,7 @@ function createGraph(
 		messageCount: 0,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		lifecycle: createGraphLifecycle(),
 		activity: createIdleActivity(),
 		capabilities,

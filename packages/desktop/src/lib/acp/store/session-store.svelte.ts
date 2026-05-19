@@ -262,6 +262,7 @@ const SESSION_STATE_GRAPH_COPY_KEYS = [
 	"turnState",
 	"messageCount",
 	"lastAgentMessageId",
+	"activeStreamingTail",
 	"activeTurnFailure",
 	"lastTerminalTurnId",
 	"lifecycle",
@@ -301,6 +302,7 @@ function graphWithTranscriptSnapshot(
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
 		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 		lifecycle: graph.lifecycle,
@@ -330,6 +332,7 @@ function graphWithLifecycle(
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
 		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 		lifecycle,
@@ -358,6 +361,7 @@ function graphWithCapabilities(
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
 		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activeStreamingTail: graph.activeStreamingTail ?? null,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
 		lastTerminalTurnId: graph.lastTerminalTurnId ?? null,
 		lifecycle: graph.lifecycle,
@@ -433,6 +437,7 @@ function graphWithPatches(input: {
 	readonly activeTurnFailure: TurnFailureSnapshot | null;
 	readonly lastTerminalTurnId: string | null;
 	readonly lastAgentMessageId: string | null | undefined;
+	readonly activeStreamingTail: SessionStateGraph["activeStreamingTail"] | undefined;
 	readonly operationPatches: readonly OperationSnapshot[];
 	readonly interactionPatches: readonly InteractionSnapshot[];
 }): SessionStateGraph {
@@ -460,6 +465,10 @@ function graphWithPatches(input: {
 			input.lastAgentMessageId === undefined
 				? (input.graph.lastAgentMessageId ?? null)
 				: input.lastAgentMessageId,
+		activeStreamingTail:
+			input.activeStreamingTail === undefined
+				? (input.graph.activeStreamingTail ?? null)
+				: input.activeStreamingTail,
 		activeTurnFailure: input.activeTurnFailure,
 		lastTerminalTurnId: input.lastTerminalTurnId,
 		lifecycle: input.graph.lifecycle,
@@ -1722,6 +1731,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			turnState: graph.turnState,
 			activeTurnFailure,
 			lastTerminalTurnId: nextLastTerminalTurnId,
+			activeStreamingTail: graph.activeStreamingTail ?? null,
 			capabilities: canonicalCapabilities,
 			tokenStream: preservedStreamingState.tokenStream,
 			clockAnchor: preservedStreamingState.clockAnchor,
@@ -2051,6 +2061,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			turnState: snapshot.turnState,
 			activeTurnFailure: mapProjectionTurnFailure(snapshot.activeTurnFailure ?? null),
 			lastTerminalTurnId: snapshot.lastTerminalTurnId ?? null,
+			activeStreamingTail: graph.activeStreamingTail ?? null,
 			capabilities: canonicalCapabilities,
 			tokenStream: preservedStreamingState.tokenStream,
 			clockAnchor: preservedStreamingState.clockAnchor,
@@ -3090,6 +3101,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					turnState,
 					activeTurnFailure,
 					lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
+					activeStreamingTail: previousProjection?.activeStreamingTail ?? null,
 					capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
 					tokenStream: preservedStreamingState.tokenStream,
 					clockAnchor: preservedStreamingState.clockAnchor,
@@ -3159,6 +3171,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						turnState: previousProjection.turnState,
 						activeTurnFailure: previousProjection.activeTurnFailure,
 						lastTerminalTurnId: previousProjection.lastTerminalTurnId,
+						activeStreamingTail: previousProjection.activeStreamingTail,
 						capabilities: canonicalCapabilities,
 						tokenStream: preservedStreamingState.tokenStream,
 						clockAnchor: preservedStreamingState.clockAnchor,
@@ -3239,6 +3252,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 							activeTurnFailure: command.activeTurnFailure,
 							lastTerminalTurnId: command.lastTerminalTurnId,
 							lastAgentMessageId: command.lastAgentMessageId,
+							activeStreamingTail: command.activeStreamingTail,
 							operationPatches: command.operationPatches,
 							interactionPatches: command.interactionPatches,
 						})
@@ -3251,6 +3265,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					turnState: command.turnState,
 					activeTurnFailure,
 					lastTerminalTurnId: command.lastTerminalTurnId,
+					activeStreamingTail:
+						command.activeStreamingTail === undefined
+							? previousProjection.activeStreamingTail
+							: command.activeStreamingTail,
 					capabilities: previousProjection.capabilities,
 					tokenStream: preservedStreamingState.tokenStream,
 					clockAnchor: preservedStreamingState.clockAnchor,
@@ -3389,6 +3407,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			turnState: projection.turnState,
 			activeTurnFailure: projection.activeTurnFailure,
 			lastTerminalTurnId: projection.lastTerminalTurnId,
+			activeStreamingTail: projection.activeStreamingTail,
 			capabilities: projection.capabilities,
 			tokenStream: nextTokenStream,
 			clockAnchor: nextClockAnchor,

@@ -1,5 +1,6 @@
 use crate::acp::session_open_snapshot::SessionOpenFound;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
+use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::session_state_engine::protocol::{SessionStateDelta, SessionStatePayload};
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::SessionGraphActivity;
@@ -12,6 +13,7 @@ pub struct DeltaSessionProjectionFields {
     pub active_turn_failure: Option<crate::acp::projections::TurnFailureSnapshot>,
     pub last_terminal_turn_id: Option<String>,
     pub last_agent_message_id: Option<String>,
+    pub active_streaming_tail: Option<ActiveStreamingTail>,
 }
 
 pub struct DeltaEnvelopeParts<'a> {
@@ -51,6 +53,7 @@ pub fn build_delta_envelope(parts: DeltaEnvelopeParts<'_>) -> SessionStateEnvelo
                 active_turn_failure: parts.projection.active_turn_failure,
                 last_terminal_turn_id: parts.projection.last_terminal_turn_id,
                 last_agent_message_id: parts.projection.last_agent_message_id,
+                active_streaming_tail: parts.projection.active_streaming_tail,
                 transcript_operations: parts.transcript_operations,
                 operation_patches: parts.operation_patches,
                 interaction_patches: parts.interaction_patches,
@@ -100,6 +103,8 @@ mod tests {
             turn_state: SessionTurnState::Idle,
             message_count: 0,
             last_agent_message_id: None,
+            activity: SessionGraphActivity::idle(),
+            active_streaming_tail: None,
             lifecycle: SessionGraphLifecycle::idle(),
             capabilities: SessionGraphCapabilities::empty(),
             active_turn_failure: None,
@@ -132,6 +137,7 @@ mod tests {
                 active_turn_failure: None,
                 last_terminal_turn_id: None,
                 last_agent_message_id: Some("assistant-1".to_string()),
+                active_streaming_tail: None,
             },
             transcript_operations: vec![TranscriptDeltaOperation::ReplaceSnapshot {
                 snapshot: TranscriptSnapshot {

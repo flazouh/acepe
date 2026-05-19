@@ -136,6 +136,7 @@ function createCanonicalProjection(
 		turnState: overrides.turnState ?? "Idle",
 		activeTurnFailure: overrides.activeTurnFailure ?? null,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		capabilities: overrides.capabilities ?? {
 			models: null,
 			modes: null,

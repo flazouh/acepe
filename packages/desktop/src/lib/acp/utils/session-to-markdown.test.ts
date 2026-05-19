@@ -136,6 +136,7 @@ function graph(): SessionStateGraph {
 		lastAgentMessageId: "assistant-2",
 		activeTurnFailure: null,
 		lastTerminalTurnId: "turn-1",
+		activeStreamingTail: null,
 		lifecycle: lifecycle(),
 		activity: activity(),
 		capabilities: capabilities(),

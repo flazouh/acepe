@@ -56,3 +56,15 @@ export function shouldStreamAssistantTextContent(input: {
 }): boolean {
 	return input.isStreaming === true && input.tokenRevealCss === undefined;
 }
+
+export function shouldStreamAssistantThoughtContent(input: {
+	readonly isStreaming?: boolean;
+	readonly hasMessageContent: boolean;
+	readonly isLastThoughtTextGroup: boolean;
+}): boolean {
+	return (
+		input.isStreaming === true &&
+		!input.hasMessageContent &&
+		input.isLastThoughtTextGroup
+	);
+}

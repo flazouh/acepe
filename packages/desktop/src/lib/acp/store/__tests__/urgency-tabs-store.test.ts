@@ -136,6 +136,7 @@ function createSessionStore(input: {
 					turnState: input.lifecycle.status === "failed" ? "Failed" : "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					capabilities: {
 						models: null,
 						modes: null,

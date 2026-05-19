@@ -12,6 +12,7 @@ import type {
 
 import {
 	DEFAULT_STREAMING_REPRO_PRESETS,
+	resolveStreamingReproActiveTailRowId,
 	type StreamingReproPhase,
 	type StreamingReproPreset,
 } from "./streaming-repro-controller";
@@ -86,6 +87,7 @@ function createActivity(phase: StreamingReproPhase): SessionGraphActivity {
 }
 
 function createGraph(phase: StreamingReproPhase): SessionStateGraph {
+	const activeStreamingTailRowId = resolveStreamingReproActiveTailRowId(phase);
 	const transcriptEntries: TranscriptEntry[] = [
 		createTranscriptEntry("user-1", "user", "Explain umbrellas slowly."),
 	];
@@ -118,6 +120,10 @@ function createGraph(phase: StreamingReproPhase): SessionStateGraph {
 		lastAgentMessageId: phase.lastAgentMessageId,
 		activeTurnFailure: null,
 		lastTerminalTurnId: phase.turnState === "Completed" ? "turn-1" : null,
+		activeStreamingTail:
+			activeStreamingTailRowId === null
+				? null
+				: { rowId: activeStreamingTailRowId, contentKind: "message" },
 		lifecycle: createLifecycle(),
 		activity: createActivity(phase),
 		capabilities: createCapabilities(),
@@ -159,12 +165,13 @@ export function applyStreamingReproPhaseSceneOverrides(input: {
 		return input.entries;
 	}
 
+	const activeStreamingTailRowId = resolveStreamingReproActiveTailRowId(input.phase);
 	const entries: AgentPanelSceneEntryModel[] = [];
 	for (const entry of input.entries) {
 		if (
 			entry.type === "assistant" &&
-			input.phase.lastAgentMessageId !== null &&
-			entry.id === input.phase.lastAgentMessageId
+			activeStreamingTailRowId !== null &&
+			entry.id === activeStreamingTailRowId
 		) {
 			entries.push({
 				id: entry.id,

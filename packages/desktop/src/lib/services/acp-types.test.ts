@@ -6,6 +6,7 @@ import {
 } from "../acp/session-state/session-state-protocol.js";
 import type {
 	CanonicalAgentId,
+	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionOpenFound,
@@ -56,6 +57,16 @@ function createGraphLifecycle(
 	};
 }
 
+function createActivity(kind: SessionGraphActivity["kind"] = "idle"): SessionGraphActivity {
+	return {
+		kind,
+		activeOperationCount: kind === "running_operation" ? 1 : 0,
+		activeSubagentCount: kind === "running_operation" ? 1 : 0,
+		dominantOperationId: kind === "running_operation" ? "op-1" : null,
+		blockingInteractionId: null,
+	};
+}
+
 describe("session-state protocol graph contract", () => {
 	it("builds a graph-backed snapshot envelope from a canonical open result", () => {
 		const lifecycle = createGraphLifecycle("ready");
@@ -93,6 +104,8 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle" satisfies SessionTurnState,
 			messageCount: 0,
+			activity: createActivity(),
+			activeStreamingTail: null,
 			lifecycle,
 			capabilities,
 		});
@@ -139,6 +152,8 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle" satisfies SessionTurnState,
 			messageCount: 0,
+			activity: createActivity(),
+			activeStreamingTail: null,
 			lifecycle,
 			capabilities,
 		});
@@ -164,8 +179,10 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle",
 			messageCount: 0,
+			lastAgentMessageId: null,
 			activeTurnFailure: undefined,
 			lastTerminalTurnId: undefined,
+			activeStreamingTail: null,
 			lifecycle,
 			activity: {
 				kind: "idle",
@@ -207,6 +224,8 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Idle" satisfies SessionTurnState,
 			messageCount: 0,
+			activity: createActivity("paused"),
+			activeStreamingTail: null,
 			lifecycle,
 			capabilities,
 		};
@@ -219,7 +238,7 @@ describe("session-state protocol graph contract", () => {
 		expect(materialization.graph.activity.kind).toBe("paused");
 	});
 
-	it("derives running activity with operation topology from open snapshots", () => {
+	it("uses canonical running activity from open snapshots", () => {
 		const graph = graphFromSessionOpenFound({
 			requestedSessionId: "requested-1",
 			canonicalSessionId: "canonical-1",
@@ -261,6 +280,8 @@ describe("session-state protocol graph contract", () => {
 			interactions: [],
 			turnState: "Running" satisfies SessionTurnState,
 			messageCount: 0,
+			activity: createActivity("running_operation"),
+			activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			capabilities: {
 				models: null,

@@ -107,6 +107,7 @@ function createGraph(capabilities: SessionGraphCapabilities): SessionStateGraph 
 		messageCount: 0,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		lifecycle: createReadyLifecycle(),
 		activity: createIdleActivity(),
 		capabilities,

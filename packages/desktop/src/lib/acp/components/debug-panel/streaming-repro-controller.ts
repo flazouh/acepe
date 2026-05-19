@@ -27,6 +27,16 @@ export interface StreamingReproPreset {
 	readonly phases: readonly StreamingReproPhase[];
 }
 
+export function resolveStreamingReproActiveTailRowId(
+	phase: StreamingReproPhase
+): string | null {
+	if (phase.assistantStreaming !== true || phase.lastAgentMessageId === null) {
+		return null;
+	}
+
+	return phase.lastAgentMessageId;
+}
+
 export interface StreamingReproRecordedAnswer {
 	readonly presetId: string;
 	readonly phaseId: string;

@@ -67,6 +67,7 @@ function makeCanonicalProjection(
 		turnState: activityKind === "idle" ? "Idle" : "Running",
 		activeTurnFailure,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {
 			models: null,
 			modes: null,

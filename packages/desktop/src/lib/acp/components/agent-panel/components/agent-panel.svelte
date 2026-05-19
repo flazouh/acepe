@@ -947,6 +947,7 @@ const tokenRevealSceneEntries = $derived.by(() => {
 	const projection = canonicalProjection;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 	const sourceEntriesById = new Map<string, AgentPanelSceneEntryModel>();
+	const tokenRevealTailRowId = projection?.activeStreamingTail?.rowId ?? null;
 
 	for (const sourceEntry of graphMaterializedScene.conversation.entries) {
 		sourceEntriesById.set(sourceEntry.id, sourceEntry);
@@ -954,6 +955,9 @@ const tokenRevealSceneEntries = $derived.by(() => {
 
 	return graphSceneEntries.map((entry) => {
 		if (entry.type !== "assistant") {
+			return entry;
+		}
+		if (entry.id !== tokenRevealTailRowId) {
 			return entry;
 		}
 

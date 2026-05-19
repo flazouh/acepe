@@ -194,6 +194,7 @@ function createGraph(input: {
 	interactions?: InteractionSnapshot[];
 	turnState?: SessionStateGraph["turnState"];
 	lastAgentMessageId?: string | null;
+	activeStreamingTail?: SessionStateGraph["activeStreamingTail"];
 	lifecycle?: SessionGraphLifecycle;
 	activity?: SessionGraphActivity;
 }): SessionStateGraph {
@@ -218,6 +219,7 @@ function createGraph(input: {
 		turnState: input.turnState ?? "Completed",
 		messageCount: input.transcriptSnapshot.entries.length,
 		lastAgentMessageId: input.lastAgentMessageId ?? null,
+		activeStreamingTail: input.activeStreamingTail ?? null,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
 		lifecycle,
@@ -1623,14 +1625,18 @@ describe("agent panel graph materializer", () => {
 	});
 
 	describe("assistant isStreaming derivation", () => {
-		it("marks only the latest assistant entry as isStreaming when turnState is Running", () => {
+		it("marks only the canonical active streaming tail as isStreaming when turnState is Running", () => {
 			const transcriptSnapshot = createTranscriptSnapshot([
 				createTranscriptEntry("u1", "user", "First question"),
 				createTranscriptEntry("a1", "assistant", "First answer"),
 				createTranscriptEntry("u2", "user", "Second question"),
 				createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
 			]);
-			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
+			const graph = createGraph({
+				transcriptSnapshot,
+				turnState: "Running",
+				activeStreamingTail: { rowId: "a2", contentKind: "message" },
+			});
 
 			const scene = materializeAgentPanelSceneFromGraph({
 				panelId: "panel-1",
@@ -1642,6 +1648,24 @@ describe("agent panel graph materializer", () => {
 			expect(assistantEntries).toHaveLength(2);
 			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
 			expect((assistantEntries[1] as { isStreaming?: boolean }).isStreaming).toBe(true);
+		});
+
+		it("does not infer streaming from transcript position when canonical active streaming tail is absent", () => {
+			const transcriptSnapshot = createTranscriptSnapshot([
+				createTranscriptEntry("u1", "user", "Question"),
+				createTranscriptEntry("a1", "assistant", "Answer"),
+			]);
+			const graph = createGraph({ transcriptSnapshot, turnState: "Running" });
+
+			const scene = materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: { title: "Session" },
+			});
+
+			const assistantEntries = scene.conversation.entries.filter((e) => e.type === "assistant");
+			expect(assistantEntries).toHaveLength(1);
+			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
 		});
 
 		it("marks no assistant entry as isStreaming when turnState is Completed", () => {
@@ -1732,7 +1756,7 @@ describe("agent panel graph materializer", () => {
 			expect((assistantEntries[0] as { isStreaming?: boolean }).isStreaming).toBe(false);
 		});
 
-		it("marks the latest assistant as isStreaming even when tool entries follow it", () => {
+		it("marks the canonical active tail as isStreaming even when tool entries follow it", () => {
 			const transcriptSnapshot = createTranscriptSnapshot([
 				createTranscriptEntry("u1", "user", "Do the thing"),
 				createTranscriptEntry("a1", "assistant", "Running the tool"),
@@ -1743,6 +1767,7 @@ describe("agent panel graph materializer", () => {
 				transcriptSnapshot,
 				operations: [createOperationSnapshot()],
 				turnState: "Running",
+				activeStreamingTail: { rowId: "a2", contentKind: "message" },
 			});
 
 			const scene = materializeAgentPanelSceneFromGraph({
@@ -1805,6 +1830,7 @@ describe("agent panel graph materializer", () => {
 				operations: [createOperationSnapshot()],
 				turnState: "Running",
 				lastAgentMessageId: "a1",
+				activeStreamingTail: { rowId: "a1", contentKind: "message" },
 				activity: {
 					kind: "awaiting_model",
 					activeOperationCount: 0,

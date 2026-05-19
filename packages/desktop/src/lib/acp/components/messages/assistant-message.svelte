@@ -243,7 +243,7 @@ $effect(() => {
 								{#if group.type === "text"}
 									<ContentBlockRouter
 										block={{ type: "text", text: group.text }}
-										isStreaming={isStreaming && isLastThoughtTextGroup}
+										isStreaming={isStreaming && !hasMessageContent && isLastThoughtTextGroup}
 										{projectPath}
 										{streamingAnimationMode}
 									/>

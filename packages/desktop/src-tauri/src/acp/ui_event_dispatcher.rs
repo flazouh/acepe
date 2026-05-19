@@ -7,6 +7,7 @@ use crate::acp::pre_reservation_event_buffer::{
     PreReservationEventBuffer, PreReservationIngressDecision,
 };
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
     build_delta_envelope, select_session_graph_activity, DeltaEnvelopeParts,
     DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest, SessionGraphRevision,
@@ -803,9 +804,11 @@ impl AcpUiEventDispatcher {
         };
         let previous_runtime_snapshot =
             self.runtime_graph_registry.snapshot_for_session(session_id);
-        let previous_transcript_revision = self
+        let transcript_snapshot = self
             .transcript_projection_registry
-            .snapshot_for_session(session_id)
+            .snapshot_for_session(session_id);
+        let previous_transcript_revision = transcript_snapshot
+            .as_ref()
             .map(|snapshot| snapshot.revision)
             .unwrap_or(0);
         let previous_graph_revision = if previous_runtime_snapshot.graph_revision > 0 {
@@ -830,6 +833,14 @@ impl AcpUiEventDispatcher {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let active_streaming_tail = transcript_snapshot.as_ref().and_then(|snapshot| {
+            select_active_streaming_tail(
+                &session_snapshot.turn_state,
+                &activity,
+                snapshot,
+                session_snapshot.last_agent_message_id.as_deref(),
+            )
+        });
         let operation_patches = match interaction_patch.canonical_operation_id.as_deref() {
             Some(operation_id) => match self.projection_registry.operation(operation_id) {
                 Some(operation) => vec![operation],
@@ -852,6 +863,7 @@ impl AcpUiEventDispatcher {
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
             "lastAgentMessageId".to_string(),
+            "activeStreamingTail".to_string(),
         ];
         if !operation_patches.is_empty() {
             changed_fields.insert(0, "operations".to_string());
@@ -870,6 +882,7 @@ impl AcpUiEventDispatcher {
                 active_turn_failure: session_snapshot.active_turn_failure,
                 last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
                 last_agent_message_id: session_snapshot.last_agent_message_id,
+                active_streaming_tail,
             },
             transcript_operations: Vec::new(),
             operation_patches,
@@ -2424,6 +2437,7 @@ mod tests {
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
                         "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
             }

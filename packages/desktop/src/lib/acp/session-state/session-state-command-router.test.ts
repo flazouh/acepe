@@ -74,6 +74,7 @@ describe("routeSessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -134,6 +135,7 @@ describe("routeSessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -155,6 +157,7 @@ describe("routeSessionStateEnvelope", () => {
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
 				lastAgentMessageId: undefined,
+				activeStreamingTail: undefined,
 				operationPatches: [],
 				interactionPatches: [],
 			},
@@ -184,10 +187,11 @@ describe("routeSessionStateEnvelope", () => {
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
 					lastAgentMessageId: "assistant-1",
+					activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
-					changedFields: ["lastAgentMessageId"],
+					changedFields: ["lastAgentMessageId", "activeStreamingTail"],
 				},
 			},
 		};
@@ -205,6 +209,7 @@ describe("routeSessionStateEnvelope", () => {
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
 				lastAgentMessageId: "assistant-1",
+				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 				operationPatches: [],
 				interactionPatches: [],
 			},
@@ -233,6 +238,7 @@ describe("routeSessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 					transcriptOperations: [
 						{
 							kind: "appendEntry",

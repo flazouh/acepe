@@ -134,6 +134,7 @@ function createGraph(input: {
 		lastAgentMessageId: input.lastAgentMessageId ?? null,
 		activeTurnFailure: null,
 		lastTerminalTurnId: input.turnState === "Completed" ? "turn-1" : null,
+		activeStreamingTail: null,
 		lifecycle: createLifecycle(input.canSend ?? true),
 		activity: input.activity,
 		capabilities: createCapabilities(),

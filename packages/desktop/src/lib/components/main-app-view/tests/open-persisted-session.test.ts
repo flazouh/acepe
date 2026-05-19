@@ -799,6 +799,14 @@ function createFoundResult(
 		operations: [],
 		interactions: [],
 		turnState: "Idle",
+		activity: {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		activeStreamingTail: null,
 		lifecycle: {
 			status: "ready",
 			actionability: {

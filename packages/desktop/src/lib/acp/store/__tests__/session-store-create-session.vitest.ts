@@ -51,6 +51,14 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		interactions: overrides.interactions ?? [],
 		turnState: overrides.turnState ?? "Idle",
 		messageCount: overrides.messageCount ?? 0,
+		activity: overrides.activity ?? {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		},
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? {
 			status: "ready",
 			actionability: {
@@ -92,6 +100,7 @@ function createSessionStateGraph(overrides: Partial<SessionStateGraph> = {}): Se
 		messageCount: overrides.messageCount ?? 0,
 		activeTurnFailure: overrides.activeTurnFailure ?? null,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? null,
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? {
 			status: "ready",
 			actionability: {

@@ -20,11 +20,14 @@ use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
 use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
 use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::runtime_registry::{
     LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
-use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
+use crate::acp::session_state_engine::selectors::{
+    select_session_graph_activity, SessionGraphCapabilities,
+};
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSnapshot,
 };
@@ -562,6 +565,33 @@ pub async fn acp_get_session_state(
             .and_then(|context| context.source_path.clone())
             .or_else(|| descriptor.as_ref().and_then(|facts| facts.source_path.clone()));
         let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
+        let turn_state = projection_session
+            .map(|session| session.turn_state.clone())
+            .unwrap_or(crate::acp::projections::SessionTurnState::Idle);
+        let message_count = projection_session
+            .map(|session| session.message_count)
+            .unwrap_or(0);
+        let last_agent_message_id = projection_session
+            .and_then(|session| session.last_agent_message_id.clone());
+        let active_turn_failure =
+            projection_session.and_then(|session| session.active_turn_failure.clone());
+        let last_terminal_turn_id =
+            projection_session.and_then(|session| session.last_terminal_turn_id.clone());
+        let lifecycle = runtime_snapshot.lifecycle.clone();
+        let capabilities = runtime_snapshot.capabilities.clone();
+        let activity = select_session_graph_activity(
+            &lifecycle,
+            &turn_state,
+            &operations,
+            &interactions,
+            active_turn_failure.as_ref(),
+        );
+        let active_streaming_tail = select_active_streaming_tail(
+            &turn_state,
+            &activity,
+            &transcript_snapshot,
+            last_agent_message_id.as_deref(),
+        );
         let found = SessionOpenFound {
             requested_session_id: session_id.clone(),
             canonical_session_id: canonical_session_id.clone(),
@@ -581,19 +611,15 @@ pub async fn acp_get_session_state(
             ),
             operations,
             interactions,
-            turn_state: projection_session
-                .map(|session| session.turn_state.clone())
-                .unwrap_or(crate::acp::projections::SessionTurnState::Idle),
-            message_count: projection_session
-                .map(|session| session.message_count)
-                .unwrap_or(0),
-            last_agent_message_id: projection_session
-                .and_then(|session| session.last_agent_message_id.clone()),
-            lifecycle: runtime_snapshot.lifecycle.clone(),
-            capabilities: runtime_snapshot.capabilities.clone(),
-            active_turn_failure: projection_session.and_then(|session| session.active_turn_failure.clone()),
-            last_terminal_turn_id: projection_session
-                .and_then(|session| session.last_terminal_turn_id.clone()),
+            turn_state,
+            message_count,
+            last_agent_message_id,
+            activity,
+            active_streaming_tail,
+            lifecycle,
+            capabilities,
+            active_turn_failure,
+            last_terminal_turn_id,
         };
 
         Ok(build_snapshot_envelope(&found))
@@ -2020,6 +2046,7 @@ mod transcript_buffer_tests {
                                 active_turn_failure: None,
                                 last_terminal_turn_id: None,
                                 last_agent_message_id: None,
+                                active_streaming_tail: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -2049,6 +2076,7 @@ mod transcript_buffer_tests {
                                 active_turn_failure: None,
                                 last_terminal_turn_id: None,
                                 last_agent_message_id: None,
+                                active_streaming_tail: None,
                                 transcript_operations: vec![],
                                 operation_patches: vec![],
                                 interaction_patches: vec![],
@@ -2182,6 +2210,7 @@ mod transcript_buffer_tests {
                             turn_state: crate::acp::projections::SessionTurnState::Running,
                             message_count: 2,
                             last_agent_message_id: None,
+                            active_streaming_tail: None,
                             active_turn_failure: None,
                             last_terminal_turn_id: None,
                             lifecycle: crate::acp::session_state_engine::selectors::SessionGraphLifecycle::ready(),

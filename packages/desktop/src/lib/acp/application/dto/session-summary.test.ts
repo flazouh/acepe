@@ -59,6 +59,7 @@ function projection(input: {
 		turnState: input.turnState,
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
+		activeStreamingTail: null,
 		capabilities: {},
 		tokenStream: new Map(),
 		clockAnchor: null,

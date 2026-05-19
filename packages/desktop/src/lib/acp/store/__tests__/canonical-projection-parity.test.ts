@@ -140,6 +140,7 @@ function createRepresentativeGraph(): SessionStateGraph {
 		messageCount: 2,
 		activeTurnFailure: null,
 		lastTerminalTurnId: "turn-previous",
+		activeStreamingTail: null,
 		lifecycle,
 		// Cold-open recomputes activity from operations/interactions; this fixture
 		// must match that derived activity for the parity assertion to be meaningful.
@@ -207,6 +208,8 @@ function createSessionOpenFoundFromGraph(graph: SessionStateGraph): SessionOpenF
 		interactions: graph.interactions,
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
+		activity: graph.activity,
+		activeStreamingTail: graph.activeStreamingTail,
 		lifecycle: graph.lifecycle,
 		capabilities: graph.capabilities,
 		activeTurnFailure: graph.activeTurnFailure,

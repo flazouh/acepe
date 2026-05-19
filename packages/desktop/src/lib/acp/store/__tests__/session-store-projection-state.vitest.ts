@@ -200,6 +200,7 @@ function createSessionStateGraph(overrides: GraphOverride = {}): SessionStateGra
 		lastAgentMessageId: overrides.lastAgentMessageId ?? null,
 		activeTurnFailure,
 		lastTerminalTurnId: overrides.lastTerminalTurnId ?? "turn-1",
+		activeStreamingTail: overrides.activeStreamingTail ?? null,
 		lifecycle: overrides.lifecycle ?? createGraphLifecycle(),
 		activity: overrides.activity ?? {
 			kind: activeTurnFailure === null ? "idle" : "error",
@@ -238,6 +239,8 @@ function createSessionOpenFoundFromGraph(
 		turnState: graph.turnState,
 		messageCount: graph.messageCount,
 		lastAgentMessageId: graph.lastAgentMessageId ?? null,
+		activity: graph.activity,
+		activeStreamingTail: graph.activeStreamingTail,
 		lifecycle: graph.lifecycle,
 		capabilities: graph.capabilities,
 		activeTurnFailure: graph.activeTurnFailure ?? null,
@@ -337,6 +340,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					activity: {
 						kind: "awaiting_model",
@@ -400,6 +404,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -448,6 +453,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendSegment",
@@ -520,6 +526,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -566,6 +573,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 		});
@@ -591,6 +599,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("reserved"),
 			activity: {
 				kind: "idle",
@@ -635,6 +644,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -718,6 +728,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -823,6 +834,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot,
 			operations: [restoredOperation],
@@ -833,6 +845,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 13,
@@ -861,6 +874,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-7",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			activity: createIdleActivity(),
 			revision: {
@@ -969,6 +983,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -1081,6 +1096,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -1127,6 +1143,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -1177,6 +1194,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1200,6 +1218,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					activity: {
 						kind: "running_operation",
@@ -1244,6 +1263,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1297,6 +1317,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 			})
 		);
 
@@ -1694,6 +1715,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1712,6 +1734,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					activity: {
 						kind: "running_operation",
@@ -1755,6 +1778,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1783,6 +1807,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					lifecycle: createGraphLifecycle("ready"),
 					revision: {
 						graphRevision: 7,
@@ -1821,6 +1846,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -1846,6 +1872,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-restored",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1863,6 +1890,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1889,6 +1917,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1904,6 +1933,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 			revision: {
@@ -1939,6 +1969,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1948,6 +1979,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -2092,6 +2124,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Running",
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lastAgentMessageId: "assistant-1",
 			activity: {
 				kind: "awaiting_model",
@@ -2165,15 +2198,16 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						dominantOperationId: null,
 						blockingInteractionId: null,
 					},
-					turnState: "Running",
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					transcriptOperations: [],
-					operationPatches: [],
-					interactionPatches: [],
-					changedFields: ["activity"],
+						turnState: "Running",
+						activeTurnFailure: null,
+						lastTerminalTurnId: null,
+						activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+						transcriptOperations: [],
+						operationPatches: [],
+						interactionPatches: [],
+						changedFields: ["activity", "activeStreamingTail"],
+					},
 				},
-			},
 		});
 
 		expect(store.getSessionStateGraph("session-1")?.lastAgentMessageId).toBe("assistant-1");
@@ -2193,6 +2227,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Completed",
 			lastTerminalTurnId: "turn-7",
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 7,
@@ -2220,6 +2255,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Idle",
 			lastTerminalTurnId: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 8,
@@ -2325,6 +2361,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [createOperationSnapshot()],
 					interactionPatches: [createPermissionInteractionSnapshot()],
@@ -2450,6 +2487,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -2525,6 +2563,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -2657,6 +2696,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [
 						createOperationSnapshot({
@@ -3122,6 +3162,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3190,6 +3231,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3295,6 +3337,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3375,6 +3418,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "replaceSnapshot",
@@ -3518,6 +3562,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3619,6 +3664,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activity: createIdleActivity(),
 					lastAgentMessageId: "assistant-1",
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					activeTurnFailure: null,
 				})
 			)
@@ -3645,6 +3691,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendSegment",
@@ -3690,6 +3737,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activity: createIdleActivity(),
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
+					activeStreamingTail: null,
 					lastAgentMessageId: "msg_first",
 					messageCount: 2,
 					revision: {
@@ -3756,6 +3804,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -3809,6 +3858,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						turnState: "Running",
 						activeTurnFailure: null,
 						lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
+					activeStreamingTail: null,
 						transcriptOperations: [
 							{
 								kind: "appendSegment",
@@ -3850,6 +3900,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Completed",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "019df8d0-b087-7721-a9e6-55ac2b04ce58",
+					activeStreamingTail: null,
 					transcriptOperations: [],
 					operationPatches: [],
 					interactionPatches: [],
@@ -3882,6 +3933,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 			lastAgentMessageId: "assistant-1",
 			messageCount: 2,
 			revision: {
@@ -3925,6 +3977,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-2",
+					activeStreamingTail: null,
 			lastAgentMessageId: "assistant-2",
 			messageCount: 4,
 			revision: {
@@ -4012,6 +4065,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Running",
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-1",
+					activeStreamingTail: null,
 					transcriptOperations: [
 						{
 							kind: "appendEntry",
@@ -4072,6 +4126,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4118,6 +4173,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4161,6 +4217,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [],
@@ -4201,6 +4258,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4233,6 +4291,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [
@@ -4273,6 +4332,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 2,
 						entries: [
@@ -4324,6 +4384,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4351,6 +4412,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 2,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 2,
 						entries: [
@@ -4412,6 +4474,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 2,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 10,
 						entries: [
@@ -4462,6 +4525,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 4,
 					activeTurnFailure: null,
 					lastTerminalTurnId: "turn-complete-1",
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 20,
 						entries: [
@@ -4577,6 +4641,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					turnState: "Idle",
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 7,
 						entries: [],
@@ -4622,6 +4687,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 0,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 0,
 						entries: [],
@@ -4674,6 +4740,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						messageCount: 1,
 						activeTurnFailure: null,
 						lastTerminalTurnId: null,
+					activeStreamingTail: null,
 						transcriptSnapshot: {
 							revision: 2,
 							entries: [],
@@ -4700,6 +4767,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					messageCount: 1,
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
+					activeStreamingTail: null,
 					transcriptSnapshot: {
 						revision: 1,
 						entries: [],

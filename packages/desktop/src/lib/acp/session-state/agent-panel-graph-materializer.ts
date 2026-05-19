@@ -611,48 +611,13 @@ function questionInteractionToSceneEntry(
 	};
 }
 
-function findAssistantEntryIdAfterLatestUser(
-	entries: readonly TranscriptEntry[],
-	entryId: string
-): string | null {
-	for (let i = entries.length - 1; i >= 0; i -= 1) {
-		const entry = entries[i];
-		if (entry?.role === "user") {
-			return null;
-		}
-		if (entry?.role === "assistant" && entry.entryId === entryId) {
-			return entry.entryId;
-		}
-	}
-	return null;
-}
-
-function findLiveAssistantEntryId(graph: SessionStateGraph): string | null {
-	const entries = graph.transcriptSnapshot.entries;
-	const tailEntry = entries[entries.length - 1];
-	if (tailEntry?.role === "assistant") {
-		return tailEntry.entryId;
-	}
-
-	if (graph.activity.kind !== "awaiting_model") {
-		return null;
-	}
-
-	const lastAgentMessageId = graph.lastAgentMessageId ?? null;
-	if (lastAgentMessageId === null) {
-		return null;
-	}
-
-	return findAssistantEntryIdAfterLatestUser(entries, lastAgentMessageId);
-}
-
 function materializeConversation(graph: SessionStateGraph): {
 	entries: readonly AgentPanelSceneEntryModel[];
 	isStreaming: boolean;
 } {
 	const isRunning = graph.turnState === "Running";
 	const index = buildOperationIndex(graph.operations);
-	const liveAssistantEntryId = isRunning ? findLiveAssistantEntryId(graph) : null;
+	const liveAssistantEntryId = isRunning ? (graph.activeStreamingTail?.rowId ?? null) : null;
 
 	const entries: AgentPanelSceneEntryModel[] = [];
 	const entryIds = new Set<string>();

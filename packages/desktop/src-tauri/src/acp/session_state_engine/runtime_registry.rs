@@ -5,6 +5,7 @@ use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
 use crate::acp::session_state_engine::frontier::{
     decide_frontier_transition, SessionFrontierDecision,
 };
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload;
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -346,6 +347,7 @@ impl SessionGraphRuntimeRegistry {
                     let projection = self.delta_projection_for_session(
                         request.session_id,
                         request.projection_registry,
+                        request.transcript_projection_registry,
                     );
                     let mut changed_fields = vec![
                         "operations".to_string(),
@@ -354,6 +356,7 @@ impl SessionGraphRuntimeRegistry {
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
                         "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ];
                     if is_transcript_bearing {
                         changed_fields.push("transcriptSnapshot".to_string());
@@ -399,7 +402,11 @@ impl SessionGraphRuntimeRegistry {
                 delta,
                 from_revision,
                 to_revision,
-                self.delta_projection_for_session(request.session_id, request.projection_registry),
+                self.delta_projection_for_session(
+                    request.session_id,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                ),
             )),
             SessionFrontierDecision::AcceptDelta { .. } => None,
         }
@@ -477,6 +484,7 @@ impl SessionGraphRuntimeRegistry {
                     "activeTurnFailure".to_string(),
                     "lastTerminalTurnId".to_string(),
                     "lastAgentMessageId".to_string(),
+                    "activeStreamingTail".to_string(),
                 ];
                 if is_transcript_bearing {
                     changed_fields.push("transcriptSnapshot".to_string());
@@ -497,6 +505,7 @@ impl SessionGraphRuntimeRegistry {
                     projection: self.delta_projection_for_session(
                         request.session_id,
                         request.projection_registry,
+                        request.transcript_projection_registry,
                     ),
                     transcript_operations,
                     operation_patches,
@@ -571,6 +580,12 @@ impl SessionGraphRuntimeRegistry {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let active_streaming_tail = select_active_streaming_tail(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+            session_snapshot.last_agent_message_id.as_deref(),
+        );
 
         Some(SessionStateEnvelope {
             session_id: session_id.to_string(),
@@ -594,6 +609,7 @@ impl SessionGraphRuntimeRegistry {
                     turn_state: session_snapshot.turn_state,
                     message_count: session_snapshot.message_count,
                     last_agent_message_id: session_snapshot.last_agent_message_id,
+                    active_streaming_tail,
                     active_turn_failure: session_snapshot.active_turn_failure,
                     last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
                     lifecycle: runtime_snapshot.lifecycle,
@@ -608,6 +624,7 @@ impl SessionGraphRuntimeRegistry {
         &self,
         session_id: &str,
         projection_registry: &ProjectionRegistry,
+        transcript_projection_registry: &TranscriptProjectionRegistry,
     ) -> DeltaSessionProjectionFields {
         let projection_snapshot = projection_registry.session_projection(session_id);
         let session_snapshot = projection_snapshot
@@ -621,12 +638,25 @@ impl SessionGraphRuntimeRegistry {
             &projection_snapshot.interactions,
             session_snapshot.active_turn_failure.as_ref(),
         );
+        let transcript_snapshot = transcript_projection_registry
+            .snapshot_for_session(session_id)
+            .unwrap_or_else(|| TranscriptSnapshot {
+                revision: 0,
+                entries: Vec::new(),
+            });
+        let active_streaming_tail = select_active_streaming_tail(
+            &session_snapshot.turn_state,
+            &activity,
+            &transcript_snapshot,
+            session_snapshot.last_agent_message_id.as_deref(),
+        );
         DeltaSessionProjectionFields {
             activity,
             turn_state: session_snapshot.turn_state,
             active_turn_failure: session_snapshot.active_turn_failure,
             last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
             last_agent_message_id: session_snapshot.last_agent_message_id,
+            active_streaming_tail,
         }
     }
 }
@@ -757,6 +787,7 @@ fn build_live_session_state_delta_envelope(
             "activeTurnFailure".to_string(),
             "lastTerminalTurnId".to_string(),
             "lastAgentMessageId".to_string(),
+            "activeStreamingTail".to_string(),
         ],
     })
 }
@@ -1392,6 +1423,7 @@ mod tests {
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
                         "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
             }
@@ -1804,6 +1836,7 @@ mod tests {
                 active_turn_failure: None,
                 last_terminal_turn_id: None,
                 last_agent_message_id: Some("assistant-1".to_string()),
+                active_streaming_tail: None,
             },
         );
 
@@ -1888,6 +1921,7 @@ mod tests {
                         "activeTurnFailure".to_string(),
                         "lastTerminalTurnId".to_string(),
                         "lastAgentMessageId".to_string(),
+                        "activeStreamingTail".to_string(),
                     ]
                 );
                 assert!(delta.last_agent_message_id.is_none());

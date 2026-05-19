@@ -12,6 +12,7 @@ import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-gro
 import {
 resolveVisibleAssistantMessageGroups,
 shouldStreamAssistantTextContent,
+shouldStreamAssistantThoughtContent,
 } from "./agent-assistant-message-visible-groups.js";
 import { sanitizeAssistantText } from "../../lib/assistant-message/assistant-text-sanitizer.js";
 import {
@@ -224,13 +225,17 @@ bind:this={thinkingContainerRef}
 {#each filteredThoughtGroups as group, index (index)}
 {@const isLastThoughtTextGroup = index === lastThoughtTextGroupIndex}
 {#if renderBlock}
-				{@render renderBlock({
+							{@render renderBlock({
 								group,
-								isStreaming: isStreaming && isLastThoughtTextGroup,
+								isStreaming: shouldStreamAssistantThoughtContent({
+									isStreaming,
+									hasMessageContent,
+									isLastThoughtTextGroup,
+								}),
 								tokenRevealCss: undefined,
 								projectPath,
 								streamingAnimationMode,
-				})}
+							})}
 {:else if group.type === "text"}
 <MarkdownDisplay
 	content={group.text}

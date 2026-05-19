@@ -1,7 +1,7 @@
 use crate::acp::projections::{
     InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
 };
-use crate::acp::session_state_engine::graph::SessionStateGraph;
+use crate::acp::session_state_engine::graph::{ActiveStreamingTail, SessionStateGraph};
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -39,6 +39,7 @@ pub struct SessionStateDelta {
     pub last_terminal_turn_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_agent_message_id: Option<String>,
+    pub active_streaming_tail: Option<ActiveStreamingTail>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transcript_operations: Vec<TranscriptDeltaOperation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

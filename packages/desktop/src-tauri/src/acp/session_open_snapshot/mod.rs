@@ -23,9 +23,11 @@ use crate::acp::projections::{
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
+use crate::acp::session_state_engine::graph::{select_active_streaming_tail, ActiveStreamingTail};
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle,
+    select_session_graph_activity, SessionGraphActivity, SessionGraphCapabilities,
+    SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::{
@@ -223,6 +225,8 @@ pub struct SessionOpenFound {
     pub message_count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_agent_message_id: Option<String>,
+    pub activity: SessionGraphActivity,
+    pub active_streaming_tail: Option<ActiveStreamingTail>,
     // --- Canonical lifecycle/actionability authority ---
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
@@ -579,6 +583,19 @@ pub async fn session_open_result_from_provider_owned_snapshot(
             capabilities.clone(),
         );
     }
+    let activity = select_session_graph_activity(
+        &lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+    let active_streaming_tail = select_active_streaming_tail(
+        &turn_state,
+        &activity,
+        &transcript_snapshot,
+        last_agent_message_id.as_deref(),
+    );
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: requested_session_id.to_string(),
@@ -602,6 +619,8 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         turn_state,
         message_count,
         last_agent_message_id,
+        activity,
+        active_streaming_tail,
         lifecycle,
         capabilities,
         active_turn_failure,
@@ -644,6 +663,19 @@ pub async fn session_open_result_for_new_session(
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
 
+    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(last_event_seq, &[]);
+    let operations = vec![];
+    let interactions = vec![];
+    let turn_state = SessionTurnState::Idle;
+    let active_turn_failure = None;
+    let activity = select_session_graph_activity(
+        &input.lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: session_id.clone(),
         canonical_session_id: session_id.clone(),
@@ -655,16 +687,18 @@ pub async fn session_open_result_for_new_session(
         project_path: input.project_path,
         worktree_path: input.worktree_path,
         source_path: input.source_path,
-        transcript_snapshot: TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
+        transcript_snapshot,
         session_title: resolve_canonical_session_title(None, &session_id, None),
-        operations: vec![],
-        interactions: vec![],
-        turn_state: SessionTurnState::Idle,
+        operations,
+        interactions,
+        turn_state,
         message_count: 0,
         last_agent_message_id: None,
+        activity,
+        active_streaming_tail: None,
         lifecycle: input.lifecycle,
         capabilities: input.capabilities,
-        active_turn_failure: None,
+        active_turn_failure,
         last_terminal_turn_id: None,
     }))
 }
