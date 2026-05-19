@@ -388,7 +388,11 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 		return [];
 	}
 
-	return getToolbarConfigOptions(sessionConfigOptions, effectiveAvailableModels).map(
+	return getToolbarConfigOptions(
+		sessionConfigOptions,
+		effectiveAvailableModels,
+		effectiveModelsDisplay
+	).map(
 		(option): AgentInputConfigOption => {
 			const raw = option.currentValue;
 			const currentValue: string | number | boolean | null =

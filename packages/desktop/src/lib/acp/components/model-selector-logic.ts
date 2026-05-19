@@ -366,29 +366,10 @@ export function getProviderMarkSource(
 }
 
 export function supportsReasoningEffortPicker(
-	models: readonly Model[],
+	_models: readonly Model[],
 	modelsDisplay?: ModelsForDisplay | null
 ): boolean {
-	if (getProviderMetadata(modelsDisplay)?.reasoningEffortSupport) {
-		return true;
-	}
-
-	if (getModelDisplayFamily(modelsDisplay) === "codexReasoningEffort") {
-		return true;
-	}
-
-	const validModels = models.filter((model) => model.id);
-	if (validModels.length === 0) {
-		return false;
-	}
-
-	const parsedCount = validModels.filter((model) => parseCodexModelVariant(model) !== null).length;
-	if (parsedCount !== validModels.length) {
-		return false;
-	}
-
-	const groups = groupCodexModelsByBase(validModels);
-	return groups.some((group) => group.variants.length > 1);
+	return groupReasoningModelsFromDisplay(modelsDisplay).some((group) => group.variants.length > 1);
 }
 
 export function isContextWindowOnlyMetrics(

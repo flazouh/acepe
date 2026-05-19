@@ -510,17 +510,17 @@ describe("model-selector-logic", () => {
 			expect(supportsReasoningEffortPicker(models)).toBe(false);
 		});
 
-		it("returns true when all models are effort variants with multiple per base", () => {
+		it("does not infer reasoning effort picker from model ids without canonical display groups", () => {
 			const models: Model[] = [
 				{ id: "gpt-5.3-codex/low", name: "low", description: undefined },
 				{ id: "gpt-5.3-codex/medium", name: "medium", description: undefined },
 				{ id: "gpt-5.2-codex/high", name: "high", description: undefined },
 			];
 
-			expect(supportsReasoningEffortPicker(models)).toBe(true);
+			expect(supportsReasoningEffortPicker(models)).toBe(false);
 		});
 
-		it("trusts backend presentation metadata when available", () => {
+		it("requires backend reasoning groups before enabling backend reasoning presentation", () => {
 			const modelsDisplay: ModelsForDisplay = {
 				groups: [],
 				presentation: {
@@ -529,27 +529,23 @@ describe("model-selector-logic", () => {
 				},
 			};
 
-			expect(supportsReasoningEffortPicker([], modelsDisplay)).toBe(true);
+			expect(supportsReasoningEffortPicker([], modelsDisplay)).toBe(false);
 		});
 
-		it("trusts provider metadata reasoning support when available", () => {
+		it("trusts backend reasoning presentation when canonical groups are available", () => {
 			const modelsDisplay: ModelsForDisplay = {
-				groups: [],
-				presentation: {
-					displayFamily: "providerGrouped",
-					usageMetrics: "spendAndContext",
-					provider: {
-						providerBrand: "codex",
-						displayName: "Codex",
-						displayOrder: 50,
-						supportsModelDefaults: true,
-						variantGroup: "reasoningEffort",
-						defaultAlias: undefined,
-						reasoningEffortSupport: true,
-						preconnectionSlashMode: "startupGlobal",
-						preconnectionCapabilityMode: "startupGlobal",
-					implicitSessionCreationMode: "allowed",
+				groups: [
+					{
+						label: "GPT-5.3 Codex",
+						models: [
+							{ modelId: "gpt-5.3-codex/low", displayName: "low" },
+							{ modelId: "gpt-5.3-codex/medium", displayName: "medium" },
+						],
 					},
+				],
+				presentation: {
+					displayFamily: "codexReasoningEffort",
+					usageMetrics: "spendAndContext",
 				},
 			};
 

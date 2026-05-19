@@ -1,4 +1,5 @@
 import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
+import type { ModelsForDisplay } from "../../../../services/acp-types.js";
 import type { Model } from "../../../application/dto/model.js";
 
 import { supportsReasoningEffortPicker } from "../../model-selector-logic.js";
@@ -46,14 +47,15 @@ function isInteractiveConfigOption(configOption: ConfigOptionData): boolean {
 
 export function getToolbarConfigOptions(
 	configOptions: readonly ConfigOptionData[] | null | undefined,
-	availableModels?: readonly Model[] | null | undefined
+	availableModels?: readonly Model[] | null | undefined,
+	modelsDisplay?: ModelsForDisplay | null | undefined
 ): ConfigOptionData[] {
 	if (!configOptions || configOptions.length === 0) {
 		return [];
 	}
 
 	const shouldHideReasoningOption = availableModels
-		? supportsReasoningEffortPicker(availableModels)
+		? supportsReasoningEffortPicker(availableModels, modelsDisplay)
 		: false;
 	const toolbarConfigOptions: ConfigOptionData[] = [];
 
