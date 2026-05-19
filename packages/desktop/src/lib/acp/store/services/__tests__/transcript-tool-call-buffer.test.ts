@@ -508,7 +508,6 @@ describe("TranscriptToolCallBuffer", () => {
 					arguments: { kind: "other", raw: { prompt: "Ship it?" } },
 					kind: "question",
 					title: "Ask question",
-					diagnosticRawInput: null,
 					result: null,
 					awaitingPlanApproval: false,
 				},
@@ -525,7 +524,6 @@ describe("TranscriptToolCallBuffer", () => {
 
 			const replayedData = createToolCallData("tc-1", {
 				status: "completed",
-				diagnosticRawInput: { prompt: "Ship it?" },
 				questionAnswer: {
 					questions: [
 						{
@@ -544,7 +542,6 @@ describe("TranscriptToolCallBuffer", () => {
 			const updatedEntry = (entryStore.replaceTranscriptEntry as ReturnType<typeof vi.fn>).mock
 				.calls[0][2] as SessionEntry;
 			if (updatedEntry.type === "tool_call") {
-				expect(updatedEntry.message.diagnosticRawInput).toEqual({ prompt: "Ship it?" });
 				expect(updatedEntry.message.questionAnswer).toEqual({
 					questions: [
 						{

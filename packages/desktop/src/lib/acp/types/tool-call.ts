@@ -19,6 +19,8 @@ interface ToolCallTiming {
 	completedAtMs?: number;
 }
 
+type ProductToolCallData = Omit<_ToolCallData, "diagnosticRawInput" | "taskChildren">;
+
 export type ToolPresentationStatus =
 	| "pending"
 	| "running"
@@ -28,7 +30,7 @@ export type ToolPresentationStatus =
 	| "cancelled"
 	| "degraded";
 
-export interface ToolCall extends _ToolCallData, ToolCallTiming {
+export interface ToolCall extends ProductToolCallData, ToolCallTiming {
 	progressiveArguments?: ToolArguments;
 	normalizedResult?: NormalizedToolResult | null;
 	taskChildren?: ToolCall[] | null;

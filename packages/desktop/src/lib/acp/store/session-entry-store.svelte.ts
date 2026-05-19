@@ -237,7 +237,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				name: entry.message.name,
 				arguments: entry.message.arguments,
 				progressiveArguments: entry.message.progressiveArguments,
-				diagnosticRawInput: entry.message.diagnosticRawInput,
 				status: entry.message.status,
 				result: entry.message.result,
 				kind: entry.message.kind,

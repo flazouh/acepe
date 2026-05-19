@@ -13,7 +13,6 @@ function makeToolCall(plan: string): ToolCall {
 			plan,
 			plan_file_path: "/Users/alex/.claude/plans/focused-plan.md",
 		},
-		diagnosticRawInput: null,
 		status: "in_progress",
 		kind: "exit_plan_mode",
 		awaitingPlanApproval: false,
@@ -69,10 +68,9 @@ describe("buildQueueExitPlanCard", () => {
 		expect(card?.content).toBe(plan);
 	});
 
-	it("can build the card from canonical plan-mode arguments when diagnosticRawInput is absent", () => {
+	it("can build the card from canonical plan-mode arguments", () => {
 		const plan = "# Restored Operation Plan\n\nUse canonical plan fields from the graph operation.";
 		const toolCall = makeToolCall(plan);
-		toolCall.diagnosticRawInput = null;
 		toolCall.arguments = {
 			kind: "planMode",
 			plan,
