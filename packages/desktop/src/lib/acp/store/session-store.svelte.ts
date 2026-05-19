@@ -1,11 +1,13 @@
 /**
  * Session Store - Consolidated session management.
  *
- * Single source of truth for all session state:
- * - sessions: SessionCold[] (cold data)
- * - hotState: Map<id, SessionTransientProjection> (all transient state)
- * - entriesById: Map<id, SessionEntry[]> (messages)
- * - Event subscription handling (via SessionEventService)
+ * Canonical session truth comes from Rust-authored SessionStateGraph envelopes.
+ * This store keeps local indexes and projections around that truth:
+ * - sessions: SessionCold[] for identity and metadata
+ * - sessionStateGraphs/canonicalProjections for lifecycle, activity, turn state, and capabilities
+ * - entryStore for canonical transcript snapshot/delta projection
+ * - operationStore for canonical tool operation state
+ * - hotStateStore only for local UI affordances with no canonical counterpart
  */
 
 import { countWordsInMarkdown } from "@acepe/ui/markdown";
