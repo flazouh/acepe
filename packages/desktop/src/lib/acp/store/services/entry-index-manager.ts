@@ -9,7 +9,7 @@
  */
 
 import type { SessionEntry } from "../types.js";
-import { isToolCallEntry } from "../types.js";
+import { isToolCallEntry, toolCallIdFromEntry } from "../types.js";
 import type { IEntryIndex } from "./interfaces/entry-index.js";
 
 export class EntryIndexManager implements IEntryIndex {
@@ -73,7 +73,7 @@ export class EntryIndexManager implements IEntryIndex {
 		for (let i = 0; i < entries.length; i++) {
 			const entry = entries[i];
 			if (isToolCallEntry(entry)) {
-				sessionIndex.set(entry.message.id, i);
+				sessionIndex.set(toolCallIdFromEntry(entry), i);
 			}
 		}
 

@@ -27,7 +27,7 @@ import {
 	convertTranscriptSnapshotToSessionEntries,
 } from "./services/transcript-snapshot-entry-adapter.js";
 import type { SessionEntry } from "./types.js";
-import { isToolCallEntry } from "./types.js";
+import { isToolCallEntry, toolCallIdFromEntry } from "./types.js";
 
 const logger = createLogger({ id: "session-entry-store", name: "SessionEntryStore" });
 
@@ -75,13 +75,13 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const indexedPosition = this.entryIndex.getToolCallIdIndex(sessionId, toolCallId);
 		if (indexedPosition !== undefined) {
 			const indexedEntry = entries[indexedPosition];
-			if (isToolCallEntry(indexedEntry) && indexedEntry.message.id === toolCallId) {
+			if (isToolCallEntry(indexedEntry) && toolCallIdFromEntry(indexedEntry) === toolCallId) {
 				return { entry: indexedEntry, index: indexedPosition };
 			}
 		}
 
 		const recoveredIndex = entries.findIndex(
-			(entry) => isToolCallEntry(entry) && entry.message.id === toolCallId
+			(entry) => isToolCallEntry(entry) && toolCallIdFromEntry(entry) === toolCallId
 		);
 		if (recoveredIndex === -1) {
 			return null;
@@ -262,7 +262,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		const newIndex = newEntries.length - 1;
 		this.entryIndex.addEntryId(sessionId, normalizedEntry.id, newIndex);
 		if (isToolCallEntry(normalizedEntry)) {
-			this.entryIndex.addToolCallId(sessionId, normalizedEntry.message.id, newIndex);
+			this.entryIndex.addToolCallId(sessionId, toolCallIdFromEntry(normalizedEntry), newIndex);
 		}
 		logger.debug("appendTranscriptEntry: appended entry", {
 			sessionId,
@@ -296,8 +296,12 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		}
 		this.entryIndex.addEntryId(sessionId, normalizedEntry.id, index);
 
-		const previousToolCallId = isToolCallEntry(previousEntry) ? previousEntry.message.id : null;
-		const updatedToolCallId = isToolCallEntry(normalizedEntry) ? normalizedEntry.message.id : null;
+		const previousToolCallId = isToolCallEntry(previousEntry)
+			? toolCallIdFromEntry(previousEntry)
+			: null;
+		const updatedToolCallId = isToolCallEntry(normalizedEntry)
+			? toolCallIdFromEntry(normalizedEntry)
+			: null;
 		if (previousToolCallId !== null && updatedToolCallId !== null) {
 			if (previousToolCallId !== updatedToolCallId) {
 				this.entryIndex.deleteToolCallId(sessionId, previousToolCallId);

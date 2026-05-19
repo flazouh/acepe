@@ -453,7 +453,7 @@ export interface HistoryEntry {
 	readonly agentId: string; // Identifies which agent created this session
 }
 
-export { isToolCallEntry } from "../application/dto/session-entry.js";
+export { isToolCallEntry, toolCallIdFromEntry } from "../application/dto/session-entry.js";
 
 // ============================================
 // VIEW MODE

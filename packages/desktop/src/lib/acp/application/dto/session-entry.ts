@@ -49,3 +49,15 @@ export function isToolCallEntry(
 ): entry is SessionEntryBase & { readonly type: "tool_call"; readonly message: ToolCall } {
 	return entry.type === "tool_call";
 }
+
+/**
+ * Canonical tool identity for a tool_call entry.
+ *
+ * The `message.id` field on this DTO is the tool_use id. It is not an
+ * assistant provider message id and must not be used as display-row identity.
+ */
+export function toolCallIdFromEntry(
+	entry: SessionEntryBase & { readonly type: "tool_call"; readonly message: ToolCall }
+): string {
+	return entry.message.id;
+}
