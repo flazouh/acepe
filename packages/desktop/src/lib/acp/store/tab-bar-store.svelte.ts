@@ -120,9 +120,7 @@ export class TabBarStore {
 			? this.sessionStore.getCanonicalSessionProjection(sessionId)
 			: null;
 		const transcriptEntries =
-			sessionId !== null
-				? (this.sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? null)
-				: null;
+			sessionId !== null ? this.sessionStore.getSessionTranscriptEntries(sessionId) : null;
 		const currentToolKind =
 			sessionId !== null ? this.sessionStore.getSessionCurrentToolKind(sessionId) : null;
 

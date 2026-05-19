@@ -6,6 +6,7 @@ import type {
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateGraph,
+	TranscriptEntry,
 } from "$lib/services/acp-types.js";
 import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 
@@ -87,7 +88,10 @@ function createCapabilities(): SessionGraphCapabilities {
 	};
 }
 
-function createGraph(capabilities: SessionGraphCapabilities): SessionStateGraph {
+function createGraph(
+	capabilities: SessionGraphCapabilities,
+	entries: TranscriptEntry[] = []
+): SessionStateGraph {
 	const revision = createRevision(7);
 	return {
 		requestedSessionId: "session-1",
@@ -100,7 +104,7 @@ function createGraph(capabilities: SessionGraphCapabilities): SessionStateGraph 
 		revision,
 		transcriptSnapshot: {
 			revision: revision.transcriptRevision,
-			entries: [],
+			entries,
 		},
 		operations: [],
 		interactions: [],
@@ -133,6 +137,7 @@ describe("SessionStore canonical projection accessors", () => {
 		const store = new SessionStore();
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBeNull();
+		expect(store.getSessionTranscriptEntries("session-1")).toBeNull();
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionActiveTurnFailure("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
@@ -151,10 +156,18 @@ describe("SessionStore canonical projection accessors", () => {
 	it("derives all capability accessors from the canonical projection", () => {
 		const store = new SessionStore();
 		addColdSession(store);
+		const transcriptEntries: TranscriptEntry[] = [
+			{
+				entryId: "entry-1",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "segment-1", text: "Build the feature" }],
+			},
+		];
 
-		store.applySessionStateGraph(createGraph(createCapabilities()));
+		store.applySessionStateGraph(createGraph(createCapabilities(), transcriptEntries));
 
 		expect(store.getSessionStateGraph("session-1")?.turnState ?? null).toBe("Running");
+		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
 		expect(store.getSessionAutonomousEnabled("session-1")).toBe(true);

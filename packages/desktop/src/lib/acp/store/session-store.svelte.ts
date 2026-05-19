@@ -1305,6 +1305,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.sessionStateGraphs.get(sessionId) ?? null;
 	}
 
+	/**
+	 * Canonical transcript entries; null means no canonical graph exists yet.
+	 */
+	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
+		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+	}
+
 	hasPendingCreationSession(sessionId: string): boolean {
 		return this.pendingCreationSessions.has(sessionId);
 	}
