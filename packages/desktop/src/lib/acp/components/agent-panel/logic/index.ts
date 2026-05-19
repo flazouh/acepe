@@ -6,7 +6,7 @@
  */
 
 export { mapCanonicalTurnStateToPresentationStatus } from "../../../store/canonical-turn-state-mapping";
-export { copyCanonicalSessionToClipboard, copyTextToClipboard } from "./clipboard-manager";
+export { copyTextToClipboard } from "./clipboard-manager";
 export { derivePanelErrorInfo } from "./connection-ui";
 export { resolveEffectiveProjectPath } from "./effective-project-path";
 export { calculateLoadingProgress, isLoadingComplete } from "./loading-animator";

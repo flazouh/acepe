@@ -1,25 +1,11 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { errAsync, okAsync, ResultAsync } from "neverthrow";
 
-import type { SessionCold } from "../../../application/dto/session-cold";
-import type { SessionStateGraph } from "../../../../services/acp-types.js";
 import { createLogger } from "../../../utils/logger.js";
 
 import { ClipboardError } from "../errors";
 
 const logger = createLogger({ id: "clipboard-manager", name: "ClipboardManager" });
-
-/**
- * Data needed to copy a session to clipboard.
- */
-interface CanonicalClipboardSessionData {
-	readonly session: SessionCold;
-	readonly transcriptSnapshot: SessionStateGraph["transcriptSnapshot"];
-	readonly operations: SessionStateGraph["operations"];
-	readonly interactions: SessionStateGraph["interactions"];
-	readonly revision: SessionStateGraph["revision"];
-	readonly entryCount: number;
-}
 
 function copyTextWithExecCommand(content: string): boolean {
 	if (typeof document === "undefined") {
@@ -141,21 +127,4 @@ export function copyTextToClipboard(content: string): ResultAsync<void, Clipboar
 				})
 			);
 		});
-}
-
-export function copyCanonicalSessionToClipboard(
-	session: SessionCold,
-	graph: SessionStateGraph
-): ResultAsync<void, ClipboardError> {
-	const payload: CanonicalClipboardSessionData = {
-		session,
-		transcriptSnapshot: graph.transcriptSnapshot,
-		operations: graph.operations,
-		interactions: graph.interactions,
-		revision: graph.revision,
-		entryCount: graph.transcriptSnapshot.entries.length,
-	};
-	const content = JSON.stringify(payload, null, 2);
-
-	return copyTextToClipboard(content);
 }

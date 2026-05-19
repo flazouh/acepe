@@ -1766,8 +1766,7 @@ async function handleCopyContent() {
 	}
 	await copyThreadContentToClipboard({
 		sessionId,
-		getSessionCold: (id) => sessionStore.getSessionCold(id),
-		getSessionStateGraph: (id) => sessionStore.getSessionStateGraph(id),
+		getSessionJsonExportContent: (id) => sessionStore.getSessionJsonExportContent(id),
 	});
 }
 
@@ -1803,20 +1802,19 @@ async function handleOpenInAcepe() {
 
 async function handleExportMarkdown(): Promise<void> {
 	if (!sessionId) return;
-	const graph = sessionStore.getSessionStateGraph(sessionId);
-	if (graph === null) {
-		toast.error("Thread content is not loaded");
-		return;
-	}
-	await exportSessionMarkdownToClipboard(graph);
+	await sessionStore.getSessionMarkdownExportContent(sessionId).match(
+		(markdown) => exportSessionMarkdownToClipboard(markdown),
+		(error) => {
+			toast.error(error.message);
+		}
+	);
 }
 
 async function handleExportJson() {
 	if (!sessionId) return;
 	await exportSessionJsonToClipboard({
 		sessionId,
-		getSessionCold: (id) => sessionStore.getSessionCold(id),
-		getSessionStateGraph: (id) => sessionStore.getSessionStateGraph(id),
+		getSessionJsonExportContent: (id) => sessionStore.getSessionJsonExportContent(id),
 	});
 }
 

@@ -1,8 +1,7 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
-import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
-import { copyCanonicalSessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
+import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
 import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
@@ -19,7 +18,6 @@ import {
 } from "$lib/acp/store/index.js";
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { sessionGraphToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 
@@ -185,41 +183,32 @@ function handleRenameSession(sessionInfo: SessionListItem, title: string) {
 }
 
 function handleExportMarkdown(sessionId: string) {
-	const graph = sessionStore.getSessionStateGraph(sessionId);
-	if (graph === null) {
-		toast.error("Thread content is not loaded");
-		return;
-	}
-	const markdown = sessionGraphToMarkdown(graph);
-	ResultAsync.fromPromise(
-		navigator.clipboard.writeText(markdown),
-		(e) => new Error(String(e))
-	).match(
-		() => toast.success("Copied to clipboard"),
-		(err) => {
-			toast.error(`Failed to export: ${err.message}`);
-			logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
-		}
+	sessionStore.getSessionMarkdownExportContent(sessionId).match(
+		(markdown) => {
+			void copyTextToClipboard(markdown).match(
+				() => toast.success("Copied to clipboard"),
+				(err) => {
+					toast.error(`Failed to export: ${err.message}`);
+					logger.error("[ExportMarkdown] Failed", { sessionId, error: err });
+				}
+			);
+		},
+		(error) => toast.error(error.message)
 	);
 }
 
-async function handleExportJson(sessionId: string) {
-	const cold = sessionStore.getSessionCold(sessionId);
-	if (!cold) {
-		toast.error(`Failed to export: ${"Session not found"}`);
-		return;
-	}
-	const graph = sessionStore.getSessionStateGraph(sessionId);
-	if (graph === null) {
-		toast.error("Thread content is not loaded");
-		return;
-	}
-	copyCanonicalSessionToClipboard(cold, graph).match(
-		() => toast.success("Copied to clipboard"),
-		(err) => {
-			toast.error(`Failed to export: ${err.message}`);
-			logger.error("[ExportJson] Failed", { sessionId, error: err });
-		}
+function handleExportJson(sessionId: string) {
+	sessionStore.getSessionJsonExportContent(sessionId).match(
+		(content) => {
+			void copyTextToClipboard(content).match(
+				() => toast.success("Copied to clipboard"),
+				(err) => {
+					toast.error(`Failed to export: ${err.message}`);
+					logger.error("[ExportJson] Failed", { sessionId, error: err });
+				}
+			);
+		},
+		(error) => toast.error(`Failed to export: ${error.message}`)
 	);
 }
 

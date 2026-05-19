@@ -8,7 +8,33 @@ import type {
 	SessionStateGraph,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
+import type { SessionCold } from "../application/dto/session-cold.js";
+import { sessionGraphToJsonExportContent } from "./session-export.js";
 import { sessionGraphToMarkdown } from "./session-to-markdown.js";
+
+interface ExportPayload {
+	readonly session: {
+		readonly id: string;
+		readonly projectPath: string;
+		readonly agentId: string;
+		readonly title: string | null;
+		readonly createdAt: string;
+		readonly updatedAt: string;
+		readonly sessionLifecycleState: string;
+		readonly parentId: string | null;
+	};
+	readonly transcriptSnapshot: {
+		readonly entries: readonly { readonly entryId: string }[];
+	};
+	readonly operations: readonly { readonly id: string }[];
+	readonly interactions: readonly { readonly id: string }[];
+	readonly revision: {
+		readonly graphRevision: number;
+		readonly transcriptRevision: number;
+		readonly lastEventSeq: number | null;
+	};
+	readonly entryCount: number;
+}
 
 function actionability(): SessionGraphActionability {
 	return {
@@ -142,6 +168,23 @@ function graph(): SessionStateGraph {
 	};
 }
 
+function session(): SessionCold {
+	const createdAt = new Date("2026-01-02T03:04:05.000Z");
+	const updatedAt = new Date("2026-01-02T03:05:06.000Z");
+
+	return {
+		id: "session-1",
+		projectPath: "/repo",
+		agentId: "claude-code",
+		title: "Inspect app",
+		createdAt,
+		updatedAt,
+		sourcePath: undefined,
+		sessionLifecycleState: "persisted",
+		parentId: null,
+	};
+}
+
 describe("sessionGraphToMarkdown", () => {
 	it("exports canonical transcript order with operation-backed tool details", () => {
 		expect(sessionGraphToMarkdown(graph())).toBe(
@@ -159,5 +202,38 @@ describe("sessionGraphToMarkdown", () => {
 				"The entry point is small.",
 			].join("")
 		);
+	});
+});
+
+describe("sessionGraphToJsonExportContent", () => {
+	it("exports the cold session with canonical graph slices", () => {
+		const payload = JSON.parse(
+			sessionGraphToJsonExportContent(session(), graph())
+		) as ExportPayload;
+
+		expect(payload.session).toEqual({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "claude-code",
+			title: "Inspect app",
+			createdAt: "2026-01-02T03:04:05.000Z",
+			updatedAt: "2026-01-02T03:05:06.000Z",
+			sessionLifecycleState: "persisted",
+			parentId: null,
+		});
+		expect(payload.transcriptSnapshot.entries.map((entry) => entry.entryId)).toEqual([
+			"user-1",
+			"assistant-1",
+			"tool-entry-1",
+			"assistant-2",
+		]);
+		expect(payload.operations.map((operation) => operation.id)).toEqual(["operation-1"]);
+		expect(payload.interactions).toEqual([]);
+		expect(payload.revision).toEqual({
+			graphRevision: 4,
+			transcriptRevision: 4,
+			lastEventSeq: 4,
+		});
+		expect(payload.entryCount).toBe(4);
 	});
 });

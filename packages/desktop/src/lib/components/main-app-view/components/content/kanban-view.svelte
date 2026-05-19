@@ -22,7 +22,6 @@ import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.sve
 import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getProviderBrandIcon } from "$lib/acp/constants/thread-list-constants.js";
 import {
-	copyCanonicalSessionToClipboard,
 	copyTextToClipboard,
 } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import {
@@ -72,10 +71,8 @@ import type {
 import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
-import { sessionGraphToMarkdown } from "$lib/acp/utils/session-to-markdown.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
-import { ResultAsync } from "neverthrow";
 import { Plus } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
@@ -798,37 +795,20 @@ async function handleOpenInAcepe(item: ThreadBoardItem): Promise<void> {
 }
 
 async function handleExportMarkdown(item: ThreadBoardItem): Promise<void> {
-	const graph = sessionStore.getSessionStateGraph(item.sessionId);
-	if (graph === null) {
-		toast.error("Thread content is not loaded");
-		return;
-	}
-	const markdown = sessionGraphToMarkdown(graph);
-
-	await ResultAsync.fromPromise(
-		navigator.clipboard.writeText(markdown),
-		(error) => new Error(String(error))
-	).match(
+	await sessionStore.getSessionMarkdownExportContent(item.sessionId).asyncAndThen((markdown) => {
+		return copyTextToClipboard(markdown);
+	}).match(
 		() => toast.success("Copied to clipboard"),
-		(err) => toast.error(`Failed to export: ${err.message}`)
+		(error) => toast.error(`Failed to export: ${error.message}`)
 	);
 }
 
 async function handleExportJson(item: ThreadBoardItem): Promise<void> {
-	const cold = sessionStore.getSessionCold(item.sessionId);
-	if (!cold) {
-		toast.error(`Failed to export: ${"Session not found"}`);
-		return;
-	}
-
-	const graph = sessionStore.getSessionStateGraph(item.sessionId);
-	if (graph === null) {
-		toast.error("Thread content is not loaded");
-		return;
-	}
-	await copyCanonicalSessionToClipboard(cold, graph).match(
+	await sessionStore.getSessionJsonExportContent(item.sessionId).asyncAndThen((content) => {
+		return copyTextToClipboard(content);
+	}).match(
 		() => toast.success("Copied to clipboard"),
-		(err) => toast.error(`Failed to export: ${err.message}`)
+		(error) => toast.error(`Failed to export: ${error.message}`)
 	);
 }
 

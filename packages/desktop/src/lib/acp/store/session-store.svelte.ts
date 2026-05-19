@@ -11,7 +11,7 @@
  */
 
 import { countWordsInMarkdown } from "@acepe/ui/markdown";
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import { err, errAsync, ok, okAsync, type Result, type ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type {
@@ -106,6 +106,8 @@ import {
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
+import { sessionGraphToJsonExportContent } from "../utils/session-export.js";
+import { sessionGraphToMarkdown } from "../utils/session-to-markdown.js";
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import { api } from "./api.js";
 import { OperationStore } from "./operation-store.svelte.js";
@@ -253,11 +255,35 @@ const SESSION_STATE_GRAPH_COPY_KEYS = [
 type SessionStateGraphCopyKey = (typeof SESSION_STATE_GRAPH_COPY_KEYS)[number];
 type MissingSessionStateGraphCopyKey = Exclude<keyof SessionStateGraph, SessionStateGraphCopyKey>;
 
+export type SessionExportContentErrorKind = "session_not_found" | "thread_content_not_loaded";
+
+export interface SessionExportContentError {
+	readonly kind: SessionExportContentErrorKind;
+	readonly message: string;
+}
+
 function assertSessionStateGraphCopyKeyCoverage(
 	_coverage: Record<MissingSessionStateGraphCopyKey, never>
 ): void {}
 
 assertSessionStateGraphCopyKeyCoverage({});
+
+function sessionExportContentError(
+	kind: SessionExportContentErrorKind
+): SessionExportContentError {
+	switch (kind) {
+		case "session_not_found":
+			return {
+				kind,
+				message: "Session not found",
+			};
+		case "thread_content_not_loaded":
+			return {
+				kind,
+				message: "Thread content is not loaded",
+			};
+	}
+}
 
 function graphWithTranscriptSnapshot(
 	graph: SessionStateGraph,
@@ -1327,6 +1353,29 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
 		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+	}
+
+	getSessionMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
+			return err(sessionExportContentError("thread_content_not_loaded"));
+		}
+
+		return ok(sessionGraphToMarkdown(graph));
+	}
+
+	getSessionJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
+		const session = this.getSessionCold(sessionId);
+		if (!session) {
+			return err(sessionExportContentError("session_not_found"));
+		}
+
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
+			return err(sessionExportContentError("thread_content_not_loaded"));
+		}
+
+		return ok(sessionGraphToJsonExportContent(session, graph));
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {
