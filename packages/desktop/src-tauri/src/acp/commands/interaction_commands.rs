@@ -209,22 +209,24 @@ fn set_pending_config_option(
     config_id: &str,
     value: &str,
 ) -> crate::acp::session_state_engine::selectors::SessionGraphCapabilities {
-    let updated_options = capabilities
-        .config_options
-        .into_iter()
-        .map(|option| {
-            if option.id == config_id {
-                crate::acp::session_update::ConfigOptionData {
-                    current_value: Some(serde_json::Value::String(value.to_string())),
-                    ..option
+    if let Some(config_options) = capabilities.config_options {
+        let updated_options = config_options
+            .into_iter()
+            .map(|option| {
+                if option.id == config_id {
+                    crate::acp::session_update::ConfigOptionData {
+                        current_value: Some(serde_json::Value::String(value.to_string())),
+                        ..option
+                    }
+                } else {
+                    option
                 }
-            } else {
-                option
-            }
-        })
-        .collect();
-    capabilities.config_options =
-        crate::acp::session_update::sanitize_config_options_for_canonical(updated_options);
+            })
+            .collect();
+        capabilities.config_options = Some(
+            crate::acp::session_update::sanitize_config_options_for_canonical(updated_options),
+        );
+    }
     capabilities
 }
 
@@ -403,7 +405,7 @@ pub(crate) async fn acp_set_config_option_for_handle<R: tauri::Runtime>(
         },
         |mut capabilities, response| {
             if let Some(config_options) = config_options_from_response(response) {
-                capabilities.config_options = config_options;
+                capabilities.config_options = Some(config_options);
             }
             capabilities
         },

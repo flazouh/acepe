@@ -663,9 +663,9 @@ function emptySessionGraphCapabilities(): SessionGraphCapabilities {
 	return {
 		models: null,
 		modes: null,
-		availableCommands: [],
-		configOptions: [],
-		autonomousEnabled: false,
+		availableCommands: null,
+		configOptions: null,
+		autonomousEnabled: null,
 	};
 }
 
@@ -883,8 +883,8 @@ function sanitizeCanonicalCapabilities(
 		modes: capabilities.modes ?? null,
 		availableCommands: capabilities.availableCommands,
 		configOptions:
-			capabilities.configOptions === undefined
-				? undefined
+			capabilities.configOptions === undefined || capabilities.configOptions === null
+				? capabilities.configOptions
 				: sanitizeCanonicalConfigOptions(capabilities.configOptions),
 		autonomousEnabled: capabilities.autonomousEnabled,
 	};

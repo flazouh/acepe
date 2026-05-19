@@ -306,11 +306,13 @@ fn capabilities_from_new_session_response(
     SessionGraphCapabilities {
         models: Some(response.models.clone()),
         modes: Some(response.modes.clone()),
-        available_commands: response.available_commands.clone(),
-        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
-            response.config_options.clone(),
+        available_commands: Some(response.available_commands.clone()),
+        config_options: Some(
+            crate::acp::session_update::sanitize_config_options_for_canonical(
+                response.config_options.clone(),
+            ),
         ),
-        autonomous_enabled: policy_registry.is_autonomous(&response.session_id),
+        autonomous_enabled: Some(policy_registry.is_autonomous(&response.session_id)),
     }
 }
 
@@ -440,7 +442,7 @@ async fn prepare_autonomous_capability_emit<R: tauri::Runtime>(
     let mut capabilities = runtime_registry
         .snapshot_for_session(session_id)
         .capabilities;
-    capabilities.autonomous_enabled = enabled;
+    capabilities.autonomous_enabled = Some(enabled);
 
     Ok(AutonomousCapabilityEmit {
         event_hub,
@@ -1334,9 +1336,9 @@ where
                         attempt_id,
                         models: response.models,
                         modes: response.modes,
-                        available_commands: response.available_commands,
-                        config_options: response.config_options,
-                        autonomous_enabled,
+                        available_commands: Some(response.available_commands),
+                        config_options: Some(response.config_options),
+                        autonomous_enabled: Some(autonomous_enabled),
                     };
                     emit_lifecycle_event(&app_clone, &hub, update, &session_id).await;
                     tracing::info!(
@@ -2940,13 +2942,13 @@ mod tests {
                 attempt_id: 1,
                 models: crate::acp::client_session::default_session_model_state(),
                 modes: crate::acp::client_session::default_modes(),
-                available_commands: vec![crate::acp::session_update::AvailableCommand {
+                available_commands: Some(vec![crate::acp::session_update::AvailableCommand {
                     name: "compact".to_string(),
                     description: "Compact".to_string(),
                     input: None,
-                }],
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                }]),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
 
@@ -2956,7 +2958,15 @@ mod tests {
             snapshot.lifecycle.status,
             crate::acp::lifecycle::LifecycleStatus::Ready
         );
-        assert_eq!(snapshot.capabilities.available_commands.len(), 1);
+        assert_eq!(
+            snapshot
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -2965,7 +2975,7 @@ mod tests {
 
         assert_eq!(snapshot.graph_revision, 0);
         assert!(snapshot.capabilities.modes.is_none());
-        assert!(snapshot.capabilities.available_commands.is_empty());
+        assert!(snapshot.capabilities.available_commands.is_none());
     }
 
     #[tokio::test]

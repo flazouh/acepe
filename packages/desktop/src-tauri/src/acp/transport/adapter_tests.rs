@@ -188,7 +188,7 @@ fn resume_policy_is_provider_owned_without_provider_branching() {
 fn capability_snapshots_capture_freshness_and_provenance() {
     let snapshot = capability_snapshot(CapabilityFreshness::Stale, CapabilityProvenance::Preview);
 
-    assert!(snapshot.capabilities.available_commands.is_empty());
+    assert!(snapshot.capabilities.available_commands.is_none());
     assert_eq!(snapshot.freshness, CapabilityFreshness::Stale);
     assert_eq!(snapshot.provenance, CapabilityProvenance::Preview);
 }

@@ -490,7 +490,7 @@ export type SessionGraphActionability = { canSend: boolean; canResume: boolean; 
 
 export type SessionGraphLifecycle = { status: LifecycleStatus; detachedReason?: DetachedReason | null; failureReason?: FailureReason | null; errorMessage?: string | null; actionability: SessionGraphActionability }
 
-export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[]; autonomousEnabled?: boolean }
+export type SessionGraphCapabilities = { models?: SessionModelState | null; modes?: SessionModes | null; availableCommands?: AvailableCommand[] | null; configOptions?: ConfigOptionData[] | null; autonomousEnabled?: boolean | null }
 
 export type CapabilityPreviewState = "canonical" | "pending" | "failed" | "partial" | "stale"
 

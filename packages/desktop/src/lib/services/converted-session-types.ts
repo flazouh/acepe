@@ -57,7 +57,7 @@ export type SessionUpdate = { type: "userMessageChunk"; chunk: ContentChunk; ses
  * Emitted by the async resume task when session connection completes successfully.
  * Carries the session capabilities so the frontend can populate hot state.
  */
-{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[]; config_options?: ConfigOptionData[]; autonomous_enabled: boolean } |
+{ type: "connectionComplete"; session_id: string; attempt_id: number; models: SessionModelState; modes: SessionModes; available_commands?: AvailableCommand[] | null; config_options?: ConfigOptionData[] | null; autonomous_enabled?: boolean | null } |
 /**
  * Emitted by the async resume task when session connection fails.
  *

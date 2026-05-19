@@ -684,7 +684,9 @@ impl SessionGraphRuntimeSnapshot {
                     models: Some(models.clone()),
                     modes: Some(modes.clone()),
                     available_commands: available_commands.clone(),
-                    config_options: sanitize_config_options_for_canonical(config_options.clone()),
+                    config_options: config_options
+                        .clone()
+                        .map(sanitize_config_options_for_canonical),
                     autonomous_enabled: *autonomous_enabled,
                 };
             }
@@ -715,7 +717,7 @@ impl SessionGraphRuntimeSnapshot {
                 }
             }
             SessionUpdate::AvailableCommandsUpdate { update, .. } => {
-                self.capabilities.available_commands = update.available_commands.clone();
+                self.capabilities.available_commands = Some(update.available_commands.clone());
             }
             SessionUpdate::CurrentModeUpdate { update, .. } => {
                 if let Some(modes) = self.capabilities.modes.as_mut() {
@@ -728,8 +730,9 @@ impl SessionGraphRuntimeSnapshot {
                 }
             }
             SessionUpdate::ConfigOptionUpdate { update, .. } => {
-                self.capabilities.config_options =
-                    sanitize_config_options_for_canonical(update.config_options.clone());
+                self.capabilities.config_options = Some(sanitize_config_options_for_canonical(
+                    update.config_options.clone(),
+                ));
             }
             _ => {}
         }
@@ -1635,9 +1638,9 @@ mod tests {
             attempt_id: 1,
             models: default_session_model_state(),
             modes: default_modes(),
-            available_commands: Vec::new(),
-            config_options: Vec::new(),
-            autonomous_enabled: false,
+            available_commands: Some(Vec::new()),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(false),
         }
     }
 
@@ -1688,9 +1691,9 @@ mod tests {
                 attempt_id: 1,
                 models: default_session_model_state(),
                 modes: default_modes(),
-                available_commands: Vec::new(),
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                available_commands: Some(Vec::new()),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
         registry.apply_session_update(
@@ -1745,9 +1748,25 @@ mod tests {
                 .current_mode_id,
             "plan"
         );
-        assert_eq!(snapshot.capabilities.available_commands.len(), 1);
-        assert_eq!(snapshot.capabilities.config_options.len(), 1);
-        assert!(!snapshot.capabilities.autonomous_enabled);
+        assert_eq!(
+            snapshot
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
+        assert_eq!(
+            snapshot
+                .capabilities
+                .config_options
+                .as_ref()
+                .expect("config options")
+                .len(),
+            1
+        );
+        assert_eq!(snapshot.capabilities.autonomous_enabled, Some(false));
     }
 
     #[test]
@@ -1866,9 +1885,9 @@ mod tests {
                 attempt_id: 1,
                 models: default_session_model_state(),
                 modes: default_modes(),
-                available_commands: Vec::new(),
-                config_options: Vec::new(),
-                autonomous_enabled: false,
+                available_commands: Some(Vec::new()),
+                config_options: Some(Vec::new()),
+                autonomous_enabled: Some(false),
             },
         );
 

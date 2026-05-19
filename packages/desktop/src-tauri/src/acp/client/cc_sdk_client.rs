@@ -2621,11 +2621,13 @@ fn promoted_claude_session_capabilities(
     SessionGraphCapabilities {
         models: Some(snapshot.models),
         modes: Some(snapshot.modes),
-        available_commands: snapshot.available_commands,
-        config_options: crate::acp::session_update::sanitize_config_options_for_canonical(
-            snapshot.config_options,
+        available_commands: Some(snapshot.available_commands),
+        config_options: Some(
+            crate::acp::session_update::sanitize_config_options_for_canonical(
+                snapshot.config_options,
+            ),
         ),
-        autonomous_enabled,
+        autonomous_enabled: Some(autonomous_enabled),
     }
 }
 
@@ -7083,9 +7085,9 @@ mod tests {
         let capabilities = SessionGraphCapabilities {
             models: Some(models),
             modes: Some(modes),
-            available_commands: Vec::new(),
-            config_options: Vec::new(),
-            autonomous_enabled: true,
+            available_commands: Some(Vec::new()),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(true),
         };
 
         reserve_promoted_claude_session(
@@ -7118,7 +7120,7 @@ mod tests {
                 .current_mode_id,
             "plan"
         );
-        assert!(checkpoint.capabilities.autonomous_enabled);
+        assert_eq!(checkpoint.capabilities.autonomous_enabled, Some(true));
     }
 
     #[tokio::test]

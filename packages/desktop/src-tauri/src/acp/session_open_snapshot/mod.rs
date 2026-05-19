@@ -947,13 +947,13 @@ mod tests {
         let capabilities = SessionGraphCapabilities {
             models: None,
             modes: None,
-            available_commands: vec![AvailableCommand {
+            available_commands: Some(vec![AvailableCommand {
                 name: "list".to_string(),
                 description: "List files".to_string(),
                 input: None,
-            }],
-            config_options: Vec::new(),
-            autonomous_enabled: true,
+            }]),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(true),
         };
 
         let result = session_open_result_for_new_session(
@@ -981,8 +981,16 @@ mod tests {
             crate::acp::lifecycle::LifecycleStatus::Reserved
         );
         assert!(!found.lifecycle.actionability.can_send);
-        assert_eq!(found.capabilities.available_commands.len(), 1);
-        assert!(found.capabilities.autonomous_enabled);
+        assert_eq!(
+            found
+                .capabilities
+                .available_commands
+                .as_ref()
+                .expect("available commands")
+                .len(),
+            1
+        );
+        assert_eq!(found.capabilities.autonomous_enabled, Some(true));
         // open_token must be a valid UUID
         assert!(Uuid::parse_str(&found.open_token).is_ok());
     }
@@ -1046,7 +1054,7 @@ mod tests {
             crate::acp::lifecycle::LifecycleStatus::Detached
         );
         assert!(found.lifecycle.actionability.can_resume);
-        assert!(found.capabilities.available_commands.is_empty());
+        assert!(found.capabilities.available_commands.is_none());
         assert_eq!(found.operations.len(), 1);
         let operation = &found.operations[0];
         assert_eq!(operation.tool_call_id, "provider-read");
