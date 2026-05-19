@@ -137,7 +137,7 @@ export class SessionConnectionManager {
 	constructor(
 		private readonly stateReader: ISessionStateReader,
 		private readonly stateWriter: ISessionStateWriter,
-		private readonly hotStateManager: ITransientProjectionManager,
+		private readonly transientProjectionManager: ITransientProjectionManager,
 		private readonly entryManager: IEntryManager,
 		private readonly connectionManager: IConnectionManager,
 		private readonly eventService: SessionEventService
@@ -342,7 +342,7 @@ export class SessionConnectionManager {
 					if (rawModes !== undefined) {
 						preferencesStore.updateModesCache(options.agentId, availableModes);
 					}
-					this.hotStateManager.initializeHotState(sessionId);
+					this.transientProjectionManager.initializeTransientProjection(sessionId);
 					logger.info("Deferred session creation is pending provider identity promotion", {
 						sessionId,
 						creationAttemptId: result.creationAttemptId ?? null,
@@ -551,7 +551,7 @@ export class SessionConnectionManager {
 								sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
 							};
 
-							this.hotStateManager.initializeHotState(sessionId);
+							this.transientProjectionManager.initializeTransientProjection(sessionId);
 
 							this.stateWriter.addSession(sessionCold);
 
@@ -809,7 +809,7 @@ export class SessionConnectionManager {
 		// projection updates via the normal envelope handler — no client-side
 		// synthesis.
 
-		this.hotStateManager.updateHotState(sessionId, {
+		this.transientProjectionManager.updateTransientProjection(sessionId, {
 			acpSessionId: null,
 		});
 
@@ -982,7 +982,7 @@ export class SessionConnectionManager {
 		}
 
 		const rollbackAutonomous = (error: AppError) => {
-			this.hotStateManager.updateHotState(sessionId, {
+			this.transientProjectionManager.updateTransientProjection(sessionId, {
 				autonomousTransition: "idle",
 			});
 			logger.error("Failed to update Autonomous session policy, rolling back", {
@@ -996,7 +996,7 @@ export class SessionConnectionManager {
 		void session;
 		void eventHandler;
 
-		this.hotStateManager.updateHotState(sessionId, {
+		this.transientProjectionManager.updateTransientProjection(sessionId, {
 			autonomousTransition: targetEnabled ? "enabling" : "disabling",
 		});
 

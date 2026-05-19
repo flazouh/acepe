@@ -2,7 +2,7 @@
  * Session Messaging Service - Stream Lifecycle Tests
  *
  * Verifies that handleCanonicalTurnComplete and handleCanonicalTurnFailure
- * send the correct machine events without canonical-overlap hot state writes,
+ * send the correct machine events without canonical-overlap transient projection writes,
  * preventing the UI from getting stuck in "Planning next moves".
  */
 
@@ -27,7 +27,7 @@ vi.mock("../../checkpoint-store.svelte.js", () => ({
 
 let SessionMessagingService: typeof import("../session-messaging-service.js").SessionMessagingService;
 
-const canonicalOverlapHotStateFields = [
+const canonicalOverlapTransientProjectionFields = [
 	"status",
 	"turnState",
 	"connectionError",
@@ -35,10 +35,10 @@ const canonicalOverlapHotStateFields = [
 	"lastTerminalTurnId",
 ] as const;
 
-function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
-	for (const call of updateHotState.mock.calls) {
+function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
-		for (const field of canonicalOverlapHotStateFields) {
+		for (const field of canonicalOverlapTransientProjectionFields) {
 			expect(Object.hasOwn(updates, field)).toBe(false);
 		}
 	}
@@ -66,12 +66,12 @@ function createMockDeps() {
 		getAllSessions: vi.fn(),
 	};
 
-	const hotStateManager: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjectionManager: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -103,7 +103,7 @@ function createMockDeps() {
 		initializeConnectedSession: vi.fn(),
 	};
 
-	return { stateReader, hotStateManager, entryManager, connectionManager };
+	return { stateReader, transientProjectionManager, entryManager, connectionManager };
 }
 
 function createCanonicalProjection(
@@ -182,7 +182,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		);
 		service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -194,13 +194,13 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("does not write completed lifecycle state into hot state", () => {
+	it("does not write completed lifecycle state into transient projection", () => {
 		service.handleCanonicalTurnComplete(sessionId);
 
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
 				pendingSendIntent: null,
@@ -211,13 +211,13 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	it("does not record terminal turn state in the transient projection", () => {
 		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
 				pendingSendIntent: null,
 			})
 		);
-		const updates = (deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>).mock.calls.map(
+		const updates = (deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>).mock.calls.map(
 			(call) => call[1]
 		);
 		expect(updates).not.toContainEqual(
@@ -232,20 +232,20 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 				callOrder.push("sendResponseComplete");
 			}
 		);
-		(deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>).mockImplementation(() => {
-			callOrder.push("updateHotState");
+		(deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>).mockImplementation(() => {
+			callOrder.push("updateTransientProjection");
 		});
 
 		service.handleCanonicalTurnComplete(sessionId);
 
-		expect(callOrder).toEqual(["updateHotState", "sendResponseComplete"]);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expect(callOrder).toEqual(["updateTransientProjection", "sendResponseComplete"]);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
-	it("does not let stale completed hot state suppress the stream-complete event", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+	it("does not let stale completed transient projection suppress the stream-complete event", () => {
+		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
 		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -253,14 +253,14 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("does not treat stale completed hot state as idempotency authority", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+	it("does not treat stale completed transient projection as idempotency authority", () => {
+		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "completed",
 		});
 		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -268,8 +268,8 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
@@ -282,13 +282,13 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
-	it("does not let stale failed hot state suppress a turnComplete", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+	it("does not let stale failed transient projection suppress a turnComplete", () => {
+		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: "turn-1",
 		});
@@ -296,8 +296,8 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
@@ -319,14 +319,14 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId, "turn-1");
 
 		expect(deps.connectionManager.sendResponseComplete).not.toHaveBeenCalled();
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 		expect(deps.entryManager.finalizeStreamingEntries).toHaveBeenCalledWith(sessionId);
 	});
 
-	it("does not let stale failed hot state with null turn id suppress a turnComplete", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+	it("does not let stale failed transient projection with null turn id suppress a turnComplete", () => {
+		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: null,
 		});
@@ -334,8 +334,8 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 		service.handleCanonicalTurnComplete(sessionId);
 
 		expect(deps.connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
@@ -346,7 +346,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("passes agent context when creating auto-checkpoints", () => {
-		(deps.hotStateManager.getHotState as ReturnType<typeof vi.fn>).mockReturnValue({
+		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
 			turnState: "streaming",
 		});
 		(deps.stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -418,7 +418,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 		deps = createMockDeps();
 		service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -433,15 +433,15 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			kind: "recoverable",
 			source: "unknown",
 		});
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
-	it("does not write recoverable turn failures into hot state", () => {
+	it("does not write recoverable turn failures into transient projection", () => {
 		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
@@ -465,7 +465,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			kind: "recoverable",
 			source: "unknown",
 		});
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("does not populate header-level connectionError for recoverable turn errors", () => {
@@ -478,7 +478,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 			kind: "recoverable",
 			source: "unknown",
 		});
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("ignores duplicate canonical terminal errors for the same turn", () => {
@@ -499,7 +499,7 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 		service.handleCanonicalTurnFailure(sessionId, turnErrorUpdate);
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("ignores duplicate canonical terminal errors when both turn ids are null", () => {
@@ -529,6 +529,6 @@ describe("SessionMessagingService.handleCanonicalTurnFailure", () => {
 		});
 
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
-		expect(deps.hotStateManager.updateHotState).not.toHaveBeenCalled();
+		expect(deps.transientProjectionManager.updateTransientProjection).not.toHaveBeenCalled();
 	});
 });

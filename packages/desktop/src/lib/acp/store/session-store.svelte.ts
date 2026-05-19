@@ -7,7 +7,7 @@
  * - sessionStateGraphs/canonicalProjections for lifecycle, activity, turn state, and capabilities
  * - entryStore for canonical transcript snapshot/delta projection
  * - operationStore for canonical tool operation state
- * - hotStateStore only for local UI affordances with no canonical counterpart
+ * - transientProjectionStore only for local UI affordances with no canonical counterpart
  */
 
 import { countWordsInMarkdown } from "@acepe/ui/markdown";
@@ -204,23 +204,6 @@ function buildCanonicalUsageTelemetry(
 		contextBudget: resolveContextBudget(usageTelemetryData, previous, currentModelId, updatedAt),
 		updatedAt,
 	};
-}
-
-function _mapTurnStateToHotState(
-	turnState: SessionTurnState
-): "idle" | "streaming" | "completed" | "interrupted" | "error" {
-	switch (turnState) {
-		case "Idle":
-			return "idle";
-		case "Running":
-			return "streaming";
-		case "Completed":
-			return "completed";
-		case "Failed":
-			return "error";
-		case "Cancelled":
-			return "interrupted";
-	}
 }
 
 function mapProjectionTurnFailure(
@@ -1146,8 +1129,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// Callbacks invoked when a session is removed (e.g., plan store cleanup)
 	private readonly onRemoveCallbacks: Array<(sessionId: string) => void> = [];
 
-	// Hot state store (batched transient state)
-	private readonly hotStateStore = new SessionTransientProjectionStore();
+	// Transient projection store for local-only UI state.
+	private readonly transientProjectionStore = new SessionTransientProjectionStore();
 
 	// Canonical graph selector state for lifecycle/activity/actionability consumers.
 	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
@@ -1223,7 +1206,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.connectionMgr = new SessionConnectionManager(
 			this,
 			this,
-			this.hotStateStore,
+			this.transientProjectionStore,
 			this.entryStore,
 			this.connectionService,
 			this.eventService
@@ -1231,7 +1214,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		// Create messaging service
 		this.messagingSvc = new SessionMessagingService(
 			this,
-			this.hotStateStore,
+			this.transientProjectionStore,
 			this.entryStore,
 			this.connectionService
 		);
@@ -1305,10 +1288,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// ============================================
 
 	/**
-	 * Get hot state for a session.
+	 * Get transient projection for a session.
 	 */
-	private getHotState(sessionId: string): SessionTransientProjection {
-		return this.hotStateStore.getHotState(sessionId);
+	private getTransientProjection(sessionId: string): SessionTransientProjection {
+		return this.transientProjectionStore.getTransientProjection(sessionId);
 	}
 
 	/**
@@ -1365,17 +1348,17 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
 		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
-		const hotState = this.hotStateStore.getHotState(sessionId);
+		const transientProjection = this.transientProjectionStore.getTransientProjection(sessionId);
 
 		return deriveLiveSessionLifecyclePresentation({
 			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, projection),
 			hasEntries: graph === null ? null : graph.transcriptSnapshot.entries.length > 0,
-			hasLocalPendingSendIntent: hotState.pendingSendIntent !== null,
+			hasLocalPendingSendIntent: transientProjection.pendingSendIntent !== null,
 		});
 	}
 
 	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {
-		return this.hotStateStore.getHotState(sessionId).pendingSendIntent ?? null;
+		return this.transientProjectionStore.getTransientProjection(sessionId).pendingSendIntent ?? null;
 	}
 
 	getSessionHasLocalPendingSendIntent(sessionId: string): boolean {
@@ -1383,19 +1366,19 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionAcpSessionId(sessionId: string): string | null {
-		return this.hotStateStore.getHotState(sessionId).acpSessionId;
+		return this.transientProjectionStore.getTransientProjection(sessionId).acpSessionId;
 	}
 
 	getSessionUsageTelemetry(sessionId: string): SessionUsageTelemetry | null {
-		return this.hotStateStore.getHotState(sessionId).usageTelemetry ?? null;
+		return this.transientProjectionStore.getTransientProjection(sessionId).usageTelemetry ?? null;
 	}
 
 	getSessionAutonomousTransitionBusy(sessionId: string): boolean {
-		return this.hotStateStore.getHotState(sessionId).autonomousTransition !== "idle";
+		return this.transientProjectionStore.getTransientProjection(sessionId).autonomousTransition !== "idle";
 	}
 
 	getSessionStatusChangedAt(sessionId: string): number {
-		return this.hotStateStore.getHotState(sessionId).statusChangedAt;
+		return this.transientProjectionStore.getTransientProjection(sessionId).statusChangedAt;
 	}
 
 	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
@@ -1529,7 +1512,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return null;
 		}
 
-		const mutationState = this.getHotState(sessionId).capabilityMutationState ?? {
+		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
 			pendingMutationId: null,
 			previewState: null,
 		};
@@ -1680,7 +1663,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Reactive: subscribes to composer machine snapshots and canonical lifecycle presentation.
 	 */
 	getStoreComposerState(sessionId: string): StoreComposerState | null {
-		this.hotStateStore.getHotState(sessionId);
+		this.transientProjectionStore.getTransientProjection(sessionId);
 		const snapshot = this.composerMachineService.getState(sessionId);
 		if (!snapshot) {
 			return null;
@@ -1695,7 +1678,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Re-seed composer committed state from hot state (call when panel binds / session changes).
+	 * Re-seed composer committed state from transient projection (call when panel binds / session changes).
 	 * Ensures the per-session actor exists before binding.
 	 */
 	bindComposerSession(sessionId: string): void {
@@ -1720,7 +1703,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	applySessionStateGraph(graph: SessionStateGraph): void {
-		const previousHotState = this.getHotState(graph.canonicalSessionId);
+		const previousTransientProjection = this.getTransientProjection(graph.canonicalSessionId);
 		const previousProjection = this.canonicalProjections.get(graph.canonicalSessionId) ?? null;
 		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 		this.sessionStateGraphs.set(graph.canonicalSessionId, graph);
@@ -1760,20 +1743,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			updates.statusChangedAt = Date.now();
 		}
 		if (
-			previousHotState.pendingSendIntent !== null &&
-			previousHotState.pendingSendIntent !== undefined &&
+			previousTransientProjection.pendingSendIntent !== null &&
+			previousTransientProjection.pendingSendIntent !== undefined &&
 			transcriptSnapshotAcknowledgesPendingSend(
 				graph.transcriptSnapshot,
-				previousHotState.pendingSendIntent
+				previousTransientProjection.pendingSendIntent
 			)
 		) {
 			updates.pendingSendIntent = null;
 		}
-		if (previousHotState.autonomousTransition !== "idle") {
+		if (previousTransientProjection.autonomousTransition !== "idle") {
 			updates.autonomousTransition = "idle";
 		}
 
-		this.hotStateStore.updateHotState(graph.canonicalSessionId, updates);
+		this.transientProjectionStore.updateTransientProjection(graph.canonicalSessionId, updates);
 		this.reconcileConnectionMachineFromCanonicalState(
 			graph.canonicalSessionId,
 			graph.lifecycle,
@@ -1895,7 +1878,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	removeSession(sessionId: string): void {
 		this.repository.removeSession(sessionId);
-		this.hotStateStore.removeHotState(sessionId);
+		this.transientProjectionStore.removeTransientProjection(sessionId);
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
 		this.canonicalCapabilitiesMaterialized.delete(sessionId);
@@ -1966,12 +1949,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
 		this.entryStore.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
-		this.hotStateStore.initializeHotState(canonicalSessionId);
+		this.transientProjectionStore.initializeTransientProjection(canonicalSessionId);
 		const graph = materializeSnapshotFromOpenFound(snapshot).graph;
 		this.sessionStateGraphs.set(canonicalSessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
 		this.canonicalCapabilitiesMaterialized.set(canonicalSessionId, true);
-		this.hotStateStore.updateHotState(canonicalSessionId, {
+		this.transientProjectionStore.updateTransientProjection(canonicalSessionId, {
 			statusChangedAt: Date.now(),
 			capabilityMutationState: {
 				pendingMutationId: null,
@@ -1982,7 +1965,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.canonicalProjections.get(canonicalSessionId) ?? null
 		);
 		// Populate canonical projection from the backend-authored open snapshot
-		// so downstream readers never synthesize lifecycle from hot state.
+		// so downstream readers never synthesize lifecycle from local transient projection.
 		this.canonicalProjections.set(canonicalSessionId, {
 			lifecycle: graph.lifecycle,
 			activity: graph.activity,
@@ -2950,7 +2933,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		sessionId: string,
 		telemetry: import("./types.js").SessionUsageTelemetry
 	): void {
-		this.hotStateStore.updateHotState(sessionId, { usageTelemetry: telemetry });
+		this.transientProjectionStore.updateTransientProjection(sessionId, { usageTelemetry: telemetry });
 	}
 
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {
@@ -3003,14 +2986,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyLifecycle") {
-				const hotState = this.getHotState(sessionId);
+				const transientProjection = this.getTransientProjection(sessionId);
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
 				const previousCapabilitiesMaterialized =
 					this.canonicalCapabilitiesMaterialized.get(sessionId) === true;
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
 				// Carry forward canonical turnState and activeTurnFailure from the previous full-graph
-				// projection. Reading these from hotState would feed optimistic messaging-service writes
+				// projection. Reading these from local transient projection would feed optimistic messaging-service writes
 				// back into the canonical projection (authority inversion).
 				const turnState = previousProjection?.turnState ?? "Idle";
 				const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
@@ -3077,23 +3060,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					);
 				}
 				const updates: SessionTransientProjectionUpdates = {
-					acpSessionId: command.lifecycle.status === "ready" ? sessionId : hotState.acpSessionId,
+					acpSessionId: command.lifecycle.status === "ready" ? sessionId : transientProjection.acpSessionId,
 				};
 				if (previousProjection?.lifecycle.status !== command.lifecycle.status) {
 					updates.statusChangedAt = Date.now();
 				}
 				if (
-					hotState.pendingSendIntent !== null &&
-					hotState.pendingSendIntent !== undefined &&
+					transientProjection.pendingSendIntent !== null &&
+					transientProjection.pendingSendIntent !== undefined &&
 					previousGraph !== null &&
 					transcriptSnapshotAcknowledgesPendingSend(
 						previousGraph.transcriptSnapshot,
-						hotState.pendingSendIntent
+						transientProjection.pendingSendIntent
 					)
 				) {
 					updates.pendingSendIntent = null;
 				}
-				this.hotStateStore.updateHotState(sessionId, updates);
+				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
 				this.reconcileConnectionMachineFromCanonicalState(
 					sessionId,
 					command.lifecycle,
@@ -3138,25 +3121,25 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						graphWithCapabilities(previousGraph, canonicalCapabilities, command.revision)
 					);
 				}
-				const hotState = this.getHotState(sessionId);
+				const transientProjection = this.getTransientProjection(sessionId);
 				const updates: SessionTransientProjectionUpdates = {
 					capabilityMutationState: {
 						pendingMutationId: command.pendingMutationId,
 						previewState: command.previewState,
 					},
 				};
-				if (hotState.autonomousTransition !== "idle") {
+				if (transientProjection.autonomousTransition !== "idle") {
 					updates.autonomousTransition = "idle";
 				}
-				this.hotStateStore.updateHotState(sessionId, updates);
+				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
 				continue;
 			}
 
 			if (command.kind === "applyTelemetry") {
-				const hotState = this.getHotState(sessionId);
+				const transientProjection = this.getTransientProjection(sessionId);
 				const nextTelemetry = buildCanonicalUsageTelemetry(
 					command.telemetry,
-					hotState.usageTelemetry,
+					transientProjection.usageTelemetry,
 					this.getSessionCurrentModelId(sessionId)
 				);
 				if (nextTelemetry !== null) {
@@ -3226,20 +3209,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					clockAnchor: preservedStreamingState.clockAnchor,
 					revision: command.revision,
 				});
-				const hotState = this.getHotState(sessionId);
+				const transientProjection = this.getTransientProjection(sessionId);
 				const updates: SessionTransientProjectionUpdates = {};
 				if (
-					hotState.pendingSendIntent !== null &&
-					hotState.pendingSendIntent !== undefined &&
+					transientProjection.pendingSendIntent !== null &&
+					transientProjection.pendingSendIntent !== undefined &&
 					previousGraph !== null &&
 					transcriptSnapshotAcknowledgesPendingSend(
 						previousGraph.transcriptSnapshot,
-						hotState.pendingSendIntent
+						transientProjection.pendingSendIntent
 					)
 				) {
 					updates.pendingSendIntent = null;
 				}
-				this.hotStateStore.updateHotState(sessionId, updates);
+				this.transientProjectionStore.updateTransientProjection(sessionId, updates);
 				this.applyCanonicalTerminalTurnSideEffects({
 					sessionId,
 					previousProjection,

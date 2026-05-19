@@ -15,25 +15,25 @@ export interface ITransientProjectionManager {
 	 * Get transient projection for a session.
 	 * Returns default transient projection if session has no transient projection.
 	 */
-	getHotState(sessionId: string): SessionTransientProjection;
+	getTransientProjection(sessionId: string): SessionTransientProjection;
 
 	/**
 	 * Check if a session has transient projection.
 	 */
-	hasHotState(sessionId: string): boolean;
+	hasTransientProjection(sessionId: string): boolean;
 
 	/**
 	 * Update transient projection for a session (batched for performance).
 	 */
-	updateHotState(sessionId: string, updates: Partial<SessionTransientProjection>): void;
+	updateTransientProjection(sessionId: string, updates: Partial<SessionTransientProjection>): void;
 
 	/**
 	 * Remove transient projection for a session.
 	 */
-	removeHotState(sessionId: string): void;
+	removeTransientProjection(sessionId: string): void;
 
 	/**
 	 * Initialize transient projection for a session with default values.
 	 */
-	initializeHotState(sessionId: string, initialState?: Partial<SessionTransientProjection>): void;
+	initializeTransientProjection(sessionId: string, initialState?: Partial<SessionTransientProjection>): void;
 }

@@ -27,7 +27,7 @@ interface TestCanonicalCapabilities {
 	removeCanonicalCapabilities(sessionId: string): void;
 }
 
-const canonicalOverlapHotStateFields = [
+const canonicalOverlapTransientProjectionFields = [
 	"status",
 	"isConnected",
 	"turnState",
@@ -46,7 +46,7 @@ const canonicalOverlapHotStateFields = [
 	"modelsDisplay",
 ] as const;
 
-function createResidualHotState(
+function createResidualTransientProjection(
 	input: {
 		acpSessionId?: string | null;
 		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
@@ -71,7 +71,7 @@ function mockResidualStateReader(
 		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
 	} = {}
 ): void {
-	const state = createResidualHotState(input);
+	const state = createResidualTransientProjection(input);
 	(stateReader.getSessionAcpSessionId as ReturnType<typeof vi.fn>).mockReturnValue(
 		state.acpSessionId
 	);
@@ -80,10 +80,10 @@ function mockResidualStateReader(
 	).mockReturnValue(state.autonomousTransition !== "idle");
 }
 
-function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
-	for (const call of updateHotState.mock.calls) {
+function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
-		for (const field of canonicalOverlapHotStateFields) {
+		for (const field of canonicalOverlapTransientProjectionFields) {
 			expect(Object.hasOwn(updates, field)).toBe(false);
 		}
 	}
@@ -161,7 +161,7 @@ beforeAll(async () => {
 function createManager(deps: {
 	stateReader: ISessionStateReader;
 	stateWriter: ISessionStateWriter;
-	hotState: ITransientProjectionManager;
+	transientProjection: ITransientProjectionManager;
 	capabilities: TestCanonicalCapabilities;
 	entryManager: IEntryManager;
 	connectionManager: IConnectionManager;
@@ -180,7 +180,7 @@ function createManager(deps: {
 	return new SessionConnectionManager(
 		deps.stateReader,
 		deps.stateWriter,
-		deps.hotState,
+		deps.transientProjection,
 		deps.entryManager,
 		deps.connectionManager,
 		lastEventService
@@ -255,12 +255,12 @@ describe("SessionConnectionManager.connectSession", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjection: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const capabilities: TestCanonicalCapabilities = {
@@ -351,7 +351,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -360,14 +360,14 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not mutate historical content while attaching transport to a hydrated session", async () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -428,7 +428,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -445,7 +445,7 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
@@ -465,7 +465,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -502,7 +502,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -511,7 +511,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not write cached provider metadata back as live reconnect metadata", async () => {
@@ -564,7 +564,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -605,7 +605,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -630,7 +630,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -653,7 +653,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -697,7 +697,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -742,7 +742,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -765,7 +765,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -785,7 +785,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -804,7 +804,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -822,7 +822,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -841,7 +841,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -899,7 +899,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -920,13 +920,13 @@ describe("SessionConnectionManager.connectSession", () => {
 		);
 	});
 
-	it("does not synthesize connection or capability hot state on connect", async () => {
+	it("does not synthesize connection or capability transient projection on connect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -935,7 +935,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not rely on reconnect-time pending event flush after lifecycle-driven connect completes", async () => {
@@ -946,7 +946,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -965,7 +965,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -996,17 +996,17 @@ describe("SessionConnectionManager.connectSession", () => {
 		// short-circuit the reconnect invoke itself.
 		getSessionModelForMode.mockReturnValue(undefined);
 
-		// Simulate a session that was previously connected (has an acpSessionId in hot state).
+		// Simulate a session that was previously connected (has an acpSessionId in transient projection).
 		// The old replay-suppression guard would have skipped the resume call in this case.
 		// Post-U5 this must always proceed to resumeSession.
-		(hotState.getHotState as ReturnType<typeof vi.fn>).mockReturnValue(
-			createResidualHotState({ acpSessionId: "existing-acp-session-id" })
+		(transientProjection.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue(
+			createResidualTransientProjection({ acpSessionId: "existing-acp-session-id" })
 		);
 
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1036,7 +1036,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1064,7 +1064,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1077,7 +1077,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 
 		expect(result.isErr()).toBe(true);
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
 	});
 });
@@ -1115,12 +1115,12 @@ describe("SessionConnectionManager.createSession", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjection: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const capabilities: TestCanonicalCapabilities = {
@@ -1255,7 +1255,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1333,7 +1333,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1415,7 +1415,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1431,7 +1431,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1443,11 +1443,11 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
 	});
 
-	it("hydrates hot state with available commands on new session", async () => {
+	it("hydrates transient projection with available commands on new session", async () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1457,7 +1457,7 @@ describe("SessionConnectionManager.createSession", () => {
 		result._unsafeUnwrap();
 
 		const initUpdate =
-			(hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
+			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "availableCommands")).toBe(false);
 	});
 
@@ -1465,7 +1465,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1508,7 +1508,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1527,7 +1527,7 @@ describe("SessionConnectionManager.createSession", () => {
 			worktreePath: null,
 		});
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
-		expect(hotState.initializeHotState).toHaveBeenCalledWith("provider-requested-id");
+		expect(transientProjection.initializeTransientProjection).toHaveBeenCalledWith("provider-requested-id");
 		expect(entryManager.markPreloaded).not.toHaveBeenCalled();
 	});
 
@@ -1558,7 +1558,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1576,7 +1576,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(error.creationAttemptId).toBe("attempt-1");
 		expect(error.retryable).toBe(true);
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
-		expect(hotState.initializeHotState).not.toHaveBeenCalled();
+		expect(transientProjection.initializeTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("stores sequenceId returned by the backend on the new cold session", async () => {
@@ -1605,7 +1605,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1652,7 +1652,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1710,7 +1710,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1760,7 +1760,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1792,7 +1792,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1842,7 +1842,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1861,7 +1861,7 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 
 		const initUpdate =
-			(hotState.initializeHotState as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
+			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "autonomousEnabled")).toBe(false);
 	});
 });
@@ -1906,12 +1906,12 @@ describe("SessionConnectionManager autonomous policy", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjection: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const capabilities: TestCanonicalCapabilities = {
@@ -1983,7 +1983,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -1993,10 +1993,10 @@ describe("SessionConnectionManager autonomous policy", () => {
 		result._unsafeUnwrap();
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(1, sessionId, {
 			autonomousTransition: "enabling",
 		});
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
@@ -2008,7 +2008,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2018,7 +2018,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		result._unsafeUnwrap();
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("rolls Autonomous state back when backend policy sync fails", async () => {
@@ -2038,7 +2038,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2048,13 +2048,13 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(result.isErr()).toBe(true);
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(1, sessionId, {
 			autonomousTransition: "enabling",
 		});
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
+		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(2, sessionId, {
 			autonomousTransition: "idle",
 		});
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
@@ -2113,7 +2113,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2142,7 +2142,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2152,7 +2152,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(result.isErr()).toBe(true);
 		expect(setSessionAutonomous).not.toHaveBeenCalled();
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("rolls Autonomous state back when backend policy sync fails", async () => {
@@ -2172,7 +2172,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2181,13 +2181,13 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const result = await manager.setAutonomousEnabled(sessionId, true);
 		expect(result.isErr()).toBe(true);
 
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(1, sessionId, {
+		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(1, sessionId, {
 			autonomousTransition: "enabling",
 		});
-		expect(hotState.updateHotState).toHaveBeenNthCalledWith(2, sessionId, {
+		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(2, sessionId, {
 			autonomousTransition: "idle",
 		});
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
@@ -2212,7 +2212,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2223,7 +2223,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setMode).toHaveBeenCalledTimes(1);
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("disables backend Autonomous when switching from build into plan mode", async () => {
@@ -2250,7 +2250,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2261,7 +2261,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
 	it("does not sync Autonomous during mode switch when canonical autonomous state is unknown", async () => {
@@ -2287,7 +2287,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2298,10 +2298,10 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setSessionAutonomous).not.toHaveBeenCalled();
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 
-	it("does not mutate hot state directly when setting model", async () => {
+	it("does not mutate transient projection directly when setting model", async () => {
 		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
 		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: sessionId,
@@ -2323,7 +2323,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2332,7 +2332,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 		const result = await manager.setModel(sessionId, "gpt-5");
 		expect(result.isOk()).toBe(true);
 		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5");
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 });
 
@@ -2377,12 +2377,12 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		removeScanningProjects: vi.fn(),
 	};
 
-	const hotState: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjection: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const capabilities: TestCanonicalCapabilities = {
@@ -2436,7 +2436,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2446,7 +2446,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		result._unsafeUnwrap();
 
 		expect(connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 
 	it("does not send machine event when API call fails", async () => {
@@ -2455,7 +2455,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2465,12 +2465,12 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		expect(result.isErr()).toBe(true);
 
 		expect(connectionManager.sendResponseComplete).not.toHaveBeenCalled();
-		expect(hotState.updateHotState).not.toHaveBeenCalled();
+		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
 	});
 });
 
 describe("SessionConnectionManager.disconnectSession", () => {
-	it("clears only local hot state when disconnecting a session", async () => {
+	it("clears only local transient projection when disconnecting a session", async () => {
 		const sessionId = "session-disconnect";
 		const stateReader: ISessionStateReader = {
 			getSessionAcpSessionId: vi.fn(() => "acp-1"),
@@ -2512,12 +2512,12 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			removeScanningProjects: vi.fn(),
 		};
 
-		const hotState: ITransientProjectionManager = {
-			getHotState: vi.fn(),
-			hasHotState: vi.fn(),
-			updateHotState: vi.fn(),
-			removeHotState: vi.fn(),
-			initializeHotState: vi.fn(),
+		const transientProjection: ITransientProjectionManager = {
+			getTransientProjection: vi.fn(),
+			hasTransientProjection: vi.fn(),
+			updateTransientProjection: vi.fn(),
+			removeTransientProjection: vi.fn(),
+			initializeTransientProjection: vi.fn(),
 		};
 
 		const capabilities: TestCanonicalCapabilities = {
@@ -2561,7 +2561,7 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		const manager = createManager({
 			stateReader,
 			stateWriter,
-			hotState,
+			transientProjection,
 			capabilities,
 			entryManager,
 			connectionManager,
@@ -2569,12 +2569,12 @@ describe("SessionConnectionManager.disconnectSession", () => {
 
 		manager.disconnectSession(sessionId);
 
-		expect(hotState.updateHotState).toHaveBeenCalledWith(
+		expect(transientProjection.updateTransientProjection).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
 				acpSessionId: null,
 			})
 		);
-		expectNoCanonicalOverlapHotStateWrites(hotState.updateHotState as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
 	});
 });

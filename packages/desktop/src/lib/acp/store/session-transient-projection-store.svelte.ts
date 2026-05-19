@@ -28,14 +28,14 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	/**
 	 * Get the transient projection for a session.
 	 */
-	getHotState(sessionId: string): SessionTransientProjection {
+	getTransientProjection(sessionId: string): SessionTransientProjection {
 		return this.transientProjections.get(sessionId) ?? DEFAULT_TRANSIENT_PROJECTION;
 	}
 
 	/**
 	 * Check if a session has a transient projection.
 	 */
-	hasHotState(sessionId: string): boolean {
+	hasTransientProjection(sessionId: string): boolean {
 		return this.transientProjections.has(sessionId);
 	}
 
@@ -43,7 +43,7 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	 * Update transient projection state for a session.
 	 * Writes directly to SvelteMap for fine-grained reactivity.
 	 */
-	updateHotState(sessionId: string, updates: Partial<SessionTransientProjection>): void {
+	updateTransientProjection(sessionId: string, updates: Partial<SessionTransientProjection>): void {
 		const current = this.transientProjections.get(sessionId) ?? DEFAULT_TRANSIENT_PROJECTION;
 		let hasChange = false;
 		for (const key of Object.keys(updates) as Array<keyof SessionTransientProjection>) {
@@ -64,7 +64,7 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	 * Remove transient projection state for a session.
 	 * SvelteMap: .delete() triggers fine-grained reactivity for this session only.
 	 */
-	removeHotState(sessionId: string): void {
+	removeTransientProjection(sessionId: string): void {
 		// SvelteMap: fine-grained deletion, only this session's subscribers re-render
 		this.transientProjections.delete(sessionId);
 	}
@@ -74,7 +74,7 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	 * Only initializes if session doesn't already have a transient projection.
 	 * SvelteMap: .set() triggers fine-grained reactivity for this session only.
 	 */
-	initializeHotState(sessionId: string, initialState?: Partial<SessionTransientProjection>): void {
+	initializeTransientProjection(sessionId: string, initialState?: Partial<SessionTransientProjection>): void {
 		if (!this.transientProjections.has(sessionId)) {
 			// SvelteMap: fine-grained addition, only this session's subscribers re-render
 			this.transientProjections.set(

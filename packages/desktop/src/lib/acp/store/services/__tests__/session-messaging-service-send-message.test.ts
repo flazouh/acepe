@@ -23,7 +23,7 @@ vi.mock("../../api.js", () => ({
 
 let SessionMessagingService: typeof import("../session-messaging-service.js").SessionMessagingService;
 
-const canonicalOverlapHotStateFields = [
+const canonicalOverlapTransientProjectionFields = [
 	"status",
 	"turnState",
 	"connectionError",
@@ -31,10 +31,10 @@ const canonicalOverlapHotStateFields = [
 	"lastTerminalTurnId",
 ] as const;
 
-function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
-	for (const call of updateHotState.mock.calls) {
+function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
-		for (const field of canonicalOverlapHotStateFields) {
+		for (const field of canonicalOverlapTransientProjectionFields) {
 			expect(Object.hasOwn(updates, field)).toBe(false);
 		}
 	}
@@ -70,12 +70,12 @@ function createMockDeps() {
 		getAllSessions: vi.fn(),
 	};
 
-	const hotStateManager: ITransientProjectionManager = {
-		getHotState: vi.fn(),
-		hasHotState: vi.fn(),
-		updateHotState: vi.fn(),
-		removeHotState: vi.fn(),
-		initializeHotState: vi.fn(),
+	const transientProjectionManager: ITransientProjectionManager = {
+		getTransientProjection: vi.fn(),
+		hasTransientProjection: vi.fn(),
+		updateTransientProjection: vi.fn(),
+		removeTransientProjection: vi.fn(),
+		initializeTransientProjection: vi.fn(),
 	};
 
 	const entryManager: IEntryManager = {
@@ -107,7 +107,7 @@ function createMockDeps() {
 		initializeConnectedSession: vi.fn(),
 	};
 
-	return { stateReader, hotStateManager, entryManager, connectionManager };
+	return { stateReader, transientProjectionManager, entryManager, connectionManager };
 }
 
 describe("SessionMessagingService.sendMessage", () => {
@@ -125,7 +125,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -160,7 +160,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		});
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -179,7 +179,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -187,7 +187,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		const result = await service.sendMessage("session-1", "hello");
 
 		expect(result.isOk()).toBe(true);
-		expect(deps.hotStateManager.updateHotState).toHaveBeenCalledWith(
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenCalledWith(
 			"session-1",
 			expect.objectContaining({
 				pendingSendIntent: {
@@ -208,8 +208,8 @@ describe("SessionMessagingService.sendMessage", () => {
 					},
 				})
 			);
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 
@@ -217,7 +217,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		const deps = createMockDeps();
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -243,7 +243,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		});
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -271,7 +271,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		});
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -288,7 +288,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		sendPrompt.mockReturnValue(errAsync(error));
 		const service = new SessionMessagingService(
 			deps.stateReader,
-			deps.hotStateManager,
+			deps.transientProjectionManager,
 			deps.entryManager,
 			deps.connectionManager
 		);
@@ -303,7 +303,7 @@ describe("SessionMessagingService.sendMessage", () => {
 			code: null,
 			source: "unknown",
 		});
-		expect(deps.hotStateManager.updateHotState).toHaveBeenNthCalledWith(
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenNthCalledWith(
 			1,
 			"pending-session",
 			expect.objectContaining({
@@ -325,11 +325,11 @@ describe("SessionMessagingService.sendMessage", () => {
 					},
 				})
 			);
-		expect(deps.hotStateManager.updateHotState).toHaveBeenLastCalledWith("pending-session", {
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenLastCalledWith("pending-session", {
 			pendingSendIntent: null,
 		});
-		expectNoCanonicalOverlapHotStateWrites(
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
 	});
 });

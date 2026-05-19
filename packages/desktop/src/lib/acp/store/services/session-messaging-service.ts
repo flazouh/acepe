@@ -144,7 +144,7 @@ export class SessionMessagingService {
 
 	constructor(
 		private readonly stateReader: ISessionStateReader,
-		private readonly hotStateManager: ITransientProjectionManager,
+		private readonly transientProjectionManager: ITransientProjectionManager,
 		private readonly entryManager: IEntryManager,
 		private readonly connectionManager: IConnectionManager
 	) {}
@@ -161,7 +161,7 @@ export class SessionMessagingService {
 		}
 
 		this.pendingSendAttemptIds.set(sessionId, attemptId);
-		this.hotStateManager.updateHotState(sessionId, {
+		this.transientProjectionManager.updateTransientProjection(sessionId, {
 			pendingSendIntent: {
 				attemptId,
 				startedAt: Date.now(),
@@ -191,7 +191,7 @@ export class SessionMessagingService {
 			this.pendingSendIntentTimeouts.delete(sessionId);
 		}
 
-		this.hotStateManager.updateHotState(sessionId, {
+		this.transientProjectionManager.updateTransientProjection(sessionId, {
 			pendingSendIntent: null,
 		});
 	}
@@ -204,7 +204,7 @@ export class SessionMessagingService {
 			this.pendingSendIntentTimeouts.delete(sessionId);
 		}
 
-		this.hotStateManager.updateHotState(sessionId, {
+		this.transientProjectionManager.updateTransientProjection(sessionId, {
 			pendingSendIntent: null,
 		});
 	}
@@ -515,8 +515,8 @@ export class SessionMessagingService {
 			clearTimeout(timeoutId);
 			this.pendingSendIntentTimeouts.delete(sessionId);
 		}
-		if (this.hotStateManager.hasHotState(sessionId)) {
-			this.hotStateManager.updateHotState(sessionId, {
+		if (this.transientProjectionManager.hasTransientProjection(sessionId)) {
+			this.transientProjectionManager.updateTransientProjection(sessionId, {
 				pendingSendIntent: null,
 			});
 		}
