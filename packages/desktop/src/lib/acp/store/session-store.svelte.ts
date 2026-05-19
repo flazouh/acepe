@@ -1389,7 +1389,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		return deriveLiveSessionLifecyclePresentation({
 			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, projection),
-			hasEntries: (graph?.transcriptSnapshot.entries.length ?? 0) > 0,
+			hasEntries: graph === null ? null : graph.transcriptSnapshot.entries.length > 0,
 			hasLocalPendingSendIntent: hotState.pendingSendIntent !== null,
 		});
 	}

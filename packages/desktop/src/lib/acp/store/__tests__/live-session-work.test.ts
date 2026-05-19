@@ -426,6 +426,24 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 		expect(presentation.showReadyPlaceholder).toBe(true);
 	});
 
+	it("keeps unknown canonical transcript presence distinct from empty transcript", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: {
+				kind: "canonical",
+				projection: makeCanonicalProjection("ready", "idle"),
+			},
+			hasEntries: null,
+			hasLocalPendingSendIntent: false,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "connected",
+			contentPhase: "loading",
+			showConversation: false,
+			showReadyPlaceholder: false,
+		});
+	});
+
 	it("maps canonical activity to runtime-shaped presentation without machine state", () => {
 		const awaitingModel = deriveLiveSessionLifecyclePresentation({
 			source: {

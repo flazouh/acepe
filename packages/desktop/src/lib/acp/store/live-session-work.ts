@@ -44,7 +44,7 @@ export interface LiveSessionWorkInput {
 
 export interface LiveSessionLifecyclePresentationInput {
 	readonly source: LiveSessionWorkSource;
-	readonly hasEntries: boolean;
+	readonly hasEntries: boolean | null;
 	readonly hasLocalPendingSendIntent: boolean;
 }
 
@@ -336,7 +336,8 @@ export function deriveLiveSessionLifecyclePresentation(
 		hasUnseenCompletion: false,
 	});
 	const connectionPhase = selectPresentationConnectionPhase(input);
-	const contentPhase: ContentPhase = input.hasEntries ? "loaded" : "empty";
+	const contentPhase: ContentPhase =
+		input.hasEntries === null ? "loading" : input.hasEntries ? "loaded" : "empty";
 	const activityPhase = selectPresentationActivityPhase(canonicalActivity);
 	const canCancel =
 		canonicalActivity === "awaiting_model" ||
@@ -362,6 +363,7 @@ export function deriveLiveSessionLifecyclePresentation(
 		showConversation,
 		showReadyPlaceholder:
 			!showConversation &&
+			input.hasEntries === false &&
 			canonicalProjectionFromSource(input.source)?.lifecycle.status === "ready" &&
 			canonicalActivity === "idle",
 	};
