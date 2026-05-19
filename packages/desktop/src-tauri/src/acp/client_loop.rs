@@ -449,8 +449,9 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     match provider.normalize_extension_method(method, &params, Some(id), current_session_id.as_deref()) {
                                         Ok(Some(event)) => {
                                             // Log the raw inbound extension request
-                                            let session_id_for_log = current_session_id.as_deref().unwrap_or("unknown");
-                                            log_streaming_event(session_id_for_log, &json);
+                                            if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                log_streaming_event(session_id_for_log, &json);
+                                            }
 
                                             if event.response_adapter.is_some() && ctx.is_replay_active.load(std::sync::atomic::Ordering::Acquire) {
                                                 tracing::info!(id = id, method = %method, "Auto-cancelling extension request during session replay");
@@ -477,7 +478,9 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                                 }
                                             }
                                             for update in event.updates {
-                                                log_emitted_event(session_id_for_log, &update);
+                                                if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                    log_emitted_event(session_id_for_log, &update);
+                                                }
                                                 enqueue_session_update(
                                                     &ctx.dispatcher,
                                                     &ctx.is_replay_active,
@@ -681,10 +684,13 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             if let Some(provider) = ctx.provider.as_ref() {
                                 match provider.normalize_extension_method(method, &params, None, current_session_id.as_deref()) {
                                     Ok(Some(event)) => {
-                                        let session_id_for_log = current_session_id.as_deref().unwrap_or("unknown");
-                                        log_streaming_event(session_id_for_log, &json);
+                                        if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                            log_streaming_event(session_id_for_log, &json);
+                                        }
                                         for update in event.updates {
-                                            log_emitted_event(session_id_for_log, &update);
+                                            if let Some(session_id_for_log) = current_session_id.as_deref() {
+                                                log_emitted_event(session_id_for_log, &update);
+                                            }
                                             enqueue_session_update(
                                                 &ctx.dispatcher,
                                                 &ctx.is_replay_active,

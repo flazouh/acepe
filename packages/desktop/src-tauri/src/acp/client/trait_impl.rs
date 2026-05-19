@@ -5,7 +5,7 @@ impl Drop for AcpClient {
     fn drop(&mut self) {
         tracing::warn!(
             cwd = %self.cwd.display(),
-            provider = self.provider.as_ref().map(|provider| provider.id()).unwrap_or("unknown"),
+            provider = ?self.provider.as_ref().map(|provider| provider.id()),
             stderr = self.stderr_buffer.as_ref().and_then(crate::acp::client_loop::read_stderr_buffer),
             reason = "AcpClient::drop",
             "Stopping ACP client from Drop"

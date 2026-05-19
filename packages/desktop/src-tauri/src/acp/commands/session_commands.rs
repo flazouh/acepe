@@ -2380,16 +2380,13 @@ pub async fn acp_close_session(app: AppHandle, session_id: String) -> CommandRes
                 buffer.inner().discard(&session_id, "session_closed");
             }
 
-            let agent_id_str = session_registry
-                .get_agent_id(&session_id)
-                .map(|a| a.as_str().to_string())
-                .unwrap_or_else(|| "unknown".to_string());
+            let agent_id = session_registry.get_agent_id(&session_id);
 
             if let Some(client_arc) = session_registry.remove(&session_id, "acp_close_session") {
                 // Get exclusive access and stop the client
                 tracing::warn!(
                     session_id = %redact_session_id(&session_id),
-                    agent_id = %agent_id_str,
+                    agent_id = ?agent_id,
                     reason = "acp_close_session",
                     "Stopping session client from explicit close request"
                 );

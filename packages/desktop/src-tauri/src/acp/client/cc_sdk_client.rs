@@ -733,7 +733,7 @@ impl cc_sdk::HookCallback for AcepePermissionRequestHook {
             tracing::info!(
                 session_id = %self.session_id,
                 tool_name = %request.tool_name,
-                tool_call_id = tool_use_id.unwrap_or("unknown"),
+                tool_call_id = ?tool_use_id,
                 "cc-sdk PermissionRequest hook ignored for AskUserQuestion"
             );
             return Ok(cc_sdk::HookJSONOutput::Sync(cc_sdk::SyncHookJSONOutput {

@@ -270,7 +270,7 @@ impl AgentClient for CodexNativeClient {
             tracing::info!(
                 command = %identity.command,
                 resolved_path = %identity.resolved_path,
-                version = %identity.version.as_deref().unwrap_or("unknown"),
+                version = ?identity.version,
                 "Launching Codex runtime"
             );
         }
@@ -778,7 +778,7 @@ fn build_codex_json_rpc_error_message(
         details.push(format!("Codex binary path: {}", identity.resolved_path));
         details.push(format!(
             "Codex binary version: {}",
-            identity.version.as_deref().unwrap_or("unknown")
+            identity.version.as_deref().unwrap_or("<absent>")
         ));
     }
 
