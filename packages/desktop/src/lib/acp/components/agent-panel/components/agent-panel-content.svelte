@@ -5,7 +5,6 @@ import { mapCanonicalTurnStateToPresentationStatus } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import {
 	deriveLiveSessionWorkProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 } from "../../../store/live-session-work.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
@@ -55,11 +54,8 @@ let lastContentTraceSignature = $state<string | null>(null);
 // Reference to scene viewport for scroll control
 let sceneViewportRef: SceneContentViewport | null = $state(null);
 
-const canonicalProjection = $derived(
-	sessionId ? (sessionStore?.getCanonicalSessionProjection(sessionId) ?? null) : null
-);
 const liveSessionSource = $derived(
-	liveSessionWorkSourceFromCanonicalProjection(sessionId ?? null, canonicalProjection)
+	sessionStore?.getSessionLiveWorkSource(sessionId ?? null, true) ?? { kind: "no_session" }
 );
 const interactionSnapshot = $derived.by(() =>
 	isWaitingProp !== undefined || !sessionId || interactionStore == null

@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { LifecycleStatus, SessionGraphActivityKind } from "../../../services/acp-types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
+import { liveSessionWorkSourceFromCanonicalProjection } from "../live-session-work.js";
 import { type PanelToTabInput, panelToTab } from "../tab-bar-utils.js";
 import type { Panel } from "../types.js";
 
@@ -72,14 +73,27 @@ function makeCanonicalProjection(
 	};
 }
 
-function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
+type PanelToTabTestInput = Partial<PanelToTabInput> & {
+	readonly canonicalProjection?: CanonicalSessionProjection | null;
+};
+
+function makeInput(overrides: PanelToTabTestInput = {}): PanelToTabInput {
+	const panel = overrides.panel ?? makePanel();
+	const canonicalProjection =
+		overrides.canonicalProjection === undefined
+			? makeCanonicalProjection()
+			: overrides.canonicalProjection;
+	const liveSessionSource =
+		overrides.liveSessionSource ??
+		liveSessionWorkSourceFromCanonicalProjection(panel.sessionId, canonicalProjection);
+	const currentModeId =
+		overrides.currentModeId ?? canonicalProjection?.capabilities.modes?.currentModeId ?? null;
 	const pendingPlanApproval = overrides.pendingPlanApproval ?? null;
 	return {
-		panel: makePanel(),
+		panel,
 		focusedPanelId: null,
 		agentId: "agent-1",
 		title: "Test Session",
-		canonicalProjection: makeCanonicalProjection(),
 		transcriptEntries: [],
 		currentToolKind: null,
 		pendingQuestion: null,
@@ -91,6 +105,8 @@ function makeInput(overrides: Partial<PanelToTabInput> = {}): PanelToTabInput {
 		projectPath: null,
 		sequenceId: null,
 		...overrides,
+		liveSessionSource,
+		currentModeId,
 		pendingPlanApproval,
 	};
 }

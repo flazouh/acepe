@@ -1318,6 +1318,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return deriveSessionListStateFromCanonical(this.canonicalProjections.get(sessionId) ?? null);
 	}
 
+	hasSessionCanonicalProjection(sessionId: string): boolean {
+		return this.canonicalProjections.has(sessionId);
+	}
+
 	/**
 	 * Canonical message count; null means no canonical graph exists yet.
 	 */

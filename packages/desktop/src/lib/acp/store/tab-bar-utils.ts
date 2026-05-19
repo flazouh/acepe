@@ -7,12 +7,11 @@ import type { PlanApprovalInteraction } from "../types/interaction.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { QuestionRequest } from "../types/question.js";
 import type { ToolKind } from "../types/tool-kind.js";
-import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
+	type LiveSessionWorkSource,
 } from "./live-session-work.js";
 import type { SessionState } from "./session-state.js";
 import { deriveSessionState } from "./session-state.js";
@@ -43,8 +42,9 @@ export interface PanelToTabInput {
 	readonly focusedPanelId: string | null;
 	readonly agentId: string | null;
 	readonly title: string | null;
-	readonly canonicalProjection: CanonicalSessionProjection | null;
+	readonly liveSessionSource: LiveSessionWorkSource;
 	readonly transcriptEntries: ReadonlyArray<TranscriptEntry> | null;
+	readonly currentModeId: string | null;
 	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
@@ -255,8 +255,9 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		focusedPanelId,
 		agentId,
 		title,
-		canonicalProjection,
+		liveSessionSource,
 		transcriptEntries,
+		currentModeId,
 		currentToolKind: providedCurrentToolKind,
 		pendingQuestion,
 		pendingPlanApproval,
@@ -269,9 +270,8 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		sequenceId,
 	} = input;
 	const currentToolKind = providedCurrentToolKind;
-	const currentModeId = canonicalProjection?.capabilities.modes?.currentModeId ?? null;
 	const liveSessionInput: LiveSessionWorkInput = {
-		source: liveSessionWorkSourceFromCanonicalProjection(panel.sessionId, canonicalProjection),
+		source: liveSessionSource,
 		currentModeId,
 		interactionSnapshot: {
 			pendingQuestion,
@@ -299,7 +299,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectPath,
 		sequenceId,
 		conversationPreview:
-			panel.sessionId !== null && canonicalProjection === null
+			panel.sessionId !== null && liveSessionSource.kind === "missing_canonical"
 				? null
 				: extractConversationPreview(transcriptEntries ?? []),
 		state,

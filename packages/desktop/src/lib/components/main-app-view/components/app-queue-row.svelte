@@ -53,7 +53,6 @@ const queueInputs = $derived.by(() => {
 		const metadata = sessionStore.getSessionMetadata(sessionId);
 		if (!identity || !metadata) continue;
 
-		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
 		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			identity.id,
 			interactionStore
@@ -71,7 +70,7 @@ const queueInputs = $derived.by(() => {
 			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
 			connectionError: sessionStore.getSessionConnectionError(sessionId),
 			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
-			canonicalProjection,
+			liveSessionSource: sessionStore.getSessionLiveWorkSource(sessionId, true),
 			interactionSnapshot,
 			hasUnseenCompletion: unseenStore.isUnseen(panelId),
 		});
@@ -100,7 +99,6 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
 	for (const session of sessionStore.sessions) {
-		const canonicalProjection = sessionStore.getCanonicalSessionProjection(session.id);
 		const lifecyclePresentation = sessionStore.getSessionLifecyclePresentation(session.id);
 		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			session.id,
@@ -113,7 +111,7 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 		inputs.push({
 			sessionId: session.id,
 			updatedAtMs: session.updatedAt.getTime(),
-			hasCanonicalProjection: canonicalProjection !== null,
+			hasCanonicalProjection: sessionStore.hasSessionCanonicalProjection(session.id),
 			connectionPhase: lifecyclePresentation.connectionPhase,
 			activityPhase: lifecyclePresentation.activityPhase,
 			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,

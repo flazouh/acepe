@@ -116,11 +116,10 @@ export class TabBarStore {
 
 		const sessionIdentity = sessionId ? this.sessionStore.getSessionIdentity(sessionId) : null;
 		const sessionMetadata = sessionId ? this.sessionStore.getSessionMetadata(sessionId) : null;
-		const canonicalProjection = sessionId
-			? this.sessionStore.getCanonicalSessionProjection(sessionId)
-			: null;
 		const transcriptEntries =
 			sessionId !== null ? this.sessionStore.getSessionTranscriptEntries(sessionId) : null;
+		const currentModeId =
+			sessionId !== null ? this.sessionStore.getSessionCurrentModeId(sessionId) : null;
 		const currentToolKind =
 			sessionId !== null ? this.sessionStore.getSessionCurrentToolKind(sessionId) : null;
 
@@ -145,8 +144,9 @@ export class TabBarStore {
 			focusedPanelId,
 			agentId,
 			title,
-			canonicalProjection,
+			liveSessionSource: this.sessionStore.getSessionLiveWorkSource(sessionId, true),
 			transcriptEntries,
+			currentModeId,
 			currentToolKind,
 			pendingQuestion,
 			pendingPlanApproval,

@@ -4,10 +4,7 @@ import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import { copyCanonicalSessionToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
-import {
-	buildSessionSummaryFromCold,
-	deriveSessionListStateFromCanonical,
-} from "$lib/acp/application/dto/session-summary.js";
+import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
 import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -437,9 +434,7 @@ const visibleSessions = $derived.by(() => {
 	return coldSessions
 		.filter((cold) => !archiveStore.isArchived(cold))
 		.map((cold) => {
-			const listState = deriveSessionListStateFromCanonical(
-				sessionStore.getCanonicalSessionProjection(cold.id)
-			);
+			const listState = sessionStore.getSessionListState(cold.id);
 			return buildSessionSummaryFromCold({
 				cold,
 				listState,

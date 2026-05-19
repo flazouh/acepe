@@ -151,6 +151,7 @@ describe("SessionStore canonical projection accessors", () => {
 			kind: "inactive_session",
 			sessionId: "session-1",
 		});
+		expect(store.hasSessionCanonicalProjection("session-1")).toBe(false);
 		expect(store.getSessionTurnState("session-1")).toBeNull();
 		expect(store.getSessionTranscriptEntries("session-1")).toBeNull();
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
@@ -191,6 +192,7 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.getSessionLiveWorkSource("session-1", true)).toMatchObject({
 			kind: "canonical",
 		});
+		expect(store.hasSessionCanonicalProjection("session-1")).toBe(true);
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();

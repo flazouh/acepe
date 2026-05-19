@@ -13,12 +13,11 @@ import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
-import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { checkpointStore } from "../checkpoint-store.svelte.js";
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
+	type LiveSessionWorkSource,
 } from "../live-session-work.js";
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
@@ -74,7 +73,7 @@ export interface BuildQueueSessionSnapshotInput {
 	readonly currentModeId: string | null;
 	readonly connectionError: string | null;
 	readonly activeTurnFailure: ActiveTurnFailure | null;
-	readonly canonicalProjection: CanonicalSessionProjection | null;
+	readonly liveSessionSource: LiveSessionWorkSource;
 	readonly interactionSnapshot: Pick<
 		SessionOperationInteractionSnapshot,
 		"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
@@ -135,18 +134,14 @@ export function deriveQueueSessionState(input: QueueSessionStateInput) {
 export function buildQueueSessionSnapshot(
 	input: BuildQueueSessionSnapshotInput
 ): QueueSessionSnapshot {
-	const source = liveSessionWorkSourceFromCanonicalProjection(
-		input.id,
-		input.canonicalProjection
-	);
 	const state = deriveLiveSessionState({
-		source,
+		source: input.liveSessionSource,
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
 	});
 	const workProjection = deriveLiveSessionWorkProjection({
-		source,
+		source: input.liveSessionSource,
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,

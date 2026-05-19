@@ -251,7 +251,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 
 		const identity = sessionStore.getSessionIdentity(sessionId);
 		const metadata = sessionStore.getSessionMetadata(sessionId);
-		const canonicalProjection = sessionStore.getCanonicalSessionProjection(sessionId);
 		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			sessionId,
 			interactionStore
@@ -282,7 +281,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
 			connectionError: sessionStore.getSessionConnectionError(sessionId),
 			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
-			canonicalProjection,
+			liveSessionSource: sessionStore.getSessionLiveWorkSource(sessionId, true),
 			interactionSnapshot,
 			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
 		});

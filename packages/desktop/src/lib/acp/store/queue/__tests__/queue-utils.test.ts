@@ -4,6 +4,7 @@ import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
+import { liveSessionWorkSourceFromCanonicalProjection } from "../../live-session-work.js";
 import { deriveSessionState } from "../../session-state.js";
 import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import type { UrgencyInfo } from "../../urgency.js";
@@ -65,6 +66,10 @@ function makeCanonicalProjection(
 			lastEventSeq: 1,
 		},
 	};
+}
+
+function makeLiveSource(projection: CanonicalSessionProjection | null) {
+	return liveSessionWorkSourceFromCanonicalProjection("session-1", projection);
 }
 
 function createToolCall(
@@ -320,7 +325,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: "plan",
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -350,7 +355,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: "plan",
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("ready", "paused"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "paused")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -377,7 +382,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("ready", "idle"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "idle")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -418,7 +423,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: "plan",
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("ready", "waiting_for_user"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "waiting_for_user")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: permission,
@@ -449,7 +454,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: "build",
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("ready", "running_operation"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("ready", "running_operation")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -478,7 +483,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("reserved", "awaiting_model"),
+			liveSessionSource: makeLiveSource(makeCanonicalProjection("reserved", "awaiting_model")),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -507,7 +512,9 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: null,
 			connectionError: "Resume failed",
 			activeTurnFailure: null,
-			canonicalProjection: makeCanonicalProjection("failed", "idle", "Resume failed"),
+			liveSessionSource: makeLiveSource(
+				makeCanonicalProjection("failed", "idle", "Resume failed")
+			),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
@@ -534,7 +541,7 @@ describe("buildQueueSessionSnapshot", () => {
 			currentModeId: null,
 			connectionError: null,
 			activeTurnFailure: null,
-			canonicalProjection: null,
+			liveSessionSource: makeLiveSource(null),
 			interactionSnapshot: {
 				pendingQuestion: null,
 				pendingPermission: null,
