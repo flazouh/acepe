@@ -36,7 +36,7 @@ export interface StoreComposerState {
 	readonly selectorsDisabled: boolean;
 	readonly committedModeId: string | null;
 	readonly committedModelId: string | null;
-	readonly committedAutonomousEnabled: boolean;
+	readonly committedAutonomousEnabled: boolean | null;
 	readonly provisionalModeId: string | null;
 	readonly provisionalModelId: string | null;
 	readonly provisionalAutonomousEnabled: boolean | null;

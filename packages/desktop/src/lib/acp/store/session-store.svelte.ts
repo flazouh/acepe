@@ -1201,7 +1201,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private readonly composerMachineService = new ComposerMachineService((sessionId) => ({
 		modeId: this.getSessionCurrentModeId(sessionId),
 		modelId: this.getSessionCurrentModelId(sessionId),
-		autonomousEnabled: this.getSessionAutonomousEnabled(sessionId) ?? false,
+		autonomousEnabled: this.getSessionAutonomousEnabled(sessionId),
 	}));
 
 	// Repository for CRUD and loading operations

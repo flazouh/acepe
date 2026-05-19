@@ -16,7 +16,7 @@ export interface ComposerMachineContext {
 	boundGeneration: number;
 	committedModeId: string | null;
 	committedModelId: string | null;
-	committedAutonomousEnabled: boolean;
+	committedAutonomousEnabled: boolean | null;
 	provisionalModeId: string | null;
 	provisionalModelId: string | null;
 	provisionalAutonomousEnabled: boolean | null;
@@ -27,7 +27,7 @@ export type ComposerMachineEvent =
 			type: "SESSION_BOUND";
 			committedModeId: string | null;
 			committedModelId: string | null;
-			committedAutonomousEnabled: boolean;
+			committedAutonomousEnabled: boolean | null;
 	  }
 	| {
 			type: "CONFIG_BLOCK_BEGIN";
@@ -39,7 +39,7 @@ export type ComposerMachineEvent =
 			type: "CONFIG_BLOCK_SUCCESS";
 			committedModeId: string | null;
 			committedModelId: string | null;
-			committedAutonomousEnabled: boolean;
+			committedAutonomousEnabled: boolean | null;
 	  }
 	| { type: "CONFIG_BLOCK_FAIL" }
 	| { type: "DISPATCH_BEGIN" }
@@ -50,7 +50,7 @@ const initialContext = (sessionId: string): ComposerMachineContext => ({
 	boundGeneration: 0,
 	committedModeId: null,
 	committedModelId: null,
-	committedAutonomousEnabled: false,
+	committedAutonomousEnabled: null,
 	provisionalModeId: null,
 	provisionalModelId: null,
 	provisionalAutonomousEnabled: null,

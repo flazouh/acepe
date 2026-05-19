@@ -112,6 +112,24 @@ describe("composer machine", () => {
 		expect(g1).toBe(g0 + 1);
 	});
 
+	it("preserves unknown committed autonomous state on session bind", () => {
+		const actor = createActor(composerMachine, { input: { sessionId: "s1" } });
+		actor.start();
+		actor.send({
+			type: "SESSION_BOUND",
+			committedModeId: "build",
+			committedModelId: "m1",
+			committedAutonomousEnabled: null,
+		});
+
+		const store = deriveStoreComposerState({
+			machineSnapshot: actor.getSnapshot(),
+			sessionSubmitPolicy: submitPolicy(),
+		});
+
+		expect(store.committedAutonomousEnabled).toBeNull();
+	});
+
 	it("ignores SESSION_BOUND while dispatching", () => {
 		const actor = createActor(composerMachine, { input: { sessionId: "s1" } });
 		actor.start();

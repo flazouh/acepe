@@ -248,7 +248,7 @@ const sessionCurrentModelId = $derived(
 	props.sessionId ? sessionStore.getSessionCurrentModelId(props.sessionId) : null
 );
 const sessionAutonomousEnabled = $derived(
-	props.sessionId ? (sessionStore.getSessionAutonomousEnabled(props.sessionId) ?? false) : false
+	props.sessionId ? sessionStore.getSessionAutonomousEnabled(props.sessionId) : null
 );
 const sessionConfigOptions = $derived(
 	props.sessionId ? (sessionStore.getSessionConfigOptions(props.sessionId) ?? []) : []
@@ -333,7 +333,7 @@ const autonomousToggleActive = $derived.by(() => {
 		if (cs && cs.provisionalAutonomousEnabled !== null) {
 			return cs.provisionalAutonomousEnabled;
 		}
-		return sessionAutonomousEnabled;
+		return sessionAutonomousEnabled === true;
 	}
 	return panelProvisionalAutonomousEnabled;
 });

@@ -8,7 +8,7 @@ import {
 function makeCommitState(
 	modeId: string | null = null,
 	modelId: string | null = null,
-	autonomousEnabled: boolean = false
+	autonomousEnabled: boolean | null = false
 ): ComposerSessionCommitState {
 	return {
 		modeId,
@@ -32,6 +32,13 @@ describe("ComposerMachineService", () => {
 		expect(service.getState("s1")).not.toBeNull();
 		service.removeMachine("s1");
 		expect(service.getState("s1")).toBeNull();
+	});
+
+	it("binds unknown autonomous state without coercing it to false", () => {
+		const service = new ComposerMachineService(() => makeCommitState("build", "m1", null));
+		service.bindSession("s1");
+
+		expect(service.getState("s1")?.context.committedAutonomousEnabled).toBeNull();
 	});
 
 	it("does not apply bindSession while dispatching", () => {
