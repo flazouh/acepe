@@ -53,6 +53,37 @@ describe("createDisplayItems", () => {
 		expect(items[0]?.prNumber).toBe(314);
 	});
 
+	it("preserves unknown entry count instead of coercing it to zero", () => {
+		const now = new Date("2024-01-01T00:00:00.000Z");
+		const sessions = [
+			{
+				id: "session-unknown-count",
+				title: "Session with unknown count",
+				projectPath: "/repo",
+				agentId: "claude-code",
+				status: "error" as const,
+				entryCount: null,
+				isConnected: false,
+				isStreaming: false,
+				createdAt: now,
+				updatedAt: now,
+				parentId: null,
+			},
+		];
+
+		const items = createDisplayItems(
+			sessions,
+			new Map([["/repo", "repo"]]),
+			new Map(),
+			new Map([["/repo", null]]),
+			new Set<string>(),
+			() => []
+		);
+
+		expect(items).toHaveLength(1);
+		expect(items[0]?.entryCount).toBeNull();
+	});
+
 	it("marks streaming and open sessions as live", () => {
 		const now = new Date("2024-01-01T00:00:00.000Z");
 		const sessions = [

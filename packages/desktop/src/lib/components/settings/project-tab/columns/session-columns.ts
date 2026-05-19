@@ -64,7 +64,7 @@ export function createSessionColumns(handlers: ColumnHandlers) {
 		columnHelper.accessor("entryCount", {
 			id: "entryCount",
 			header: () => "Messages",
-			cell: (info) => info.getValue().toString(),
+			cell: (info) => info.getValue()?.toString() ?? "-",
 			enableSorting: true,
 		}),
 

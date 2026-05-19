@@ -186,7 +186,7 @@ function titleCase(s: string): string {
 						{titleCase(row.agentId)}
 					</span>
 					<span class="w-10 text-right text-muted-foreground tabular-nums">
-						{row.entryCount}
+						{row.entryCount ?? "-"}
 					</span>
 					<span class="w-20 text-right text-muted-foreground tabular-nums">
 						{formatDate(row.updatedAt)}

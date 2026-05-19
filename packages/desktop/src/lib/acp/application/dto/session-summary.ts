@@ -1,3 +1,4 @@
+import type { SessionStateGraph } from "$lib/services/acp-types.js";
 import type { CanonicalSessionProjection } from "../../store/canonical-session-projection.js";
 import type { SessionCold } from "./session-cold.js";
 import type { SessionEntry } from "./session-entry.js";
@@ -20,7 +21,7 @@ export interface SessionListState {
 export interface SessionSummary extends SessionIdentity {
 	readonly title: string | null;
 	readonly status: SessionStatus;
-	readonly entryCount: number;
+	readonly entryCount: number | null;
 	readonly isConnected: boolean;
 	readonly isStreaming: boolean;
 	readonly lastEntry?: SessionEntry;
@@ -45,7 +46,7 @@ export interface SessionSummary extends SessionIdentity {
 export function buildSessionSummaryFromCold(input: {
 	readonly cold: SessionCold;
 	readonly listState: SessionListState;
-	readonly entryCount: number;
+	readonly entryCount: number | null;
 	readonly lastEntry?: SessionEntry;
 }): SessionSummary {
 	return {
@@ -69,6 +70,16 @@ export function buildSessionSummaryFromCold(input: {
 		worktreeDeleted: input.cold.worktreeDeleted,
 		sequenceId: input.cold.sequenceId,
 	};
+}
+
+export function deriveSessionEntryCountFromCanonicalGraph(
+	graph: SessionStateGraph | null
+): number | null {
+	if (graph === null) {
+		return null;
+	}
+
+	return graph.messageCount;
 }
 
 export function deriveSessionListStateFromCanonical(

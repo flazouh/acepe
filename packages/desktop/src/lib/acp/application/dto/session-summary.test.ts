@@ -214,4 +214,32 @@ describe("buildSessionSummaryFromCold", () => {
 			sequenceId: 7,
 		});
 	});
+
+	it("preserves unknown canonical entry count instead of coercing it to zero", () => {
+		const createdAt = new Date("2026-05-01T00:00:00.000Z");
+		const updatedAt = new Date("2026-05-01T00:01:00.000Z");
+
+		const summary = buildSessionSummaryFromCold({
+			cold: {
+				id: "session-unknown-count",
+				projectPath: "/repo",
+				agentId: "codex",
+				worktreePath: "/repo-worktree",
+				title: "Unknown count",
+				createdAt,
+				updatedAt,
+				sourcePath: "/repo/session.json",
+				sessionLifecycleState: "persisted",
+				parentId: null,
+			},
+			listState: {
+				status: "error",
+				isConnected: false,
+				isStreaming: false,
+			},
+			entryCount: null,
+		});
+
+		expect(summary.entryCount).toBeNull();
+	});
 });

@@ -11,7 +11,7 @@ export interface SessionTableRow {
 	projectColor: string;
 	agentId: string;
 	status: SessionStatus;
-	entryCount: number;
+	entryCount: number | null;
 	isConnected: boolean;
 	isStreaming: boolean;
 	updatedAt: Date;

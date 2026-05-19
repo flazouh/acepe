@@ -259,7 +259,7 @@ export function createDisplayItems(
 			parentId: session.parentId,
 			insertions: diffStats?.insertions ?? 0,
 			deletions: diffStats?.deletions ?? 0,
-			entryCount: session.entryCount ?? 0,
+			entryCount: session.entryCount,
 			worktreePath: session.worktreePath,
 			worktreeDeleted: session.worktreeDeleted,
 			prNumber: session.prNumber,

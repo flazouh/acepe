@@ -2,6 +2,7 @@
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import {
 	buildSessionSummaryFromCold,
+	deriveSessionEntryCountFromCanonicalGraph,
 	deriveSessionListStateFromCanonical,
 } from "$lib/acp/application/dto/session-summary.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -28,7 +29,9 @@ const allSessions = $derived.by((): SessionSummary[] => {
 		const listState = deriveSessionListStateFromCanonical(
 			sessionStore.getCanonicalSessionProjection(cold.id)
 		);
-		const entryCount = sessionStore.getSessionStateGraph(cold.id)?.messageCount ?? 0;
+		const entryCount = deriveSessionEntryCountFromCanonicalGraph(
+			sessionStore.getSessionStateGraph(cold.id)
+		);
 		return buildSessionSummaryFromCold({
 			cold,
 			listState,

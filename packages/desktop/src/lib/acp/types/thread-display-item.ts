@@ -52,7 +52,7 @@ export type SessionDisplayItem = {
 	/**
 	 * Number of entries in the session.
 	 */
-	entryCount?: number;
+	entryCount?: number | null;
 
 	/**
 	 * Whether the session is currently connected to an agent.
