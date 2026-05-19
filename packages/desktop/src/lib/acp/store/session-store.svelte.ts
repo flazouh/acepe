@@ -1394,6 +1394,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return projectGraphCapabilities(projection.capabilities);
 	}
 
+	hasSessionCanonicalCapabilities(sessionId: string): boolean {
+		return this.getCanonicalProjectedCapabilities(sessionId) !== null;
+	}
+
 	/**
 	 * Canonical connection error copy; null means no canonical failure/detach message exists yet.
 	 */
@@ -1507,6 +1511,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getSessionModelsDisplay(sessionId: string): ModelsForDisplay | null {
 		return this.getCanonicalProjectedCapabilities(sessionId)?.modelsDisplay ?? null;
+	}
+
+	/**
+	 * Canonical provider metadata; null means no canonical capabilities projection.
+	 */
+	getSessionProviderMetadata(sessionId: string): ProviderMetadataProjection | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.providerMetadata ?? null;
 	}
 
 	/**

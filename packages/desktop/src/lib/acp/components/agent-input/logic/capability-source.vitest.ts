@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
 import {
+	type CanonicalCapabilitySnapshot,
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
 } from "./capability-source.js";
@@ -33,7 +33,7 @@ const CURSOR_PROVIDER_METADATA: ProviderMetadataProjection = {
 	implicitSessionCreationMode: "allowed",
 };
 
-function liveSession(capabilities: SessionCapabilities) {
+function liveSession(capabilities: CanonicalCapabilitySnapshot) {
 	return {
 		kind: "canonical" as const,
 		capabilities,
@@ -80,8 +80,7 @@ describe("resolveCapabilitySource", () => {
 			sessionSource: liveSession({
 				availableModels: [{ id: "live-model", name: "Live Model" }],
 				availableModes: [{ id: "plan", name: "Plan" }],
-				availableCommands: [],
-				modelsDisplay: undefined,
+				modelsDisplay: null,
 				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: {
@@ -109,8 +108,7 @@ describe("resolveCapabilitySource", () => {
 			sessionSource: liveSession({
 				availableModels: null,
 				availableModes: null,
-				availableCommands: [],
-				modelsDisplay: undefined,
+				modelsDisplay: null,
 				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: null,
@@ -130,8 +128,7 @@ describe("resolveCapabilitySource", () => {
 			sessionSource: liveSession({
 				availableModels: [],
 				availableModes: [{ id: "build", name: "Build" }],
-				availableCommands: [],
-				modelsDisplay: undefined,
+				modelsDisplay: null,
 				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
 			preconnectionCapabilities: null,
@@ -165,7 +162,6 @@ describe("resolveCapabilitySource", () => {
 			sessionSource: liveSession({
 				availableModels: [],
 				availableModes: [],
-				availableCommands: [],
 				modelsDisplay: { groups: [], presentation: undefined },
 				providerMetadata: CURSOR_PROVIDER_METADATA,
 			}),
@@ -294,8 +290,7 @@ describe("resolveCapabilityContextProviderMetadata", () => {
 				sessionSource: liveSession({
 					availableModels: [],
 					availableModes: [],
-					availableCommands: [],
-					modelsDisplay: undefined,
+					modelsDisplay: null,
 					providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
 				}),
 				selectedAgentProviderMetadata: CURSOR_PROVIDER_METADATA,

@@ -199,10 +199,33 @@ const capabilitiesAgentId = $derived.by(() => {
 	return sessionIdentity ? sessionIdentity.agentId : null;
 });
 
-// Get capabilities from session store when we have a session
-const sessionCapabilities = $derived(
-	props.sessionId ? sessionStore.getSessionCapabilities(props.sessionId) : null
+const sessionAvailableModels = $derived(
+	props.sessionId ? sessionStore.getSessionAvailableModels(props.sessionId) : null
 );
+const sessionAvailableModes = $derived(
+	props.sessionId ? sessionStore.getSessionAvailableModes(props.sessionId) : null
+);
+const sessionModelsDisplay = $derived(
+	props.sessionId ? sessionStore.getSessionModelsDisplay(props.sessionId) : null
+);
+const sessionProviderMetadata = $derived(
+	props.sessionId ? sessionStore.getSessionProviderMetadata(props.sessionId) : null
+);
+const sessionHasCanonicalCapabilities = $derived(
+	props.sessionId ? sessionStore.hasSessionCanonicalCapabilities(props.sessionId) : false
+);
+const sessionCapabilities = $derived.by(() => {
+	if (!props.sessionId || !sessionHasCanonicalCapabilities) {
+		return null;
+	}
+
+	return {
+		availableModels: sessionAvailableModels,
+		availableModes: sessionAvailableModes,
+		modelsDisplay: sessionModelsDisplay,
+		providerMetadata: sessionProviderMetadata,
+	};
+});
 const sessionCapabilitySource = $derived(
 	sessionCapabilitySourceFromCapabilities(props.sessionId ?? null, sessionCapabilities)
 );

@@ -143,6 +143,8 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.getSessionConfigOptions("session-1")).toBeNull();
 		expect(store.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.getSessionAvailableModes("session-1")).toBeNull();
+		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(false);
+		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
 		expect(store.getSessionCapabilities("session-1")).toBeNull();
 	});
 
@@ -188,6 +190,7 @@ describe("SessionStore canonical projection accessors", () => {
 				description: undefined,
 			},
 		]);
+		expect(store.hasSessionCanonicalCapabilities("session-1")).toBe(true);
 		expect(store.getSessionCapabilities("session-1")).toMatchObject({
 			availableModels: [
 				{
@@ -286,6 +289,7 @@ describe("SessionStore canonical projection accessors", () => {
 
 		const capabilities = store.getSessionCapabilities("session-1");
 		expect(store.getSessionModelsDisplay("session-1")).toBeNull();
+		expect(store.getSessionProviderMetadata("session-1")).toBeNull();
 		expect(capabilities?.modelsDisplay).toBeUndefined();
 		expect(capabilities?.providerMetadata).toBeUndefined();
 	});

@@ -1,6 +1,5 @@
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
-import type { SessionCapabilities } from "$lib/acp/application/dto/session-capabilities.js";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -28,13 +27,20 @@ export interface CapabilitySourceResolution {
 		| "persistedCache";
 }
 
+export interface CanonicalCapabilitySnapshot {
+	readonly availableModes: readonly Mode[] | null;
+	readonly availableModels: readonly Model[] | null;
+	readonly modelsDisplay: ModelsForDisplay | null;
+	readonly providerMetadata: ProviderMetadataProjection | null;
+}
+
 export type SessionCapabilitySource =
 	| {
 			readonly kind: "no_session";
 	  }
 	| {
 			readonly kind: "canonical";
-			readonly capabilities: SessionCapabilities;
+			readonly capabilities: CanonicalCapabilitySnapshot;
 	  }
 	| {
 			readonly kind: "missing_canonical";
@@ -52,7 +58,7 @@ interface ResolveCapabilitySourceInput {
 
 export function sessionCapabilitySourceFromCapabilities(
 	sessionId: string | null,
-	sessionCapabilities: SessionCapabilities | null
+	sessionCapabilities: CanonicalCapabilitySnapshot | null
 ): SessionCapabilitySource {
 	if (sessionId === null) {
 		return {
