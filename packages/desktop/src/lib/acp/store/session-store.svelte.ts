@@ -1499,6 +1499,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return projection.tokenStream.get(buildRowTokenStreamKey(turnId, rowId)) ?? null;
 	}
 
+	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
+		const projection = this.canonicalProjections.get(sessionId) ?? null;
+		if (projection === null) {
+			return null;
+		}
+		for (const rowTokenStream of projection.tokenStream.values()) {
+			if (rowTokenStream.rowId === rowId) {
+				return rowTokenStream;
+			}
+		}
+		return null;
+	}
+
+	getActiveStreamingTailRowId(sessionId: string): string | null {
+		return this.canonicalProjections.get(sessionId)?.activeStreamingTail?.rowId ?? null;
+	}
+
 	getClockAnchor(sessionId: string): SessionClockAnchor | null {
 		return this.canonicalProjections.get(sessionId)?.clockAnchor ?? null;
 	}

@@ -89,8 +89,8 @@ import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import type {
-	CanonicalSessionProjection,
 	RowTokenStream,
+	SessionClockAnchor,
 } from "../../../store/canonical-session-projection.js";
 import { AgentPanelState } from "../state/agent-panel-state.svelte";
 import type { AgentPanelProps } from "../types";
@@ -225,36 +225,17 @@ let lastPanelTraceSignature = $state<string | null>(null);
 let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
 let prefersReducedMotion = $state(false);
 
-function findRowTokenStream(
-	projection: CanonicalSessionProjection | null,
-	rowId: string
-): RowTokenStream | null {
-	if (projection === null) {
-		return null;
-	}
-
-	for (const rowTokenStream of projection.tokenStream.values()) {
-		if (rowTokenStream.rowId === rowId) {
-			return rowTokenStream;
-		}
-	}
-
-	return null;
-}
-
 function buildTokenRevealCss(
 	rowTokenStream: RowTokenStream | null,
-	projection: CanonicalSessionProjection | null,
+	clockAnchor: SessionClockAnchor | null,
 	streamingAnimationMode: "smooth" | "instant",
 	reducedMotion: boolean,
 	isStreaming: boolean
 ): TokenRevealCss | undefined {
-	const clockAnchor = projection?.clockAnchor;
 	if (
 		rowTokenStream === null ||
 		rowTokenStream.wordCount < 1 ||
-		clockAnchor === null ||
-		clockAnchor === undefined
+		clockAnchor === null
 	) {
 		return undefined;
 	}
@@ -555,9 +536,6 @@ const browserSidebarUrl = $derived(
 // Canonical lifecycle presentation from Rust-owned graph projection.
 const lifecyclePresentation = $derived(
 	sessionId ? sessionStore.getSessionLifecyclePresentation(sessionId) : null
-);
-const canonicalProjection = $derived(
-	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
 const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
 const canonicalPanelSessionSource = $derived.by(() => {
@@ -977,10 +955,11 @@ const graphSceneEntries = $derived.by(() => {
 });
 const tokenRevealSceneEntries = $derived.by(() => {
 	tokenRevealSettleRevision;
-	const projection = canonicalProjection;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
 	const sourceEntriesById = new Map<string, AgentPanelSceneEntryModel>();
-	const tokenRevealTailRowId = projection?.activeStreamingTail?.rowId ?? null;
+	const tokenRevealTailRowId =
+		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
+	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
 
 	for (const sourceEntry of graphMaterializedScene.conversation.entries) {
 		sourceEntriesById.set(sourceEntry.id, sourceEntry);
@@ -995,8 +974,8 @@ const tokenRevealSceneEntries = $derived.by(() => {
 		}
 
 		const tokenRevealCss = buildTokenRevealCss(
-			findRowTokenStream(projection, entry.id),
-			projection,
+			sessionId === null ? null : sessionStore.getRowTokenStreamByRowId(sessionId, entry.id),
+			clockAnchor,
 			streamingAnimationMode,
 			prefersReducedMotion,
 			entry.isStreaming === true

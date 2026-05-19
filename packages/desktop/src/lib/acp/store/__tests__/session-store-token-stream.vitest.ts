@@ -173,6 +173,7 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 
 		const firstRow = store.getRowTokenStream("session-1", "turn-1", "assistant-1");
 		expect(firstRow).not.toBeNull();
+		expect(store.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(firstRow);
 		expect(firstRow?.accumulatedText).toBe("**hello world** after");
 		expect(firstRow?.wordCount).toBe(2);
 		expect(firstRow?.latestWordCount).toBe(2);
@@ -195,6 +196,8 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 
 		const secondRow = store.getRowTokenStream("session-1", "turn-1", "assistant-1");
 		expect(secondRow).not.toBeNull();
+		expect(store.getRowTokenStreamByRowId("session-1", "assistant-1")).toEqual(secondRow);
+		expect(store.getRowTokenStreamByRowId("session-1", "missing-row")).toBeNull();
 		expect(secondRow?.accumulatedText).toBe("**hello world** after `pwd`");
 		expect(secondRow?.wordCount).toBe(3);
 		expect(secondRow?.latestWordCount).toBe(1);
@@ -226,6 +229,25 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 			rustMonotonicMs: 1_000,
 			browserAnchorMs: 500,
 		});
+	});
+
+	it("reads canonical active streaming tail through a narrow selector", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeStreamingTail: {
+						rowId: "assistant-1",
+						contentKind: "message",
+					},
+				})
+			)
+		);
+
+		expect(store.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
+		expect(store.getActiveStreamingTailRowId("missing-session")).toBeNull();
 	});
 
 	it("treats replayed revisions as idempotent and rejects non-append offsets", () => {
