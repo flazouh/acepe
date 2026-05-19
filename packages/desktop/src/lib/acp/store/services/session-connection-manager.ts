@@ -329,22 +329,29 @@ export class SessionConnectionManager {
 				const sessionId = result.sessionId;
 				if (result.deferredCreation === true) {
 					const modelState = getProviderAwareSessionModelState(result.models);
-					const rawModels = modelState.availableModels ?? [];
+					const rawModels = modelState.availableModels;
 					const rawProviderMetadata = modelState.providerMetadata;
 					const providerMetadata = this.resolveProviderMetadata(
 						options.agentId,
 						rawProviderMetadata
 					);
-					const availableModels: Model[] = rawModels.map((m) => ({
-						id: m.modelId,
-						name: m.name,
-						description: m.description ?? undefined,
-					}));
-					const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-						id: m.id,
-						name: m.name,
-						description: m.description ?? undefined,
-					}));
+					const availableModels: Model[] =
+						rawModels === undefined
+							? []
+							: rawModels.map((m) => ({
+									id: m.modelId,
+									name: m.name,
+									description: m.description ?? undefined,
+								}));
+					const rawModes = result.modes?.availableModes;
+					const availableModes: Mode[] =
+						rawModes === undefined
+							? []
+							: rawModes.map((m) => ({
+									id: m.id,
+									name: m.name,
+									description: m.description ?? undefined,
+								}));
 					const modelsDisplay =
 						normalizeModelsForDisplay(
 							options.agentId,
@@ -353,14 +360,18 @@ export class SessionConnectionManager {
 							providerMetadata
 						) ?? undefined;
 
-					preferencesStore.updateModelsCache(options.agentId, availableModels);
+					if (rawModels !== undefined) {
+						preferencesStore.updateModelsCache(options.agentId, availableModels);
+					}
 					preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
 					preferencesStore.updateModelsDisplayCache(
 						options.agentId,
 						modelsDisplay,
 						providerMetadata
 					);
-					preferencesStore.updateModesCache(options.agentId, availableModes);
+					if (rawModes !== undefined) {
+						preferencesStore.updateModesCache(options.agentId, availableModes);
+					}
 					this.hotStateManager.initializeHotState(sessionId);
 					logger.info("Deferred session creation is pending provider identity promotion", {
 						sessionId,
@@ -380,7 +391,7 @@ export class SessionConnectionManager {
 				const now = new Date();
 				const modelState = getProviderAwareSessionModelState(result.models);
 				const {
-					availableModels: rawModels = [],
+					availableModels: rawModels,
 					currentModelId,
 					modelsDisplay: rawModelsDisplay,
 					providerMetadata: rawProviderMetadata,
@@ -394,17 +405,24 @@ export class SessionConnectionManager {
 						providerMetadata
 					) ?? undefined;
 
-				const availableModes: Mode[] = (result.modes?.availableModes ?? []).map((m) => ({
-					id: m.id,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
+				const rawModes = result.modes?.availableModes;
+				const availableModes: Mode[] =
+					rawModes === undefined
+						? []
+						: rawModes.map((m) => ({
+								id: m.id,
+								name: m.name,
+								description: m.description ?? undefined,
+							}));
 
-				const availableModels: Model[] = rawModels.map((m) => ({
-					id: m.modelId,
-					name: m.name,
-					description: m.description ?? undefined,
-				}));
+				const availableModels: Model[] =
+					rawModels === undefined
+						? []
+						: rawModels.map((m) => ({
+								id: m.modelId,
+								name: m.name,
+								description: m.description ?? undefined,
+							}));
 				let currentMode = availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
 				let currentModel = this.resolveCurrentModel(
 					options.agentId,
@@ -530,14 +548,18 @@ export class SessionConnectionManager {
 
 						return applyInitialAutonomous.map(() => {
 							// Cache available models and modes for settings/optimistic display
-							preferencesStore.updateModelsCache(options.agentId, availableModels);
+							if (rawModels !== undefined) {
+								preferencesStore.updateModelsCache(options.agentId, availableModels);
+							}
 							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
 							preferencesStore.updateModelsDisplayCache(
 								options.agentId,
 								modelsDisplay,
 								providerMetadata
 							);
-							preferencesStore.updateModesCache(options.agentId, availableModes);
+							if (rawModes !== undefined) {
+								preferencesStore.updateModesCache(options.agentId, availableModes);
+							}
 							logger.info("Provider model capabilities on session creation", {
 								sessionId,
 								agentId: options.agentId,
@@ -757,7 +779,7 @@ export class SessionConnectionManager {
 	): void {
 		const modelState = getProviderAwareSessionModelState(data.models);
 		const {
-			availableModels: rawModels = [],
+			availableModels: rawModels,
 			currentModelId,
 			modelsDisplay: rawModelsDisplay,
 			providerMetadata: rawProviderMetadata,
@@ -774,17 +796,24 @@ export class SessionConnectionManager {
 				providerMetadata
 			) ?? undefined;
 
-		const availableModes: Mode[] = (data.modes?.availableModes ?? []).map((m) => ({
-			id: m.id,
-			name: m.name,
-			description: m.description ?? undefined,
-		}));
+		const rawModes = data.modes?.availableModes;
+		const availableModes: Mode[] =
+			rawModes === undefined
+				? []
+				: rawModes.map((m) => ({
+						id: m.id,
+						name: m.name,
+						description: m.description ?? undefined,
+					}));
 
-		const availableModels: Model[] = rawModels.map((m) => ({
-			id: m.modelId,
-			name: m.name,
-			description: m.description ?? undefined,
-		}));
+		const availableModels: Model[] =
+			rawModels === undefined
+				? []
+				: rawModels.map((m) => ({
+						id: m.modelId,
+						name: m.name,
+						description: m.description ?? undefined,
+					}));
 		const initialModel = this.resolveCurrentModel(
 			effectiveAgentId,
 			availableModels,
@@ -794,10 +823,14 @@ export class SessionConnectionManager {
 		);
 
 		// Cache available models and modes for settings/optimistic display
-		preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
+		if (rawModels !== undefined) {
+			preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
+		}
 		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
 		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay, providerMetadata);
-		preferencesStore.updateModesCache(effectiveAgentId, availableModes);
+		if (rawModes !== undefined) {
+			preferencesStore.updateModesCache(effectiveAgentId, availableModes);
+		}
 		logger.info("Provider model capabilities on session resume", {
 			sessionId,
 			agentId: effectiveAgentId,

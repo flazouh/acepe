@@ -742,6 +742,38 @@ describe("SessionConnectionManager.connectSession", () => {
 		]);
 	});
 
+	it("does not overwrite model cache when resumed capabilities omit model list", async () => {
+		mockResumeWithLifecycleEvent({
+			modes: {
+				currentModeId: "build",
+				availableModes: [{ id: "build", name: "Build", description: null }],
+			},
+			models: {
+				currentModelId: null,
+			},
+			availableCommands: [],
+		});
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			hotState,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.connectSession(sessionId, createMockEventHandler(), {
+			agentOverrideId: "claude-code",
+		});
+		result._unsafeUnwrap();
+
+		expect(updateModelsCache).not.toHaveBeenCalled();
+		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
+			{ id: "build", name: "Build", description: undefined },
+		]);
+	});
+
 	it("does not seed session model-per-mode during lifecycle-driven connect", async () => {
 		getSessionModelForMode.mockReturnValue(undefined);
 
@@ -2001,7 +2033,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 				availableModes: [{ id: "build", name: "Build", description: null }],
 			},
 			models: {
-				currentModelId: "",
+				currentModelId: null,
 				availableModels: [],
 			},
 			availableCommands: [],
