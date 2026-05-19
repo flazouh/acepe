@@ -15,7 +15,6 @@ import AgentEnvOverridesDialog from "./agent-env-overrides-dialog.svelte";
 import {
 	applyAgentSelectionChange,
 	getAgentsByProviderOrder,
-	getAgentModelDefaultsEntries,
 	getProviderDefaultLabel,
 	resolveSettingsProviderMetadata,
 	resolveSettingsCapabilitySource,
@@ -57,12 +56,6 @@ const capabilitySourceByAgentId = $derived.by(() => {
 	return resolutions;
 });
 
-const modelDefaultEntries = $derived.by(() =>
-	getAgentModelDefaultsEntries(
-		agentStore.agents,
-		(agentId) => capabilitySourceByAgentId.get(agentId)?.providerMetadata ?? null
-	)
-);
 const sortedAgents = $derived.by(() =>
 	getAgentsByProviderOrder(
 		agentStore.agents,
@@ -80,13 +73,17 @@ const selectableAgents = $derived(
 
 $effect(() => {
 	for (const agent of agentStore.agents) {
+		const providerMetadata = resolveSettingsProviderMetadata({
+			agentProviderMetadata: agent.providerMetadata,
+			cachedProviderMetadata: preferencesStore.getCachedProviderMetadata(agent.id),
+		});
+
 		preconnectionCapabilitiesState
 			.ensureLoaded({
 				agentId: agent.id,
 				hasConnectedSession: false,
 				projectPath: null,
-				preconnectionCapabilityMode:
-					agent.providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+				preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
 			})
 			.mapErr((error) => {
 				logger.error("Failed to warm settings preconnection capabilities", {
@@ -198,8 +195,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 
 		{#each sortedAgents as agent, index (agent.id)}
 			{@const capabilitySource = capabilitySourceByAgentId.get(agent.id) ?? null}
-			{@const entry = modelDefaultEntries.find((candidate) => candidate.agent.id === agent.id) ?? null}
-			{@const providerMetadata = entry?.providerMetadata ?? capabilitySource?.providerMetadata ?? agent.providerMetadata ?? null}
+			{@const providerMetadata = capabilitySource?.providerMetadata ?? null}
 			{@const hasModelDefaults = providerMetadata?.supportsModelDefaults ?? false}
 			{@const isCustomAgent = agentPreferencesStore.customAgentConfigs.some((config) => config.id === agent.id)}
 			{@const isEnabled = agentPreferencesStore.selectedAgentIds.includes(agent.id)}
@@ -225,7 +221,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 							agentId: agent.id,
 							projectPath: null,
 							preconnectionCapabilityMode:
-								agent.providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+								providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
 						})}
 
 					<div class="min-w-0">
