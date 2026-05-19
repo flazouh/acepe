@@ -68,7 +68,6 @@ import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
-import type { InteractionSnapshot } from "$lib/services/acp-types.js";
 import { ChangelogModal } from "./changelog-modal/index.js";
 import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index.js";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
@@ -110,6 +109,7 @@ import SqlStudioPage from "./sql-studio/sql-studio-page.svelte";
 import { TopBar } from "./top-bar/index.js";
 import { UpdateAvailablePage } from "./update-available/index.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
+import { createLiveInteractionGraphConsumer } from "./main-app-view/logic/live-interaction-graph-consumer.js";
 
 function focusOnMount(node: HTMLElement) {
 	node.focus();
@@ -309,109 +309,14 @@ function showPlanApprovalNotification(approval: PlanApprovalInteraction): void {
 	);
 }
 
-function applyLiveInteractionGraph(
-	graph: import("$lib/services/acp-types.js").SessionStateGraph
-): void {
-	const previousPermissionIds = new Set<string>();
-	const previousQuestionIds = new Set<string>();
-	const previousPlanApprovalIds = new Set<string>();
-
-	for (const [id, permission] of interactionStore.permissionsPending) {
-		if (permission.sessionId === graph.canonicalSessionId) {
-			previousPermissionIds.add(id);
-		}
-	}
-	for (const [id, question] of interactionStore.questionsPending) {
-		if (question.sessionId === graph.canonicalSessionId) {
-			previousQuestionIds.add(id);
-		}
-	}
-	for (const [id, approval] of interactionStore.planApprovalsPending) {
-		if (approval.sessionId === graph.canonicalSessionId && approval.status === "pending") {
-			previousPlanApprovalIds.add(id);
-		}
-	}
-
-	interactionStore.replaceSessionStateGraph(graph);
-
-	for (const [id, permission] of interactionStore.permissionsPending) {
-		if (permission.sessionId === graph.canonicalSessionId && !previousPermissionIds.has(id)) {
-			showPermissionNotification(permission);
-		}
-	}
-	for (const [id, question] of interactionStore.questionsPending) {
-		if (question.sessionId === graph.canonicalSessionId && !previousQuestionIds.has(id)) {
-			showQuestionNotification(question);
-		}
-	}
-	for (const [id, approval] of interactionStore.planApprovalsPending) {
-		if (
-			approval.sessionId === graph.canonicalSessionId &&
-			approval.status === "pending" &&
-			!previousPlanApprovalIds.has(id)
-		) {
-			showPlanApprovalNotification(approval);
-		}
-	}
-}
-
-function applyLiveInteractionPatches(patches: readonly InteractionSnapshot[]): void {
-	const previousPermissionIds = new Set<string>();
-	const previousQuestionIds = new Set<string>();
-	const previousPlanApprovalIds = new Set<string>();
-
-	for (const interaction of patches) {
-		for (const [id, permission] of interactionStore.permissionsPending) {
-			if (permission.sessionId === interaction.session_id) {
-				previousPermissionIds.add(id);
-			}
-		}
-		for (const [id, question] of interactionStore.questionsPending) {
-			if (question.sessionId === interaction.session_id) {
-				previousQuestionIds.add(id);
-			}
-		}
-		for (const [id, approval] of interactionStore.planApprovalsPending) {
-			if (approval.sessionId === interaction.session_id && approval.status === "pending") {
-				previousPlanApprovalIds.add(id);
-			}
-		}
-	}
-
-	interactionStore.applySessionInteractionPatches(patches);
-
-	for (const [id, permission] of interactionStore.permissionsPending) {
-		if (
-			!previousPermissionIds.has(id) &&
-			patches.some((p) => p.session_id === permission.sessionId)
-		) {
-			showPermissionNotification(permission);
-		}
-	}
-	for (const [id, question] of interactionStore.questionsPending) {
-		if (!previousQuestionIds.has(id) && patches.some((p) => p.session_id === question.sessionId)) {
-			showQuestionNotification(question);
-		}
-	}
-	for (const [id, approval] of interactionStore.planApprovalsPending) {
-		if (
-			approval.status === "pending" &&
-			!previousPlanApprovalIds.has(id) &&
-			patches.some((p) => p.session_id === approval.sessionId)
-		) {
-			showPlanApprovalNotification(approval);
-		}
-	}
-}
-
-sessionStore.setLiveSessionStateGraphConsumer({
-	replaceSessionStateGraph(graph) {
-		applyLiveInteractionGraph(graph);
-	},
-	applySessionInteractionPatches(patches) {
-		applyLiveInteractionPatches(patches);
-	},
-});
+sessionStore.setLiveSessionStateGraphConsumer(
+	createLiveInteractionGraphConsumer({
+		interactionStore,
+		showPermissionNotification,
+		showQuestionNotification,
+		showPlanApprovalNotification,
+	})
+);
 
 function collectPendingTurnInputNotificationIds(sessionId: string): Set<string> {
 	const staleIds = new Set<string>();
