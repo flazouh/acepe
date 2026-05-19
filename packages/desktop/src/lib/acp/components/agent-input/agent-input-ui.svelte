@@ -295,9 +295,7 @@ const capabilitySource = $derived.by(() =>
 		providerMetadata: capabilitiesProviderMetadata ?? null,
 	})
 );
-const effectiveCapabilityProviderMetadata = $derived(
-	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata ?? null
-);
+const effectiveCapabilityProviderMetadata = $derived(capabilitySource.providerMetadata);
 const effectiveAvailableModes = $derived(capabilitySource.availableModes ?? []);
 
 // Filter to only show Build and Plan modes in the UI
