@@ -13,6 +13,10 @@
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { createActor } from "xstate";
+import type {
+	SessionGraphLifecycle,
+	SessionTurnState,
+} from "../../services/acp-types.js";
 import {
 	ConnectionEvent,
 	ConnectionState,
@@ -81,12 +85,7 @@ export class SessionConnectionService implements IConnectionManager {
 		return this.sessionMachines.get(sessionId) ?? null;
 	}
 
-	/**
-	 * Get session machine state.
-	 * Reads from the reactive SvelteMap cache — when called inside $derived(),
-	 * this establishes a Svelte dependency that re-evaluates on machine transitions.
-	 */
-	getState(sessionId: string): SessionMachineSnapshot | null {
+	private getState(sessionId: string): SessionMachineSnapshot | null {
 		return this.snapshotCache.get(sessionId) ?? null;
 	}
 
@@ -97,6 +96,89 @@ export class SessionConnectionService implements IConnectionManager {
 			state?.connection === ConnectionState.STREAMING ||
 			state?.connection === ConnectionState.PAUSED
 		);
+	}
+
+	syncFromCanonicalState(
+		sessionId: string,
+		lifecycle: SessionGraphLifecycle,
+		turnState: SessionTurnState,
+		activeTurnFailure: ActiveTurnFailure | null
+	): void {
+		let machineState = this.getState(sessionId);
+
+		if (
+			lifecycle.status === "reserved" ||
+			lifecycle.status === "detached" ||
+			lifecycle.status === "archived"
+		) {
+			if (machineState !== null && machineState.connection !== ConnectionState.DISCONNECTED) {
+				this.sendDisconnect(sessionId);
+			}
+			return;
+		}
+
+		if (lifecycle.status === "activating" || lifecycle.status === "reconnecting") {
+			if (machineState === null || machineState.connection === ConnectionState.DISCONNECTED) {
+				this.sendConnectionConnect(sessionId);
+			}
+			return;
+		}
+
+		if (lifecycle.status === "failed") {
+			if (machineState === null || machineState.connection === ConnectionState.DISCONNECTED) {
+				this.sendConnectionConnect(sessionId);
+			}
+			this.sendConnectionError(sessionId);
+			return;
+		}
+
+		if (machineState === null || machineState.connection === ConnectionState.DISCONNECTED) {
+			this.sendConnectionConnect(sessionId);
+			this.sendConnectionSuccess(sessionId);
+			this.sendCapabilitiesLoaded(sessionId);
+			machineState = this.getState(sessionId);
+		} else if (machineState.connection === ConnectionState.CONNECTING) {
+			this.sendConnectionSuccess(sessionId);
+			this.sendCapabilitiesLoaded(sessionId);
+			machineState = this.getState(sessionId);
+		} else if (machineState.connection === ConnectionState.WARMING_UP) {
+			this.sendCapabilitiesLoaded(sessionId);
+			machineState = this.getState(sessionId);
+		} else if (machineState.connection === ConnectionState.ERROR) {
+			this.sendDisconnect(sessionId);
+			this.sendConnectionConnect(sessionId);
+			this.sendConnectionSuccess(sessionId);
+			this.sendCapabilitiesLoaded(sessionId);
+			machineState = this.getState(sessionId);
+		}
+
+		if (machineState === null) {
+			return;
+		}
+
+		if (turnState === "Running") {
+			if (machineState.connection === ConnectionState.READY) {
+				this.sendMessageSent(sessionId);
+				this.sendResponseStarted(sessionId);
+				return;
+			}
+
+			if (machineState.connection === ConnectionState.AWAITING_RESPONSE) {
+				this.sendResponseStarted(sessionId);
+			}
+			return;
+		}
+
+		if (turnState === "Failed" && activeTurnFailure !== null) {
+			if (this.isResponseInProgress(sessionId)) {
+				this.sendTurnFailed(sessionId, activeTurnFailure);
+			}
+			return;
+		}
+
+		if (this.isResponseInProgress(sessionId)) {
+			this.sendResponseComplete(sessionId);
+		}
 	}
 
 	/**

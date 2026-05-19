@@ -1845,89 +1845,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		turnState: SessionTurnState,
 		activeTurnFailure: ActiveTurnFailure | null
 	): void {
-		let machineState = this.connectionService.getState(sessionId);
-
-		if (
-			lifecycle.status === "reserved" ||
-			lifecycle.status === "detached" ||
-			lifecycle.status === "archived"
-		) {
-			if (machineState !== null && machineState.connection !== "disconnected") {
-				this.connectionService.sendDisconnect(sessionId);
-			}
-			return;
-		}
-
-		if (lifecycle.status === "activating" || lifecycle.status === "reconnecting") {
-			if (machineState === null || machineState.connection === "disconnected") {
-				this.connectionService.sendConnectionConnect(sessionId);
-			}
-			return;
-		}
-
-		if (lifecycle.status === "failed") {
-			if (machineState === null || machineState.connection === "disconnected") {
-				this.connectionService.sendConnectionConnect(sessionId);
-			}
-			this.connectionService.sendConnectionError(sessionId);
-			return;
-		}
-
-		if (machineState === null || machineState.connection === "disconnected") {
-			this.connectionService.sendConnectionConnect(sessionId);
-			this.connectionService.sendConnectionSuccess(sessionId);
-			this.connectionService.sendCapabilitiesLoaded(sessionId);
-			machineState = this.connectionService.getState(sessionId);
-		} else if (machineState.connection === "connecting") {
-			this.connectionService.sendConnectionSuccess(sessionId);
-			this.connectionService.sendCapabilitiesLoaded(sessionId);
-			machineState = this.connectionService.getState(sessionId);
-		} else if (machineState.connection === "warmingUp") {
-			this.connectionService.sendCapabilitiesLoaded(sessionId);
-			machineState = this.connectionService.getState(sessionId);
-		} else if (machineState.connection === "error") {
-			this.connectionService.sendDisconnect(sessionId);
-			this.connectionService.sendConnectionConnect(sessionId);
-			this.connectionService.sendConnectionSuccess(sessionId);
-			this.connectionService.sendCapabilitiesLoaded(sessionId);
-			machineState = this.connectionService.getState(sessionId);
-		}
-
-		if (machineState === null) {
-			return;
-		}
-
-		if (turnState === "Running") {
-			if (machineState.connection === "ready") {
-				this.connectionService.sendMessageSent(sessionId);
-				this.connectionService.sendResponseStarted(sessionId);
-				return;
-			}
-
-			if (machineState.connection === "awaitingResponse") {
-				this.connectionService.sendResponseStarted(sessionId);
-			}
-			return;
-		}
-
-		if (turnState === "Failed" && activeTurnFailure !== null) {
-			if (
-				machineState.connection === "awaitingResponse" ||
-				machineState.connection === "streaming" ||
-				machineState.connection === "paused"
-			) {
-				this.connectionService.sendTurnFailed(sessionId, activeTurnFailure);
-			}
-			return;
-		}
-
-		if (
-			machineState.connection === "awaitingResponse" ||
-			machineState.connection === "streaming" ||
-			machineState.connection === "paused"
-		) {
-			this.connectionService.sendResponseComplete(sessionId);
-		}
+		this.connectionService.syncFromCanonicalState(
+			sessionId,
+			lifecycle,
+			turnState,
+			activeTurnFailure
+		);
 	}
 
 	// ============================================
