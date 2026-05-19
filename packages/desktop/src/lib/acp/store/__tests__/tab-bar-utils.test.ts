@@ -183,6 +183,18 @@ describe("panelToTab", () => {
 			expect(tab.state.connection).toBe("error");
 			expect(tab.workBucket).toBe("error");
 		});
+
+		it("does not turn missing canonical transcript into an empty conversation preview", () => {
+			const tab = panelToTab(
+				makeInput({
+					panel: makePanel({ sessionId: "session-1" }),
+					canonicalProjection: null,
+					transcriptEntries: [],
+				})
+			);
+
+			expect(tab.conversationPreview).toBeNull();
+		});
 	});
 
 	describe("state derivation — various panel states", () => {

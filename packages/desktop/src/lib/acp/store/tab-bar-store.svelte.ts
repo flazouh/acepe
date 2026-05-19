@@ -121,8 +121,8 @@ export class TabBarStore {
 			: null;
 		const transcriptEntries =
 			sessionId !== null
-				? (this.sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? [])
-				: [];
+				? (this.sessionStore.getSessionStateGraph(sessionId)?.transcriptSnapshot.entries ?? null)
+				: null;
 		const currentToolKind =
 			sessionId !== null ? this.sessionStore.getSessionCurrentToolKind(sessionId) : null;
 

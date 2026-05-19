@@ -37,7 +37,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		mode,
 		status,
 		isFocused: tab.isFocused,
-		tooltipText: tab.conversationPreview[0]?.text,
+		tooltipText: tab.conversationPreview?.[0]?.text,
 	};
 }
 </script>

@@ -44,7 +44,7 @@ export interface PanelToTabInput {
 	readonly agentId: string | null;
 	readonly title: string | null;
 	readonly canonicalProjection: CanonicalSessionProjection | null;
-	readonly transcriptEntries: ReadonlyArray<TranscriptEntry>;
+	readonly transcriptEntries: ReadonlyArray<TranscriptEntry> | null;
 	readonly currentToolKind: ToolKind | null;
 	readonly pendingQuestion: QuestionRequest | null;
 	readonly pendingPlanApproval: PlanApprovalInteraction | null;
@@ -101,7 +101,7 @@ export interface TabBarTab {
 	/** Per-project session sequence number, rendered inside the project badge. */
 	readonly sequenceId: number | null;
 	/** User message previews with tool call counts for tooltip display. */
-	readonly conversationPreview: readonly ConversationTurn[];
+	readonly conversationPreview: readonly ConversationTurn[] | null;
 	/**
 	 * Unified session state model.
 	 * Use this for state-dependent UI instead of individual boolean flags.
@@ -298,7 +298,10 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 		projectIconSrc,
 		projectPath,
 		sequenceId,
-		conversationPreview: extractConversationPreview(transcriptEntries),
+		conversationPreview:
+			panel.sessionId !== null && canonicalProjection === null
+				? null
+				: extractConversationPreview(transcriptEntries ?? []),
 		state,
 	};
 }
