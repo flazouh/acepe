@@ -241,6 +241,7 @@ const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
 const canonicalProjection = $derived(sessionStore.getCanonicalSessionProjection(session.id));
+const sessionConnectionError = $derived(sessionStore.getSessionConnectionError(session.id));
 const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
 const currentStreamingToolCall = $derived(sessionStore.getSessionCurrentStreamingToolCall(session.id));
 const lastToolCall = $derived(sessionStore.getSessionLastToolCall(session.id));
@@ -371,11 +372,7 @@ const statusText = $derived.by(() => {
 	}
 
 	if (sessionWorkProjection.hasError) {
-		const canonicalErrorMessage =
-			canonicalProjection?.lifecycle.errorMessage ??
-			canonicalProjection?.activeTurnFailure?.message ??
-			null;
-		return canonicalErrorMessage ?? "Connection error";
+		return sessionConnectionError ?? "Connection error";
 	}
 
 	if (previewActivityKind === "thinking") {

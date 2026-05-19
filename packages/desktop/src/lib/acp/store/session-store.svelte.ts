@@ -22,6 +22,7 @@ import {
 } from "../../services/acp-provider-metadata.js";
 import type {
 	AssistantTextDeltaPayload,
+	CanonicalAgentId,
 	ConfigOptionData as CanonicalConfigOptionData,
 	ConfigOptionValue as CanonicalConfigOptionValue,
 	FailureReason,
@@ -664,6 +665,58 @@ function emptySessionGraphCapabilities(): SessionGraphCapabilities {
 		availableCommands: [],
 		configOptions: [],
 		autonomousEnabled: false,
+	};
+}
+
+function canonicalAgentIdFromSessionAgentId(agentId: string | null | undefined): CanonicalAgentId {
+	if (
+		agentId === "claude-code" ||
+		agentId === "copilot" ||
+		agentId === "cursor" ||
+		agentId === "opencode" ||
+		agentId === "codex" ||
+		agentId === "forge"
+	) {
+		return agentId;
+	}
+
+	return { custom: agentId ?? "unknown" };
+}
+
+function createLifecycleOnlyGraph(input: {
+	readonly sessionId: string;
+	readonly session: SessionCold | undefined;
+	readonly lifecycle: SessionGraphLifecycle;
+	readonly activity: SessionGraphActivity;
+	readonly turnState: SessionTurnState;
+	readonly activeTurnFailure: TurnFailureSnapshot | null;
+	readonly lastTerminalTurnId: string | null;
+	readonly capabilities: SessionGraphCapabilities;
+	readonly revision: SessionGraphRevision;
+}): SessionStateGraph {
+	return {
+		requestedSessionId: input.sessionId,
+		canonicalSessionId: input.sessionId,
+		isAlias: false,
+		agentId: canonicalAgentIdFromSessionAgentId(input.session?.agentId),
+		projectPath: input.session?.projectPath ?? "",
+		worktreePath: input.session?.worktreePath ?? null,
+		sourcePath: input.session?.sourcePath ?? null,
+		revision: input.revision,
+		transcriptSnapshot: {
+			revision: input.revision.transcriptRevision,
+			entries: [],
+		},
+		operations: [],
+		interactions: [],
+		turnState: input.turnState,
+		messageCount: 0,
+		activeStreamingTail: null,
+		activeTurnFailure: input.activeTurnFailure,
+		lastTerminalTurnId: input.lastTerminalTurnId,
+		lifecycle: input.lifecycle,
+		activity: input.activity,
+		capabilities: input.capabilities,
 	};
 }
 
@@ -1372,11 +1425,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Canonical connection error copy; null means no canonical failure/detach message exists yet.
 	 */
 	getSessionConnectionError(sessionId: string): string | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
 			return null;
 		}
-		return connectionErrorFromGraphState(projection.lifecycle, projection.activeTurnFailure);
+		return connectionErrorFromGraphState(
+			graph.lifecycle,
+			mapProjectionTurnFailure(graph.activeTurnFailure ?? null)
+		);
 	}
 
 	/**
@@ -1386,7 +1442,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * raw provider text under `getSessionConnectionError` for debug surfaces.
 	 */
 	getSessionLifecycleFailureReason(sessionId: string): FailureReason | null {
-		const lifecycle = this.canonicalProjections.get(sessionId)?.lifecycle ?? null;
+		const lifecycle = this.sessionStateGraphs.get(sessionId)?.lifecycle ?? null;
 		if (lifecycle === null) {
 			return null;
 		}
@@ -1397,17 +1453,19 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical active turn failure; null means no canonical projection or no active failure.
+	 * Canonical active turn failure; null means no canonical graph or no active failure.
 	 */
 	getSessionActiveTurnFailure(sessionId: string): ActiveTurnFailure | null {
-		return this.canonicalProjections.get(sessionId)?.activeTurnFailure ?? null;
+		return mapProjectionTurnFailure(
+			this.sessionStateGraphs.get(sessionId)?.activeTurnFailure ?? null
+		);
 	}
 
 	/**
-	 * Canonical last terminal turn id; null means no canonical projection or no terminal turn.
+	 * Canonical last terminal turn id; null means no canonical graph or no terminal turn.
 	 */
 	getSessionLastTerminalTurnId(sessionId: string): string | null {
-		return this.canonicalProjections.get(sessionId)?.lastTerminalTurnId ?? null;
+		return this.sessionStateGraphs.get(sessionId)?.lastTerminalTurnId ?? null;
 	}
 
 	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
@@ -3067,6 +3125,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				// back into the canonical projection (authority inversion).
 				const turnState = previousProjection?.turnState ?? "Idle";
 				const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
+				const graphActiveTurnFailure = previousGraph?.activeTurnFailure ?? null;
 				const reconciledActivity = reconcileStoredGraphActivity(
 					previousProjection?.activity ?? null,
 					command.lifecycle,
@@ -3079,6 +3138,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					dominantOperationId: null,
 					blockingInteractionId: null,
 				};
+				const lifecycleRevision = {
+					graphRevision: envelope.graphRevision,
+					transcriptRevision:
+						previousProjection?.revision.transcriptRevision ??
+						previousGraph?.transcriptSnapshot.revision ??
+						0,
+					lastEventSeq: envelope.lastEventSeq,
+				};
 				this.canonicalProjections.set(sessionId, {
 					lifecycle: command.lifecycle,
 					activity: reconciledActivity,
@@ -3089,22 +3156,30 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
 					tokenStream: preservedStreamingState.tokenStream,
 					clockAnchor: preservedStreamingState.clockAnchor,
-					revision: {
-						graphRevision: envelope.graphRevision,
-						transcriptRevision:
-							previousProjection?.revision.transcriptRevision ??
-							previousGraph?.transcriptSnapshot.revision ??
-							0,
-						lastEventSeq: envelope.lastEventSeq,
-					},
+					revision: lifecycleRevision,
 				});
 				if (previousGraph !== null) {
 					this.sessionStateGraphs.set(
 						sessionId,
 						graphWithLifecycle(previousGraph, command.lifecycle, reconciledActivity, {
-							graphRevision: envelope.graphRevision,
+							graphRevision: lifecycleRevision.graphRevision,
 							transcriptRevision: previousGraph.revision.transcriptRevision,
-							lastEventSeq: envelope.lastEventSeq,
+							lastEventSeq: lifecycleRevision.lastEventSeq,
+						})
+					);
+				} else {
+					this.sessionStateGraphs.set(
+						sessionId,
+						createLifecycleOnlyGraph({
+							sessionId,
+							session: this.getSessionCold(sessionId),
+							lifecycle: command.lifecycle,
+							activity: reconciledActivity,
+							turnState,
+							activeTurnFailure: graphActiveTurnFailure,
+							lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
+							capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
+							revision: lifecycleRevision,
 						})
 					);
 				}
