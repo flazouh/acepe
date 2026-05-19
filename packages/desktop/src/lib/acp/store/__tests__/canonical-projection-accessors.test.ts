@@ -277,6 +277,17 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 	});
 
+	it("does not synthesize provider display metadata when canonical capabilities omit it", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+
+		store.applySessionStateGraph(createGraph(createCapabilities()));
+
+		const capabilities = store.getSessionCapabilities("session-1");
+		expect(capabilities?.modelsDisplay).toBeUndefined();
+		expect(capabilities?.providerMetadata).toBeUndefined();
+	});
+
 	it("preserves canonical current ids even when display lists omit them", () => {
 		const store = new SessionStore();
 		addColdSession(store);
@@ -297,7 +308,7 @@ describe("SessionStore canonical projection accessors", () => {
 			})
 		);
 
-		expect(store.getSessionCurrentModeId("session-1")).toBe("build");
+		expect(store.getSessionCurrentModeId("session-1")).toBe("code");
 		expect(store.getSessionCurrentModelId("session-1")).toBe("vendor/model-base");
 		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
 		expect(store.getSessionAvailableModels("session-1")).toEqual([]);

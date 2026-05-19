@@ -18,10 +18,6 @@ import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
-import {
-	normalizeModelsForDisplay,
-	resolveProviderMetadataProjection,
-} from "../../services/acp-provider-metadata.js";
 import type {
 	AssistantTextDeltaPayload,
 	CanonicalAgentId,
@@ -108,7 +104,6 @@ import "../errors/app-error.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
-import { normalizeModeIdForUI } from "../constants/mode-mapping.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import type { ToolCall } from "../types/tool-call.js";
 import { createLogger } from "../utils/logger.js";
@@ -900,10 +895,7 @@ function sanitizeCanonicalCapabilities(
 	};
 }
 
-function projectGraphCapabilities(
-	agentId: string,
-	capabilities: SessionGraphCapabilities
-): {
+function projectGraphCapabilities(capabilities: SessionGraphCapabilities): {
 	availableModels: Array<Model> | null;
 	availableModes: Array<Mode> | null;
 	availableCommands: AvailableCommand[] | null;
@@ -912,7 +904,7 @@ function projectGraphCapabilities(
 	currentModel: Model | null;
 	currentMode: Mode | null;
 	modelsDisplay: ModelsForDisplay | undefined;
-	providerMetadata: ProviderMetadataProjection;
+	providerMetadata: ProviderMetadataProjection | undefined;
 	configOptions: ReadonlyArray<CanonicalConfigOptionData> | null;
 	autonomousEnabled: boolean | null;
 } {
@@ -924,26 +916,13 @@ function projectGraphCapabilities(
 		  })
 		| null
 		| undefined;
-	const providerMetadata = resolveProviderMetadataProjection(
-		agentId,
-		modelState?.providerMetadata ?? null,
-		agentId
-	);
-	const normalizedModelsDisplay =
-		normalizeModelsForDisplay(
-			agentId,
-			capabilities.models?.modelsDisplay ?? null,
-			agentId,
-			providerMetadata
-		) ?? null;
-	const modelsDisplay = normalizedModelsDisplay === null ? undefined : normalizedModelsDisplay;
-	const normalizedCurrentModeId = capabilities.modes?.currentModeId
-		? normalizeModeIdForUI(capabilities.modes.currentModeId, agentId)
-		: null;
+	const providerMetadata = modelState?.providerMetadata ?? undefined;
+	const modelsDisplay = capabilities.models?.modelsDisplay ?? undefined;
+	const currentModeId = capabilities.modes?.currentModeId ?? null;
 	const currentMode =
-		normalizedCurrentModeId === null
+		currentModeId === null
 			? null
-			: (availableModes?.find((mode) => mode.id === normalizedCurrentModeId) ?? null);
+			: (availableModes?.find((mode) => mode.id === currentModeId) ?? null);
 	const currentModelId = capabilities.models?.currentModelId ?? null;
 	const currentModel =
 		currentModelId === null
@@ -955,7 +934,7 @@ function projectGraphCapabilities(
 		availableModes,
 		availableCommands: capabilities.availableCommands ?? null,
 		currentModelId,
-		currentModeId: normalizedCurrentModeId,
+		currentModeId,
 		currentModel,
 		currentMode,
 		modelsDisplay,
@@ -1447,7 +1426,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		) {
 			return null;
 		}
-		return projectGraphCapabilities(session.agentId, projection.capabilities);
+		return projectGraphCapabilities(projection.capabilities);
 	}
 
 	/**
