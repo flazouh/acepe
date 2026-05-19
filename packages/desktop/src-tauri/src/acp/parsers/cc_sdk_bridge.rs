@@ -470,8 +470,12 @@ fn translate_stream_event(
             let name = block
                 .get("name")
                 .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_string);
+            let Some(name) = name else {
+                return vec![];
+            };
 
             let detected_kind = get_parser(agent).detect_tool_kind(&name);
             let kind = if detected_kind != ToolKind::Other {
@@ -1751,6 +1755,30 @@ mod tests {
                 panic!("expected SessionUpdate::ToolCall, got {:?}", updates[0]);
             }
         });
+    }
+
+    #[test]
+    fn content_block_start_without_tool_name_is_not_promoted_to_tool_call() {
+        let updates = translate_cc_sdk_message(
+            AgentType::ClaudeCode,
+            Message::StreamEvent {
+                uuid: "msg-missing-tool-name".to_string(),
+                session_id: "ses-test".to_string(),
+                event: serde_json::json!({
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_missing_name",
+                        "input": {}
+                    }
+                }),
+                parent_tool_use_id: None,
+            },
+            Some("ses-test".to_string()),
+        );
+
+        assert!(updates.is_empty());
     }
 
     #[test]
