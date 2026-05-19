@@ -1508,31 +1508,31 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Canonical available commands; empty means no canonical projection or no commands.
+	 * Canonical available commands; null means no canonical capabilities projection.
 	 */
-	getSessionAvailableCommands(sessionId: string): ReadonlyArray<AvailableCommand> {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableCommands ?? [];
+	getSessionAvailableCommands(sessionId: string): ReadonlyArray<AvailableCommand> | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.availableCommands ?? null;
 	}
 
 	/**
-	 * Canonical config options; empty means no canonical projection or no config options.
+	 * Canonical config options; null means no canonical capabilities projection.
 	 */
-	getSessionConfigOptions(sessionId: string): ReadonlyArray<CanonicalConfigOptionData> {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.configOptions ?? [];
+	getSessionConfigOptions(sessionId: string): ReadonlyArray<CanonicalConfigOptionData> | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.configOptions ?? null;
 	}
 
 	/**
-	 * Canonical available models; empty means no canonical projection or no models.
+	 * Canonical available models; null means no canonical capabilities projection.
 	 */
-	getSessionAvailableModels(sessionId: string): ReadonlyArray<Model> {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModels ?? [];
+	getSessionAvailableModels(sessionId: string): ReadonlyArray<Model> | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModels ?? null;
 	}
 
 	/**
-	 * Canonical available modes; empty means no canonical projection or no modes.
+	 * Canonical available modes; null means no canonical capabilities projection.
 	 */
-	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> {
-		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModes ?? [];
+	getSessionAvailableModes(sessionId: string): ReadonlyArray<Mode> | null {
+		return this.getCanonicalProjectedCapabilities(sessionId)?.availableModes ?? null;
 	}
 
 	/**

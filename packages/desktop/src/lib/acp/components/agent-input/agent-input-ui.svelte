@@ -252,10 +252,10 @@ const sessionAutonomousEnabled = $derived(
 	props.sessionId ? (sessionStore.getSessionAutonomousEnabled(props.sessionId) ?? false) : false
 );
 const sessionConfigOptions = $derived(
-	props.sessionId ? sessionStore.getSessionConfigOptions(props.sessionId) : []
+	props.sessionId ? (sessionStore.getSessionConfigOptions(props.sessionId) ?? []) : []
 );
 const sessionAvailableCommands = $derived(
-	props.sessionId ? sessionStore.getSessionAvailableCommands(props.sessionId) : []
+	props.sessionId ? (sessionStore.getSessionAvailableCommands(props.sessionId) ?? []) : []
 );
 
 let previousComposerBindSessionId: string | null = null;

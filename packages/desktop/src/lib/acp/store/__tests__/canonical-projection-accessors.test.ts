@@ -138,10 +138,10 @@ describe("SessionStore canonical projection accessors", () => {
 			expect(store.getSessionAutonomousEnabled("session-1")).toBeNull();
 			expect(store.getSessionCurrentModeId("session-1")).toBeNull();
 			expect(store.getSessionCurrentModelId("session-1")).toBeNull();
-		expect(store.getSessionAvailableCommands("session-1")).toEqual([]);
-		expect(store.getSessionConfigOptions("session-1")).toEqual([]);
-		expect(store.getSessionAvailableModels("session-1")).toEqual([]);
-		expect(store.getSessionAvailableModes("session-1")).toEqual([]);
+		expect(store.getSessionAvailableCommands("session-1")).toBeNull();
+		expect(store.getSessionConfigOptions("session-1")).toBeNull();
+		expect(store.getSessionAvailableModels("session-1")).toBeNull();
+		expect(store.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.getSessionCapabilities("session-1")).toBeNull();
 	});
 
