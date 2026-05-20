@@ -7,7 +7,7 @@
 
 import { errAsync, type ResultAsync } from "neverthrow";
 
-import { ValidationError, type AppError } from "$lib/acp/errors/app-error.js";
+import { type AppError, ValidationError } from "$lib/acp/errors/app-error.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 

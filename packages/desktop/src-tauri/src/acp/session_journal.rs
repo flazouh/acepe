@@ -205,7 +205,7 @@ pub enum SessionJournalEventPayload {
         response: InteractionResponse,
     },
     InteractionSnapshot {
-        interaction: InteractionSnapshot,
+        interaction: Box<InteractionSnapshot>,
     },
     MaterializationBarrier,
 }
@@ -268,8 +268,10 @@ impl SessionJournalEvent {
                 );
             }
             SessionJournalEventPayload::InteractionSnapshot { interaction } => {
-                registry
-                    .import_interaction_snapshot_at_event_seq(interaction.clone(), self.event_seq);
+                registry.import_interaction_snapshot_at_event_seq(
+                    interaction.as_ref().clone(),
+                    self.event_seq,
+                );
             }
             SessionJournalEventPayload::MaterializationBarrier => {}
         }

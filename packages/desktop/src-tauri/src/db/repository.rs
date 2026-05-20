@@ -780,7 +780,9 @@ impl SessionJournalEventRepository {
         Self::append(
             db,
             session_id,
-            SessionJournalEventPayload::InteractionSnapshot { interaction },
+            SessionJournalEventPayload::InteractionSnapshot {
+                interaction: Box::new(interaction),
+            },
         )
         .await
     }
@@ -2522,7 +2524,9 @@ impl SessionMetadataRepository {
             active.worktree_path = Set(Some(worktree_path.to_string()));
             active.updated_at = Set(now);
             active.update(&txn).await?;
-            if let Some(existing_state) = AcepeSessionState::find_by_id(session_id).one(&txn).await? {
+            if let Some(existing_state) =
+                AcepeSessionState::find_by_id(session_id).one(&txn).await?
+            {
                 let mut state_active: acepe_session_state::ActiveModel = existing_state.into();
                 state_active.worktree_path = Set(Some(worktree_path.to_string()));
                 state_active.updated_at = Set(now);

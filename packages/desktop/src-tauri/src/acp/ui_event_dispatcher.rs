@@ -544,16 +544,16 @@ impl AcpUiEventDispatcher {
         let db = handle
             .try_state::<DbConn>()
             .map(|state| state.inner().clone());
-        tokio::spawn(run_dispatch_loop(
+        tokio::spawn(run_dispatch_loop(DispatchLoopContext {
             hub,
             db,
             policy,
             rx,
-            projection_registry.clone(),
-            runtime_graph_registry.clone(),
-            transcript_projection_registry.clone(),
-            journal_write_lock_registry.clone(),
-        ));
+            projection_registry: projection_registry.clone(),
+            runtime_graph_registry: runtime_graph_registry.clone(),
+            transcript_projection_registry: transcript_projection_registry.clone(),
+            journal_write_lock_registry: journal_write_lock_registry.clone(),
+        }));
 
         Self {
             tx: Some(tx),
@@ -953,16 +953,28 @@ fn session_domain_event_from_update(payload: &AcpUiEventPayload) -> Option<Sessi
     })
 }
 
-async fn run_dispatch_loop(
+struct DispatchLoopContext {
     hub: Arc<AcpEventHubState>,
     db: Option<DbConn>,
     policy: DispatchPolicy,
-    mut rx: mpsc::UnboundedReceiver<AcpUiEvent>,
+    rx: mpsc::UnboundedReceiver<AcpUiEvent>,
     projection_registry: Arc<ProjectionRegistry>,
     runtime_graph_registry: Arc<SessionGraphRuntimeRegistry>,
     transcript_projection_registry: Arc<TranscriptProjectionRegistry>,
     journal_write_lock_registry: Arc<JournalWriteLockRegistry>,
-) {
+}
+
+async fn run_dispatch_loop(context: DispatchLoopContext) {
+    let DispatchLoopContext {
+        hub,
+        db,
+        policy,
+        mut rx,
+        projection_registry,
+        runtime_graph_registry,
+        transcript_projection_registry,
+        journal_write_lock_registry,
+    } = context;
     let mut state = DispatcherState::new(policy);
 
     while let Some(event) = rx.recv().await {

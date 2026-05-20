@@ -79,7 +79,7 @@ async fn main() {
             println!("   Session resumed successfully!");
             // Per ACP protocol: ResumeSessionResponse does NOT include sessionId
             println!("   Using session_id from request: {}", session_id);
-            println!("   Current model: {}", resp.models.current_model_id);
+            println!("   Current model: {:?}", resp.models.current_model_id);
             println!("   Current mode: {}", resp.modes.current_mode_id);
         }
         Err(e) => {

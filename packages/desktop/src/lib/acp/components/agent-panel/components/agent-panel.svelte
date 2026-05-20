@@ -406,6 +406,7 @@ const optimisticUserEntryForGraph = $derived(
 const hasImmediatePendingSendIntent = $derived(
 	sessionPendingSendIntent !== null || optimisticUserEntryForGraph !== null
 );
+const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
 const panelPendingWorktreeEnabled = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.pendingWorktreeEnabled ?? null) : null
@@ -562,7 +563,6 @@ const lifecyclePresentation = $derived(
 const canonicalProjection = $derived(
 	sessionId ? sessionStore.getCanonicalSessionProjection(sessionId) : null
 );
-const sessionStateGraph = $derived(sessionId ? sessionStore.getSessionStateGraph(sessionId) : null);
 const canonicalPanelSessionSource = $derived.by(() => {
 	if (sessionId === null) {
 		return {
