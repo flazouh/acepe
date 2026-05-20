@@ -1788,14 +1788,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Returns the cold session data if preloaded, null otherwise.
 	 */
 	getSessionDetail(sessionId: string): SessionCold | null {
-		const session = this.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.getSessionIdentity(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
 			return null;
 		}
 		if (!this.entryStore.isPreloaded(sessionId)) {
 			return null;
 		}
-		return session;
+		return sessionColdFromSlices(sessionIdentity, sessionMetadata);
 	}
 
 	getSessionToolCalls(sessionId: string): ToolCall[] {
