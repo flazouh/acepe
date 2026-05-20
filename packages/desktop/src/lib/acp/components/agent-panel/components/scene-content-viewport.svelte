@@ -1300,6 +1300,7 @@ export function scrollToTop() {
 
 <style>
 	.tool-call-with-permission :global(.agent-tool-card) {
+		border-bottom-color: transparent;
 		border-bottom-left-radius: 0;
 	}
 
