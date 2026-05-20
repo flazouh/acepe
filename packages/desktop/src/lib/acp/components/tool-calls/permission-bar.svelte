@@ -88,6 +88,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 		{verb}
 		{filePath}
 		showFilePath={!showEditPreview}
+		showSummary={!isRepresentedByToolCall}
 		{command}
 		hasProgress={sessionProgress !== null && sessionProgress !== undefined}
 		hasEditPreview={showEditPreview && currentToolCall !== null}

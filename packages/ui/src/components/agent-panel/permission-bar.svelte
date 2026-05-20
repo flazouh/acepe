@@ -8,6 +8,7 @@
 		filePath?: string | null;
 		command?: string | null;
 		showFilePath?: boolean;
+		showSummary?: boolean;
 		leading: Snippet;
 		trailing?: Snippet;
 		hasTrailing?: boolean;
@@ -23,6 +24,7 @@
 		filePath = null,
 		command = null,
 		showFilePath = true,
+		showSummary = true,
 		leading,
 		trailing,
 		hasTrailing = false,
@@ -38,30 +40,34 @@
 	<div
 		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-input/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
 	>
-		<div class="flex w-full items-start justify-between gap-1.5">
-			<div class="flex min-w-0 w-full items-center gap-1.5 text-sm">
-				<span class="inline-flex shrink-0 items-center justify-center" aria-label={verb} title={verb}>
-					{@render leading()}
-				</span>
-				<span class="shrink-0 text-sm font-medium text-muted-foreground">{verb}</span>
-				{#if filePath && showFilePath}
-					<div class="min-w-0 flex-1 cursor-pointer">
-						<FilePathBadge {filePath} interactive={false} />
+		{#if showSummary || (progress && hasProgress) || (trailing && hasTrailing)}
+			<div class="flex w-full items-start justify-between gap-1.5">
+				{#if showSummary}
+					<div class="flex min-w-0 w-full items-center gap-1.5 text-sm">
+						<span class="inline-flex shrink-0 items-center justify-center" aria-label={verb} title={verb}>
+							{@render leading()}
+						</span>
+						<span class="shrink-0 text-sm font-medium text-muted-foreground">{verb}</span>
+						{#if filePath && showFilePath}
+							<div class="min-w-0 flex-1 cursor-pointer">
+								<FilePathBadge {filePath} interactive={false} />
+							</div>
+						{/if}
 					</div>
 				{/if}
-			</div>
 
-			<div class="flex shrink-0 items-center gap-1.5 self-center">
-				{#if progress && hasProgress}
-					<div class="permission-tally-bar flex shrink-0 items-center">
-						{@render progress()}
-					</div>
-				{/if}
-				{#if trailing && hasTrailing}
-					{@render trailing()}
-				{/if}
+				<div class="flex shrink-0 items-center gap-1.5 self-center">
+					{#if progress && hasProgress}
+						<div class="permission-tally-bar flex shrink-0 items-center">
+							{@render progress()}
+						</div>
+					{/if}
+					{#if trailing && hasTrailing}
+						{@render trailing()}
+					{/if}
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<div class="flex w-full items-center">
 			{@render actionBar()}
