@@ -1321,8 +1321,29 @@ export function scrollToTop() {
 	}
 
 	.tool-call-permission-border-extension {
-		border-top: 1px solid var(--border);
+		--permission-join-radius: var(--radius-sm);
+
 		flex: 1 1 auto;
 		min-width: 0;
+		position: relative;
+	}
+
+	.tool-call-permission-border-extension::before {
+		border-top: 1px solid var(--border);
+		content: "";
+		inset: 0 0 auto var(--permission-join-radius);
+		position: absolute;
+	}
+
+	.tool-call-permission-border-extension::after {
+		border-left: 1px solid var(--border);
+		border-top: 1px solid var(--border);
+		border-top-left-radius: var(--permission-join-radius);
+		content: "";
+		height: var(--permission-join-radius);
+		left: 0;
+		position: absolute;
+		top: 0;
+		width: var(--permission-join-radius);
 	}
 </style>
