@@ -39,7 +39,7 @@ import type {
 	ConnectionCompleteData,
 	SessionEventService,
 } from "../session-event-service.svelte.js";
-import type { Mode, Model, SessionCold } from "../types.js";
+import type { Mode, Model, SessionCold, SessionIdentity, SessionMetadata } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -87,6 +87,30 @@ type ProviderAwareSessionModelState = AcpSessionModelState & {
 	readonly providerMetadata?: ProviderMetadataProjection | null;
 	readonly modelsDisplay?: ModelsForDisplay | null;
 };
+
+function sessionColdFromSlices(
+	sessionIdentity: SessionIdentity,
+	sessionMetadata: SessionMetadata
+): SessionCold {
+	return {
+		id: sessionIdentity.id,
+		projectPath: sessionIdentity.projectPath,
+		agentId: sessionIdentity.agentId,
+		worktreePath: sessionIdentity.worktreePath,
+		title: sessionMetadata.title,
+		createdAt: sessionMetadata.createdAt,
+		updatedAt: sessionMetadata.updatedAt,
+		sourcePath: sessionMetadata.sourcePath,
+		sessionLifecycleState: sessionMetadata.sessionLifecycleState,
+		parentId: sessionMetadata.parentId,
+		prNumber: sessionMetadata.prNumber,
+		prState: sessionMetadata.prState,
+		prLinkMode: sessionMetadata.prLinkMode,
+		linkedPr: sessionMetadata.linkedPr,
+		worktreeDeleted: sessionMetadata.worktreeDeleted,
+		sequenceId: sessionMetadata.sequenceId,
+	};
+}
 
 function getProviderAwareSessionModelState(
 	modelState: AcpSessionModelState | null | undefined
@@ -653,11 +677,11 @@ export class SessionConnectionManager {
 				sessionId,
 				canSend,
 			});
-			const connectedSession = this.stateReader.getSessionCold(sessionId);
-			if (!connectedSession) {
+			const connectedSessionMetadata = this.stateReader.getSessionMetadata(sessionId);
+			if (!connectedSessionMetadata) {
 				return errAsync(new SessionNotFoundError(sessionId));
 			}
-			return okAsync(connectedSession);
+			return okAsync(sessionColdFromSlices(sessionIdentity, connectedSessionMetadata));
 		}
 		const pending = this.pendingConnections.get(sessionId);
 		if (pending) {
@@ -700,11 +724,12 @@ export class SessionConnectionManager {
 			.andThen(() => ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError))
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
-				const cold = this.stateReader.getSessionCold(sessionId);
-				if (!cold) {
+				const connectedSessionIdentity = this.stateReader.getSessionIdentity(sessionId);
+				const connectedSessionMetadata = this.stateReader.getSessionMetadata(sessionId);
+				if (!connectedSessionIdentity || !connectedSessionMetadata) {
 					return errAsync(new SessionNotFoundError(sessionId));
 				}
-				return okAsync(cold);
+				return okAsync(sessionColdFromSlices(connectedSessionIdentity, connectedSessionMetadata));
 			})
 			.map((cold) => {
 				this.pendingConnections.delete(sessionId);
