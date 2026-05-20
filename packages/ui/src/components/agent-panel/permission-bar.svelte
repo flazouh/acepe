@@ -130,16 +130,17 @@
 	}
 
 	.permission-attached-card {
+		background: color-mix(in oklab, var(--input) 30%, var(--background));
 		border-color: var(--border);
 		border-style: solid;
 		border-width: 0 1px 1px;
 	}
 
 	.permission-attached-shell::before {
-		background: color-mix(in oklab, var(--input) 30%, transparent);
+		background: color-mix(in oklab, var(--input) 30%, var(--background));
 		content: "";
-		height: 1px;
-		inset: 0 0 auto 0;
+		height: 2px;
+		inset: -1px 0 auto 0;
 		pointer-events: none;
 		position: absolute;
 	}
