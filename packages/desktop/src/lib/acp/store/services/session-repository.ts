@@ -23,7 +23,7 @@ import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
-import type { SessionCold } from "../types.js";
+import type { SessionCold, SessionIdentity, SessionMetadata } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -91,6 +91,30 @@ function normalizeSessionPrLinkMode(
 	}
 
 	return prNumber == null ? undefined : "automatic";
+}
+
+function sessionColdFromSlices(
+	sessionIdentity: SessionIdentity,
+	sessionMetadata: SessionMetadata
+): SessionCold {
+	return {
+		id: sessionIdentity.id,
+		projectPath: sessionIdentity.projectPath,
+		agentId: sessionIdentity.agentId,
+		worktreePath: sessionIdentity.worktreePath,
+		title: sessionMetadata.title,
+		createdAt: sessionMetadata.createdAt,
+		updatedAt: sessionMetadata.updatedAt,
+		sourcePath: sessionMetadata.sourcePath,
+		sessionLifecycleState: sessionMetadata.sessionLifecycleState,
+		parentId: sessionMetadata.parentId,
+		prNumber: sessionMetadata.prNumber,
+		prState: sessionMetadata.prState,
+		prLinkMode: sessionMetadata.prLinkMode,
+		linkedPr: sessionMetadata.linkedPr,
+		worktreeDeleted: sessionMetadata.worktreeDeleted,
+		sequenceId: sessionMetadata.sequenceId,
+	};
 }
 
 /**
@@ -416,9 +440,10 @@ export class SessionRepository {
 
 			for (const result of results) {
 				if (result.success) {
-					const session = this.stateReader.getSessionCold(result.id);
-					if (session) {
-						loaded.push(session);
+					const sessionIdentity = this.stateReader.getSessionIdentity(result.id);
+					const sessionMetadata = this.stateReader.getSessionMetadata(result.id);
+					if (sessionIdentity && sessionMetadata) {
+						loaded.push(sessionColdFromSlices(sessionIdentity, sessionMetadata));
 					}
 				} else {
 					missing.push(result.id);
@@ -444,10 +469,11 @@ export class SessionRepository {
 	): ResultAsync<SessionCold, AppError> {
 		logger.debug("Loading historical session", { id, projectPath, title, agentId });
 
-		const existing = this.stateReader.getSessionCold(id);
-		if (existing) {
+		const existingIdentity = this.stateReader.getSessionIdentity(id);
+		const existingMetadata = this.stateReader.getSessionMetadata(id);
+		if (existingIdentity && existingMetadata) {
 			logger.debug("Historical session already loaded", { id });
-			return okAsync(existing);
+			return okAsync(sessionColdFromSlices(existingIdentity, existingMetadata));
 		}
 
 		const now = new Date();
