@@ -1,8 +1,11 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
+import { ArrowDown } from "phosphor-svelte";
 import { ArrowCounterClockwise } from "phosphor-svelte";
-import { DotsThreeVertical } from "phosphor-svelte";
+import { ArrowUp } from "phosphor-svelte";
+import { Gear } from "phosphor-svelte";
+import { ImageSquare } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
@@ -18,6 +21,11 @@ interface Props {
 	projectIconSrc?: string | null;
 	onResetProjectIcon?: () => void;
 	onRemoveProject?: () => void;
+	onMoveUp?: () => void;
+	onMoveDown?: () => void;
+	moveUpDisabled?: boolean;
+	moveDownDisabled?: boolean;
+	onChangeProjectIcon?: () => void;
 }
 
 let {
@@ -27,6 +35,11 @@ let {
 	projectIconSrc = null,
 	onResetProjectIcon,
 	onRemoveProject,
+	onMoveUp,
+	onMoveDown,
+	moveUpDisabled = false,
+	moveDownDisabled = false,
+	onChangeProjectIcon,
 }: Props = $props();
 
 let menuOpen = $state(false);
@@ -49,18 +62,16 @@ const hasIcon = $derived(Boolean(projectIconSrc));
 const hasResetProjectIcon = $derived(Boolean(hasIcon && onResetProjectIcon));
 const showColorPicker = $derived(Boolean(onColorChange && !hasIcon));
 const showSettingsSection = $derived(
-	Boolean(showColorPicker || onRemoveProject || hasResetProjectIcon)
+	Boolean(
+		showColorPicker ||
+			onRemoveProject ||
+			hasResetProjectIcon ||
+			onMoveUp ||
+			onMoveDown ||
+			onChangeProjectIcon
+	)
 );
-const displaySectionClass = $derived(
-	`px-2 py-1.5${
-		showColorPicker || onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
-	}`
-);
-const colorTriggerClass = $derived(
-	`rounded-none px-2 py-1.5 text-[11px]${
-		onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
-	}`
-);
+const colorTriggerClass = "font-normal border-b-0";
 
 function handleRemoveClick() {
 	menuOpen = false;
@@ -81,31 +92,65 @@ function handleRemoveClick() {
 							bind:this={triggerRef}
 							type="button"
 							class="flex items-center justify-center size-5 min-w-0 shrink-0 rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-							aria-label="Project menu"
+							aria-label="Project settings"
 						>
-							<DotsThreeVertical class="h-3.5 w-3.5" weight="bold" />
+							<Gear class="h-3 w-3" weight="fill" />
 						</button>
 					{/snippet}
 				</DropdownMenu.Trigger>
 			{/snippet}
 		</Tooltip.Trigger>
-		<Tooltip.Content side="bottom">Project menu</Tooltip.Content>
+		<Tooltip.Content side="bottom">Project settings</Tooltip.Content>
 	</Tooltip.Root>
 	<DropdownMenu.Content align="end" side="bottom" class="min-w-[200px] p-0 text-[11px]">
 		{#if showSettingsSection}
 			<DropdownMenu.Group>
-				<DropdownMenu.GroupHeading
-					class="px-2 py-1 text-[11px] font-semibold text-muted-foreground border-b border-border/20"
-				>
-					Settings
-				</DropdownMenu.GroupHeading>
+				{#if onMoveUp}
+					<DropdownMenu.Item
+						disabled={moveUpDisabled}
+						class="font-normal border-b-0"
+						onclick={() => {
+							onMoveUp?.();
+							menuOpen = false;
+						}}
+					>
+						<ArrowUp weight="bold" />
+						{"Move Up"}
+					</DropdownMenu.Item>
+				{/if}
+				{#if onMoveDown}
+					<DropdownMenu.Item
+						disabled={moveDownDisabled}
+						class="font-normal border-b-0"
+						onclick={() => {
+							onMoveDown?.();
+							menuOpen = false;
+						}}
+					>
+						<ArrowDown weight="bold" />
+						{"Move Down"}
+					</DropdownMenu.Item>
+				{/if}
+				{#if (onMoveUp || onMoveDown) && (onChangeProjectIcon || showColorPicker || hasResetProjectIcon || onRemoveProject)}{/if}
+				{#if onChangeProjectIcon}
+					<DropdownMenu.Item
+						class="font-normal border-b-0"
+						onclick={() => {
+							onChangeProjectIcon?.();
+							menuOpen = false;
+						}}
+					>
+						<ImageSquare weight="fill" />
+						{"Change icon"}
+					</DropdownMenu.Item>
+				{/if}
 				{#if onColorChange && !hasIcon}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class={colorTriggerClass}>
-							<Palette class="h-3.5 w-3.5 mr-2" weight="fill" />
+							<Palette weight="fill" />
 							<span class="flex-1">{"Color"}</span>
 							<span
-								class="h-3.5 w-3.5 rounded-full border border-border shrink-0"
+								class="size-3 rounded-full border border-border shrink-0"
 								style="background-color: {selectedColorHex};"
 								aria-hidden="true"
 							></span>
@@ -138,22 +183,23 @@ function handleRemoveClick() {
 				{/if}
 				{#if hasIcon && onResetProjectIcon}
 					<DropdownMenu.Item
-						class="rounded-none px-2 py-1.5 text-[11px]"
+						class="font-normal border-b-0"
 						onclick={() => {
 							onResetProjectIcon();
 							menuOpen = false;
 						}}
 					>
-						<ArrowCounterClockwise class="h-3.5 w-3.5 mr-2" weight="bold" />
+						<ArrowCounterClockwise weight="bold" />
 						Reset to letter badge
 					</DropdownMenu.Item>
 				{/if}
+				{#if (onChangeProjectIcon || showColorPicker || hasResetProjectIcon) && onRemoveProject}{/if}
 				{#if onRemoveProject}
 					<DropdownMenu.Item
-						class="text-destructive focus:text-destructive rounded-none px-2 py-1.5 text-[11px]"
+						class="text-destructive focus:text-destructive font-normal border-b-0"
 						onclick={handleRemoveClick}
 					>
-						<Trash class="h-3.5 w-3.5 mr-2" weight="fill" />
+						<Trash weight="fill" />
 						{"Remove Project"}
 					</DropdownMenu.Item>
 				{/if}

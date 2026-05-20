@@ -705,7 +705,7 @@ const agentInputController = createAgentInputController({
 	getComposerInteraction: () => composerInteraction,
 	getAutonomousToggleActive: () => autonomousToggleActive,
 	getProvisionalModeId: () => provisionalModeId,
-	getProvisionalModelId: () => provisionalModelId,
+	getProvisionalModelId: () => provisionalModelId ?? preferredDefaultModelId,
 	getIsStreaming: () => isStreaming,
 	sessionStore,
 	panelStore,

@@ -66,7 +66,7 @@ const releaseUrl = $derived(
 	{#if releaseUrl}
 		<button
 			onclick={() => openUrl(releaseUrl)}
-			class="ml-auto text-[9px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+			class="ml-auto text-[12px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
 			title={`Open release notes for v${appVersion}`}
 		>
 			v{appVersion}

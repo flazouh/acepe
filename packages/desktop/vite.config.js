@@ -1,5 +1,6 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -24,6 +25,12 @@ export default defineConfig({
 		format: "es",
 	},
 	plugins: [sveltekit(), tailwindcss()],
+
+	resolve: {
+		alias: {
+			runed: fileURLToPath(new URL("./node_modules/runed/dist/index.js", import.meta.url)),
+		},
+	},
 
 	// Pre-bundle icon libraries to avoid HMR issues with dynamic imports
 	optimizeDeps: {

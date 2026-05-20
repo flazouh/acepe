@@ -2,16 +2,19 @@
 import type { Snippet } from "svelte";
 
 interface Props {
-	height: number;
+	height?: number | null;
 	resizeHandle?: Snippet;
 	tabs: Snippet;
 	body: Snippet;
 }
 
-let { height, resizeHandle, tabs, body }: Props = $props();
+let { height = null, resizeHandle, tabs, body }: Props = $props();
 </script>
 
-<div data-testid="shared-terminal-drawer-stub" style={`height: ${height}px;`}>
+<div
+	data-testid="shared-terminal-drawer-stub"
+	style={height === null ? "height: 100%;" : `height: ${height}px;`}
+>
 	{#if resizeHandle}
 		{@render resizeHandle()}
 	{/if}

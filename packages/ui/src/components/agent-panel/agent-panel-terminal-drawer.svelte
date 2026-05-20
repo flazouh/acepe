@@ -3,16 +3,19 @@
 
 	interface Props {
 		children?: Snippet;
-		height: number;
+		height?: number | null;
 		resizeHandle?: Snippet;
 		tabs: Snippet;
 		body: Snippet;
 	}
 
-	let { children: _children, height, resizeHandle, tabs, body }: Props = $props();
+	let { children: _children, height = null, resizeHandle, tabs, body }: Props = $props();
 </script>
 
-<div class="flex flex-col bg-background" style="height: {height}px; contain: layout;">
+<div
+	class="flex flex-col bg-background {height === null ? 'h-full' : ''}"
+	style={height === null ? "contain: layout;" : `height: ${height}px; contain: layout;`}
+>
 	{#if resizeHandle}
 		{@render resizeHandle()}
 	{/if}

@@ -22,7 +22,7 @@ interface Props {
 </script>
 
 <aside
-	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0"
+	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0 pl-1.5"
 >
 	<!-- Queue Section -->
 	{#if queueSection}

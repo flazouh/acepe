@@ -18,6 +18,8 @@ describe("agent panel layout", () => {
 				planSidebarColumnWidth: 450,
 				showBrowserSidebar: false,
 				browserSidebarColumnWidth: 500,
+				showTerminalSidebar: false,
+				terminalSidebarColumnWidth: 500,
 			})
 		).toBe(1800);
 	});
@@ -32,8 +34,10 @@ describe("agent panel layout", () => {
 				planSidebarColumnWidth: 450,
 				showBrowserSidebar: true,
 				browserSidebarColumnWidth: 500,
+				showTerminalSidebar: true,
+				terminalSidebarColumnWidth: 500,
 			})
-		).toBe(2750);
+		).toBe(3250);
 	});
 
 	it("allows fullscreen panels to shrink inside split layouts", () => {

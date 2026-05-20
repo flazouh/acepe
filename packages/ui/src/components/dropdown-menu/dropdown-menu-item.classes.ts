@@ -12,10 +12,9 @@ export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): st
 		"dark:data-[variant=destructive]:data-highlighted:bg-destructive/20",
 		"data-[variant=destructive]:data-highlighted:text-destructive",
 		"data-[variant=destructive]:*:[svg]:!text-destructive",
-		"relative flex cursor-default items-center gap-2",
-		"px-2 py-1 text-[11px] font-medium",
+		"relative flex cursor-default items-center gap-1.5",
+		"px-2 py-0.5 text-[11px] font-medium",
 		"outline-hidden select-none",
-		"border-b border-border/20 last:border-b-0",
 		"data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
 		"data-[inset]:ps-8",
 		"[&_svg:not([class*='text-'])]:text-muted-foreground",
@@ -24,6 +23,6 @@ export function buildDropdownMenuItemClassName(hasHighlightContext: boolean): st
 		"data-[highlighted]:[&_svg:not([class*='text-'])]:text-current",
 		"data-[selected]:[&_svg:not([class*='text-'])]:text-current",
 		"aria-selected:[&_svg:not([class*='text-'])]:text-current",
-		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		"[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
 	].join(" ");
 }

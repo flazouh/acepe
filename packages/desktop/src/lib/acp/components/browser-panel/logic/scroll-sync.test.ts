@@ -26,6 +26,22 @@ describe("browser panel scroll sync", () => {
 		expect(targets).toContain(window);
 	});
 
+	it("includes overflow ancestors before they become scrollable", () => {
+		const outer = document.createElement("div");
+		outer.style.overflowX = "auto";
+		Object.defineProperty(outer, "scrollWidth", { value: 400, configurable: true });
+		Object.defineProperty(outer, "clientWidth", { value: 400, configurable: true });
+
+		const target = document.createElement("div");
+		outer.appendChild(target);
+		document.body.appendChild(outer);
+
+		const targets = getScrollEventTargets(target);
+
+		expect(targets).toContain(outer);
+		expect(targets).toContain(window);
+	});
+
 	it("re-runs sync callback when a scroll parent scrolls", () => {
 		const outer = document.createElement("div");
 		outer.style.overflowY = "auto";

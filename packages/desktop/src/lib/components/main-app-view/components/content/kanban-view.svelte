@@ -35,7 +35,7 @@ import TodoHeader from "$lib/acp/components/todo-header.svelte";
 import AgentInput from "$lib/acp/components/agent-input/agent-input-ui.svelte";
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
-import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
+import WorktreeTogglePill from "$lib/acp/components/shared/worktree-toggle-pill.svelte";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
@@ -1338,41 +1338,18 @@ function handleRejectPlanApproval(sessionId: string): void {
 				{#if canShowNewSessionInput}
 					{#if selectedProject}
 						<div class="mb-2">
-							<PreSessionWorktreeCard
-								pendingWorktreeEnabled={effectiveWorktreePending}
-								alwaysEnabled={globalWorktreeDefault}
+							<WorktreeTogglePill
+								enabled={effectiveWorktreePending}
 								projectPath={selectedProject.path}
-								projectName={selectedProject.name}
-								onYes={() => {
+								onToggle={() => {
 									const store = getWorktreeDefaultStore();
-								if (store.globalDefault) {
-									void store.set(false);
-								}
-								preparedWorktreeLaunch = null;
-								worktreePending = true;
-							}}
-							onNo={() => {
-								const store = getWorktreeDefaultStore();
-								if (store.globalDefault) {
-									void store.set(false);
-								}
-								preparedWorktreeLaunch = null;
-								worktreePending = false;
-							}}
-							onAlways={() => {
-								const store = getWorktreeDefaultStore();
-								const toggled = !store.globalDefault;
-								void store.set(toggled);
-								if (!toggled) {
+									if (store.globalDefault) {
+										void store.set(false);
+									}
 									preparedWorktreeLaunch = null;
-								}
-								worktreePending = toggled;
-							}}
-							onDismiss={() => {
-								preparedWorktreeLaunch = null;
-								worktreePending = false;
-							}}
-						/>
+									worktreePending = !worktreePending;
+								}}
+							/>
 						</div>
 					{/if}
 					{#key newSessionComposerKey}

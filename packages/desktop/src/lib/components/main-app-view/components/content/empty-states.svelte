@@ -5,7 +5,7 @@ import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipb
 import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
 import ProjectSelector from "$lib/acp/components/project-selector.svelte";
-import PreSessionWorktreeCard from "$lib/acp/components/agent-panel/components/pre-session-worktree-card.svelte";
+import WorktreeTogglePill from "$lib/acp/components/shared/worktree-toggle-pill.svelte";
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
@@ -445,44 +445,6 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					/>
 				</div>
 			{/if}
-			{#if projectPath}
-				<div class="mb-2">
-					<PreSessionWorktreeCard
-						pendingWorktreeEnabled={effectiveWorktreePending}
-						alwaysEnabled={globalWorktreeDefault}
-						{projectPath}
-						onYes={() => {
-							const store = getWorktreeDefaultStore();
-							if (store.globalDefault) {
-								void store.set(false);
-							}
-							preparedWorktreeLaunch = null;
-							worktreePending = true;
-						}}
-						onNo={() => {
-							const store = getWorktreeDefaultStore();
-							if (store.globalDefault) {
-								void store.set(false);
-							}
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
-						onAlways={() => {
-							const store = getWorktreeDefaultStore();
-							const toggled = !store.globalDefault;
-							void store.set(toggled);
-							if (!toggled) {
-								preparedWorktreeLaunch = null;
-							}
-							worktreePending = toggled;
-						}}
-						onDismiss={() => {
-							preparedWorktreeLaunch = null;
-							worktreePending = false;
-						}}
-					/>
-				</div>
-			{/if}
 			<AgentInput
 				panelId={EMPTY_STATE_PANEL_ID}
 				projectPath={projectPath ?? undefined}
@@ -524,6 +486,18 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 			</AgentInput>
 			{#if projectPath}
 				<div class="mt-2 flex h-7 items-center">
+					<WorktreeTogglePill
+						enabled={effectiveWorktreePending}
+						{projectPath}
+						onToggle={() => {
+							const store = getWorktreeDefaultStore();
+							if (store.globalDefault) {
+								void store.set(false);
+							}
+							preparedWorktreeLaunch = null;
+							worktreePending = !worktreePending;
+						}}
+					/>
 					<div class="ml-auto h-full min-w-0 w-fit max-w-[12rem]">
 						<BranchPicker
 							{projectPath}
@@ -537,7 +511,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 					</div>
 				</div>
 			{/if}
-		</div>
+			</div>
 	{:else}
 		<p class="text-muted-foreground text-sm">
 			{"Create a new session to begin working with an AI agent on your project."}
