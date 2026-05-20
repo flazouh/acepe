@@ -1962,10 +1962,29 @@ fn operation_identity_conflicts(
         return true;
     }
 
+    if is_path_access_permission_placeholder_operation(existing) {
+        return false;
+    }
+
     matches!(
         (existing.kind, incoming.kind),
         (Some(existing_kind), Some(incoming_kind)) if existing_kind != incoming_kind
     )
+}
+
+fn is_path_access_permission_placeholder_operation(operation: &OperationSnapshot) -> bool {
+    if !matches!(
+        operation.provider_status,
+        ToolCallStatus::Pending | ToolCallStatus::InProgress
+    ) {
+        return false;
+    }
+
+    operation.title.as_deref().is_some_and(|title| {
+        title
+            .trim()
+            .eq_ignore_ascii_case("Access paths outside trusted directories")
+    })
 }
 
 fn merge_unique_strings(existing: &[String], incoming: Vec<String>) -> Vec<String> {
@@ -2113,7 +2132,8 @@ mod tests {
     use super::*;
     use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::session_update::{
-        ContentChunk, QuestionItem, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
+        ContentChunk, EditEntry, QuestionItem, ToolArguments, ToolCallData, ToolCallUpdateData,
+        ToolKind,
     };
     use crate::acp::types::ContentBlock;
     use crate::session_jsonl::types::{
@@ -4004,6 +4024,112 @@ mod tests {
             op.degradation_reason.as_ref().map(|reason| &reason.code),
             Some(&OperationDegradationCode::ImpossibleTransition)
         );
+    }
+
+    #[test]
+    fn path_access_permission_placeholder_adopts_later_edit_tool_evidence() {
+        let registry = ProjectionRegistry::new();
+        let placeholder_tool_call = ToolCallData {
+            id: "tool-edit".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/src/workspace-dialog-frame.svelte".to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Access paths outside trusted directories".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: placeholder_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::PermissionRequest {
+                permission: PermissionData {
+                    id: "permission-edit".to_string(),
+                    session_id: "session-1".to_string(),
+                    json_rpc_request_id: Some(42),
+                    reply_handler: Some(InteractionReplyHandler::json_rpc(42)),
+                    permission: "Access paths outside trusted directories".to_string(),
+                    patterns: vec![],
+                    metadata: json!({
+                        "parsedArguments": {
+                            "kind": "read",
+                            "file_path": "/repo/src/workspace-dialog-frame.svelte"
+                        },
+                        "options": []
+                    }),
+                    always: vec![],
+                    auto_accepted: false,
+                    tool: Some(ToolReference {
+                        message_id: None,
+                        call_id: "tool-edit".to_string(),
+                    }),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let edit_tool_call = ToolCallData {
+            id: "tool-edit".to_string(),
+            name: "Edit".to_string(),
+            arguments: ToolArguments::Edit {
+                edits: vec![EditEntry {
+                    file_path: Some("/repo/src/workspace-dialog-frame.svelte".to_string()),
+                    move_from: None,
+                    old_string: Some("topLeft?: Snippet;".to_string()),
+                    new_string: Some("topLeft?: Snippet;\ntopRight?: Snippet;".to_string()),
+                    content: None,
+                }],
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Edit),
+            title: Some("workspace-dialog-frame.svelte".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: edit_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let operation = registry
+            .operation_for_tool_call("session-1", "tool-edit")
+            .expect("expected operation");
+        assert_eq!(operation.kind, Some(ToolKind::Edit));
+        assert_eq!(operation.operation_state, OperationState::Blocked);
+        assert_eq!(operation.degradation_reason, None);
+        assert!(matches!(operation.arguments, ToolArguments::Edit { .. }));
     }
 
     #[test]

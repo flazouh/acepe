@@ -1,5 +1,6 @@
 import type { ToolArguments } from "../../../services/converted-session-types.js";
 import type { PermissionRequest } from "../../types/permission.js";
+import type { ToolCall } from "../../types/tool-call.js";
 import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 
 type PermissionMetadataShape = {
@@ -153,16 +154,49 @@ export function extractPermissionFilePath(permission: PermissionRequest): string
 	return extractPathFromPermissionLabel(permission.permission);
 }
 
+function extractToolCallCommand(toolCall: ToolCall | null | undefined): string | null {
+	const args = toolCall?.arguments;
+	if (args?.kind === "execute") {
+		return normalizePath(args.command ?? null);
+	}
+
+	return null;
+}
+
+function extractToolCallFilePath(toolCall: ToolCall | null | undefined): string | null {
+	const args = toolCall?.arguments;
+	if (!args) {
+		return null;
+	}
+
+	switch (args.kind) {
+		case "read":
+		case "search":
+		case "delete":
+			return normalizePath(args.file_path ?? null);
+		case "edit":
+			return normalizePath(args.edits[0]?.filePath ?? null);
+		case "move":
+			return normalizePath(args.to ?? args.from ?? null);
+		case "glob":
+			return normalizePath(args.path ?? null);
+		default:
+			return null;
+	}
+}
+
 export function extractCompactPermissionDisplay(
 	permission: PermissionRequest,
-	projectPath?: string | null
+	projectPath?: string | null,
+	toolCall?: ToolCall | null
 ): CompactPermissionDisplay {
-	const kind = extractPermissionToolKind(permission);
-	const rawFilePath = extractPermissionFilePath(permission);
+	const toolCallKind = normalizePermissionDisplayKind(toolCall?.kind ?? null);
+	const kind = toolCallKind === "other" ? extractPermissionToolKind(permission) : toolCallKind;
+	const rawFilePath = extractToolCallFilePath(toolCall) ?? extractPermissionFilePath(permission);
 	const filePath = rawFilePath
 		? makeWorkspaceRelative(rawFilePath, projectPath ? projectPath : "")
 		: null;
-	const rawCommand = extractPermissionCommand(permission);
+	const rawCommand = extractToolCallCommand(toolCall) ?? extractPermissionCommand(permission);
 	const command = kind === "execute" ? rawCommand : null;
 
 	return {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import type { PermissionRequest } from "../../../types/permission.js";
+import type { ToolCall } from "../../../types/tool-call.js";
 
 import {
 	extractCompactPermissionDisplay,
@@ -16,6 +17,38 @@ function createPermission(metadata: PermissionRequest["metadata"]): PermissionRe
 		patterns: [],
 		metadata,
 		always: [],
+	};
+}
+
+function createEditToolCall(filePath: string): ToolCall {
+	return {
+		id: "tool-edit",
+		name: "Edit",
+		arguments: {
+			kind: "edit",
+			edits: [
+				{
+					filePath,
+					moveFrom: null,
+					oldString: "before",
+					newString: "after",
+					content: null,
+				},
+			],
+		},
+		status: "in_progress",
+		result: null,
+		kind: "edit",
+		title: filePath,
+		locations: null,
+		skillMeta: null,
+		normalizedQuestions: null,
+		normalizedTodos: null,
+		normalizedTodoUpdate: null,
+		parentToolUseId: null,
+		questionAnswer: null,
+		awaitingPlanApproval: false,
+		planApprovalRequestId: null,
 	};
 }
 
@@ -206,6 +239,31 @@ describe("permission-display", () => {
 			label: "Edit",
 			command: null,
 			filePath: "packages/ui/src/kanban-card.svelte",
+		});
+	});
+
+	it("uses linked canonical tool call display when permission metadata is only path access", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "read",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+			},
+		});
+		permission.permission = "Access paths outside trusted directories";
+
+		expect(
+			extractCompactPermissionDisplay(
+				permission,
+				"/repo",
+				createEditToolCall(
+					"/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte"
+				)
+			)
+		).toEqual({
+			kind: "edit",
+			label: "Edit",
+			command: null,
+			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
 		});
 	});
 });

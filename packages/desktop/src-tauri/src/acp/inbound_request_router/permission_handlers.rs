@@ -5,7 +5,8 @@ use crate::acp::reconciler::session_tool::{resolve_raw_tool_identity, ToolClassi
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_update::{
     build_tool_call_from_raw, InteractionReplyHandler, PermissionData, QuestionData, QuestionItem,
-    QuestionOption, RawToolCallInput, SessionUpdate, ToolCallStatus, ToolKind, ToolReference,
+    QuestionOption, RawToolCallInput, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
+    ToolKind, ToolReference,
 };
 use crate::acp::streaming_log::log_streaming_event;
 use serde_json::{json, Value};
@@ -154,7 +155,8 @@ async fn handle_session_request_permission_with_state(
                 parent_tool_use_id: None,
                 task_children: None,
             };
-            let tool_call_data = build_tool_call_from_raw(parser, raw);
+            let mut tool_call_data = build_tool_call_from_raw(parser, raw);
+            defer_permission_placeholder_tool_identity(&mut tool_call_data, &tool_call);
             Some(Box::new(SyntheticToolCallContext { tool_call_data }))
         }
         None => None,
@@ -203,6 +205,40 @@ fn normalized_tool_label(tool_call: &PermissionToolCallRaw) -> String {
         .clone()
         .or_else(|| tool_call.name.clone())
         .unwrap_or_else(|| "Execute tool".to_string())
+}
+
+fn is_path_access_permission_placeholder(tool_call: &PermissionToolCallRaw) -> bool {
+    tool_call.title.as_deref().is_some_and(|title| {
+        title
+            .trim()
+            .eq_ignore_ascii_case("Access paths outside trusted directories")
+    })
+}
+
+fn defer_permission_placeholder_tool_identity(
+    tool_call_data: &mut ToolCallData,
+    tool_call: &PermissionToolCallRaw,
+) {
+    if !is_path_access_permission_placeholder(tool_call) {
+        return;
+    }
+
+    let provider_kind_hint = tool_call_data
+        .kind
+        .map(|kind| kind.as_str().to_string())
+        .or_else(|| tool_call.kind.clone());
+    let provider_name = tool_call_data.name.clone();
+    let title = tool_call_data.title.clone();
+    let arguments_preview = serde_json::to_string(&tool_call.raw_input).ok();
+
+    tool_call_data.kind = None;
+    tool_call_data.arguments = ToolArguments::Unclassified {
+        provider_name,
+        provider_kind_hint,
+        title,
+        arguments_preview,
+        signals_tried: vec!["PermissionPathAccessPlaceholder".to_string()],
+    };
 }
 
 fn build_permission_id(session_id: &str, tool_call_id: &str, request_id: u64) -> String {
@@ -476,6 +512,49 @@ mod tests {
                 assert!(permission.metadata.get("rawInput").is_none());
             }
             other => panic!("expected auto-respond decision, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn path_access_permission_synthetic_tool_call_defers_tool_identity() {
+        let decision = handle_session_request_permission_with_state(
+            &json!({
+                "sessionId": "session-1",
+                "toolCall": {
+                    "toolCallId": "tc-edit",
+                    "name": "Read",
+                    "title": "Access paths outside trusted directories",
+                    "kind": "read",
+                    "rawInput": {
+                        "file_path": "/repo/src/workspace-dialog-frame.svelte"
+                    }
+                },
+                "options": [
+                    { "kind": "allow_once", "name": "Allow once", "optionId": "allow_once" }
+                ]
+            }),
+            7,
+            AgentType::ClaudeCode,
+            None,
+            Some(&ProjectionRegistry::new()),
+        )
+        .await;
+
+        match decision {
+            InboundRoutingDecision::ForwardToUi {
+                synthetic_tool_call: Some(synthetic_tool_call),
+                canonical_interaction: Some(SessionUpdate::PermissionRequest { permission, .. }),
+                ..
+            } => {
+                assert_eq!(synthetic_tool_call.tool_call_data.id, "tc-edit");
+                assert_eq!(synthetic_tool_call.tool_call_data.kind, None);
+                assert!(matches!(
+                    synthetic_tool_call.tool_call_data.arguments,
+                    ToolArguments::Unclassified { .. }
+                ));
+                assert_eq!(permission.metadata["parsedArguments"]["kind"], "read");
+            }
+            other => panic!("expected forward decision with neutral synthetic tool, got {other:?}"),
         }
     }
 

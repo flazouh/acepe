@@ -78,7 +78,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 
 
 {#if currentPermission}
-	{@const compactDisplay = extractCompactPermissionDisplay(currentPermission, projectPath)}
+	{@const compactDisplay = extractCompactPermissionDisplay(currentPermission, projectPath, currentToolCall)}
 	{@const kind = compactDisplay.kind}
 	{@const command =
 		showCommandWhenRepresented || !isRepresentedByToolCall ? compactDisplay.command : null}
