@@ -2591,33 +2591,33 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		prNumber: number | null,
 		prLinkMode: SessionPrLinkMode
 	): ResultAsync<void, AppError> {
-		const session = this.getSessionCold(sessionId);
-		if (!session) {
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionMetadata) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 
 		const nextLinkedPr =
 			prNumber == null
 				? undefined
-				: session.linkedPr?.prNumber === prNumber
+				: sessionMetadata.linkedPr?.prNumber === prNumber
 					? {
-							prNumber: session.linkedPr.prNumber,
-							state: session.linkedPr.state,
-							url: session.linkedPr.url,
-							title: session.linkedPr.title,
-							additions: session.linkedPr.additions,
-							deletions: session.linkedPr.deletions,
-							isDraft: session.linkedPr.isDraft,
-							isLoading: session.linkedPr.isLoading,
-							hasResolvedDetails: session.linkedPr.hasResolvedDetails,
-							checksHeadSha: session.linkedPr.checksHeadSha,
-							checks: session.linkedPr.checks,
-							isChecksLoading: session.linkedPr.isChecksLoading,
-							hasResolvedChecks: session.linkedPr.hasResolvedChecks,
+							prNumber: sessionMetadata.linkedPr.prNumber,
+							state: sessionMetadata.linkedPr.state,
+							url: sessionMetadata.linkedPr.url,
+							title: sessionMetadata.linkedPr.title,
+							additions: sessionMetadata.linkedPr.additions,
+							deletions: sessionMetadata.linkedPr.deletions,
+							isDraft: sessionMetadata.linkedPr.isDraft,
+							isLoading: sessionMetadata.linkedPr.isLoading,
+							hasResolvedDetails: sessionMetadata.linkedPr.hasResolvedDetails,
+							checksHeadSha: sessionMetadata.linkedPr.checksHeadSha,
+							checks: sessionMetadata.linkedPr.checks,
+							isChecksLoading: sessionMetadata.linkedPr.isChecksLoading,
+							hasResolvedChecks: sessionMetadata.linkedPr.hasResolvedChecks,
 						}
-					: buildPartialSessionLinkedPr(prNumber, session.prState);
+					: buildPartialSessionLinkedPr(prNumber, sessionMetadata.prState);
 		const nextPrState =
-			prNumber == null ? undefined : nextLinkedPr ? nextLinkedPr.state : session.prState;
+			prNumber == null ? undefined : nextLinkedPr ? nextLinkedPr.state : sessionMetadata.prState;
 
 		this.updateSession(
 			sessionId,
@@ -2662,8 +2662,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				return okAsync<number | null, never>(null);
 			}
 
-			const session = this.getSessionCold(sessionId);
-			if (!session || session.prLinkMode === "manual") {
+			const sessionMetadata = this.getSessionMetadata(sessionId);
+			if (!sessionMetadata || sessionMetadata.prLinkMode === "manual") {
 				return okAsync<number | null, never>(null);
 			}
 

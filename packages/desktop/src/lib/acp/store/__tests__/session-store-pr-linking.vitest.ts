@@ -3,10 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
 
-const setSessionPrNumberMock = vi.fn();
-const prDetailsMock = vi.fn();
-const prChecksMock = vi.fn();
-const resolveAutomaticSessionPrNumberFromShipWorkflowMock = vi.fn();
+const mocks = vi.hoisted(() => ({
+	setSessionPrNumberMock: vi.fn(),
+	prDetailsMock: vi.fn(),
+	prChecksMock: vi.fn(),
+	resolveAutomaticSessionPrNumberFromShipWorkflowMock: vi.fn(),
+}));
+
+const setSessionPrNumberMock = mocks.setSessionPrNumberMock;
+const prDetailsMock = mocks.prDetailsMock;
+const prChecksMock = mocks.prChecksMock;
+const resolveAutomaticSessionPrNumberFromShipWorkflowMock =
+	mocks.resolveAutomaticSessionPrNumberFromShipWorkflowMock;
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -19,11 +27,11 @@ vi.mock("../api.js", () => ({
 vi.mock("../../../utils/tauri-client.js", () => ({
 	tauriClient: {
 		git: {
-			prDetails: prDetailsMock,
-			prChecks: prChecksMock,
+			prDetails: mocks.prDetailsMock,
+			prChecks: mocks.prChecksMock,
 		},
 		history: {
-			setSessionPrNumber: setSessionPrNumberMock,
+			setSessionPrNumber: mocks.setSessionPrNumberMock,
 		},
 	},
 }));
@@ -34,7 +42,7 @@ vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 
 vi.mock("../services/session-pr-link-attribution.js", () => ({
 	resolveAutomaticSessionPrNumberFromShipWorkflow:
-		resolveAutomaticSessionPrNumberFromShipWorkflowMock,
+		mocks.resolveAutomaticSessionPrNumberFromShipWorkflowMock,
 }));
 
 import { SessionStore } from "../session-store.svelte.js";
