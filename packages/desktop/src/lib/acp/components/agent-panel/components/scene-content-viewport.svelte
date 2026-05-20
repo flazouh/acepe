@@ -1244,13 +1244,16 @@ export function scrollToTop() {
 						{isPlanActionAvailable}
 					/>
 					{#if attachedPermission && sessionId}
-						<div class="tool-call-permission-attachment">
-							<PermissionBar
-								{sessionId}
-								permission={attachedPermission}
-								projectPath={projectPath ?? null}
-								attachment="tool-call"
-							/>
+						<div class="tool-call-permission-row">
+							<div class="tool-call-permission-attachment">
+								<PermissionBar
+									{sessionId}
+									permission={attachedPermission}
+									projectPath={projectPath ?? null}
+									attachment="tool-call"
+								/>
+							</div>
+							<div class="tool-call-permission-border-extension" aria-hidden="true"></div>
 						</div>
 					{/if}
 				</div>
@@ -1300,11 +1303,26 @@ export function scrollToTop() {
 
 <style>
 	.tool-call-with-permission :global(.agent-tool-card) {
+		border-bottom: 0;
 		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+	}
+
+	.tool-call-permission-row {
+		display: flex;
+		max-width: 100%;
+		width: 100%;
 	}
 
 	.tool-call-permission-attachment {
-		width: fit-content;
+		flex: 0 0 auto;
 		max-width: 100%;
+		width: fit-content;
+	}
+
+	.tool-call-permission-border-extension {
+		border-top: 1px solid var(--border);
+		flex: 1 1 auto;
+		min-width: 0;
 	}
 </style>

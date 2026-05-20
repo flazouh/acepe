@@ -44,7 +44,7 @@ describe("AgentPanelPermissionBar", () => {
 
 		expect(view.queryByText("Permission required")).toBeNull();
 		expect(permissionCard?.parentElement?.className).toContain("permission-attached-shell");
-		expect(permissionCard?.parentElement?.className).toContain("mt-[-1px]");
+		expect(permissionCard?.parentElement?.className).not.toContain("mt-[-1px]");
 		expect(permissionCard?.className).toContain("permission-attached-card");
 		expect(permissionCard?.className).toContain("inline-flex");
 		expect(permissionCard?.className).toContain("px-1");

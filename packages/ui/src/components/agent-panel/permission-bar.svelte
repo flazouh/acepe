@@ -53,7 +53,7 @@
 
 <div
 	class={isAttachedToToolCall
-		? "permission-attached-shell relative z-10 inline-flex max-w-full mt-[-1px]"
+		? "permission-attached-shell relative z-10 inline-flex max-w-full"
 		: "w-full"}
 >
 	<div class={cardClass}>
@@ -133,15 +133,6 @@
 		border-color: var(--border);
 		border-style: solid;
 		border-width: 0 1px 1px;
-	}
-
-	.permission-attached-shell::before {
-		background: color-mix(in srgb, var(--input) 30%, var(--background));
-		content: "";
-		height: 1px;
-		inset: -1px 0 auto 0;
-		pointer-events: none;
-		position: absolute;
 	}
 
 	.permission-tally-bar {
