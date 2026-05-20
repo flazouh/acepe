@@ -8,9 +8,9 @@
  * preventing race conditions when state changes mid-render.
  */
 
+import { TAG_COLORS } from "@acepe/ui/colors";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
-import { TAG_COLORS } from "@acepe/ui/colors";
 import { generateFallbackProjectColor } from "../utils/project-utils.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import {

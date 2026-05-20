@@ -18,7 +18,10 @@ import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-typ
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
-import type { IEntryStoreInternal, ToolCallEntryRef } from "./services/interfaces/entry-store-internal.js";
+import type {
+	IEntryStoreInternal,
+	ToolCallEntryRef,
+} from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import {

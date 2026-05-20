@@ -45,21 +45,18 @@ import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { PlanData } from "../../services/converted-session-types.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
+import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type { ComposerMachineEvent } from "../logic/composer-machine.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
 import type { SessionMachineSnapshot } from "../logic/session-machine";
-import {
-	deriveSessionUIState,
-	type SessionUIState,
-} from "../logic/session-ui-state";
+import { deriveSessionUIState, type SessionUIState } from "../logic/session-ui-state";
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
-import type { ModifiedFilesState } from "../types/modified-files-state.js";
-import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type {
 	CanonicalSessionProjection,
 	RowTokenStream,
@@ -68,14 +65,14 @@ import type {
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import {
+	deriveLiveSessionLifecyclePresentation,
+	type LiveSessionLifecyclePresentation,
+	liveSessionWorkSourceFromCanonicalProjection,
+} from "./live-session-work.js";
+import {
 	buildSessionOperationInteractionSnapshot,
 	type SessionOperationInteractionSnapshot,
 } from "./operation-association.js";
-import {
-	deriveLiveSessionLifecyclePresentation,
-	liveSessionWorkSourceFromCanonicalProjection,
-	type LiveSessionLifecyclePresentation,
-} from "./live-session-work.js";
 import type { ISessionStateReader, ISessionStateWriter } from "./services/interfaces/index.js";
 import {
 	SessionConnectionService,
@@ -1669,10 +1666,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.operationStore.getCurrentToolKind(sessionId);
 	}
 
-	isPermissionRepresentedByToolCall(
-		permission: PermissionRequest,
-		sessionId: string
-	): boolean {
+	isPermissionRepresentedByToolCall(permission: PermissionRequest, sessionId: string): boolean {
 		return isPermissionRepresentedByOperation(permission, sessionId, this.operationStore);
 	}
 
@@ -3166,10 +3160,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					clockAnchor: preservedStreamingState.clockAnchor,
 					revision: lifecycleRevision,
 				});
-				this.canonicalCapabilitiesMaterialized.set(
-					sessionId,
-					previousCapabilitiesMaterialized
-				);
+				this.canonicalCapabilitiesMaterialized.set(sessionId, previousCapabilitiesMaterialized);
 				if (previousGraph !== null) {
 					this.sessionStateGraphs.set(
 						sessionId,

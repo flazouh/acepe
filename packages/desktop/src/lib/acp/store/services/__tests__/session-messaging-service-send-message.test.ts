@@ -205,9 +205,9 @@ describe("SessionMessagingService.sendMessage", () => {
 						},
 						timestamp: expect.any(Date),
 					},
-					},
-				})
-			);
+				},
+			})
+		);
 		expectNoCanonicalOverlapHotStateWrites(
 			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
 		);
@@ -322,9 +322,9 @@ describe("SessionMessagingService.sendMessage", () => {
 						},
 						timestamp: expect.any(Date),
 					},
-					},
-				})
-			);
+				},
+			})
+		);
 		expect(deps.hotStateManager.updateHotState).toHaveBeenLastCalledWith("pending-session", {
 			pendingSendIntent: null,
 		});

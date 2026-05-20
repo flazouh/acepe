@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionState } from "../../session-state.js";
-import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
+import {
+	deriveSessionWorkProjection,
+	selectSessionWorkBucket,
+} from "../../session-work-projection.js";
 import { classifyItem, groupIntoSections, isNeedsReview } from "../queue-section-utils.js";
 import type { QueueItem } from "../types.js";
 

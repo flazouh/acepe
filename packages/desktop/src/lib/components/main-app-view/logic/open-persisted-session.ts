@@ -42,7 +42,9 @@ interface HydratedReconnectOptions {
 	readonly sessionStore: SessionOpenStore;
 }
 
-function isProviderHistoryBackedSession(session: ReturnType<SessionOpenStore["getSessionCold"]>): boolean {
+function isProviderHistoryBackedSession(
+	session: ReturnType<SessionOpenStore["getSessionCold"]>
+): boolean {
 	return session?.sessionLifecycleState !== "created" || Boolean(session.sourcePath);
 }
 
@@ -80,7 +82,8 @@ function reattachLocalCreatedSession(input: {
 }
 
 function reconnectHydratedSession(input: HydratedReconnectOptions): Promise<void> {
-	const { source, panelId, requestedSessionId, canonicalSessionId, openToken, sessionStore } = input;
+	const { source, panelId, requestedSessionId, canonicalSessionId, openToken, sessionStore } =
+		input;
 	const reconnect = sessionStore
 		.connectSession(canonicalSessionId, {
 			openToken,

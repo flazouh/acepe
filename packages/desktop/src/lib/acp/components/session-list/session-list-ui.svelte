@@ -156,7 +156,6 @@ $effect(() => {
 	for (const path of initialCollapsedProjectPaths ?? []) {
 		collapsedProjects.add(path);
 	}
-
 });
 
 // Sync collapsed state when initialCollapsedProjectPaths changes (e.g. after workspace restore).

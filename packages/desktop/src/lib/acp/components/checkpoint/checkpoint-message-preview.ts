@@ -39,10 +39,7 @@ export function deriveCheckpointUserMessagePreviews(input: {
 			(entry) => (entry.timestampMs ?? 0) <= checkpointTime
 		);
 
-		previews.set(
-			checkpoint.id,
-			lastUserEntry ? extractCheckpointTextPreview(lastUserEntry) : null
-		);
+		previews.set(checkpoint.id, lastUserEntry ? extractCheckpointTextPreview(lastUserEntry) : null);
 	}
 
 	return previews;

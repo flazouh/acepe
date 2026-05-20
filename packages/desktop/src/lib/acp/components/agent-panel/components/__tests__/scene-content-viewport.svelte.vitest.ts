@@ -1,9 +1,7 @@
+import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
-import type { TokenRevealCss } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../../../store/types.js";
 
 import {
@@ -172,7 +170,9 @@ vi.mock("../../../messages/user-message.svelte", () => {
 });
 
 vi.mock("../../../messages/assistant-message.svelte", () => {
-	throw new Error("SceneContentViewport must render assistant rows through AgentPanelConversationEntry");
+	throw new Error(
+		"SceneContentViewport must render assistant rows through AgentPanelConversationEntry"
+	);
 });
 
 vi.mock("../../../messages/content-block-router.svelte", async () => ({
@@ -188,7 +188,9 @@ vi.mock("../../../messages/error-message.svelte", async () => ({
 }));
 
 vi.mock("@acepe/ui/agent-panel", async () => ({
-	AgentPanelConversationEntry: (await import("./fixtures/agent-panel-conversation-entry-stub.svelte")).default,
+	AgentPanelConversationEntry: (
+		await import("./fixtures/agent-panel-conversation-entry-stub.svelte")
+	).default,
 	groupAssistantChunks: (chunks: { type: string; block?: { type: string; text?: string } }[]) => ({
 		thoughtGroups: [],
 		messageGroups: chunks
@@ -202,7 +204,9 @@ vi.mock("@acepe/ui/icon-context", () => ({
 }));
 
 vi.mock("@acepe/ui", async () => ({
-	AgentPanelConversationEntry: (await import("./fixtures/agent-panel-conversation-entry-stub.svelte")).default,
+	AgentPanelConversationEntry: (
+		await import("./fixtures/agent-panel-conversation-entry-stub.svelte")
+	).default,
 	AgentPanelSceneEntry: (await import("./fixtures/user-message-stub.svelte")).default,
 	setIconConfig: vi.fn(),
 	TextShimmer: (await import("./fixtures/user-message-stub.svelte")).default,
@@ -243,7 +247,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 	it("mounts with empty VList data before hydrating restored entries on the next frame", async () => {
 		renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await tick();
 
@@ -257,7 +264,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 	it("does not run the delayed historical bottom reveal after the user scrolls away", async () => {
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await tick();
 		await flushAnimationFrames();
@@ -291,7 +301,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 	it("switches sessions without re-entering empty hydration and still reveals the latest entry", async () => {
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 			sessionId: "session-1",
 		});
 		await tick();
@@ -304,7 +317,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			sceneEntries: [createUserSceneEntry("user-3", "next"), createUserSceneEntry("user-4", "session")],
+			sceneEntries: [
+				createUserSceneEntry("user-3", "next"),
+				createUserSceneEntry("user-4", "session"),
+			],
 			turnState: "idle",
 			isWaitingForResponse: false,
 			projectPath: undefined,
@@ -328,7 +344,10 @@ describe("SceneContentViewport auto-scroll", () => {
 		setDefaultViewportSize(0);
 
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await tick();
 
@@ -339,7 +358,9 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(view.queryByTestId("native-fallback")).not.toBeNull();
 		expect(view.queryByTestId("vlist-stub")).toBeNull();
 
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
 
@@ -347,7 +368,10 @@ describe("SceneContentViewport auto-scroll", () => {
 		setSuppressRenderedChildren(true);
 
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await tick();
 
@@ -363,7 +387,10 @@ describe("SceneContentViewport auto-scroll", () => {
 		setSuppressRenderedChildren(true);
 
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await tick();
 
@@ -417,13 +444,18 @@ describe("SceneContentViewport auto-scroll", () => {
 
 	it("renders user entries via Virtua VList", async () => {
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await flushAnimationFrames();
 		await tick();
 		await tick();
 
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
 
@@ -511,9 +543,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		scrollIntoViewMock.mockClear();
 
 		const streamingEntries = createManyUserSceneEntries(12);
-		streamingEntries.push(
-			createAssistantSceneEntry("assistant-live", "streaming response", true)
-		);
+		streamingEntries.push(createAssistantSceneEntry("assistant-live", "streaming response", true));
 
 		await view.rerender({
 			panelId: "panel-1",
@@ -576,12 +606,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		const view = renderList({
 			sceneEntries: [
 				createUserSceneEntry("user-1", "hello"),
-				createAssistantSceneEntry(
-					"assistant-1",
-					"completed response",
-					false,
-					activeTokenRevealCss
-				),
+				createAssistantSceneEntry("assistant-1", "completed response", false, activeTokenRevealCss),
 			],
 			turnState: "idle",
 			isWaitingForResponse: false,
@@ -618,12 +643,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		const view = renderList({
 			sceneEntries: [
 				createUserSceneEntry("user-1", "hello"),
-				createAssistantSceneEntry(
-					"assistant-1",
-					"completed response",
-					false,
-					activeTokenRevealCss
-				),
+				createAssistantSceneEntry("assistant-1", "completed response", false, activeTokenRevealCss),
 			],
 			turnState: "idle",
 			isWaitingForResponse: false,
@@ -733,14 +753,19 @@ describe("SceneContentViewport auto-scroll", () => {
 		await tick();
 
 		expect(renderedItemHistory.some((item) => item.index === 0 && item.isUndefined)).toBe(true);
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		expect(stubs.length).toBe(0);
 		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
 	});
 
 	it("characterizes the Virtua snippet boundary receiving undefined items", async () => {
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 		});
 		await flushAnimationFrames();
 		await tick();
@@ -751,7 +776,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createUserSceneEntry("user-2", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createUserSceneEntry("user-2", "world"),
+			],
 			turnState: "idle",
 			isWaitingForResponse: false,
 			projectPath: undefined,
@@ -806,7 +834,9 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		// The thinking entry is appended to displayEntries when isWaitingForResponse is true
 		// It renders through the shared conversation entry stub.
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		// user entry + thinking entry = at least 2 stubs
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});
@@ -914,7 +944,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createUserSceneEntry("user-1", "sent")],
+			sceneEntries: [
+				createAssistantSceneEntry("assistant-1", "latest"),
+				createUserSceneEntry("user-1", "sent"),
+			],
 			turnState: "idle",
 			isWaitingForResponse: false,
 			projectPath: undefined,
@@ -984,79 +1017,85 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(getCurrentScrollOffset()).toBeGreaterThan(0);
 	});
 
-		it("reveals the trailing thinking indicator after a user message is sent", async () => {
-			const view = renderList({
-				sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
-			});
-			await flushAnimationFrames();
-			await tick();
-			await tick();
-
-			scrollToIndexCalls.length = 0;
-
-			view.component.prepareForNextUserReveal({ force: true });
-
-			await view.rerender({
-				panelId: "panel-1",
-				sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createUserSceneEntry("user-1", "sent")],
-				turnState: "idle",
-				isWaitingForResponse: true,
-				projectPath: undefined,
-				sessionId: "session-1",
-				isFullscreen: false,
-				onNearBottomChange: undefined,
-			});
-			await tick();
-			await flushAnimationFrames();
-
-			expect(view.queryByTestId("vlist-stub")).not.toBeNull();
-			expect(view.queryByTestId("native-fallback")).toBeNull();
-			expect(conversationEntryHistory.at(-1)).toMatchObject({
-				type: "thinking",
-			});
+	it("reveals the trailing thinking indicator after a user message is sent", async () => {
+		const view = renderList({
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
 		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
 
-		it("keeps the trailing thinking indicator visible when the sent user row resizes", async () => {
-			const view = renderList({
-				sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
-			});
-			await flushAnimationFrames();
-			await tick();
-			await tick();
+		scrollToIndexCalls.length = 0;
 
-			view.component.prepareForNextUserReveal({ force: true });
+		view.component.prepareForNextUserReveal({ force: true });
 
-			await view.rerender({
-				panelId: "panel-1",
-				sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createUserSceneEntry("user-1", "sent")],
-				turnState: "idle",
-				isWaitingForResponse: true,
-				projectPath: undefined,
-				sessionId: "session-1",
-				isFullscreen: false,
-				onNearBottomChange: undefined,
-			});
-			await tick();
-			await flushAnimationFrames();
-
-			scrollToIndexCalls.length = 0;
-			triggerResizeObserversForEntryKey("user-1");
-			await flushAnimationFrames();
-			await flushAnimationFrames();
-
-			expect(scrollToIndexCalls.at(-1)).toEqual({
-				index: 2,
-				options: { align: "end" },
-			});
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [
+				createAssistantSceneEntry("assistant-1", "latest"),
+				createUserSceneEntry("user-1", "sent"),
+			],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
 		});
+		await tick();
+		await flushAnimationFrames();
 
-		it("does not force-follow a non-user latest update after the user detached", async () => {
-			const view = renderList({
-				sceneEntries: [createAssistantSceneEntry("assistant-1", "first")],
-			});
-			await flushAnimationFrames();
-			await tick();
-			await tick();
+		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
+		expect(conversationEntryHistory.at(-1)).toMatchObject({
+			type: "thinking",
+		});
+	});
+
+	it("keeps the trailing thinking indicator visible when the sent user row resizes", async () => {
+		const view = renderList({
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		view.component.prepareForNextUserReveal({ force: true });
+
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [
+				createAssistantSceneEntry("assistant-1", "latest"),
+				createUserSceneEntry("user-1", "sent"),
+			],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		scrollToIndexCalls.length = 0;
+		triggerResizeObserversForEntryKey("user-1");
+		await flushAnimationFrames();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 2,
+			options: { align: "end" },
+		});
+	});
+
+	it("does not force-follow a non-user latest update after the user detached", async () => {
+		const view = renderList({
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "first")],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
 
 		const viewport = view.container.firstElementChild;
 		if (!(viewport instanceof HTMLElement)) {
@@ -1089,7 +1128,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 	it("switches sessions while waiting without staying empty and reveals the new thinking tail", async () => {
 		const view = renderList({
-			sceneEntries: [createUserSceneEntry("user-1", "hello"), createAssistantSceneEntry("assistant-1", "world")],
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createAssistantSceneEntry("assistant-1", "world"),
+			],
 			isWaitingForResponse: true,
 			sessionId: "session-1",
 		});
@@ -1103,7 +1145,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			sceneEntries: [createUserSceneEntry("user-2", "new"), createAssistantSceneEntry("assistant-2", "session")],
+			sceneEntries: [
+				createUserSceneEntry("user-2", "new"),
+				createAssistantSceneEntry("assistant-2", "session"),
+			],
 			turnState: "idle",
 			isWaitingForResponse: true,
 			projectPath: undefined,
@@ -1133,7 +1178,9 @@ describe("SceneContentViewport auto-scroll", () => {
 		await tick();
 
 		// Tool calls render via AgentPanelConversationEntry.
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		expect(stubs.length).toBeGreaterThanOrEqual(1);
 	});
 
@@ -1151,7 +1198,10 @@ describe("SceneContentViewport auto-scroll", () => {
 
 		await view.rerender({
 			panelId: "panel-1",
-			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createToolCallSceneEntry("tool-1")],
+			sceneEntries: [
+				createAssistantSceneEntry("assistant-1", "latest"),
+				createToolCallSceneEntry("tool-1"),
+			],
 			turnState: "idle",
 			isWaitingForResponse: true,
 			projectPath: undefined,
@@ -1292,7 +1342,9 @@ describe("SceneContentViewport auto-scroll", () => {
 		await tick();
 		await tick();
 
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
+		const stubs = view.container.querySelectorAll(
+			"[data-testid='agent-panel-conversation-entry-stub']"
+		);
 		// user entry + thinking entry = at least 2 stubs
 		expect(stubs.length).toBeGreaterThanOrEqual(2);
 	});

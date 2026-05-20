@@ -48,9 +48,7 @@ export function readExitPlanToolInput(argumentsValue: ToolArguments): ExitPlanIn
 	return hasExitPlanFields(input) ? input : null;
 }
 
-export function readExitPlanPermissionInput(
-	permission: PermissionRequest
-): ExitPlanInput | null {
+export function readExitPlanPermissionInput(permission: PermissionRequest): ExitPlanInput | null {
 	const parsedArguments = permission.metadata.parsedArguments;
 	if (parsedArguments === null || parsedArguments === undefined) {
 		return null;

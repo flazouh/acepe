@@ -14,10 +14,7 @@ vi.mock("../../utils/logger.js", () => ({
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
-import {
-	preloadEntriesAndBuildIndex,
-	readStoredEntries,
-} from "./entry-store-test-access.js";
+import { preloadEntriesAndBuildIndex, readStoredEntries } from "./entry-store-test-access.js";
 
 describe("SessionEntryStore - Transcript Deltas", () => {
 	let store: SessionEntryStore;
@@ -136,7 +133,7 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 				},
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				result: null,
 				kind: "edit",
@@ -458,7 +455,6 @@ function createUserMessage(text: string) {
 	return { content: contentBlock, chunks: [contentBlock] };
 }
 
-
 describe("SessionEntryStore - Synchronous Entry Writes", () => {
 	let store: SessionEntryStore;
 
@@ -604,8 +600,9 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 				},
 			]);
 
-			const toolEntries = readStoredEntries(store, "session1")
-				.filter((entry) => entry.type === "tool_call");
+			const toolEntries = readStoredEntries(store, "session1").filter(
+				(entry) => entry.type === "tool_call"
+			);
 			expect(toolEntries).toHaveLength(2);
 		});
 

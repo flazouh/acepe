@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
-
-import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import type { TranscriptEntry } from "../../../../../services/acp-types.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
 	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,

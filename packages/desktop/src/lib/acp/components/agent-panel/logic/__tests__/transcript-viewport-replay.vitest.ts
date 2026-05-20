@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialTranscriptViewportState } from "../transcript-viewport-controller.js";
-import { replayTranscriptViewportEvents } from "../transcript-viewport-replay.js";
 import type { TranscriptViewportEvent } from "../transcript-viewport-events.js";
+import { replayTranscriptViewportEvents } from "../transcript-viewport-replay.js";
 
 describe("TranscriptViewportReplay", () => {
 	it("replays a send sequence into the same final follow state and effects", () => {

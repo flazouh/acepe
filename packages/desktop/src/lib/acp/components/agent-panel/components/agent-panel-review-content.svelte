@@ -136,9 +136,7 @@ function mapPersistedProgressToReviewState(
 	};
 }
 
-function getPersistedReviewProgress(
-	file: ModifiedFileEntry
-): PersistedFileReviewProgress | null {
+function getPersistedReviewProgress(file: ModifiedFileEntry): PersistedFileReviewProgress | null {
 	if (!sessionId) {
 		return null;
 	}

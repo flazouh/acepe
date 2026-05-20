@@ -4,11 +4,15 @@ import type {
 	TranscriptViewportMeasurement,
 } from "./transcript-viewport-events.js";
 import { orderTranscriptViewportEvents } from "./transcript-viewport-events.js";
-import { createRowAnchor, createTailAnchor, type TranscriptViewportAnchor } from "./viewport-anchor.js";
 import {
 	createEmptyTranscriptViewportRows,
 	type TranscriptViewportRowSummary,
 } from "./transcript-viewport-row-summary.js";
+import {
+	createRowAnchor,
+	createTailAnchor,
+	type TranscriptViewportAnchor,
+} from "./viewport-anchor.js";
 
 const NEAR_TAIL_THRESHOLD_PX = 24;
 
@@ -122,7 +126,7 @@ function createDetachedState(
 				? {
 						type: "offset",
 						offsetPx: measurement.scrollOffset,
-				  }
+					}
 				: createRowAnchor(anchorKey, anchorOffsetPx ?? measurement.scrollOffset),
 		rows: state.rows,
 		pendingSendReveal: state.pendingSendReveal,
@@ -463,7 +467,7 @@ export function reduceTranscriptViewportEvent(
 				effects: [revealRowEffect(revealState, event.targetKey, "end", "explicit-reveal")],
 			};
 		}
-		case "PublicScrollCommand":
+		case "PublicScrollCommand": {
 			if (event.command === "top" && state.rows.firstKey !== null) {
 				const topState = {
 					sessionId: state.sessionId,
@@ -493,6 +497,7 @@ export function reduceTranscriptViewportEvent(
 				state: followState,
 				effects: [revealTailEffect(followState, "public-follow", true)],
 			};
+		}
 		case "RendererFailed":
 			return {
 				state: {
@@ -519,7 +524,7 @@ export function reduceTranscriptViewportEvent(
 					},
 				],
 			};
-		case "RendererRecovered":
+		case "RendererRecovered": {
 			const recoveredState = {
 				sessionId: state.sessionId,
 				generation: state.generation,
@@ -596,6 +601,7 @@ export function reduceTranscriptViewportEvent(
 					},
 				],
 			};
+		}
 		case "AdapterAnchorMissing":
 			return {
 				state: {

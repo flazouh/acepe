@@ -296,10 +296,7 @@ function selectPreferredMetadata(
 		return incoming;
 	}
 
-	if (
-		existing.diagnosticRawInput === undefined &&
-		incoming.diagnosticRawInput !== undefined
-	) {
+	if (existing.diagnosticRawInput === undefined && incoming.diagnosticRawInput !== undefined) {
 		return incoming;
 	}
 

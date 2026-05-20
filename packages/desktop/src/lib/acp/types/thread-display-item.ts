@@ -1,5 +1,5 @@
-import type { SessionSummary } from "../application/dto/session-summary.js";
 import type { SessionLinkedPr, SessionPrLinkMode } from "../application/dto/session-linked-pr.js";
+import type { SessionSummary } from "../application/dto/session-summary.js";
 import type { SessionActivityInfo } from "../components/session-list/session-list-types.js";
 
 import { ProjectManager } from "../logic/project-manager.svelte.js";
