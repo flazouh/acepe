@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentPanelPreSessionWorktreeCard as SharedPreSessionWorktreeCard } from "@acepe/ui/agent-panel";
+import SharedPreSessionWorktreeCard from "../../../../../../../ui/src/components/agent-panel/pre-session-worktree-card.svelte";
 import { extractProjectName } from "$lib/acp/utils/path-utils.js";
 import SetupCommandsEditor from "$lib/components/settings-page/sections/worktrees/setup-commands-editor.svelte";
 
