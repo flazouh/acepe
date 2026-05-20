@@ -567,6 +567,35 @@ impl ProjectionRegistry {
         }
     }
 
+    pub fn apply_session_update_at_event_seq(
+        &self,
+        session_id: &str,
+        event_seq: i64,
+        update: &SessionUpdate,
+    ) {
+        if event_seq <= 0 {
+            self.apply_session_update(session_id, update);
+            return;
+        }
+
+        {
+            let mut snapshot = self
+                .snapshots
+                .entry(session_id.to_string())
+                .or_insert_with(|| SessionSnapshot::new(session_id.to_string(), None));
+            if event_seq <= snapshot.last_event_seq {
+                return;
+            }
+            snapshot.last_event_seq = event_seq.saturating_sub(1);
+        }
+
+        self.apply_session_update(session_id, update);
+
+        if let Some(mut snapshot) = self.snapshots.get_mut(session_id) {
+            snapshot.last_event_seq = event_seq;
+        }
+    }
+
     /// Single canonical entrypoint for applying a live domain event to all read models.
     ///
     /// **Idempotency**: if `event.seq > 0` and the session snapshot shows that `event.seq` is
@@ -596,8 +625,9 @@ impl ProjectionRegistry {
             }
         }
 
-        // Apply projection state through the existing reducer bridge.
-        self.apply_session_update(session_id, raw_update);
+        // Apply projection state through the existing reducer bridge at the canonical
+        // event frontier so transcript-linked operation ids match transcript rows.
+        self.apply_session_update_at_event_seq(session_id, event.seq, raw_update);
 
         // Advance last_event_seq to the canonical sequence frontier so future
         // duplicates are rejected.  This overwrites the auto-incremented value
@@ -1934,6 +1964,18 @@ fn merge_operation_source_link(
     incoming: OperationSourceLink,
 ) -> OperationSourceLink {
     match (existing, incoming) {
+        (
+            OperationSourceLink::TranscriptLinked {
+                entry_id: existing_id,
+            },
+            OperationSourceLink::TranscriptLinked {
+                entry_id: incoming_id,
+            },
+        ) if live_tool_event_seq(&incoming_id) > live_tool_event_seq(existing_id) => {
+            OperationSourceLink::TranscriptLinked {
+                entry_id: incoming_id,
+            }
+        }
         (OperationSourceLink::TranscriptLinked { entry_id }, _) => {
             OperationSourceLink::TranscriptLinked {
                 entry_id: entry_id.clone(),
@@ -1948,6 +1990,12 @@ fn merge_operation_source_link(
         },
         (_, OperationSourceLink::Synthetic { reason }) => OperationSourceLink::Synthetic { reason },
     }
+}
+
+fn live_tool_event_seq(entry_id: &str) -> Option<i64> {
+    entry_id
+        .strip_prefix("tool-event-")
+        .and_then(|suffix| suffix.parse::<i64>().ok())
 }
 
 pub(crate) fn merge_operation_snapshot_evidence(
@@ -3617,6 +3665,55 @@ mod tests {
         assert_eq!(
             snapshot.message_count, 2,
             "two message chunks must be projected"
+        );
+    }
+
+    #[test]
+    fn apply_canonical_event_uses_event_seq_for_live_tool_source_link() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+
+        let event = make_domain_event(425, "s1");
+        registry.apply_canonical_event(
+            "s1",
+            &event,
+            &SessionUpdate::ToolCall {
+                tool_call: create_execute_tool_call("tool-1", "pwd", ToolCallStatus::Pending),
+                session_id: Some("s1".to_string()),
+            },
+        );
+
+        let operation = registry
+            .operation_for_tool_call("s1", "tool-1")
+            .expect("expected operation");
+        assert_eq!(
+            operation.source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: "tool-event-425".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn event_seq_projection_repairs_older_live_tool_source_link() {
+        let registry = ProjectionRegistry::new();
+        registry.register_session("s1".to_string(), CanonicalAgentId::ClaudeCode);
+        let update = SessionUpdate::ToolCall {
+            tool_call: create_execute_tool_call("tool-1", "pwd", ToolCallStatus::Pending),
+            session_id: Some("s1".to_string()),
+        };
+
+        registry.apply_session_update("s1", &update);
+        registry.apply_session_update_at_event_seq("s1", 425, &update);
+
+        let operation = registry
+            .operation_for_tool_call("s1", "tool-1")
+            .expect("expected operation");
+        assert_eq!(
+            operation.source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: "tool-event-425".to_string()
+            }
         );
     }
 

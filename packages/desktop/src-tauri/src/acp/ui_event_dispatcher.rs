@@ -1366,6 +1366,11 @@ async fn persist_dispatch_event(
                     return DispatchPersistenceEffects::default();
                 }
             };
+            projection_registry.apply_session_update_at_event_seq(
+                session_id,
+                record.event_seq,
+                update.as_ref(),
+            );
             let transcript_delta = transcript_projection_registry
                 .apply_session_update(record.event_seq, update.as_ref());
             let transcript_revision = transcript_projection_registry
@@ -1415,6 +1420,11 @@ async fn persist_dispatch_event(
             let graph_revision = runtime_graph_registry.apply_session_update_with_graph_seed(
                 session_id,
                 synthetic_event_seq.saturating_sub(1),
+                update.as_ref(),
+            );
+            projection_registry.apply_session_update_at_event_seq(
+                session_id,
+                synthetic_event_seq,
                 update.as_ref(),
             );
             // Transcript revision lives in its own monotonic counter and must
