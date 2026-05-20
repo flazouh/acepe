@@ -231,6 +231,8 @@ fn defer_permission_placeholder_tool_identity(
     let title = tool_call_data.title.clone();
     let arguments_preview = serde_json::to_string(&tool_call.raw_input).ok();
 
+    tool_call_data.name = "Access".to_string();
+    tool_call_data.title = Some("Access".to_string());
     tool_call_data.kind = None;
     tool_call_data.arguments = ToolArguments::Unclassified {
         provider_name,
@@ -547,6 +549,11 @@ mod tests {
                 ..
             } => {
                 assert_eq!(synthetic_tool_call.tool_call_data.id, "tc-edit");
+                assert_eq!(synthetic_tool_call.tool_call_data.name, "Access");
+                assert_eq!(
+                    synthetic_tool_call.tool_call_data.title.as_deref(),
+                    Some("Access")
+                );
                 assert_eq!(synthetic_tool_call.tool_call_data.kind, None);
                 assert!(matches!(
                     synthetic_tool_call.tool_call_data.arguments,

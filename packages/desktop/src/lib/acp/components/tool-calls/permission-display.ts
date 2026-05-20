@@ -53,6 +53,13 @@ const TOOL_KIND_LABELS: Record<string, string> = {
 	toolSearch: "Tool Search",
 };
 
+function isPathAccessPermission(permission: PermissionRequest): boolean {
+	return permission.permission
+		.trim()
+		.toLowerCase()
+		.includes("access paths outside trusted directories");
+}
+
 export type PermissionDisplayKind =
 	| "read"
 	| "edit"
@@ -105,6 +112,10 @@ function normalizePermissionDisplayKind(value: string | null | undefined): Permi
 }
 
 export function extractPermissionToolKind(permission: PermissionRequest): PermissionDisplayKind {
+	if (isPathAccessPermission(permission)) {
+		return "other";
+	}
+
 	const metadata = getMetadata(permission);
 	const parsed = metadata?.parsedArguments;
 	if (parsed && parsed.kind !== "other") {
@@ -201,7 +212,9 @@ export function extractCompactPermissionDisplay(
 
 	return {
 		kind,
-		label: TOOL_KIND_LABELS[kind] ?? "Permission",
+		label: isPathAccessPermission(permission) && toolCallKind === "other"
+			? "Access"
+			: (TOOL_KIND_LABELS[kind] ?? "Permission"),
 		command,
 		filePath,
 	};

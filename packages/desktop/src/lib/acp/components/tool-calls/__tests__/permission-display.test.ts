@@ -266,4 +266,21 @@ describe("permission-display", () => {
 			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
 		});
 	});
+
+	it("labels neutral path access permissions as access instead of read", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "read",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+			},
+		});
+		permission.permission = "Access paths outside trusted directories";
+
+		expect(extractCompactPermissionDisplay(permission, "/repo")).toEqual({
+			kind: "other",
+			label: "Access",
+			command: null,
+			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+		});
+	});
 });
