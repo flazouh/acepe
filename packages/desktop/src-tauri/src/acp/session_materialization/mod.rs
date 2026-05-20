@@ -1,8 +1,8 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::projections::{
-    build_canonical_operation_id, OperationDegradationCode, OperationDegradationReason,
-    OperationSnapshot, OperationSourceLink, OperationState, ProjectionRegistry,
-    SessionProjectionSnapshot,
+    build_canonical_operation_id, InteractionState, OperationDegradationCode,
+    OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
+    ProjectionRegistry, SessionProjectionSnapshot, SessionTurnState,
 };
 use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
@@ -69,11 +69,62 @@ pub(crate) fn materialize_provider_owned_thread_snapshot(
     }
     projection.operations =
         ensure_transcript_tool_operations(session_id, &transcript_snapshot, projection.operations);
+    projection = close_historical_active_projection(
+        projection,
+        !transcript_snapshot.entries.is_empty() || !snapshot.thread_snapshot.entries.is_empty(),
+    );
 
     MaterializedThreadSnapshot {
         transcript_snapshot,
         projection,
     }
+}
+
+fn close_historical_active_projection(
+    mut projection: SessionProjectionSnapshot,
+    has_history: bool,
+) -> SessionProjectionSnapshot {
+    let mut had_active_state = false;
+
+    projection.operations = projection
+        .operations
+        .into_iter()
+        .map(|mut operation| {
+            if !is_terminal_operation_state(&operation.operation_state) {
+                operation.operation_state = OperationState::Cancelled;
+                had_active_state = true;
+            }
+            operation
+        })
+        .collect();
+
+    projection.interactions = projection
+        .interactions
+        .into_iter()
+        .map(|mut interaction| {
+            if interaction.state == InteractionState::Pending {
+                interaction.state = InteractionState::Unresolved;
+                had_active_state = true;
+            }
+            interaction
+        })
+        .collect();
+
+    if let Some(mut session) = projection.session {
+        if session.active_turn_failure.is_some() {
+            session.turn_state = SessionTurnState::Failed;
+        } else if session.turn_state == SessionTurnState::Running || had_active_state {
+            session.turn_state = if has_history {
+                SessionTurnState::Completed
+            } else {
+                SessionTurnState::Idle
+            };
+            session.active_tool_call_ids.clear();
+        }
+        projection.session = Some(session);
+    }
+
+    projection
 }
 
 pub(crate) fn ensure_transcript_tool_operations(
@@ -218,12 +269,23 @@ fn degraded_transcript_tool_provenance_key(entry_id: &str) -> String {
     format!("degraded-transcript-tool-{}", hex::encode(&digest[..16]))
 }
 
+fn is_terminal_operation_state(state: &OperationState) -> bool {
+    matches!(
+        state,
+        OperationState::Completed
+            | OperationState::Failed
+            | OperationState::Cancelled
+            | OperationState::Degraded
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ensure_transcript_tool_operations, materialize_provider_owned_thread_snapshot};
     use crate::acp::parsers::AgentType;
     use crate::acp::projections::{
         OperationDegradationCode, OperationSnapshot, OperationSourceLink, OperationState,
+        SessionTurnState,
     };
     use crate::acp::session_thread_snapshot::{
         ProviderOwnedSessionSnapshot, SessionThreadSnapshot,
@@ -298,6 +360,15 @@ mod tests {
         tool_call_id: &str,
         title: Option<&str>,
     ) -> StoredEntry {
+        read_tool_entry(entry_id, tool_call_id, title, ToolCallStatus::Completed)
+    }
+
+    fn read_tool_entry(
+        entry_id: &str,
+        tool_call_id: &str,
+        title: Option<&str>,
+        status: ToolCallStatus,
+    ) -> StoredEntry {
         StoredEntry::ToolCall {
             id: entry_id.to_string(),
             message: ToolCallData {
@@ -308,7 +379,7 @@ mod tests {
                     source_context: None,
                 },
                 diagnostic_input: None,
-                status: ToolCallStatus::Completed,
+                status,
                 result: None,
                 kind: Some(ToolKind::Read),
                 title: title.map(str::to_string),
@@ -429,6 +500,83 @@ mod tests {
             OperationSourceLink::TranscriptLinked {
                 entry_id: "provider-read".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn provider_owned_materialization_closes_historical_active_tool_rows() {
+        let provider_snapshot =
+            ProviderOwnedSessionSnapshot::from_thread_snapshot(SessionThreadSnapshot {
+                entries: vec![read_tool_entry(
+                    "provider-read",
+                    "provider-read",
+                    Some("Read file"),
+                    ToolCallStatus::InProgress,
+                )],
+                title: "Provider title".to_string(),
+                created_at: "2026-05-20T00:00:00Z".to_string(),
+                current_mode_id: None,
+            });
+
+        let materialized =
+            materialize_provider_owned_thread_snapshot("session-1", None, 12, &provider_snapshot);
+
+        let session = materialized.projection.session.expect("session projection");
+        assert_eq!(session.turn_state, SessionTurnState::Completed);
+        assert!(session.active_tool_call_ids.is_empty());
+        assert_eq!(materialized.projection.operations.len(), 1);
+        assert_eq!(
+            materialized.projection.operations[0].operation_state,
+            OperationState::Cancelled
+        );
+    }
+
+    #[test]
+    fn provider_owned_materialization_closes_historical_active_canonical_updates() {
+        let mut provider_snapshot =
+            ProviderOwnedSessionSnapshot::from_thread_snapshot(SessionThreadSnapshot {
+                entries: vec![read_tool_entry(
+                    "provider-read",
+                    "provider-read",
+                    Some("Read file"),
+                    ToolCallStatus::InProgress,
+                )],
+                title: "Provider title".to_string(),
+                created_at: "2026-05-20T00:00:00Z".to_string(),
+                current_mode_id: None,
+            });
+        provider_snapshot.set_canonical_tool_call_updates(vec![
+            crate::acp::session_update::ToolCallUpdateData {
+                tool_call_id: "provider-read".to_string(),
+                status: Some(ToolCallStatus::InProgress),
+                result: None,
+                content: None,
+                raw_output: None,
+                title: Some("Reading file".to_string()),
+                locations: None,
+                streaming_input_delta: None,
+                normalized_todos: None,
+                normalized_questions: None,
+                streaming_arguments: None,
+                streaming_plan: None,
+                arguments: None,
+                failure_reason: None,
+            },
+        ]);
+
+        let materialized =
+            materialize_provider_owned_thread_snapshot("session-1", None, 13, &provider_snapshot);
+
+        let session = materialized.projection.session.expect("session projection");
+        assert_eq!(session.turn_state, SessionTurnState::Completed);
+        assert!(session.active_tool_call_ids.is_empty());
+        assert_eq!(
+            materialized.projection.operations[0].operation_state,
+            OperationState::Cancelled
+        );
+        assert_eq!(
+            materialized.projection.operations[0].provider_status,
+            ToolCallStatus::InProgress
         );
     }
 
