@@ -1441,6 +1441,15 @@ async fn persist_dispatch_event(
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
                 .unwrap_or(previous_transcript_revision);
+            if transcript_delta.is_some() {
+                if let SessionUpdate::ToolCall { tool_call, .. } = update.as_ref() {
+                    projection_registry.relink_tool_call_to_transcript_event_seq(
+                        session_id,
+                        &tool_call.id,
+                        transcript_event_seq,
+                    );
+                }
+            }
             let revision =
                 SessionGraphRevision::new(graph_revision, transcript_revision, synthetic_event_seq);
             let request = LiveSessionStateEnvelopeRequest {
@@ -1489,13 +1498,13 @@ async fn persist_dispatch_event(
 mod tests {
     use super::*;
     use crate::acp::domain_events::{SessionDomainEvent, SessionDomainEventKind};
-    use crate::acp::projections::SessionTurnState;
+    use crate::acp::projections::{OperationSourceLink, SessionTurnState};
     use crate::acp::session_update::{
         AvailableCommand, AvailableCommandsData, ContentChunk, CurrentModeData,
         InteractionReplyHandler, PermissionData, QuestionData, QuestionItem, QuestionOption,
         SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
-    use crate::acp::transcript_projection::TranscriptDelta;
+    use crate::acp::transcript_projection::{TranscriptDelta, TranscriptEntryRole};
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
     use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
@@ -1587,6 +1596,35 @@ mod tests {
         SessionUpdate::CurrentModeUpdate {
             update: CurrentModeData {
                 current_mode_id: mode.to_string(),
+            },
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    fn read_tool_call_update(session_id: &str, tool_call_id: &str) -> SessionUpdate {
+        SessionUpdate::ToolCall {
+            tool_call: ToolCallData {
+                id: tool_call_id.to_string(),
+                name: "Read".to_string(),
+                arguments: ToolArguments::Read {
+                    file_path: Some("workspace-dialog-frame.svelte".to_string()),
+                    source_context: None,
+                },
+                diagnostic_input: None,
+                kind: Some(ToolKind::Read),
+                title: Some("Access paths outside trusted directories".to_string()),
+                status: ToolCallStatus::InProgress,
+                result: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
             },
             session_id: Some(session_id.to_string()),
         }
@@ -2175,6 +2213,70 @@ mod tests {
             transcript_revision_after_chunk, 1,
             "first transcript-bearing chunk must advance transcript_revision by exactly 1, \
              regardless of how many non-transcript updates inflated graph_revision before it"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_journaled_tool_call_source_link_matches_transcript_entry() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-1",
+            "/test/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("session metadata");
+
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_graph_registry, "session-1");
+
+        for index in 0..5 {
+            let event = AcpUiEvent::session_update(current_mode_update(
+                "session-1",
+                &format!("mode-{index}"),
+            ));
+            let _ = persist_dispatch_event(
+                Some(&db),
+                &event,
+                &projection_registry,
+                &runtime_graph_registry,
+                &transcript_projection_registry,
+            )
+            .await;
+        }
+
+        let event = AcpUiEvent::session_update(read_tool_call_update("session-1", "toolu-read"));
+        let _ = persist_dispatch_event(
+            Some(&db),
+            &event,
+            &projection_registry,
+            &runtime_graph_registry,
+            &transcript_projection_registry,
+        )
+        .await;
+
+        let transcript_snapshot = transcript_projection_registry
+            .snapshot_for_session("session-1")
+            .expect("transcript snapshot");
+        let tool_entry = transcript_snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.role == TranscriptEntryRole::Tool)
+            .expect("tool transcript entry");
+        let operation = projection_registry
+            .operation_for_tool_call("session-1", "toolu-read")
+            .expect("operation snapshot");
+
+        assert_eq!(
+            operation.source_link,
+            OperationSourceLink::TranscriptLinked {
+                entry_id: tool_entry.entry_id.clone(),
+            },
+            "non-journaled ToolCall updates must link operations to the same transcript entry they emit"
         );
     }
 
