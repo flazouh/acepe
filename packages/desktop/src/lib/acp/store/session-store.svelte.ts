@@ -1781,7 +1781,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Get session cold data by ID from the lookup map (O(1)).
 	 */
 	getSessionCold(sessionId: string): SessionCold | undefined {
-		return this.sessionById.get(sessionId);
+		const sessionIdentity = this.getSessionIdentity(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
+			return undefined;
+		}
+
+		return sessionColdFromSlices(sessionIdentity, sessionMetadata);
 	}
 
 	/**
