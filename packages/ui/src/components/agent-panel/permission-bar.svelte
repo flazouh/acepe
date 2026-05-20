@@ -44,7 +44,7 @@
 	const isAttachedToToolCall = $derived(attachment === "tool-call");
 	const cardClass = $derived.by(() => {
 		if (isAttachedToToolCall) {
-			return "permission-attached-card inline-flex flex-col bg-input/30 permission-card-enter rounded-b-sm rounded-t-none rounded-tr-sm px-1 py-1";
+			return "permission-attached-card inline-flex flex-col bg-input/30 permission-card-enter rounded-sm px-1 py-1";
 		}
 
 		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
@@ -130,9 +130,13 @@
 	}
 
 	.permission-attached-card {
+		--permission-attached-bg: color-mix(in oklab, var(--input) 30%, transparent);
+
+		position: relative;
+		background-color: var(--permission-attached-bg);
 		border-color: var(--border);
 		border-style: solid;
-		border-width: 0 1px 1px;
+		border-width: 1px;
 	}
 
 	.permission-tally-bar {

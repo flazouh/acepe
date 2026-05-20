@@ -58,3 +58,16 @@ For attached surfaces, include explicit geometry checks:
 - the main card keeps any far-side border and radius it still owns
 - the shelf owns only its compact surface
 - no unrelated filler element draws decorative border art elsewhere
+
+For inverse corners, do not treat normal `border-radius` as proof. Normal radius rounds the element's own corner, which can be the opposite direction from the intended attached shape.
+
+If an inverse helper repeatedly produces a visible hook, prefer a boring normal border over more decorative CSS. The QA rule is product comfort first, clever CSS second.
+
+Check the inverse helper itself:
+
+- the normal corner radius that would round the wrong direction is `0px`
+- the pseudo-element is present in computed styles
+- the helper is positioned on the correct outside edge
+- the helper slices the correct opposite corner, for example `top-right-outside` uses a `bottom-left` slice
+- the helper background/shadow color matches the surface it is extending
+- the helper does not draw separate straight border strokes or a radial arc when the real card and shelf already own the borders; both can read as a hook artifact
