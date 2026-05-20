@@ -641,9 +641,8 @@ export class SessionConnectionManager {
 		eventHandler: SessionEventHandler,
 		options?: ConnectSessionOptions
 	): ResultAsync<SessionCold, AppError> {
-		const session = this.stateReader.getSessionCold(sessionId);
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
-		if (!session || !sessionIdentity) {
+		if (!sessionIdentity) {
 			return errAsync(new SessionNotFoundError(sessionId));
 		}
 		const effectiveAgentId = options?.agentOverrideId ?? sessionIdentity.agentId;
@@ -654,7 +653,11 @@ export class SessionConnectionManager {
 				sessionId,
 				canSend,
 			});
-			return okAsync(session);
+			const connectedSession = this.stateReader.getSessionCold(sessionId);
+			if (!connectedSession) {
+				return errAsync(new SessionNotFoundError(sessionId));
+			}
+			return okAsync(connectedSession);
 		}
 		const pending = this.pendingConnections.get(sessionId);
 		if (pending) {
