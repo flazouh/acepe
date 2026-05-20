@@ -18,12 +18,13 @@ import {
 	buildPartialSessionLinkedPr,
 	type SessionPrLinkMode,
 } from "../../application/dto/session-linked-pr.js";
+import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
-import type { SessionCold, SessionIdentity, SessionMetadata } from "../types.js";
+import type { SessionCold } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -91,30 +92,6 @@ function normalizeSessionPrLinkMode(
 	}
 
 	return prNumber == null ? undefined : "automatic";
-}
-
-function sessionColdFromSlices(
-	sessionIdentity: SessionIdentity,
-	sessionMetadata: SessionMetadata
-): SessionCold {
-	return {
-		id: sessionIdentity.id,
-		projectPath: sessionIdentity.projectPath,
-		agentId: sessionIdentity.agentId,
-		worktreePath: sessionIdentity.worktreePath,
-		title: sessionMetadata.title,
-		createdAt: sessionMetadata.createdAt,
-		updatedAt: sessionMetadata.updatedAt,
-		sourcePath: sessionMetadata.sourcePath,
-		sessionLifecycleState: sessionMetadata.sessionLifecycleState,
-		parentId: sessionMetadata.parentId,
-		prNumber: sessionMetadata.prNumber,
-		prState: sessionMetadata.prState,
-		prLinkMode: sessionMetadata.prLinkMode,
-		linkedPr: sessionMetadata.linkedPr,
-		worktreeDeleted: sessionMetadata.worktreeDeleted,
-		sequenceId: sessionMetadata.sequenceId,
-	};
 }
 
 /**

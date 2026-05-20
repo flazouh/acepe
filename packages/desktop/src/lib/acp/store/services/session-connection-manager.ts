@@ -29,6 +29,7 @@ import {
 	CreationFailureError,
 	SessionNotFoundError,
 } from "../../errors/app-error.js";
+import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import type { ModeType } from "../../types/agent-model-preferences.js";
 import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { createLogger } from "../../utils/logger.js";
@@ -39,7 +40,7 @@ import type {
 	ConnectionCompleteData,
 	SessionEventService,
 } from "../session-event-service.svelte.js";
-import type { Mode, Model, SessionCold, SessionIdentity, SessionMetadata } from "../types.js";
+import type { Mode, Model, SessionCold } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -87,30 +88,6 @@ type ProviderAwareSessionModelState = AcpSessionModelState & {
 	readonly providerMetadata?: ProviderMetadataProjection | null;
 	readonly modelsDisplay?: ModelsForDisplay | null;
 };
-
-function sessionColdFromSlices(
-	sessionIdentity: SessionIdentity,
-	sessionMetadata: SessionMetadata
-): SessionCold {
-	return {
-		id: sessionIdentity.id,
-		projectPath: sessionIdentity.projectPath,
-		agentId: sessionIdentity.agentId,
-		worktreePath: sessionIdentity.worktreePath,
-		title: sessionMetadata.title,
-		createdAt: sessionMetadata.createdAt,
-		updatedAt: sessionMetadata.updatedAt,
-		sourcePath: sessionMetadata.sourcePath,
-		sessionLifecycleState: sessionMetadata.sessionLifecycleState,
-		parentId: sessionMetadata.parentId,
-		prNumber: sessionMetadata.prNumber,
-		prState: sessionMetadata.prState,
-		prLinkMode: sessionMetadata.prLinkMode,
-		linkedPr: sessionMetadata.linkedPr,
-		worktreeDeleted: sessionMetadata.worktreeDeleted,
-		sequenceId: sessionMetadata.sequenceId,
-	};
-}
 
 function getProviderAwareSessionModelState(
 	modelState: AcpSessionModelState | null | undefined

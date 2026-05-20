@@ -104,6 +104,7 @@ import "../errors/app-error.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
+import { sessionColdFromSlices } from "../application/dto/session-cold.js";
 import {
 	deriveSessionListStateFromCanonical,
 	type SessionListState,
@@ -1412,8 +1413,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
-		const session = this.getSessionCold(sessionId);
-		if (!session) {
+		const sessionIdentity = this.getSessionIdentity(sessionId);
+		const sessionMetadata = this.getSessionMetadata(sessionId);
+		if (!sessionIdentity || !sessionMetadata) {
 			return err(sessionExportContentError("session_not_found"));
 		}
 
@@ -1422,7 +1424,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return err(sessionExportContentError("thread_content_not_loaded"));
 		}
 
-		return ok(sessionGraphToJsonExportContent(session, graph));
+		return ok(
+			sessionGraphToJsonExportContent(
+				sessionColdFromSlices(sessionIdentity, sessionMetadata),
+				graph
+			)
+		);
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {
