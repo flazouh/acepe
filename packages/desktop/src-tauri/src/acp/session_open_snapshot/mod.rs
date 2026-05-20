@@ -352,7 +352,7 @@ fn sanitize_operations_for_projection_frontier(
         .collect()
 }
 
-fn sanitize_operations_for_historical_open(
+pub(crate) fn sanitize_operations_for_historical_open(
     operations: Vec<OperationSnapshot>,
     projection_is_behind_journal: bool,
 ) -> Vec<OperationSnapshot> {
@@ -369,7 +369,7 @@ fn sanitize_operations_for_historical_open(
         .collect()
 }
 
-fn sanitize_interactions_for_historical_open(
+pub(crate) fn sanitize_interactions_for_historical_open(
     interactions: Vec<InteractionSnapshot>,
 ) -> Vec<InteractionSnapshot> {
     interactions

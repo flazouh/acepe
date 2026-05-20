@@ -4,7 +4,9 @@ use crate::acp::error::{CreationFailure, CreationFailureKind};
 use crate::acp::event_hub::{AcpEventHubState, OpenTokenClaim};
 use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
 use crate::acp::projections::{
-    OperationSnapshot, OperationSourceLink, ProjectionRegistry, SessionProjectionSnapshot,
+    is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationSnapshot,
+    OperationSourceLink, ProjectionRegistry, SessionProjectionSnapshot, SessionTurnState,
+    TurnFailureSnapshot,
 };
 use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
@@ -13,6 +15,7 @@ use crate::acp::session_descriptor::{
 use crate::acp::session_materialization::materialize_provider_owned_thread_snapshot;
 use crate::acp::session_open_snapshot::{
     derive_title_from_transcript_snapshot, resolve_canonical_session_title,
+    sanitize_interactions_for_historical_open, sanitize_operations_for_historical_open,
     session_open_result_for_new_session, NewSessionOpenResultInput, SessionOpenFound,
     SessionOpenResult,
 };
@@ -505,8 +508,8 @@ pub async fn acp_get_session_state(
         let materialized_transcript_snapshot = lookup.transcript_snapshot.clone();
         let SessionProjectionSnapshot {
             session,
-            operations,
-            interactions,
+            operations: raw_operations,
+            interactions: raw_interactions,
             runtime: _,
         } = lookup.projection;
         let runtime_snapshot = runtime_snapshot_for_refresh(
@@ -537,11 +540,6 @@ pub async fn acp_get_session_state(
             )
             .await?
         };
-        warn_unresolved_tool_rows_in_state_lookup(
-            &canonical_session_id,
-            &transcript_snapshot,
-            &operations,
-        );
         let projection_session = session.as_ref();
         let agent_id = lookup
             .replay_context
@@ -567,14 +565,29 @@ pub async fn acp_get_session_state(
             .and_then(|context| context.source_path.clone())
             .or_else(|| descriptor.as_ref().and_then(|facts| facts.source_path.clone()));
         let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
-        let turn_state = projection_session
+        let raw_turn_state = projection_session
             .map(|session| session.turn_state.clone())
             .unwrap_or(crate::acp::projections::SessionTurnState::Idle);
+        let state_lookup_authority = resolve_state_lookup_authority(
+            runtime_snapshot.graph_revision > 0,
+            !transcript_snapshot.entries.is_empty(),
+            raw_turn_state,
+            raw_operations,
+            raw_interactions,
+            projection_session.and_then(|session| session.active_turn_failure.clone()),
+        );
+        let operations = state_lookup_authority.operations;
+        let interactions = state_lookup_authority.interactions;
+        warn_unresolved_tool_rows_in_state_lookup(
+            &canonical_session_id,
+            &transcript_snapshot,
+            &operations,
+        );
+        let turn_state = state_lookup_authority.turn_state;
         let message_count = projection_session
             .map(|session| session.message_count)
             .unwrap_or(0);
-        let active_turn_failure =
-            projection_session.and_then(|session| session.active_turn_failure.clone());
+        let active_turn_failure = state_lookup_authority.active_turn_failure;
         let last_terminal_turn_id =
             projection_session.and_then(|session| session.last_terminal_turn_id.clone());
         let lifecycle = runtime_snapshot.lifecycle.clone();
@@ -1666,6 +1679,60 @@ fn runtime_snapshot_for_refresh(
         .unwrap_or_default()
 }
 
+struct StateLookupAuthority {
+    operations: Vec<OperationSnapshot>,
+    interactions: Vec<InteractionSnapshot>,
+    turn_state: SessionTurnState,
+    active_turn_failure: Option<TurnFailureSnapshot>,
+}
+
+fn resolve_state_lookup_authority(
+    has_live_runtime_state: bool,
+    transcript_has_entries: bool,
+    raw_turn_state: SessionTurnState,
+    raw_operations: Vec<OperationSnapshot>,
+    raw_interactions: Vec<InteractionSnapshot>,
+    raw_active_turn_failure: Option<TurnFailureSnapshot>,
+) -> StateLookupAuthority {
+    if has_live_runtime_state {
+        return StateLookupAuthority {
+            operations: raw_operations,
+            interactions: raw_interactions,
+            turn_state: raw_turn_state,
+            active_turn_failure: raw_active_turn_failure,
+        };
+    }
+
+    let had_stale_active_projection = raw_turn_state == SessionTurnState::Running
+        || raw_operations
+            .iter()
+            .any(|operation| !is_terminal_operation_state(&operation.operation_state))
+        || raw_interactions
+            .iter()
+            .any(|interaction| interaction.state == InteractionState::Pending);
+    let turn_state = if raw_turn_state != SessionTurnState::Failed && had_stale_active_projection {
+        if transcript_has_entries {
+            SessionTurnState::Completed
+        } else {
+            SessionTurnState::Idle
+        }
+    } else {
+        raw_turn_state
+    };
+    let active_turn_failure = if turn_state == SessionTurnState::Failed {
+        raw_active_turn_failure
+    } else {
+        None
+    };
+
+    StateLookupAuthority {
+        operations: sanitize_operations_for_historical_open(raw_operations, false),
+        interactions: sanitize_interactions_for_historical_open(raw_interactions),
+        turn_state,
+        active_turn_failure,
+    }
+}
+
 fn projection_snapshot_with_runtime(
     projection_registry: &ProjectionRegistry,
     runtime_registry: &SessionGraphRuntimeRegistry,
@@ -2435,7 +2502,8 @@ mod tests {
         load_live_session_graph_revision, load_transcript_snapshot_for_resume,
         load_transcript_snapshot_for_state_lookup, persist_session_metadata_for_cwd,
         projection_has_graph_state, resolve_fork_session_target, resolve_requested_agent_id,
-        resolve_resume_session_target, runtime_snapshot_for_refresh, unresolved_tool_entry_ids,
+        resolve_resume_session_target, resolve_state_lookup_authority,
+        runtime_snapshot_for_refresh, unresolved_tool_entry_ids,
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::lifecycle::LifecycleCheckpoint;
@@ -2973,6 +3041,41 @@ mod tests {
         assert_eq!(snapshot.graph_revision, 0);
         assert!(snapshot.capabilities.modes.is_none());
         assert!(snapshot.capabilities.available_commands.is_none());
+    }
+
+    #[test]
+    fn state_lookup_without_live_runtime_closes_stale_running_turn() {
+        let authority = resolve_state_lookup_authority(
+            false,
+            true,
+            crate::acp::projections::SessionTurnState::Running,
+            Vec::new(),
+            Vec::new(),
+            None,
+        );
+
+        assert_eq!(
+            authority.turn_state,
+            crate::acp::projections::SessionTurnState::Completed
+        );
+        assert!(authority.active_turn_failure.is_none());
+    }
+
+    #[test]
+    fn state_lookup_with_live_runtime_preserves_running_turn() {
+        let authority = resolve_state_lookup_authority(
+            true,
+            true,
+            crate::acp::projections::SessionTurnState::Running,
+            Vec::new(),
+            Vec::new(),
+            None,
+        );
+
+        assert_eq!(
+            authority.turn_state,
+            crate::acp::projections::SessionTurnState::Running
+        );
     }
 
     #[tokio::test]
