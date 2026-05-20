@@ -1,5 +1,6 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { ArrowRight } from "@lucide/svelte";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
 
@@ -10,16 +11,26 @@ const comparisons = $derived(
 		.map((slug) => getComparison(slug))
 		.filter((c): c is NonNullable<typeof c> => c !== null)
 );
+
+const compareItemListJsonLd = $derived({
+	"@context": "https://schema.org",
+	"@type": "ItemList",
+	name: "Acepe comparisons",
+	itemListElement: comparisons.map((comparison, index) => ({
+		"@type": "ListItem",
+		position: index + 1,
+		url: `https://acepe.dev/compare/${comparison.slug}`,
+		name: comparison.metaTitle,
+	})),
+});
 </script>
 
-<svelte:head>
-	<title>{"Compare Acepe"} - Acepe</title>
-	<meta name="description" content={"See how Acepe stacks up against other developer tools, feature by feature."} />
-	<meta property="og:title" content="{"Compare Acepe"} - Acepe" />
-	<meta property="og:description" content={"See how Acepe stacks up against other developer tools, feature by feature."} />
-	<meta property="og:type" content="website" />
-	<meta property="og:url" content="https://acepe.dev/compare" />
-</svelte:head>
+<Seo
+	title="Compare Acepe vs other AI agent tools"
+	description="How Acepe stacks up against Cursor, Conductor, Superset, T3, OneCode, and other agent and IDE workflows — feature by feature, side by side."
+	keywords={["Acepe vs Cursor", "Acepe vs Conductor", "Claude Code GUI comparison", "AI agent client comparison"]}
+	jsonLd={compareItemListJsonLd}
+/>
 
 <div class="min-h-screen">
 	<Header

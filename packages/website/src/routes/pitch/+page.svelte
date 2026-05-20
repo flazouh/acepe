@@ -2,6 +2,7 @@
 import { browser } from "$app/environment";
 import { BrandLockup } from "@acepe/ui";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import { formatPitchProofValue, pitchSections } from "$lib/pitch/content.js";
 
@@ -107,12 +108,13 @@ const slideDescriptionClass =
 const slideSummaryClass = `max-w-3xl ${slideDescriptionClass}`;
 </script>
 
+<Seo
+	title="Investor Pitch"
+	description="Acepe investor pitch: the platform-neutral operating layer for agentic development."
+	noindex
+/>
+
 <svelte:head>
-	<title>Investor Pitch - Acepe</title>
-	<meta
-		name="description"
-		content="Acepe investor pitch: the platform-neutral operating layer for agentic development."
-	/>
 	<link rel="preload" href="/images/pitch/pitch-view-agent.webp" as="image" type="image/webp" />
 	<style>
 		@page {

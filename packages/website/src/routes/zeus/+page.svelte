@@ -1,6 +1,7 @@
 <script lang="ts">
 import { ArrowRightIcon, PillButton, BrandLockup } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import ZeusShaderStage from "$lib/components/zeus-shader-stage.svelte";
 import { GithubLogo } from "phosphor-svelte";
 
@@ -37,13 +38,11 @@ const meta = [
 ];
 </script>
 
-<svelte:head>
-	<title>Zeus — The conductor for your agents · Acepe</title>
-	<meta
-		name="description"
-		content="Zeus is the orchestration layer above every coding agent. It watches, routes, and ships — so you stay in command of the work, not the tools. Coming soon to Acepe."
-	/>
-</svelte:head>
+<Seo
+	title="Zeus — The conductor for your agents"
+	description="Zeus is the orchestration layer above every coding agent. It watches, routes, and ships — so you stay in command of the work, not the tools. Coming soon to Acepe."
+	keywords={["Zeus", "AI agent orchestration", "agent conductor", "Acepe Zeus"]}
+/>
 
 <div class="zeus-page">
 	<Header

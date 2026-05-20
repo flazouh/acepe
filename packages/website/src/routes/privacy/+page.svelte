@@ -1,5 +1,6 @@
 <script lang="ts">
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 
 let { data } = $props();
 
@@ -69,10 +70,10 @@ const sections = [
 ];
 </script>
 
-<svelte:head>
-	<title>Privacy Policy - Acepe</title>
-	<meta name="description" content="Acepe privacy policy — what data we collect and how we use it." />
-</svelte:head>
+<Seo
+	title="Privacy Policy"
+	description="Acepe privacy policy — what data we collect (almost nothing) and how we handle it. No analytics, no tracking cookies, no third-party trackers."
+/>
 
 <div class="min-h-screen">
 	<Header

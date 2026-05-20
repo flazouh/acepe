@@ -2,13 +2,38 @@
 const description =
 	"A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface.";
 
+const sameAs = [
+	"https://github.com/flazouh/acepe",
+];
+
 const organizationSchema = {
 	"@context": "https://schema.org",
 	"@type": "Organization",
 	name: "Acepe",
+	alternateName: "Acepe — The Agentic Developer Environment",
 	url: "https://acepe.dev",
-	logo: "https://acepe.dev/favicon-512x512.png",
+	logo: {
+		"@type": "ImageObject",
+		url: "https://acepe.dev/favicon-512x512.png",
+		width: 512,
+		height: 512,
+	},
 	description,
+	sameAs,
+};
+
+const websiteSchema = {
+	"@context": "https://schema.org",
+	"@type": "WebSite",
+	name: "Acepe",
+	url: "https://acepe.dev",
+	description,
+	publisher: {
+		"@type": "Organization",
+		name: "Acepe",
+		url: "https://acepe.dev",
+	},
+	inLanguage: "en-US",
 };
 
 const softwareSchema = {
@@ -17,36 +42,42 @@ const softwareSchema = {
 	name: "Acepe",
 	description,
 	applicationCategory: "DeveloperApplication",
+	applicationSubCategory: "AI Coding Agent Client",
 	operatingSystem: "macOS, Windows, Linux",
 	url: "https://acepe.dev",
+	downloadUrl: "https://acepe.dev/download",
 	image: "https://acepe.dev/og-image.png",
 	screenshot: "https://acepe.dev/og-image.png",
-	softwareVersion: "1.0",
 	offers: {
 		"@type": "Offer",
 		price: "0",
 		priceCurrency: "USD",
+		availability: "https://schema.org/InStock",
+		url: "https://acepe.dev/download",
 	},
 	featureList: [
-		"Readable plan mode with markdown rendering",
+		"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side",
+		"Parallel agent sessions with attention queue triage",
+		"Readable plan mode with full markdown rendering",
 		"Unified session history across projects",
-		"Multi-agent support (Claude Code, Codex, OpenCode)",
-		"Parallel agent sessions",
-		"Keyboard-first design",
-		"Focus mode for deep work",
+		"File-level checkpoints with time-travel debugging",
+		"Built-in Git panel, diff viewer, and SQL studio",
+		"Keyboard-first design with focus mode",
 	],
-	aggregateRating: {
-		"@type": "AggregateRating",
-		ratingValue: "5",
-		ratingCount: "1",
+	author: {
+		"@type": "Organization",
+		name: "Acepe",
+		url: "https://acepe.dev",
 	},
 };
 
 const jsonLdOrg = JSON.stringify(organizationSchema);
+const jsonLdWebsite = JSON.stringify(websiteSchema);
 const jsonLdSoftware = JSON.stringify(softwareSchema);
 </script>
 
 <svelte:head>
 	{@html `<script type="application/ld+json">${jsonLdOrg}</script>`}
+	{@html `<script type="application/ld+json">${jsonLdWebsite}</script>`}
 	{@html `<script type="application/ld+json">${jsonLdSoftware}</script>`}
 </svelte:head>

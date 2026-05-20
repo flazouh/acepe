@@ -1,6 +1,7 @@
 <script lang="ts">
 import { BrandLockup } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { Download } from "@lucide/svelte";
 import { AppleLogo, GithubLogo } from "phosphor-svelte";
 
@@ -12,12 +13,30 @@ function handleDownload() {
 	downloading = true;
 	setTimeout(() => (downloading = false), 4000);
 }
+
+const downloadJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "SoftwareApplication",
+	name: "Acepe",
+	operatingSystem: "macOS",
+	applicationCategory: "DeveloperApplication",
+	url: "https://acepe.dev/download",
+	downloadUrl: "https://acepe.dev/download",
+	offers: {
+		"@type": "Offer",
+		price: "0",
+		priceCurrency: "USD",
+		availability: "https://schema.org/InStock",
+	},
+};
 </script>
 
-<svelte:head>
-	<title>Download - Acepe</title>
-	<meta name="description" content="Download Acepe for macOS. The agentic developer environment for running Claude Code, Codex, and more — side by side." />
-</svelte:head>
+<Seo
+	title="Download Acepe for macOS"
+	description="Download Acepe — the native desktop agentic developer environment for macOS. Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Free forever for local sessions."
+	keywords={["download Acepe", "Acepe macOS", "Claude Code desktop app", "Codex desktop client", "AI agent IDE download"]}
+	jsonLd={downloadJsonLd}
+/>
 
 <div class="min-h-screen">
 	<Header

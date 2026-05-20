@@ -2,6 +2,7 @@
 import type { ChangeType } from "@acepe/changelog";
 import { CHANGELOG, groupChangesByType } from "@acepe/changelog";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { Bug, Lightning, RocketLaunch, Warning } from "phosphor-svelte";
 
 let { data } = $props();
@@ -25,10 +26,11 @@ function formatDate(dateStr: string): string {
 }
 </script>
 
-<svelte:head>
-	<title>{"Changelog"} - Acepe</title>
-	<meta name="description" content={"What's new in Acepe. Updates are listed newest first."} />
-</svelte:head>
+<Seo
+	title="Changelog"
+	description="What's new in Acepe — features, fixes, and improvements to the agentic developer environment, newest first."
+	keywords={["Acepe changelog", "release notes", "product updates"]}
+/>
 
 <div class="min-h-screen">
 	<Header
