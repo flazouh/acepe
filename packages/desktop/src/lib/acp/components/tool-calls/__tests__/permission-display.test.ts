@@ -7,6 +7,7 @@ import {
 	extractCompactPermissionDisplay,
 	extractPermissionCommand,
 	extractPermissionFilePath,
+	shouldShowPermissionBarSummary,
 } from "../permission-display.js";
 
 function createPermission(metadata: PermissionRequest["metadata"]): PermissionRequest {
@@ -40,6 +41,31 @@ function createEditToolCall(filePath: string): ToolCall {
 		result: null,
 		kind: "edit",
 		title: filePath,
+		locations: null,
+		skillMeta: null,
+		normalizedQuestions: null,
+		normalizedTodos: null,
+		normalizedTodoUpdate: null,
+		parentToolUseId: null,
+		questionAnswer: null,
+		awaitingPlanApproval: false,
+		planApprovalRequestId: null,
+	};
+}
+
+function createAccessToolCall(): ToolCall {
+	return {
+		id: "tool-access",
+		name: "Access",
+		arguments: {
+			kind: "other",
+			raw: {},
+			intent: null,
+		},
+		status: "pending",
+		result: null,
+		kind: "other",
+		title: "Access",
 		locations: null,
 		skillMeta: null,
 		normalizedQuestions: null,
@@ -282,5 +308,45 @@ describe("permission-display", () => {
 			command: null,
 			filePath: "packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
 		});
+	});
+
+	it("keeps permission summary visible when the represented tool row lacks approval context", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "read",
+				file_path: "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte",
+			},
+		});
+		permission.permission = "Access paths outside trusted directories";
+		const display = extractCompactPermissionDisplay(permission, "/repo", createAccessToolCall());
+
+		expect(
+			shouldShowPermissionBarSummary({
+				isRepresentedByToolCall: true,
+				display,
+				toolCall: createAccessToolCall(),
+			})
+		).toBe(true);
+	});
+
+	it("can hide permission summary when the represented edit tool row already has file context", () => {
+		const filePath = "/repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte";
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "edit",
+				edits: [{ filePath, oldString: null, newString: null, content: null }],
+			},
+		});
+		permission.permission = "Edit /repo/packages/desktop/src/lib/components/ui/workspace-dialog-frame.svelte";
+		const toolCall = createEditToolCall(filePath);
+		const display = extractCompactPermissionDisplay(permission, "/repo", toolCall);
+
+		expect(
+			shouldShowPermissionBarSummary({
+				isRepresentedByToolCall: true,
+				display,
+				toolCall,
+			})
+		).toBe(false);
 	});
 });

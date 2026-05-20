@@ -9,6 +9,7 @@
 		command?: string | null;
 		showFilePath?: boolean;
 		showSummary?: boolean;
+		compactSummaryLabel?: string;
 		leading: Snippet;
 		trailing?: Snippet;
 		hasTrailing?: boolean;
@@ -25,6 +26,7 @@
 		command = null,
 		showFilePath = true,
 		showSummary = true,
+		compactSummaryLabel = "Permission required",
 		leading,
 		trailing,
 		hasTrailing = false,
@@ -69,7 +71,21 @@
 			</div>
 		{/if}
 
-		<div class="flex w-full items-center">
+		<div class="flex w-full items-center justify-between gap-2">
+			{#if !showSummary}
+				<div class="flex min-w-0 shrink-0 items-center gap-1.5 text-sm">
+					<span
+						class="inline-flex shrink-0 items-center justify-center"
+						aria-label={compactSummaryLabel}
+						title={compactSummaryLabel}
+					>
+						{@render leading()}
+					</span>
+					<span class="shrink-0 text-sm font-medium text-muted-foreground">
+						{compactSummaryLabel}
+					</span>
+				</div>
+			{/if}
 			{@render actionBar()}
 		</div>
 

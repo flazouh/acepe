@@ -13,7 +13,10 @@ import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
 import { mapCanonicalTurnStateToPresentationStatus } from "../../store/canonical-turn-state-mapping.js";
-import { extractCompactPermissionDisplay } from "./permission-display.js";
+import {
+	extractCompactPermissionDisplay,
+	shouldShowPermissionBarSummary,
+} from "./permission-display.js";
 import { useTheme } from "../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 import {
@@ -84,11 +87,16 @@ const editTheme = $derived(themeState.effectiveTheme);
 		showCommandWhenRepresented || !isRepresentedByToolCall ? compactDisplay.command : null}
 	{@const filePath = compactDisplay.filePath}
 	{@const verb = compactDisplay.label}
+	{@const showSummary = shouldShowPermissionBarSummary({
+		isRepresentedByToolCall,
+		display: compactDisplay,
+		toolCall: currentToolCall,
+	})}
 	<SharedAgentPanelPermissionBar
 		{verb}
 		{filePath}
 		showFilePath={!showEditPreview}
-		showSummary={!isRepresentedByToolCall}
+		{showSummary}
 		{command}
 		hasProgress={sessionProgress !== null && sessionProgress !== undefined}
 		hasEditPreview={showEditPreview && currentToolCall !== null}

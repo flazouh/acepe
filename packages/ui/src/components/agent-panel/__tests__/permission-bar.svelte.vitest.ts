@@ -1,0 +1,34 @@
+import { cleanup, render } from "@testing-library/svelte";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import PermissionBarSummaryFixture from "./fixtures/permission-bar-summary-fixture.svelte";
+
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
+
+afterEach(() => {
+	cleanup();
+});
+
+describe("AgentPanelPermissionBar", () => {
+	it("keeps a visible label when the detailed summary is hidden", () => {
+		const view = render(PermissionBarSummaryFixture, {
+			props: {
+				showSummary: false,
+			},
+		});
+
+		expect(view.getByText("Permission required")).toBeTruthy();
+		expect(view.getByTestId("permission-actions")).toBeTruthy();
+		expect(view.queryByText("src/file.ts")).toBeNull();
+	});
+});

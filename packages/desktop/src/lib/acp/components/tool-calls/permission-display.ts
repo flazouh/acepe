@@ -78,6 +78,12 @@ export interface CompactPermissionDisplay {
 	readonly filePath: string | null;
 }
 
+export interface PermissionBarSummaryVisibilityInput {
+	readonly isRepresentedByToolCall: boolean;
+	readonly display: CompactPermissionDisplay;
+	readonly toolCall?: ToolCall | null;
+}
+
 function normalizePermissionDisplayKind(value: string | null | undefined): PermissionDisplayKind {
 	if (!value) {
 		return "other";
@@ -218,4 +224,29 @@ export function extractCompactPermissionDisplay(
 		command,
 		filePath,
 	};
+}
+
+export function shouldShowPermissionBarSummary(
+	input: PermissionBarSummaryVisibilityInput
+): boolean {
+	if (!input.isRepresentedByToolCall) {
+		return true;
+	}
+
+	const toolCall = input.toolCall;
+	if (!toolCall) {
+		return true;
+	}
+
+	const toolCallFilePath = extractToolCallFilePath(toolCall);
+	if (input.display.filePath && !toolCallFilePath) {
+		return true;
+	}
+
+	const toolCallCommand = extractToolCallCommand(toolCall);
+	if (input.display.command && !toolCallCommand) {
+		return true;
+	}
+
+	return !toolCallFilePath && !toolCallCommand;
 }
