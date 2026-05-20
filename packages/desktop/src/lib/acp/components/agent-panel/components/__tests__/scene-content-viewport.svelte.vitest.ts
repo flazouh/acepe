@@ -47,6 +47,9 @@ const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
 	HTMLElement.prototype,
 	"scrollIntoView"
 );
+const mockPermissionStore = vi.hoisted(() => ({
+	getForToolCall: vi.fn(),
+}));
 
 function createUserSceneEntry(id: string, text: string): AgentPanelSceneEntryModel {
 	return { id, type: "user", text };
@@ -63,6 +66,13 @@ function createAssistantSceneEntry(
 
 function createToolCallSceneEntry(id: string): AgentPanelSceneEntryModel {
 	return { id, type: "tool_call", title: "tool", status: "done" };
+}
+
+function createToolCallSceneEntryWithToolCallId(
+	id: string,
+	toolCallId: string
+): AgentPanelSceneEntryModel {
+	return { id, type: "tool_call", title: "tool", status: "blocked", toolCallId };
 }
 
 function createTokenRevealCss(revealedCharCount: number): TokenRevealCss {
@@ -187,6 +197,14 @@ vi.mock("../../../messages/error-message.svelte", async () => ({
 	default: (await import("./fixtures/user-message-stub.svelte")).default,
 }));
 
+vi.mock("../../../tool-calls/permission-bar.svelte", async () => ({
+	default: (await import("./fixtures/permission-bar-stub.svelte")).default,
+}));
+
+vi.mock("../../../../store/permission-store.svelte.js", () => ({
+	getPermissionStore: () => mockPermissionStore,
+}));
+
 vi.mock("@acepe/ui/agent-panel", async () => ({
 	AgentPanelConversationEntry: (await import("./fixtures/agent-panel-conversation-entry-stub.svelte")).default,
 	groupAssistantChunks: (chunks: { type: string; block?: { type: string; text?: string } }[]) => ({
@@ -214,6 +232,8 @@ describe("SceneContentViewport auto-scroll", () => {
 	beforeEach(() => {
 		resizeObservers.length = 0;
 		clearHistory();
+		mockPermissionStore.getForToolCall.mockReset();
+		mockPermissionStore.getForToolCall.mockReturnValue(undefined);
 		queuedAnimationFrames = [];
 		nextAnimationFrameId = 1;
 		scrollIntoViewMock.mockClear();
@@ -452,6 +472,37 @@ describe("SceneContentViewport auto-scroll", () => {
 			id: "assistant-1",
 			type: "assistant",
 		});
+	});
+
+	it("attaches permission shelf without replacing the tool card right edge", async () => {
+		mockPermissionStore.getForToolCall.mockReturnValue({
+			id: "permission-1",
+			sessionId: "session-1",
+			permission: "Execute",
+			patterns: [],
+			metadata: { options: [] },
+			always: [],
+			tool: { messageID: "", callID: "tool-call-1" },
+		});
+
+		const view = renderList({
+			sceneEntries: [createToolCallSceneEntryWithToolCallId("tool-entry-1", "tool-call-1")],
+			turnState: "streaming",
+			isWaitingForResponse: true,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(view.queryByTestId("permission-bar-stub")).not.toBeNull();
+		expect(view.queryByTestId("tool-call-permission-main-edge")).toBeNull();
+
+		const card = view.container.querySelector(".agent-tool-card");
+		if (!(card instanceof HTMLElement)) {
+			throw new Error("Missing tool card");
+		}
+
+		expect(card.closest(".tool-call-with-permission")).not.toBeNull();
 	});
 
 	it("uses the native scroller for compact settled tool transcripts", async () => {

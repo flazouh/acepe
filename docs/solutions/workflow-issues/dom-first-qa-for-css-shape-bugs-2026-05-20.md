@@ -40,6 +40,8 @@ Check the exact elements that create the shape:
 
 Only use a screenshot after DOM QA, as a final human-facing sanity check.
 
+The DOM state must also be deterministic. Prefer a real visible instance of the broken UI. If the current app does not have one, inject a temporary DOM fixture into the dev WebView that uses the app's loaded CSS classes, measure it, then remove it. Do not inspect a random current screen state and treat that as proof.
+
 ## Why This Matters
 
 If two elements are pretending to be one shape, normal CSS borders often fight each other. Removing a border from one element can also remove a border that is still needed somewhere else.
@@ -49,3 +51,10 @@ DOM QA catches that directly. A screenshot can show that something looks wrong, 
 ## Rule
 
 When the user reports a border, radius, attached-surface, or masking problem, first prove the shape in DOM terms. Do not keep guessing from screenshots.
+
+For attached surfaces, include explicit geometry checks:
+
+- the shelf does not span the full card width
+- the main card keeps any far-side border and radius it still owns
+- the shelf owns only its compact surface
+- no unrelated filler element draws decorative border art elsewhere
