@@ -2181,7 +2181,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	ensureSessionFromStateGraph(graph: SessionStateGraph): boolean {
 		const sessionId = graph.canonicalSessionId;
-		if (this.getSessionCold(sessionId)) {
+		if (this.getSessionIdentity(sessionId)) {
 			this.pendingCreationSessions.delete(sessionId);
 			if (graph.isAlias) {
 				this.pendingCreationSessions.delete(graph.requestedSessionId);
