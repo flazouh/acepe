@@ -26,6 +26,12 @@ function formatDate(isoDate: string): string {
 const postUrl = $derived(`https://acepe.dev/blog/${metadata.slug}`);
 const ogImage = $derived(metadata.ogImage ?? "/og-image.png");
 
+function toAbsoluteUrl(path: string): string {
+	if (path.startsWith("http")) return path;
+	const normalized = path.startsWith("/") ? path : `/${path}`;
+	return `https://acepe.dev${normalized}`;
+}
+
 const jsonLd = $derived([
 	{
 		"@context": "https://schema.org",
@@ -35,7 +41,7 @@ const jsonLd = $derived([
 		datePublished: metadata.date,
 		dateModified: metadata.date,
 		mainEntityOfPage: { "@type": "WebPage", "@id": postUrl },
-		image: ogImage.startsWith("http") ? ogImage : `https://acepe.dev${ogImage}`,
+		image: toAbsoluteUrl(ogImage),
 		author: {
 			"@type": "Organization",
 			name: metadata.author || "Acepe",

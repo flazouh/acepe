@@ -54,9 +54,11 @@ const canonicalUrl = $derived(
 	canonicalPath.startsWith("http") ? canonicalPath : `${BASE_URL}${canonicalPath}`
 );
 
-const absoluteImage = $derived(
-	image.startsWith("http") ? image : `${BASE_URL}${image}`
-);
+const absoluteImage = $derived.by((): string => {
+	if (image.startsWith("http")) return image;
+	const normalized = image.startsWith("/") ? image : `/${image}`;
+	return `${BASE_URL}${normalized}`;
+});
 
 // Only declare og:image dimensions when we know them. The default OG image
 // is 1200x630; custom callers may supply their own dimensions. Lying about
