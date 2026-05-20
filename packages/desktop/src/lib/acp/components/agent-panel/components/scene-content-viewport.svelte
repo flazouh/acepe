@@ -1253,6 +1253,11 @@ export function scrollToTop() {
 									attachment="tool-call"
 								/>
 							</div>
+							<div
+								class="tool-call-permission-main-edge"
+								data-testid="tool-call-permission-main-edge"
+								aria-hidden="true"
+							></div>
 						</div>
 					{/if}
 				</div>
@@ -1317,5 +1322,16 @@ export function scrollToTop() {
 		flex: 0 0 auto;
 		max-width: 100%;
 		width: fit-content;
+	}
+
+	.tool-call-permission-main-edge {
+		border-color: var(--border);
+		border-style: solid;
+		border-width: 1px 1px 0 0;
+		border-top-right-radius: var(--radius-sm);
+		flex: 1 1 auto;
+		height: var(--radius-sm);
+		min-width: 0;
+		pointer-events: none;
 	}
 </style>
