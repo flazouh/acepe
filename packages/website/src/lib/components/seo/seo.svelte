@@ -48,7 +48,7 @@ const fullTitle = $derived(
 );
 
 const canonicalPath = $derived(
-	canonical ?? canonicalizePathname(page.url.pathname)
+	canonical ?? canonicalizePathname(page.url?.pathname ?? "/")
 );
 const canonicalUrl = $derived(
 	canonicalPath.startsWith("http") ? canonicalPath : `${BASE_URL}${canonicalPath}`
