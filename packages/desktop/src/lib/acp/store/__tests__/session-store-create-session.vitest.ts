@@ -347,7 +347,7 @@ describe("SessionStore.createSession", () => {
 			title: "Build stable panels",
 			worktreePath: null,
 		});
-		expect(store.sessions).toEqual([]);
+		expect(store.getAllSessions()).toEqual([]);
 		expect(store.hasPendingCreationSession("provider-requested-id")).toBe(true);
 
 		const materialized = store.ensureSessionFromStateGraph(
@@ -360,8 +360,9 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		expect(store.sessions).toHaveLength(1);
-		expect(store.sessions[0]).toEqual(
+		const sessions = store.getAllSessions();
+		expect(sessions).toHaveLength(1);
+		expect(sessions[0]).toEqual(
 			expect.objectContaining({
 				id: "provider-requested-id",
 				projectPath: "/repo",
@@ -409,8 +410,9 @@ describe("SessionStore.createSession", () => {
 		);
 
 		expect(materialized).toBe(true);
-		expect(store.sessions).toHaveLength(1);
-		expect(store.sessions[0]).toEqual(
+		const sessions = store.getAllSessions();
+		expect(sessions).toHaveLength(1);
+		expect(sessions[0]).toEqual(
 			expect.objectContaining({
 				id: "provider-canonical-id",
 				title: "Aliased Thread",

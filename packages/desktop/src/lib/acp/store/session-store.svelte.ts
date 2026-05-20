@@ -1273,7 +1273,7 @@ export interface SessionStoreCallbacks {
 
 export class SessionStore implements SessionEventHandler, ISessionStateReader, ISessionStateWriter {
 	// === PRIMARY STATE ===
-	sessions = $state<SessionCold[]>([]);
+	private sessions = $state<SessionCold[]>([]);
 	loading = $state(false);
 
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
@@ -1334,11 +1334,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private callbacks: SessionStoreCallbacks = {};
 
 	// === DERIVED LOOKUPS ===
-	readonly sessionById = $derived.by(() => {
+	private readonly sessionById = $derived.by(() => {
 		return new Map(this.sessions.map((s) => [s.id, s]));
 	});
 
-	readonly sessionsByProject = $derived.by(() => {
+	private readonly sessionsByProject = $derived.by(() => {
 		const map = new Map<string, SessionCold[]>();
 		for (const s of this.sessions) {
 			let arr = map.get(s.projectPath);

@@ -419,7 +419,9 @@ function handleBrowseProjectIcon() {
 // Do NOT read compatibility transcript entries here; they change every rAF during streaming,
 // marking this derived dirty on every frame and cascading to ALL SessionItem components.
 const visibleSessions = $derived.by(() => {
-	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(sessionStore.sessions);
+	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
+		sessionStore.getAllSessions()
+	);
 	return coldSessions
 		.filter((cold) => !archiveStore.isArchived(cold))
 		.map((cold) => {

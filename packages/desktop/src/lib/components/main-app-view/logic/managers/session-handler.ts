@@ -56,7 +56,7 @@ export class SessionHandler {
 		sessionInfo?: SessionListItem
 	): ResultAsync<void, MainAppViewError> {
 		// Check if session exists in memory
-		const existingSession = this.sessionStore.sessions.find((s) => s.id === sessionId);
+		const existingSession = this.sessionStore.getSessionCold(sessionId);
 		let finalSessionId = sessionId;
 
 		// If session not in memory, try to load it

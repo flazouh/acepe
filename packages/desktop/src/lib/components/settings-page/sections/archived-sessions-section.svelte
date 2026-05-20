@@ -21,7 +21,9 @@ const agentPreferencesStore = getAgentPreferencesStore();
 const archiveStore = getSessionArchiveStore();
 
 const allSessions = $derived.by((): SessionSummary[] => {
-	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(sessionStore.sessions);
+	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
+		sessionStore.getAllSessions()
+	);
 	return coldSessions.map((cold) => {
 		const listState = sessionStore.getSessionListState(cold.id);
 		const entryCount = sessionStore.getSessionMessageCount(cold.id);

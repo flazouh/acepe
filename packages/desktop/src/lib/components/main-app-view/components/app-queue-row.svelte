@@ -98,7 +98,7 @@ const queueInputs = $derived.by(() => {
 const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
-	for (const session of sessionStore.sessions) {
+	for (const session of sessionStore.getAllSessions()) {
 		const lifecyclePresentation = sessionStore.getSessionLifecyclePresentation(session.id);
 		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			session.id,
