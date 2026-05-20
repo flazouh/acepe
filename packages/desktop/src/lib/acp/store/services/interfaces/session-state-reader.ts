@@ -90,11 +90,6 @@ export interface ISessionStateReader {
 	isPreloaded(sessionId: string): boolean;
 
 	/**
-	 * Get all sessions for a project path.
-	 */
-	getSessionsForProject(projectPath: string): SessionCold[];
-
-	/**
 	 * Get session cold data by ID from the lookup map (O(1)).
 	 */
 	getSessionCold(id: string): SessionCold | undefined;

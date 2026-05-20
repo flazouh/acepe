@@ -55,7 +55,6 @@ function createMockDeps() {
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
-		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue({
 			id: "session-1",
 			projectPath: "/tmp/project",

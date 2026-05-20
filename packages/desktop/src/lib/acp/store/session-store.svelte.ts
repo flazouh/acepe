@@ -1887,12 +1887,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return sessionColdFromSlices(sessionIdentity, sessionMetadata);
 	}
 
-	/**
-	 * Get sessions for a project (cold data only).
-	 */
-	getSessionsForProject(projectPath: string): SessionCold[] {
+	getSessionIdsForProject(projectPath: string): string[] {
 		const sessions = this.sessionsByProject.get(projectPath) ?? [];
-		return sessions.map((session) => sessionColdFromExistingSession(session));
+		return sessions.map((session) => session.id);
 	}
 
 	getSessionPrLinkReferencesForProject(projectPath: string): SessionPrLinkReference[] {

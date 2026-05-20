@@ -58,7 +58,6 @@ function createMockDeps() {
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		isPreloaded: vi.fn(),
-		getSessionsForProject: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue(null),
 		getSessionIdentity: vi.fn().mockReturnValue(undefined),
 		getSessionMetadata: vi.fn().mockReturnValue(undefined),

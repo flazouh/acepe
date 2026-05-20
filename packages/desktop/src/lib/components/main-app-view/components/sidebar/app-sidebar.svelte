@@ -117,9 +117,9 @@ function handleResetProjectIcon(projectPath: string) {
 
 function handleRemoveProject(projectPath: string) {
 	// Close all panels associated with this project before removing it
-	for (const session of sessionStore.getSessionsForProject(projectPath)) {
-		panelStore.closePanelBySessionId(session.id);
-		sessionStore.removeSession(session.id);
+	for (const sessionId of sessionStore.getSessionIdsForProject(projectPath)) {
+		panelStore.closePanelBySessionId(sessionId);
+		sessionStore.removeSession(sessionId);
 	}
 	for (const tp of panelStore.terminalPanels.filter((p) => p.projectPath === projectPath)) {
 		panelStore.closeTerminalPanel(tp.id);

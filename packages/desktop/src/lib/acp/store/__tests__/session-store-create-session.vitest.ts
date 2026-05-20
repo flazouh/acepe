@@ -172,6 +172,7 @@ describe("SessionStore.createSession", () => {
 				sequenceId: 7,
 			},
 		]);
+		expect(store.getSessionIdsForProject("/repo")).toEqual(["linked-1", "unlinked"]);
 	});
 
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {
