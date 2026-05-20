@@ -43,18 +43,17 @@
 
 	const isAttachedToToolCall = $derived(attachment === "tool-call");
 	const cardClass = $derived.by(() => {
-		const base = "w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter";
 		if (isAttachedToToolCall) {
-			return `${base} rounded-b-sm rounded-t-none border-t-0 px-2 py-1`;
+			return "inline-flex flex-col border border-border border-t-0 bg-input/30 permission-card-enter rounded-b-sm rounded-t-none px-2 py-1";
 		}
 
-		return `${base} px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
+		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
 	});
 </script>
 
-<div class="w-full {isAttachedToToolCall ? 'mt-[-1px]' : ''}">
+<div class={isAttachedToToolCall ? "inline-flex max-w-full mt-[-1px]" : "w-full"}>
 	<div class={cardClass}>
-		{#if showSummary || (progress && hasProgress) || (trailing && hasTrailing)}
+		{#if !isAttachedToToolCall && (showSummary || (progress && hasProgress) || (trailing && hasTrailing))}
 			<div class="flex w-full items-start justify-between gap-1.5">
 				{#if showSummary}
 					<div class="flex min-w-0 w-full items-center gap-1.5 text-sm">
@@ -83,8 +82,12 @@
 			</div>
 		{/if}
 
-		<div class="flex w-full items-center gap-2 {isAttachedToToolCall ? 'justify-start' : 'justify-between'}">
-			{#if !showSummary}
+		<div
+			class={isAttachedToToolCall
+				? "inline-flex max-w-full items-center"
+				: "flex w-full items-center justify-between gap-2"}
+		>
+			{#if !isAttachedToToolCall && !showSummary}
 				<div class="flex min-w-0 shrink-0 items-center gap-1.5 text-sm">
 					<span
 						class="inline-flex shrink-0 items-center justify-center"

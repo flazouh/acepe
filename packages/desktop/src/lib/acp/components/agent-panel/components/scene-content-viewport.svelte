@@ -1301,10 +1301,10 @@ export function scrollToTop() {
 <style>
 	.tool-call-with-permission :global(.agent-tool-card) {
 		border-bottom-left-radius: 0;
-		border-bottom-right-radius: 0;
 	}
 
 	.tool-call-permission-attachment {
-		width: 100%;
+		width: fit-content;
+		max-width: 100%;
 	}
 </style>

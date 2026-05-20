@@ -28,7 +28,7 @@
 	const buttonClass = "justify-center shrink-0";
 	const wrapperClass = $derived(
 		align === "start"
-			? "flex w-full flex-wrap items-center justify-start gap-1"
+			? "inline-flex flex-wrap items-center justify-start gap-1"
 			: "flex w-full flex-wrap items-center justify-end gap-1"
 	);
 </script>
