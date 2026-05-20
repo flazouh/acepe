@@ -94,7 +94,7 @@ export class SessionsProvider implements PaletteProvider {
 	 * Search for sessions matching the query.
 	 */
 	search(query: string): PaletteItem[] {
-		const sessions = this.config.sessionStore.sessions;
+		const sessions = this.config.sessionStore.getAllSessions();
 
 		// Convert sessions to searchable format
 		const searchable = sessions.map((session) => {
@@ -169,7 +169,7 @@ export class SessionsProvider implements PaletteProvider {
 	 */
 	private storedToItem(stored: StoredRecentItem): PaletteItem | null {
 		// Try to find the session in the store
-		const session = this.config.sessionStore.sessionById.get(stored.id);
+		const session = this.config.sessionStore.getSessionCold(stored.id);
 		if (session) {
 			const projectInfo = this.getProjectInfo(session.projectPath);
 			return sessionToPaletteItem(
