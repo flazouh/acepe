@@ -2,12 +2,12 @@ import {
 	DEFAULT_DOT_MATRIX_LOADER_ID,
 	DEFAULT_LOADING_ICON_COLOR_ID,
 	DOT_MATRIX_LOADER_OPTIONS,
-	type DotMatrixLoaderId,
+	LOADING_ICON_COLOR_OPTIONS,
 	isDotMatrixLoaderId,
 	isLoadingIconColorId,
-	LOADING_ICON_COLOR_OPTIONS,
-	type LoadingIconColorId,
 	loadingIconPreference,
+	type DotMatrixLoaderId,
+	type LoadingIconColorId,
 } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/converted-session-types.js";

@@ -1,5 +1,5 @@
-import type { PermissionRequest } from "../types/permission.js";
 import { isExitPlanPermission } from "../utils/exit-plan-permission.js";
+import type { PermissionRequest } from "../types/permission.js";
 import { findOperationForPermission } from "./operation-association.js";
 import type { OperationStore } from "./operation-store.svelte.js";
 

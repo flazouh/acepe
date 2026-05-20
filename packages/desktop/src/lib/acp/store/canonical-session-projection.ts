@@ -1,6 +1,6 @@
 import type {
-	ActiveStreamingTail,
 	AssistantTextDeltaPayload,
+	ActiveStreamingTail,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,

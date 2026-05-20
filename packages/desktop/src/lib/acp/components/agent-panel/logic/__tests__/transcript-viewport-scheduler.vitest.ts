@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createTranscriptViewportScheduler } from "../transcript-viewport-scheduler.svelte.js";
 import type { TranscriptRendererAdapter } from "../transcript-renderer-adapter.js";
 import type { TranscriptViewportEffect } from "../transcript-viewport-effects.js";
 import type { TranscriptViewportEvent } from "../transcript-viewport-events.js";
-import { createTranscriptViewportScheduler } from "../transcript-viewport-scheduler.svelte.js";
 
 function createManualFrame() {
 	let nextId = 1;

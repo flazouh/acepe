@@ -24,10 +24,10 @@ import type {
 } from "$lib/services/acp-types.js";
 import type { SessionUpdate } from "$lib/services/converted-session-types.js";
 import { materializeAgentPanelSceneFromGraph } from "../../session-state/agent-panel-graph-materializer.js";
-import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
+import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import { readStoredEntries } from "./entry-store-test-access.js";
 import { deliverDiagnosticSessionUpdate } from "./session-store-test-access.js";
 
@@ -69,7 +69,7 @@ function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): Op
 		child_tool_call_ids: overrides.child_tool_call_ids ?? [],
 		child_operation_ids: overrides.child_operation_ids ?? [],
 		operation_state: overrides.operation_state ?? "running",
-		awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 		source_link: overrides.source_link ?? {
 			kind: "transcript_linked",
 			entry_id: overrides.tool_call_id ?? "tool-1",
@@ -302,12 +302,10 @@ function getCanonicalProjection(
 	sessionId = "session-1"
 ): CanonicalSessionProjection | null {
 	return (
-		(
-			store as unknown as {
-				canonicalProjections: Map<string, CanonicalSessionProjection>;
-			}
-		).canonicalProjections.get(sessionId) ?? null
-	);
+		store as unknown as {
+			canonicalProjections: Map<string, CanonicalSessionProjection>;
+		}
+	).canonicalProjections.get(sessionId) ?? null;
 }
 
 beforeEach(() => {
@@ -404,7 +402,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -525,7 +523,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "awaiting_model",
@@ -571,7 +569,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 		});
@@ -597,7 +595,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("reserved"),
 			activity: {
 				kind: "idle",
@@ -642,7 +640,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -678,7 +676,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -727,7 +725,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot: {
 				revision: 12,
@@ -763,7 +761,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -829,13 +827,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			},
 			command: "ls",
 			operation_state: "completed",
-			awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 		});
 		const restoredGraph = createSessionStateGraph({
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			transcriptSnapshot,
 			operations: [restoredOperation],
@@ -846,7 +844,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Idle",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 13,
@@ -875,7 +873,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-7",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("detached"),
 			activity: createIdleActivity(),
 			revision: {
@@ -917,7 +915,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					},
 					command: "ls",
 					operation_state: "completed",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -985,7 +983,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -1041,7 +1039,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: "/repo",
 					command: "pwd",
 					operation_state: "completed",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 				}),
 				createOperationSnapshot({
 					id: "op-2",
@@ -1057,7 +1055,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					result: null,
 					command: "bun test",
 					operation_state: "running",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 				}),
 			],
 		});
@@ -1120,7 +1118,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 							},
 							command: "bun test",
 							operation_state: "completed",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],
@@ -1148,7 +1146,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Running",
 			activeTurnFailure: null,
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: {
 				kind: "running_operation",
@@ -1167,7 +1165,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 					id: "op-1",
 					tool_call_id: "tool-1",
 					operation_state: "completed",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 					provider_status: "completed",
 				}),
 			],
@@ -1323,7 +1321,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 			})
 		);
 
@@ -1723,7 +1721,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-1",
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1880,7 +1878,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-restored",
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1898,7 +1896,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1925,7 +1923,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -1941,7 +1939,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 			turnState: "Completed",
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-live",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			activity: createIdleActivity(),
 			revision: {
@@ -1977,7 +1975,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Running",
 				activeTurnFailure: null,
 				lastTerminalTurnId: null,
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
@@ -1987,7 +1985,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				turnState: "Completed",
 				activeTurnFailure: null,
 				lastTerminalTurnId: "turn-live",
-				activeStreamingTail: null,
+					activeStreamingTail: null,
 				lifecycle: createGraphLifecycle("ready"),
 				activity: createIdleActivity(),
 			})
@@ -2096,7 +2094,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							kind: "execute",
 							provider_status: "completed",
 							operation_state: "completed",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 							source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 							title: "Run command",
 							arguments: {
@@ -2131,7 +2129,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Running",
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			activity: {
 				kind: "awaiting_model",
 				activeOperationCount: 0,
@@ -2204,16 +2202,16 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						dominantOperationId: null,
 						blockingInteractionId: null,
 					},
-					turnState: "Running",
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
-					transcriptOperations: [],
-					operationPatches: [],
-					interactionPatches: [],
-					changedFields: ["activity", "activeStreamingTail"],
+						turnState: "Running",
+						activeTurnFailure: null,
+						lastTerminalTurnId: null,
+						activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+						transcriptOperations: [],
+						operationPatches: [],
+						interactionPatches: [],
+						changedFields: ["activity", "activeStreamingTail"],
+					},
 				},
-			},
 		});
 		const scene = materializeStoredScene(store);
 		const assistantRow = scene.conversation.entries.find(
@@ -2231,7 +2229,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Completed",
 			lastTerminalTurnId: "turn-7",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 7,
@@ -2259,7 +2257,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activeTurnFailure: null,
 			turnState: "Idle",
 			lastTerminalTurnId: null,
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			lifecycle: createGraphLifecycle("ready"),
 			revision: {
 				graphRevision: 8,
@@ -2413,7 +2411,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operations: [
 						createOperationSnapshot({
 							operation_state: "blocked",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2497,7 +2495,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "running",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 							provider_status: "in_progress",
 						}),
 					],
@@ -2574,7 +2572,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					operationPatches: [
 						createOperationSnapshot({
 							operation_state: "completed",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 							provider_status: "completed",
 						}),
 					],
@@ -2720,7 +2718,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 							result: "/repo",
 							command: "pwd",
 							operation_state: "completed",
-							awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 						}),
 					],
 					interactionPatches: [],
@@ -3375,9 +3373,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			},
 		});
 
-		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual([
-			"assistant-live-2",
-		]);
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual(["assistant-live-2"]);
 	});
 
 	it("preserves reopened transcript history across a new user turn and canonical assistant reply", async () => {
@@ -3872,7 +3868,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						turnState: "Running",
 						activeTurnFailure: null,
 						lastTerminalTurnId: "019df8ca-8d77-7fe2-bf77-bc9f542769b4",
-						activeStreamingTail: null,
+					activeStreamingTail: null,
 						transcriptOperations: [
 							{
 								kind: "appendSegment",
@@ -3947,7 +3943,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-1",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			messageCount: 2,
 			revision: {
 				graphRevision: 12,
@@ -3990,7 +3986,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			activity: createIdleActivity(),
 			activeTurnFailure: null,
 			lastTerminalTurnId: "turn-2",
-			activeStreamingTail: null,
+					activeStreamingTail: null,
 			messageCount: 4,
 			revision: {
 				graphRevision: 18,
@@ -4752,7 +4748,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 						messageCount: 1,
 						activeTurnFailure: null,
 						lastTerminalTurnId: null,
-						activeStreamingTail: null,
+					activeStreamingTail: null,
 						transcriptSnapshot: {
 							revision: 2,
 							entries: [],

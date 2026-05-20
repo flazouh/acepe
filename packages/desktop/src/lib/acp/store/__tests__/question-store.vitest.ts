@@ -78,7 +78,7 @@ describe("QuestionStore", () => {
 					arguments: { kind: "other", raw: {} },
 					provider_status: "pending",
 					operation_state: "pending",
-					awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 					source_link: { kind: "transcript_linked", entry_id: "tool-question" },
 					result: null,
 					kind: "question",

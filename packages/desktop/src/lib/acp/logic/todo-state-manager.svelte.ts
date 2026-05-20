@@ -9,9 +9,9 @@ import {
 	createTodoState,
 	createTodoStateFromToolCalls,
 	type EntryWithMessage,
+	type TodoToolCallThread,
 	type ThreadWithEntries,
 	type TodoStateError,
-	type TodoToolCallThread,
 } from "./todo-state.svelte.js";
 
 /**
@@ -75,7 +75,9 @@ function computeTodoSignature(entries: ReadonlyArray<EntryWithMessage>): string 
 		return "empty";
 	}
 
-	return todoWrites.map((entry) => `${entry.id}:${todoPayloadSignature(entry.message)}`).join("|");
+	return todoWrites
+		.map((entry) => `${entry.id}:${todoPayloadSignature(entry.message)}`)
+		.join("|");
 }
 
 function computeToolCallTodoSignature(toolCalls: ReadonlyArray<ToolCall>): string {

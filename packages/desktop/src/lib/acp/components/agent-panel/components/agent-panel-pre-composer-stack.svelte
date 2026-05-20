@@ -6,10 +6,7 @@ import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte.js";
-import type {
-	SessionLinkedPr,
-	SessionPrLinkMode,
-} from "../../../application/dto/session-linked-pr";
+import type { SessionLinkedPr, SessionPrLinkMode } from "../../../application/dto/session-linked-pr";
 import type { SessionCold } from "../../../application/dto/session-cold.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";

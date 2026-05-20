@@ -5,7 +5,10 @@ import { OperationStore } from "../../../store/operation-store.svelte.js";
 import { shouldHidePermissionBarForExitPlanFromOperations } from "../../../store/permission-operation-projection.js";
 import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
-import { findExitPlanPermission, getExitPlanDisplayPlan } from "../exit-plan-helpers.js";
+import {
+	findExitPlanPermission,
+	getExitPlanDisplayPlan,
+} from "../exit-plan-helpers.js";
 
 function createExitPlanToolCall(id: string, plan: string, planFilePath: string): ToolCall {
 	return {
@@ -67,7 +70,7 @@ function createOperationStoreWithToolCall(toolCall: ToolCall): OperationStore {
 		arguments: toolCall.arguments,
 		provider_status: toolCall.status,
 		operation_state: toolCall.status === "completed" ? "completed" : "running",
-		awaiting_plan_approval: false,
+	awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: toolCall.id },
 		kind: toolCall.kind ?? null,
 		title: null,

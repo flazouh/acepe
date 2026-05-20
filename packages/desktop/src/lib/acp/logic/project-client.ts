@@ -1,8 +1,8 @@
-import { resolveProjectColor } from "@acepe/ui/colors";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ResultAsync } from "neverthrow";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
+import { resolveProjectColor } from "@acepe/ui/colors";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
 

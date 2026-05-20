@@ -77,6 +77,7 @@ function handleRemoveClick() {
 	menuOpen = false;
 	showRemoveConfirm = true;
 }
+
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>

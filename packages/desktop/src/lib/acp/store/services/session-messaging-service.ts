@@ -166,7 +166,8 @@ export class SessionMessagingService {
 			pendingSendIntent: {
 				attemptId,
 				startedAt: Date.now(),
-				baselineTranscriptRevision: this.stateReader.getGraphTranscriptRevision(sessionId) ?? null,
+				baselineTranscriptRevision:
+					this.stateReader.getGraphTranscriptRevision(sessionId) ?? null,
 				promptLength,
 				optimisticEntry,
 			},

@@ -1,11 +1,11 @@
 import { errAsync, okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import type { SessionModelState } from "../../../services/acp-types.js";
 import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
+import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
@@ -78,9 +78,9 @@ function mockResidualStateReader(
 	(stateReader.getSessionAcpSessionId as ReturnType<typeof vi.fn>).mockReturnValue(
 		state.acpSessionId
 	);
-	(stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>).mockReturnValue(
-		state.autonomousTransition !== "idle"
-	);
+	(
+		stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>
+	).mockReturnValue(state.autonomousTransition !== "idle");
 }
 
 function expectNoCanonicalOverlapHotStateWrites(updateHotState: ReturnType<typeof vi.fn>): void {
@@ -714,13 +714,16 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(updateModelsCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "default", name: "Default", description: undefined },
 		]);
-		expect(updateModelsDisplayCache).toHaveBeenCalledWith("claude-code", {
-			groups: [],
-			presentation: {
-				displayFamily: "claudeLike",
-				usageMetrics: "contextWindowOnly",
-			},
-		});
+		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
+			"claude-code",
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "claudeLike",
+					usageMetrics: "contextWindowOnly",
+				},
+			}
+		);
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "build", name: "Build", description: undefined },
@@ -908,13 +911,16 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(updateModelsDisplayCache).toHaveBeenCalledWith("codex", {
-			groups: [],
-			presentation: {
-				displayFamily: "providerGrouped",
-				usageMetrics: "spendAndContext",
-			},
-		});
+		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
+			"codex",
+			{
+				groups: [],
+				presentation: {
+					displayFamily: "providerGrouped",
+					usageMetrics: "spendAndContext",
+				},
+			}
+		);
 	});
 
 	it("does not synthesize connection or capability hot state on connect", async () => {

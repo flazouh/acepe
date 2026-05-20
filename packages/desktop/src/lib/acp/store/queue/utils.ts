@@ -23,9 +23,9 @@ import {
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
 import {
-	type SessionWorkBucket,
 	selectSessionStatusForPresentation,
 	selectSessionWorkBucket,
+	type SessionWorkBucket,
 } from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
@@ -135,7 +135,10 @@ export function deriveQueueSessionState(input: QueueSessionStateInput) {
 export function buildQueueSessionSnapshot(
 	input: BuildQueueSessionSnapshotInput
 ): QueueSessionSnapshot {
-	const source = liveSessionWorkSourceFromCanonicalProjection(input.id, input.canonicalProjection);
+	const source = liveSessionWorkSourceFromCanonicalProjection(
+		input.id,
+		input.canonicalProjection
+	);
 	const state = deriveLiveSessionState({
 		source,
 		currentModeId: input.currentModeId,

@@ -18,7 +18,13 @@ interface Props {
 	onClose?: () => void;
 }
 
-let { plan, projectPath, columnWidth = 450, onOpenFullscreen, onClose }: Props = $props();
+let {
+	plan,
+	projectPath,
+	columnWidth = 450,
+	onOpenFullscreen,
+	onClose,
+}: Props = $props();
 
 function handleDownloadMarkdown() {
 	const blob = new Blob([plan.content], { type: "text/markdown" });

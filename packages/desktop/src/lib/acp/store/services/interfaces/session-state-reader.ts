@@ -6,9 +6,12 @@
  */
 
 import type { SessionGraphLifecycle } from "../../../../services/acp-types.js";
-import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
-import type { SessionCapabilities, SessionCold } from "../../types.js";
+import type {
+	SessionCapabilities,
+	SessionCold,
+} from "../../types.js";
+import type { ToolCall } from "../../../types/tool-call.js";
 
 /**
  * Interface for reading session state.

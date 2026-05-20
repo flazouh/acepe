@@ -4,27 +4,27 @@ import { DEFAULT_TRANSIENT_PROJECTION, type SessionTransientProjection } from ".
 
 describe("SessionTransientProjection", () => {
 	it("defaults to only local residual fields", () => {
-		expect(DEFAULT_TRANSIENT_PROJECTION).toMatchObject({
-			acpSessionId: null,
-			autonomousTransition: "idle",
-			modelPerMode: {},
-			pendingSendIntent: null,
-			capabilityMutationState: {
-				pendingMutationId: null,
-				previewState: null,
+			expect(DEFAULT_TRANSIENT_PROJECTION).toMatchObject({
+				acpSessionId: null,
+				autonomousTransition: "idle",
+				modelPerMode: {},
+				pendingSendIntent: null,
+				capabilityMutationState: {
+					pendingMutationId: null,
+					previewState: null,
 			},
 		});
 	});
 
 	it("does not include canonical lifecycle or capability authority fields", () => {
 		expect(Object.keys(DEFAULT_TRANSIENT_PROJECTION).sort()).toEqual([
-			"acpSessionId",
-			"autonomousTransition",
-			"capabilityMutationState",
-			"modelPerMode",
-			"pendingSendIntent",
-			"statusChangedAt",
-		]);
+				"acpSessionId",
+				"autonomousTransition",
+				"capabilityMutationState",
+				"modelPerMode",
+				"pendingSendIntent",
+				"statusChangedAt",
+			]);
 	});
 
 	it("supports local send and capability mutation affordances", () => {
@@ -49,9 +49,9 @@ describe("SessionTransientProjection", () => {
 					timestamp: new Date(456),
 				},
 			},
-			capabilityMutationState: {
-				pendingMutationId: "mutation-1",
-				previewState: "pending",
+				capabilityMutationState: {
+					pendingMutationId: "mutation-1",
+					previewState: "pending",
 			},
 		};
 
@@ -65,7 +65,7 @@ describe("SessionTransientProjection", () => {
 					id: "optimistic-1",
 				},
 			},
-			capabilityMutationState: {
+				capabilityMutationState: {
 				pendingMutationId: "mutation-1",
 				previewState: "pending",
 			},

@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModifiedFilesState } from "../../types/modified-files-state.js";
+
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
+import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 
 interface ReviewHeaderMockState {
 	readonly sessionLoaded: boolean;
@@ -13,17 +14,20 @@ declare global {
 	var modifiedFilesHeaderMockState: ReviewHeaderMockState | undefined;
 }
 
-vi.mock("svelte", async () => {
-	const { createRequire } = await import("node:module");
-	const { dirname, join } = await import("node:path");
-	const require = createRequire(import.meta.url);
-	const svelteClientPath = join(
-		dirname(require.resolve("svelte/package.json")),
-		"src/index-client.js"
-	);
+vi.mock(
+	"svelte",
+	async () => {
+		const { createRequire } = await import("node:module");
+		const { dirname, join } = await import("node:path");
+		const require = createRequire(import.meta.url);
+		const svelteClientPath = join(
+			dirname(require.resolve("svelte/package.json")),
+			"src/index-client.js"
+		);
 
-	return import(/* @vite-ignore */ svelteClientPath);
-});
+		return import(/* @vite-ignore */ svelteClientPath);
+	}
+);
 
 vi.mock("../../store/merge-strategy-store.svelte.js", () => ({
 	mergeStrategyStore: {

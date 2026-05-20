@@ -1,6 +1,10 @@
 import type { SessionGraphActivity } from "../../services/acp-types.js";
 import type { CanonicalSessionActivity } from "../logic/session-activity.js";
-import type { ActivityPhase, ConnectionPhase, ContentPhase } from "../logic/session-ui-state.js";
+import type {
+	ActivityPhase,
+	ConnectionPhase,
+	ContentPhase,
+} from "../logic/session-ui-state.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import { deriveSessionState, type SessionState } from "./session-state.js";
@@ -223,7 +227,9 @@ export function deriveLiveSessionState(input: LiveSessionWorkInput): SessionStat
 	const pendingQuestion =
 		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingQuestion : null;
 	const pendingPlanApproval =
-		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingPlanApproval : null;
+		canonicalActivity === "waiting_for_user"
+			? input.interactionSnapshot.pendingPlanApproval
+			: null;
 	const pendingPermission =
 		canonicalActivity === "waiting_for_user" ? input.interactionSnapshot.pendingPermission : null;
 

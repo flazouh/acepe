@@ -5,10 +5,7 @@ import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { deriveSessionState } from "../../session-state.js";
-import {
-	deriveSessionWorkProjection,
-	selectSessionWorkBucket,
-} from "../../session-work-projection.js";
+import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
 import type { UrgencyInfo } from "../../urgency.js";
 import { classifyItem } from "../queue-section-utils.js";
 import { buildQueueItem, buildQueueSessionSnapshot, type QueueSessionSnapshot } from "../utils.js";

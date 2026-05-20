@@ -33,7 +33,9 @@ const SECTION_ORDER: readonly QueueSectionId[] = [
 /**
  * A session needs review only when the canonical-derived queue bucket says so.
  */
-export function isNeedsReview(item: Pick<QueueItem, "workBucket">): boolean {
+export function isNeedsReview(
+	item: Pick<QueueItem, "workBucket">
+): boolean {
 	return item.workBucket === "needs_review";
 }
 

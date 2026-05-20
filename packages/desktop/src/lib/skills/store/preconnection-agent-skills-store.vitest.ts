@@ -19,7 +19,7 @@ function providerMetadata(
 		reasoningEffortSupport: false,
 		preconnectionSlashMode,
 		preconnectionCapabilityMode: preconnectionSlashMode,
-		implicitSessionCreationMode: "explicitUserAction",
+	implicitSessionCreationMode: "explicitUserAction",
 	};
 }
 

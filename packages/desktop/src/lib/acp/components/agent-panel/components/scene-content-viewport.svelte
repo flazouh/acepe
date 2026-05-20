@@ -280,9 +280,7 @@ function createMissingSceneEntry(
 	entry: SceneDisplayRow | undefined,
 	index: number | undefined
 ): AgentPanelSceneEntryModel {
-	const displayKey = entry
-		? getSceneDisplayRowKey(entry)
-		: `missing-entry-${String(index ?? "unknown")}`;
+	const displayKey = entry ? getSceneDisplayRowKey(entry) : `missing-entry-${String(index ?? "unknown")}`;
 	reportMissingSceneEntry(entry, index, displayKey);
 	return {
 		id: `missing:${displayKey}`,
@@ -319,6 +317,7 @@ function getGraphSceneEntry(
 ): AgentPanelSceneEntryModel | undefined {
 	return findGraphSceneEntryForDisplayEntry(entry, sceneEntriesById);
 }
+
 
 let warnedMissingEntryKeys = new Set<string>();
 
@@ -562,10 +561,7 @@ function traceMeasurementFields(): {
 }
 
 function recordScrollWrite(
-	effect: Extract<
-		TranscriptViewportEffect,
-		{ type: "RevealRow" | "RevealTail" | "ApplyScrollOffset" }
-	>,
+	effect: Extract<TranscriptViewportEffect, { type: "RevealRow" | "RevealTail" | "ApplyScrollOffset" }>,
 	outcome: TranscriptRendererEffectOutcome
 ): void {
 	if (!isTranscriptViewportFlightRecordingEnabled()) {
@@ -604,9 +600,7 @@ const nativeAdapter = createNativeTranscriptRendererAdapter({
 
 const transcriptRendererAdapter: TranscriptRendererAdapter = {
 	measureViewport() {
-		return shouldUseNativeRenderer
-			? nativeAdapter.measureViewport()
-			: virtuaAdapter.measureViewport();
+		return shouldUseNativeRenderer ? nativeAdapter.measureViewport() : virtuaAdapter.measureViewport();
 	},
 	captureAnchor() {
 		return shouldUseNativeRenderer ? nativeAdapter.captureAnchor() : virtuaAdapter.captureAnchor();
@@ -698,10 +692,7 @@ function dispatchViewportEvent(event: TranscriptViewportEvent): void {
 	scheduleViewportEffects(result.effects);
 }
 
-function shouldRunDeferredTailReveal(
-	scheduledSessionId: string | null,
-	scheduledGeneration: number
-): boolean {
+function shouldRunDeferredTailReveal(scheduledSessionId: string | null, scheduledGeneration: number): boolean {
 	return (
 		sessionId === scheduledSessionId &&
 		viewportState.generation === scheduledGeneration &&
@@ -810,12 +801,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (
-		!initialHydrationComplete ||
-		shouldUseNativeRenderer ||
-		displayEntries.length === 0 ||
-		!vlistRef
-	) {
+	if (!initialHydrationComplete || shouldUseNativeRenderer || displayEntries.length === 0 || !vlistRef) {
 		viewportNudgeOffsetPx = 0;
 		return;
 	}
@@ -1140,12 +1126,9 @@ function wheelAction(node: HTMLElement): { destroy: () => void } {
 			event.deltaY < 0
 				? {
 						scrollOffset: measured.scrollOffset,
-						scrollSize: Math.max(
-							measured.scrollSize,
-							measured.viewportSize + NEAR_EDGE_THRESHOLD_PX + 1
-						),
+						scrollSize: Math.max(measured.scrollSize, measured.viewportSize + NEAR_EDGE_THRESHOLD_PX + 1),
 						viewportSize: measured.viewportSize,
-					}
+				  }
 				: measured;
 		dispatchViewportEvent({
 			type: "UserWheel",

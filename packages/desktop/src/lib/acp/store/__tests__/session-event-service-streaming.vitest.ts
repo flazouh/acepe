@@ -28,8 +28,11 @@ import type { SessionUpdate } from "../../../services/converted-session-types.js
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
+import {
+	preloadEntriesAndBuildIndex,
+	readStoredEntries,
+} from "./entry-store-test-access.js";
 import type { SessionCold } from "../types.js";
-import { preloadEntriesAndBuildIndex, readStoredEntries } from "./entry-store-test-access.js";
 
 function createMockHandler(): SessionEventHandler {
 	return {
@@ -603,6 +606,7 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("keeps streamingArguments updates across multiple tools non-authoritative on the raw lane", () => {
+
 		service.handleSessionUpdate(
 			{
 				type: "toolCallUpdate",
@@ -850,9 +854,8 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		const assistantEntries = readStoredEntries(entryStore, sessionId).filter(
-			(entry) => entry.type === "assistant"
-		);
+		const assistantEntries = readStoredEntries(entryStore, sessionId)
+			.filter((entry) => entry.type === "assistant");
 		expect(assistantEntries).toHaveLength(0);
 	});
 
@@ -1630,6 +1633,7 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("leaves duplicate assistant text chunks to canonical envelopes during active streaming", () => {
+
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -1647,6 +1651,7 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not synthesize replay assistant chunks from raw event replays", () => {
+
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -1664,6 +1669,7 @@ describe("SessionEventService streaming delta handling", () => {
 	});
 
 	it("does not force streaming state from raw replay assistant chunks", () => {
+
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",
 			session_id: "session-123",
@@ -1744,9 +1750,7 @@ describe("SessionEventService streaming delta handling", () => {
 			integrationHandler
 		);
 
-		expect(readStoredEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual([
-			"assistant",
-		]);
+		expect(readStoredEntries(entryStore, sessionId).map((entry) => entry.type)).toEqual(["assistant"]);
 		expect(readStoredEntries(entryStore, sessionId)[0]).toMatchObject({
 			id: "assistant-history-1",
 			message: {

@@ -1,9 +1,9 @@
 import type { ResultAsync } from "neverthrow";
-import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { AcpError } from "../errors/index.js";
 import { ConnectionError } from "../errors/index.js";
+import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 /**
  * Information about an available agent
  */

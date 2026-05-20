@@ -10,8 +10,8 @@ import {
 	getAgentModelDefaultsEntries,
 	getAgentsByProviderOrder,
 	getProviderDefaultLabel,
-	resolveSettingsCapabilitySource,
 	resolveSettingsProviderMetadata,
+	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
 
 describe("applyAgentSelectionChange", () => {
@@ -68,7 +68,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
+	implicitSessionCreationMode: "allowed",
 	};
 
 	const cursorProviderMetadata: ProviderMetadataProjection = {
@@ -81,7 +81,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "startupGlobal",
 		preconnectionCapabilityMode: "startupGlobal",
-		implicitSessionCreationMode: "allowed",
+	implicitSessionCreationMode: "allowed",
 	};
 
 	const copilotProviderMetadata: ProviderMetadataProjection = {
@@ -94,7 +94,7 @@ describe("getAgentModelDefaultsEntries", () => {
 		reasoningEffortSupport: false,
 		preconnectionSlashMode: "projectScoped",
 		preconnectionCapabilityMode: "projectScoped",
-		implicitSessionCreationMode: "explicitUserAction",
+	implicitSessionCreationMode: "explicitUserAction",
 	};
 
 	const agents: Agent[] = [
@@ -147,7 +147,7 @@ describe("getAgentModelDefaultsEntries", () => {
 			reasoningEffortSupport: false,
 			preconnectionSlashMode: "startupGlobal",
 			preconnectionCapabilityMode: "startupGlobal",
-			implicitSessionCreationMode: "allowed",
+		implicitSessionCreationMode: "allowed",
 		};
 
 		const entries = getAgentModelDefaultsEntries(agents, (agentId) =>
@@ -189,7 +189,7 @@ describe("getAgentsByProviderOrder", () => {
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
 						preconnectionCapabilityMode: "startupGlobal",
-						implicitSessionCreationMode: "allowed",
+					implicitSessionCreationMode: "allowed",
 					},
 				},
 				{
@@ -210,7 +210,7 @@ describe("getAgentsByProviderOrder", () => {
 						reasoningEffortSupport: false,
 						preconnectionSlashMode: "startupGlobal",
 						preconnectionCapabilityMode: "startupGlobal",
-						implicitSessionCreationMode: "allowed",
+					implicitSessionCreationMode: "allowed",
 					},
 				},
 			],
@@ -310,7 +310,7 @@ describe("resolveSettingsCapabilitySource", () => {
 					reasoningEffortSupport: false,
 					preconnectionSlashMode: "startupGlobal",
 					preconnectionCapabilityMode: "startupGlobal",
-					implicitSessionCreationMode: "allowed",
+				implicitSessionCreationMode: "allowed",
 				},
 				availableModes: [
 					{ id: "plan", name: "Plan" },
@@ -331,7 +331,7 @@ describe("resolveSettingsCapabilitySource", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
 				preconnectionCapabilityMode: "startupGlobal",
-				implicitSessionCreationMode: "allowed",
+			implicitSessionCreationMode: "allowed",
 			},
 		});
 
@@ -354,7 +354,7 @@ describe("getProviderDefaultLabel", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "startupGlobal",
 				preconnectionCapabilityMode: "startupGlobal",
-				implicitSessionCreationMode: "allowed",
+			implicitSessionCreationMode: "allowed",
 			})
 		).toBe("Auto");
 	});
@@ -371,7 +371,7 @@ describe("getProviderDefaultLabel", () => {
 				reasoningEffortSupport: false,
 				preconnectionSlashMode: "projectScoped",
 				preconnectionCapabilityMode: "projectScoped",
-				implicitSessionCreationMode: "explicitUserAction",
+			implicitSessionCreationMode: "explicitUserAction",
 			})
 		).toBe("Agent default");
 	});

@@ -1,5 +1,5 @@
-import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEntry } from "../types.js";
+import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 
 type EntryStoreStorage = {
 	entriesById: {
@@ -7,7 +7,10 @@ type EntryStoreStorage = {
 	};
 };
 
-export function readStoredEntries(store: SessionEntryStore, sessionId: string): SessionEntry[] {
+export function readStoredEntries(
+	store: SessionEntryStore,
+	sessionId: string
+): SessionEntry[] {
 	return (store as never as EntryStoreStorage).entriesById.get(sessionId) ?? [];
 }
 
@@ -20,5 +23,8 @@ export function preloadEntriesAndBuildIndex(
 	sessionId: string,
 	entries: SessionEntry[]
 ): void {
-	(store as never as EntryStoreTestMutations).preloadEntriesAndBuildIndex(sessionId, entries);
+	(store as never as EntryStoreTestMutations).preloadEntriesAndBuildIndex(
+		sessionId,
+		entries
+	);
 }

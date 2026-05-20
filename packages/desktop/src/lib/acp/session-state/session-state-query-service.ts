@@ -168,9 +168,7 @@ export function resolveTranscriptToolCallCreate(
 		nextResult: data.result,
 		nextKind: data.kind,
 		nextAwaitingPlanApproval,
-		nextPlanApprovalRequestId: nextAwaitingPlanApproval
-			? (data.planApprovalRequestId ?? null)
-			: null,
+		nextPlanApprovalRequestId: nextAwaitingPlanApproval ? (data.planApprovalRequestId ?? null) : null,
 		nextProgressiveArguments,
 		startedAtMs: currentToolCall.startedAtMs ?? startedAtMsHint,
 		completedAtMs: isTerminalToolCallStatus(data.status) ? nowMs : undefined,

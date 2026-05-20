@@ -8,8 +8,8 @@
 
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolCall } from "../../../types/tool-call.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
+import type { ToolCall } from "../../../types/tool-call.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -217,9 +217,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 				pendingSendIntent: null,
 			})
 		);
-		const updates = (
-			deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>
-		).mock.calls.map((call) => call[1]);
+		const updates = (deps.hotStateManager.updateHotState as ReturnType<typeof vi.fn>).mock.calls.map(
+			(call) => call[1]
+		);
 		expect(updates).not.toContainEqual(
 			expect.objectContaining({ observedTerminalTurn: expect.anything() })
 		);

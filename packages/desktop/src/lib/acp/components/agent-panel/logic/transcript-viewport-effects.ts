@@ -17,7 +17,11 @@ export type TranscriptViewportEffect =
 			type: "RevealRow";
 			targetKey: string;
 			align: "start" | "center" | "end";
-			reason: "send-started" | "explicit-reveal" | "panel-activated" | "public-scroll-top";
+			reason:
+				| "send-started"
+				| "explicit-reveal"
+				| "panel-activated"
+				| "public-scroll-top";
 	  })
 	| (TranscriptViewportEffectBase & {
 			type: "RevealTail";
@@ -49,7 +53,11 @@ export type TranscriptViewportEffect =
 	  })
 	| (TranscriptViewportEffectBase & {
 			type: "ReportDiagnostic";
-			code: "stale-event-dropped" | "anchor-missing" | "effect-skipped" | "renderer-health";
+			code:
+				| "stale-event-dropped"
+				| "anchor-missing"
+				| "effect-skipped"
+				| "renderer-health";
 			message: string;
 	  });
 

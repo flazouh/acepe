@@ -1,5 +1,4 @@
 import type {
-	ActiveStreamingTail,
 	AssistantTextDeltaPayload,
 	CapabilityPreviewState,
 	InteractionSnapshot,
@@ -9,6 +8,7 @@ import type {
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
+	ActiveStreamingTail,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	SessionTurnState,
@@ -156,7 +156,8 @@ export function routeSessionStateEnvelope(
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
 			const includesLastTerminalTurnId = changedFields?.includes("lastTerminalTurnId") ?? false;
-			const includesActiveStreamingTail = changedFields?.includes("activeStreamingTail") ?? false;
+			const includesActiveStreamingTail =
+				changedFields?.includes("activeStreamingTail") ?? false;
 			const includesGraphState =
 				changedFields === null ||
 				includesActivity ||
@@ -164,7 +165,11 @@ export function routeSessionStateEnvelope(
 				includesActiveTurnFailure ||
 				includesLastTerminalTurnId ||
 				includesActiveStreamingTail;
-			if (operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState) {
+			if (
+				operationPatches.length > 0 ||
+				interactionPatches.length > 0 ||
+				includesGraphState
+			) {
 				commands.push({
 					kind: "applyGraphPatches",
 					revision: envelope.payload.delta.toRevision,

@@ -106,10 +106,7 @@ function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string):
 	return reader.getSessionCurrentModeId(sessionId);
 }
 
-function canonicalAutonomousEnabled(
-	reader: ISessionStateReader,
-	sessionId: string
-): boolean | null {
+function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean | null {
 	return reader.getSessionAutonomousEnabled(sessionId);
 }
 

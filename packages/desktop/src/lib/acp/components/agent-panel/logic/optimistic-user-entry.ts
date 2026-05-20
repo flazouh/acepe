@@ -1,5 +1,5 @@
-import type { TranscriptEntry } from "../../../../services/acp-types.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import type { TranscriptEntry } from "../../../../services/acp-types.js";
 
 export interface CanonicalUserEntryPresence {
 	readonly hasCanonicalUserEntry: boolean | null;

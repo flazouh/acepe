@@ -125,16 +125,14 @@ describe("derivePanelViewState", () => {
 	// ── Session Creation: Ready (not connecting) ──────────────
 
 	it("should return ready (not connecting) while session is being created", () => {
-		const result = derivePanelViewState(
-			makeInput({ lifecyclePresentation: null, hasSession: false })
-		);
+		const result = derivePanelViewState(makeInput({ lifecyclePresentation: null, hasSession: false }));
 		expect(result.kind).toBe("ready");
 	});
 
 	it("should return conversation when entries exist even while session is being created", () => {
 		const result = derivePanelViewState(
 			makeInput({
-				lifecyclePresentation: makeLifecyclePresentation(),
+			lifecyclePresentation: makeLifecyclePresentation(),
 				entriesCount: 2,
 			})
 		);
@@ -280,9 +278,7 @@ describe("derivePanelViewState", () => {
 	});
 
 	it("should return ready when no session but has project and agent", () => {
-		const result = derivePanelViewState(
-			makeInput({ lifecyclePresentation: null, hasSession: false })
-		);
+		const result = derivePanelViewState(makeInput({ lifecyclePresentation: null, hasSession: false }));
 		expect(result.kind).toBe("ready");
 	});
 

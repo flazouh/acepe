@@ -15,13 +15,11 @@ vi.mock("svelte", async () => {
 
 const openUrlMock = vi.fn();
 const openFilePanelMock = vi.fn();
-const sessionContextState = vi.hoisted(
-	(): {
-		current: null | { projectPath: string; turnState: "idle" };
-	} => ({
-		current: null,
-	})
-);
+const sessionContextState = vi.hoisted((): {
+	current: null | { projectPath: string; turnState: "idle" };
+} => ({
+	current: null,
+}));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
@@ -120,8 +118,12 @@ describe("MarkdownText", () => {
 		const markdownContent = container.querySelector(".markdown-content") as HTMLElement | null;
 		const animatedWord = container.querySelector("[data-sd-animate]") as HTMLElement | null;
 		expect(markdownContent?.getAttribute("data-token-reveal-mode")).toBe("smooth");
-		expect(markdownContent?.getAttribute("style")).toContain("--token-reveal-baseline-ms: -96ms");
-		expect(animatedWord?.getAttribute("style")).toContain("--sd-animation: sd-acepeTokenReveal");
+		expect(markdownContent?.getAttribute("style")).toContain(
+			"--token-reveal-baseline-ms: -96ms"
+		);
+		expect(animatedWord?.getAttribute("style")).toContain(
+			"--sd-animation: sd-acepeTokenReveal"
+		);
 	});
 
 	it("opens external markdown links through the Tauri opener", async () => {
