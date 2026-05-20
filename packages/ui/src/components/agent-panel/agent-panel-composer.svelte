@@ -21,6 +21,7 @@
 		class?: string;
 		inputClass?: string;
 		contentClass?: string;
+		footerClass?: string;
 		disabledReason?: string | null;
 		children?: Snippet;
 	}
@@ -34,6 +35,7 @@
 		class: className = "",
 		inputClass = "border border-border/50 bg-background/70",
 		contentClass = "px-3 py-1.5",
+		footerClass = "",
 		disabledReason = null,
 		children,
 	}: Props = $props();
@@ -72,7 +74,7 @@
 </script>
 
 <div class={cn("shrink-0 border-t border-border/50 p-3", className)}>
-	<InputContainer class={inputClass} {contentClass}>
+	<InputContainer class={inputClass} {contentClass} {footerClass}>
 		{#snippet content()}
 			{#if contentSnippet}
 				{@render contentSnippet()}
