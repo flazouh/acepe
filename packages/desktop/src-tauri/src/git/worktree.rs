@@ -559,6 +559,24 @@ fn create_worktree_from_info(project_path: &str, info: &WorktreeInfo) -> Result<
     Ok(())
 }
 
+pub(crate) fn create_managed_worktree_for_session(
+    project_path: &str,
+    name: Option<&str>,
+) -> Result<WorktreeInfo, String> {
+    let project_path_buf = PathBuf::from(project_path);
+    if !check_git_repo_state(&project_path_buf)? {
+        return Err("This project is not a git repository".to_string());
+    }
+
+    let worktrees_dir = get_project_worktrees_dir(project_path)?;
+    std::fs::create_dir_all(&worktrees_dir)
+        .map_err(|error| format!("Failed to create worktrees directory: {error}"))?;
+
+    let info = generate_unique_candidate(&project_path_buf, &worktrees_dir, name)?;
+    create_worktree_from_info(project_path, &info)?;
+    Ok(info)
+}
+
 /// Create a new git worktree for isolated agent work
 ///
 /// # Arguments

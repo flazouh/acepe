@@ -34,7 +34,6 @@ describe("VoiceSettingsStore", () => {
 				success: vi.fn(),
 			},
 		}));
-		mock.module("runed", () => ({}));
 		mock.module("$lib/utils/tauri-client.js", () => ({
 			openFileInEditor: mock(() => undefined),
 			revealInFinder: mock(() => undefined),

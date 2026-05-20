@@ -41,7 +41,9 @@ const reviewWorkspaceFiles = $derived.by(() =>
 );
 
 const reviewWorkspaceSelectedIndex = $derived.by(() => {
-	const displayIndex = reviewWorkspaceFiles.findIndex((file) => file.sourceIndex === selectedFileIndex);
+	const displayIndex = reviewWorkspaceFiles.findIndex(
+		(file) => file.sourceIndex === selectedFileIndex
+	);
 	if (displayIndex >= 0) {
 		return displayIndex;
 	}

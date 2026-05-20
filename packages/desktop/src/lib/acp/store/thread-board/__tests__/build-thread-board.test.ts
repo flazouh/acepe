@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import type { SessionState } from "../../session-state.js";
-import { deriveSessionWorkProjection, selectSessionWorkBucket } from "../../session-work-projection.js";
+import {
+	deriveSessionWorkProjection,
+	selectSessionWorkBucket,
+} from "../../session-work-projection.js";
 import { buildThreadBoard, classifyThreadBoardStatus } from "../build-thread-board.js";
 import type { ThreadBoardSource } from "../thread-board-item.js";
 import { THREAD_BOARD_STATUS_ORDER } from "../thread-board-status.js";
@@ -71,7 +74,8 @@ function makeState(
 function makeSource(overrides: Partial<ThreadBoardSource> = {}): ThreadBoardSource {
 	const state = overrides.state !== undefined ? overrides.state : makeState();
 	const currentModeId = overrides.currentModeId !== undefined ? overrides.currentModeId : null;
-	const connectionError = overrides.connectionError !== undefined ? overrides.connectionError : null;
+	const connectionError =
+		overrides.connectionError !== undefined ? overrides.connectionError : null;
 	const activeTurnFailure =
 		overrides.activeTurnFailure !== undefined ? overrides.activeTurnFailure : null;
 	const workBucket =

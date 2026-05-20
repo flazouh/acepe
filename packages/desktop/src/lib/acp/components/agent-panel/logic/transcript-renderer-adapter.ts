@@ -1,5 +1,5 @@
-import type { TranscriptViewportMeasurement } from "./transcript-viewport-events.js";
 import type { TranscriptViewportEffect } from "./transcript-viewport-effects.js";
+import type { TranscriptViewportMeasurement } from "./transcript-viewport-events.js";
 
 export type TranscriptRendererMeasurementOutcome =
 	| {

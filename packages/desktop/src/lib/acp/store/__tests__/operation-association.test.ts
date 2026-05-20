@@ -4,13 +4,13 @@ import type { OperationSnapshot } from "../../../services/acp-types.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
+import { InteractionStore } from "../interaction-store.svelte.js";
 import {
 	buildSessionOperationInteractionSnapshot,
 	findOperationForPermission,
 	findOperationForPlanApproval,
 	findOperationForQuestion,
 } from "../operation-association.js";
-import { InteractionStore } from "../interaction-store.svelte.js";
 import { OperationStore } from "../operation-store.svelte.js";
 
 function createExecuteOperation(
@@ -27,7 +27,7 @@ function createExecuteOperation(
 		arguments: overrides?.arguments ?? { kind: "execute", command },
 		provider_status: overrides?.provider_status ?? "pending",
 		operation_state: overrides?.operation_state ?? "pending",
-	awaiting_plan_approval: false,
+		awaiting_plan_approval: false,
 		source_link: overrides?.source_link ?? { kind: "transcript_linked", entry_id: id },
 		result: overrides?.result ?? null,
 		kind: overrides?.kind ?? "execute",
@@ -138,7 +138,7 @@ describe("operation association", () => {
 				kind: "execute",
 				provider_status: "pending",
 				operation_state: "pending",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "stored-tool-1" },
 				title: "Run command",
 				arguments: { kind: "execute", command: "mkdir demo" },

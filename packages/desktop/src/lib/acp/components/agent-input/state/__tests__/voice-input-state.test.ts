@@ -161,7 +161,6 @@ describe("VoiceInputState", () => {
 				SoundDown: "sound-down",
 			},
 		}));
-		mock.module("runed", () => ({}));
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,
 		}));

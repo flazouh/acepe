@@ -3,8 +3,8 @@ import { createActor } from "xstate";
 
 import { composerMachine } from "../composer-machine.js";
 import {
-	deriveStoreComposerState,
 	type ComposerSessionSubmitPolicy,
+	deriveStoreComposerState,
 } from "../composer-ui-state.js";
 
 function submitPolicy(canSubmit = true): ComposerSessionSubmitPolicy {

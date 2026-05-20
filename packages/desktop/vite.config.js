@@ -1,6 +1,6 @@
+import { fileURLToPath } from "node:url";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 const host = process.env.TAURI_DEV_HOST;

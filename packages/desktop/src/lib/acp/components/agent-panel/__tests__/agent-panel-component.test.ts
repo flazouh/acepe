@@ -33,9 +33,6 @@ describe("AgentPanel Component - Click Handler Interference", () => {
 			},
 		}));
 
-		// Mock the internal dependency that's causing issues
-		mock.module("runed", () => ({}));
-
 		// Mock lucide icons to prevent dependency issues
 		mock.module("@lucide/svelte/icons", () => ({}));
 

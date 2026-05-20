@@ -335,10 +335,12 @@ fn project_canonical_events_to_entries(
                 input,
             } => {
                 entries.push(project_tool_event(
-                    event,
-                    tool_call_id,
-                    name,
-                    input,
+                    ToolEventProjectionInput {
+                        event,
+                        tool_call_id,
+                        name,
+                        input,
+                    },
                     tool_results,
                     skill_metas,
                     question_answers,
@@ -483,16 +485,26 @@ fn project_assistant_error_event(
     }
 }
 
+struct ToolEventProjectionInput<'a> {
+    event: &'a CanonicalTranscriptEvent,
+    tool_call_id: &'a str,
+    name: &'a str,
+    input: &'a serde_json::Value,
+}
+
 fn project_tool_event(
-    event: &CanonicalTranscriptEvent,
-    tool_call_id: &str,
-    name: &str,
-    input: &serde_json::Value,
+    projection: ToolEventProjectionInput<'_>,
     tool_results: &HashMap<String, String>,
     skill_metas: &HashMap<String, SkillMeta>,
     question_answers: &HashMap<String, QuestionAnswer>,
     agent_type: AgentType,
 ) -> StoredEntry {
+    let ToolEventProjectionInput {
+        event,
+        tool_call_id,
+        name,
+        input,
+    } = projection;
     let normalized_id = normalize_tool_call_id(tool_call_id);
     let result = tool_results.get(&normalized_id).cloned();
     let status = if result.is_some() {

@@ -30,12 +30,14 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
+mod session_switch_gate;
 
 #[cfg(test)]
 mod tests;
 
 use client_ops::{
-    create_and_initialize_client, lock_session_client, resume_or_create_session_client,
+    create_and_initialize_client, lock_session_client, reconnect_client_session,
+    resume_or_create_session_client,
 };
 pub use file_commands::{acp_read_text_file, acp_write_text_file};
 pub use inbound_commands::{acp_reply_interaction, acp_respond_inbound_request};
@@ -52,6 +54,7 @@ pub(crate) use session_commands::persist_session_metadata_for_cwd;
 pub use session_commands::{
     acp_close_session, acp_fork_session, acp_get_event_bridge_info, acp_get_session_state,
     acp_initialize, acp_new_session, acp_resume_session, acp_set_session_autonomous,
+    acp_switch_session_to_worktree,
 };
 pub(crate) use session_commands::{emit_lifecycle_event, session_metadata_context_from_cwd};
 

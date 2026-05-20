@@ -112,7 +112,6 @@
 				class="flex flex-col items-start gap-0.5 px-4 py-3 text-left hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors border-b border-border/30"
 				onclick={onContinue}
 				disabled={busy}
-				autofocus
 			>
 				<span class="text-sm font-medium">{continueLabel}</span>
 				<span class="text-xs text-muted-foreground leading-snug">{continueHelperText}</span>

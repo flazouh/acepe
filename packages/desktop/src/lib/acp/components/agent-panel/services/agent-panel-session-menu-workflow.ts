@@ -6,11 +6,14 @@ import { ResultAsync } from "neverthrow";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
-import type { SessionCold } from "../../../application/dto/session-cold";
 import type { SessionStateGraph } from "../../../../services/acp-types.js";
+import type { SessionCold } from "../../../application/dto/session-cold";
 import type { createLogger } from "../../../utils/logger.js";
 import { sessionGraphToMarkdown } from "../../../utils/session-to-markdown.js";
-import { copyCanonicalSessionToClipboard, copyTextToClipboard } from "../logic/clipboard-manager.js";
+import {
+	copyCanonicalSessionToClipboard,
+	copyTextToClipboard,
+} from "../logic/clipboard-manager.js";
 import { getOpenInFinderTarget } from "../logic/open-in-finder-target.js";
 
 type Logger = ReturnType<typeof createLogger>;

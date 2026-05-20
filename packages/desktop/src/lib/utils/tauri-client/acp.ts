@@ -4,6 +4,7 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
+import type { WorktreeInfo } from "../../acp/types/worktree-info.js";
 import type { ResolvedCapabilities, SessionStateEnvelope } from "../../services/acp-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { ACP_PREFIX } from "./commands.js";
@@ -62,6 +63,18 @@ export const acp = {
 			agentId,
 			launchModeId,
 			openToken,
+		});
+	},
+
+	switchSessionToWorktree: (
+		sessionId: string,
+		projectPath: string,
+		agentId?: string
+	): ResultAsync<{ worktree: WorktreeInfo }, AppError> => {
+		return acpCommands.switch_session_to_worktree.invoke<{ worktree: WorktreeInfo }>({
+			sessionId,
+			projectPath,
+			agentId,
 		});
 	},
 

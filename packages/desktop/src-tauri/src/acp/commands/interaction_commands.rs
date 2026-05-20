@@ -247,6 +247,7 @@ pub(crate) async fn acp_set_model_for_handle<R: tauri::Runtime>(
     expected_acp_command_result(
         "acp_set_model",
         async {
+            super::session_switch_gate::reject_if_session_switching(&session_id)?;
             tracing::debug!(session_id = %session_id, model_id = %model_id, "acp_set_model called");
             let session_registry = app.state::<SessionRegistry>();
 
@@ -303,6 +304,7 @@ pub(crate) async fn acp_set_mode_for_handle<R: tauri::Runtime>(
     expected_acp_command_result(
         "acp_set_mode",
         async {
+            super::session_switch_gate::reject_if_session_switching(&session_id)?;
             tracing::debug!(session_id = %session_id, mode_id = %mode_id, "acp_set_mode called");
             let session_registry = app.state::<SessionRegistry>();
 
@@ -369,6 +371,7 @@ pub(crate) async fn acp_set_config_option_for_handle<R: tauri::Runtime>(
     value: String,
 ) -> CommandResult<Value> {
     expected_acp_command_result("acp_set_config_option", async {
+    super::session_switch_gate::reject_if_session_switching(&session_id)?;
     tracing::debug!(session_id = %session_id, config_id = %config_id, value = %value, "acp_set_config_option called");
     let session_registry = app.state::<SessionRegistry>();
 
@@ -427,6 +430,7 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
     attempt_id: Option<String>,
 ) -> Result<(), SerializableAcpError> {
     tracing::debug!(session_id = %session_id, "acp_send_prompt called");
+    super::session_switch_gate::reject_if_session_switching(&session_id)?;
 
     // Deserialize the request Value to a typed PromptRequest
     // Enable streaming to get incremental message updates via session/update notifications
@@ -594,6 +598,7 @@ pub async fn acp_cancel(app: AppHandle, session_id: String) -> CommandResult<()>
     expected_acp_command_result(
         "acp_cancel",
         async {
+            super::session_switch_gate::reject_if_session_switching(&session_id)?;
             tracing::debug!(session_id = %session_id, "acp_cancel called");
             let session_registry = app.state::<SessionRegistry>();
 

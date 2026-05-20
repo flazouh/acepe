@@ -268,7 +268,11 @@ onMount(() => {
 						variant="outline"
 						size="sm"
 						class="h-6 px-2 text-[11px]"
-						onclick={() => onOpenFile(projectPath, selectedFilePath)}
+						onclick={() => {
+							if (selectedFilePath !== null) {
+								onOpenFile(projectPath, selectedFilePath);
+							}
+						}}
 					>
 						Open
 					</Button>

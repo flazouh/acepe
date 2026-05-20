@@ -86,6 +86,7 @@
 			onclick={onToggle}
 			disabled={busy}
 			aria-pressed={enabled}
+			aria-label={label}
 			class="flex h-full items-center pr-2 disabled:cursor-not-allowed disabled:opacity-60"
 		>
 			<span
