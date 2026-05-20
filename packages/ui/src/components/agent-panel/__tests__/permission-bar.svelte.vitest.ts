@@ -43,7 +43,10 @@ describe("AgentPanelPermissionBar", () => {
 		const permissionCard = view.container.querySelector(".permission-card-enter");
 
 		expect(view.queryByText("Permission required")).toBeNull();
+		expect(permissionCard?.parentElement?.className).toContain("mt-[-2px]");
 		expect(permissionCard?.className).toContain("inline-flex");
+		expect(permissionCard?.className).toContain("px-1");
+		expect(permissionCard?.className).toContain("py-1");
 		expect(permissionCard?.className).toContain("rounded-b-sm");
 		expect(permissionCard?.className).toContain("rounded-t-none");
 		expect(permissionCard?.className).toContain("border-t-0");

@@ -44,14 +44,14 @@
 	const isAttachedToToolCall = $derived(attachment === "tool-call");
 	const cardClass = $derived.by(() => {
 		if (isAttachedToToolCall) {
-			return "inline-flex flex-col border border-border border-t-0 bg-input/30 permission-card-enter rounded-b-sm rounded-t-none px-2 py-1.5";
+			return "inline-flex flex-col border border-border border-t-0 bg-input/30 permission-card-enter rounded-b-sm rounded-t-none px-1 py-1";
 		}
 
 		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
 	});
 </script>
 
-<div class={isAttachedToToolCall ? "relative z-10 inline-flex max-w-full mt-[-1px]" : "w-full"}>
+<div class={isAttachedToToolCall ? "relative z-10 inline-flex max-w-full mt-[-2px]" : "w-full"}>
 	<div class={cardClass}>
 		{#if !isAttachedToToolCall && (showSummary || (progress && hasProgress) || (trailing && hasTrailing))}
 			<div class="flex w-full items-start justify-between gap-1.5">
