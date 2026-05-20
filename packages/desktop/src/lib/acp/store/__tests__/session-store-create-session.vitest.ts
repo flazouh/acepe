@@ -189,6 +189,32 @@ describe("SessionStore.createSession", () => {
 				updatedAtMs: new Date("2026-04-20T00:00:00.000Z").getTime(),
 			},
 		]);
+		expect(store.getSessionPaletteReferences()).toEqual([
+			{
+				id: "linked-1",
+				projectPath: "/repo",
+				agentId: "copilot",
+				title: "New Thread",
+			},
+			{
+				id: "unlinked",
+				projectPath: "/repo",
+				agentId: "copilot",
+				title: "New Thread",
+			},
+			{
+				id: "other-project",
+				projectPath: "/other",
+				agentId: "copilot",
+				title: "New Thread",
+			},
+		]);
+		expect(store.getSessionPaletteReference("linked-1")).toEqual({
+			id: "linked-1",
+			projectPath: "/repo",
+			agentId: "copilot",
+			title: "New Thread",
+		});
 	});
 
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {

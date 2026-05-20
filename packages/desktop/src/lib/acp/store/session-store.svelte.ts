@@ -185,6 +185,13 @@ export type SessionLiveSyncReference = {
 	readonly updatedAtMs: number;
 };
 
+export type SessionPaletteReference = {
+	readonly id: string;
+	readonly projectPath: string;
+	readonly agentId: string;
+	readonly title: string | null;
+};
+
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
 	previous: SessionUsageTelemetry | undefined,
@@ -1902,6 +1909,28 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			id: session.id,
 			updatedAtMs: session.updatedAt.getTime(),
 		}));
+	}
+
+	getSessionPaletteReferences(): SessionPaletteReference[] {
+		return this.sessions.map((session) => ({
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			title: session.title,
+		}));
+	}
+
+	getSessionPaletteReference(sessionId: string): SessionPaletteReference | undefined {
+		const session = this.sessionById.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		return {
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			title: session.title,
+		};
 	}
 
 	getSessionPrLinkReferencesForProject(projectPath: string): SessionPrLinkReference[] {

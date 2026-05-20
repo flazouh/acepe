@@ -5,8 +5,10 @@
 
 import { okAsync, type ResultAsync } from "neverthrow";
 import { ChatCircle } from "phosphor-svelte";
-import type { SessionCold } from "../../../application/dto/session-cold.js";
-import type { SessionStore } from "../../../store/session-store.svelte.js";
+import type {
+	SessionPaletteReference,
+	SessionStore,
+} from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import type { ProjectManager } from "../../project-manager.svelte.js";
@@ -35,7 +37,7 @@ export interface SessionsProviderConfig {
  * Converts a session to a palette item.
  */
 function sessionToPaletteItem(
-	session: SessionCold,
+	session: SessionPaletteReference,
 	projectName: string,
 	projectColor?: string,
 	projectIconSrc?: string | null
@@ -94,7 +96,7 @@ export class SessionsProvider implements PaletteProvider {
 	 * Search for sessions matching the query.
 	 */
 	search(query: string): PaletteItem[] {
-		const sessions = this.config.sessionStore.getAllSessions();
+		const sessions = this.config.sessionStore.getSessionPaletteReferences();
 
 		// Convert sessions to searchable format
 		const searchable = sessions.map((session) => {
@@ -169,7 +171,7 @@ export class SessionsProvider implements PaletteProvider {
 	 */
 	private storedToItem(stored: StoredRecentItem): PaletteItem | null {
 		// Try to find the session in the store
-		const session = this.config.sessionStore.getSessionCold(stored.id);
+		const session = this.config.sessionStore.getSessionPaletteReference(stored.id);
 		if (session) {
 			const projectInfo = this.getProjectInfo(session.projectPath);
 			return sessionToPaletteItem(
