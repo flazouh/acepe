@@ -271,7 +271,7 @@ describe("agent panel display model", () => {
 		});
 
 		expect(model.turnState).toBe("streaming");
-		expect(model.waiting).toEqual({ show: false, label: null });
+		expect(model.waiting).toEqual({ show: true, label: "Planning next moves..." });
 		expect(model.composer.showStop).toBe(true);
 	});
 

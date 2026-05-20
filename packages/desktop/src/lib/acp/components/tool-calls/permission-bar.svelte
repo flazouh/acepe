@@ -58,7 +58,9 @@ const isRepresentedByToolCall = $derived.by(() => {
 	return sessionStore.isPermissionRepresentedByToolCall(currentPermission, sessionId);
 });
 const sessionProgress = $derived(permissionStore.getSessionProgress(sessionId));
-const effectiveTurnState = $derived(sessionStore.getSessionStateGraph(sessionId)?.turnState ?? null);
+const effectiveTurnState = $derived(
+	sessionStore.getSessionStateGraph(sessionId)?.turnState ?? null
+);
 const currentToolCall = $derived.by((): ToolCall | null => {
 	const toolCallId = currentPermission?.tool?.callID;
 	if (!toolCallId) {
@@ -120,7 +122,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 		{#snippet editPreview()}
 			{#if showEditPreview && currentToolCall}
 				{@const mappedTurnState = effectiveTurnState !== null ? mapCanonicalTurnStateToHotTurnState(effectiveTurnState) : undefined}
-				{@const sceneEntry = mapToolCallToSceneEntry(currentToolCall, mappedTurnState, false, null)}
+				{@const sceneEntry = mapToolCallToSceneEntry(currentToolCall, mappedTurnState, false)}
 				{#if sceneEntry.type === "tool_call" && sceneEntry.editDiffs !== undefined}
 					<AgentToolEdit
 						diffs={sceneEntry.editDiffs}

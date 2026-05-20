@@ -10,6 +10,7 @@ export type {
 	StreamingAnimationMode,
 } from "../../lib/assistant-message/types.js";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
+export { resolveVisibleAssistantMessageGroups } from "./agent-assistant-message-visible-groups.js";
 export { default as AgentAttachedFilePane } from "./agent-attached-file-pane.svelte";
 export { default as AgentPanelErrorCard } from "./agent-error-card.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
@@ -52,6 +53,7 @@ export {
 export { default as AgentInputVoiceModelMenu } from "./agent-input-voice-model-menu.svelte";
 export { default as AgentInputVoiceRecordingOverlay } from "./agent-input-voice-recording-overlay.svelte";
 export { default as AgentPanelInstallCard } from "./agent-install-card.svelte";
+export { default as AgentMissingSceneEntry } from "./agent-missing-scene-entry.svelte";
 export { default as AgentPanel } from "./agent-panel.svelte";
 export { default as AgentPanelBrowserHeader } from "./agent-panel-browser-header.svelte";
 export { default as AgentPanelComposer } from "./agent-panel-composer.svelte";
@@ -62,8 +64,6 @@ export { default as AgentPanelFooter } from "./agent-panel-footer.svelte";
 export { default as AgentPanelFooterChrome } from "./agent-panel-footer-chrome.svelte";
 export { default as AgentPanelHeader } from "./agent-panel-header.svelte";
 export { default as AgentPanelLayout } from "./agent-panel-layout.svelte";
-export { default as AgentMissingSceneEntry } from "./agent-missing-scene-entry.svelte";
-export { default as AgentThinkingSceneEntry } from "./agent-thinking-scene-entry.svelte";
 export { default as AgentPanelModifiedFileRow } from "./agent-panel-modified-file-row.svelte";
 export { default as AgentPanelModifiedFilesTrailingControls } from "./agent-panel-modified-files-trailing-controls.svelte";
 export { default as AgentPanelPrCard } from "./agent-panel-pr-card.svelte";
@@ -79,6 +79,7 @@ export { default as AgentPanelWorktreeCloseConfirmPopover } from "./agent-panel-
 export { default as AgentPanelWorktreeSwitchDialog } from "./agent-panel-worktree-switch-dialog.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export type { AgentGridItem } from "./agent-selection-grid-types.js";
+export { default as AgentThinkingSceneEntry } from "./agent-thinking-scene-entry.svelte";
 export { default as AgentToolBrowser } from "./agent-tool-browser.svelte";
 export { default as AgentToolCard } from "./agent-tool-card.svelte";
 export { default as AgentToolEdit } from "./agent-tool-edit.svelte";
@@ -93,12 +94,8 @@ export { default as AgentToolSearch } from "./agent-tool-search.svelte";
 export { default as AgentToolSkill } from "./agent-tool-skill.svelte";
 export { default as AgentToolTask } from "./agent-tool-task.svelte";
 export { default as AgentToolThinking } from "./agent-tool-thinking.svelte";
-export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
-export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
-export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
-export { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
@@ -121,7 +118,7 @@ export { default as AgentPanelPermissionBarIcon } from "./permission-bar-icon.sv
 export { default as AgentPanelPermissionBarProgress } from "./permission-bar-progress.svelte";
 export { default as AgentPanelPlanHeader } from "./plan-header.svelte";
 export { default as AgentPanelPrStatusCard } from "./pr-status-card.svelte";
-export { default as AgentPanelWorktreeTogglePill } from "./worktree-toggle-pill.svelte";
+export { default as AgentPanelPreSessionWorktreeCard } from "./pre-session-worktree-card.svelte";
 export { default as AgentPanelQueueCardStrip } from "./queue-card-strip.svelte";
 export { default as AgentPanelReviewNavigation } from "./review-navigation.svelte";
 export { default as AgentPanelReviewTabStrip } from "./review-tab-strip.svelte";
@@ -129,14 +126,16 @@ export { default as ReviewWorkspace } from "./review-workspace.svelte";
 export { default as ReviewWorkspaceFileList } from "./review-workspace-file-list.svelte";
 export { default as ReviewWorkspaceHeader } from "./review-workspace-header.svelte";
 export { default as AgentPanelScrollToBottomButton } from "./scroll-to-bottom-button.svelte";
+export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
+export { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
 export { default as AgentPanelTodoHeader } from "./todo-header.svelte";
 export { default as TodoNumberIcon } from "./todo-number-icon.svelte";
+export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
+export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
 export { default as ToolTally } from "./tool-tally.svelte";
-export { resolveVisibleAssistantMessageGroups } from "./agent-assistant-message-visible-groups.js";
 export type {
 	AgentAssistantEntry,
-	AssistantRenderBlockContext,
-	TokenRevealCss,
+	AgentMissingEntry,
 	AgentPanelActionabilityModel,
 	AgentPanelActionCallbacks,
 	AgentPanelActionDescriptor,
@@ -163,14 +162,14 @@ export type {
 	AgentPanelMetaItem,
 	AgentPanelModifiedFileItem,
 	AgentPanelModifiedFilesTrailingModel,
+	AgentPanelPlanActionEvent,
 	AgentPanelPlanSidebarItem,
 	AgentPanelPlanSidebarModel,
+	AgentPanelPlanViewEvent,
 	AgentPanelPrCardModel,
 	AgentPanelPrCommitItem,
-	AgentPanelPlanActionEvent,
-	AgentPanelPlanViewEvent,
-	AgentPanelQueuedMessage,
 	AgentPanelQuestionSelectEvent,
+	AgentPanelQueuedMessage,
 	AgentPanelRecommendedAction,
 	AgentPanelRecoveryPhase,
 	AgentPanelReviewFileTab,
@@ -186,7 +185,6 @@ export type {
 	AgentQuestion,
 	AgentQuestionOption,
 	AgentSessionStatus,
-	AgentMissingEntry,
 	AgentThinkingEntry,
 	AgentTodoItem,
 	AgentTodoStatus,
@@ -198,8 +196,10 @@ export type {
 	AgentUserEntry,
 	AgentWebSearchLink,
 	AnyAgentEntry,
+	AssistantRenderBlockContext,
 	LintDiagnostic,
 	ReviewWorkspaceFileItem,
+	TokenRevealCss,
 } from "./types.js";
 export {
 	AGENT_PANEL_ACTION_IDS,
@@ -208,3 +208,4 @@ export {
 } from "./types.js";
 export { default as AgentPanelWorktreeSetupCard } from "./worktree-setup-card.svelte";
 export { default as AgentPanelWorktreeStatusDisplay } from "./worktree-status-display.svelte";
+export { default as AgentPanelWorktreeTogglePill } from "./worktree-toggle-pill.svelte";

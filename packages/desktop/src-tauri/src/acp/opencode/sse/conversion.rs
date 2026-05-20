@@ -1155,39 +1155,31 @@ fn ensure_permission_raw_input(
     let first_pattern = first_permission_pattern(patterns);
 
     match kind {
-        ToolKind::Read | ToolKind::Edit | ToolKind::Delete => {
-            if !raw_object.contains_key("file_path") {
-                if let Some(path) = first_pattern.or(label_tail) {
-                    raw_object.insert("file_path".to_string(), Value::String(path));
-                }
+        ToolKind::Read | ToolKind::Edit | ToolKind::Delete
+            if !raw_object.contains_key("file_path") =>
+        {
+            if let Some(path) = first_pattern.or(label_tail) {
+                raw_object.insert("file_path".to_string(), Value::String(path));
             }
         }
-        ToolKind::Execute => {
-            if !raw_object.contains_key("command") {
-                if let Some(command) = label_tail.or(first_pattern) {
-                    raw_object.insert("command".to_string(), Value::String(command));
-                }
+        ToolKind::Execute if !raw_object.contains_key("command") => {
+            if let Some(command) = label_tail.or(first_pattern) {
+                raw_object.insert("command".to_string(), Value::String(command));
             }
         }
-        ToolKind::Search => {
-            if !raw_object.contains_key("query") {
-                if let Some(query) = label_tail.or(first_pattern) {
-                    raw_object.insert("query".to_string(), Value::String(query));
-                }
+        ToolKind::Search if !raw_object.contains_key("query") => {
+            if let Some(query) = label_tail.or(first_pattern) {
+                raw_object.insert("query".to_string(), Value::String(query));
             }
         }
-        ToolKind::Glob => {
-            if !raw_object.contains_key("pattern") {
-                if let Some(pattern) = first_pattern.or(label_tail) {
-                    raw_object.insert("pattern".to_string(), Value::String(pattern));
-                }
+        ToolKind::Glob if !raw_object.contains_key("pattern") => {
+            if let Some(pattern) = first_pattern.or(label_tail) {
+                raw_object.insert("pattern".to_string(), Value::String(pattern));
             }
         }
-        ToolKind::Fetch => {
-            if !raw_object.contains_key("url") {
-                if let Some(url) = label_tail.or(first_pattern) {
-                    raw_object.insert("url".to_string(), Value::String(url));
-                }
+        ToolKind::Fetch if !raw_object.contains_key("url") => {
+            if let Some(url) = label_tail.or(first_pattern) {
+                raw_object.insert("url".to_string(), Value::String(url));
             }
         }
         _ => {}

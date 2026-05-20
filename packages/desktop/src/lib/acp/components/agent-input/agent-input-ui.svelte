@@ -222,7 +222,9 @@ const capabilitiesAgent = $derived.by(() => {
 const capabilitiesProviderMetadata = $derived(
 	resolveCapabilityContextProviderMetadata({
 		sessionSource: sessionCapabilitySource,
-		selectedAgentProviderMetadata: capabilitiesAgent ? (capabilitiesAgent.providerMetadata ?? null) : null,
+		selectedAgentProviderMetadata: capabilitiesAgent
+			? (capabilitiesAgent.providerMetadata ?? null)
+			: null,
 	})
 );
 const preconnectionCapabilities = $derived.by(() =>
@@ -298,7 +300,7 @@ const capabilitySource = $derived.by(() =>
 const effectiveCapabilityProviderMetadata = $derived(
 	capabilitySource.providerMetadata ?? capabilitiesProviderMetadata ?? null
 );
-const effectiveAvailableModes = $derived(capabilitySource.availableModes);
+const effectiveAvailableModes = $derived(capabilitySource.availableModes ?? []);
 
 // Filter to only show Build and Plan modes in the UI
 const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
@@ -361,7 +363,7 @@ const selectedModeMenuOptionId = $derived(
 	})
 );
 
-const effectiveAvailableModels = $derived(capabilitySource.availableModels);
+const effectiveAvailableModels = $derived(capabilitySource.availableModels ?? []);
 const effectiveModelsDisplay = $derived(capabilitySource.modelsDisplay);
 
 const preferredDefaultModelId = $derived.by(() => {

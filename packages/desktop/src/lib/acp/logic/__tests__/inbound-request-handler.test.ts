@@ -113,7 +113,7 @@ describe("InboundRequestHandler", () => {
 			expect(permission.permission).toBe("Run tests");
 			expect(permission.always).toEqual(["allow_always"]);
 			expect(permission.tool).toEqual({
-				messageID: "",
+				messageID: null,
 				callID: "tool-123",
 			});
 		});

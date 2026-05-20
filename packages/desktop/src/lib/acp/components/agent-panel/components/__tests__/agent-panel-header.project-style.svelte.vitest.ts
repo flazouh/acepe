@@ -211,7 +211,7 @@ describe("AgentPanelHeader project-header style", () => {
 			agentIconSrc: "",
 			agentName: "Codex",
 			isFullscreen: false,
-			sessionStatus: "error",
+			sessionStatus: "error" as const,
 			projectPath: "/repo",
 			projectName: "repo",
 			projectColor: "#FF5D5A",
