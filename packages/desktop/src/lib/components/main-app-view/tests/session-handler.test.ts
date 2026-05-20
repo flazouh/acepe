@@ -44,7 +44,7 @@ describe("SessionHandler", () => {
 			getSessionDetail: mock(() => null),
 			getSession: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
 			getSessionById: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
-			getSessionCold: mock((id: string) => mockSessionsArray.find((s: any) => s.id === id)),
+			hasSession: mock((id: string) => mockSessionsArray.some((s: any) => s.id === id)),
 			loadHistoricalSession: mock((sessionId: string) => {
 				const session = { id: sessionId };
 				mockSessionsArray.push(session);

@@ -215,6 +215,8 @@ describe("SessionStore.createSession", () => {
 			agentId: "copilot",
 			title: "New Thread",
 		});
+		expect(store.hasSession("linked-1")).toBe(true);
+		expect(store.hasSession("missing-session")).toBe(false);
 	});
 
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {

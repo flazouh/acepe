@@ -56,11 +56,11 @@ export class SessionHandler {
 		sessionInfo?: SessionListItem
 	): ResultAsync<void, MainAppViewError> {
 		// Check if session exists in memory
-		const existingSession = this.sessionStore.getSessionCold(sessionId);
+		const sessionExists = this.sessionStore.hasSession(sessionId);
 		let finalSessionId = sessionId;
 
 		// If session not in memory, try to load it
-		if (!existingSession && sessionInfo) {
+		if (!sessionExists && sessionInfo) {
 			return this.sessionStore
 				.loadHistoricalSession(
 					sessionInfo.id,
@@ -83,8 +83,8 @@ export class SessionHandler {
 					finalSessionId = loadedSession.id;
 					return this.preloadAndOpenSession(finalSessionId);
 				});
-		} else if (existingSession) {
-			finalSessionId = existingSession.id;
+		} else if (sessionExists) {
+			finalSessionId = sessionId;
 			return this.preloadAndOpenSession(finalSessionId);
 		} else {
 			return errAsync(

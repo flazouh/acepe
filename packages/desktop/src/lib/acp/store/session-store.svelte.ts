@@ -1864,6 +1864,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		};
 	}
 
+	hasSession(sessionId: string): boolean {
+		return this.sessionById.has(sessionId);
+	}
+
 	/**
 	 * Get session metadata (rarely changing data).
 	 */
