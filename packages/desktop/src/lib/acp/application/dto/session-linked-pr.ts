@@ -40,6 +40,12 @@ export interface SessionLinkedPr {
 	readonly hasResolvedChecks: boolean;
 }
 
+export interface SessionPrLinkReference {
+	readonly id: string;
+	readonly prNumber: number;
+	readonly sequenceId?: number;
+}
+
 export function buildPartialSessionLinkedPr(
 	prNumber: number,
 	state: SessionLinkedPr["state"] | undefined

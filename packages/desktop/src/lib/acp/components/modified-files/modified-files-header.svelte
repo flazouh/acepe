@@ -17,8 +17,8 @@ import { Spinner } from "$lib/components/ui/spinner/index.js";
 import type {
 	SessionLinkedPr,
 	SessionPrLinkMode,
+	SessionPrLinkReference,
 } from "$lib/acp/application/dto/session-linked-pr.js";
-import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
@@ -82,8 +82,8 @@ interface Props {
 	linkedPr?: SessionLinkedPr | null;
 	/** Whether the current session PR link is automatic or manually selected */
 	prLinkMode?: SessionPrLinkMode | null;
-	/** Project sessions used to show and transfer existing PR links */
-	projectSessions?: readonly SessionCold[];
+	/** Minimal session references used to show and transfer existing PR links */
+	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	/** Project metadata used for linked-session badges */
 	project?: Project | null;
 	/** Available agents for PR generation selection */
@@ -111,7 +111,7 @@ let {
 	projectPath = null,
 	linkedPr = null,
 	prLinkMode = "automatic",
-	projectSessions = [],
+	projectPrLinkReferences = [],
 	project = null,
 	availableAgents = [],
 	currentAgentId = null,
@@ -579,7 +579,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 									{projectPath}
 									{linkedPr}
 									prLinkMode={prLinkMode ?? "automatic"}
-									{projectSessions}
+									{projectPrLinkReferences}
 									{project}
 									variant="header-icon"
 								/>

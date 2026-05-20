@@ -5,8 +5,8 @@ import type { PrListItem, RepoContext } from "$lib/acp/types/github-integration.
 import type {
 	SessionLinkedPr,
 	SessionPrLinkMode,
+	SessionPrLinkReference,
 } from "$lib/acp/application/dto/session-linked-pr.js";
-import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
@@ -22,8 +22,8 @@ interface Props {
 	projectPath: string;
 	linkedPr?: SessionLinkedPr | null;
 	prLinkMode?: SessionPrLinkMode | null;
-	/** All sessions in the current project, used to surface sessions linked to each PR. */
-	projectSessions?: readonly SessionCold[];
+	/** Minimal session references for PRs already linked in this project. */
+	projectPrLinkReferences?: readonly SessionPrLinkReference[];
 	/** Project metadata, used to render the project-letter badge (color, icon). */
 	project?: Project | null;
 	/** Render mode:
@@ -38,7 +38,7 @@ let {
 	projectPath,
 	linkedPr = null,
 	prLinkMode = "automatic",
-	projectSessions = [],
+	projectPrLinkReferences = [],
 	project = null,
 	variant = "footer",
 }: Props = $props();
@@ -62,19 +62,17 @@ const tooltipLabel = $derived.by(() => {
 });
 
 /**
- * Map: prNumber → readonly SessionCold[] (sessions in this project already linked to that PR).
- * Built from the sessions list passed in via props.
+ * Map: prNumber → readonly session references already linked to that PR.
  */
 const sessionsByPrNumber = $derived.by(() => {
-	const map = new Map<number, SessionCold[]>();
-	for (const s of projectSessions) {
-		if (s.prNumber == null) continue;
-		let arr = map.get(s.prNumber);
+	const map = new Map<number, SessionPrLinkReference[]>();
+	for (const reference of projectPrLinkReferences) {
+		let arr = map.get(reference.prNumber);
 		if (!arr) {
 			arr = [];
-			map.set(s.prNumber, arr);
+			map.set(reference.prNumber, arr);
 		}
-		arr.push(s);
+		arr.push(reference);
 	}
 	return map;
 });

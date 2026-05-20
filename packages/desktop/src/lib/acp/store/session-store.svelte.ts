@@ -101,6 +101,7 @@ import type {
 	SessionTransientProjection,
 	SessionUsageTelemetry,
 } from "./types.js";
+import type { SessionPrLinkReference } from "../application/dto/session-linked-pr.js";
 import "../errors/app-error.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
@@ -1892,6 +1893,22 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	getSessionsForProject(projectPath: string): SessionCold[] {
 		const sessions = this.sessionsByProject.get(projectPath) ?? [];
 		return sessions.map((session) => sessionColdFromExistingSession(session));
+	}
+
+	getSessionPrLinkReferencesForProject(projectPath: string): SessionPrLinkReference[] {
+		const sessions = this.sessionsByProject.get(projectPath) ?? [];
+		const references: SessionPrLinkReference[] = [];
+		for (const session of sessions) {
+			if (session.prNumber == null) {
+				continue;
+			}
+			references.push({
+				id: session.id,
+				prNumber: session.prNumber,
+				sequenceId: session.sequenceId,
+			});
+		}
+		return references;
 	}
 
 	/**

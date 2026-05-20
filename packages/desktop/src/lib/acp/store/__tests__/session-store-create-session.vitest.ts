@@ -147,6 +147,33 @@ describe("SessionStore.createSession", () => {
 		vi.clearAllMocks();
 	});
 
+	it("returns minimal PR link references for a project", () => {
+		store.setSessions([
+			createSession({
+				id: "linked-1",
+				prNumber: 42,
+				sequenceId: 7,
+			}),
+			createSession({
+				id: "unlinked",
+			}),
+			createSession({
+				id: "other-project",
+				projectPath: "/other",
+				prNumber: 42,
+				sequenceId: 3,
+			}),
+		]);
+
+		expect(store.getSessionPrLinkReferencesForProject("/repo")).toEqual([
+			{
+				id: "linked-1",
+				prNumber: 42,
+				sequenceId: 7,
+			},
+		]);
+	});
+
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {
 		const session = createSession();
 		const sessionOpen = createSessionOpenFound();

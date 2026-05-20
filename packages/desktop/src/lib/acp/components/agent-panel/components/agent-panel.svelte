@@ -1052,10 +1052,10 @@ const footerWorktreeStatus = $derived.by(() => {
 	return null;
 });
 
-/** All sessions in the session-panel's current project, used by the modified-header PR picker. */
-const projectSessionsForPr = $derived.by(() => {
+/** Minimal linked-session references for the modified-header PR picker. */
+const projectPrLinkReferences = $derived.by(() => {
 	if (!sessionProjectPath) return [];
-	return sessionStore.getSessionsForProject(sessionProjectPath);
+	return sessionStore.getSessionPrLinkReferencesForProject(sessionProjectPath);
 });
 
 /** Project matching the current session, used to render project-letter badges in the PR picker. */
@@ -2522,7 +2522,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			{prFetchError}
 			linkedPr={sessionMetadata?.linkedPr ?? null}
 			prLinkMode={sessionMetadata?.prLinkMode ?? "automatic"}
-			{projectSessionsForPr}
+			{projectPrLinkReferences}
 			{projectForPr}
 			{streamingShipData}
 			{modifiedFilesState}

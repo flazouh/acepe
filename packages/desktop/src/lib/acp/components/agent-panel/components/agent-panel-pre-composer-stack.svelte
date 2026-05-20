@@ -6,8 +6,11 @@ import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte.js";
-import type { SessionLinkedPr, SessionPrLinkMode } from "../../../application/dto/session-linked-pr";
-import type { SessionCold } from "../../../application/dto/session-cold.js";
+import type {
+	SessionLinkedPr,
+	SessionPrLinkMode,
+	SessionPrLinkReference,
+} from "../../../application/dto/session-linked-pr";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TodoState } from "../../../types/todo.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
@@ -77,7 +80,7 @@ let {
 	prFetchError,
 	linkedPr,
 	prLinkMode,
-	projectSessionsForPr,
+	projectPrLinkReferences,
 	projectForPr,
 	streamingShipData,
 	modifiedFilesState,
@@ -144,7 +147,7 @@ let {
 	prFetchError: string | null;
 	linkedPr: SessionLinkedPr | null;
 	prLinkMode: SessionPrLinkMode | null;
-	projectSessionsForPr: readonly SessionCold[];
+	projectPrLinkReferences: readonly SessionPrLinkReference[];
 	projectForPr: Project | null;
 	streamingShipData: ShipCardData | null;
 	modifiedFilesState: ModifiedFilesState | null;
@@ -266,7 +269,7 @@ let {
 								projectPath={sessionProjectPath}
 								{linkedPr}
 								{prLinkMode}
-								projectSessions={projectSessionsForPr}
+								{projectPrLinkReferences}
 								project={projectForPr}
 								{availableAgents}
 								currentAgentId={effectivePanelAgentId}
