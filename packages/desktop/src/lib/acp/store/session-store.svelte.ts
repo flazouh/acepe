@@ -3297,8 +3297,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyCapabilities") {
-				const session = this.getSessionCold(sessionId);
-				if (!session) {
+				const sessionIdentity = this.getSessionIdentity(sessionId);
+				if (!sessionIdentity) {
 					continue;
 				}
 				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
@@ -3308,7 +3308,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
 				this.canonicalCapabilitiesMaterialized.set(sessionId, true);
-				void session;
 				if (previousProjection !== null) {
 					this.canonicalProjections.set(sessionId, {
 						lifecycle: previousProjection.lifecycle,
