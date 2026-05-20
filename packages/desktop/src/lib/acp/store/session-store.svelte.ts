@@ -1751,6 +1751,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			createdAt: session.createdAt,
 			updatedAt: session.updatedAt,
 			sourcePath: session.sourcePath,
+			sessionLifecycleState: session.sessionLifecycleState,
 			parentId: session.parentId,
 			prNumber: session.prNumber,
 			prState: session.prState,
@@ -2517,9 +2518,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		content: string,
 		attachments: readonly Attachment[] = []
 	): ResultAsync<void, AppError> {
-		const session = this.getSessionCold(sessionId);
+		const sessionIdentity = this.getSessionIdentity(sessionId);
 		const sessionMetadata = this.getSessionMetadata(sessionId);
-		if (!session) {
+		if (!sessionIdentity) {
 			if (this.pendingCreationSessions.has(sessionId)) {
 				return this.messagingSvc
 					.sendPendingCreationMessage(sessionId, content, attachments)
