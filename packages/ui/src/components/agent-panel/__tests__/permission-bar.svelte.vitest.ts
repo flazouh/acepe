@@ -49,7 +49,8 @@ describe("AgentPanelPermissionBar", () => {
 		expect(permissionCard?.className).toContain("inline-flex");
 		expect(permissionCard?.className).toContain("px-1");
 		expect(permissionCard?.className).toContain("py-1");
-		expect(permissionCard?.className).toContain("rounded-sm");
+		expect(permissionCard?.className).toContain("rounded-b-sm");
+		expect(permissionCard?.className).toContain("rounded-t-none");
 		expect(permissionCard?.className).not.toContain("permission-attached-inverted-radius");
 	});
 });
