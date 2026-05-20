@@ -56,12 +56,28 @@ export function buildLiveSessionPanelSignal(input: LiveSessionPanelSyncInput): s
 	].join("|");
 }
 
+/**
+ * Tracks whether the initial sync pass has run.
+ * On the first call after startup, live sessions that have no panel are
+ * seeded into the suppression map instead of being materialized. This
+ * prevents hundreds of stale live sessions from auto-opening panels on
+ * every reload (the suppression map is in-memory and lost on restart).
+ * Only genuinely *new* activity (signal change) after the first pass will
+ * materialize a panel.
+ */
+let initialSyncComplete = false;
+
+export function resetLiveSessionPanelSync(): void {
+	initialSyncComplete = false;
+}
+
 export function syncLiveSessionPanels(
 	inputs: readonly LiveSessionPanelSyncInput[],
 	controller: LiveSessionPanelSyncController,
 	width: number
 ): readonly string[] {
 	const materializedSessionIds: string[] = [];
+	const isFirstRun = !initialSyncComplete;
 
 	for (const input of inputs) {
 		if (!isLiveSessionPanelCandidate(input)) {
@@ -74,9 +90,17 @@ export function syncLiveSessionPanels(
 			continue;
 		}
 
+		// On the first sync pass, seed suppression instead of materializing.
+		// This prevents re-opening all live sessions after a reload.
+		if (isFirstRun) {
+			controller.syncSuppression(input.sessionId, signal);
+			continue;
+		}
+
 		controller.materialize(input.sessionId, width);
 		materializedSessionIds.push(input.sessionId);
 	}
 
+	initialSyncComplete = true;
 	return materializedSessionIds;
 }

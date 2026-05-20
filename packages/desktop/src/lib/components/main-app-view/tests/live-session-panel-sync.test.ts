@@ -5,6 +5,7 @@ import {
 	isLiveSessionPanelCandidate,
 	type LiveSessionPanelSyncController,
 	type LiveSessionPanelSyncInput,
+	resetLiveSessionPanelSync,
 	syncLiveSessionPanels,
 } from "../logic/live-session-panel-sync.js";
 
@@ -111,8 +112,31 @@ describe("isLiveSessionPanelCandidate", () => {
 });
 
 describe("syncLiveSessionPanels", () => {
+	// After the initial sync pass (which seeds suppression without materializing),
+	// subsequent calls materialize new live sessions as expected.
+	// Each test resets module state and runs an empty initial pass first.
+	function completeInitialSync(controller: LiveSessionPanelSyncController): void {
+		resetLiveSessionPanelSync();
+		syncLiveSessionPanels([], controller, 450);
+	}
+
+	it("does not materialize on the very first sync pass (initial seed)", () => {
+		resetLiveSessionPanelSync();
+		const { controller, materializedSessionIds } = createController();
+
+		const synchronized = syncLiveSessionPanels(
+			[makeInput({ sessionId: "session-1" })],
+			controller,
+			450
+		);
+
+		expect(synchronized).toEqual([]);
+		expect(materializedSessionIds).toEqual([]);
+	});
+
 	it("materializes live sessions that do not yet have panels", () => {
 		const { controller, materializedSessionIds } = createController();
+		completeInitialSync(controller);
 
 		const synchronized = syncLiveSessionPanels(
 			[makeInput({ sessionId: "session-1" })],
@@ -126,6 +150,7 @@ describe("syncLiveSessionPanels", () => {
 
 	it("does not materialize non-live sessions", () => {
 		const { controller, materializedSessionIds } = createController();
+		completeInitialSync(controller);
 
 		const synchronized = syncLiveSessionPanels(
 			[makeInput({ sessionId: "session-1", connectionPhase: "connected", activityPhase: "idle" })],
@@ -144,6 +169,7 @@ describe("syncLiveSessionPanels", () => {
 			[],
 			new Map([["session-1", signal]])
 		);
+		completeInitialSync(controller);
 
 		const synchronized = syncLiveSessionPanels([input], controller, 450);
 
@@ -159,6 +185,7 @@ describe("syncLiveSessionPanels", () => {
 			[],
 			new Map([["session-1", previousSignal]])
 		);
+		completeInitialSync(controller);
 
 		const synchronized = syncLiveSessionPanels(
 			[makeInput({ sessionId: "session-1", updatedAtMs: 2000 })],
@@ -173,6 +200,7 @@ describe("syncLiveSessionPanels", () => {
 
 	it("does not materialize sessions that already have panels", () => {
 		const { controller, materializedSessionIds } = createController(["session-1"]);
+		completeInitialSync(controller);
 
 		const synchronized = syncLiveSessionPanels(
 			[makeInput({ sessionId: "session-1" })],

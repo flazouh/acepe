@@ -1097,7 +1097,7 @@ function openCreateBranchDialog(projectPath: string): void {
 							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
-								class="shrink-0 px-1 pb-1"
+								class="shrink-0 px-1 pt-1 pb-1"
 								role="presentation"
 								onclick={(event) => event.stopPropagation()}
 								onkeydown={handleProjectHistorySearchKeydown}
@@ -1106,7 +1106,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									type="search"
 									value={getProjectHistoryQuery(group.projectPath)}
 									placeholder="Search project history..."
-									class="h-7 rounded-md border-border/70 bg-background/70 px-2 text-[11px]"
+									class="h-6 rounded-md border-border/70 bg-background/70 px-2 py-0 text-[11px] md:text-[11px]"
 									data-sidebar-project-history-search
 									oninput={(event) =>
 										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}

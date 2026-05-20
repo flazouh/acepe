@@ -61,23 +61,23 @@
 			<button
 				type="button"
 				onclick={onLabelClick}
-				class="flex h-full items-center gap-1.5 pl-2 pr-1.5 text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground"
+				class="flex h-full items-center gap-1.5 pl-2 pr-1.5 text-xs font-mono text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<Tree
 					size={12}
 					weight={enabled ? "fill" : "regular"}
 					class="shrink-0 {enabled ? 'text-success' : ''}"
 				/>
-				<span>{label}</span>
+				<span class="lowercase">{label}</span>
 			</button>
 		{:else}
-			<span class="flex h-full items-center gap-1.5 pl-2 pr-1.5 text-[0.6875rem] text-muted-foreground">
+			<span class="flex h-full items-center gap-1.5 pl-2 pr-1.5 text-xs font-mono text-muted-foreground">
 				<Tree
 					size={12}
 					weight={enabled ? "fill" : "regular"}
 					class="shrink-0 {enabled ? 'text-success' : ''}"
 				/>
-				<span>{label}</span>
+				<span class="lowercase">{label}</span>
 			</span>
 		{/if}
 		<!-- Toggle switch -->
@@ -95,8 +95,8 @@
 			>
 				<span
 					class="absolute h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-transform duration-200 {enabled
-						? 'translate-x-[calc(100%-1px)]'
-						: 'translate-x-px'}"
+						? 'translate-x-[12px]'
+						: 'translate-x-[2px]'}"
 				></span>
 			</span>
 		</button>
