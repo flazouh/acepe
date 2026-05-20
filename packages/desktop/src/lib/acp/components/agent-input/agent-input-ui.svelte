@@ -1812,7 +1812,7 @@ $effect(() => {
 		<SharedAgentPanelComposer
 			class="border-t-0 p-0"
 			inputClass="flex-shrink-0 border border-border bg-input/30"
-			contentClass={voiceOverlayActive ? "relative p-1.5" : "p-1.5"}
+			contentClass={voiceOverlayActive ? "relative px-3 py-2.5" : "px-3 py-2.5"}
 		>
 			{#snippet content()}
 				<AgentInputComposerBody

@@ -6,6 +6,8 @@
 		class?: string;
 		/** Class applied to the content area. Defaults to "px-3 py-2". */
 		contentClass?: string;
+		/** Class applied to the footer area (in addition to the layout defaults). */
+		footerClass?: string;
 		/** Named content snippet (used by desktop input). Mutually exclusive with children. */
 		content?: Snippet;
 		/** Optional footer snippet rendered below content with a top border. */
@@ -17,6 +19,7 @@
 	let {
 		class: className = "",
 		contentClass = "px-3 py-2",
+		footerClass = "",
 		content,
 		footer,
 		children,
@@ -34,7 +37,7 @@
 		{/if}
 	</div>
 	{#if footer}
-		<div class="flex items-center justify-between gap-2 h-7 border-t border-border/50 overflow-hidden rounded-b-[inherit]">
+		<div class={cn("flex items-center justify-between gap-2 h-7 border-t border-border/50 overflow-hidden rounded-b-[inherit]", footerClass)}>
 			{@render footer()}
 		</div>
 	{/if}
