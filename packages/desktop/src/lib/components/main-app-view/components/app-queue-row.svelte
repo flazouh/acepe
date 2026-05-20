@@ -98,7 +98,7 @@ const queueInputs = $derived.by(() => {
 const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
-	for (const session of sessionStore.getAllSessions()) {
+	for (const session of sessionStore.getLiveSessionSyncReferences()) {
 		const lifecyclePresentation = sessionStore.getSessionLifecyclePresentation(session.id);
 		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
 			session.id,
@@ -110,7 +110,7 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 
 		inputs.push({
 			sessionId: session.id,
-			updatedAtMs: session.updatedAt.getTime(),
+			updatedAtMs: session.updatedAtMs,
 			hasCanonicalProjection: sessionStore.hasSessionCanonicalProjection(session.id),
 			connectionPhase: lifecyclePresentation.connectionPhase,
 			activityPhase: lifecyclePresentation.activityPhase,

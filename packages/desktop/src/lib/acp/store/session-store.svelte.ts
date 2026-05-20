@@ -180,6 +180,11 @@ function isSessionQuestionInteraction(
 
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
+export type SessionLiveSyncReference = {
+	readonly id: string;
+	readonly updatedAtMs: number;
+};
+
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
 	previous: SessionUsageTelemetry | undefined,
@@ -1890,6 +1895,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	getSessionIdsForProject(projectPath: string): string[] {
 		const sessions = this.sessionsByProject.get(projectPath) ?? [];
 		return sessions.map((session) => session.id);
+	}
+
+	getLiveSessionSyncReferences(): SessionLiveSyncReference[] {
+		return this.sessions.map((session) => ({
+			id: session.id,
+			updatedAtMs: session.updatedAt.getTime(),
+		}));
 	}
 
 	getSessionPrLinkReferencesForProject(projectPath: string): SessionPrLinkReference[] {

@@ -156,12 +156,14 @@ describe("SessionStore.createSession", () => {
 			}),
 			createSession({
 				id: "unlinked",
+				updatedAt: new Date("2026-04-19T00:00:00.000Z"),
 			}),
 			createSession({
 				id: "other-project",
 				projectPath: "/other",
 				prNumber: 42,
 				sequenceId: 3,
+				updatedAt: new Date("2026-04-20T00:00:00.000Z"),
 			}),
 		]);
 
@@ -173,6 +175,20 @@ describe("SessionStore.createSession", () => {
 			},
 		]);
 		expect(store.getSessionIdsForProject("/repo")).toEqual(["linked-1", "unlinked"]);
+		expect(store.getLiveSessionSyncReferences()).toEqual([
+			{
+				id: "linked-1",
+				updatedAtMs: new Date("2026-04-18T00:00:00.000Z").getTime(),
+			},
+			{
+				id: "unlinked",
+				updatedAtMs: new Date("2026-04-19T00:00:00.000Z").getTime(),
+			},
+			{
+				id: "other-project",
+				updatedAtMs: new Date("2026-04-20T00:00:00.000Z").getTime(),
+			},
+		]);
 	});
 
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {
