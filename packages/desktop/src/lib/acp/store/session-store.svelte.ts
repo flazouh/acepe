@@ -1530,10 +1530,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	private getCanonicalProjectedCapabilities(sessionId: string): ProjectedGraphCapabilities | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		const session = this.getSessionCold(sessionId);
+		const sessionIdentity = this.getSessionIdentity(sessionId);
 		if (
 			projection === null ||
-			session === undefined ||
+			sessionIdentity === undefined ||
 			this.canonicalCapabilitiesMaterialized.get(sessionId) !== true
 		) {
 			return null;
