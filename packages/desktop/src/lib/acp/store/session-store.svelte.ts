@@ -618,6 +618,14 @@ interface CachedPrChecks {
 	fetchedAt: number;
 }
 
+interface SessionPrLinkRef {
+	readonly sessionId: string;
+	readonly projectPath: string;
+	readonly prNumber: number;
+	readonly prState: SessionMetadata["prState"];
+	readonly linkedPr: SessionMetadata["linkedPr"];
+}
+
 function buildResolvedSessionLinkedPr(details: PrDetails): SessionLinkedPr {
 	return {
 		prNumber: details.number,
@@ -2850,13 +2858,17 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Fire-and-forget — errors are logged but not propagated.
 	 */
 	refreshAllPrStates(): void {
-		const sessionsWithPr = this.sessions.filter((s) => s.prNumber != null);
-		for (const session of sessionsWithPr) {
-			const prNumber = session.prNumber;
+		for (const session of this.sessions) {
+			const sessionIdentity = this.getSessionIdentity(session.id);
+			const sessionMetadata = this.getSessionMetadata(session.id);
+			if (!sessionIdentity || !sessionMetadata) {
+				continue;
+			}
+			const prNumber = sessionMetadata.prNumber;
 			if (prNumber == null) {
 				continue;
 			}
-			void this.refreshSessionPrState(session.id, session.projectPath, prNumber);
+			void this.refreshSessionPrState(sessionIdentity.id, sessionIdentity.projectPath, prNumber);
 		}
 	}
 
@@ -2958,14 +2970,34 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return cachedEntry.checks;
 	}
 
+	private getSessionPrLinkRefs(projectPath: string, prNumber: number): SessionPrLinkRef[] {
+		const refs: SessionPrLinkRef[] = [];
+		for (const session of this.sessions) {
+			const sessionIdentity = this.getSessionIdentity(session.id);
+			const sessionMetadata = this.getSessionMetadata(session.id);
+			if (!sessionIdentity || !sessionMetadata) {
+				continue;
+			}
+			if (sessionIdentity.projectPath !== projectPath || sessionMetadata.prNumber !== prNumber) {
+				continue;
+			}
+			refs.push({
+				sessionId: sessionIdentity.id,
+				projectPath: sessionIdentity.projectPath,
+				prNumber: sessionMetadata.prNumber,
+				prState: sessionMetadata.prState,
+				linkedPr: sessionMetadata.linkedPr,
+			});
+		}
+		return refs;
+	}
+
 	private applyPrDetailsToSessions(
 		projectPath: string,
 		prNumber: number,
 		details: PrDetails
 	): void {
-		const matchingSessions = this.sessions.filter(
-			(session) => session.projectPath === projectPath && session.prNumber === prNumber
-		);
+		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		if (matchingSessions.length === 0) {
 			logger.warn("refreshSessionPrState: session not found", { projectPath, prNumber });
@@ -3006,12 +3038,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 			if (details.state !== session.prState || linkedPrChanged) {
 				logger.info("refreshSessionPrState: updating session linked PR", {
-					sessionId: session.id,
+					sessionId: session.sessionId,
 					oldState: session.prState,
 					newState: details.state,
 				});
 				this.updateSession(
-					session.id,
+					session.sessionId,
 					{
 						prState: details.state,
 						linkedPr: nextLinkedPr,
@@ -3023,9 +3055,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	private applyPrChecksToSessions(projectPath: string, prNumber: number, checks: PrChecks): void {
-		const matchingSessions = this.sessions.filter(
-			(session) => session.projectPath === projectPath && session.prNumber === prNumber
-		);
+		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		for (const session of matchingSessions) {
 			const nextChecks = buildResolvedSessionPrChecks(checks);
@@ -3041,7 +3071,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			this.updateSession(
-				session.id,
+				session.sessionId,
 				{
 					linkedPr: {
 						prNumber: linkedPr.prNumber,
@@ -3065,9 +3095,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	private setLinkedPrLoading(projectPath: string, prNumber: number, isLoading: boolean): void {
-		const matchingSessions = this.sessions.filter(
-			(session) => session.projectPath === projectPath && session.prNumber === prNumber
-		);
+		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		for (const session of matchingSessions) {
 			const nextLinkedPr = session.linkedPr
@@ -3109,7 +3137,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
-			this.updateSession(session.id, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
+			this.updateSession(session.sessionId, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
 		}
 	}
 
@@ -3118,9 +3146,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		prNumber: number,
 		isChecksLoading: boolean
 	): void {
-		const matchingSessions = this.sessions.filter(
-			(session) => session.projectPath === projectPath && session.prNumber === prNumber
-		);
+		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		for (const session of matchingSessions) {
 			const linkedPr = session.linkedPr ?? buildPartialSessionLinkedPr(prNumber, session.prState);
@@ -3147,7 +3173,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
-			this.updateSession(session.id, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
+			this.updateSession(session.sessionId, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
 		}
 	}
 
