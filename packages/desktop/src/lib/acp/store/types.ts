@@ -34,12 +34,18 @@ export type { TaskProgress } from "../application/dto/task-progress.js";
 // STORE-SPECIFIC TYPES
 // ============================================
 
+import type { SessionIdentity } from "../application/dto/session-identity.js";
+import type { SessionMetadata } from "../application/dto/session-metadata.js";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 import type { SessionCapabilities } from "../application/dto/session-capabilities.js";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
+
+export type SessionMutableColdUpdates = Partial<SessionMetadata> & {
+	readonly worktreePath?: SessionIdentity["worktreePath"];
+};
 
 /**
  * Usage telemetry state for a session (adapter-agnostic).

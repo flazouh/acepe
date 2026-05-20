@@ -26,7 +26,7 @@ import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
-import type { SessionCold } from "../types.js";
+import type { SessionCold, SessionMutableColdUpdates } from "../types.js";
 import type {
 	IConnectionManager,
 	IEntryManager,
@@ -170,7 +170,7 @@ export class SessionRepository {
 	/**
 	 * Update a session by ID.
 	 */
-	updateSession(id: string, updates: Partial<SessionCold>): void {
+	updateSession(id: string, updates: SessionMutableColdUpdates): void {
 		this.stateWriter.updateSession(id, updates);
 	}
 

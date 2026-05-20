@@ -95,6 +95,7 @@ import type {
 	SessionIdentity,
 	SessionLinkedPr,
 	SessionMetadata,
+	SessionMutableColdUpdates,
 	SessionPendingSendIntent,
 	SessionPrLinkMode,
 	SessionTransientProjection,
@@ -624,6 +625,76 @@ interface SessionPrLinkRef {
 	readonly prNumber: number;
 	readonly prState: SessionMetadata["prState"];
 	readonly linkedPr: SessionMetadata["linkedPr"];
+}
+
+function sessionColdWithMutableUpdates(
+	session: SessionCold,
+	updates: SessionMutableColdUpdates,
+	updatedAt: Date
+): SessionCold {
+	return sessionColdFromSlices(
+		{
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: "worktreePath" in updates ? updates.worktreePath : session.worktreePath,
+		},
+		{
+			title: updates.title !== undefined ? updates.title : session.title,
+			createdAt: updates.createdAt !== undefined ? updates.createdAt : session.createdAt,
+			updatedAt,
+			sourcePath: "sourcePath" in updates ? updates.sourcePath : session.sourcePath,
+			sessionLifecycleState:
+				"sessionLifecycleState" in updates
+					? updates.sessionLifecycleState
+					: session.sessionLifecycleState,
+			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
+			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
+			prState: "prState" in updates ? updates.prState : session.prState,
+			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,
+			linkedPr: "linkedPr" in updates ? updates.linkedPr : session.linkedPr,
+			worktreeDeleted:
+				"worktreeDeleted" in updates ? updates.worktreeDeleted : session.worktreeDeleted,
+			sequenceId: "sequenceId" in updates ? updates.sequenceId : session.sequenceId,
+		}
+	);
+}
+
+function sessionColdFromOpenSnapshotInput(input: {
+	readonly id: string;
+	readonly projectPath: string;
+	readonly agentId: string;
+	readonly worktreePath?: string;
+	readonly title: string | null;
+	readonly createdAt: Date;
+	readonly updatedAt: Date;
+	readonly sourcePath?: string;
+	readonly sessionLifecycleState: SessionMetadata["sessionLifecycleState"];
+	readonly parentId: string | null;
+	readonly preservedMetadata?: SessionMetadata;
+}): SessionCold {
+	return sessionColdFromSlices(
+		{
+			id: input.id,
+			projectPath: input.projectPath,
+			agentId: input.agentId,
+			worktreePath: input.worktreePath,
+		},
+		{
+			title: input.title,
+			createdAt: input.createdAt,
+			updatedAt: input.updatedAt,
+			sourcePath: input.sourcePath,
+			sessionLifecycleState: input.sessionLifecycleState,
+			parentId: input.parentId,
+			prNumber: input.preservedMetadata?.prNumber,
+			prState: input.preservedMetadata?.prState,
+			prLinkMode: input.preservedMetadata?.prLinkMode,
+			linkedPr: input.preservedMetadata?.linkedPr,
+			worktreeDeleted: input.preservedMetadata?.worktreeDeleted,
+			sequenceId: input.preservedMetadata?.sequenceId,
+		}
+	);
 }
 
 function buildResolvedSessionLinkedPr(details: PrDetails): SessionLinkedPr {
@@ -2151,32 +2222,26 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.removeSession(requestedSessionId);
 		}
 
+		const snapshotSession = sessionColdFromOpenSnapshotInput({
+			id: canonicalSessionId,
+			projectPath: snapshot.projectPath,
+			agentId: canonicalAgentIdToString(snapshot.agentId),
+			worktreePath: snapshot.worktreePath ?? undefined,
+			title: snapshot.sessionTitle,
+			updatedAt: preservedSession?.updatedAt ?? now,
+			createdAt: preservedSession?.createdAt ?? now,
+			sourcePath: snapshot.sourcePath ?? undefined,
+			sessionLifecycleState: nextSessionLifecycleState,
+			parentId: preservedSession?.parentId ?? null,
+			preservedMetadata: preservedSession,
+		});
+
 		if (canonicalSession) {
-			this.updateSession(
-				canonicalSessionId,
-				{
-					projectPath: snapshot.projectPath,
-					agentId: canonicalAgentIdToString(snapshot.agentId),
-					worktreePath: snapshot.worktreePath ?? undefined,
-					title: snapshot.sessionTitle,
-					sourcePath: snapshot.sourcePath ?? undefined,
-					sessionLifecycleState: nextSessionLifecycleState,
-				},
-				{ touchUpdatedAt: false }
+			this.sessions = this.sessions.map((session) =>
+				session.id === canonicalSessionId ? snapshotSession : session
 			);
 		} else {
-			this.addSession({
-				id: canonicalSessionId,
-				projectPath: snapshot.projectPath,
-				agentId: canonicalAgentIdToString(snapshot.agentId),
-				worktreePath: snapshot.worktreePath ?? undefined,
-				title: snapshot.sessionTitle,
-				updatedAt: preservedSession?.updatedAt ?? now,
-				createdAt: preservedSession?.createdAt ?? now,
-				sourcePath: snapshot.sourcePath ?? undefined,
-				sessionLifecycleState: nextSessionLifecycleState,
-				parentId: preservedSession?.parentId ?? null,
-			});
+			this.addSession(snapshotSession);
 		}
 
 		this.operationStore.replaceSessionOperations(canonicalSessionId, snapshot.operations);
@@ -2277,23 +2342,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	updateSession(
 		id: string,
-		updates: Partial<SessionCold>,
+		updates: SessionMutableColdUpdates,
 		options?: { touchUpdatedAt?: boolean }
 	): void {
-		this.sessions = this.sessions.map((s) =>
-			s.id === id
-				? {
-						...s,
-						...updates,
-						updatedAt:
-							updates.updatedAt !== undefined
-								? updates.updatedAt
-								: options?.touchUpdatedAt === false
-									? s.updatedAt
-									: new Date(),
-					}
-				: s
-		);
+		this.sessions = this.sessions.map((session) => {
+			if (session.id !== id) {
+				return session;
+			}
+
+			const updatedAt =
+				updates.updatedAt !== undefined
+					? updates.updatedAt
+					: options?.touchUpdatedAt === false
+						? session.updatedAt
+						: new Date();
+
+			return sessionColdWithMutableUpdates(session, updates, updatedAt);
+		});
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {

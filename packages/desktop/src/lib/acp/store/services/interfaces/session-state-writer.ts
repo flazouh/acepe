@@ -6,7 +6,7 @@
  */
 
 import type { SessionOpenFound } from "../../../../services/acp-types.js";
-import type { SessionCold } from "../../types.js";
+import type { SessionCold, SessionMutableColdUpdates } from "../../types.js";
 
 /**
  * Interface for writing session state.
@@ -20,7 +20,7 @@ export interface ISessionStateWriter {
 	/**
 	 * Update a session's cold metadata.
 	 */
-	updateSession(id: string, updates: Partial<SessionCold>): void;
+	updateSession(id: string, updates: SessionMutableColdUpdates): void;
 
 	/**
 	 * Apply a canonical session-open snapshot to the store.
