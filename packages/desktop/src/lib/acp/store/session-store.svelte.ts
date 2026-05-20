@@ -627,6 +627,31 @@ interface SessionPrLinkRef {
 	readonly linkedPr: SessionMetadata["linkedPr"];
 }
 
+function sessionColdFromExistingSession(session: SessionCold): SessionCold {
+	return sessionColdFromSlices(
+		{
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			worktreePath: session.worktreePath,
+		},
+		{
+			title: session.title,
+			createdAt: session.createdAt,
+			updatedAt: session.updatedAt,
+			sourcePath: session.sourcePath,
+			sessionLifecycleState: session.sessionLifecycleState,
+			parentId: session.parentId,
+			prNumber: session.prNumber,
+			prState: session.prState,
+			prLinkMode: session.prLinkMode,
+			linkedPr: session.linkedPr,
+			worktreeDeleted: session.worktreeDeleted,
+			sequenceId: session.sequenceId,
+		}
+	);
+}
+
 function sessionColdWithMutableUpdates(
 	session: SessionCold,
 	updates: SessionMutableColdUpdates,
@@ -1392,7 +1417,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Get all sessions (cold data only).
 	 */
 	getAllSessions(): SessionCold[] {
-		return this.sessions;
+		return this.sessions.map((session) => sessionColdFromExistingSession(session));
 	}
 
 	// ============================================
@@ -1865,7 +1890,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Get sessions for a project (cold data only).
 	 */
 	getSessionsForProject(projectPath: string): SessionCold[] {
-		return this.sessionsByProject.get(projectPath) || [];
+		const sessions = this.sessionsByProject.get(projectPath) ?? [];
+		return sessions.map((session) => sessionColdFromExistingSession(session));
 	}
 
 	/**
