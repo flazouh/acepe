@@ -3253,11 +3253,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						})
 					);
 				} else {
+					const sessionIdentity = this.getSessionIdentity(sessionId);
+					const sessionMetadata = this.getSessionMetadata(sessionId);
 					this.sessionStateGraphs.set(
 						sessionId,
 						createLifecycleOnlyGraph({
 							sessionId,
-							session: this.getSessionCold(sessionId),
+							session:
+								sessionIdentity && sessionMetadata
+									? sessionColdFromSlices(sessionIdentity, sessionMetadata)
+									: undefined,
 							lifecycle: command.lifecycle,
 							activity: reconciledActivity,
 							turnState,
