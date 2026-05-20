@@ -101,6 +101,8 @@ export function syncLiveSessionPanels(
 		materializedSessionIds.push(input.sessionId);
 	}
 
-	initialSyncComplete = true;
+	if (inputs.length > 0) {
+		initialSyncComplete = true;
+	}
 	return materializedSessionIds;
 }
