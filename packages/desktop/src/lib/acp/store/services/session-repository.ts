@@ -18,7 +18,9 @@ import {
 	buildPartialSessionLinkedPr,
 	type SessionPrLinkMode,
 } from "../../application/dto/session-linked-pr.js";
+import type { SessionIdentity } from "../../application/dto/session-identity.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
+import type { SessionMetadata } from "../../application/dto/session-metadata.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
@@ -92,6 +94,40 @@ function normalizeSessionPrLinkMode(
 	}
 
 	return prNumber == null ? undefined : "automatic";
+}
+
+function sessionMetadataWithAliasFallback(
+	canonical: SessionMetadata,
+	alias: SessionMetadata,
+	mergedPrNumber: number | undefined,
+	mergedPrLinkMode: SessionPrLinkMode | undefined
+): SessionMetadata {
+	return {
+		title: canonical.title,
+		createdAt: canonical.createdAt,
+		updatedAt: canonical.updatedAt,
+		sourcePath: canonical.sourcePath ?? alias.sourcePath,
+		sessionLifecycleState: canonical.sessionLifecycleState ?? alias.sessionLifecycleState,
+		parentId: canonical.parentId,
+		prNumber: mergedPrNumber,
+		prState: canonical.prState ?? alias.prState,
+		prLinkMode: mergedPrLinkMode,
+		linkedPr: canonical.linkedPr ?? alias.linkedPr,
+		worktreeDeleted: canonical.worktreeDeleted ?? alias.worktreeDeleted,
+		sequenceId: canonical.sequenceId ?? alias.sequenceId,
+	};
+}
+
+function sessionIdentityWithAliasFallback(
+	canonical: SessionIdentity,
+	alias: SessionIdentity
+): SessionIdentity {
+	return {
+		id: canonical.id,
+		projectPath: canonical.projectPath,
+		agentId: canonical.agentId,
+		worktreePath: canonical.worktreePath ?? alias.worktreePath,
+	};
 }
 
 /**
@@ -581,25 +617,17 @@ export class SessionRepository {
 					session.prLinkMode ?? canonicalAliasSession.prLinkMode
 				);
 
-				reconciledSessions.push({
-					id: session.id,
-					projectPath: session.projectPath,
-					agentId: session.agentId,
-					worktreePath: session.worktreePath ?? canonicalAliasSession.worktreePath,
-					title: session.title,
-					createdAt: session.createdAt,
-					updatedAt: session.updatedAt,
-					sourcePath: session.sourcePath ?? canonicalAliasSession.sourcePath,
-					sessionLifecycleState:
-						session.sessionLifecycleState ?? canonicalAliasSession.sessionLifecycleState,
-					parentId: session.parentId,
-					prNumber: mergedPrNumber,
-					prState: session.prState ?? canonicalAliasSession.prState,
-					prLinkMode: mergedPrLinkMode,
-					linkedPr: session.linkedPr ?? canonicalAliasSession.linkedPr,
-					worktreeDeleted: session.worktreeDeleted ?? canonicalAliasSession.worktreeDeleted,
-					sequenceId: session.sequenceId ?? canonicalAliasSession.sequenceId,
-				});
+				reconciledSessions.push(
+					sessionColdFromSlices(
+						sessionIdentityWithAliasFallback(session, canonicalAliasSession),
+						sessionMetadataWithAliasFallback(
+							session,
+							canonicalAliasSession,
+							mergedPrNumber,
+							mergedPrLinkMode
+						)
+					)
+				);
 				continue;
 			}
 
