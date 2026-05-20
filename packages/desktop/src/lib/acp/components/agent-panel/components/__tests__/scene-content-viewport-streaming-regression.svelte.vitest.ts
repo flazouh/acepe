@@ -1,11 +1,7 @@
+import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { cleanup, render, waitFor } from "@testing-library/svelte";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type {
-	AgentPanelSceneEntryModel,
-	TokenRevealCss,
-} from "@acepe/ui/agent-panel";
 
 const storageMock: Storage = {
 	length: 0,
@@ -135,10 +131,13 @@ describe("SceneContentViewport streaming regression", () => {
 	beforeEach(() => {
 		queuedAnimationFrames = [];
 		nextAnimationFrameId = 1;
-		vi.stubGlobal("ResizeObserver", class {
-			observe(): void {}
-			disconnect(): void {}
-		});
+		vi.stubGlobal(
+			"ResizeObserver",
+			class {
+				observe(): void {}
+				disconnect(): void {}
+			}
+		);
 		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback): number => {
 			const id = nextAnimationFrameId;
 			nextAnimationFrameId += 1;

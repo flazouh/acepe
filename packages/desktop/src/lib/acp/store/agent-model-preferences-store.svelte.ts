@@ -13,9 +13,9 @@
 
 import { okAsync, ResultAsync } from "neverthrow";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import {
-	type ModelsForDisplay,
-	type ProviderMetadataProjection,
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";

@@ -1,5 +1,5 @@
-import type { TodoProgressInfo } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionStatus } from "$lib/acp/application/dto/session-status.js";
+import type { TodoProgressInfo } from "$lib/acp/components/session-list/session-list-types.js";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 import type { ToolKind } from "$lib/acp/types/tool-kind.js";
 import type { ActiveTurnFailure } from "$lib/acp/types/turn-error.js";

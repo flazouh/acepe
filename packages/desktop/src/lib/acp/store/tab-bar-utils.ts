@@ -11,8 +11,8 @@ import type { CanonicalSessionProjection } from "./canonical-session-projection.
 import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
+	liveSessionWorkSourceFromCanonicalProjection,
 } from "./live-session-work.js";
 import type { SessionState } from "./session-state.js";
 import { deriveSessionState } from "./session-state.js";

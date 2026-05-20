@@ -546,13 +546,7 @@ function materializeTranscriptEntry(
 			return materializeMissingToolEntry(entry, graph);
 		}
 
-		return materializeOperationEntry(
-			operation,
-			graph,
-			index,
-			new Set<string>(),
-			entry.entryId
-		);
+		return materializeOperationEntry(operation, graph, index, new Set<string>(), entry.entryId);
 	}
 
 	return {

@@ -192,5 +192,4 @@ describe("EventSubscriber", () => {
 			);
 		});
 	});
-
 });

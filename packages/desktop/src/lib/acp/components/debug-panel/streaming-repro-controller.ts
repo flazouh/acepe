@@ -27,9 +27,7 @@ export interface StreamingReproPreset {
 	readonly phases: readonly StreamingReproPhase[];
 }
 
-export function resolveStreamingReproActiveTailRowId(
-	phase: StreamingReproPhase
-): string | null {
+export function resolveStreamingReproActiveTailRowId(phase: StreamingReproPhase): string | null {
 	return phase.activeStreamingTailRowId;
 }
 
@@ -119,7 +117,7 @@ const CORE_STREAMING_PRESET: StreamingReproPreset = {
 			id: "assistant-complete",
 			label: "Answer completes",
 			assistantText:
-				"Umbrellas are useful because they make bad weather easier to ignore.\n\n- Compact list item one\n- Compact list item two\n\n```ts\nconst canopy = \"calm\";\nconsole.log(canopy);\n```\n\nA small canopy can turn a wet walk into something calm, especially when the rain starts before you are ready.",
+				'Umbrellas are useful because they make bad weather easier to ignore.\n\n- Compact list item one\n- Compact list item two\n\n```ts\nconst canopy = "calm";\nconsole.log(canopy);\n```\n\nA small canopy can turn a wet walk into something calm, especially when the rain starts before you are ready.',
 			turnState: "Completed",
 			activityKind: "idle",
 			activeStreamingTailRowId: "assistant-1",

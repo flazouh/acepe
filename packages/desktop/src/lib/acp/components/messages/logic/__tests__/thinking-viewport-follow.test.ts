@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
-import {
-	createRafDedupeScheduler,
-	scrollTailToVisibleEnd,
-} from "../thinking-viewport-follow.js";
+import { createRafDedupeScheduler, scrollTailToVisibleEnd } from "../thinking-viewport-follow.js";
 
 type QueuedFrame = {
 	id: number;

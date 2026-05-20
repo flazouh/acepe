@@ -18,8 +18,8 @@ import {
 } from "@acepe/ui/agent-panel/types";
 import type { ContentBlock, SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { JsonValue } from "../../../../services/converted-session-types.js";
-import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import type { SessionStatus } from "../../../application/dto/session-status.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
@@ -763,7 +763,9 @@ function mapPlanPayload(toolCall: ToolCall): {
 	}
 
 	const rawPlan =
-		(toolCall.arguments.kind === "planMode" ? normalizePlanString(toolCall.arguments.plan) : null) ??
+		(toolCall.arguments.kind === "planMode"
+			? normalizePlanString(toolCall.arguments.plan)
+			: null) ??
 		readStringField(toolCall.result, "plan") ??
 		readStringField(toolCall.result, "content");
 	const planContent = rawPlan !== null && rawPlan !== undefined ? rawPlan : null;
@@ -782,11 +784,11 @@ function mapPlanPayload(toolCall: ToolCall): {
 				: toolCall.status === "completed"
 					? "approved"
 					: planContent !== null &&
-						  (toolCall.kind === "exit_plan_mode" || toolCall.awaitingPlanApproval === true)
+							(toolCall.kind === "exit_plan_mode" || toolCall.awaitingPlanApproval === true)
 						? "interactive"
-					: toolCall.awaitingPlanApproval === true
-						? "interactive"
-						: "streaming",
+						: toolCall.awaitingPlanApproval === true
+							? "interactive"
+							: "streaming",
 	};
 }
 
@@ -928,9 +930,7 @@ function mapToolCallEntry(
 	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
 	const planPayload = mapPlanPayload(toolCall);
-	const status =
-		options.canonicalStatus ??
-		mapToolStatus(toolCall, turnState, parentCompleted);
+	const status = options.canonicalStatus ?? mapToolStatus(toolCall, turnState, parentCompleted);
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;

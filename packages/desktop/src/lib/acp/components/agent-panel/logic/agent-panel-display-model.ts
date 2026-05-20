@@ -6,10 +6,7 @@ import type {
 	AssistantMessageChunk,
 	ContentBlock,
 } from "@acepe/ui/agent-panel";
-import type {
-	SessionGraphActivity,
-	SessionStateGraph,
-} from "$lib/services/acp-types.js";
+import type { SessionGraphActivity, SessionStateGraph } from "$lib/services/acp-types.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
