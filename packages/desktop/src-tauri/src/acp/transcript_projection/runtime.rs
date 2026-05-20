@@ -68,6 +68,7 @@ struct SessionTranscriptProjection {
     revision: i64,
     entries: Vec<TranscriptEntry>,
     entry_indexes: HashMap<String, usize>,
+    tool_entry_ids_by_tool_call_id: HashMap<String, String>,
     assistant_entry_ids_by_turn_key: HashMap<String, String>,
     assistant_boundary_entry_count: usize,
 }
@@ -82,6 +83,7 @@ impl SessionTranscriptProjection {
             revision: snapshot.revision,
             entries: snapshot.entries,
             entry_indexes,
+            tool_entry_ids_by_tool_call_id: HashMap::new(),
             assistant_entry_ids_by_turn_key: HashMap::new(),
             assistant_boundary_entry_count: 0,
         }
@@ -245,6 +247,10 @@ impl SessionTranscriptProjection {
                 if should_skip_unanswered_question_tool_row(tool_call) {
                     return None;
                 }
+                let previous_entry_id = self
+                    .tool_entry_ids_by_tool_call_id
+                    .get(&tool_call.id)
+                    .cloned();
                 let entry_id = live_tool_entry_id_for_event_seq(event_seq);
                 let entry = TranscriptEntry {
                     entry_id: entry_id.clone(),
@@ -259,6 +265,17 @@ impl SessionTranscriptProjection {
                     attempt_id: None,
                     timestamp_ms: None,
                 };
+                self.tool_entry_ids_by_tool_call_id
+                    .insert(tool_call.id.clone(), entry_id.clone());
+                if let Some(previous_entry_id) = previous_entry_id {
+                    if previous_entry_id != entry_id {
+                        self.remove_entry(&previous_entry_id);
+                        self.upsert_entry(entry);
+                        self.close_assistant_entry_boundary();
+                        let snapshot = self.snapshot();
+                        return Some(vec![TranscriptDeltaOperation::ReplaceSnapshot { snapshot }]);
+                    }
+                }
                 self.upsert_entry(entry.clone());
                 self.close_assistant_entry_boundary();
                 Some(vec![TranscriptDeltaOperation::AppendEntry { entry }])
@@ -339,6 +356,17 @@ impl SessionTranscriptProjection {
         let index = self.entries.len();
         self.entry_indexes.insert(entry.entry_id.clone(), index);
         self.entries.push(entry);
+    }
+
+    fn remove_entry(&mut self, entry_id: &str) {
+        let Some(index) = self.entry_indexes.remove(entry_id) else {
+            return;
+        };
+        self.entries.remove(index);
+        self.entry_indexes.clear();
+        for (index, entry) in self.entries.iter().enumerate() {
+            self.entry_indexes.insert(entry.entry_id.clone(), index);
+        }
     }
 
     fn append_segment(
@@ -1018,6 +1046,88 @@ mod tests {
             snapshot.entries.is_empty(),
             "skipped question tool must not create a transcript entry"
         );
+    }
+
+    #[test]
+    fn live_transcript_replaces_duplicate_tool_call_row_for_same_tool_id() {
+        let registry = TranscriptProjectionRegistry::new();
+        let first = registry
+            .apply_session_update(
+                432,
+                &SessionUpdate::ToolCall {
+                    tool_call: ToolCallData {
+                        id: "toolu_same".to_string(),
+                        name: "Run".to_string(),
+                        arguments: ToolArguments::Execute {
+                            command: Some("pwd".to_string()),
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::InProgress,
+                        result: None,
+                        kind: Some(ToolKind::Execute),
+                        title: Some("Verify file path".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    session_id: Some("session-1".to_string()),
+                },
+            )
+            .expect("first tool delta");
+        let second = registry
+            .apply_session_update(
+                433,
+                &SessionUpdate::ToolCall {
+                    tool_call: ToolCallData {
+                        id: "toolu_same".to_string(),
+                        name: "Run".to_string(),
+                        arguments: ToolArguments::Execute {
+                            command: Some("pwd".to_string()),
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::InProgress,
+                        result: None,
+                        kind: Some(ToolKind::Execute),
+                        title: Some("Verify file path".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    session_id: Some("session-1".to_string()),
+                },
+            )
+            .expect("replacement tool delta");
+
+        assert!(matches!(
+            &first.operations[0],
+            TranscriptDeltaOperation::AppendEntry { entry } if entry.entry_id == "tool-event-432"
+        ));
+        assert!(matches!(
+            &second.operations[0],
+            TranscriptDeltaOperation::ReplaceSnapshot { snapshot }
+                if snapshot.entries.len() == 1
+                    && snapshot.entries[0].entry_id == "tool-event-433"
+        ));
+
+        let snapshot = registry
+            .snapshot_for_session("session-1")
+            .expect("runtime snapshot");
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].entry_id, "tool-event-433");
     }
 
     #[test]
