@@ -17,11 +17,9 @@ import { AgentPanelQueueCardStrip as SharedQueueCardStrip } from "@acepe/ui/agen
 import { AgentPanelTodoHeader as SharedTodoHeader } from "@acepe/ui/agent-panel";
 import CopyButton from "../../messages/copy-button.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
-import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
-import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 
@@ -54,16 +52,6 @@ let {
 	onCopyInlineErrorReference,
 	inlineErrorIssueDraft,
 	onIssueFromInlineError,
-	showPreSessionWorktreeCard,
-	worktreePending,
-	worktreeToggleProjectPath,
-	effectiveProjectName,
-	preSessionWorktreeFailure,
-	onPreSessionWorktreeYes,
-	onPreSessionWorktreeNo,
-	onPreSessionWorktreeAlways,
-	onPreSessionWorktreeDismiss,
-	onRetryWorktree,
 	worktreeSetupState,
 	agentInstallState,
 	sessionId,
@@ -116,16 +104,6 @@ let {
 	onCopyInlineErrorReference: () => void;
 	inlineErrorIssueDraft: IssueReportDraft | null;
 	onIssueFromInlineError: () => void;
-	showPreSessionWorktreeCard: boolean;
-	worktreePending: boolean;
-	worktreeToggleProjectPath: string | null;
-	effectiveProjectName: string | null;
-	preSessionWorktreeFailure: string | null;
-	onPreSessionWorktreeYes: () => void;
-	onPreSessionWorktreeNo: () => void;
-	onPreSessionWorktreeAlways: () => void;
-	onPreSessionWorktreeDismiss: () => void;
-	onRetryWorktree: () => void;
 	worktreeSetupState: WorktreeSetupState | null;
 	agentInstallState: {
 		agentId: string;
@@ -204,20 +182,6 @@ let {
 									? resolveIssueActionLabel(inlineErrorIssueDraft)
 									: "Create issue"}
 								onIssueAction={inlineErrorIssueDraft ? onIssueFromInlineError : undefined}
-							/>
-						{/if}
-						{#if showPreSessionWorktreeCard && worktreeToggleProjectPath}
-							<PreSessionWorktreeCard
-								pendingWorktreeEnabled={worktreePending}
-								alwaysEnabled={getWorktreeDefaultStore().globalDefault}
-								failureMessage={preSessionWorktreeFailure}
-								projectPath={worktreeToggleProjectPath}
-								projectName={effectiveProjectName ?? null}
-								onYes={onPreSessionWorktreeYes}
-								onNo={onPreSessionWorktreeNo}
-								onAlways={onPreSessionWorktreeAlways}
-								onDismiss={onPreSessionWorktreeDismiss}
-								onRetry={worktreePending ? onRetryWorktree : undefined}
 							/>
 						{/if}
 						{#if worktreeSetupState?.isVisible}

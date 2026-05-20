@@ -7,11 +7,9 @@ export function shouldShowPreSessionWorktreeCard(input: {
 	readonly hasMessages: boolean;
 }): boolean {
 	return (
-		input.sessionId === null &&
 		!input.pendingProjectSelection &&
 		input.worktreeToggleProjectPath !== null &&
 		!input.hasPendingWorktreeSetup &&
-		!input.worktreeSetupVisible &&
-		!input.hasMessages
+		!input.worktreeSetupVisible
 	);
 }

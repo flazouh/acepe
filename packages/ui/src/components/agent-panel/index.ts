@@ -76,6 +76,7 @@ export { default as AgentPanelStatusStrip } from "./agent-panel-status-strip.sve
 export { default as AgentPanelTerminalDrawer } from "./agent-panel-terminal-drawer.svelte";
 export { default as AgentPanelTrailingPaneLayout } from "./agent-panel-trailing-pane-layout.svelte";
 export { default as AgentPanelWorktreeCloseConfirmPopover } from "./agent-panel-worktree-close-confirm-popover.svelte";
+export { default as AgentPanelWorktreeSwitchDialog } from "./agent-panel-worktree-switch-dialog.svelte";
 export { default as AgentSelectionGrid } from "./agent-selection-grid.svelte";
 export type { AgentGridItem } from "./agent-selection-grid-types.js";
 export { default as AgentToolBrowser } from "./agent-tool-browser.svelte";
@@ -120,7 +121,7 @@ export { default as AgentPanelPermissionBarIcon } from "./permission-bar-icon.sv
 export { default as AgentPanelPermissionBarProgress } from "./permission-bar-progress.svelte";
 export { default as AgentPanelPlanHeader } from "./plan-header.svelte";
 export { default as AgentPanelPrStatusCard } from "./pr-status-card.svelte";
-export { default as AgentPanelPreSessionWorktreeCard } from "./pre-session-worktree-card.svelte";
+export { default as AgentPanelWorktreeTogglePill } from "./worktree-toggle-pill.svelte";
 export { default as AgentPanelQueueCardStrip } from "./queue-card-strip.svelte";
 export { default as AgentPanelReviewNavigation } from "./review-navigation.svelte";
 export { default as AgentPanelReviewTabStrip } from "./review-tab-strip.svelte";

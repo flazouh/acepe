@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	AgentPanelErrorCard,
 	AgentPanelInstallCard,
-	AgentPanelPreSessionWorktreeCard,
+	AgentPanelWorktreeTogglePill,
 	AgentPanelScrollToBottomButton,
 	AgentPanelWorktreeSetupCard,
 	AgentPanelWorktreeStatusDisplay,
@@ -10,7 +10,7 @@ import {
 import {
 	AgentPanelErrorCard as RootAgentPanelErrorCard,
 	AgentPanelInstallCard as RootAgentPanelInstallCard,
-	AgentPanelPreSessionWorktreeCard as RootAgentPanelPreSessionWorktreeCard,
+	AgentPanelWorktreeTogglePill as RootAgentPanelWorktreeTogglePill,
 	AgentPanelScrollToBottomButton as RootAgentPanelScrollToBottomButton,
 	AgentPanelWorktreeSetupCard as RootAgentPanelWorktreeSetupCard,
 	AgentPanelWorktreeStatusDisplay as RootAgentPanelWorktreeStatusDisplay,
@@ -20,13 +20,13 @@ test("shared leaf widget exports are defined", () => {
 	expect(AgentPanelScrollToBottomButton).toBeDefined();
 	expect(AgentPanelErrorCard).toBeDefined();
 	expect(AgentPanelInstallCard).toBeDefined();
-	expect(AgentPanelPreSessionWorktreeCard).toBeDefined();
+	expect(AgentPanelWorktreeTogglePill).toBeDefined();
 	expect(AgentPanelWorktreeSetupCard).toBeDefined();
 	expect(AgentPanelWorktreeStatusDisplay).toBeDefined();
 	expect(RootAgentPanelScrollToBottomButton).toBeDefined();
 	expect(RootAgentPanelErrorCard).toBeDefined();
 	expect(RootAgentPanelInstallCard).toBeDefined();
-	expect(RootAgentPanelPreSessionWorktreeCard).toBeDefined();
+	expect(RootAgentPanelWorktreeTogglePill).toBeDefined();
 	expect(RootAgentPanelWorktreeSetupCard).toBeDefined();
 	expect(RootAgentPanelWorktreeStatusDisplay).toBeDefined();
 });

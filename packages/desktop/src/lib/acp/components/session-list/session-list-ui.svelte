@@ -9,20 +9,14 @@ import { IconPlus } from "@tabler/icons-svelte";
 import { listen } from "@tauri-apps/api/event";
 import { DropdownMenu } from "bits-ui";
 import { ArrowsClockwise } from "phosphor-svelte";
-import { ArrowDown } from "phosphor-svelte";
-import { ArrowCounterClockwise } from "phosphor-svelte";
-import { ArrowUp } from "phosphor-svelte";
 import { BookOpen } from "phosphor-svelte";
-import { Browser } from "phosphor-svelte";
 import { Bug } from "phosphor-svelte";
 import { Check } from "phosphor-svelte";
 import { GitBranch } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
-import { ImageSquare } from "phosphor-svelte";
 import { MagnifyingGlass } from "phosphor-svelte";
 import { Recycle } from "phosphor-svelte";
 import { Sparkle } from "phosphor-svelte";
-import { Terminal } from "phosphor-svelte";
 import { TestTube } from "phosphor-svelte";
 import { Wrench } from "phosphor-svelte";
 import type { Component } from "svelte";
@@ -31,7 +25,6 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
 import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import {
@@ -89,10 +82,6 @@ interface Props {
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when collapsed project paths change (for persistence) */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
-	/** Called when terminal button is clicked for a project */
-	onOpenTerminal?: (projectPath: string) => void;
-	/** Called when browser button is clicked for a project */
-	onOpenBrowser?: (projectPath: string) => void;
 	/** Called when git panel button is clicked for a project */
 	onOpenGitPanel?: (projectPath: string) => void;
 	/** Called when PR badge is clicked on a session row */
@@ -132,8 +121,6 @@ let {
 	onProjectClick,
 	onSelectFile,
 	onCollapsedProjectPathsChange,
-	onOpenTerminal,
-	onOpenBrowser,
 	onOpenGitPanel,
 	onOpenPr,
 	onArchiveSession,
@@ -154,11 +141,8 @@ const projectHeaderFocusTargets = new Map<string, HTMLDivElement>();
 let reorderAnnouncement = $state("");
 
 const visibleSessionCounts = new SvelteMap<string, number>();
+const projectHistoryQueries = new SvelteMap<string, string>();
 const sessionListContainers = new Map<string, HTMLDivElement>();
-
-function shouldShowProjectUtilityActions(): boolean {
-	return Boolean(onOpenTerminal) || Boolean(onOpenBrowser);
-}
 
 function shouldShowProjectCreateButton(): boolean {
 	return Boolean(onCreateSessionForProject);
@@ -201,6 +185,7 @@ $effect(() => {
 	for (const projectPath of visibleSessionCounts.keys()) {
 		if (!activeProjectPaths.has(projectPath)) {
 			visibleSessionCounts.delete(projectPath);
+			projectHistoryQueries.delete(projectPath);
 			sessionListContainers.delete(projectPath);
 		}
 	}
@@ -263,13 +248,41 @@ function projectHeaderFocusTarget(
 	};
 }
 
-function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
+function getProjectHistoryQuery(projectPath: string): string {
+	return projectHistoryQueries.get(projectPath) ?? "";
+}
+
+function setProjectHistoryQuery(projectPath: string, query: string): void {
+	if (query.length === 0) {
+		projectHistoryQueries.delete(projectPath);
+		return;
+	}
+	projectHistoryQueries.set(projectPath, query);
+}
+
+function getFilteredSidebarSessionsForProject(group: SessionGroup): SessionListItem[] {
 	const sidebarSessions = getSidebarSessions(group.sessions);
+	const query = getProjectHistoryQuery(group.projectPath).trim().toLowerCase();
+	if (query.length === 0) {
+		return sidebarSessions;
+	}
+	return sidebarSessions.filter((session) => {
+		const haystack = `${session.title} ${session.agentId}`.toLowerCase();
+		return haystack.includes(query);
+	});
+}
+
+function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
+	const sidebarSessions = getFilteredSidebarSessionsForProject(group);
 	const visibleCount = getSessionListVisibleCount(
 		sidebarSessions.length,
 		visibleSessionCounts.get(group.projectPath)
 	);
 	return sidebarSessions.slice(0, visibleCount);
+}
+
+function handleProjectHistorySearchKeydown(event: KeyboardEvent): void {
+	event.stopPropagation();
 }
 
 function ensureSessionListOverflow(projectPath: string, totalSessions: number): void {
@@ -707,9 +720,8 @@ function getMovedProjectOrder(projectPath: string, offset: -1 | 1): string[] | n
 
 async function focusProjectContextTrigger(projectPath: string): Promise<void> {
 	await tick();
-	// V1 intentionally returns focus to the outer header wrapper instead of the bits-ui
-	// ContextMenu.Trigger because the wrapper is reliably focusable and still supports
-	// reopening the context menu with Shift+F10 for consecutive keyboard moves.
+	// Return focus to the outer header wrapper so consecutive keyboard move
+	// actions stay anchored on the same project row.
 	projectHeaderFocusTargets.get(projectPath)?.focus();
 }
 
@@ -868,15 +880,13 @@ function openCreateBranchDialog(projectPath: string): void {
 								}
 							}}
 						>
-							<ContextMenu.Root>
-								<ContextMenu.Trigger class="flex-1 min-w-0">
-									<ProjectHeader
-										projectColor={group.projectColor}
-										projectName={group.projectName}
-										projectIconSrc={group.projectIconSrc}
-										expanded={true}
-										class="group min-w-0 flex-1 cursor-pointer transition-colors"
-									>
+							<ProjectHeader
+								projectColor={group.projectColor}
+								projectName={group.projectName}
+								projectIconSrc={group.projectIconSrc}
+								expanded={true}
+								class="group min-w-0 flex-1 cursor-pointer transition-colors"
+							>
 										{#snippet actions()}
 											<div
 												class="flex items-center gap-0.5"
@@ -899,49 +909,6 @@ function openCreateBranchDialog(projectPath: string): void {
 														{`Open file system in ${group.projectName}`}
 													</Tooltip.Content>
 												</Tooltip.Root>
-												{#if shouldShowProjectUtilityActions() && onOpenTerminal}
-													<Tooltip.Root>
-														<Tooltip.Trigger>
-															<button
-																type="button"
-																class={projectHeaderHoverActionButtonClass}
-																onclick={(event) => {
-																	event.stopPropagation();
-																	onOpenTerminal(group.projectPath);
-																}}
-																aria-label={`Open terminal in ${group.projectName}`}
-															>
-																<Terminal class="h-3 w-3" weight="fill" />
-															</button>
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															{`Open terminal in ${group.projectName}`}
-														</Tooltip.Content>
-													</Tooltip.Root>
-												{/if}
-												{#if shouldShowProjectUtilityActions() && onOpenBrowser}
-													<Tooltip.Root>
-														<Tooltip.Trigger>
-															<button
-																type="button"
-																class={projectHeaderHoverActionButtonClass}
-																onclick={(event) => {
-																	event.stopPropagation();
-																	onOpenBrowser(group.projectPath);
-																}}
-																aria-label={`Open browser in ${group.projectName}`}
-															>
-																<Browser class="h-3 w-3" weight="fill" />
-															</button>
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															{`Open browser in ${group.projectName}`}
-														</Tooltip.Content>
-													</Tooltip.Root>
-												{/if}
-											</div>
-										{/snippet}
-										{#snippet trailing()}
 												<ProjectHeaderOverflowMenu
 													projectName={group.projectName}
 													currentColor={group.projectColor}
@@ -949,13 +916,28 @@ function openCreateBranchDialog(projectPath: string): void {
 														? (color) => onProjectColorChange(group.projectPath, color)
 														: undefined}
 													projectIconSrc={group.projectIconSrc}
-												onResetProjectIcon={onResetProjectIcon
-													? () => onResetProjectIcon(group.projectPath)
-													: undefined}
-												onRemoveProject={onRemoveProject
-													? () => onRemoveProject(group.projectPath)
-													: undefined}
-											/>
+													onResetProjectIcon={onResetProjectIcon
+														? () => onResetProjectIcon(group.projectPath)
+														: undefined}
+													onRemoveProject={onRemoveProject
+														? () => onRemoveProject(group.projectPath)
+														: undefined}
+													onMoveUp={() => {
+														void handleProjectContextMove(group.projectPath, -1);
+													}}
+													onMoveDown={() => {
+														void handleProjectContextMove(group.projectPath, 1);
+													}}
+													moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
+													moveDownDisabled={onReorderProjects === undefined ||
+														projectIndex === sessionGroups.length - 1}
+													onChangeProjectIcon={onChangeProjectIcon
+														? () => onChangeProjectIcon(group.projectPath)
+														: undefined}
+												/>
+											</div>
+										{/snippet}
+										{#snippet trailing()}
 											{#if shouldShowProjectCreateButton()}
 												<div
 													class="flex items-center"
@@ -980,46 +962,7 @@ function openCreateBranchDialog(projectPath: string): void {
 												</div>
 											{/if}
 										{/snippet}
-									</ProjectHeader>
-								</ContextMenu.Trigger>
-									<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
-										<ContextMenu.Item
-											disabled={onReorderProjects === undefined || projectIndex === 0}
-											onSelect={() => {
-												void handleProjectContextMove(group.projectPath, -1);
-											}}
-										>
-											<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
-											{"Move Up"}
-										</ContextMenu.Item>
-										<ContextMenu.Item
-											disabled={
-												onReorderProjects === undefined || projectIndex === sessionGroups.length - 1
-											}
-											onSelect={() => {
-												void handleProjectContextMove(group.projectPath, 1);
-											}}
-										>
-											<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
-											{"Move Down"}
-										</ContextMenu.Item>
-										{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
-											<ContextMenu.Separator />
-										{/if}
-										{#if onChangeProjectIcon}
-											<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
-												<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
-												{"Change icon..."}
-											</ContextMenu.Item>
-										{/if}
-										{#if onResetProjectIcon && group.projectIconSrc}
-											<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
-												<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
-												{"Reset to letter badge"}
-											</ContextMenu.Item>
-										{/if}
-									</ContextMenu.Content>
-							</ContextMenu.Root>
+							</ProjectHeader>
 						</div>
 						<!-- Session list skeleton (sessions are what we're loading) -->
 						<div class="flex-1 min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5">
@@ -1064,15 +1007,13 @@ function openCreateBranchDialog(projectPath: string): void {
 						}
 					}}
 				>
-					<ContextMenu.Root>
-						<ContextMenu.Trigger class="flex-1 min-w-0">
-							<ProjectHeader
-								projectColor={group.projectColor}
-								projectName={group.projectName}
-								projectIconSrc={group.projectIconSrc}
-								expanded={isExpanded}
-								class="group min-w-0 flex-1 cursor-pointer transition-colors"
-							>
+					<ProjectHeader
+						projectColor={group.projectColor}
+						projectName={group.projectName}
+						projectIconSrc={group.projectIconSrc}
+						expanded={isExpanded}
+						class="group min-w-0 flex-1 cursor-pointer transition-colors"
+					>
 								{#snippet actions()}
 									<div
 										class="flex shrink-0 items-center gap-0.5"
@@ -1095,63 +1036,35 @@ function openCreateBranchDialog(projectPath: string): void {
 												{`Open file system in ${group.projectName}`}
 											</Tooltip.Content>
 										</Tooltip.Root>
-										{#if shouldShowProjectUtilityActions() && onOpenTerminal}
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													<button
-														type="button"
-														class={projectHeaderHoverActionButtonClass}
-														onclick={(event) => {
-															event.stopPropagation();
-															onOpenTerminal(group.projectPath);
-														}}
-														aria-label={`Open terminal in ${group.projectName}`}
-													>
-														<Terminal class="h-3 w-3" weight="fill" />
-													</button>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													{`Open terminal in ${group.projectName}`}
-												</Tooltip.Content>
-											</Tooltip.Root>
-										{/if}
-										{#if shouldShowProjectUtilityActions() && onOpenBrowser}
-											<Tooltip.Root>
-												<Tooltip.Trigger>
-													<button
-														type="button"
-														class={projectHeaderHoverActionButtonClass}
-														onclick={(event) => {
-															event.stopPropagation();
-															onOpenBrowser(group.projectPath);
-														}}
-														aria-label={`Open browser in ${group.projectName}`}
-													>
-														<Browser class="h-3 w-3" weight="fill" />
-													</button>
-												</Tooltip.Trigger>
-												<Tooltip.Content>
-													{`Open browser in ${group.projectName}`}
-												</Tooltip.Content>
-											</Tooltip.Root>
-										{/if}
+										<ProjectHeaderOverflowMenu
+											projectName={group.projectName}
+											currentColor={group.projectColor}
+											onColorChange={onProjectColorChange
+												? (color) => onProjectColorChange(group.projectPath, color)
+												: undefined}
+											projectIconSrc={group.projectIconSrc}
+											onResetProjectIcon={onResetProjectIcon
+												? () => onResetProjectIcon(group.projectPath)
+												: undefined}
+											onRemoveProject={onRemoveProject
+												? () => onRemoveProject(group.projectPath)
+												: undefined}
+											onMoveUp={() => {
+												void handleProjectContextMove(group.projectPath, -1);
+											}}
+											onMoveDown={() => {
+												void handleProjectContextMove(group.projectPath, 1);
+											}}
+											moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
+											moveDownDisabled={onReorderProjects === undefined ||
+												projectIndex === sessionGroups.length - 1}
+											onChangeProjectIcon={onChangeProjectIcon
+												? () => onChangeProjectIcon(group.projectPath)
+												: undefined}
+										/>
 									</div>
 								{/snippet}
 								{#snippet trailing()}
-									<ProjectHeaderOverflowMenu
-										projectName={group.projectName}
-										currentColor={group.projectColor}
-										onColorChange={onProjectColorChange
-											? (color) => onProjectColorChange(group.projectPath, color)
-											: undefined}
-										projectIconSrc={group.projectIconSrc}
-										onResetProjectIcon={onResetProjectIcon
-											? () => onResetProjectIcon(group.projectPath)
-											: undefined}
-										onRemoveProject={onRemoveProject
-											? () => onRemoveProject(group.projectPath)
-											: undefined}
-									/>
 									{#if shouldShowProjectCreateButton()}
 										<div
 											class="flex shrink-0 items-center"
@@ -1176,57 +1089,40 @@ function openCreateBranchDialog(projectPath: string): void {
 										</div>
 									{/if}
 								{/snippet}
-							</ProjectHeader>
-						</ContextMenu.Trigger>
-							<ContextMenu.Content class="min-w-[180px] p-1 text-[11px]">
-								<ContextMenu.Item
-									disabled={onReorderProjects === undefined || projectIndex === 0}
-									onSelect={() => {
-										void handleProjectContextMove(group.projectPath, -1);
-									}}
-								>
-									<ArrowUp class="mr-2 h-3.5 w-3.5" weight="bold" />
-									{"Move Up"}
-								</ContextMenu.Item>
-								<ContextMenu.Item
-									disabled={onReorderProjects === undefined || projectIndex === sessionGroups.length - 1}
-									onSelect={() => {
-										void handleProjectContextMove(group.projectPath, 1);
-									}}
-								>
-									<ArrowDown class="mr-2 h-3.5 w-3.5" weight="bold" />
-									{"Move Down"}
-								</ContextMenu.Item>
-								{#if onChangeProjectIcon || (onResetProjectIcon && group.projectIconSrc)}
-									<ContextMenu.Separator />
-								{/if}
-								{#if onChangeProjectIcon}
-									<ContextMenu.Item onclick={() => onChangeProjectIcon(group.projectPath)}>
-										<ImageSquare class="mr-2 h-3.5 w-3.5" weight="fill" />
-										{"Change icon..."}
-									</ContextMenu.Item>
-								{/if}
-								{#if onResetProjectIcon && group.projectIconSrc}
-									<ContextMenu.Item onclick={() => onResetProjectIcon(group.projectPath)}>
-										<ArrowCounterClockwise class="mr-2 h-3.5 w-3.5" weight="bold" />
-										{"Reset to letter badge"}
-									</ContextMenu.Item>
-								{/if}
-							</ContextMenu.Content>
-					</ContextMenu.Root>
+					</ProjectHeader>
 				</div>
 
 						<!-- Content area: sessions -->
 						{#if isExpanded}
-							{@const sidebarSessions = getSidebarSessions(group.sessions)}
+							{@const filteredSessions = getFilteredSidebarSessionsForProject(group)}
 							{@const visibleSessions = getVisibleSessionsForProject(group)}
 							<div
+								class="shrink-0 px-1 pb-1"
+								role="presentation"
+								onclick={(event) => event.stopPropagation()}
+								onkeydown={handleProjectHistorySearchKeydown}
+							>
+								<Input
+									type="search"
+									value={getProjectHistoryQuery(group.projectPath)}
+									placeholder="Search project history..."
+									class="h-7 rounded-md border-border/70 bg-background/70 px-2 text-[11px]"
+									data-sidebar-project-history-search
+									oninput={(event) =>
+										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}
+								/>
+							</div>
+							<div
 								class="min-h-0 max-h-[22rem] overflow-y-auto overflow-x-hidden px-0.5 pb-0.5"
-								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: sidebarSessions.length }}
-								onscroll={() => handleSessionListScroll(group.projectPath, sidebarSessions.length)}
+								use:sessionListContainer={{ projectPath: group.projectPath, totalSessions: filteredSessions.length }}
+								onscroll={() => handleSessionListScroll(group.projectPath, filteredSessions.length)}
 							>
 								{#if scanningProjectPaths.has(group.projectPath) && group.sessions.length === 0}
 									<SessionListSkeleton sessionCount={3} />
+								{:else if filteredSessions.length === 0}
+									<div class="px-2 py-6 text-center text-[11px] text-muted-foreground">
+										No sessions found
+									</div>
 								{:else}
 									<VirtualizedSessionList
 										sessions={visibleSessions}

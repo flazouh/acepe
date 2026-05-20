@@ -22,7 +22,7 @@
 				"hiddenTitle": true,
 				"titleBarStyle": "Overlay",
 				"dragDropEnabled": true,
-				"devtools": false
+				"devtools": true
 			}
 		],
 		"withGlobalTauri": true,

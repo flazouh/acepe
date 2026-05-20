@@ -20,7 +20,7 @@ interface Props {
 	class?: string;
 	/** Optional content to render after the project name (e.g. settings menu) */
 	trailing?: Snippet;
-	/** Optional actions to render at the end (view toggle, terminal, plus, etc.) */
+	/** Optional actions to render at the end (file explorer, settings, etc.) */
 	actions?: Snippet;
 }
 
@@ -63,11 +63,27 @@ const resolvedIconSrc = $derived(project?.iconPath ?? projectIconSrc);
 			size={16}
 		/>
 	</div>
-		<div class="flex items-center flex-1 min-w-0 h-7 pl-2 cursor-pointer rounded-md transition-colors">
-			<span class="truncate text-xs font-normal text-foreground transition-colors">
-				{displayName}
-			</span>
-		</div>
+	<div class="flex items-center flex-1 min-w-0 h-7 gap-1 pl-2 pr-1 cursor-pointer rounded-md transition-colors">
+		<span class="truncate text-xs font-normal text-foreground transition-colors">
+			{displayName}
+		</span>
+		<svg
+			width="10"
+			height="10"
+			viewBox="0 0 256 256"
+			fill="none"
+			class="shrink-0 text-muted-foreground/70 transition-transform {_expanded ? 'rotate-180' : ''}"
+			aria-hidden="true"
+		>
+			<polyline
+				points="64,96 128,160 192,96"
+				stroke="currentColor"
+				stroke-width="32"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			/>
+		</svg>
+	</div>
 	{#if actions}
 		<div class="flex items-center">
 			{@render actions()}
