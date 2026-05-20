@@ -418,7 +418,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 </script>
 
 <div class="flex flex-col items-center justify-center h-full w-full py-6">
-	<h1 class="mb-4 text-center font-sans text-[1.9rem] font-semibold tracking-tight text-foreground sm:text-4xl">
+	<h1 class="mb-4 text-center font-sans text-[1.65rem] font-semibold tracking-tight text-foreground sm:text-[2rem]">
 		What do you want to build?
 	</h1>
 
