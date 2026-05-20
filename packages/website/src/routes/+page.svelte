@@ -9,6 +9,7 @@ import type { AppSessionItemType } from "@acepe/ui/app-layout";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import FeatureShowcase from "$lib/components/feature-showcase.svelte";
 import HeroShaderStage from "$lib/components/hero-shader-stage.svelte";
 import FeatureCardShader from "$lib/components/feature-card-shader.svelte";
@@ -371,12 +372,26 @@ const features = [
 		],
 	},
 ];
+
+const homepageKeywords = [
+	"AI coding agent",
+	"Claude Code desktop",
+	"Codex client",
+	"Cursor Agent",
+	"ACP agent client protocol",
+	"agentic developer environment",
+	"AI pair programming",
+	"OpenCode client",
+	"parallel AI agents",
+];
 </script>
 
-<svelte:head>
-	<title>{"The Agentic Developer Environment"} - Acepe</title>
-	<meta name="description" content={"Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one window."} />
-</svelte:head>
+<Seo
+	title="The Agentic Developer Environment"
+	description="Run Claude Code, Codex, Cursor Agent, and OpenCode side by side. Orchestrate parallel sessions, track every change, and ship from plan to PR. All in one native desktop window."
+	keywords={homepageKeywords}
+	canonical="/"
+/>
 
 <div class="min-h-screen">
 	<Header

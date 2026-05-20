@@ -17,10 +17,12 @@ const publicRoutes: Route[] = [
 	{ path: "/", priority: "1.0", changefreq: "weekly" },
 	{ path: "/blog", priority: "0.7", changefreq: "weekly" },
 	{ path: "/changelog", priority: "0.7", changefreq: "weekly" },
-	{ path: "/download", priority: "0.8", changefreq: "weekly" },
+	{ path: "/download", priority: "0.9", changefreq: "weekly" },
 	{ path: "/pricing", priority: "0.8", changefreq: "weekly" },
 	{ path: "/compare", priority: "0.8", changefreq: "weekly" },
-	{ path: "/roadmap", priority: "0.7", changefreq: "daily" },
+	{ path: "/zeus", priority: "0.5", changefreq: "monthly" },
+	{ path: "/privacy", priority: "0.3", changefreq: "yearly" },
+	{ path: "/terms", priority: "0.3", changefreq: "yearly" },
 ]
 	.concat(
 		getAllBlogPosts().map((post) => ({

@@ -4,7 +4,6 @@ import "./layout.css";
 import logo from "$lib/assets/favicon.svg";
 import { browser } from "$app/environment";
 import JsonLd from "$lib/components/seo/json-ld.svelte";
-import Canonical from "$lib/components/seo/canonical.svelte";
 import { websiteThemeStore } from "$lib/theme/theme.js";
 let { children } = $props();
 
@@ -20,7 +19,6 @@ if (browser) {
 <svelte:head><link rel="icon" href={logo} /></svelte:head>
 
 <JsonLd />
-<Canonical />
 
 <Tooltip.Provider delayDuration={0}>
 	{@render children()}

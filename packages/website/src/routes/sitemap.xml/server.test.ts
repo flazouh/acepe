@@ -27,9 +27,12 @@ describe("sitemap.xml", () => {
 		expect(xml).toContain(
 			"<loc>https://acepe.dev/compare/1code</loc>\n    <lastmod>2026-04-02</lastmod>"
 		);
-		expect(xml).toContain(
-			"<loc>https://acepe.dev/compare/conductor</loc>\n    <lastmod>2026-04-02</lastmod>"
+		expect(xml).toContain("<loc>https://acepe.dev/compare/conductor</loc>\n    <lastmod>2026-04-02</lastmod>"
 		);
+		expect(xml).toContain("<loc>https://acepe.dev/privacy</loc>");
+		expect(xml).toContain("<loc>https://acepe.dev/terms</loc>");
+		expect(xml).toContain("<loc>https://acepe.dev/zeus</loc>");
+		expect(xml).not.toContain("<loc>https://acepe.dev/roadmap</loc>");
 		expect(xml).not.toContain("<loc>https://acepe.dev/es/");
 		expect(xml).not.toContain("<loc>https://acepe.dev/es/blog</loc>");
 	});

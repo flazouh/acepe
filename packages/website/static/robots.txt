@@ -1,5 +1,31 @@
-# allow crawling everything by default
+# Default policy: allow crawling everything except internal/admin surfaces.
+# Note: pages we want kept out of the index but still crawlable (so Google
+# can see their noindex meta tag) are NOT listed here — robots Disallow +
+# noindex meta is contradictory (the crawler never fetches the page and
+# therefore never sees the noindex). Disallow is reserved for surfaces we
+# never want crawled at all (admin/auth/api).
 User-agent: *
-Disallow:
+Disallow: /admin
+Disallow: /auth
+Disallow: /api
+Disallow: /es/
+Disallow: /en/
+
+# AI scrapers — fully disallow.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
 
 Sitemap: https://acepe.dev/sitemap.xml
+Host: https://acepe.dev

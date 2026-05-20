@@ -1,20 +1,33 @@
 <script lang="ts">
 import { BrandLockup, TextShimmer } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
+import Seo from "$lib/components/seo/seo.svelte";
 import { Check, ArrowRight, Terminal } from "@lucide/svelte";
 import { GithubLogo } from "phosphor-svelte";
 import { pricingFaqItems } from "./faq.js";
 
 let { data } = $props();
+
+const pricingFaqJsonLd = {
+	"@context": "https://schema.org",
+	"@type": "FAQPage",
+	mainEntity: pricingFaqItems.map((item) => ({
+		"@type": "Question",
+		name: item.q,
+		acceptedAnswer: {
+			"@type": "Answer",
+			text: item.a,
+		},
+	})),
+};
 </script>
 
-<svelte:head>
-	<title>Pricing - Acepe</title>
-	<meta
-		name="description"
-		content="Choose the plan that fits your workflow. Free forever for individuals, Premium for power users, Enterprise for teams."
-	/>
-</svelte:head>
+<Seo
+	title="Pricing"
+	description="Acepe is free forever for individuals. Premium adds advanced orchestration for power users; Enterprise adds SSO, audit, and team controls. No seats locked, no surprise quotas."
+	keywords={["Acepe pricing", "AI coding agent pricing", "Claude Code GUI pricing", "developer tools pricing"]}
+	jsonLd={pricingFaqJsonLd}
+/>
 
 <div class="min-h-screen">
 	<Header
