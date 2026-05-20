@@ -31,6 +31,8 @@ interface Props {
 	projectPath?: string | null;
 	showCommandWhenRepresented?: boolean;
 	showCompactEditPreview?: boolean;
+	hideRepresentedPermissions?: boolean;
+	attachment?: "standalone" | "tool-call";
 }
 
 let {
@@ -40,6 +42,8 @@ let {
 	projectPath = null,
 	showCommandWhenRepresented = false,
 	showCompactEditPreview = false,
+	hideRepresentedPermissions = false,
+	attachment = "standalone",
 }: Props = $props();
 
 const permissionStore = getPermissionStore();
@@ -50,7 +54,17 @@ const pendingPermissions = $derived.by(() => {
 		return [permission];
 	}
 
-	return sessionStore.getVisiblePermissionsForSessionBar(permissionStore.getForSession(sessionId));
+	const visiblePermissions = sessionStore.getVisiblePermissionsForSessionBar(
+		permissionStore.getForSession(sessionId)
+	);
+	if (!hideRepresentedPermissions) {
+		return visiblePermissions;
+	}
+
+	return visiblePermissions.filter(
+		(visiblePermission) =>
+			!sessionStore.isPermissionRepresentedByToolCall(visiblePermission, sessionId)
+	);
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
 const isRepresentedByToolCall = $derived.by(() => {
@@ -98,6 +112,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 		showFilePath={!showEditPreview}
 		{showSummary}
 		{command}
+		{attachment}
 		hasProgress={sessionProgress !== null && sessionProgress !== undefined}
 		hasEditPreview={showEditPreview && currentToolCall !== null}
 	>
@@ -119,6 +134,7 @@ const editTheme = $derived(themeState.effectiveTheme);
 				allowLabel={"Allow"}
 				alwaysAllowLabel={"Always"}
 				denyLabel={"Deny"}
+				align={attachment === "tool-call" ? "start" : "end"}
 				showAlwaysAllow={currentPermission.always !== undefined && currentPermission.always.length > 0}
 				onAllow={() => permissionStore.reply(currentPermission.id, "once")}
 				onAlwaysAllow={() => permissionStore.reply(currentPermission.id, "always")}

@@ -31,4 +31,19 @@ describe("AgentPanelPermissionBar", () => {
 		expect(view.getByTestId("permission-actions")).toBeTruthy();
 		expect(view.queryByText("src/file.ts")).toBeNull();
 	});
+
+	it("renders the tool-call attachment as a bottom cap", () => {
+		const view = render(PermissionBarSummaryFixture, {
+			props: {
+				attachment: "tool-call",
+				showSummary: false,
+			},
+		});
+
+		const permissionCard = view.container.querySelector(".permission-card-enter");
+
+		expect(permissionCard?.className).toContain("rounded-b-sm");
+		expect(permissionCard?.className).toContain("rounded-t-none");
+		expect(permissionCard?.className).toContain("border-t-0");
+	});
 });

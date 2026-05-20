@@ -2,13 +2,14 @@
 	import AgentPanelPermissionBar from "../../permission-bar.svelte";
 
 	interface Props {
+		attachment?: "standalone" | "tool-call";
 		showSummary?: boolean;
 	}
 
-	let { showSummary = false }: Props = $props();
+	let { attachment = "standalone", showSummary = false }: Props = $props();
 </script>
 
-<AgentPanelPermissionBar verb="Execute" filePath="src/file.ts" {showSummary}>
+<AgentPanelPermissionBar verb="Execute" filePath="src/file.ts" {attachment} {showSummary}>
 	{#snippet leading()}
 		<span data-testid="permission-leading">!</span>
 	{/snippet}

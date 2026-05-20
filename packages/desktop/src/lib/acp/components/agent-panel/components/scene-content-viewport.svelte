@@ -17,6 +17,8 @@ import type { ModifiedFilesState } from "../../../types/modified-files-state.js"
 import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
 import ContentBlockRouter from "../../messages/content-block-router.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
+import PermissionBar from "../../tool-calls/permission-bar.svelte";
+import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,
@@ -98,6 +100,8 @@ type SceneContentViewportProps = {
 };
 
 type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
+
+const permissionStore = getPermissionStore();
 
 let {
 	panelId,
@@ -382,6 +386,16 @@ function reportMissingSceneEntry(
 		displayEntryType: entry?.type,
 		sceneEntryCount: sceneEntries?.length ?? 0,
 	});
+}
+
+function getAttachedPermissionForEntry(
+	entry: AgentPanelSceneEntryModel
+) {
+	if (sessionId === null || entry.type !== "tool_call" || entry.toolCallId === undefined) {
+		return undefined;
+	}
+
+	return permissionStore.getForToolCall(sessionId, entry.toolCallId);
 }
 
 // ===== DISPLAY ENTRIES =====
@@ -1204,6 +1218,7 @@ export function scrollToTop() {
 				index
 			)}
 			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs, index)}
+			{@const attachedPermission = getAttachedPermissionForEntry(sharedEntry)}
 			<MessageWrapper
 				entryIndex={index}
 				entryKey={getKey(entry, index)}
@@ -1214,19 +1229,31 @@ export function scrollToTop() {
 				onRevealResize={() => requestRevealForIndex(index)}
 				{isFullscreen}
 			>
-				<AgentPanelConversationEntry
-					entry={sharedEntry}
-					iconBasePath="/svgs/icons"
-					{editToolTheme}
-					{projectPath}
-					{streamingAnimationMode}
-					renderAssistantBlock={renderAssistantBlock}
-					{onQuestionSelect}
-					{onPlanBuild}
-					{onPlanCancel}
-					{onPlanViewFull}
-					{isPlanActionAvailable}
-				/>
+				<div class={attachedPermission ? "tool-call-with-permission" : ""}>
+					<AgentPanelConversationEntry
+						entry={sharedEntry}
+						iconBasePath="/svgs/icons"
+						{editToolTheme}
+						{projectPath}
+						{streamingAnimationMode}
+						renderAssistantBlock={renderAssistantBlock}
+						{onQuestionSelect}
+						{onPlanBuild}
+						{onPlanCancel}
+						{onPlanViewFull}
+						{isPlanActionAvailable}
+					/>
+					{#if attachedPermission && sessionId}
+						<div class="tool-call-permission-attachment">
+							<PermissionBar
+								{sessionId}
+								permission={attachedPermission}
+								projectPath={projectPath ?? null}
+								attachment="tool-call"
+							/>
+						</div>
+					{/if}
+				</div>
 			</MessageWrapper>
 		{:else}
 			{@const _missingEntryWarning = reportMissingVirtualizedEntry(index)}
@@ -1270,3 +1297,14 @@ export function scrollToTop() {
 		{/key}
 	{/if}
 </div>
+
+<style>
+	.tool-call-with-permission :global(.agent-tool-card) {
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+	}
+
+	.tool-call-permission-attachment {
+		width: 100%;
+	}
+</style>

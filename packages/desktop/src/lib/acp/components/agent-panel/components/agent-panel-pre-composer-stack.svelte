@@ -238,6 +238,7 @@ let {
 							<PermissionBar
 								sessionId={sessionId}
 								projectPath={effectiveProjectPath ?? sessionProjectPath}
+								hideRepresentedPermissions={true}
 							/>
 						{/if}
 						{#if effectivePathForGit && (createdPr || createPrRunning || streamingShipData)}

@@ -8,6 +8,7 @@
 		alwaysAllowLabel?: string;
 		denyLabel?: string;
 		showAlwaysAllow?: boolean;
+		align?: "start" | "end";
 		onAllow: () => void;
 		onAlwaysAllow?: () => void;
 		onDeny: () => void;
@@ -18,15 +19,21 @@
 		alwaysAllowLabel = "Always allow",
 		denyLabel = "Deny",
 		showAlwaysAllow = false,
+		align = "end",
 		onAllow,
 		onAlwaysAllow,
 		onDeny,
 	}: Props = $props();
 
 	const buttonClass = "justify-center shrink-0";
+	const wrapperClass = $derived(
+		align === "start"
+			? "flex w-full flex-wrap items-center justify-start gap-1"
+			: "flex w-full flex-wrap items-center justify-end gap-1"
+	);
 </script>
 
-<div class="flex w-full flex-wrap items-center justify-end gap-1">
+<div class={wrapperClass}>
 	<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
 		<XCircle weight="fill" class="size-3 shrink-0" style="color: var(--destructive)" />
 		<span>{denyLabel}</span>

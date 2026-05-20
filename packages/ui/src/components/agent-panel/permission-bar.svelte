@@ -3,6 +3,8 @@
 
 	import { FilePathBadge } from "../file-path-badge/index.js";
 
+	type Attachment = "standalone" | "tool-call";
+
 	interface Props {
 		verb: string;
 		filePath?: string | null;
@@ -10,6 +12,7 @@
 		showFilePath?: boolean;
 		showSummary?: boolean;
 		compactSummaryLabel?: string;
+		attachment?: Attachment;
 		leading: Snippet;
 		trailing?: Snippet;
 		hasTrailing?: boolean;
@@ -27,6 +30,7 @@
 		showFilePath = true,
 		showSummary = true,
 		compactSummaryLabel = "Permission required",
+		attachment = "standalone",
 		leading,
 		trailing,
 		hasTrailing = false,
@@ -36,12 +40,20 @@
 		editPreview,
 		hasEditPreview = false,
 	}: Props = $props();
+
+	const isAttachedToToolCall = $derived(attachment === "tool-call");
+	const cardClass = $derived.by(() => {
+		const base = "w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter";
+		if (isAttachedToToolCall) {
+			return `${base} rounded-b-sm rounded-t-none border-t-0 px-2 py-1`;
+		}
+
+		return `${base} px-3 py-1 rounded-md ${command ? "rounded-b-none border-b-0" : ""}`;
+	});
 </script>
 
-<div class="w-full">
-	<div
-		class="w-full flex flex-col gap-1.5 px-3 py-1 rounded-md border border-border bg-input/30 permission-card-enter {command ? 'rounded-b-none border-b-0' : ''}"
-	>
+<div class="w-full {isAttachedToToolCall ? 'mt-[-1px]' : ''}">
+	<div class={cardClass}>
 		{#if showSummary || (progress && hasProgress) || (trailing && hasTrailing)}
 			<div class="flex w-full items-start justify-between gap-1.5">
 				{#if showSummary}
@@ -71,7 +83,7 @@
 			</div>
 		{/if}
 
-		<div class="flex w-full items-center justify-between gap-2">
+		<div class="flex w-full items-center gap-2 {isAttachedToToolCall ? 'justify-start' : 'justify-between'}">
 			{#if !showSummary}
 				<div class="flex min-w-0 shrink-0 items-center gap-1.5 text-sm">
 					<span
