@@ -174,6 +174,7 @@ Acepe uses the Compounding Engineering workflow as its engineering operating sys
 ### Visual QA
 
 - For UI-visible work, do not call the work done from tests alone. After checks pass, open the affected screen in the running app or browser and verify the real user-visible result.
+- Before interacting with a window, confirm the target is the app/build that contains the change. For dev QA, prefer the running Tauri dev app from this checkout (`target/debug/acepe` / local dev server), not the installed production bundle in `/Applications/Acepe.app`, unless the task is explicitly about the production app.
 - Capture or inspect enough of the screen to prove the main state, layout, and interaction changed as intended. Include the visual QA result in the final response.
 - If the app or dev server is not available, do not silently skip visual QA. Say it was blocked and explain exactly what was still verified.
 - Keep respecting the `bun dev` guardrail below: the user manages the dev server, so attach to an existing running app/browser instead of starting one yourself.
