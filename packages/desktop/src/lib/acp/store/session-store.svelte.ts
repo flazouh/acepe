@@ -2108,11 +2108,24 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	replaceSessionOpenSnapshot(snapshot: SessionOpenFound): void {
 		const canonicalSessionId = snapshot.canonicalSessionId;
 		const requestedSessionId = snapshot.requestedSessionId;
-		const aliasSession =
+		const aliasSessionIdentity =
 			snapshot.isAlias && requestedSessionId !== canonicalSessionId
-				? this.getSessionCold(requestedSessionId)
+				? this.getSessionIdentity(requestedSessionId)
 				: undefined;
-		const canonicalSession = this.getSessionCold(canonicalSessionId);
+		const aliasSessionMetadata =
+			snapshot.isAlias && requestedSessionId !== canonicalSessionId
+				? this.getSessionMetadata(requestedSessionId)
+				: undefined;
+		const aliasSession =
+			aliasSessionIdentity && aliasSessionMetadata
+				? sessionColdFromSlices(aliasSessionIdentity, aliasSessionMetadata)
+				: undefined;
+		const canonicalSessionIdentity = this.getSessionIdentity(canonicalSessionId);
+		const canonicalSessionMetadata = this.getSessionMetadata(canonicalSessionId);
+		const canonicalSession =
+			canonicalSessionIdentity && canonicalSessionMetadata
+				? sessionColdFromSlices(canonicalSessionIdentity, canonicalSessionMetadata)
+				: undefined;
 		const preservedSession = canonicalSession ?? aliasSession;
 		const now = new Date();
 		const nextSessionLifecycleState =
