@@ -371,13 +371,19 @@ export class SessionRepository {
 		}
 
 		const loadPromises = sessionIds.map((id) => {
-			const session = this.stateReader.getSessionCold(id);
-			if (!session) {
+			const sessionIdentity = this.stateReader.getSessionIdentity(id);
+			const sessionMetadata = this.stateReader.getSessionMetadata(id);
+			if (!sessionIdentity || !sessionMetadata) {
 				return Promise.resolve({ id, success: false as const });
 			}
 
 			return api
-				.getSessionOpenResult(id, session.projectPath, session.agentId, session.sourcePath)
+				.getSessionOpenResult(
+					id,
+					sessionIdentity.projectPath,
+					sessionIdentity.agentId,
+					sessionMetadata.sourcePath
+				)
 				.andThen((openResult) => {
 					if (openResult.outcome !== "found") {
 						return okAsync({ id, success: false as const });
@@ -386,7 +392,7 @@ export class SessionRepository {
 						Promise.resolve().then(() => {
 							this.stateWriter.replaceSessionOpenSnapshot(openResult);
 							const title = openResult.sessionTitle || undefined;
-							if (title && title !== session.title) {
+							if (title && title !== sessionMetadata.title) {
 								this.stateWriter.updateSession(openResult.canonicalSessionId, { title });
 							}
 							return { id: openResult.canonicalSessionId, success: true as const };
