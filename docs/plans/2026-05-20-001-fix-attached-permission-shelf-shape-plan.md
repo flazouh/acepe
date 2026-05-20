@@ -13,13 +13,14 @@ date: 2026-05-20
 - [ ] The permission shelf should stay bottom-left and only as wide as the buttons need.
 - [ ] The shelf should not add a toolbar, left icon, or `Permission required` label in attached mode.
 - [ ] There should be no top border or visible seam above the shelf.
-- [ ] The main tool card should keep its real bottom border and bottom-right rounding on the right side.
+- [ ] The main tool card should not draw a bottom border in attached mode, because that reads as a top bar above the shelf.
+- [ ] The attached shelf should have local top-right rounding.
 - [ ] QA must use DOM/computed-style checks first, then screenshot only as a final sanity check.
 - [ ] The QA fixture or live state must be deterministic; do not inspect a random current app state and call it proof.
 
 ## Overview
 
-Replace the fake far-right edge with a simpler attached-shelf shape. The tool card should own its full-width frame. The permission shelf should own only the compact button cap attached to the bottom-left. The shelf may overlap the tool card's bottom border by the border width so the left seam disappears, but it must not create a new full-width border or far-right curve.
+Replace the fake far-right edge with a simpler attached-shelf shape. The permission shelf should own only the compact button cap attached to the bottom-left. In attached mode, the tool card must not draw a bottom border behind or to the right of the shelf, because that reads as a top bar above the attached controls.
 
 ## Problem Frame
 
@@ -27,16 +28,16 @@ We tried to make two DOM boxes look like one shape: the tool call card and the a
 
 The better model is not "draw a second right edge." The better model is:
 
-- the real tool card keeps its own bottom border and bottom-right radius;
-- the shelf locally covers/intersects the left part of that border where the buttons attach;
+- the tool card stops before the attached shelf and does not draw a bottom top-bar line;
+- the shelf owns the compact attached surface and its local top-right rounding;
 - no sibling after the shelf draws decorative border art.
 
 ## Requirements Trace
 
 - R1. Remove the far-right fake curve caused by `.tool-call-permission-main-edge`.
 - R2. Preserve the compact attached shelf: buttons only, bottom-left, width fits content.
-- R3. Keep the shelf visually attached with no top seam above it.
-- R4. Preserve the main tool card's real right-side bottom border and bottom-right radius.
+- R3. Keep the shelf visually attached with no top seam or top bar above it.
+- R4. Give the attached shelf the local top-right rounding that makes the cap feel intentional.
 - R5. Keep permission context behavior unchanged; this plan is visual only.
 - R6. QA must prove the shape with DOM/computed-style checks before screenshot review.
 
@@ -69,9 +70,9 @@ The better model is not "draw a second right edge." The better model is:
 
 ## Key Technical Decisions
 
-- Keep the real tool card as the owner of the main full-width outline: this prevents decorative far-right border artifacts.
+- In attached mode, remove the tool card's bottom border and bottom radii: this prevents the horizontal top bar from returning.
 - Remove `.tool-call-permission-main-edge`: the far-right filler is the direct cause of the wrong curve.
-- Attach the shelf by local overlap instead of global border replacement: the shelf can sit over the left part of the card bottom border, while the right side remains the card's real border.
+- Give the attached shelf its own top-right radius while keeping its top border at `0`.
 - Keep attached mode in `AgentPanelPermissionBar` compact: the shared permission bar already supports buttons-only attached mode.
 
 ## Open Questions
@@ -83,7 +84,7 @@ The better model is not "draw a second right edge." The better model is:
 
 ### Deferred to Implementation
 
-- Exact CSS offset value: use a named local CSS variable for the attachment overlap, starting at the existing border width (`1px`). DOM QA must verify the shelf top is within one CSS pixel of the card bottom and that the shelf does not move the card's right-side border/radius ownership.
+- Exact corner feel: if the shelf still visually looks wrong after the top bar is gone and top-right radius is present, stop and re-evaluate the intended shape before adding new decorative border helpers.
 
 ## High-Level Technical Design
 
@@ -101,9 +102,9 @@ Desired ownership:
 └───────────────┘
 
 DOM meaning:
-- tool card owns the full rectangle border, including the far-right bottom curve
+- tool card does not draw a bottom border in attached mode
 - shelf owns only the compact bottom-left cap
-- shelf overlaps the card bottom border locally so there is no top seam above the buttons
+- shelf owns the local top-right rounding while keeping top border at `0`
 - no filler element draws a border to the right of the shelf
 ```
 
@@ -111,9 +112,9 @@ DOM meaning:
 
 - [ ] **Unit 1: Remove split-border ownership**
 
-**Goal:** Remove the current fake far-right edge and stop removing the main card's bottom-right outline.
+**Goal:** Remove the current fake far-right edge and stop drawing a main-card top bar above the attached shelf.
 
-**Requirements:** R1, R4
+**Requirements:** R1, R3
 
 **Dependencies:** None
 
@@ -123,10 +124,9 @@ DOM meaning:
 
 **Approach:**
 - Delete the `.tool-call-permission-main-edge` DOM element and CSS.
-- Stop clearing the tool card's bottom border and bottom-right radius globally for attached permissions.
-- If any radius/border adjustment remains necessary, limit it to the left side where the shelf attaches.
+- Clear the tool card's bottom border and bottom radii in attached mode so no horizontal top bar remains.
 
-**Execution note:** Test-first: add a failing regression test that attached permission rendering does not create a filler edge and does not remove the card's right-side outline.
+**Execution note:** Test-first: add a failing regression test that attached permission rendering does not create a filler edge.
 
 **Patterns to follow:**
 - Existing viewport wrapper logic in `packages/desktop/src/lib/acp/components/agent-panel/components/scene-content-viewport.svelte`.
@@ -134,12 +134,11 @@ DOM meaning:
 
 **Test scenarios:**
 - Happy path: attached permission renders a tool wrapper plus a permission shelf, with no `tool-call-permission-main-edge` element.
-- Regression: attached permission styles do not set the tool card's bottom-right radius to `0`.
-- Regression: attached permission styles do not remove the tool card's entire bottom border.
+- Regression: attached permission styles do not leave a `.tool-call-permission-main-edge` element in the DOM.
 
 **Verification:**
 - DOM structure has no far-right filler element.
-- The real `.agent-tool-card` remains the owner of the far-right bottom curve.
+- The tool card no longer creates a visible top bar above the shelf.
 
 - [ ] **Unit 2: Make the shelf attach locally**
 
@@ -158,7 +157,7 @@ DOM meaning:
 **Approach:**
 - Keep the attached shelf content-width using `inline-flex`/`fit-content`.
 - Keep the shelf top border at `0`.
-- Position the shelf so its top edge overlaps the tool card's bottom border by `--tool-call-permission-overlap`, a named local CSS variable set to the existing card border width (`1px`) unless DOM QA proves the token differs.
+- Keep the shelf directly below the tool card; do not use negative overlap once the card bottom border is gone.
 - Preserve matching background tokens between the tool card and shelf.
 - Avoid adding masks, full-width bars, or decorative right-side border fillers.
 - Do not add a corner-helper element or pseudo-element in this pass. If the plain shelf overlap fails QA, stop and revise the plan instead of inventing another decorative edge.
@@ -173,8 +172,9 @@ DOM meaning:
 - Happy path: attached permission mode renders buttons only and does not render `Permission required`.
 - Happy path: attached shelf remains content-width and keeps compact button padding.
 - Regression: attached shelf has no top border.
+- Regression: attached shelf has a nonzero top-right radius.
 - Regression: standalone permission bars still render their normal summary/context behavior.
-- Regression: tests assert behavior and computed shape, not the presence of a specific negative-margin utility class.
+- Regression: tests assert behavior and computed shape, not a magic overlap class.
 
 **Verification:**
 - The shelf appears as a compact bottom-left cap.
@@ -201,10 +201,10 @@ DOM meaning:
 
 **Test scenarios:**
 - Integration: live DOM has no far-right filler edge element.
-- Integration: main tool card has nonzero bottom border and nonzero bottom-right radius.
+- Integration: main tool card has `border-bottom-width: 0px` in attached mode so the top bar is gone.
 - Integration: attached shelf has `border-top-width: 0px`.
+- Integration: attached shelf has nonzero top-right radius.
 - Integration: attached shelf width is less than the main card width and fits its buttons.
-- Integration: shelf top position is within one CSS pixel of the main card bottom after applying the named overlap variable.
 - Integration: pixel-level or screenshot sanity check focuses on the join area after computed-style checks pass, so an anti-aliased seam is not missed.
 
 **Verification:**
@@ -224,7 +224,7 @@ DOM meaning:
 
 | Risk | Mitigation |
 |------|------------|
-| A local overlap hides too much of the tool card border | DOM-check rects and computed borders, then visually inspect only after DOM passes |
+| Removing the card bottom border loses too much frame definition | DOM-check that the shelf owns the compact cap and visually inspect the join after DOM passes |
 | The shelf seam remains visible on certain themes | Verify computed background tokens and run QA in the active theme |
 | Fix regresses standalone permission bars | Keep attached-mode branches isolated and run `permission-bar.svelte.vitest.ts` |
 | Another fake edge is introduced | Plan forbids filler border art and corner-helper elements in this pass |

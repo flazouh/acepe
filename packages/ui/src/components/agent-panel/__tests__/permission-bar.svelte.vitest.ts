@@ -51,5 +51,6 @@ describe("AgentPanelPermissionBar", () => {
 		expect(permissionCard?.className).toContain("py-1");
 		expect(permissionCard?.className).toContain("rounded-b-sm");
 		expect(permissionCard?.className).toContain("rounded-t-none");
+		expect(permissionCard?.className).toContain("rounded-tr-sm");
 	});
 });

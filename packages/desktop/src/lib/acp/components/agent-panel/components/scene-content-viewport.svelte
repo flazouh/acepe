@@ -1302,14 +1302,13 @@ export function scrollToTop() {
 
 <style>
 	.tool-call-with-permission :global(.agent-tool-card) {
+		border-bottom: 0;
 		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
 	}
 
 	.tool-call-permission-row {
-		--tool-call-permission-overlap: 1px;
-
 		display: flex;
-		margin-top: calc(-1 * var(--tool-call-permission-overlap));
 		max-width: 100%;
 		width: 100%;
 	}
