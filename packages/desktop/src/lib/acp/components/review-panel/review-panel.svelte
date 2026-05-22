@@ -6,7 +6,6 @@ import {
 	HeaderActionCell,
 	HeaderTitleCell,
 	ReviewWorkspaceFileList,
-	type ReviewWorkspaceFileItem,
 } from "@acepe/ui";
 import { IconChevronLeft } from "@tabler/icons-svelte";
 import { SvelteMap } from "svelte/reactivity";
@@ -28,6 +27,10 @@ import {
 	prevSequentialFileIndex,
 	shouldAutoAdvanceAfterFileResolution,
 } from "./review-session-state.js";
+import {
+	buildReviewWorkspaceFileItems,
+	getReviewBottomHunkStats,
+} from "./review-panel-state.js";
 
 interface Props {
 	panelId: string;
@@ -72,50 +75,14 @@ let resolvedActionsByFile = new SvelteMap<string, ReadonlyArray<ResolvedHunkActi
 const selectedFile = $derived(modifiedFilesState.files[selectedFileIndex]);
 const files = $derived(modifiedFilesState.files);
 
-// Build file items for the sidebar file list with review status
-const reviewFileItems = $derived.by((): ReviewWorkspaceFileItem[] =>
-	files.map((file) => {
-		const fileKey = createReviewFileRevisionKey(file);
-		const status = fileStatuses.get(fileKey)?.status;
-		return {
-			id: file.filePath,
-			filePath: file.filePath,
-			fileName: file.fileName,
-			reviewStatus: status ?? ("unreviewed" as const),
-			additions: file.totalAdded,
-			deletions: file.totalRemoved,
-		};
-	})
-);
+const reviewFileItems = $derived.by(() => buildReviewWorkspaceFileItems(files, fileStatuses));
 
 const nextFileIdx = $derived(nextSequentialFileIndex(selectedFileIndex, files.length));
 const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
 
 // Bottom widget state from diff when available
 const hunkStats = $derived.by(() => {
-	const state = diffViewStateRef;
-	if (!state) {
-		return {
-			hasPrev: false,
-			hasNext: false,
-			hasPending: false,
-			hunkCurrent: 0,
-			hunkTotal: 0,
-		};
-	}
-	const stats = state.getHunkStats();
-	const pending = state.getPendingHunkIndices();
-	const active = state.getActiveHunkIndex();
-	const activeIdx = active !== null ? pending.indexOf(active) : 0;
-	const hunkCurrent = pending.length > 0 ? activeIdx + 1 : 0;
-	const hunkTotal = pending.length || stats.total;
-	return {
-		hasPrev: pending.length > 1 && activeIdx > 0,
-		hasNext: pending.length > 1 && activeIdx < pending.length - 1 && activeIdx >= 0,
-		hasPending: stats.pending > 0,
-		hunkCurrent,
-		hunkTotal,
-	};
+	return getReviewBottomHunkStats(diffViewStateRef);
 });
 
 const fileCurrent = $derived(selectedFileIndex + 1);
