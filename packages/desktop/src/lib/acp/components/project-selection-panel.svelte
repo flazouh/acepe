@@ -8,6 +8,14 @@ import ProjectCard from "./project-card.svelte";
 import type { ProjectCardData } from "./project-card-data.js";
 import { getVisibleProjectSelectionProjects } from "./project-selection-visibility.js";
 import {
+	getProjectSelectionModifierSymbol,
+	getProjectSelectionPathsKey,
+	getProjectSelectionShortcutIndex,
+	getSelectableProjectByIndex,
+	isProjectSelectionTextInputTarget,
+	shouldSyncProjectSelectionMetadata,
+} from "./project-selection-panel-state.js";
+import {
 	getCachedProjectSelectionMetadata,
 	markProjectSelectionMetadataFieldLoadFinished,
 	markProjectSelectionMetadataFieldLoadStarted,
@@ -24,7 +32,9 @@ interface Props {
 
 let { projects, onProjectSelected, preSelectedProjectPath = null }: Props = $props();
 const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
-const modifierSymbol = isMac ? "⌘" : "Ctrl";
+const modifierSymbol = getProjectSelectionModifierSymbol(
+	typeof navigator !== "undefined" ? navigator.platform : undefined
+);
 
 const missingProjectPaths = new SvelteSet<string>();
 const cardDataMap = new SvelteMap<
@@ -200,16 +210,12 @@ function updateMissingProjectPaths(paths: readonly string[]): void {
 	}
 }
 
-function getProjectPathsKey(list: readonly Project[]): string {
-	return list.map((project) => project.path).join("\n");
-}
-
 function refreshMissingProjectPaths(): void {
 	if (typeof window === "undefined") {
 		return;
 	}
 
-	const projectsKey = getProjectPathsKey(projects);
+	const projectsKey = getProjectSelectionPathsKey(projects);
 	if (projectsKey === lastProjectsKey) {
 		return;
 	}
@@ -236,11 +242,17 @@ function syncDisplayedProjectMetadata(): void {
 		return;
 	}
 
-	const displayProjectsKey = getProjectPathsKey(displayProjects);
+	const displayProjectsKey = getProjectSelectionPathsKey(displayProjects);
 	const hasRetryableMetadata = displayProjects.some((project) =>
 		shouldLoadProjectSelectionMetadata(project.path)
 	);
-	if (displayProjectsKey === lastDisplayProjectsKey && !hasRetryableMetadata) {
+	if (
+		!shouldSyncProjectSelectionMetadata({
+			displayProjectsKey,
+			lastDisplayProjectsKey,
+			hasRetryableMetadata,
+		})
+	) {
 		return;
 	}
 	lastDisplayProjectsKey = displayProjectsKey;
@@ -256,33 +268,41 @@ function syncProjectSelectionState(): void {
 }
 
 function handleKeyDown(event: KeyboardEvent) {
-	const target = event.target as HTMLElement;
-	if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+	if (isProjectSelectionTextInputTarget(event.target)) {
 		return;
 	}
 
-	const hasModifier = isMac ? event.metaKey : event.ctrlKey;
-	const hasWrongModifier = isMac ? event.ctrlKey : event.metaKey;
-	if (!hasModifier || hasWrongModifier || event.altKey || event.shiftKey) {
+	const index = getProjectSelectionShortcutIndex({
+		key: event.key,
+		isMac,
+		metaKey: event.metaKey,
+		ctrlKey: event.ctrlKey,
+		altKey: event.altKey,
+		shiftKey: event.shiftKey,
+	});
+	if (index === null) {
 		return;
 	}
 
-	if (event.key >= "1" && event.key <= "9") {
-		const index = Number.parseInt(event.key, 10) - 1;
-		if (index < displayProjects.length) {
-			const project = displayProjects[index];
-			if (project && !missingProjectPaths.has(project.path)) {
-				event.preventDefault();
-				event.stopPropagation();
-				onProjectSelected(project);
-			}
-		}
+	const project = getSelectableProjectByIndex({
+		projects: displayProjects,
+		index,
+		missingProjectPaths,
+	});
+	if (project) {
+		event.preventDefault();
+		event.stopPropagation();
+		onProjectSelected(project);
 	}
 }
 
 function handleProjectSelect(index: number) {
-	const project = displayProjects[index];
-	if (project && !missingProjectPaths.has(project.path)) {
+	const project = getSelectableProjectByIndex({
+		projects: displayProjects,
+		index,
+		missingProjectPaths,
+	});
+	if (project) {
 		onProjectSelected(project);
 	}
 }
