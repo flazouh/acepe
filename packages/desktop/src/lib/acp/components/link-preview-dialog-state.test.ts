@@ -4,6 +4,7 @@ import {
 	getLinkPreviewErrorState,
 	getLinkPreviewLoadedState,
 	getLinkPreviewResetState,
+	getLinkPreviewToolbarState,
 } from "./link-preview-dialog-state.js";
 
 describe("link preview dialog state", () => {
@@ -29,5 +30,35 @@ describe("link preview dialog state", () => {
 			isLoading: false,
 			loadError: true,
 		});
+	});
+
+	it("builds toolbar display state from URL and load state", () => {
+		expect(
+			getLinkPreviewToolbarState({
+				currentUrl: "https://example.com/docs",
+				isLoading: true,
+				loadError: false,
+			})
+		).toEqual({
+			domain: "example.com",
+			status: "loading",
+		});
+		expect(
+			getLinkPreviewToolbarState({
+				currentUrl: "bad url",
+				isLoading: false,
+				loadError: true,
+			})
+		).toEqual({
+			domain: "bad url",
+			status: "error",
+		});
+		expect(
+			getLinkPreviewToolbarState({
+				currentUrl: "https://example.com/docs",
+				isLoading: false,
+				loadError: false,
+			}).status
+		).toBe("ready");
 	});
 });

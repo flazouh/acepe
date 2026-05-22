@@ -8,10 +8,10 @@ import { untrack } from "svelte";
 import * as Dialog from "@acepe/ui/dialog";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import {
-	getLinkPreviewDomain,
 	getLinkPreviewErrorState,
 	getLinkPreviewLoadedState,
 	getLinkPreviewResetState,
+	getLinkPreviewToolbarState,
 } from "./link-preview-dialog-state.js";
 interface Props {
 	url: string;
@@ -31,6 +31,14 @@ function applyLoadState(state: { readonly isLoading: boolean; readonly loadError
 	isLoading = state.isLoading;
 	loadError = state.loadError;
 }
+
+const toolbarState = $derived(
+	getLinkPreviewToolbarState({
+		currentUrl,
+		isLoading,
+		loadError,
+	})
+);
 
 // Reset state when URL changes
 $effect(() => {
@@ -118,13 +126,13 @@ function openInBrowser() {
 			<div
 				class="flex-1 flex items-center gap-2 px-3 py-1.5 bg-background/50 rounded-md border border-border/50 min-w-0"
 			>
-				{#if isLoading}
+				{#if toolbarState.status === "loading"}
 					<Spinner class="text-muted-foreground shrink-0" size={14} />
-				{:else if loadError}
+				{:else if toolbarState.status === "error"}
 					<WarningCircle class="h-3.5 w-3.5 text-destructive shrink-0" weight="fill" />
 				{/if}
 				<span class="text-xs text-muted-foreground truncate" title={currentUrl}>
-					{getLinkPreviewDomain(currentUrl)}
+					{toolbarState.domain}
 				</span>
 			</div>
 

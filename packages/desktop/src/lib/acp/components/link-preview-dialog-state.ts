@@ -3,6 +3,13 @@ export interface LinkPreviewLoadState {
 	readonly loadError: boolean;
 }
 
+export type LinkPreviewToolbarStatus = "loading" | "error" | "ready";
+
+export interface LinkPreviewToolbarState {
+	readonly domain: string;
+	readonly status: LinkPreviewToolbarStatus;
+}
+
 export function getLinkPreviewDomain(urlString: string): string {
 	try {
 		return new URL(urlString).hostname;
@@ -29,5 +36,16 @@ export function getLinkPreviewErrorState(): LinkPreviewLoadState {
 	return {
 		isLoading: false,
 		loadError: true,
+	};
+}
+
+export function getLinkPreviewToolbarState(input: {
+	readonly currentUrl: string;
+	readonly isLoading: boolean;
+	readonly loadError: boolean;
+}): LinkPreviewToolbarState {
+	return {
+		domain: getLinkPreviewDomain(input.currentUrl),
+		status: input.isLoading ? "loading" : input.loadError ? "error" : "ready",
 	};
 }
