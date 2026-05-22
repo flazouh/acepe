@@ -23,11 +23,9 @@ import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
 import {
-	getLatestSceneDisplayRevealTargetKey,
 	getSceneDisplayRowKey,
 	getSceneDisplayRowTimestampMs,
 	resolveSceneDisplayRowThinkingDurationMs,
-	shouldObserveSceneDisplayRowRevealResize,
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
@@ -234,6 +232,14 @@ function getKey(entry: SceneDisplayRow | undefined, index?: number): string {
 	}
 
 	return getSceneDisplayRowKey(entry);
+}
+
+function shouldObserveRevealResize(entry: SceneDisplayRow | undefined): boolean {
+	if (entry === undefined) {
+		return false;
+	}
+
+	return getSceneDisplayRowKey(entry) === revealResizeObserverTargetKey;
 }
 
 function createMergedAssistantSceneEntry(
@@ -471,6 +477,15 @@ let initialHydrationComplete = $state(!shouldDeferInitialHydration);
 let lastRenderedSessionId = $state(untrack(() => sessionId));
 const displayEntries = $derived(
 	initialHydrationComplete ? displayEntriesRaw : ([] as readonly SceneDisplayRow[])
+);
+const viewportRowsSummary = $derived(
+	viewportRowsReadModel.applyRows({
+		rows: displayEntries,
+		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
+	})
+);
+const revealResizeObserverTargetKey = $derived(
+	viewportRowsSummary.anchorEligibleKeys.at(-1) ?? null
 );
 const hasLiveAssistantDisplayEntry = $derived(
 	displayEntries.some(
@@ -722,17 +737,13 @@ function measureCurrentViewport(): TranscriptViewportMeasurement {
 }
 
 $effect(() => {
-	const rows = viewportRowsReadModel.applyRows({
-		rows: displayEntries,
-		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
-	});
 	const generation = untrack(() => viewportState.generation);
 	untrack(() => {
 		dispatchViewportEvent({
 			type: "RowsChanged",
 			sessionId,
 			generation,
-			rows,
+			rows: viewportRowsSummary,
 		});
 	});
 });
@@ -1221,9 +1232,7 @@ export function scrollToTop() {
 				entryIndex={index}
 				entryKey={getKey(entry, index)}
 				messageId={entry.type === "user" ? entry.id : undefined}
-				observeRevealResize={entry
-					? shouldObserveSceneDisplayRowRevealResize(displayEntries, entry, isStreaming)
-					: false}
+				observeRevealResize={shouldObserveRevealResize(entry)}
 				onRevealResize={() => requestRevealForIndex(index)}
 				{isFullscreen}
 			>
