@@ -21,10 +21,8 @@ import MessageWrapper from "../../messages/message-wrapper.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import {
-	createGraphSceneEntryIndexReadModel,
-	findGraphSceneEntryForDisplayEntry,
-} from "../logic/graph-scene-entry-match.js";
+import { findGraphSceneEntryForDisplayEntry } from "../logic/graph-scene-entry-match.js";
+import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
 import {
 	getLatestSceneDisplayRevealTargetKey,
 	getSceneDisplayRowKey,
@@ -34,7 +32,6 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
-import { createSceneDisplayRowsReadModel } from "../logic/scene-display-row-read-model.js";
 import {
 	buildNativeFallbackWindow,
 	shouldRetryNativeFallback,
@@ -107,8 +104,7 @@ type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
 
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
-const sceneRowsReadModel = createSceneDisplayRowsReadModel();
-const graphSceneEntryIndexReadModel = createGraphSceneEntryIndexReadModel();
+const agentPanelSceneReadModel = createAgentPanelSceneReadModel();
 
 let {
 	panelId,
@@ -136,9 +132,10 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
-const sceneEntriesById = $derived(
-	graphSceneEntryIndexReadModel.getIndex(sceneEntries ?? EMPTY_SCENE_ENTRIES)
+const agentPanelSceneSnapshot = $derived(
+	agentPanelSceneReadModel.applySnapshot(sceneEntries ?? EMPTY_SCENE_ENTRIES)
 );
+const sceneEntriesById = $derived(agentPanelSceneSnapshot.entriesById);
 
 // ===== EDIT TOOL THEME =====
 const themeState = useTheme();
@@ -420,7 +417,7 @@ function getAttachedPermissionForEntry(
 }
 
 // ===== DISPLAY ENTRIES =====
-const mergedEntries = $derived(sceneRowsReadModel.getRows(sceneEntries ?? EMPTY_SCENE_ENTRIES));
+const mergedEntries = $derived(agentPanelSceneSnapshot.rows);
 
 const thinkingIndicatorStartedAtMs = $derived.by(() => {
 	if (!isWaitingForResponse) {
