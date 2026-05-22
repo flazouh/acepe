@@ -24,6 +24,14 @@ import { getRawEditorConfig } from "./file-panel-raw-editor-mode.js";
 import FilePanelReadView from "./file-panel-read-view.svelte";
 import FilePanelRenderedView from "./file-panel-rendered-view.svelte";
 import { getFilePanelShellClass } from "./file-panel-shell-class.js";
+import {
+	FILE_PANEL_EDITOR_MODES,
+	getDisplayOptionsKey,
+	getFileNameFromPath,
+	getFilePanelWidthStyle,
+	shouldResetFilePanelDisplayMode,
+	shouldShowRawEditorModeControls,
+} from "./file-panel-state.js";
 import FilePanelStructuredView from "./file-panel-structured-view.svelte";
 
 interface Props {
@@ -78,8 +86,7 @@ let gitGutterInput = $state<GitGutterInput>(null);
 let isDragging = $state(false);
 let startX = $state(0);
 
-// Extract filename from path
-const fileName = $derived(filePath.split("/").pop() ?? filePath);
+const fileName = $derived(getFileNameFromPath(filePath));
 
 // Detect language for Monaco editor
 const language = $derived(getLanguageFromFilename(filePath));
@@ -87,20 +94,15 @@ const displayOptions = $derived(getDisplayOptions(filePath));
 let displayMode = $state<FilePanelDisplayMode>("raw");
 let editorMode = $state<"write" | "read">("read");
 let lastDisplayOptionsKey = $state("");
-const editorModes = ["write", "read"] as const;
+const editorModes = FILE_PANEL_EDITOR_MODES;
 
-// Width style
-const widthStyle = $derived(
-	isFullscreenEmbedded
-		? "min-width: 0; width: 100%; max-width: 100%;"
-		: `min-width: ${width}px; width: ${width}px; max-width: ${width}px;`
-);
+const widthStyle = $derived(getFilePanelWidthStyle({ width, isFullscreenEmbedded }));
 
 $effect(() => {
 	const currentDisplayOptions = displayOptions;
-	const nextKey = `${filePath}:${currentDisplayOptions.defaultMode}:${currentDisplayOptions.availableModes.join(",")}`;
+	const nextKey = getDisplayOptionsKey(filePath, currentDisplayOptions);
 
-	if (nextKey !== lastDisplayOptionsKey) {
+	if (shouldResetFilePanelDisplayMode({ nextKey, lastKey: lastDisplayOptionsKey })) {
 		lastDisplayOptionsKey = nextKey;
 		displayMode = currentDisplayOptions.defaultMode;
 	}
@@ -345,7 +347,10 @@ const shellClass = $derived(
 					onDisplayModeChange={handleDisplayModeChange}
 					{editorModes}
 					activeEditorMode={editorMode}
-					onEditorModeChange={displayMode === "raw" && !useReadOnlyPierreView
+					onEditorModeChange={shouldShowRawEditorModeControls({
+						displayMode,
+						useReadOnlyPierreView,
+					})
 						? handleEditorModeChange
 						: undefined}
 					{onClose}
