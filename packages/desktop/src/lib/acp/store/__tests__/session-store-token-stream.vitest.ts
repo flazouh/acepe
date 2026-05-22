@@ -116,6 +116,64 @@ function createAssistantTextDeltaEnvelope(
 	};
 }
 
+function createTranscriptAppendDeltaEnvelope(input: {
+	readonly graphRevision: number;
+	readonly fromTranscriptRevision: number;
+	readonly toTranscriptRevision: number;
+	readonly lastEventSeq: number;
+	readonly entryId: string;
+	readonly role: "user" | "assistant";
+	readonly text: string;
+	readonly turnState?: SessionStateGraph["turnState"];
+	readonly activity?: SessionGraphActivity;
+	readonly activeStreamingTail?: SessionStateGraph["activeStreamingTail"];
+}): SessionStateEnvelope {
+	return {
+		sessionId: "session-1",
+		graphRevision: input.graphRevision,
+		lastEventSeq: input.lastEventSeq,
+		payload: {
+			kind: "delta",
+			delta: {
+				fromRevision: {
+					graphRevision: input.graphRevision - 1,
+					transcriptRevision: input.fromTranscriptRevision,
+					lastEventSeq: input.lastEventSeq - 1,
+				},
+				toRevision: {
+					graphRevision: input.graphRevision,
+					transcriptRevision: input.toTranscriptRevision,
+					lastEventSeq: input.lastEventSeq,
+				},
+				activity: input.activity ?? createIdleActivity(),
+				turnState: input.turnState ?? "Running",
+				activeTurnFailure: null,
+				lastTerminalTurnId: null,
+				activeStreamingTail: input.activeStreamingTail ?? null,
+				transcriptOperations: [
+					{
+						kind: "appendEntry",
+						entry: {
+							entryId: input.entryId,
+							role: input.role,
+							segments: [
+								{
+									kind: "text",
+									segmentId: `${input.entryId}:block:0`,
+									text: input.text,
+								},
+							],
+						},
+					},
+				],
+				operationPatches: [],
+				interactionPatches: [],
+				changedFields: ["transcriptSnapshot", "activity", "turnState", "activeStreamingTail"],
+			},
+		},
+	};
+}
+
 function addColdSession(store: SessionStore): void {
 	store.addSession({
 		id: "session-1",
@@ -138,6 +196,15 @@ function applyAssistantTextDeltaLog(
 			"session-1",
 			createAssistantTextDeltaEnvelope("session-1", delta)
 		);
+	}
+}
+
+function applyEnvelopeJournal(
+	store: SessionStore,
+	envelopes: readonly SessionStateEnvelope[]
+): void {
+	for (const envelope of envelopes) {
+		store.applySessionStateEnvelope("session-1", envelope);
 	}
 }
 
@@ -339,6 +406,90 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		applyAssistantTextDeltaLog(liveStore, deltas);
 		applyAssistantTextDeltaLog(replayStore, deltas);
 
+		expect(replayStore.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
+			liveStore.getRowTokenStream("session-1", "turn-1", "assistant-1")
+		);
+		expect(replayStore.getClockAnchor("session-1")).toEqual(liveStore.getClockAnchor("session-1"));
+	});
+
+	it("replays the same small envelope journal into the same graph and token projection", () => {
+		const liveStore = new SessionStore();
+		const replayStore = new SessionStore();
+		const snapshot = createSnapshotEnvelope(
+			createSessionStateGraph({
+				revision: {
+					graphRevision: 1,
+					transcriptRevision: 1,
+					lastEventSeq: 1,
+				},
+				transcriptSnapshot: {
+					revision: 1,
+					entries: [
+						{
+							entryId: "user-1",
+							role: "user",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "user-1:block:0",
+									text: "Prompt",
+								},
+							],
+						},
+					],
+				},
+				activeStreamingTail: null,
+				turnState: "Running",
+			})
+		);
+		const assistantEntryDelta = createTranscriptAppendDeltaEnvelope({
+			graphRevision: 2,
+			fromTranscriptRevision: 1,
+			toTranscriptRevision: 2,
+			lastEventSeq: 2,
+			entryId: "assistant-1",
+			role: "assistant",
+			text: "",
+			activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		});
+		const tokenDeltas = [
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: 0,
+				deltaText: "hello",
+				producedAtMonotonicMs: 4_000,
+				revision: 3,
+			}),
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: "hello".length,
+				deltaText: " world",
+				producedAtMonotonicMs: 4_016,
+				revision: 4,
+			}),
+		];
+		const journal = [snapshot, assistantEntryDelta, ...tokenDeltas];
+
+		addColdSession(liveStore);
+		addColdSession(replayStore);
+		vi.spyOn(performance, "now").mockReturnValue(1_200);
+
+		applyEnvelopeJournal(liveStore, journal);
+		applyEnvelopeJournal(replayStore, journal);
+
+		expect(replayStore.getSessionStateGraphForTest("session-1")).toEqual(
+			liveStore.getSessionStateGraphForTest("session-1")
+		);
+		expect(replayStore.getActiveStreamingTailRowId("session-1")).toBe("assistant-1");
 		expect(replayStore.getRowTokenStream("session-1", "turn-1", "assistant-1")).toEqual(
 			liveStore.getRowTokenStream("session-1", "turn-1", "assistant-1")
 		);
