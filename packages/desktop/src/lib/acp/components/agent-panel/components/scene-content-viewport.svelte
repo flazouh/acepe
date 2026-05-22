@@ -59,7 +59,10 @@ import {
 	recordTranscriptViewportFlight,
 } from "../logic/transcript-viewport-flight-recorder.js";
 import { createTranscriptViewportScheduler } from "../logic/transcript-viewport-scheduler.svelte.js";
-import type { TranscriptViewportRowSummary } from "../logic/transcript-viewport-row-summary.js";
+import {
+	createTranscriptViewportRowsReadModel,
+	type TranscriptViewportRowSummary,
+} from "../logic/transcript-viewport-row-summary.js";
 import type { TranscriptViewportAnchor } from "../logic/viewport-anchor.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
@@ -104,6 +107,7 @@ type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
 const agentPanelSceneReadModel = createAgentPanelSceneReadModel();
+const viewportRowsReadModel = createTranscriptViewportRowsReadModel();
 
 let {
 	panelId,
@@ -476,31 +480,6 @@ const hasLiveAssistantDisplayEntry = $derived(
 	)
 );
 
-function buildViewportRowSummary(rows: readonly SceneDisplayRow[]): TranscriptViewportRowSummary {
-	let latestUserKey: string | null = null;
-	const anchorEligibleKeys: string[] = [];
-	for (const entry of rows) {
-		const key = getSceneDisplayRowKey(entry);
-		if (entry.type === "user") {
-			latestUserKey = key;
-		}
-		if (entry.type !== "thinking") {
-			anchorEligibleKeys.push(key);
-		}
-	}
-
-	const lastEntry = rows.at(-1);
-	return {
-		version: rows.length,
-		count: rows.length,
-		firstKey: rows[0] === undefined ? null : getSceneDisplayRowKey(rows[0]),
-		lastKey: lastEntry === undefined ? null : getSceneDisplayRowKey(lastEntry),
-		latestUserKey,
-		anchorEligibleKeys,
-		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
-	};
-}
-
 function shouldUseNativeScrollerForCompactToolTranscript(input: {
 	rows: readonly SceneDisplayRow[];
 	isStreaming: boolean;
@@ -528,7 +507,7 @@ function shouldUseNativeScrollerForCompactToolTranscript(input: {
 let viewportState: TranscriptViewportState = $state(
 	createInitialTranscriptViewportState({
 		sessionId: untrack(() => sessionId),
-		rows: buildViewportRowSummary([]),
+		rows: viewportRowsReadModel.selectSummary(),
 	})
 );
 const shouldUseNativeList = $derived(viewportState.renderer.type === "fallback");
@@ -743,7 +722,10 @@ function measureCurrentViewport(): TranscriptViewportMeasurement {
 }
 
 $effect(() => {
-	const rows = buildViewportRowSummary(displayEntries);
+	const rows = viewportRowsReadModel.applyRows({
+		rows: displayEntries,
+		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
+	});
 	const generation = untrack(() => viewportState.generation);
 	untrack(() => {
 		dispatchViewportEvent({
