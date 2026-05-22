@@ -21,6 +21,15 @@ import * as Dialog from "@acepe/ui/dialog";
 import { Input } from "$lib/components/ui/input/index.js";
 import { cn } from "$lib/utils.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import {
+	canCreateBranch as getCanCreateBranch,
+	filterBranchesByQuery,
+	getFullBranchName,
+	getNewBranchNameError,
+	getNormalizedBranchName,
+	getWorktreeBranches,
+	shouldLoadBranchList,
+} from "./branch-picker-state.js";
 
 interface Props {
 	projectPath: string | null;
@@ -81,31 +90,23 @@ let newBranchInputRef = $state<HTMLInputElement | null>(null);
 const minimalTriggerClass =
 	"!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]";
 
-const normalizedBranchQuery = $derived(branchQuery.trim().toLowerCase());
-
-const filteredBranches = $derived.by(() => {
-	if (!normalizedBranchQuery) return branches;
-	return branches.filter((branch) => branch.toLowerCase().includes(normalizedBranchQuery));
-});
-
-const normalizedNewBranchName = $derived(newBranchName.trim());
-const fullBranchName = $derived(selectedPrefix.value + normalizedNewBranchName);
-
-const newBranchExists = $derived.by(() =>
-	branches.some((branch) => branch.toLowerCase() === fullBranchName.toLowerCase())
+const filteredBranches = $derived(filterBranchesByQuery(branches, branchQuery));
+const normalizedNewBranchName = $derived(getNormalizedBranchName(newBranchName));
+const fullBranchName = $derived(getFullBranchName({ prefix: selectedPrefix, branchName: newBranchName }));
+const newBranchNameError = $derived(
+	getNewBranchNameError({
+		normalizedBranchName: normalizedNewBranchName,
+		fullBranchName,
+		branches,
+	})
 );
-
-const newBranchNameError = $derived.by(() => {
-	if (normalizedNewBranchName.length === 0) return null;
-	if (newBranchExists) return "Branch already exists";
-	if (normalizedNewBranchName.endsWith("/")) return 'Branch name cannot end with "/"';
-	if (normalizedNewBranchName.includes(" ")) return "Branch name cannot contain spaces";
-	return null;
-});
-
-const canCreateBranch = $derived.by(() => {
-	return normalizedNewBranchName.length > 0 && !newBranchNameError && !switchingBranch;
-});
+const canCreateBranch = $derived(
+	getCanCreateBranch({
+		normalizedBranchName: normalizedNewBranchName,
+		error: newBranchNameError,
+		switchingBranch,
+	})
+);
 
 $effect(() => {
 	if (!branchPopoverOpen) {
@@ -121,8 +122,11 @@ $effect(() => {
 	}
 	// Worktrees are tied to a specific branch — skip the Tauri call
 	if (isWorktree) {
-		branches = currentBranch ? [currentBranch] : [];
+		branches = getWorktreeBranches(currentBranch);
 		loadingBranches = false;
+		return;
+	}
+	if (!shouldLoadBranchList({ branchPopoverOpen, projectPath, isWorktree })) {
 		return;
 	}
 	loadingBranches = true;
