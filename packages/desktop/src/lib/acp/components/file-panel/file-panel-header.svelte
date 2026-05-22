@@ -7,6 +7,12 @@ import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import CopyButton from "../messages/copy-button.svelte";
 import type { FilePanelDisplayMode } from "./format/types.js";
+import {
+	getFilePanelDisplayModeItems,
+	getFilePanelEditorModeItems,
+	getFilePanelEffectiveProjectColor,
+	getFilePanelFullPath,
+} from "./file-panel-header-state.js";
 
 interface Props {
 	fileName: string;
@@ -48,7 +54,7 @@ let {
 	onClose,
 }: Props = $props();
 
-const effectiveColor = $derived(projectColor ?? "");
+const effectiveColor = $derived(getFilePanelEffectiveProjectColor(projectColor));
 
 function handleOpenInFinder() {
 	tauriClient.fileIndex
@@ -59,27 +65,9 @@ function handleOpenInFinder() {
 		});
 }
 
-function getFullPath(): string {
-	return filePath.startsWith("/") ? filePath : `${projectPath}/${filePath}`;
-}
-
-function getDisplayModeLabel(mode: FilePanelDisplayMode): string {
-	if (mode === "rendered") return "Preview";
-	if (mode === "structured") return "Tree";
-	if (mode === "table") return "Table";
-	return "Source";
-}
-
-const uiDisplayModes = $derived(
-	displayModes.map((mode) => ({ id: mode, label: getDisplayModeLabel(mode) }))
-);
-
-const uiEditorModes = $derived(
-	editorModes.map((mode) => ({
-		id: mode,
-		label: mode === "write" ? "Write" : "Read",
-	}))
-);
+const fullPath = $derived(getFilePanelFullPath({ filePath, projectPath }));
+const uiDisplayModes = $derived(getFilePanelDisplayModeItems(displayModes));
+const uiEditorModes = $derived(getFilePanelEditorModeItems(editorModes));
 
 function handleDisplayModeChange(modeId: string) {
 	onDisplayModeChange?.(modeId as FilePanelDisplayMode);
@@ -118,7 +106,7 @@ function handleEditorModeChange(modeId: string) {
 	{#snippet fileLabel()}
 		{#if !compact}
 			<CopyButton
-				getText={getFullPath}
+				getText={() => fullPath}
 				variant="inline"
 				label={fileName}
 				size={14}
@@ -132,7 +120,7 @@ function handleEditorModeChange(modeId: string) {
 		{#if compact}
 			<div class="h-7 w-7 inline-flex items-center justify-center" data-header-control>
 				<CopyButton
-					getText={getFullPath}
+					getText={() => fullPath}
 					variant="icon"
 					size={14}
 					class="h-7 w-7 text-muted-foreground hover:text-foreground"
