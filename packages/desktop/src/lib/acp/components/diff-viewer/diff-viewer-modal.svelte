@@ -1,9 +1,6 @@
 <script lang="ts">
 import {
-	type GitCommitData,
-	type GitPrData,
 	GitViewer,
-	type GitViewerFile,
 	LoadingIcon,
 } from "@acepe/ui";
 import { ArrowsClockwise } from "phosphor-svelte";
@@ -12,7 +9,7 @@ import { X } from "phosphor-svelte";
 import EmbeddedModalShell from "$lib/components/ui/embedded-modal-shell.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
 import type { CommitDiff, GitHubError, PrDiff } from "../../types/github-integration.js";
-import { isCommitDiff } from "../../types/github-integration.js";
+import { buildDiffViewerData } from "./diff-viewer-modal-state.js";
 import PierreDiffView from "./pierre-diff-view.svelte";
 
 interface Props {
@@ -36,47 +33,7 @@ let diff = $state<CommitDiff | PrDiff | null>(null);
 let selectedFile = $state<string>("");
 let viewMode = $state<"inline" | "side-by-side">("inline");
 
-// Map backend diff types to shared GitViewer types
-const viewerData = $derived.by(() => {
-	if (!diff) return null;
-
-	const mapFiles = (files: CommitDiff["files"] | PrDiff["files"]): GitViewerFile[] =>
-		files.map((f) => ({
-			path: f.path,
-			status: f.status,
-			additions: f.additions,
-			deletions: f.deletions,
-			patch: f.patch,
-		}));
-
-	if (isCommitDiff(diff)) {
-		const commitData: GitCommitData = {
-			sha: diff.sha,
-			shortSha: diff.shortSha,
-			message: diff.message,
-			messageBody: diff.messageBody,
-			author: diff.author,
-			authorEmail: diff.authorEmail,
-			date: diff.date,
-			files: mapFiles(diff.files),
-			githubUrl: diff.repoContext
-				? `https://github.com/${diff.repoContext.owner}/${diff.repoContext.repo}/commit/${diff.sha}`
-				: undefined,
-		};
-		return { type: "commit" as const, commit: commitData };
-	}
-
-	const prData: GitPrData = {
-		number: diff.pr.number,
-		title: diff.pr.title,
-		author: diff.pr.author,
-		state: diff.pr.state,
-		description: diff.pr.description,
-		files: mapFiles(diff.files),
-		githubUrl: `https://github.com/${diff.repoContext.owner}/${diff.repoContext.repo}/pull/${diff.pr.number}`,
-	};
-	return { type: "pr" as const, pr: prData };
-});
+const viewerData = $derived(buildDiffViewerData(diff));
 
 async function loadDiff() {
 	if (!reference || !open) return;
