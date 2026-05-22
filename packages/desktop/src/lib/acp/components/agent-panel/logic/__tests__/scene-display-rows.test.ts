@@ -169,6 +169,44 @@ describe("scene-display-rows", () => {
 		}
 	});
 
+	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
+			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
+		]);
+
+		const nextRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
+			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
+			{ id: "assistant-2", type: "assistant", markdown: "Second", timestampMs: 3 },
+		]);
+
+		expect(nextRows[0]).toBe(firstRows[0]);
+		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual(["user-1", "assistant-1"]);
+		expect(nextRows[1]?.type).toBe("assistant_merged");
+		if (nextRows[1]?.type === "assistant_merged") {
+			expect(nextRows[1].markdown).toBe("FirstSecond");
+		}
+	});
+
+	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "First" },
+		]);
+
+		const nextRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt changed" },
+			{ id: "assistant-1", type: "assistant", markdown: "First" },
+			{ id: "assistant-2", type: "assistant", markdown: "Second" },
+		]);
+
+		expect(nextRows[0]).not.toBe(firstRows[0]);
+		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual(["user-1", "assistant-1"]);
+	});
+
 	it("rebuilds rows when the scene is replaced instead of appended", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.getRows([
