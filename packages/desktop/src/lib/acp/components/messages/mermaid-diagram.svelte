@@ -4,6 +4,12 @@ import { createLogger } from "../../utils/logger.js";
 import { renderMermaid } from "../../utils/mermaid-renderer.js";
 import MermaidCanvas from "./mermaid/mermaid-canvas.svelte";
 import MermaidFullscreenDialog from "./mermaid/mermaid-fullscreen-dialog.svelte";
+import {
+	getPanZoomLevel,
+	resetMermaidPanZoomState,
+	zoomMermaidPanZoomIn,
+	zoomMermaidPanZoomOut,
+} from "./mermaid/mermaid-pan-zoom-state.js";
 import MermaidToolbar from "./mermaid/mermaid-toolbar.svelte";
 
 const logger = createLogger({ id: "mermaid-diagram", name: "Mermaid Diagram" });
@@ -23,7 +29,13 @@ let translateX = $state(0);
 let translateY = $state(0);
 
 const isDark = $derived(themeState?.effectiveTheme !== "light");
-const zoomLevel = $derived(Math.round(scale * 100));
+const zoomLevel = $derived(getPanZoomLevel(scale));
+
+function setPanZoomState(next: { scale: number; translateX: number; translateY: number }): void {
+	scale = next.scale;
+	translateX = next.translateX;
+	translateY = next.translateY;
+}
 
 $effect(() => {
 	const currentCode = code;
@@ -33,9 +45,7 @@ $effect(() => {
 	error = null;
 	svg = null;
 
-	scale = 1;
-	translateX = 0;
-	translateY = 0;
+	setPanZoomState(resetMermaidPanZoomState());
 
 	renderMermaid(currentCode, currentIsDark).match(
 		(result) => {
@@ -55,17 +65,15 @@ function toggleSource(): void {
 }
 
 function zoomIn(): void {
-	scale = Math.min(5, scale * 1.25);
+	setPanZoomState(zoomMermaidPanZoomIn({ scale, translateX, translateY }));
 }
 
 function zoomOut(): void {
-	scale = Math.max(0.2, scale * 0.8);
+	setPanZoomState(zoomMermaidPanZoomOut({ scale, translateX, translateY }));
 }
 
 function resetZoom(): void {
-	scale = 1;
-	translateX = 0;
-	translateY = 0;
+	setPanZoomState(resetMermaidPanZoomState());
 }
 
 function openFullscreen(): void {

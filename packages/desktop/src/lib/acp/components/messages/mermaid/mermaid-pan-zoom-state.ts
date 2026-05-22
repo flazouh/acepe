@@ -24,3 +24,15 @@ export function getPanZoomTransform(state: PanZoomState): string {
 export function getPanZoomLevel(scale: number): number {
 	return Math.round(scale * 100);
 }
+
+export function zoomMermaidPanZoomIn(state: PanZoomState): PanZoomState {
+	return applyPanZoomStateUpdate(state, { scale: Math.min(5, state.scale * 1.25) });
+}
+
+export function zoomMermaidPanZoomOut(state: PanZoomState): PanZoomState {
+	return applyPanZoomStateUpdate(state, { scale: Math.max(0.2, state.scale * 0.8) });
+}
+
+export function resetMermaidPanZoomState(): PanZoomState {
+	return { ...MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE };
+}

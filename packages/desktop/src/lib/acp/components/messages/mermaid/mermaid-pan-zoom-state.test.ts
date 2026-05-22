@@ -5,6 +5,9 @@ import {
 	getPanZoomLevel,
 	getPanZoomTransform,
 	MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE,
+	resetMermaidPanZoomState,
+	zoomMermaidPanZoomIn,
+	zoomMermaidPanZoomOut,
 } from "./mermaid-pan-zoom-state.js";
 
 describe("mermaid-pan-zoom-state", () => {
@@ -43,5 +46,30 @@ describe("mermaid-pan-zoom-state", () => {
 			translateX: 0,
 			translateY: 0,
 		});
+	});
+
+	it("zooms in and clamps at the inline max scale", () => {
+		expect(zoomMermaidPanZoomIn({ scale: 2, translateX: 4, translateY: 5 })).toEqual({
+			scale: 2.5,
+			translateX: 4,
+			translateY: 5,
+		});
+		expect(zoomMermaidPanZoomIn({ scale: 5, translateX: 4, translateY: 5 }).scale).toBe(5);
+	});
+
+	it("zooms out and clamps at the inline min scale", () => {
+		expect(zoomMermaidPanZoomOut({ scale: 2, translateX: 4, translateY: 5 })).toEqual({
+			scale: 1.6,
+			translateX: 4,
+			translateY: 5,
+		});
+		expect(zoomMermaidPanZoomOut({ scale: 0.2, translateX: 4, translateY: 5 }).scale).toBe(0.2);
+	});
+
+	it("returns a fresh reset state", () => {
+		const reset = resetMermaidPanZoomState();
+		reset.scale = 2;
+
+		expect(MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE.scale).toBe(1);
 	});
 });
