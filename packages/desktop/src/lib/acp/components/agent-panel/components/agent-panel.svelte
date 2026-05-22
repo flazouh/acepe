@@ -90,6 +90,8 @@ import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-o
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
+import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
+import { createTokenRevealSceneReadModel } from "../logic/token-reveal-scene-read-model.js";
 import type {
 	RowTokenStream,
 	SessionClockAnchor,
@@ -138,7 +140,6 @@ import {
 	resolveTokenRevealBaselineMs,
 	resolveTokenRevealSettleDelayMs,
 	shouldKeepTokenRevealTiming,
-	type TokenRevealTiming,
 } from "../../messages/token-reveal-motion.js";
 import {
 	copyStreamingLogPathToClipboard,
@@ -228,6 +229,8 @@ const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
+const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
+const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
 
 function buildTokenRevealCss(
@@ -277,55 +280,6 @@ function buildTokenRevealCss(
 	}
 
 	return tokenRevealCss;
-}
-
-function copyAssistantSceneEntryWithTokenReveal(
-	entry: AgentPanelSceneEntryModel,
-	sourceEntry: AgentPanelSceneEntryModel | undefined,
-	tokenRevealCss: TokenRevealCss | undefined
-): AgentPanelSceneEntryModel {
-	if (entry.type !== "assistant") {
-		return entry;
-	}
-
-	const sourceAssistantEntry = sourceEntry?.type === "assistant" ? sourceEntry : undefined;
-
-	return {
-		id: entry.id,
-		type: "assistant",
-		markdown: sourceAssistantEntry?.markdown ?? entry.markdown,
-		message: sourceAssistantEntry?.message ?? entry.message,
-		isStreaming: entry.isStreaming,
-		tokenRevealCss,
-		timestampMs: entry.timestampMs,
-	};
-}
-
-function collectSettlingTokenRevealTimings(
-	entries: readonly AgentPanelSceneEntryModel[]
-): readonly TokenRevealTiming[] {
-	const timings: TokenRevealTiming[] = [];
-
-	for (const entry of entries) {
-		if (entry.type !== "assistant" || entry.isStreaming === true) {
-			continue;
-		}
-
-		const tokenRevealCss = entry.tokenRevealCss;
-		if (tokenRevealCss === undefined) {
-			continue;
-		}
-
-		timings.push({
-			revealCount: tokenRevealCss.revealCount,
-			baselineMs: tokenRevealCss.baselineMs,
-			tokStepMs: tokenRevealCss.tokStepMs,
-			tokFadeDurMs: tokenRevealCss.tokFadeDurMs,
-			mode: tokenRevealCss.mode,
-		});
-	}
-
-	return timings;
 }
 
 onMount(() => {
@@ -953,43 +907,37 @@ const graphSceneEntries = $derived.by(() => {
 const tokenRevealSceneEntries = $derived.by(() => {
 	tokenRevealSettleRevision;
 	const streamingAnimationMode = chatPreferencesStore?.streamingAnimationMode ?? "smooth";
-	const sourceEntriesById = new Map<string, AgentPanelSceneEntryModel>();
 	const tokenRevealTailRowId =
 		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
 	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
 
-	for (const sourceEntry of graphMaterializedScene.conversation.entries) {
-		sourceEntriesById.set(sourceEntry.id, sourceEntry);
-	}
+	const sourceEntriesById = tokenRevealSourceIndexReadModel.getIndex(
+		graphMaterializedScene.conversation.entries
+	);
+	const tailEntry =
+		tokenRevealTailRowId === null ? undefined : sourceEntriesById.get(tokenRevealTailRowId);
+	const tokenRevealCss =
+		tailEntry?.type === "assistant"
+			? buildTokenRevealCss(
+					sessionId === null
+						? null
+						: sessionStore.getRowTokenStreamByRowId(sessionId, tailEntry.id),
+					clockAnchor,
+					streamingAnimationMode,
+					prefersReducedMotion,
+					tailEntry.isStreaming === true
+				)
+			: undefined;
 
-	return graphSceneEntries.map((entry) => {
-		if (entry.type !== "assistant") {
-			return entry;
-		}
-		if (entry.id !== tokenRevealTailRowId) {
-			return entry;
-		}
-
-		const tokenRevealCss = buildTokenRevealCss(
-			sessionId === null ? null : sessionStore.getRowTokenStreamByRowId(sessionId, entry.id),
-			clockAnchor,
-			streamingAnimationMode,
-			prefersReducedMotion,
-			entry.isStreaming === true
-		);
-		if (tokenRevealCss === undefined) {
-			return entry;
-		}
-
-		return copyAssistantSceneEntryWithTokenReveal(
-			entry,
-			sourceEntriesById.get(entry.id),
-			tokenRevealCss
-		);
+	return tokenRevealSceneReadModel.applySnapshot({
+		sceneEntries: graphSceneEntries,
+		sourceEntriesById,
+		tailRowId: tokenRevealTailRowId,
+		tokenRevealCss,
 	});
 });
 const tokenRevealSettleDelayMs = $derived(
-	resolveTokenRevealSettleDelayMs(collectSettlingTokenRevealTimings(tokenRevealSceneEntries))
+	resolveTokenRevealSettleDelayMs(tokenRevealSceneReadModel.selectSettlingTimings())
 );
 $effect(() => {
 	const delayMs = tokenRevealSettleDelayMs;

@@ -1,0 +1,138 @@
+import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
+import type { TokenRevealTiming } from "../../messages/token-reveal-motion.js";
+
+export type TokenRevealSceneSnapshot = {
+	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly sourceEntriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>;
+	readonly tailRowId: string | null;
+	readonly tokenRevealCss: TokenRevealCss | undefined;
+};
+
+export interface TokenRevealSceneReadModel {
+	applySnapshot(snapshot: TokenRevealSceneSnapshot): readonly AgentPanelSceneEntryModel[];
+	selectEntries(): readonly AgentPanelSceneEntryModel[];
+	selectSettlingTimings(): readonly TokenRevealTiming[];
+}
+
+export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
+	let previousSnapshot: TokenRevealSceneSnapshot | null = null;
+	let previousEntries: readonly AgentPanelSceneEntryModel[] = [];
+	let previousTimings: readonly TokenRevealTiming[] = [];
+
+	return {
+		applySnapshot(snapshot) {
+			if (isSameTokenRevealSnapshot(previousSnapshot, snapshot)) {
+				return previousEntries;
+			}
+
+			const tokenRevealEntryIndex = findTokenRevealEntryIndex(
+				snapshot.sceneEntries,
+				snapshot.tailRowId,
+				snapshot.tokenRevealCss
+			);
+			if (tokenRevealEntryIndex === -1) {
+				previousSnapshot = snapshot;
+				previousEntries = snapshot.sceneEntries;
+				previousTimings = [];
+				return previousEntries;
+			}
+
+			const sourceEntry = snapshot.sourceEntriesById.get(snapshot.tailRowId ?? "");
+			const tokenRevealEntry = copyAssistantSceneEntryWithTokenReveal(
+				snapshot.sceneEntries[tokenRevealEntryIndex],
+				sourceEntry,
+				snapshot.tokenRevealCss
+			);
+			const nextEntries = snapshot.sceneEntries.slice();
+			nextEntries[tokenRevealEntryIndex] = tokenRevealEntry;
+
+			previousSnapshot = snapshot;
+			previousEntries = nextEntries;
+			previousTimings = collectTokenRevealTiming(tokenRevealEntry);
+			return previousEntries;
+		},
+		selectEntries() {
+			return previousEntries;
+		},
+		selectSettlingTimings() {
+			return previousTimings;
+		},
+	};
+}
+
+function isSameTokenRevealSnapshot(
+	previous: TokenRevealSceneSnapshot | null,
+	next: TokenRevealSceneSnapshot
+): boolean {
+	return (
+		previous !== null &&
+		previous.sceneEntries === next.sceneEntries &&
+		previous.sourceEntriesById === next.sourceEntriesById &&
+		previous.tailRowId === next.tailRowId &&
+		previous.tokenRevealCss === next.tokenRevealCss
+	);
+}
+
+function findTokenRevealEntryIndex(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	tailRowId: string | null,
+	tokenRevealCss: TokenRevealCss | undefined
+): number {
+	if (tailRowId === null || tokenRevealCss === undefined) {
+		return -1;
+	}
+
+	for (let index = sceneEntries.length - 1; index >= 0; index -= 1) {
+		const entry = sceneEntries[index];
+		if (entry?.type === "assistant" && entry.id === tailRowId) {
+			return index;
+		}
+	}
+
+	return -1;
+}
+
+function copyAssistantSceneEntryWithTokenReveal(
+	entry: AgentPanelSceneEntryModel | undefined,
+	sourceEntry: AgentPanelSceneEntryModel | undefined,
+	tokenRevealCss: TokenRevealCss | undefined
+): AgentPanelSceneEntryModel {
+	if (entry?.type !== "assistant") {
+		throw new Error("Token reveal can only be applied to assistant scene entries");
+	}
+
+	const sourceAssistantEntry = sourceEntry?.type === "assistant" ? sourceEntry : undefined;
+
+	return {
+		id: entry.id,
+		type: "assistant",
+		markdown: sourceAssistantEntry?.markdown ?? entry.markdown,
+		message: sourceAssistantEntry?.message ?? entry.message,
+		isStreaming: entry.isStreaming,
+		tokenRevealCss,
+		timestampMs: entry.timestampMs,
+	};
+}
+
+function collectTokenRevealTiming(
+	entry: AgentPanelSceneEntryModel
+): readonly TokenRevealTiming[] {
+	if (entry.type !== "assistant" || entry.isStreaming === true) {
+		return [];
+	}
+
+	const tokenRevealCss = entry.tokenRevealCss;
+	if (tokenRevealCss === undefined) {
+		return [];
+	}
+
+	return [
+		{
+			revealCount: tokenRevealCss.revealCount,
+			baselineMs: tokenRevealCss.baselineMs,
+			tokStepMs: tokenRevealCss.tokStepMs,
+			tokFadeDurMs: tokenRevealCss.tokFadeDurMs,
+			mode: tokenRevealCss.mode,
+		},
+	];
+}
