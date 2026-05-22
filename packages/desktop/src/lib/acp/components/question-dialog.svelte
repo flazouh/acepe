@@ -1,7 +1,12 @@
 <script lang="ts">
-import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { SvelteMap } from "svelte/reactivity";
 import { getQuestionStore } from "../store/question-store.svelte.js";
 import type { QuestionRequest } from "../types/question";
+import {
+	buildQuestionAnswers,
+	isQuestionAnswerSelected,
+	toggleQuestionAnswer,
+} from "./question-dialog-state.js";
 
 interface Props {
 	question: QuestionRequest;
@@ -11,34 +16,20 @@ let { question }: Props = $props();
 
 const questionStore = getQuestionStore();
 
-let selectedAnswers: SvelteMap<number, SvelteSet<string>> = new SvelteMap();
+let selectedAnswers: SvelteMap<number, Set<string>> = new SvelteMap();
 
 function toggleAnswer(questionIndex: number, label: string, multiple?: boolean) {
-	const current = selectedAnswers.get(questionIndex) || new SvelteSet<string>();
-	const newAnswers = new SvelteSet<string>(multiple ? current : []);
-
-	if (newAnswers.has(label)) {
-		newAnswers.delete(label);
-	} else {
-		if (!multiple) {
-			newAnswers.clear();
-		}
-		newAnswers.add(label);
-	}
-
-	selectedAnswers.set(questionIndex, newAnswers);
+	selectedAnswers = new SvelteMap(
+		toggleQuestionAnswer(selectedAnswers, questionIndex, label, Boolean(multiple))
+	);
 }
 
 function isSelected(questionIndex: number, label: string): boolean {
-	return selectedAnswers.get(questionIndex)?.has(label) ?? false;
+	return isQuestionAnswerSelected(selectedAnswers, questionIndex, label);
 }
 
 function handleSubmit() {
-	const answers = question.questions.map((_q, index) => ({
-		questionIndex: index,
-		answers: Array.from(selectedAnswers.get(index) || []),
-	}));
-
+	const answers = buildQuestionAnswers(question.questions, selectedAnswers);
 	questionStore.reply(question.id, answers, question.questions);
 }
 </script>
