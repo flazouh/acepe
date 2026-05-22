@@ -5,8 +5,8 @@ import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
+import { getSelectedProjectColorHex } from "./project-menu-state.js";
 
 interface Props {
 	projectName?: string;
@@ -26,12 +26,7 @@ function handleColorSelect(colorName: string) {
 	onColorChange?.(colorName);
 }
 
-const selectedColorHex = $derived.by(() => {
-	const selectedOption = colorOptions.find(
-		(option) => currentColor === option.name || currentColor === option.hex
-	);
-	return selectedOption?.hex ?? colorOptions[0]?.hex ?? Colors[COLOR_NAMES.RED];
-});
+const selectedColorHex = $derived(getSelectedProjectColorHex({ currentColor, colorOptions }));
 </script>
 
 <DropdownMenu.Root bind:open={dropdownOpen}>
