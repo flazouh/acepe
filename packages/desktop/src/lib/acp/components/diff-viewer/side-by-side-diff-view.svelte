@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { FileDiff as FileDiffType } from "../../types/github-integration.js";
 
-import { parsePatchToBeforeAfter } from "../../utils/diff-patch-parser.js";
+import { buildSideBySideDiffViewState } from "./side-by-side-diff-view-state.js";
 
 interface Props {
 	diff: FileDiffType;
@@ -9,72 +9,30 @@ interface Props {
 
 let { diff }: Props = $props();
 
-// Parse patch to get before/after content
-const parseResult = $derived.by(() => {
-	return parsePatchToBeforeAfter(diff.patch, diff.status);
-});
-
-// Detect language from filename extension (for future syntax highlighting)
-const _language = $derived.by(() => {
-	const ext = diff.path.split(".").pop()?.toLowerCase();
-	const languageMap: Record<string, string> = {
-		ts: "typescript",
-		tsx: "typescript",
-		js: "javascript",
-		jsx: "javascript",
-		svelte: "svelte",
-		rs: "rust",
-		py: "python",
-		go: "go",
-		json: "json",
-		css: "css",
-		scss: "scss",
-		html: "html",
-		md: "markdown",
-		yml: "yaml",
-		yaml: "yaml",
-		toml: "toml",
-		sql: "sql",
-	};
-	return languageMap[ext || ""] || undefined;
-});
-
-// Determine if file is binary
-const isBinary = $derived(parseResult.isErr() && parseResult.error.type === "binary_file");
-
-// Format content for display
-const displayContent = $derived.by(() => {
-	if (parseResult.isErr()) {
-		return { before: "", after: "" };
-	}
-	return {
-		before: parseResult.value.before,
-		after: parseResult.value.after,
-	};
-});
+const viewState = $derived(buildSideBySideDiffViewState(diff));
 </script>
 
-{#if isBinary}
+{#if viewState.mode === "binary"}
 	<div class="error-message">
 		<p>Binary file - cannot display in diff view</p>
 	</div>
-{:else if diff.status === "deleted"}
+{:else if viewState.mode === "deleted"}
 	<div class="file-status-view">
 		<div class="status-header">File deleted</div>
 		<div class="code-display">
-			{#if displayContent.before}
-				<pre><code>{displayContent.before}</code></pre>
+			{#if viewState.before}
+				<pre><code>{viewState.before}</code></pre>
 			{:else}
 				<p class="empty-file">Empty file</p>
 			{/if}
 		</div>
 	</div>
-{:else if diff.status === "added"}
+{:else if viewState.mode === "added"}
 	<div class="file-status-view">
 		<div class="status-header">File added</div>
 		<div class="code-display">
-			{#if displayContent.after}
-				<pre><code>{displayContent.after}</code></pre>
+			{#if viewState.after}
+				<pre><code>{viewState.after}</code></pre>
 			{:else}
 				<p class="empty-file">Empty file</p>
 			{/if}
@@ -86,8 +44,8 @@ const displayContent = $derived.by(() => {
 		<div class="diff-pane before">
 			<div class="pane-header">Before</div>
 			<div class="pane-content">
-				{#if displayContent.before}
-					<pre><code>{displayContent.before}</code></pre>
+				{#if viewState.before}
+					<pre><code>{viewState.before}</code></pre>
 				{:else}
 					<p class="empty-pane">No changes in this section</p>
 				{/if}
@@ -99,8 +57,8 @@ const displayContent = $derived.by(() => {
 		<div class="diff-pane after">
 			<div class="pane-header">After</div>
 			<div class="pane-content">
-				{#if displayContent.after}
-					<pre><code>{displayContent.after}</code></pre>
+				{#if viewState.after}
+					<pre><code>{viewState.after}</code></pre>
 				{:else}
 					<p class="empty-pane">No changes in this section</p>
 				{/if}
