@@ -2,6 +2,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 import {
 	createGraphSceneEntryIndexReadModel,
+	findGraphSceneEntryForDisplayEntry,
 	type GraphSceneEntryIndexReadModel,
 } from "./graph-scene-entry-match.js";
 import {
@@ -23,6 +24,9 @@ export interface AgentPanelSceneReadModel {
 		appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
 	): AgentPanelSceneReadModelSnapshot;
 	selectSnapshot(): AgentPanelSceneReadModelSnapshot;
+	selectGraphEntryForDisplayEntry(
+		entry: SceneDisplayRow | undefined
+	): AgentPanelSceneEntryModel | undefined;
 }
 
 export function createAgentPanelSceneReadModel(input?: {
@@ -62,6 +66,9 @@ export function createAgentPanelSceneReadModel(input?: {
 				entriesById: nextEntriesById,
 			};
 			return previousSnapshot;
+		},
+		selectGraphEntryForDisplayEntry(entry) {
+			return findGraphSceneEntryForDisplayEntry(entry, entryIndex.selectIndex());
 		},
 	};
 }

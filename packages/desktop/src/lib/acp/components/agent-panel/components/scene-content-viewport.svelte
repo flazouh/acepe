@@ -21,7 +21,6 @@ import MessageWrapper from "../../messages/message-wrapper.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { findGraphSceneEntryForDisplayEntry } from "../logic/graph-scene-entry-match.js";
 import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
 import {
 	getLatestSceneDisplayRevealTargetKey,
@@ -135,7 +134,6 @@ const streamingAnimationMode = $derived(
 const agentPanelSceneSnapshot = $derived(
 	agentPanelSceneReadModel.applySnapshot(sceneEntries ?? EMPTY_SCENE_ENTRIES)
 );
-const sceneEntriesById = $derived(agentPanelSceneSnapshot.entriesById);
 
 // ===== EDIT TOOL THEME =====
 const themeState = useTheme();
@@ -326,7 +324,7 @@ function getSharedEntry(
 function getGraphSceneEntry(
 	entry: SceneDisplayRow | undefined
 ): AgentPanelSceneEntryModel | undefined {
-	return findGraphSceneEntryForDisplayEntry(entry, sceneEntriesById);
+	return agentPanelSceneReadModel.selectGraphEntryForDisplayEntry(entry);
 }
 
 
