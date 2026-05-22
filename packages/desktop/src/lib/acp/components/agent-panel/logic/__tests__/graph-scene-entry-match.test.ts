@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
 	createGraphSceneEntryIndex,
+	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
 } from "../graph-scene-entry-match.js";
 import { buildVirtualizedDisplayEntries } from "../virtualized-entry-display.js";
@@ -134,5 +135,90 @@ describe("findGraphSceneEntryForDisplayEntry", () => {
 				createGraphSceneEntryIndex([sceneEntry])
 			)
 		).toBe(sceneEntry);
+	});
+});
+
+describe("createGraphSceneEntryIndexReadModel", () => {
+	it("exposes snapshot, append patch, and select index operations", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run first command",
+			status: "done",
+		};
+		const nextEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Run second command",
+			status: "pending",
+		};
+
+		const snapshotIndex = readModel.applySnapshot([firstEntry]);
+		const patchedIndex = readModel.applyAppendPatch([nextEntry]);
+
+		expect(patchedIndex).toBe(snapshotIndex);
+		expect(readModel.selectIndex()).toBe(patchedIndex);
+		expect(patchedIndex.get("tool-1")).toBe(firstEntry);
+		expect(patchedIndex.get("tool-2")).toBe(nextEntry);
+	});
+
+	it("keeps the selected index stable for empty append patches", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const entry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run command",
+			status: "done",
+		};
+		const snapshotIndex = readModel.applySnapshot([entry]);
+
+		expect(readModel.applyAppendPatch([])).toBe(snapshotIndex);
+		expect(readModel.selectIndex()).toBe(snapshotIndex);
+	});
+
+	it("uses append-only updates when prior scene entries keep their identity", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run first command",
+			status: "done",
+		};
+		const nextEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Run second command",
+			status: "pending",
+		};
+		const firstIndex = readModel.getIndex([firstEntry]);
+
+		const nextIndex = readModel.getIndex([firstEntry, nextEntry]);
+
+		expect(nextIndex).toBe(firstIndex);
+		expect(nextIndex.get("tool-1")).toBe(firstEntry);
+		expect(nextIndex.get("tool-2")).toBe(nextEntry);
+	});
+
+	it("rebuilds the index when an existing scene entry object changes", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run first command",
+			status: "pending",
+		};
+		const changedEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run changed command",
+			status: "done",
+		};
+		const firstIndex = readModel.getIndex([firstEntry]);
+
+		const nextIndex = readModel.getIndex([changedEntry]);
+
+		expect(nextIndex).not.toBe(firstIndex);
+		expect(nextIndex.get("tool-1")).toBe(changedEntry);
 	});
 });

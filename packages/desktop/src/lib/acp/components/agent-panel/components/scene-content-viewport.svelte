@@ -22,7 +22,7 @@ import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
 import {
-	createGraphSceneEntryIndex,
+	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
 } from "../logic/graph-scene-entry-match.js";
 import {
@@ -108,6 +108,7 @@ type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
 const sceneRowsReadModel = createSceneDisplayRowsReadModel();
+const graphSceneEntryIndexReadModel = createGraphSceneEntryIndexReadModel();
 
 let {
 	panelId,
@@ -135,7 +136,9 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
-const sceneEntriesById = $derived(createGraphSceneEntryIndex(sceneEntries));
+const sceneEntriesById = $derived(
+	graphSceneEntryIndexReadModel.getIndex(sceneEntries ?? EMPTY_SCENE_ENTRIES)
+);
 
 // ===== EDIT TOOL THEME =====
 const themeState = useTheme();
