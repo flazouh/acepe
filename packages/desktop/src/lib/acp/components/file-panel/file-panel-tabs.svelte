@@ -3,6 +3,7 @@ import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
 import FilePanel from "./file-panel.svelte";
+import { buildFilePanelTabsViewState } from "./file-panel-tabs-state.js";
 
 interface Props {
 	filePanels: readonly FilePanelType[];
@@ -26,43 +27,35 @@ let {
 	onResizeFilePanel,
 }: Props = $props();
 
-const activeFilePanel = $derived.by(() => {
-	const active =
-		activeFilePanelId !== null
-			? filePanels.find((panel) => panel.id === activeFilePanelId)
-			: undefined;
-	return active ?? filePanels[0] ?? null;
-});
+const viewState = $derived(buildFilePanelTabsViewState({ filePanels, activeFilePanelId }));
 </script>
 
-{#if activeFilePanel}
-	<div class="flex h-full min-h-0 shrink-0 flex-col gap-0 overflow-hidden" style="min-width: {activeFilePanel.width}px; width: {activeFilePanel.width}px; max-width: {activeFilePanel.width}px; flex-basis: {activeFilePanel.width}px;">
-		{#if filePanels.length > 1}
+{#if viewState.activeFilePanel}
+	{@const activeFilePanel = viewState.activeFilePanel}
+	<div class="flex h-full min-h-0 shrink-0 flex-col gap-0 overflow-hidden" style={viewState.widthStyle}>
+		{#if viewState.showTabs}
 			<div class="flex min-h-8 shrink-0 items-center overflow-x-auto border-b border-border bg-muted/20">
-				{#each filePanels as filePanel (filePanel.id)}
-					{@const fileName = filePanel.filePath.split("/").pop() ?? filePanel.filePath}
+				{#each viewState.tabs as tab (tab.id)}
 					<div
-						class="file-tab group inline-flex h-7 shrink-0 items-center gap-1 px-2 text-xs transition-colors {activeFilePanel.id === filePanel.id
-							? 'bg-accent/25 text-foreground'
-							: 'text-muted-foreground hover:bg-accent/15 hover:text-foreground'}"
+						class="file-tab group inline-flex h-7 shrink-0 items-center gap-1 px-2 text-xs transition-colors {tab.className}"
 					>
 						<button
 							type="button"
 							class="min-w-0"
-							onclick={() => onSelectFilePanel(filePanel.id)}
-							title={filePanel.filePath}
+							onclick={() => onSelectFilePanel(tab.id)}
+							title={tab.filePath}
 						>
 							<FilePathBadge
-								filePath={filePanel.filePath}
-								{fileName}
+								filePath={tab.filePath}
+								fileName={tab.fileName}
 								interactive={false}
-								selected={activeFilePanel.id === filePanel.id}
+								selected={tab.isSelected}
 							/>
 						</button>
 						<button
 							type="button"
 							class="inline-flex h-4 w-4 items-center justify-center rounded opacity-50 hover:opacity-100 hover:bg-muted-foreground/10"
-							onclick={() => onCloseFilePanel(filePanel.id)}
+							onclick={() => onCloseFilePanel(tab.id)}
 							title="Close tab"
 						>
 							<IconX class="h-3 w-3" />
