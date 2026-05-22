@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	enhanceGitHubReference,
+	getGitHubBadgeResetStatsState,
 	getGitHubBadgeCopyText,
 	getGitHubDiffStats,
 	getGitHubStatsKey,
@@ -105,5 +106,15 @@ describe("github badge state", () => {
 		expect(
 			getGitHubBadgeCopyText({ type: "issue", owner: "flazouh", repo: "acepe", number: 7 })
 		).toBe("flazouh/acepe#7");
+	});
+
+	it("builds reset stats state", () => {
+		expect(getGitHubBadgeResetStatsState()).toEqual({
+			insertions: 0,
+			deletions: 0,
+			prState: undefined,
+			statsLoading: false,
+			hasLoadedStats: false,
+		});
 	});
 });

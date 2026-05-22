@@ -10,6 +10,7 @@ import { getPanelStore } from "../store/panel-store.svelte.js";
 import {
 	enhanceGitHubReference,
 	getGitHubBadgeCopyText,
+	getGitHubBadgeResetStatsState,
 	getGitHubDiffStats,
 	getGitHubStatsKey,
 	shouldLoadGitHubStats,
@@ -43,6 +44,15 @@ const statsKey = $derived.by(() => {
 	return getGitHubStatsKey({ ref: enhancedRef, projectPath });
 });
 
+function applyStatsReset(): void {
+	const resetState = getGitHubBadgeResetStatsState();
+	insertions = resetState.insertions;
+	deletions = resetState.deletions;
+	prState = resetState.prState;
+	statsLoading = resetState.statsLoading;
+	hasLoadedStats = resetState.hasLoadedStats;
+}
+
 $effect(() => {
 	const currentStatsKey = statsKey;
 	if (currentStatsKey === lastStatsKey) {
@@ -50,11 +60,7 @@ $effect(() => {
 	}
 
 	lastStatsKey = currentStatsKey;
-	insertions = 0;
-	deletions = 0;
-	prState = undefined;
-	statsLoading = false;
-	hasLoadedStats = false;
+	applyStatsReset();
 
 	if (enhancedRef.type === "pr") {
 		ensureStatsLoaded();

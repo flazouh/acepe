@@ -11,6 +11,14 @@ export interface GitHubDiffStats {
 	readonly deletions: number;
 }
 
+export interface GitHubBadgeStatsState {
+	readonly insertions: number;
+	readonly deletions: number;
+	readonly prState: "open" | "closed" | "merged" | undefined;
+	readonly statsLoading: boolean;
+	readonly hasLoadedStats: boolean;
+}
+
 export function enhanceGitHubReference(
 	ref: GitHubReference,
 	repoContext: GitHubRepoContext | undefined
@@ -72,4 +80,14 @@ export function getGitHubDiffStats(files: readonly Pick<FileDiff, "additions" | 
 export function getGitHubBadgeCopyText(ref: GitHubReference): string {
 	if (ref.type === "commit") return ref.sha;
 	return `${ref.owner}/${ref.repo}#${ref.number}`;
+}
+
+export function getGitHubBadgeResetStatsState(): GitHubBadgeStatsState {
+	return {
+		insertions: 0,
+		deletions: 0,
+		prState: undefined,
+		statsLoading: false,
+		hasLoadedStats: false,
+	};
 }
