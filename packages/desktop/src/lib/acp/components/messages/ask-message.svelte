@@ -6,6 +6,10 @@ import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import type { AskMessage } from "../../types/ask-message.js";
 
 import MessageInputContainer from "../message-input-container.svelte";
+import {
+	buildAskMessageDisplayState,
+	getAskOptionIdFromKeyboardShortcut,
+} from "./ask-message-state.js";
 
 let {
 	message,
@@ -16,25 +20,18 @@ let {
 } = $props();
 
 let selectedId = $state<string | null>(null);
+const messageState = $derived(buildAskMessageDisplayState({ message, selectedId }));
 
 function handleSelectOption(optionId: string) {
 	selectedId = optionId;
 	onSelectOption?.(optionId);
 }
 
-// Handle keyboard shortcuts (Alt+1, Alt+2, etc.)
 function handleKeydown(e: KeyboardEvent) {
-	if (!e.altKey) return;
-
-	const key = e.key;
-	// Check if it's a number key
-	if (/^\d$/.test(key)) {
-		const index = parseInt(key, 10) - 1; // Alt+1 = index 0
-		if (index >= 0 && index < message.options.length) {
-			e.preventDefault();
-			const option = message.options[index];
-			handleSelectOption(option.id);
-		}
+	const optionId = getAskOptionIdFromKeyboardShortcut(e, message.options);
+	if (optionId) {
+		e.preventDefault();
+		handleSelectOption(optionId);
 	}
 }
 </script>
@@ -53,32 +50,32 @@ function handleKeydown(e: KeyboardEvent) {
 	</MessageInputContainer>
 
 	<div class="grid gap-2 pl-4">
-		{#each message.options as option, index (option.id)}
+		{#each messageState.options as optionView (optionView.option.id)}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<Button
-						variant={selectedId === option.id ? "default" : "outline"}
+						variant={optionView.isSelected ? "default" : "outline"}
 						class="justify-start text-left h-auto py-2"
-						onclick={() => handleSelectOption(option.id)}
+						onclick={() => handleSelectOption(optionView.option.id)}
 					>
 						<span class="text-xs text-muted-foreground mr-2 min-w-5">
-							Alt+{index + 1}
+							{optionView.shortcutLabel}
 						</span>
 						<span class="flex-1">
-							<div class="font-medium text-sm">{option.label}</div>
-							{#if option.description}
+							<div class="font-medium text-sm">{optionView.option.label}</div>
+							{#if optionView.option.description}
 								<div class="text-xs text-muted-foreground mt-0.5">
-									{option.description}
+									{optionView.option.description}
 								</div>
 							{/if}
 						</span>
-						{#if selectedId === option.id}
+						{#if optionView.isSelected}
 							<ChevronDown class="h-4 w-4 ml-2 flex-shrink-0" />
 						{/if}
 					</Button>
 				</Tooltip.Trigger>
 				<Tooltip.Content>
-					Alt+{index + 1}: {option.label}
+					{optionView.shortcutLabel}: {optionView.option.label}
 				</Tooltip.Content>
 			</Tooltip.Root>
 		{/each}
