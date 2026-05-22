@@ -8,12 +8,19 @@
 	import AgentInputAutonomousToggle from "./agent-input-autonomous-toggle.svelte";
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
-	import AgentInputModePill from "./agent-input-mode-pill.svelte";
+	import AgentInputModeSelector from "./agent-input-mode-selector.svelte";
 	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
+	import {
+		isMicButtonDisabled,
+		isToolbarLeftSideDisabled,
+		isVoiceActive,
+		isVoiceRecordingUi,
+		shouldShowVoiceControls,
+		shouldShowVoiceErrorDismiss,
+		shouldShowVoiceRecordingBar,
+	} from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import {
-		canCancelVoiceInteraction,
-		canStartVoiceInteraction,
 		getMicButtonVisualState,
 		type AgentComposerToolbarVoiceBinding,
 	} from "./agent-input-toolbar-voice.js";
@@ -60,7 +67,13 @@
 		autonomousBusy: boolean;
 		autonomousTooltip?: string;
 		onAutonomousToggle: () => void;
-		modes?: readonly { id: string; label?: string }[];
+		modes?: readonly {
+			id: string;
+			name?: string;
+			label?: string;
+			description?: string | null;
+			iconKind?: "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown";
+		}[];
 		currentModeId?: string | null;
 		onModeChange?: (modeId: string) => void;
 		selectorsLoading: boolean;
@@ -96,23 +109,22 @@
 
 {#if inputReady}
 	{@const currentVoiceState = voiceState}
-	{@const isVoiceRecordingUi =
-		currentVoiceState !== null &&
-		(currentVoiceState.phase === "checking_permission" || currentVoiceState.phase === "recording")}
-	{@const isVoiceActive =
-		currentVoiceState !== null &&
-		currentVoiceState.phase !== "idle" &&
-		currentVoiceState.phase !== "error"}
+	{@const recordingUi = isVoiceRecordingUi(currentVoiceState)}
+	{@const voiceActive = isVoiceActive(currentVoiceState)}
 	<span class="sr-only" role="status" aria-live="polite">{autonomousStatusMessage}</span>
 	<div
 		class="flex items-center h-7 transition-opacity duration-200 ease-out"
-		class:opacity-0={isVoiceRecordingUi}
-		class:pointer-events-none={isVoiceRecordingUi || selectorsDisabledByComposer}
+		class:opacity-0={recordingUi}
+		class:pointer-events-none={isToolbarLeftSideDisabled({
+			isRecordingUi: recordingUi,
+			selectorsDisabledByComposer,
+		})}
 	>
 		{#if modes.length > 0 && onModeChange}
-			<AgentInputModePill
-				{modes}
+			<AgentInputModeSelector
+				availableModes={modes}
 				{currentModeId}
+				autonomousActive={autonomousToggleActive}
 				disabled={selectorsDisabledByComposer}
 				onModeChange={onModeChange}
 			/>
@@ -151,7 +163,7 @@
 	</div>
 
 	<div class="flex items-center h-7 ml-auto">
-		{#if currentVoiceState !== null && isVoiceRecordingUi}
+		{#if currentVoiceState !== null && shouldShowVoiceRecordingBar(currentVoiceState)}
 			<div class="voice-recording-bar flex items-center pr-0.5">
 				{#if currentVoiceState.recordingElapsedLabel}
 					<span class="mr-2 font-mono text-sm text-muted-foreground tabular-nums">
@@ -163,10 +175,7 @@
 					downloadPercent={currentVoiceState.downloadPercent}
 					title={getMicButtonTitle(currentVoiceState)}
 					ariaLabel={getMicButtonTitle(currentVoiceState)}
-					disabled={
-						!canStartVoiceInteraction(currentVoiceState.phase, composerIsDispatching) &&
-						!canCancelVoiceInteraction(currentVoiceState.phase)
-					}
+					disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
 					onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
 					onpointerup={() => currentVoiceState.onMicPointerUp()}
 					onpointercancel={() => currentVoiceState.onMicPointerCancel()}
@@ -176,8 +185,8 @@
 		{:else}
 			<div
 				class="flex items-center gap-1.5 transition-opacity duration-200 ease-out"
-				class:opacity-0={isVoiceActive}
-				class:pointer-events-none={isVoiceActive}
+				class:opacity-0={voiceActive}
+				class:pointer-events-none={voiceActive}
 			>
 				{#if metricsChip}
 					{@render metricsChip()}
@@ -186,8 +195,8 @@
 					{@render checkpointButton()}
 				{/if}
 			</div>
-			{#if currentVoiceState !== null && voiceEnabled}
-				{#if currentVoiceState.phase === "error"}
+			{#if currentVoiceState !== null && shouldShowVoiceControls({ voiceState: currentVoiceState, voiceEnabled, isRecordingUi: recordingUi })}
+				{#if shouldShowVoiceErrorDismiss({ voiceState: currentVoiceState, voiceEnabled })}
 					<button
 						type="button"
 						class="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline mr-1"
@@ -211,13 +220,10 @@
 					<AgentInputMicButton
 						visualState={getMicButtonVisualState(currentVoiceState.phase)}
 						downloadPercent={currentVoiceState.downloadPercent}
-						title={getMicButtonTitle(currentVoiceState)}
-						ariaLabel={getMicButtonTitle(currentVoiceState)}
-						disabled={
-							!canStartVoiceInteraction(currentVoiceState.phase, composerIsDispatching) &&
-							!canCancelVoiceInteraction(currentVoiceState.phase)
-						}
-						onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
+					title={getMicButtonTitle(currentVoiceState)}
+					ariaLabel={getMicButtonTitle(currentVoiceState)}
+					disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
+					onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
 						onpointerup={() => currentVoiceState.onMicPointerUp()}
 						onpointercancel={() => currentVoiceState.onMicPointerCancel()}
 						onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}

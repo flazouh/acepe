@@ -1,8 +1,7 @@
-import { BACKEND_TO_UI_MODE_MAP, VISIBLE_BACKEND_MODE_IDS } from "../constants/mode-mapping.js";
 import type { AvailableMode } from "../types/available-mode.js";
 
 /**
- * Filters modes to only include visible modes (Build and Plan).
+ * Returns provider-visible modes from the canonical capability snapshot.
  *
  * @param modes - Available modes from the canonical capability snapshot
  * @returns Filtered array containing only visible modes
@@ -14,15 +13,16 @@ export function filterVisibleModes(
 		return [];
 	}
 
-	return modes.filter((mode) => VISIBLE_BACKEND_MODE_IDS.includes(mode.id));
+	return modes;
 }
 
 /**
- * Gets the UI display name for a backend mode ID.
- *
- * @param backendModeId - The backend mode ID (e.g., "acceptEdits", "plan")
- * @returns The user-friendly UI name (e.g., "Build", "Plan"), or the original ID if not mapped
+ * Gets a readable fallback label for a provider mode id.
  */
 export function getUIModeDisplayName(backendModeId: string): string {
-	return BACKEND_TO_UI_MODE_MAP[backendModeId] ?? backendModeId;
+	return backendModeId
+		.split(/[-_\s]+/)
+		.filter((part) => part.length > 0)
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ");
 }

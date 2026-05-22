@@ -2,13 +2,12 @@
 import { IconSquare } from "@tabler/icons-svelte";
 import type { Snippet } from "svelte";
 
-import { CheckCircle, FileCode, Keyboard, Warning } from "phosphor-svelte";
+import { CheckCircle, FileCode, Keyboard, Pulse, Warning } from "phosphor-svelte";
 
 import AgentCompactToolDisplay from "../agent-panel/compact-tool-display.svelte";
 import AgentToolBrowser from "../agent-panel/agent-tool-browser.svelte";
 import AgentToolTask from "../agent-panel/agent-tool-task.svelte";
 import type { AgentToolEntry, AgentToolKind, AgentToolStatus } from "../agent-panel/types.js";
-import { BuildIcon, PlanIcon } from "../icons/index.js";
 import { TextShimmer } from "../text-shimmer/index.js";
 import { DiffPill } from "../diff-pill/index.js";
 import { SegmentedProgress } from "../segmented-progress/index.js";
@@ -239,9 +238,9 @@ const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 						{#if statusSectionId === "answer_needed"}
 							<Keyboard class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
 						{:else if statusSectionId === "working"}
-							<BuildIcon size="sm" class="shrink-0" />
+							<Pulse class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
 						{:else if statusSectionId === "planning"}
-							<PlanIcon size="sm" />
+							<Pulse class="size-2.5 shrink-0" weight="regular" style="color: {statusIconColor}" />
 						{:else if statusSectionId === "needs_review"}
 							<FileCode class="size-2.5 shrink-0" weight="fill" style="color: {statusIconColor}" />
 						{:else if statusSectionId === "idle"}

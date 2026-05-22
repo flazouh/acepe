@@ -368,6 +368,92 @@ pub struct AvailableMode {
     pub name: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub icon_kind: ModeIconKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ModeIconKind {
+    Agent,
+    Plan,
+    Autonomous,
+    Bypass,
+    Ask,
+    Edit,
+    Review,
+    #[default]
+    Unknown,
+}
+
+impl AvailableMode {
+    pub(crate) fn new(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        description: Option<String>,
+    ) -> Self {
+        let id = id.into();
+        let name = name.into();
+        let icon_kind = infer_mode_icon_kind(&id, &name, description.as_deref());
+
+        Self {
+            id,
+            name,
+            description,
+            icon_kind,
+        }
+    }
+
+    pub(crate) fn with_icon_kind(mut self, icon_kind: ModeIconKind) -> Self {
+        self.icon_kind = icon_kind;
+        self
+    }
+}
+
+pub(crate) fn infer_mode_icon_kind(
+    id: &str,
+    name: &str,
+    description: Option<&str>,
+) -> ModeIconKind {
+    let haystack = match description {
+        Some(description) => format!("{id} {name} {description}").to_ascii_lowercase(),
+        None => format!("{id} {name}").to_ascii_lowercase(),
+    };
+
+    if contains_mode_word(&haystack, &["bypass", "allow-all"]) {
+        return ModeIconKind::Bypass;
+    }
+
+    if contains_mode_word(&haystack, &["autopilot", "auto", "autonomous"]) {
+        return ModeIconKind::Autonomous;
+    }
+
+    if contains_mode_word(&haystack, &["plan", "planning", "architect"]) {
+        return ModeIconKind::Plan;
+    }
+
+    if contains_mode_word(&haystack, &["ask", "question", "chat", "discuss"]) {
+        return ModeIconKind::Ask;
+    }
+
+    if contains_mode_word(
+        &haystack,
+        &[
+            "edit", "write", "modify", "code", "build", "default", "agent",
+        ],
+    ) {
+        return ModeIconKind::Agent;
+    }
+
+    if contains_mode_word(&haystack, &["review", "diff"]) {
+        return ModeIconKind::Review;
+    }
+
+    ModeIconKind::Unknown
+}
+
+fn contains_mode_word(haystack: &str, words: &[&str]) -> bool {
+    words.iter().any(|word| haystack.contains(word))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -380,23 +466,17 @@ pub struct SessionModes {
 }
 
 fn default_mode_id() -> String {
-    "build".to_string()
+    "agent".to_string()
 }
 
 pub(crate) fn default_modes() -> SessionModes {
+    agent_modes()
+}
+
+pub(crate) fn agent_modes() -> SessionModes {
     SessionModes {
-        current_mode_id: "build".to_string(),
-        available_modes: vec![
-            build_mode(),
-            AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: Some(
-                    "Read-only mode - agent can only read files and provide suggestions"
-                        .to_string(),
-                ),
-            },
-        ],
+        current_mode_id: "agent".to_string(),
+        available_modes: vec![agent_mode()],
     }
 }
 
@@ -408,41 +488,42 @@ where
     Ok(opt.unwrap_or_else(default_modes))
 }
 
-fn build_mode() -> AvailableMode {
-    AvailableMode {
-        id: "build".to_string(),
-        name: "Build".to_string(),
-        description: Some("Normal mode - agent can read and write files".to_string()),
-    }
+pub(crate) fn agent_mode() -> AvailableMode {
+    AvailableMode::new("agent", "Agent", Some("Default agent mode".to_string()))
 }
 
 impl SessionModes {
     pub fn normalize_with_provider(self, provider: &dyn AgentProvider) -> Self {
         if self.available_modes.is_empty() {
-            return default_modes();
+            return provider.default_session_modes();
         }
 
         let visible_mode_ids = provider.visible_mode_ids();
         let mut seen_ids = HashSet::new();
-        let mut normalized_modes: Vec<AvailableMode> = self
+        let normalized_modes: Vec<AvailableMode> = self
             .available_modes
             .into_iter()
-            .map(|m| AvailableMode {
-                id: provider.normalize_mode_id(&m.id),
-                name: m.name,
-                description: m.description,
+            .map(|m| {
+                let id = provider.normalize_mode_id(&m.id);
+                let icon_kind = if m.icon_kind == ModeIconKind::Unknown {
+                    infer_mode_icon_kind(&id, &m.name, m.description.as_deref())
+                } else {
+                    m.icon_kind
+                };
+
+                AvailableMode {
+                    id,
+                    name: m.name,
+                    description: m.description,
+                    icon_kind,
+                }
             })
-            .filter(|m| visible_mode_ids.contains(&m.id.as_str()))
+            .filter(|m| visible_mode_ids.is_empty() || visible_mode_ids.contains(&m.id.as_str()))
             .filter(|m| seen_ids.insert(m.id.clone()))
             .collect();
 
         if normalized_modes.is_empty() {
-            return default_modes();
-        }
-
-        if visible_mode_ids.contains(&"build") && !normalized_modes.iter().any(|m| m.id == "build")
-        {
-            normalized_modes.insert(0, build_mode());
+            return provider.default_session_modes();
         }
 
         let normalized_current = provider.normalize_mode_id(&self.current_mode_id);
@@ -453,7 +534,7 @@ impl SessionModes {
             normalized_modes
                 .first()
                 .map(|m| m.id.clone())
-                .unwrap_or_else(|| "build".to_string())
+                .unwrap_or_else(default_mode_id)
         };
 
         SessionModes {

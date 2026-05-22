@@ -5,6 +5,8 @@ import {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,
+	resolveCanonicalAgentPanelSessionSource,
+	resolveCanonicalAgentPanelTurnState,
 } from "../session-status-mapper";
 
 function lifecycle(
@@ -300,5 +302,82 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			canSubmit: false,
 			showStop: true,
 		});
+	});
+});
+
+describe("resolveCanonicalAgentPanelSessionSource", () => {
+	it("returns no-session source before a session exists", () => {
+		expect(
+			resolveCanonicalAgentPanelSessionSource({
+				sessionId: null,
+				lifecycle: null,
+				activity: null,
+				turnState: null,
+			})
+		).toEqual({ kind: "no_session" });
+	});
+
+	it("returns missing-canonical source when a session has no graph lifecycle", () => {
+		expect(
+			resolveCanonicalAgentPanelSessionSource({
+				sessionId: "session-1",
+				lifecycle: null,
+				activity: null,
+				turnState: null,
+			})
+		).toEqual({ kind: "missing_canonical", sessionId: "session-1" });
+	});
+
+	it("keeps null turn state explicit on canonical source", () => {
+		const source = resolveCanonicalAgentPanelSessionSource({
+			sessionId: "session-1",
+			lifecycle: lifecycle("ready"),
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: null,
+		});
+
+		expect(source.kind).toBe("canonical");
+		if (source.kind === "canonical") {
+			expect(source.turnState).toBeNull();
+		}
+	});
+});
+
+describe("resolveCanonicalAgentPanelTurnState", () => {
+	it("maps missing canonical data to visible error state", () => {
+		expect(
+			resolveCanonicalAgentPanelTurnState({
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			})
+		).toBe("error");
+	});
+
+	it("uses idle when canonical turn state is not known yet", () => {
+		expect(
+			resolveCanonicalAgentPanelTurnState({
+				kind: "canonical",
+				lifecycle: lifecycle("ready"),
+				activity: null,
+				turnState: null,
+			})
+		).toBe("idle");
+	});
+
+	it("maps canonical running turn state for presentation", () => {
+		expect(
+			resolveCanonicalAgentPanelTurnState({
+				kind: "canonical",
+				lifecycle: lifecycle("ready"),
+				activity: null,
+				turnState: "Running",
+			})
+		).toBe("streaming");
 	});
 });

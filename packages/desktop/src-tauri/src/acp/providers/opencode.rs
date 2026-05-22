@@ -201,11 +201,7 @@ impl AgentProvider for OpenCodeProvider {
                         models_display: Default::default(),
                         provider_metadata: Some(self.frontend_projection()),
                     };
-                    let modes = SessionModes {
-                        current_mode_id: "build".to_string(),
-                        available_modes: crate::acp::client_session::default_modes()
-                            .available_modes,
-                    };
+                    let modes = self.default_session_modes();
                     let status = if models.available_models.is_empty() {
                         ResolvedCapabilityStatus::Partial
                     } else {

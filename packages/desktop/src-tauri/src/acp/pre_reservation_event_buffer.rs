@@ -288,7 +288,8 @@ fn serialized_update_size(update: &SessionUpdate) -> usize {
 fn is_pre_reservation_buffer_eligible(update: &SessionUpdate) -> bool {
     matches!(
         update,
-        SessionUpdate::AvailableCommandsUpdate { .. }
+        SessionUpdate::UserMessageChunk { .. }
+            | SessionUpdate::AvailableCommandsUpdate { .. }
             | SessionUpdate::CurrentModeUpdate { .. }
             | SessionUpdate::ConfigOptionUpdate { .. }
     )

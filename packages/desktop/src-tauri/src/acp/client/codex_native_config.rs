@@ -4,7 +4,7 @@ use crate::acp::client::{
 use crate::acp::client_session::default_modes;
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::{provider_capabilities::provider_capabilities, AgentType};
-use crate::acp::session_update::{ConfigOptionData, ConfigOptionValue};
+use crate::acp::session_update::{ConfigOptionData, ConfigOptionPresentation, ConfigOptionValue};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -173,6 +173,7 @@ pub fn build_codex_native_config_options(state: &CodexNativeConfigState) -> Vec<
                     description: None,
                 })
                 .collect(),
+            presentation: ConfigOptionPresentation::CompactReasoning,
         },
         ConfigOptionData {
             id: FAST_MODE_CONFIG_ID.to_string(),
@@ -182,6 +183,7 @@ pub fn build_codex_native_config_options(state: &CodexNativeConfigState) -> Vec<
             description: Some("Uses the fast Codex service tier when available.".to_string()),
             current_value: Some(Value::Bool(state.fast_mode)),
             options: Vec::new(),
+            presentation: ConfigOptionPresentation::CompactSpeed,
         },
     ]
 }

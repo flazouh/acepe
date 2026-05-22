@@ -3,7 +3,6 @@ import { GitPanel } from "$lib/acp/components/git-panel/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
-import { ProjectLetterBadge } from "@acepe/ui/project-letter-badge";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -48,25 +47,6 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 		contentOverflow="hidden"
 		onOpenChange={handleOpenChange}
 	>
-		{#snippet topLeft()}
-			<div class="flex min-w-0 items-center gap-1.5">
-				<div
-					class="flex h-5 shrink-0 items-center gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
-				>
-					<ProjectLetterBadge
-						name={projectName}
-						color={project?.color ?? ""}
-						iconSrc={project?.iconPath ?? null}
-						size={14}
-						fontSize={9}
-					/>
-					<span class="truncate font-medium text-foreground leading-none">
-						{projectName}
-					</span>
-				</div>
-			</div>
-		{/snippet}
-
 		{#key activeGitDialog.id}
 			<div class="h-full min-h-0 w-full overflow-hidden">
 				<GitPanel

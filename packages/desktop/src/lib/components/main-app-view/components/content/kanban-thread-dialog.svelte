@@ -12,6 +12,10 @@ import * as Dialog from "@acepe/ui/dialog";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
+import {
+	buildKanbanThreadDialogPanelSnapshot,
+	resolveKanbanThreadDialogSelectedAgentId,
+} from "./logic/kanban-thread-dialog-model.js";
 
 interface Props {
 	panelId: string | null;
@@ -66,46 +70,24 @@ const panelSnapshot = $derived.by(() => {
 			: (panelStore.panels.find((candidate) => candidate.id === panelId) ?? null);
 	const hotState = panel ? panelStore.getHotState(panel.id) : null;
 	const identity =
-		panel && panel.sessionId !== null ? sessionStore.getSessionIdentity(panel.sessionId) : null;
-	const sessionProjectPath =
-		panel && panel.sessionId !== null ? (identity?.projectPath ?? null) : panel ? panel.projectPath : null;
-	const sessionAgentId =
-		panel && panel.sessionId !== null ? (identity?.agentId ?? null) : panel ? panel.selectedAgentId : null;
-	const isWaitingForSession = panel ? panel.sessionId !== null && identity === undefined : false;
+		panel && panel.sessionId !== null ? sessionStore.getSessionIdentity(panel.sessionId) : undefined;
 
-	let project = null;
-	if (sessionProjectPath !== null) {
-		const matchingProject = projectManager.projects.find(
-			(candidate) => candidate.path === sessionProjectPath
-		);
-		project = matchingProject ? matchingProject : null;
-	}
-
-	return {
-		panelId: panel ? panel.id : "",
-		sessionId: panel ? panel.sessionId : null,
-		width: panel && panel.width > 0 ? panel.width : 100,
-		pendingProjectSelection: panel ? panel.pendingProjectSelection : false,
-		selectedAgentId: sessionAgentId,
-		reviewMode: hotState ? hotState.reviewMode : false,
-		reviewFilesState: hotState ? hotState.reviewFilesState : null,
-		reviewFileIndex: hotState ? hotState.reviewFileIndex : 0,
-		isWaitingForSession,
-		project,
-	};
+	return buildKanbanThreadDialogPanelSnapshot({
+		panel,
+		sessionIdentity: identity,
+		hotState,
+		projects: projectManager.projects,
+	});
 });
 
 const isPanelOpen = $derived(panelId !== null && panelSnapshot.panelId !== "");
 
-const selectedAgentId = $derived.by(() => {
-	const currentSelectedAgentId = panelSnapshot.selectedAgentId;
-	if (currentSelectedAgentId === null) {
-		return null;
-	}
-
-	const matchingAgent = availableAgents.find((agent) => agent.id === currentSelectedAgentId);
-	return matchingAgent ? currentSelectedAgentId : null;
-});
+const selectedAgentId = $derived(
+	resolveKanbanThreadDialogSelectedAgentId({
+		configuredAgentId: panelSnapshot.selectedAgentId,
+		availableAgents,
+	})
+);
 
 function handleOpenChange(open: boolean): void {
 	if (!open) {

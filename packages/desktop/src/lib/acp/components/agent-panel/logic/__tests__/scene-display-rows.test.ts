@@ -1,12 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import {
+	appendSceneDisplayRows,
 	buildSceneDisplayRows,
 	getSceneDisplayRowKey,
 	getSceneDisplayRowTimestampMs,
 	resolveSceneDisplayRowThinkingDurationMs,
 	THINKING_DISPLAY_ENTRY,
 } from "../scene-display-rows.js";
+import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 
 describe("scene-display-rows", () => {
 	it("builds stable scene-derived display rows for mixed conversation entries", () => {
@@ -94,5 +96,95 @@ describe("scene-display-rows", () => {
 		]);
 
 		expect(resolveSceneDisplayRowThinkingDurationMs(rows, 0, startedAtMs + 30_000)).toBe(5_000);
+	});
+
+	it("appends scene rows without rebuilding the unchanged prefix", () => {
+		const firstUser = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstAssistant = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		} satisfies AgentPanelSceneEntryModel;
+		const nextAssistant = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		} satisfies AgentPanelSceneEntryModel;
+		const initialRows = buildSceneDisplayRows([firstUser, firstAssistant]);
+
+		const rows = appendSceneDisplayRows(initialRows, [nextAssistant]);
+
+		expect(rows[0]).toBe(initialRows[0]);
+		expect(rows.map((row) => getSceneDisplayRowKey(row))).toEqual(["user-1", "assistant-1"]);
+		expect(rows[1]?.type).toBe("assistant_merged");
+		if (rows[1]?.type === "assistant_merged") {
+			expect(rows[1].memberIds).toEqual(["assistant-1", "assistant-2"]);
+			expect(rows[1].markdown).toBe("FirstSecond");
+		}
+	});
+
+	it("memoizes display rows for identical scene entry arrays", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const entries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "Answer" },
+		];
+
+		const firstRows = readModel.getRows(entries);
+		const secondRows = readModel.getRows(entries);
+
+		expect(secondRows).toBe(firstRows);
+	});
+
+	it("uses append-only updates when prior scene entries keep their identity", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstUser = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstAssistant = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		} satisfies AgentPanelSceneEntryModel;
+		const nextAssistant = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = readModel.getRows([firstUser, firstAssistant]);
+
+		const nextRows = readModel.getRows([firstUser, firstAssistant, nextAssistant]);
+
+		expect(nextRows[0]).toBe(firstRows[0]);
+		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual(["user-1", "assistant-1"]);
+		expect(nextRows[1]?.type).toBe("assistant_merged");
+		if (nextRows[1]?.type === "assistant_merged") {
+			expect(nextRows[1].markdown).toBe("FirstSecond");
+		}
+	});
+
+	it("rebuilds rows when the scene is replaced instead of appended", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "First" },
+		]);
+
+		const replacementRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-2", type: "assistant", markdown: "Replacement" },
+		]);
+
+		expect(replacementRows).not.toBe(firstRows);
+		expect(replacementRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+			"user-1",
+			"assistant-2",
+		]);
 	});
 });

@@ -6,16 +6,14 @@ import type {
 } from "@acepe/ui";
 import {
 	ActivityEntry,
-	BuildIcon,
 	EmbeddedPanelHeader,
 	HeaderActionCell,
 	HeaderTitleCell,
 	PermissionFeedItem,
-	PlanIcon,
 	ProjectLetterBadge,
 } from "@acepe/ui";
 import { PlanCard } from "@acepe/ui/plan-card";
-import { XCircle } from "phosphor-svelte";
+import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import { replyToPlanApprovalRequest } from "../../logic/interaction-reply.js";
 import { getInteractionStore } from "../../store/interaction-store.svelte.js";
@@ -23,7 +21,6 @@ import { getQuestionSelectionStore } from "../../store/question-selection-store.
 import { getQuestionStore } from "../../store/question-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
-import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 import { formatTimeAgo } from "../../utils/time-utils.js";
@@ -35,7 +32,7 @@ import {
 } from "../tool-calls/permission-display.js";
 import { getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
 import { isExitPlanPermission } from "../../utils/exit-plan-permission.js";
-import { projectActivityEntry } from "../activity-entry/activity-entry-projection.js";
+import { projectQueueItemActivity } from "./queue-item-display.js";
 import {
 	buildQueueItemQuestionUiState,
 	type QuestionSelectionReader,
@@ -209,7 +206,7 @@ const hasError = $derived(item.state.connection === "error" || item.connectionEr
 const statusText = $derived.by(() => {
 	if (hasPendingQuestion || hasPendingPlanApproval) return null;
 	if (isThinking) {
-		return "Planning next moves";
+		return "Thinking";
 	}
 	if (item.pendingText) {
 		return item.pendingText;
@@ -234,7 +231,7 @@ const todoProgress = $derived<ActivityEntryTodoProgress | null>(
 );
 
 const activityProjection = $derived.by(() =>
-	projectActivityEntry({
+	projectQueueItemActivity({
 		activityKind: item.state.activity.kind,
 		currentStreamingToolCall: item.currentStreamingToolCall,
 		currentToolKind: item.currentToolKind,
@@ -273,13 +270,7 @@ const toolContent = $derived(activityProjection.toolContent);
 const isFileTool = $derived(activityProjection.isFileTool);
 const showToolShimmer = $derived(activityProjection.showToolShimmer);
 
-const mode = $derived<ActivityEntryMode>(
-	item.currentModeId === CanonicalModeId.PLAN
-		? CanonicalModeId.PLAN
-		: item.currentModeId
-			? CanonicalModeId.BUILD
-			: null
-);
+const mode = $derived<ActivityEntryMode>(null);
 
 const taskDescription = $derived(activityProjection.taskDescription);
 const taskSubagentSummaries = $derived(activityProjection.taskSubagentSummaries);
@@ -525,7 +516,7 @@ function handleNextQuestion() {
 		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
 			<EmbeddedPanelHeader>
 				<HeaderTitleCell compactPadding>
-					<PlanIcon size="sm" class="shrink-0 mr-1" />
+					<FileCode class="mr-1 size-3 shrink-0" weight="fill" />
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>
@@ -540,8 +531,8 @@ function handleNextQuestion() {
 				</HeaderActionCell>
 				<HeaderActionCell>
 					<button type="button" class="plan-queue-action" onclick={handlePlanApprove}>
-						<BuildIcon size="sm" />
-						{"Build"}
+						<CheckCircle weight="fill" class="size-3 shrink-0" />
+						{"Approve"}
 					</button>
 				</HeaderActionCell>
 			</EmbeddedPanelHeader>

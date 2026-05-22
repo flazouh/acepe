@@ -27,7 +27,24 @@ loadCursorTheme()
 		ResultAsync.fromPromise(
 			createHighlighter({
 				themes: [dark, light],
-				langs: ["bash", "log"],
+				langs: [
+					"bash",
+					"log",
+					"typescript",
+					"javascript",
+					"tsx",
+					"jsx",
+					"svelte",
+					"json",
+					"css",
+					"scss",
+					"html",
+					"markdown",
+					"rust",
+					"python",
+					"yaml",
+					"toml",
+				],
 			}),
 			(e) => (e instanceof Error ? e : new Error(String(e)))
 		)
@@ -89,4 +106,45 @@ export const bashHighlighter = {
 
 		return stripPreCodeWrapper(html);
 	},
+
+	/**
+	 * Highlight source file content with a language inferred from the file path.
+	 * Falls back to TypeScript because most Acepe read tools are TS/Svelte-adjacent.
+	 */
+	highlightSource(code: string, filePath: string | null | undefined): string | null {
+		if (!highlighter) return null;
+
+		const html = highlighter.codeToHtml(code, {
+			lang: languageForFilePath(filePath),
+			themes: {
+				dark: darkThemeName,
+				light: lightThemeName,
+			},
+			defaultColor: false,
+		});
+
+		return stripPreCodeWrapper(html);
+	},
 };
+
+function languageForFilePath(filePath: string | null | undefined): string {
+	const normalized = filePath?.toLowerCase() ?? "";
+	const extension = normalized.split(".").pop();
+
+	if (extension === "ts" || extension === "mts" || extension === "cts") return "typescript";
+	if (extension === "js" || extension === "mjs" || extension === "cjs") return "javascript";
+	if (extension === "tsx") return "tsx";
+	if (extension === "jsx") return "jsx";
+	if (extension === "svelte") return "svelte";
+	if (extension === "json" || extension === "jsonl") return "json";
+	if (extension === "css") return "css";
+	if (extension === "scss") return "scss";
+	if (extension === "html" || extension === "htm") return "html";
+	if (extension === "md" || extension === "mdx") return "markdown";
+	if (extension === "rs") return "rust";
+	if (extension === "py") return "python";
+	if (extension === "yml" || extension === "yaml") return "yaml";
+	if (extension === "toml") return "toml";
+
+	return "typescript";
+}

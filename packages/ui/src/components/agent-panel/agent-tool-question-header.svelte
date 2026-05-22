@@ -1,0 +1,57 @@
+<script lang="ts">
+	import { XCircle } from "phosphor-svelte";
+	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
+	import {
+		EmbeddedPanelHeader,
+		HeaderActionCell,
+		HeaderTitleCell,
+	} from "../panel-header/index.js";
+
+	type QuestionHeaderState = "answered" | "cancelled" | "interactive";
+
+	interface Props {
+		state: QuestionHeaderState;
+		title: string;
+		badge?: string | null;
+		durationLabel?: string;
+	}
+
+	let { state, title, badge = null, durationLabel }: Props = $props();
+</script>
+
+<EmbeddedPanelHeader class="bg-accent/40">
+	<HeaderTitleCell compactPadding>
+		{#if state === "cancelled"}
+			<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
+		{:else if state === "answered"}
+			<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
+		{:else}
+			<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
+		{/if}
+		<span class="question-title">{title}</span>
+		{#if badge}
+			<span class="question-badge ml-1.5">{badge}</span>
+		{/if}
+	</HeaderTitleCell>
+	{#if durationLabel}
+		<HeaderActionCell>
+			<span class="inline-flex items-center px-2 text-sm">
+				{durationLabel}
+			</span>
+		</HeaderActionCell>
+	{/if}
+</EmbeddedPanelHeader>
+
+<style>
+	.question-title {
+		font-size: 0.875rem;
+		user-select: none;
+	}
+
+	.question-badge {
+		font-size: 0.875rem;
+		padding: 1px 6px;
+		border-radius: 0.25rem;
+		background: var(--muted);
+	}
+</style>

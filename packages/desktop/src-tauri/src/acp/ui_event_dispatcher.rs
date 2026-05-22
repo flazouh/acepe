@@ -1688,7 +1688,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatcher_buffers_eligible_update_before_lifecycle_without_projection_mutation() {
+    fn dispatcher_buffers_eligible_updates_before_lifecycle_without_projection_mutation() {
         let session_id = "pre-reservation-capability";
         let projection_registry = Arc::new(ProjectionRegistry::new());
         let (dispatcher, captured_events) =
@@ -1699,6 +1699,10 @@ mod tests {
         dispatcher.enqueue(AcpUiEvent::session_update(available_commands_update(Some(
             session_id,
         ))));
+        dispatcher.enqueue(AcpUiEvent::session_update(user_chunk_update(
+            session_id,
+            "hello before lifecycle",
+        )));
 
         let captured = captured_events.lock().expect("captured events lock");
         assert!(captured.is_empty());
@@ -1706,7 +1710,7 @@ mod tests {
             dispatcher
                 .pre_reservation_event_buffer
                 .buffered_event_count(session_id),
-            1
+            2
         );
         assert!(projection_registry
             .snapshot_for_session(session_id)
@@ -1826,6 +1830,46 @@ mod tests {
             })
             .collect();
         assert_eq!(modes, vec!["plan".to_string(), "build".to_string()]);
+    }
+
+    #[test]
+    fn dispatcher_drains_buffered_user_message_before_live_assistant_output() {
+        let session_id = "pre-reservation-user-before-assistant";
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_pre_reservation_gate();
+
+        dispatcher.enqueue(AcpUiEvent::session_update(user_chunk_update(
+            session_id,
+            "first prompt",
+        )));
+        dispatcher.begin_pre_reservation_drain(session_id);
+        seed_lifecycle(dispatcher.runtime_graph_registry.as_ref(), session_id);
+        dispatcher.enqueue(AcpUiEvent::session_update(chunk_update(
+            session_id,
+            "assistant output",
+        )));
+        dispatcher.drain_pre_reservation_events(session_id);
+
+        let captured = captured_events.lock().expect("captured events lock");
+        let transcript_texts = captured
+            .iter()
+            .filter_map(|event| match &event.payload {
+                AcpUiEventPayload::SessionUpdate(update) => match update.as_ref() {
+                    SessionUpdate::UserMessageChunk { chunk, .. }
+                    | SessionUpdate::AgentMessageChunk { chunk, .. } => match &chunk.content {
+                        ContentBlock::Text { text } => Some(text.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            transcript_texts,
+            vec!["first prompt".to_string(), "assistant output".to_string()]
+        );
     }
 
     #[test]

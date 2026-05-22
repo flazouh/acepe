@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { CheckCircle } from "phosphor-svelte";
+	import { CheckCircle, Pulse } from "phosphor-svelte";
 	import { Eye } from "phosphor-svelte";
 	import { FileCode } from "phosphor-svelte";
 	import { Keyboard } from "phosphor-svelte";
 	import { Warning } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
 	import type { SectionedFeedSectionId } from "./types.js";
-
-	import { BuildIcon, PlanIcon } from "../icons/index.js";
 
 interface Props {
 	sectionId: SectionedFeedSectionId;
@@ -26,9 +24,9 @@ let { sectionId, label, count, color, needsReviewIcon = "eye", actions }: Props 
 		{#if sectionId === "answer_needed"}
 			<Keyboard class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "working"}
-			<BuildIcon size="sm" class="shrink-0" />
+			<Pulse class="size-3 shrink-0" weight="fill" style="color: {color}" />
 		{:else if sectionId === "planning"}
-			<PlanIcon size="sm" />
+			<Pulse class="size-3 shrink-0" weight="regular" style="color: {color}" />
 		{:else if sectionId === "needs_review"}
 			{#if needsReviewIcon === "file-code"}
 				<FileCode class="size-3 shrink-0" weight="fill" style="color: {color}" />

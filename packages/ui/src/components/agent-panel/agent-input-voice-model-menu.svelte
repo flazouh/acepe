@@ -10,13 +10,10 @@
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { VoiceDownloadProgress } from "../voice-download-progress/index.js";
-
-	export interface AgentInputVoiceModel {
-		id: string;
-		name: string;
-		sizeBytes: number;
-		isDownloaded: boolean;
-	}
+	import {
+		getVoiceModelRows,
+		type AgentInputVoiceModel,
+	} from "./agent-input-voice-model-menu-state.js";
 
 	interface Props {
 		models: readonly AgentInputVoiceModel[];
@@ -43,13 +40,7 @@
 	}: Props = $props();
 
 	let menuOpen = $state(false);
-
-	function formatBytes(bytes: number): string {
-		if (bytes >= 1024 * 1024 * 1024) {
-			return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-		}
-		return `${Math.round(bytes / (1024 * 1024))} MB`;
-	}
+	const modelRows = $derived(getVoiceModelRows({ models, selectedModelId, downloadingModelId }));
 </script>
 
 <DropdownMenu.Root bind:open={menuOpen}>
@@ -78,22 +69,21 @@
 				{loadingLabel}
 			</div>
 		{:else}
-			{#each models as model (model.id)}
-				{@const isSelected = selectedModelId === model.id}
-				{@const isDownloading = downloadingModelId === model.id}
+			{#each modelRows as row (row.model.id)}
+				{@const model = row.model}
 
 				{#if model.isDownloaded}
 					<DropdownMenu.Item onSelect={() => onSelectModel(model.id)}>
 						<div class="flex w-full items-center gap-2">
 							<Check
-								class={isSelected ? "size-3 shrink-0 text-foreground" : "size-3 shrink-0 text-transparent"}
+								class={row.isSelected ? "size-3 shrink-0 text-foreground" : "size-3 shrink-0 text-transparent"}
 								weight="bold"
 							/>
 							<div class="flex flex-1 items-center min-w-0">
 								<span class="truncate text-xs font-medium">{model.name}</span>
 							</div>
 							<span class="shrink-0 text-[10px] leading-none text-muted-foreground/40">
-								{formatBytes(model.sizeBytes)}
+								{row.sizeLabel}
 							</span>
 						</div>
 					</DropdownMenu.Item>
@@ -108,7 +98,7 @@
 							</span>
 						</div>
 
-						{#if isDownloading}
+						{#if row.isDownloading}
 							<VoiceDownloadProgress
 								ariaLabel={`Downloading ${model.name}`}
 								compact={true}
@@ -127,7 +117,7 @@
 									onDownloadModel(model.id);
 								}}
 							>
-								<span>{formatBytes(model.sizeBytes)}</span>
+								<span>{row.sizeLabel}</span>
 								<DownloadSimple class="size-2" weight="bold" />
 							</Button>
 						{/if}

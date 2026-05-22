@@ -494,6 +494,7 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
         &prompt_request.prompt,
         prompt_request.attempt_id.as_deref(),
     );
+    let client_publishes_user_prompt = client_guard.publishes_user_prompt_on_send();
     let result = timeout(
         SESSION_CLIENT_OPERATION_TIMEOUT,
         client_guard.send_prompt_fire_and_forget(prompt_request),
@@ -562,10 +563,12 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
     }
 
     if result.is_ok() {
-        if let Some(update) = synthetic_user_update {
-            let published = publish_direct_session_update(app, update.clone()).await;
-            if published {
-                remember_synthetic_user_prompt(&update);
+        if !client_publishes_user_prompt {
+            if let Some(update) = synthetic_user_update {
+                let published = publish_direct_session_update(app, update.clone()).await;
+                if published {
+                    remember_synthetic_user_prompt(&update);
+                }
             }
         }
     }

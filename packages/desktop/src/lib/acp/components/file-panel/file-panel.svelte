@@ -9,9 +9,14 @@ import { FileReadError } from "$lib/components/ui/file-read-error/index.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
-import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";
 import { createLogger } from "../../utils/logger.js";
 import FilePanelCsvView from "./file-panel-csv-view.svelte";
+import { resolveFilePanelGutterAction } from "./file-panel-gutter.js";
+import {
+	resolveFilePanelGitStatus,
+	toFilePanelGitStatus,
+	type FilePanelGitStatus,
+} from "./file-panel-git-status.js";
 import type { FilePanelDisplayMode } from "./format/types.js";
 import { getDisplayOptions } from "./format/registry.js";
 import FilePanelHeader from "./file-panel-header.svelte";
@@ -64,8 +69,7 @@ let content = $state<string | null>(null);
 let loading = $state(true);
 let error = $state<string | null>(null);
 
-// Git status state - full object with insertions/deletions
-let gitStatus = $state<{ status: string; insertions: number; deletions: number } | null>(null);
+let gitStatus = $state<FilePanelGitStatus | null>(null);
 
 // Git gutter input for CodeMirror diff markers
 let gitGutterInput = $state<GitGutterInput>(null);
@@ -158,15 +162,15 @@ $effect(() => {
 		currentProjectPath,
 	});
 
-	gitStatusCache.getProjectGitStatusMap(currentProjectPath).match(
+	gitStatusCache.getProjectGitStatusSummaryMap(currentProjectPath).match(
 		(statusMap) => {
 			// Find status for this specific file
 			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				const relativeFilePath = getRelativeFilePath(currentFilePath, currentProjectPath);
-				const exactFileStatus = relativeFilePath ? (statusMap.get(relativeFilePath) ?? null) : null;
-				const fileStatus =
-					exactFileStatus ??
-					findGitStatusForFile(Array.from(statusMap.values()), currentFilePath, currentProjectPath);
+				const fileStatus = resolveFilePanelGitStatus(
+					statusMap,
+					currentFilePath,
+					currentProjectPath
+				);
 				logger.info("Git status lookup result", {
 					currentFilePath,
 					currentProjectPath,
@@ -176,13 +180,7 @@ $effect(() => {
 					insertions: fileStatus?.insertions ?? null,
 					deletions: fileStatus?.deletions ?? null,
 				});
-				gitStatus = fileStatus
-					? {
-							status: fileStatus.status,
-							insertions: fileStatus.insertions,
-							deletions: fileStatus.deletions,
-						}
-					: null;
+				gitStatus = toFilePanelGitStatus(fileStatus);
 			}
 		},
 		(error) => {
@@ -206,69 +204,92 @@ $effect(() => {
 	const currentGitStatus = gitStatus;
 	const currentContent = content;
 
-	// Need both content and git status to show gutter
-	if (currentContent === null || !currentGitStatus) {
-		logger.info("Skipping git gutter (missing content or git status)", {
+	const gutterAction = resolveFilePanelGutterAction({
+		content: currentContent,
+		gitStatus: currentGitStatus,
+	});
+
+	if (gutterAction.kind === "none") {
+		logger.info("Skipping git gutter", {
 			currentFilePath,
 			currentProjectPath,
-			hasContent: currentContent !== null,
-			hasGitStatus: Boolean(currentGitStatus),
+			reason: gutterAction.reason,
 		});
 		gitGutterInput = null;
 		return;
 	}
 
-	const status = currentGitStatus.status;
 	logger.info("Computing git gutter input", {
 		currentFilePath,
 		currentProjectPath,
-		status,
-		insertions: currentGitStatus.insertions,
-		deletions: currentGitStatus.deletions,
+		action: gutterAction.kind,
+		status: currentGitStatus?.status ?? null,
+		insertions: currentGitStatus?.insertions ?? null,
+		deletions: currentGitStatus?.deletions ?? null,
 	});
 
-	if (status === "A" || status === "?" || status === "??") {
+	if (gutterAction.kind === "new-file") {
 		// New/untracked file — all lines are additions
-		logger.info("Using new-file gutter mode", { currentFilePath, status });
+		logger.info("Using new-file gutter mode", {
+			currentFilePath,
+			status: currentGitStatus?.status ?? null,
+		});
 		gitGutterInput = { kind: "new-file" };
 		return;
 	}
 
-	if (status === "M" || status === "MM") {
-		// Modified file — fetch old content from HEAD
-		logger.info("Fetching file diff for modified gutter mode", {
-			currentFilePath,
-			currentProjectPath,
-		});
-		fileContentCache.getFileDiff(currentFilePath, currentProjectPath).match(
-			(diff) => {
-				if (filePath === currentFilePath && projectPath === currentProjectPath) {
-					logger.info("File diff loaded for gutter", {
-						currentFilePath,
-						currentProjectPath,
-						hasOldContent: diff.oldContent !== null,
-						oldLength: diff.oldContent?.length ?? 0,
-						newLength: diff.newContent.length,
-					});
-					gitGutterInput = { kind: "modified", oldContent: diff.oldContent ?? "" };
-				}
-			},
-			(error) => {
-				if (filePath === currentFilePath && projectPath === currentProjectPath) {
-					logger.info("File diff fetch failed for gutter", {
-						currentFilePath,
-						currentProjectPath,
-						error: String(error),
-					});
-					gitGutterInput = null;
-				}
+	if (gutterAction.kind === "load-modified-diff") {
+		gitGutterInput = null;
+		let cancelled = false;
+		const frameId = requestAnimationFrame(() => {
+			if (cancelled) {
+				return;
 			}
-		);
-		return;
-	}
 
-	logger.info("No gutter mode for git status", { currentFilePath, status });
-	gitGutterInput = null;
+			// Modified file — fetch old content from HEAD after the panel can paint.
+			logger.info("Fetching file diff for modified gutter mode", {
+				currentFilePath,
+				currentProjectPath,
+			});
+			fileContentCache.getFileDiff(currentFilePath, currentProjectPath).match(
+				(diff) => {
+					if (
+						!cancelled &&
+						filePath === currentFilePath &&
+						projectPath === currentProjectPath
+					) {
+						logger.info("File diff loaded for gutter", {
+							currentFilePath,
+							currentProjectPath,
+							hasOldContent: diff.oldContent !== null,
+							oldLength: diff.oldContent?.length ?? 0,
+							newLength: diff.newContent.length,
+						});
+						gitGutterInput = { kind: "modified", oldContent: diff.oldContent ?? "" };
+					}
+				},
+				(error) => {
+					if (
+						!cancelled &&
+						filePath === currentFilePath &&
+						projectPath === currentProjectPath
+					) {
+						logger.info("File diff fetch failed for gutter", {
+							currentFilePath,
+							currentProjectPath,
+							error: String(error),
+						});
+						gitGutterInput = null;
+					}
+				}
+			);
+		});
+
+		return () => {
+			cancelled = true;
+			cancelAnimationFrame(frameId);
+		};
+	}
 });
 
 function handlePointerDown(e: PointerEvent) {

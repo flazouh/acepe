@@ -21,7 +21,6 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
 import {
-	buildIssueReportDraft,
 	openIssueReportDraft,
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
@@ -42,18 +41,16 @@ import {
 	resolveEmptyStateWorktreePending,
 	resolveEmptyStateWorktreePendingForProjectChange,
 } from "./logic/empty-state-send-state.js";
+import {
+	buildProjectImportErrorState,
+	buildProjectImportIssueDraft,
+	type EmptyStateProjectImportErrorState,
+} from "./logic/empty-state-project-import-model.js";
+import { createEmptyStateBranchMetadataLoader } from "./logic/empty-state-branch-metadata-loader.js";
 
 interface Props {
 	projectManager: ProjectManager;
 	onSessionCreated: (id: string) => void;
-}
-
-interface ProjectImportErrorState {
-	readonly title: string;
-	readonly summary: string;
-	readonly details: string;
-	readonly referenceId: string;
-	readonly referenceSearchable: boolean;
 }
 
 const { projectManager, onSessionCreated }: Props = $props();
@@ -76,8 +73,26 @@ let preparedWorktreeLaunch: PreparedWorktreeLaunch | null = $state(null);
 let currentBranch = $state<string | null>(null);
 let diffStats = $state<{ insertions: number; deletions: number } | null>(null);
 let isGitRepo = $state<boolean | null>(null);
-let projectImportError = $state<ProjectImportErrorState | null>(null);
-let branchMetadataRequestVersion = 0;
+let projectImportError = $state<EmptyStateProjectImportErrorState | null>(null);
+const branchMetadataLoader = createEmptyStateBranchMetadataLoader({
+	gitClient: tauriClient.git,
+	writer: {
+		reset() {
+			currentBranch = null;
+			diffStats = null;
+			isGitRepo = null;
+		},
+		setIsGitRepo(value) {
+			isGitRepo = value;
+		},
+		setCurrentBranch(value) {
+			currentBranch = value;
+		},
+		setDiffStats(value) {
+			diffStats = value;
+		},
+	},
+});
 
 // Derived
 const availableAgents = $derived(
@@ -113,59 +128,11 @@ const canSendFromEmptyState = $derived(
 );
 
 function resetBranchPickerMetadata() {
-	currentBranch = null;
-	diffStats = null;
-	isGitRepo = null;
+	branchMetadataLoader.reset();
 }
 
 function refreshBranchPickerMetadata(targetProjectPath: string) {
-	branchMetadataRequestVersion += 1;
-	const currentRequestVersion = branchMetadataRequestVersion;
-	resetBranchPickerMetadata();
-
-	void tauriClient.git.isRepo(targetProjectPath).match(
-		(repo) => {
-			if (currentRequestVersion !== branchMetadataRequestVersion) {
-				return;
-			}
-
-			isGitRepo = repo;
-			if (!repo) {
-				return;
-			}
-
-			void tauriClient.git.currentBranch(targetProjectPath).match(
-				(branch) => {
-					if (currentRequestVersion === branchMetadataRequestVersion) {
-						currentBranch = branch;
-					}
-				},
-				() => {
-					if (currentRequestVersion === branchMetadataRequestVersion) {
-						currentBranch = null;
-					}
-				}
-			);
-
-			void tauriClient.git.diffStats(targetProjectPath).match(
-				(stats) => {
-					if (currentRequestVersion === branchMetadataRequestVersion) {
-						diffStats = stats;
-					}
-				},
-				() => {
-					if (currentRequestVersion === branchMetadataRequestVersion) {
-						diffStats = null;
-					}
-				}
-			);
-		},
-		() => {
-			if (currentRequestVersion === branchMetadataRequestVersion) {
-				isGitRepo = false;
-			}
-		}
-	);
+	branchMetadataLoader.refresh(targetProjectPath);
 }
 
 $effect(() => {
@@ -188,7 +155,6 @@ $effect(() => {
 $effect(() => {
 	const currentProjectPath = projectPath;
 	if (currentProjectPath === null) {
-		branchMetadataRequestVersion += 1;
 		resetBranchPickerMetadata();
 		return;
 	}
@@ -238,13 +204,11 @@ function handleBrowseProject() {
 
 			const errorReference = ensureErrorReference(error);
 			const errorDetails = getErrorCauseDetails(error);
-			projectImportError = {
-				title: "Project import failed",
-				summary: errorDetails.rootCause ?? error.message,
-				details: errorDetails.formatted,
-				referenceId: errorReference.referenceId,
-				referenceSearchable: errorReference.searchable,
-			};
+			projectImportError = buildProjectImportErrorState({
+				error,
+				causeDetails: errorDetails,
+				reference: errorReference,
+			});
 		}
 	);
 }
@@ -265,33 +229,13 @@ async function copyProjectImportReferenceId() {
 	);
 }
 
-function createProjectImportIssueDraft() {
-	if (projectImportError === null) {
-		return null;
-	}
-
-	return buildIssueReportDraft({
-		title: `Project import failed: ${projectImportError.summary}`,
-		summary: projectImportError.summary,
-		details: projectImportError.details,
-		referenceId: projectImportError.referenceId,
-		referenceSearchable: projectImportError.referenceSearchable,
-		surface: "empty-state-project-import",
-		diagnosticsSummary: projectImportError.summary,
-		metadata: [
-			{
-				label: "Project Path",
-				value: projectPath ?? "unknown",
-			},
-			{
-				label: "Project Name",
-				value: projectName ?? "unknown",
-			},
-		],
-	});
-}
-
-const projectImportIssueDraft = $derived.by(() => createProjectImportIssueDraft());
+const projectImportIssueDraft = $derived.by(() =>
+	buildProjectImportIssueDraft({
+		errorState: projectImportError,
+		projectPath,
+		projectName,
+	})
+);
 
 function handleProjectImportIssueAction() {
 	const draft = projectImportIssueDraft;

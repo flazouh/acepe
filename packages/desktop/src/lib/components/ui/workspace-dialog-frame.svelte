@@ -9,6 +9,8 @@ interface Props {
 	title: string;
 	children: Snippet;
 	topLeft?: Snippet;
+	topRight?: Snippet;
+	showTitle?: boolean;
 	contentClass?: string;
 	contentOverflow?: "auto" | "hidden";
 	closeLabel?: string;
@@ -20,6 +22,8 @@ let {
 	title,
 	children,
 	topLeft,
+	topRight,
+	showTitle = true,
 	contentClass = "",
 	contentOverflow = "auto",
 	closeLabel = "Close dialog",
@@ -40,15 +44,25 @@ const bodyClass = $derived(
 	>
 		<Dialog.Title class="sr-only">{title}</Dialog.Title>
 		<div class="flex h-full min-h-0 flex-col">
-			<div class="flex min-h-6 shrink-0 items-center justify-between gap-2 px-1 pt-1">
-				<div class="min-w-0 flex-1">
+			<div class="flex min-h-6 shrink-0 items-center gap-2 px-1 pt-1">
+				<div class="flex min-w-0 flex-1 items-center gap-1.5">
+					{#if showTitle}
+						<span class="truncate text-[11px] font-medium text-foreground leading-none">
+							{title}
+						</span>
+					{/if}
 					{#if topLeft}
 						{@render topLeft()}
 					{/if}
 				</div>
+				{#if topRight}
+					<div class="flex shrink-0 items-center gap-1.5">
+						{@render topRight()}
+					</div>
+				{/if}
 				<Dialog.Close
 					aria-label={closeLabel}
-					class="workspace-dialog-close inline-flex size-5 items-center justify-center rounded border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+					class="workspace-dialog-close inline-flex size-5 shrink-0 items-center justify-center rounded border border-border/70 bg-popover text-muted-foreground/70 shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 					style="--workspace-dialog-close-hover: {Colors.red};"
 				>
 					<XIcon class="size-3" />

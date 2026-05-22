@@ -6,6 +6,16 @@
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import type { AgentSearchMatch, AgentToolStatus } from "./types.js";
+	import {
+		createSearchQuerySegments,
+		getDisplayedSearchFiles,
+		getDisplayedSearchMatches,
+		getHiddenSearchResultCount,
+		getSearchResultText,
+		getSearchToolHeaderLabel,
+		isSearchToolPending,
+		SEARCH_COLLAPSED_LIMIT,
+	} from "./agent-tool-search-state.js";
 
 	interface Props {
 		query: string | null;
@@ -59,103 +69,46 @@
 	let isExpanded = $state(false);
 	let showAll = $state(false);
 
-	const COLLAPSED_LIMIT = 5;
-
-	function escapeHtml(value: string): string {
-		return value
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;");
-	}
-
-	function splitQuerySegments(value: string): string[] {
-		const segments: string[] = [];
-		let current = "";
-		let inCharacterClass = false;
-		let escaped = false;
-
-		for (const character of value) {
-			if (escaped) {
-				current += `\\${character}`;
-				escaped = false;
-				continue;
-			}
-
-			if (character === "\\") {
-				escaped = true;
-				continue;
-			}
-
-			if (character === "[") {
-				inCharacterClass = true;
-				current += character;
-				continue;
-			}
-
-			if (character === "]") {
-				inCharacterClass = false;
-				current += character;
-				continue;
-			}
-
-			if (!inCharacterClass && (character === "|" || character === "\n" || character === "\r")) {
-				const trimmed = current.trim();
-				if (trimmed) segments.push(trimmed);
-				current = "";
-				continue;
-			}
-
-			current += character;
-		}
-
-		if (escaped) {
-			current += "\\";
-		}
-
-		const trimmed = current.trim();
-		if (trimmed) segments.push(trimmed);
-		return segments.length > 0 ? segments : [" "];
-	}
-
-	function highlightQuerySegment(segment: string): string {
-		return escapeHtml(segment).replace(
-			/([()[\]{}+*?.^$|\\])/g,
-			'<span class="search-query-token">$1</span>'
-		);
-	}
-
-	const isPending = $derived(status === "pending" || status === "running");
-	const isDone = $derived(status === "done");
+	const isPending = $derived(isSearchToolPending(status));
 	const hasFiles = $derived(files.length > 0);
 	const headerLabel = $derived(
-		variant === "glob"
-			? (isPending ? findingLabel : foundLabel)
-			: (isPending ? greppingLabel : greppedLabel)
+		getSearchToolHeaderLabel({
+			variant,
+			status,
+			findingLabel,
+			foundLabel,
+			greppingLabel,
+			greppedLabel,
+		})
 	);
 
-	const displayedFiles = $derived(showAll ? files : files.slice(0, COLLAPSED_LIMIT));
-	const displayedMatches = $derived(showAll ? searchMatches : searchMatches.slice(0, COLLAPSED_LIMIT));
-	const hasMore = $derived(files.length > COLLAPSED_LIMIT);
-	const hasMoreMatches = $derived(searchMatches.length > COLLAPSED_LIMIT);
+	const displayedFiles = $derived(getDisplayedSearchFiles({ files, showAll }));
+	const displayedMatches = $derived(
+		getDisplayedSearchMatches({ matches: searchMatches, showAll })
+	);
+	const hasMore = $derived(files.length > SEARCH_COLLAPSED_LIMIT);
+	const hasMoreMatches = $derived(searchMatches.length > SEARCH_COLLAPSED_LIMIT);
 	const hasMatches = $derived(searchMatches.length > 0);
 
-	const resultText = $derived.by(() => {
-		const count = resultCount ?? files.length;
-		if (!isDone) return null;
-		return resultCountLabel(count);
-	});
+	const resultText = $derived(
+		getSearchResultText({
+			status,
+			resultCount,
+			fileCount: files.length,
+			resultCountLabel,
+		})
+	);
 	const hasExpandableContent = $derived(hasFiles || hasMatches);
 	const resultAreaClass = $derived(
 		isExpanded ? "search-results-expanded" : "search-results-collapsed"
 	);
-	const querySegments = $derived(
-		query
-			? splitQuerySegments(query).map((segment) => ({
-					raw: segment,
-					html: highlightQuerySegment(segment),
-				}))
-			: []
+	const querySegments = $derived(createSearchQuerySegments(query));
+	const hiddenResultCount = $derived(
+		getHiddenSearchResultCount({
+			fileCount: files.length,
+			matchCount: searchMatches.length,
+			hasMatches,
+		})
 	);
 </script>
 
@@ -255,7 +208,7 @@
 					>
 						{#if !showAll}
 							<CaretDown size={10} weight="bold" />
-							<span>{showMoreLabel((hasMatches ? searchMatches.length : files.length) - COLLAPSED_LIMIT)}</span>
+							<span>{showMoreLabel(hiddenResultCount)}</span>
 						{:else}
 							<CaretRight size={10} weight="bold" class="rotate-270" />
 							<span>{showLessLabel}</span>

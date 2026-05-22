@@ -19,7 +19,7 @@ describe("createAcepeStreamdownConfig", () => {
 			duration: 630,
 			easing: "cubic-bezier(0.16, 1, 0.3, 1)",
 			sep: "word",
-			stagger: 48,
+			stagger: 0,
 		});
 		expect(config.remend).toEqual({});
 	});

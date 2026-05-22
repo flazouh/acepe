@@ -98,10 +98,6 @@ export function groupModelsForFallback(models: readonly Model[]): ModelGroup[] {
 	];
 }
 
-export function isDefaultModel(defaultModelId: string | undefined, modelId: string): boolean {
-	return defaultModelId === modelId;
-}
-
 export function isDefaultChoiceModelId(modelId: string | null | undefined): boolean {
 	return modelId === "default" || modelId === "auto";
 }

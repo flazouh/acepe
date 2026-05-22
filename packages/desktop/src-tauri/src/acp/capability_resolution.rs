@@ -1,6 +1,6 @@
 use crate::acp::client_session::{
-    apply_provider_metadata, apply_provider_model_fallback, default_modes,
-    default_session_model_state, AvailableMode, AvailableModel, SessionModelState, SessionModes,
+    apply_provider_metadata, apply_provider_model_fallback, default_session_model_state,
+    AvailableMode, AvailableModel, SessionModelState, SessionModes,
 };
 use crate::acp::error::AcpResult;
 use crate::acp::model_display::build_models_for_display;
@@ -207,7 +207,13 @@ pub async fn resolve_generic_preconnection_capabilities(
         ResolvedCapabilityStatus::Resolved
     };
 
-    match finalize_capabilities(provider, cwd, status, models, default_modes()) {
+    match finalize_capabilities(
+        provider,
+        cwd,
+        status,
+        models,
+        provider.default_session_modes(),
+    ) {
         Ok(capabilities) => capabilities,
         Err(error) => failed_capabilities(provider, error.to_string()),
     }
@@ -233,17 +239,15 @@ pub fn failed_capabilities(provider: &dyn AgentProvider, error: String) -> Resol
         current_model_id: None,
         models_display: Default::default(),
         provider_metadata: provider.frontend_projection(),
-        available_modes: default_modes().available_modes,
-        current_mode_id: Some("build".to_string()),
+        available_modes: provider.default_session_modes().available_modes,
+        current_mode_id: Some(provider.default_session_modes().current_mode_id),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        default_modes, default_session_model_state, resolve_static_capabilities,
-        ResolvedCapabilityStatus,
-    };
+    use super::{resolve_static_capabilities, ResolvedCapabilityStatus};
+    use crate::acp::client_session::{default_modes, default_session_model_state};
     use crate::acp::provider::{
         AgentProvider, FrontendProviderProjection, ModelFallbackCandidate, SpawnConfig,
     };

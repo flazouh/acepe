@@ -20,4 +20,9 @@ export type AvailableMode = {
 	 * Optional description of the mode.
 	 */
 	description?: string;
+
+	/**
+	 * Normalized UI icon hint from the provider/backend.
+	 */
+	iconKind?: "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown";
 };

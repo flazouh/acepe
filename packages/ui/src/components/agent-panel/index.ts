@@ -25,7 +25,6 @@ export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte"
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputModelFavoriteStar } from "./agent-input-model-favorite-star.svelte";
-export { default as AgentInputModelModeBar } from "./agent-input-model-mode-bar.svelte";
 export { default as AgentInputModelRow } from "./agent-input-model-row.svelte";
 export { default as AgentInputModelSelector } from "./agent-input-model-selector.svelte";
 export type {
@@ -191,6 +190,7 @@ export type {
 	AgentTodoStatus,
 	AgentToolEditDiffEntry,
 	AgentToolEntry,
+	AgentToolFileSelectEvent,
 	AgentToolKind,
 	AgentToolPresentationState,
 	AgentToolStatus,

@@ -2,6 +2,8 @@ import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 
+import { resolveEmptyStateWorktreePending } from "./logic/empty-state-send-state.js";
+
 interface ResolveKanbanNewSessionDefaultsInput {
 	readonly projects: readonly Project[];
 	readonly focusedProjectPath: string | null;
@@ -22,6 +24,45 @@ export interface KanbanNewSessionRequest {
 	readonly agentId?: string;
 	readonly modeId?: CanonicalModeId;
 }
+
+export interface KanbanNewSessionResetState {
+	readonly selectedProjectPath: string | null;
+	readonly selectedAgentId: string | null;
+	readonly initialModeId: string | null;
+	readonly composerKey: number;
+	readonly activeWorktreePath: string | null;
+	readonly preparedWorktreeLaunch: null;
+	readonly worktreePending: boolean;
+}
+
+export interface BuildKanbanNewSessionResetStateInput
+	extends ResolveKanbanNewSessionDefaultsInput {
+	readonly request?: KanbanNewSessionRequest | null;
+	readonly currentComposerKey: number;
+	readonly fallbackModeId: CanonicalModeId;
+	readonly globalWorktreeDefault: boolean;
+	readonly loadWorktreeEnabled: (panelId: string, globalDefault: boolean) => boolean;
+	readonly panelId: string;
+}
+
+export interface BuildKanbanNewSessionProjectChangeStateInput {
+	readonly projectPath: string;
+	readonly globalWorktreeDefault: boolean;
+	readonly loadWorktreeEnabled: (panelId: string, globalDefault: boolean) => boolean;
+	readonly panelId: string;
+}
+
+export interface KanbanNewSessionProjectChangeState {
+	readonly selectedProjectPath: string;
+	readonly activeWorktreePath: string | null;
+	readonly preparedWorktreeLaunch: null;
+	readonly worktreePending: boolean;
+}
+
+export type KanbanNewSessionOpenChangeAction =
+	| { readonly kind: "ignore" }
+	| { readonly kind: "close" }
+	| { readonly kind: "open"; readonly request: KanbanNewSessionRequest | null };
 
 function resolveDefaultProjectPath(input: ResolveKanbanNewSessionDefaultsInput): string | null {
 	if (input.requestedProjectPath) {
@@ -83,5 +124,72 @@ export function resolveKanbanNewSessionDefaults(
 	return {
 		projectPath: resolveDefaultProjectPath(input),
 		agentId: resolveDefaultAgentId(input),
+	};
+}
+
+export function buildKanbanNewSessionResetState(
+	input: BuildKanbanNewSessionResetStateInput
+): KanbanNewSessionResetState {
+	const request = input.request ?? null;
+	const defaults = resolveKanbanNewSessionDefaults({
+		projects: input.projects,
+		focusedProjectPath: input.focusedProjectPath,
+		availableAgents: input.availableAgents,
+		selectedAgentIds: input.selectedAgentIds,
+		defaultAgentId: input.defaultAgentId,
+		requestedProjectPath: request?.projectPath ?? null,
+		requestedAgentId: request?.agentId ?? null,
+	});
+
+	return {
+		selectedProjectPath: defaults.projectPath,
+		selectedAgentId: defaults.agentId,
+		initialModeId: request?.modeId ?? input.fallbackModeId,
+		composerKey: input.currentComposerKey + 1,
+		activeWorktreePath: null,
+		preparedWorktreeLaunch: null,
+		worktreePending: defaults.projectPath
+			? resolveEmptyStateWorktreePending({
+					activeWorktreePath: null,
+					globalWorktreeDefault: input.globalWorktreeDefault,
+					loadEnabled: input.loadWorktreeEnabled,
+					panelId: input.panelId,
+				})
+			: false,
+	};
+}
+
+export function buildKanbanNewSessionProjectChangeState(
+	input: BuildKanbanNewSessionProjectChangeStateInput
+): KanbanNewSessionProjectChangeState {
+	return {
+		selectedProjectPath: input.projectPath,
+		activeWorktreePath: null,
+		preparedWorktreeLaunch: null,
+		worktreePending: resolveEmptyStateWorktreePending({
+			activeWorktreePath: null,
+			globalWorktreeDefault: input.globalWorktreeDefault,
+			loadEnabled: input.loadWorktreeEnabled,
+			panelId: input.panelId,
+		}),
+	};
+}
+
+export function resolveKanbanNewSessionOpenChangeAction(input: {
+	readonly nextOpen: boolean;
+	readonly currentOpen: boolean;
+	readonly pendingRequest: KanbanNewSessionRequest | null;
+}): KanbanNewSessionOpenChangeAction {
+	if (input.nextOpen === input.currentOpen && input.pendingRequest === null) {
+		return { kind: "ignore" };
+	}
+
+	if (!input.nextOpen) {
+		return { kind: "close" };
+	}
+
+	return {
+		kind: "open",
+		request: input.pendingRequest,
 	};
 }

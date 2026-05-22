@@ -1,4 +1,4 @@
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync, type ResultAsync as NeverthrowResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OperationSnapshot } from "../../../services/acp-types.js";
@@ -72,7 +72,7 @@ function createExecuteOperation(id: string, command: string): OperationSnapshot 
 }
 
 const mockReplyInteraction = vi.fn(
-	(_request: Record<string, unknown>): ResultAsync<void, AppError> => okAsync(undefined)
+	(_request: Record<string, unknown>): NeverthrowResultAsync<void, AppError> => okAsync(undefined)
 );
 
 vi.mock("../api.js", () => ({
@@ -355,6 +355,36 @@ describe("PermissionStore", () => {
 				},
 			});
 			expect(store.pending.size).toBe(0);
+		});
+
+		it("keeps permission visible and marks the selected reply while reply is in flight", async () => {
+			let resolveReply!: () => void;
+			mockReplyInteraction.mockReturnValueOnce(
+				ResultAsync.fromPromise(
+					new Promise<void>((resolve) => {
+						resolveReply = resolve;
+					}),
+					() => new AgentError("replyPermission", new Error("reply failed"))
+				)
+			);
+
+			const permission = createAcpPermission("session-in-flight", "tool-in-flight", 456);
+
+			store.add(permission);
+			const result = store.reply(permission.id, "always");
+
+			expect(store.pending.get(permission.id)).toEqual(permission);
+			expect(store.getReplyInFlight(permission.id)).toBe("always");
+
+			resolveReply();
+			await result;
+
+			expect(store.pending.has(permission.id)).toBe(false);
+			expect(store.getReplyInFlight(permission.id)).toBe(null);
+			expect(store.getAnsweredForToolCall(permission.sessionId, "tool-in-flight")).toEqual({
+				permission,
+				reply: "always",
+			});
 		});
 
 		it("should use JSON-RPC response for permissions with jsonRpcRequestId", async () => {

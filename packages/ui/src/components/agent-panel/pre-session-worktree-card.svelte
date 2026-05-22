@@ -11,6 +11,15 @@
 	import { Button } from "../button/index.js";
 	import { SegmentedToggleGroup } from "../panel-header/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
+	import { watchPreSessionWorktreeHeaderWidth } from "./pre-session-worktree-card-effects.js";
+	import {
+		getPreSessionWorktreeIconClass,
+		getPreSessionWorktreeLockedWidth,
+		getPreSessionWorktreeToggleItems,
+		getPreSessionWorktreeToggleValue,
+		isPreSessionWorktreeOn,
+		shouldShowPreSessionWorktreeExpanded,
+	} from "./pre-session-worktree-card-state.js";
 
 	interface Props {
 		label: string;
@@ -54,12 +63,9 @@
 	let headerElement = $state<HTMLDivElement | null>(null);
 	let expandedWidth = $state<number | null>(null);
 
-	const worktreeOn = $derived(pendingWorktreeEnabled || alwaysEnabled);
-	const toggleValue = $derived(worktreeOn ? "yes" : "no");
-	const toggleItems = $derived([
-		{ id: "yes", label: yesLabel },
-		{ id: "no", label: noLabel },
-	] as const);
+	const worktreeOn = $derived(isPreSessionWorktreeOn({ pendingWorktreeEnabled, alwaysEnabled }));
+	const toggleValue = $derived(getPreSessionWorktreeToggleValue({ pendingWorktreeEnabled, alwaysEnabled }));
+	const toggleItems = $derived(getPreSessionWorktreeToggleItems({ yesLabel, noLabel }));
 
 	function handleToggleChange(id: string) {
 		if (id === "yes") {
@@ -69,42 +75,23 @@
 		}
 	}
 
-	function measureHeaderWidth() {
-		if (!headerElement) return;
-		const nextWidth = Math.ceil(headerElement.getBoundingClientRect().width);
-		if (nextWidth > 0) {
-			expandedWidth = nextWidth;
-		}
-	}
-
 	function toggleExpanded() {
-		if (!isExpanded) {
-			measureHeaderWidth();
-		}
 		isExpanded = !isExpanded;
 	}
 
-	const treeIconClass = $derived(
-		alwaysEnabled ? "text-purple-400" : worktreeOn ? "text-success" : "text-destructive"
-	);
+	const treeIconClass = $derived(getPreSessionWorktreeIconClass({ alwaysEnabled, worktreeOn }));
 	const hasExpandable = $derived(expandedContent !== undefined);
-	const showExpanded = $derived(isExpanded && hasExpandable);
-	const lockedWidth = $derived(showExpanded && expandedWidth !== null ? `${expandedWidth}px` : null);
+	const showExpanded = $derived(shouldShowPreSessionWorktreeExpanded({ isExpanded, hasExpandable }));
+	const lockedWidth = $derived(getPreSessionWorktreeLockedWidth({ showExpanded, expandedWidth }));
 
 	$effect(() => {
-		const header = headerElement;
-		if (!header) return;
-		if (!isExpanded) {
-			measureHeaderWidth();
-		}
-		if (typeof ResizeObserver !== "function") return;
-		const observer = new ResizeObserver(() => {
-			if (!isExpanded) {
-				measureHeaderWidth();
-			}
+		return watchPreSessionWorktreeHeaderWidth({
+			header: headerElement,
+			isExpanded,
+			onWidth: (width) => {
+				expandedWidth = width;
+			},
 		});
-		observer.observe(header);
-		return () => observer.disconnect();
 	});
 </script>
 

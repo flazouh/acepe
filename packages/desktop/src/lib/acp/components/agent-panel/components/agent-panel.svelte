@@ -5,12 +5,13 @@ import {
 	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelSceneEntryModel,
+	type AgentToolFileSelectEvent,
 	type TokenRevealCss,
 } from "@acepe/ui/agent-panel";
 import { DiffPill, setThinkingPreferences } from "@acepe/ui";
 import { EmbeddedIconButton } from "@acepe/ui/panel-header";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
-import { Clock, GitPullRequest } from "phosphor-svelte";
+import { CaretLeft, CaretRight, CheckCircle, Clock, GitPullRequest, XCircle } from "phosphor-svelte";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
@@ -35,7 +36,7 @@ import { PanelConnectionEvent } from "../../../types/panel-connection-state.js";
 import { PanelConnectionState } from "../../../types/panel-connection-state.js";
 import type { WorktreeInfo } from "../../../types/worktree-info.js";
 import { computeStatsFromCheckpoints } from "../../../utils/checkpoint-diff-utils.js";
-import { getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
+import { Colors, getProjectColor, TAG_COLORS } from "@acepe/ui/colors";
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { createLogger } from "../../../utils/logger.js";
 import AgentInput from "../../agent-input/agent-input-ui.svelte";
@@ -67,9 +68,10 @@ import {
 	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
-	mapCanonicalTurnStateToPresentationStatus,
 	matchesWorktreeSetupContext,
 	resolveOptimisticUserEntryForGraph,
+	resolveCanonicalAgentPanelSessionSource,
+	resolveCanonicalAgentPanelTurnState,
 	resolveVisibleEntryCount,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
 	reduceWorktreeSetupEvent,
@@ -104,6 +106,7 @@ import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
+import type { ReviewControlsSnapshot } from "./agent-panel-review-content.svelte";
 import WorkspaceDialogFrame from "$lib/components/ui/workspace-dialog-frame.svelte";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
@@ -132,6 +135,7 @@ import {
 import {
 	TOKEN_REVEAL_FADE_MS,
 	TOKEN_REVEAL_STEP_MS,
+	resolveTokenRevealBaselineMs,
 	resolveTokenRevealSettleDelayMs,
 	shouldKeepTokenRevealTiming,
 	type TokenRevealTiming,
@@ -158,6 +162,7 @@ import {
 	scheduleCheckpointReloadAfterRevert,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
+import { normalizeToProjectRelativePath } from "../../messages/logic/file-chip-diff-enhancer.js";
 
 // Canonical-to-presentation turn state mapping is provided by the shared logic module
 // (mapCanonicalTurnStateToPresentationStatus) imported above.
@@ -245,10 +250,12 @@ function buildTokenRevealCss(
 		return undefined;
 	}
 
-	const rustStartOffsetMs =
-		rowTokenStream.firstDeltaProducedAtMonotonicMs - clockAnchor.rustMonotonicMs;
-	const browserElapsedMs = browserNowMs - clockAnchor.browserAnchorMs;
-	const baselineMs = rustStartOffsetMs - browserElapsedMs;
+	const baselineMs = resolveTokenRevealBaselineMs({
+		latestDeltaProducedAtMonotonicMs: rowTokenStream.lastDeltaProducedAtMonotonicMs,
+		clockAnchorRustMonotonicMs: clockAnchor.rustMonotonicMs,
+		clockAnchorBrowserMs: clockAnchor.browserAnchorMs,
+		browserNowMs,
+	});
 	const revealMode = reducedMotion ? "instant" : streamingAnimationMode;
 
 	const tokenRevealCss = {
@@ -552,34 +559,15 @@ const canonicalSessionLifecycle = $derived(
 const canonicalSessionTurnState = $derived<SessionTurnState | null>(
 	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
 );
-const canonicalPanelSessionSource = $derived.by(() => {
-	if (sessionId === null) {
-		return {
-			kind: "no_session" as const,
-		};
-	}
-
-	if (canonicalSessionLifecycle === null) {
-		return {
-			kind: "missing_canonical" as const,
-			sessionId,
-		};
-	}
-
-	return {
-		kind: "canonical" as const,
+const canonicalPanelSessionSource = $derived(
+	resolveCanonicalAgentPanelSessionSource({
+		sessionId,
 		lifecycle: canonicalSessionLifecycle,
 		activity: canonicalSessionActivity,
 		turnState: canonicalSessionTurnState,
-	};
-});
-const sessionTurnState = $derived(
-	canonicalPanelSessionSource.kind === "missing_canonical"
-		? "error"
-		: canonicalPanelSessionSource.kind === "canonical"
-			? mapCanonicalTurnStateToPresentationStatus(canonicalPanelSessionSource.turnState)
-			: "idle"
+	})
 );
+const sessionTurnState = $derived(resolveCanonicalAgentPanelTurnState(canonicalPanelSessionSource));
 const entriesCount = $derived(knownVisibleEntryCount);
 const hasSession = $derived(sessionId !== null);
 // Prefer active worktree path, then session worktree, then project paths.
@@ -1223,6 +1211,11 @@ const clampedReviewFileIndex = $derived.by(() => {
 let reviewDialogOpen = $state(false);
 let reviewDialogFilesState = $state<ModifiedFilesState | null>(null);
 let reviewDialogFileIndex = $state(0);
+let reviewDialogControls = $state<ReviewControlsSnapshot | null>(null);
+
+function handleReviewDialogControlsChange(controls: ReviewControlsSnapshot | null): void {
+	reviewDialogControls = controls;
+}
 
 const clampedReviewDialogFileIndex = $derived.by(() => {
 	const fileCount = reviewDialogFilesState?.fileCount ?? 0;
@@ -2242,7 +2235,18 @@ function handleQuestionSelect(event: AgentPanelQuestionSelectEvent): void {
 			(error) => {
 				toast.error(`Failed to answer question: ${error.message}`);
 			}
-		);
+	);
+}
+
+function handleToolFileSelect(event: AgentToolFileSelectEvent): void {
+	const projectPath = effectiveProjectPath ?? sessionProjectPath;
+	if (!projectPath) {
+		toast.error("No project is available for this file.");
+		return;
+	}
+
+	const relativePath = normalizeToProjectRelativePath(event.filePath, projectPath);
+	panelStore.openFilePanel(relativePath, projectPath, { ownerPanelId: effectivePanelId });
 }
 
 function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {
@@ -2447,6 +2451,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						onPlanBuild={handlePlanBuild}
 						onPlanCancel={handlePlanCancel}
 						onPlanViewFull={handlePlanViewFull}
+						onToolFileSelect={handleToolFileSelect}
 						{isPlanActionAvailable}
 					/>
 				</div>
@@ -2749,47 +2754,107 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	contentOverflow="hidden"
 	onOpenChange={handleReviewDialogOpenChange}
 >
-	{#snippet topLeft()}
-		<div class="flex min-w-0 items-center gap-1.5">
-			{#if !createdPr}
+	{#snippet topRight()}
+		{@const controls = reviewDialogControls}
+		{#if controls && controls.fileTotal > 1}
+			<div
+				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+			>
 				<button
 					type="button"
-					class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
-					disabled={createPrRunning || !effectivePathForGit}
-					onclick={() => void handleCreatePr()}
+					class="inline-flex h-full items-center justify-center px-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+					disabled={!controls.hasPrevPendingFile}
+					onclick={controls.onPrevFile}
+					aria-label="Previous file"
+					title="Previous file"
 				>
-					<span class="flex min-w-0 items-center gap-1">
-						<GitPullRequest
-							size={11}
-							weight="bold"
-							class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
-						/>
-						<span class="font-medium text-foreground leading-none">
-							{createPrLabel ?? "Open PR"}
-						</span>
-					</span>
-					<DiffPill
-						insertions={reviewDialogDiffStats.insertions}
-						deletions={reviewDialogDiffStats.deletions}
-						variant="plain"
-					/>
+					<CaretLeft size={10} weight="bold" />
 				</button>
-			{:else}
-				<div
-					class="flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+				<span
+					class="inline-flex h-full items-center justify-center px-1 font-medium tabular-nums text-foreground/80"
+					aria-label="File {controls.fileCurrent} of {controls.fileTotal}"
 				>
-					<span class="flex min-w-0 items-center gap-1">
-						<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
-						<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
-					</span>
-					<DiffPill
-						insertions={reviewDialogDiffStats.insertions}
-						deletions={reviewDialogDiffStats.deletions}
-						variant="plain"
+					{controls.fileCurrent}/{controls.fileTotal}
+				</span>
+				<button
+					type="button"
+					class="inline-flex h-full items-center justify-center px-1.5 text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+					disabled={!controls.hasNextPendingFile}
+					onclick={controls.onNextFile}
+					aria-label="Next file"
+					title="Next file"
+				>
+					<CaretRight size={10} weight="bold" />
+				</button>
+			</div>
+		{/if}
+
+		{#if controls}
+			<div
+				class="flex h-5 shrink-0 items-center rounded border border-border bg-muted/60 text-[11px]"
+			>
+				<button
+					type="button"
+					class="inline-flex h-full items-center gap-1 px-1.5 font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+					disabled={!controls.hasPendingHunks}
+					onclick={controls.onRejectFile}
+					title="Reject file"
+				>
+					<XCircle size={11} weight="fill" style="color: {Colors.red};" />
+					Undo
+				</button>
+				<div class="h-3 w-px bg-border/70"></div>
+				<button
+					type="button"
+					class="inline-flex h-full items-center gap-1 px-1.5 font-medium text-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+					disabled={!controls.hasPendingHunks}
+					onclick={controls.onAcceptFile}
+					title="Keep file"
+				>
+					<CheckCircle size={11} weight="fill" class="text-success" />
+					Keep
+				</button>
+			</div>
+		{/if}
+
+		{#if !createdPr}
+			<button
+				type="button"
+				class="group/open-pr flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-45"
+				disabled={createPrRunning || !effectivePathForGit}
+				onclick={() => void handleCreatePr()}
+			>
+				<span class="flex min-w-0 items-center gap-1">
+					<GitPullRequest
+						size={11}
+						weight="bold"
+						class="shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 					/>
-				</div>
-			{/if}
-		</div>
+					<span class="font-medium text-foreground leading-none">
+						{createPrLabel ?? "Open PR"}
+					</span>
+				</span>
+				<DiffPill
+					insertions={reviewDialogDiffStats.insertions}
+					deletions={reviewDialogDiffStats.deletions}
+					variant="plain"
+				/>
+			</button>
+		{:else}
+			<div
+				class="flex h-5 shrink-0 items-center justify-between gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
+			>
+				<span class="flex min-w-0 items-center gap-1">
+					<GitPullRequest size={11} weight="bold" class="shrink-0 text-success" />
+					<span class="font-medium text-foreground leading-none tabular-nums">#{createdPr}</span>
+				</span>
+				<DiffPill
+					insertions={reviewDialogDiffStats.insertions}
+					deletions={reviewDialogDiffStats.deletions}
+					variant="plain"
+				/>
+			</div>
+		{/if}
 	{/snippet}
 
 	{#if reviewDialogFilesState}
@@ -2803,6 +2868,8 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 			showCloseButton={false}
 			compact={true}
 			diffDensity="compact"
+			hideBottomWidget={true}
+			onControlsChange={handleReviewDialogControlsChange}
 			onClose={() => handleReviewDialogOpenChange(false)}
 			onFileIndexChange={(index) => (reviewDialogFileIndex = index)}
 		/>

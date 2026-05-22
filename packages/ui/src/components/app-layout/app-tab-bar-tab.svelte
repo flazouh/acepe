@@ -12,14 +12,24 @@
 		onclick?: () => void;
 		onclose?: () => void;
 		hideProjectBadge?: boolean;
+		activeContrast?: 'normal' | 'strong';
 	}
 
-	let { tab, onclick, onclose, hideProjectBadge = false }: Props = $props();
+	let {
+		tab,
+		onclick,
+		onclose,
+		hideProjectBadge = false,
+		activeContrast = 'normal',
+	}: Props = $props();
 
 	let isHovered = $state(false);
 	let isTruncated = $state(false);
 	let containerEl: HTMLSpanElement | undefined = $state();
 	let textEl: HTMLSpanElement | undefined = $state();
+	const activeTabClass = $derived(
+		activeContrast === 'strong' ? 'border-border/50 bg-accent' : 'border-border bg-card'
+	);
 
 	function handleMouseEnter() {
 		isHovered = true;
@@ -51,10 +61,10 @@
 					onmouseenter={handleMouseEnter}
 					onmouseleave={handleMouseLeave}
 				>
-						<div
-							class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer rounded-lg border bg-card transition-colors duration-150 {tab.isFocused
-								? 'border-border'
-								: 'border-border/50 hover:bg-accent'}"
+					<div
+						class="flex items-center gap-1 px-2 py-1 h-auto min-w-0 text-xs cursor-pointer rounded-lg border transition-colors duration-150 {tab.isFocused
+							? activeTabClass
+							: 'border-border/50 bg-card hover:bg-accent'}"
 						onclick={() => onclick?.()}
 						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {

@@ -86,21 +86,7 @@ impl AgentClient for OpenCodeHttpClient {
                 models_display: Default::default(),
                 provider_metadata: Some(self.provider.frontend_projection()),
             },
-            modes: SessionModes {
-                current_mode_id: "build".to_string(),
-                available_modes: vec![
-                    AvailableMode {
-                        id: "build".to_string(),
-                        name: "Build".to_string(),
-                        description: Some("Build mode".to_string()),
-                    },
-                    AvailableMode {
-                        id: "plan".to_string(),
-                        name: "Plan".to_string(),
-                        description: Some("Planning mode".to_string()),
-                    },
-                ],
-            },
+            modes: self.provider.default_session_modes(),
             available_commands,
             config_options: Vec::new(),
         };
@@ -120,7 +106,7 @@ impl AgentClient for OpenCodeHttpClient {
         response.modes = SessionModes {
             current_mode_id: resolved_capabilities
                 .current_mode_id
-                .unwrap_or_else(|| "build".to_string()),
+                .unwrap_or_else(|| "agent".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
@@ -154,21 +140,7 @@ impl AgentClient for OpenCodeHttpClient {
                 models_display: Default::default(),
                 provider_metadata: Some(self.provider.frontend_projection()),
             },
-            modes: SessionModes {
-                current_mode_id: "build".to_string(),
-                available_modes: vec![
-                    AvailableMode {
-                        id: "build".to_string(),
-                        name: "Build".to_string(),
-                        description: Some("Build mode".to_string()),
-                    },
-                    AvailableMode {
-                        id: "plan".to_string(),
-                        name: "Plan".to_string(),
-                        description: Some("Planning mode".to_string()),
-                    },
-                ],
-            },
+            modes: self.provider.default_session_modes(),
             available_commands,
             config_options: Vec::new(),
         };
@@ -188,7 +160,7 @@ impl AgentClient for OpenCodeHttpClient {
         response.modes = SessionModes {
             current_mode_id: resolved_capabilities
                 .current_mode_id
-                .unwrap_or_else(|| "build".to_string()),
+                .unwrap_or_else(|| "agent".to_string()),
             available_modes: resolved_capabilities.available_modes,
         };
         self.current_mode = Some(response.modes.current_mode_id.clone());
@@ -245,7 +217,7 @@ impl AgentClient for OpenCodeHttpClient {
         let agent = self
             .current_mode
             .clone()
-            .unwrap_or_else(|| "build".to_string());
+            .unwrap_or_else(|| "agent".to_string());
 
         tracing::info!(
             session_id = %request.session_id,

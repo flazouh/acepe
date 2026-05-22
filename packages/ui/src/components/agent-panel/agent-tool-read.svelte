@@ -1,15 +1,33 @@
 <script lang="ts">
+	import { CaretDown } from "phosphor-svelte";
+	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
+	import AgentToolCard from "./agent-tool-card.svelte";
+	import {
+		readPersistedReadExpanded,
+		writePersistedReadExpanded,
+	} from "./agent-tool-read-effects.js";
+	import {
+		getReadExpansionStorageKey,
+		getReadFileName,
+		getReadHeaderLabel,
+		hasReadSourceBody,
+		hasReadSourceExcerptHtml,
+	} from "./agent-tool-read-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
+		/** Stable tool id used to persist collapsed/expanded state */
+		toolCallId?: string | null;
 		/** File path being read */
 		filePath?: string | null;
 		/** File name (extracted from filePath if not provided) */
 		fileName?: string | null;
 		/** Optional provider-supplied excerpt for rich read displays */
 		sourceExcerpt?: string | null;
+		/** Optional Shiki-highlighted source excerpt HTML */
+		sourceExcerptHtml?: string | null;
 		/** Optional source range label (e.g. "12-48") */
 		sourceRangeLabel?: string | null;
 		/** Lines added (from git diff stats) */
@@ -26,6 +44,10 @@
 		interactive?: boolean;
 		/** Callback when file badge is clicked */
 		onSelect?: () => void;
+		/** Aria label to collapse read content */
+		ariaCollapseSource?: string;
+		/** Aria label to expand read content */
+		ariaExpandSource?: string;
 		/** Label when tool is running (e.g. "Reading") */
 		runningLabel?: string;
 		/** Label when tool is done (e.g. "Read") */
@@ -33,9 +55,11 @@
 	}
 
 	let {
+		toolCallId = null,
 		filePath,
 		fileName: propFileName,
 		sourceExcerpt = null,
+		sourceExcerptHtml = null,
 		sourceRangeLabel = null,
 		additions = 0,
 		deletions = 0,
@@ -44,30 +68,38 @@
 		iconBasePath = "",
 		interactive = false,
 		onSelect,
+		ariaCollapseSource = "Collapse read content",
+		ariaExpandSource = "Expand read content",
 		runningLabel = "Reading",
 		doneLabel = "Read",
 	}: Props = $props();
 
-	const isPending = $derived(status === "pending" || status === "running");
-	const derivedFileName = $derived(
-		propFileName ?? (filePath ? (filePath.split("/").pop() ?? filePath) : null)
+	const headerLabel = $derived(
+		getReadHeaderLabel(status, { runningLabel, doneLabel })
 	);
+	const derivedFileName = $derived(
+		getReadFileName({ filePath, fileName: propFileName })
+	);
+	const hasSourceExcerptHtml = $derived(hasReadSourceExcerptHtml(sourceExcerptHtml));
+	const hasSourceBody = $derived(hasReadSourceBody({ sourceRangeLabel, sourceExcerpt }));
+	const storageKey = $derived(getReadExpansionStorageKey({ toolCallId, filePath }));
+	let isExpanded = $state(untrack(() => readPersistedReadExpanded(storageKey)));
+
+	function toggleExpanded() {
+		const next = !isExpanded;
+		isExpanded = next;
+		writePersistedReadExpanded(storageKey, next);
+	}
 </script>
 
-<!-- Mirrors desktop tool-call-read.svelte visual structure -->
-<div class="text-sm">
-	<div class="flex items-start gap-1.5">
-		<div class="flex min-w-0 flex-1 items-center gap-1.5">
-			<div class="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+<AgentToolCard>
+	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
+		<div class="flex min-w-0 flex-1 items-center gap-1">
+			<div class="flex min-w-0 items-center gap-1">
 				<ToolHeaderLeading kind="read" {status}>
-					{#if isPending}
-						{runningLabel}
-					{:else}
-						{doneLabel}
-					{/if}
+					{headerLabel}
 				</ToolHeaderLeading>
 
-				<!-- File chip with diff stats -->
 				{#if filePath}
 					<FilePathBadge
 						{filePath}
@@ -82,19 +114,94 @@
 			</div>
 		</div>
 		{#if durationLabel}
-					<span class="shrink-0 pt-0.5 font-sans text-sm text-muted-foreground/70">
+			<span class="ml-1.5 shrink-0 font-sans text-xs text-muted-foreground/70">
 				{durationLabel}
 			</span>
 		{/if}
+		{#if sourceExcerpt}
+			<button
+				type="button"
+				onclick={toggleExpanded}
+				class="ml-1 flex shrink-0 items-center justify-center rounded-md border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
+				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
+				aria-expanded={isExpanded}
+			>
+				<CaretDown
+					weight="fill"
+					size={9}
+					class="transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+				/>
+			</button>
+		{/if}
 	</div>
-	{#if sourceRangeLabel || sourceExcerpt}
-		<div class="mt-1.5 space-y-1 pl-5">
+	{#if hasSourceBody}
+		<div class="border-t border-border bg-muted/15">
 			{#if sourceRangeLabel}
-				<div class="font-sans text-sm text-muted-foreground/70">{sourceRangeLabel}</div>
+				<div class="px-2.5 py-1 font-sans text-xs text-muted-foreground/70">
+					{sourceRangeLabel}
+				</div>
 			{/if}
 			{#if sourceExcerpt}
-				<pre class="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 px-2 py-1 text-sm text-muted-foreground">{sourceExcerpt}</pre>
+				{#if hasSourceExcerptHtml}
+					<pre class="read-source read-source-shiki {isExpanded ? 'read-source-expanded' : 'read-source-collapsed'}"><code>{@html sourceExcerptHtml}</code></pre>
+				{:else}
+					<pre class="read-source {isExpanded ? 'read-source-expanded' : 'read-source-collapsed'}">{sourceExcerpt}</pre>
+				{/if}
 			{/if}
 		</div>
 	{/if}
-</div>
+</AgentToolCard>
+
+<style>
+	.read-source {
+		overflow: auto;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		padding: 0.375rem 0.625rem;
+		font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+		font-size: 0.6875rem;
+		line-height: 1.45;
+		color: color-mix(in srgb, var(--foreground) 72%, transparent);
+		margin: 0;
+	}
+
+	.read-source-collapsed {
+		max-height: 72px;
+	}
+
+	.read-source-expanded {
+		max-height: 180px;
+	}
+
+	.read-source code {
+		font: inherit;
+	}
+
+	.read-source-shiki :global(.line) {
+		display: block;
+		min-height: 1.45em;
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		font-size: 0.6875rem;
+		line-height: 1.45;
+	}
+
+	.read-source-shiki {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
+	.read-source-shiki code {
+		display: block;
+		font-size: 0;
+		line-height: 0;
+	}
+
+	.read-source-shiki :global(span) {
+		color: var(--shiki-light);
+	}
+
+	:global(.dark) .read-source-shiki :global(span) {
+		color: var(--shiki-dark);
+	}
+</style>

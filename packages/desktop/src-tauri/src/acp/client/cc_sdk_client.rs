@@ -20,7 +20,9 @@ use crate::acp::capability_resolution::{resolve_static_capabilities, ResolvedCap
 use crate::acp::client::{
     InitializeResponse, ListSessionsResponse, NewSessionResponse, ResumeSessionResponse,
 };
-use crate::acp::client_session::{default_modes, default_session_model_state, SessionModelState};
+use crate::acp::client_session::{
+    default_modes, default_session_model_state, SessionModelState, SessionModes,
+};
 use crate::acp::client_trait::AgentClient;
 use crate::acp::client_transport::{
     apply_interaction_response_for_request, persist_interaction_transition,
@@ -28,6 +30,9 @@ use crate::acp::client_transport::{
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::lifecycle::LifecycleStatus;
 use crate::acp::parsers::{get_parser, AgentType};
+use crate::acp::pending_prompt_registry::{
+    discard_pending_prompt_echo, remember_synthetic_user_prompt, synthetic_user_message_update,
+};
 use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
 use crate::acp::reconciler::session_tool::{classify_raw_tool_call, ToolClassificationHints};
@@ -1324,7 +1329,7 @@ impl ClaudeCcSdkClient {
             cwd.as_path(),
             status,
             model_state.clone(),
-            default_modes(),
+            self.provider.default_session_modes(),
         ) {
             model_state = SessionModelState {
                 available_models: resolved_capabilities.available_models,
@@ -1346,6 +1351,10 @@ impl ClaudeCcSdkClient {
         );
 
         model_state
+    }
+
+    fn hydrated_session_modes(&self) -> SessionModes {
+        self.provider.default_session_modes()
     }
 
     async fn discover_models_from_provider_cli(&self) -> Vec<crate::acp::client::AvailableModel> {
@@ -1562,6 +1571,8 @@ async fn run_streaming_bridge(
                                         &session_id,
                                     ),
                                 );
+                                dispatcher.begin_pre_reservation_drain(&session_id);
+                                dispatcher.drain_pre_reservation_events(&session_id);
                                 for buffered_update in buffered_pending_creation_updates.drain(..) {
                                     dispatch_cc_sdk_update(
                                         &dispatcher,
@@ -2771,7 +2782,7 @@ impl AgentClient for ClaudeCcSdkClient {
             sequence_id: None,
             session_open: None,
             models,
-            modes: default_modes(),
+            modes: self.hydrated_session_modes(),
             available_commands: vec![],
             config_options: vec![],
         })
@@ -2788,6 +2799,10 @@ impl AgentClient for ClaudeCcSdkClient {
     fn discard_pre_reservation_events(&self, session_id: &str, reason: &'static str) {
         self.dispatcher
             .discard_pre_reservation_events(session_id, reason);
+    }
+
+    fn publishes_user_prompt_on_send(&self) -> bool {
+        true
     }
 
     async fn resume_session(
@@ -2823,7 +2838,7 @@ impl AgentClient for ClaudeCcSdkClient {
             );
             return Ok(ResumeSessionResponse {
                 models,
-                modes: default_modes(),
+                modes: self.hydrated_session_modes(),
                 available_commands: vec![],
                 config_options: vec![],
             });
@@ -2845,7 +2860,7 @@ impl AgentClient for ClaudeCcSdkClient {
             .await?;
         Ok(ResumeSessionResponse {
             models,
-            modes: default_modes(),
+            modes: self.hydrated_session_modes(),
             available_commands: vec![],
             config_options: vec![],
         })
@@ -2891,7 +2906,7 @@ impl AgentClient for ClaudeCcSdkClient {
             sequence_id: None,
             session_open: None,
             models,
-            modes: default_modes(),
+            modes: self.hydrated_session_modes(),
             available_commands: vec![],
             config_options: vec![],
         })
@@ -2919,6 +2934,17 @@ impl AgentClient for ClaudeCcSdkClient {
     }
 
     async fn send_prompt_fire_and_forget(&mut self, request: PromptRequest) -> AcpResult<()> {
+        let synthetic_user_update = synthetic_user_message_update(
+            &request.session_id,
+            &request.prompt,
+            request.attempt_id.as_deref(),
+        );
+        if let Some(update) = synthetic_user_update.as_ref() {
+            remember_synthetic_user_prompt(update);
+            self.dispatcher
+                .enqueue(AcpUiEvent::session_update(update.clone()));
+        }
+
         // Concatenate all text blocks into a single prompt string.
         let text: String = request
             .prompt
@@ -2935,15 +2961,22 @@ impl AgentClient for ClaudeCcSdkClient {
 
         let text_len = text.len();
 
-        if self.sdk_client.is_none() {
-            self.connect_pending_session_with_initial_prompt(text)
-                .await?;
-            tracing::info!(session_id = ?self.session_id, prompt_len = text_len, "cc-sdk: connected with initial prompt");
-            return Ok(());
+        let send_result = if self.sdk_client.is_none() {
+            let result = self.connect_pending_session_with_initial_prompt(text).await;
+            if result.is_ok() {
+                tracing::info!(session_id = ?self.session_id, prompt_len = text_len, "cc-sdk: connected with initial prompt");
+            }
+            result
+        } else {
+            // Subsequent prompts: send via the existing client.
+            self.send_user_message_text(text).await
+        };
+
+        if send_result.is_err() && synthetic_user_update.is_some() {
+            discard_pending_prompt_echo(&request.session_id);
         }
 
-        // Subsequent prompts: send via the existing client.
-        self.send_user_message_text(text).await
+        send_result
     }
 
     async fn cancel(&mut self, session_id: String) -> AcpResult<()> {

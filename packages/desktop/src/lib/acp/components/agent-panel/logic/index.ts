@@ -60,6 +60,8 @@ export {
 	deriveCanonicalAgentPanelSessionState,
 	mapCanonicalSessionToPanelStatus,
 	mapSessionStatusToUI,
+	resolveCanonicalAgentPanelSessionSource,
+	resolveCanonicalAgentPanelTurnState,
 } from "./session-status-mapper";
 export { resolveVisibleSessionEntries } from "./visible-session-entries";
 export {

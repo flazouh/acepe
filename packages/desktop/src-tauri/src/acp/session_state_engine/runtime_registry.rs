@@ -1074,8 +1074,8 @@ mod tests {
         DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
     };
     use crate::acp::session_update::{
-        AvailableCommandsData, ConfigOptionData, ContentChunk, CurrentModeData, SessionUpdate,
-        UsageTelemetryData, UsageTelemetryTokens,
+        AvailableCommandsData, ConfigOptionData, ConfigOptionPresentation, ContentChunk,
+        CurrentModeData, SessionUpdate, UsageTelemetryData, UsageTelemetryTokens,
     };
     use crate::acp::session_update::{
         PermissionData, QuestionData, QuestionItem, QuestionOption, ToolArguments, ToolCallData,
@@ -1678,6 +1678,32 @@ mod tests {
         }
     }
 
+    fn create_read_tool_call(id: &str, file_path: &str, status: ToolCallStatus) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some(file_path.to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some(format!("Read {file_path}")),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
+
     #[test]
     fn registry_tracks_connection_and_capability_updates() {
         let registry = SessionGraphRuntimeRegistry::new();
@@ -1730,6 +1756,7 @@ mod tests {
                         description: None,
                         current_value: None,
                         options: Vec::new(),
+                        presentation: ConfigOptionPresentation::Advanced,
                     }],
                 },
                 session_id: Some(session_id.to_string()),
@@ -1989,6 +2016,72 @@ mod tests {
                     delta.turn_state,
                     crate::acp::projections::SessionTurnState::Running
                 );
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn read_tool_call_update_delta_carries_source_excerpt_from_raw_output() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let original_tool_call = SessionUpdate::ToolCall {
+            tool_call: create_read_tool_call(
+                "tool-read",
+                "/repo/src/lib.rs",
+                ToolCallStatus::InProgress,
+            ),
+            session_id: Some("session-1".to_string()),
+        };
+        let update = SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "tool-read".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                raw_output: Some(serde_json::json!({
+                    "content": "     1\tpub fn answer() -> i32 {\n     2\t    42\n     3\t}"
+                })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &original_tool_call);
+        projection_registry.apply_session_update("session-1", &update);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(7, 6, 7),
+                revision: SessionGraphRevision::new(8, 6, 8),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("tool call update delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.operation_patches[0].tool_call_id, "tool-read");
+                match &delta.operation_patches[0].arguments {
+                    ToolArguments::Read { source_context, .. } => {
+                        let source_context = source_context
+                            .as_ref()
+                            .expect("completed read patch should expose source context");
+                        assert_eq!(
+                            source_context.excerpt.as_deref(),
+                            Some("     1\tpub fn answer() -> i32 {\n     2\t    42\n     3\t}")
+                        );
+                    }
+                    other => panic!("expected read arguments, got {:?}", other),
+                }
             }
             other => panic!("expected delta payload, got {:?}", other),
         }

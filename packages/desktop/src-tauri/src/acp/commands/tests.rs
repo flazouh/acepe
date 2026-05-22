@@ -520,11 +520,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
         },
         modes: SessionModes {
             current_mode_id: "plan".to_string(),
-            available_modes: vec![crate::acp::client::AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: None,
-            }],
+            available_modes: vec![crate::acp::client::AvailableMode::new("plan", "Plan", None)],
         },
         available_commands: Some(vec![crate::acp::session_update::AvailableCommand {
             name: "edit".to_string(),
@@ -539,6 +535,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
             description: None,
             current_value: Some(json!("workspace-write")),
             options: Vec::new(),
+            presentation: crate::acp::session_update::ConfigOptionPresentation::Advanced,
         }]),
         autonomous_enabled: Some(false),
     };
@@ -2440,6 +2437,7 @@ async fn set_config_option_emits_sanitized_capabilities_envelopes() {
                 description: None,
                 current_value: None,
                 options: Vec::new(),
+                presentation: crate::acp::session_update::ConfigOptionPresentation::Advanced,
             }]),
             autonomous_enabled: Some(false),
         },

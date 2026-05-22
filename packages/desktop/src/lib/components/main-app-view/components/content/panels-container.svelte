@@ -18,7 +18,6 @@ import AgentPanelHost from "./agent-panel-host.svelte";
 import {
 	groupAllPanelsByProject,
 	sortProjectGroupsForMultiLayout,
-	type ProjectPanelGroup,
 } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
 import MultiProjectGroupLabel from "./multi-project-group-label.svelte";
@@ -27,63 +26,19 @@ import {
 	resolveProjectDeckContainerClass,
 	resolveProjectGroupDeckLayout,
 } from "./project-deck-layout.js";
+import {
+	buildPanelsContainerProjectTabs,
+	shouldShowPanelsContainerProjectTabBar,
+} from "./logic/panels-container-project-tabs.js";
+import { resolvePanelsContainerFullscreenTarget } from "./logic/panels-container-fullscreen-target.js";
+import {
+	createPanelsContainerProjectGroupStabilizer,
+	type PanelsContainerAgentProjectRef,
+} from "./logic/panels-container-project-group-stability.js";
 
 const pcLogger = createLogger({ id: "panels-container-perf", name: "PanelsContainerPerf" });
-type AgentProjectRef = {
-	readonly id: string;
-	readonly sessionProjectPath: string | null;
-	readonly sessionSequenceId: number | null;
-};
-type StableProjectGroup = ProjectPanelGroup<AgentProjectRef>;
-const stableGroupCache = new Map<string, StableProjectGroup>();
-
-function arraysMatchById<T extends { readonly id: string }>(
-	left: readonly T[],
-	right: readonly T[]
-): boolean {
-	return left.length === right.length && left.every((item, index) => item.id === right[index]?.id);
-}
-
-function agentArraysMatch(
-	left: readonly AgentProjectRef[],
-	right: readonly AgentProjectRef[]
-): boolean {
-	return (
-		left.length === right.length &&
-		left.every(
-			(item, index) =>
-				item.id === right[index]?.id &&
-				item.sessionProjectPath === right[index]?.sessionProjectPath &&
-				item.sessionSequenceId === right[index]?.sessionSequenceId
-		)
-	);
-}
-
-function stabilizeProjectGroups(nextGroups: readonly StableProjectGroup[]): StableProjectGroup[] {
-	const nextCache = new Map<string, StableProjectGroup>();
-	const stabilized = nextGroups.map((group) => {
-		const cached = stableGroupCache.get(group.projectPath);
-		const canReuse =
-			cached !== undefined &&
-			cached.projectName === group.projectName &&
-			cached.projectColor === group.projectColor &&
-			cached.projectIconSrc === group.projectIconSrc &&
-			agentArraysMatch(cached.agentPanels, group.agentPanels) &&
-			arraysMatchById(cached.filePanels, group.filePanels) &&
-			arraysMatchById(cached.reviewPanels, group.reviewPanels) &&
-			arraysMatchById(cached.terminalPanels, group.terminalPanels) &&
-			arraysMatchById(cached.browserPanels, group.browserPanels) &&
-			arraysMatchById(cached.gitPanels, group.gitPanels);
-		const value = canReuse ? cached : group;
-		nextCache.set(group.projectPath, value);
-		return value;
-	});
-	stableGroupCache.clear();
-	for (const [projectPath, group] of nextCache.entries()) {
-		stableGroupCache.set(projectPath, group);
-	}
-	return stabilized;
-}
+type AgentProjectRef = PanelsContainerAgentProjectRef;
+const projectGroupStabilizer = createPanelsContainerProjectGroupStabilizer();
 
 interface Props {
 	projectManager: ProjectManager;
@@ -129,7 +84,7 @@ const availableAgents = $derived(
 
 // Focused view: panels grouped by project (needed for view mode state and card layout)
 const allGroups = $derived.by(() =>
-	stabilizeProjectGroups(
+	projectGroupStabilizer.stabilize(
 		groupAllPanelsByProject(
 			agentPanelProjectRefs,
 			panelStore.filePanels.filter((panel) => panel.ownerPanelId === null),
@@ -177,24 +132,17 @@ const isMultiCardsMode = $derived(
 );
 
 // Project tab bar: shown in project mode when there are multiple projects to switch between.
-const projectTabs = $derived.by(() => {
-	const projects = viewModeState.focusedModeAllProjects ?? [];
-	return projects.map((project) => {
-		const group = allGroups.find((candidate) => candidate.projectPath === project.path);
-		return {
-			name: project.name,
-			color: project.color,
-			path: project.path,
-			iconSrc: project.iconSrc,
-			sessionCount: group ? group.agentPanels.length : 0,
-		};
-	});
-});
+const projectTabs = $derived(
+	buildPanelsContainerProjectTabs({
+		projects: viewModeState.focusedModeAllProjects ?? [],
+		groups: allGroups,
+	})
+);
 const showProjectTabBar = $derived(
-	viewModeState.layout === "cards" &&
-		viewModeState.activeProjectPath != null &&
-		projectTabs.length > 1 &&
-		!viewModeState.isFullscreenMode
+	shouldShowPanelsContainerProjectTabBar({
+		viewModeState,
+		projectTabCount: projectTabs.length,
+	})
 );
 
 // Explicitly-sorted groups for true multi-project rendering. project/single modes keep
@@ -233,40 +181,15 @@ const projectDeckContainerClass = $derived(
 
 const fullscreenTopLevelPanel = $derived.by(() => {
 	const fullscreenPanelRef = viewModeState.fullscreenPanel;
-	if (!fullscreenPanelRef) {
-		return null;
-	}
-
-	const fullscreenPanel = panelStore.getTopLevelPanel(fullscreenPanelRef.id);
-	if (fullscreenPanel?.kind === "agent") {
-		return { kind: "agent", panelId: fullscreenPanel.id } as const;
-	}
-
-	const filePanel = panelStore.filePanels.find(
-		(panel) => panel.ownerPanelId === null && panel.id === fullscreenPanelRef.id
-	);
-	if (filePanel) {
-		return { kind: "file", panel: filePanel } as const;
-	}
-
-	const reviewPanel = panelStore.reviewPanels.find((panel) => panel.id === fullscreenPanelRef.id);
-	if (reviewPanel) {
-		return { kind: "review", panel: reviewPanel } as const;
-	}
-
-	const terminalPanel = panelStore.terminalPanelGroups.find(
-		(panel) => panel.id === fullscreenPanelRef.id
-	);
-	if (terminalPanel) {
-		return { kind: "terminal", panel: terminalPanel } as const;
-	}
-
-	const browserPanel = panelStore.browserPanels.find((panel) => panel.id === fullscreenPanelRef.id);
-	if (browserPanel) {
-		return { kind: "browser", panel: browserPanel } as const;
-	}
-
-	return null;
+	return resolvePanelsContainerFullscreenTarget({
+		fullscreenPanelId: fullscreenPanelRef?.id ?? null,
+		topLevelPanel:
+			fullscreenPanelRef === null ? undefined : panelStore.getTopLevelPanel(fullscreenPanelRef.id),
+		filePanels: panelStore.filePanels,
+		reviewPanels: panelStore.reviewPanels,
+		terminalPanels: panelStore.terminalPanelGroups,
+		browserPanels: panelStore.browserPanels,
+	});
 });
 const fullscreenAgentPanelId = $derived(
 	viewModeState.isFullscreenMode && fullscreenTopLevelPanel?.kind === "agent"

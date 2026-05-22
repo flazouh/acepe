@@ -76,7 +76,12 @@ export interface ConnectionCompleteData {
 	models: SessionModelState;
 	modes: {
 		currentModeId?: string;
-		availableModes?: Array<{ id: string; name: string; description?: string | null }>;
+		availableModes?: Array<{
+			id: string;
+			name: string;
+			description?: string | null;
+			iconKind?: "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown";
+		}>;
 	};
 	availableCommands: AvailableCommand[] | null;
 	configOptions: ConfigOptionData[] | null;

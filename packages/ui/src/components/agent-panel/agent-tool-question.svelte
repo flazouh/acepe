@@ -1,15 +1,14 @@
 <script lang="ts">
-	import { Check } from "phosphor-svelte";
-	import { Square } from "phosphor-svelte";
-	import { XCircle } from "phosphor-svelte";
-	import { DotsThree } from "phosphor-svelte";
-	import { IconHelpCircleFilled } from "@tabler/icons-svelte";
 	import type { AgentQuestion, AgentToolStatus } from "./types.js";
 	import {
-		EmbeddedPanelHeader,
-		HeaderActionCell,
-		HeaderTitleCell,
-	} from "../panel-header/index.js";
+		formatQuestionAnswerLabels,
+		isQuestionOptionSelected,
+		shouldShowQuestionFooter,
+	} from "./agent-tool-question-state.js";
+	import AgentToolQuestionFooter from "./agent-tool-question-footer.svelte";
+	import AgentToolQuestionHeader from "./agent-tool-question-header.svelte";
+	import AgentToolQuestionOtherInput from "./agent-tool-question-other-input.svelte";
+	import AgentToolQuestionOptionRow from "./agent-tool-question-option-row.svelte";
 
 	interface Props {
 		/** Questions to display */
@@ -88,69 +87,40 @@
 
 	const isPending = $derived(status === "pending" || status === "running");
 
-	const isSingleQuestionSingleSelect = $derived.by(() => {
-		if (!questions?.[0]) return false;
-		return questions.length === 1 && !questions[0].multiSelect;
-	});
-
-	const hasOtherActive = $derived.by(() => {
-		for (const text of Object.values(otherText)) {
-			if (text.trim().length > 0) return true;
-		}
-		return false;
-	});
-
 	const showFooter = $derived(
-		isInteractive && questions && (!isSingleQuestionSingleSelect || hasOtherActive)
+		shouldShowQuestionFooter({
+			isInteractive,
+			questions,
+			otherText,
+		})
 	);
 
 	function isSelected(questionIndex: number, label: string): boolean {
-		return selectedLabels[questionIndex]?.includes(label) ?? false;
+		return isQuestionOptionSelected({
+			selectedLabels,
+			questionIndex,
+			label,
+		});
 	}
 
 	function formatAnswerLabels(questionIndex: number): string {
-		const labels = answeredLabels[questionIndex];
-		if (!labels || labels.length === 0) return noAnswerLabel;
-		return labels.join(", ");
+		return formatQuestionAnswerLabels({
+			answeredLabels,
+			questionIndex,
+			noAnswerLabel,
+		});
 	}
 
-	function handleOtherKeydown(
-		event: KeyboardEvent,
-		questionIndex: number,
-		multiSelect?: boolean,
-	): void {
-		if (event.key === "Enter" || event.key === "Escape") {
-			event.preventDefault();
-			event.stopPropagation();
-		}
-
-		onOtherKeydown?.(questionIndex, event.key, multiSelect);
-	}
 </script>
 
 {#if isAnswered || isCancelled}
 	<!-- Answered / Cancelled: compact embedded card -->
 	<div class="question-card text-sm">
-		<EmbeddedPanelHeader class="bg-accent/40">
-			<HeaderTitleCell compactPadding>
-				{#if isCancelled}
-					<XCircle size={14} weight="fill" class="shrink-0 mr-1 text-muted-foreground" />
-					<span class="question-title">{cancelledLabel}</span>
-				{:else}
-					<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
-					<span class="question-title">
-						{questions?.[0]?.header || questionLabel}
-					</span>
-				{/if}
-			</HeaderTitleCell>
-			{#if durationLabel}
-				<HeaderActionCell>
-					<span class="inline-flex items-center px-2 text-sm">
-						{durationLabel}
-					</span>
-				</HeaderActionCell>
-			{/if}
-		</EmbeddedPanelHeader>
+		<AgentToolQuestionHeader
+			state={isCancelled ? "cancelled" : "answered"}
+			title={isCancelled ? cancelledLabel : (questions?.[0]?.header || questionLabel)}
+			{durationLabel}
+		/>
 
 		<div class="question-body">
 			{#if isCancelled}
@@ -170,22 +140,12 @@
 	<!-- Interactive / Display question UI: embedded card -->
 	<div class="question-card text-sm">
 		<!-- Header bar -->
-		<EmbeddedPanelHeader class="bg-accent/40">
-			<HeaderTitleCell compactPadding>
-				<IconHelpCircleFilled class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
-				<span class="question-title">{questionLabel}</span>
-				{#if questions[0]?.header}
-					<span class="question-badge ml-1.5">{questions[0].header}</span>
-				{/if}
-			</HeaderTitleCell>
-			{#if durationLabel}
-				<HeaderActionCell>
-					<span class="inline-flex items-center px-2 text-sm">
-						{durationLabel}
-					</span>
-				</HeaderActionCell>
-			{/if}
-		</EmbeddedPanelHeader>
+		<AgentToolQuestionHeader
+			state="interactive"
+			title={questionLabel}
+			badge={questions[0]?.header ?? null}
+			{durationLabel}
+		/>
 
 		<!-- Question content -->
 		<div class="question-body">
@@ -199,76 +159,26 @@
 					{#if question.options && question.options.length > 0}
 						{#each question.options as option, i (i)}
 							{@const selected = isSelected(qIndex, option.label)}
-							{@const optionClasses = [
-								"flex items-center gap-2 px-2 py-1.5 rounded-sm transition-colors overflow-hidden",
-								selected ? "bg-accent" : "bg-muted/50",
-								isInteractive ? "cursor-pointer" : "",
-								isInteractive && !selected ? "hover:bg-muted" : "",
-								isInteractive && selected ? "hover:bg-accent/80" : "",
-							]
-								.filter(Boolean)
-								.join(" ")}
-							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-							<div
-								class={optionClasses}
-								role={isInteractive ? "button" : undefined}
-								tabindex={isInteractive ? 0 : -1}
-								onclick={() =>
-									isInteractive && onSelect?.(qIndex, option.label, question.multiSelect)}
-								onkeydown={(e) =>
-									isInteractive &&
-									e.key === "Enter" &&
-									onSelect?.(qIndex, option.label, question.multiSelect)}
-							>
-								<div class="flex items-start gap-2 w-full">
-									{#if question.multiSelect}
-										{#if selected}
-											<Check size={14} class="text-foreground shrink-0 mt-0.5" />
-										{:else}
-											<Square size={14} class="text-muted-foreground/70 shrink-0 mt-0.5" />
-										{/if}
-									{:else if selected}
-										<Check size={14} class="text-foreground shrink-0 mt-0.5" />
-									{/if}
-									<div class="flex flex-col min-w-0">
-										<span class="text-sm">{option.label}</span>
-										{#if option.description}
-											<span class="mt-0.5 text-sm">{option.description}</span>
-										{/if}
-									</div>
-								</div>
-							</div>
+							<AgentToolQuestionOptionRow
+								{option}
+								questionIndex={qIndex}
+								multiSelect={question.multiSelect}
+								{selected}
+								{isInteractive}
+								{onSelect}
+							/>
 						{/each}
 					{/if}
 
-					<!-- "Other" text input (only in interactive mode) -->
 					{#if isInteractive}
-						{@const currentOtherText = otherText[qIndex] ?? ""}
-						{@const hasOtherText = currentOtherText.trim().length > 0}
-						<div class="flex items-center gap-2 px-2 py-1.5 rounded-sm bg-muted/50 overflow-hidden">
-							<div class="flex items-center gap-2 w-full">
-								{#if hasOtherText}
-									<Check size={14} class="text-foreground shrink-0" />
-								{:else}
-									<DotsThree size={14} weight="bold" class="text-muted-foreground shrink-0" />
-								{/if}
-								<input
-									type="text"
-									class="flex-1 px-2 py-1 text-sm rounded-sm border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-									placeholder={otherPlaceholder}
-									value={currentOtherText}
-									oninput={(e) =>
-										onOtherInput?.(qIndex, e.currentTarget.value, question.multiSelect)}
-									onkeydown={(e) => handleOtherKeydown(e, qIndex, question.multiSelect)}
-								/>
-								<kbd
-									aria-label="Press Enter to submit"
-									class="pointer-events-none inline-flex h-5 shrink-0 items-center justify-center rounded border border-border/60 bg-background/70 px-1.5 text-sm"
-								>
-									Enter
-								</kbd>
-							</div>
-						</div>
+						<AgentToolQuestionOtherInput
+							questionIndex={qIndex}
+							multiSelect={question.multiSelect}
+							text={otherText[qIndex] ?? ""}
+							placeholder={otherPlaceholder}
+							{onOtherInput}
+							{onOtherKeydown}
+						/>
 					{/if}
 				</div>
 			{/each}
@@ -276,28 +186,13 @@
 
 		<!-- Footer actions (plan-card style) -->
 		{#if showFooter}
-			<div class="question-footer">
-				<div class="question-footer-left"></div>
-				<div class="question-footer-right">
-					<button
-						type="button"
-						class="question-footer-btn"
-						onclick={onCancel}
-					>
-						<XCircle size={12} weight="fill" class="shrink-0" />
-						{cancelLabel}
-					</button>
-					<button
-						type="button"
-						class="question-footer-btn question-footer-btn--submit"
-						disabled={!hasSelections}
-						onclick={onSubmit}
-					>
-						<Check size={12} weight="bold" class="shrink-0" />
-						{submitLabel}
-					</button>
-				</div>
-			</div>
+			<AgentToolQuestionFooter
+				{hasSelections}
+				{cancelLabel}
+				{submitLabel}
+				{onCancel}
+				{onSubmit}
+			/>
 		{/if}
 	</div>
 {:else if isPending}
@@ -318,63 +213,8 @@
 		overflow: hidden;
 	}
 
-	.question-title {
-		font-size: 0.875rem;
-		user-select: none;
-	}
-
-	.question-badge {
-		font-size: 0.875rem;
-		padding: 1px 6px;
-		border-radius: 0.25rem;
-		background: var(--muted);
-	}
-
 	.question-body {
 		padding: 8px 12px;
 	}
 
-	.question-footer {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1px;
-		border-top: 1px solid var(--border);
-		background: color-mix(in srgb, var(--accent) 30%, transparent);
-	}
-
-	.question-footer-left,
-	.question-footer-right {
-		display: flex;
-		align-items: center;
-		gap: 1px;
-	}
-
-	.question-footer-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 4px;
-		padding: 4px 8px;
-		font: inherit;
-		font-size: 0.875rem;
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		transition:
-			background-color 0.15s ease;
-	}
-
-	.question-footer-btn:hover:not(:disabled) {
-		background: color-mix(in srgb, var(--accent) 50%, transparent);
-	}
-
-	.question-footer-btn:disabled {
-		opacity: 0.4;
-		pointer-events: none;
-	}
-
-	.question-footer-btn--submit:hover:not(:disabled) {
-		background: color-mix(in srgb, var(--accent) 50%, transparent);
-	}
 </style>

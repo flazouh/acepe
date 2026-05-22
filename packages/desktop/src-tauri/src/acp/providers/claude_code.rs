@@ -10,7 +10,9 @@ use crate::acp::capability_resolution::{
     ResolvedCapabilityStatus,
 };
 use crate::acp::client::AvailableModel;
-use crate::acp::client_session::{default_modes, default_session_model_state};
+use crate::acp::client_session::{
+    default_session_model_state, AvailableMode, ModeIconKind, SessionModes,
+};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
@@ -89,15 +91,58 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn normalize_mode_id(&self, id: &str) -> String {
         match id {
-            "default" | "acceptEdits" | "bypassPermissions" => "build".to_string(),
+            "build" => "default".to_string(),
             other => other.to_string(),
         }
     }
 
     fn map_outbound_mode_id(&self, mode_id: &str) -> String {
         match mode_id {
-            "build" => "default".to_string(),
+            "build" | "default" => "default".to_string(),
             other => other.to_string(),
+        }
+    }
+
+    fn visible_mode_ids(&self) -> &'static [&'static str] {
+        &["default", "acceptEdits", "plan", "bypassPermissions"]
+    }
+
+    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
+        &["bypassPermissions"]
+    }
+
+    fn default_session_modes(&self) -> SessionModes {
+        SessionModes {
+            current_mode_id: "default".to_string(),
+            available_modes: vec![
+                AvailableMode::new(
+                    "default",
+                    "Default",
+                    Some("Claude Code default permission mode".to_string()),
+                )
+                .with_icon_kind(ModeIconKind::Agent),
+                AvailableMode::new(
+                    "acceptEdits",
+                    "Accept Edits",
+                    Some(
+                        "Claude Code accepts file edits but still asks for other permissions"
+                            .to_string(),
+                    ),
+                )
+                .with_icon_kind(ModeIconKind::Edit),
+                AvailableMode::new(
+                    "plan",
+                    "Plan",
+                    Some("Claude Code planning mode".to_string()),
+                )
+                .with_icon_kind(ModeIconKind::Plan),
+                AvailableMode::new(
+                    "bypassPermissions",
+                    "Bypass Permissions",
+                    Some("Claude Code skips permission prompts".to_string()),
+                )
+                .with_icon_kind(ModeIconKind::Bypass),
+            ],
         }
     }
 
@@ -303,7 +348,13 @@ fn resolve_claude_preconnection_capabilities<'a>(
             claude_code_model_catalog::spawn_catalog_refresh(app.clone(), reason);
         }
 
-        match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
+        match resolve_static_capabilities(
+            provider,
+            cwd,
+            status,
+            models,
+            provider.default_session_modes(),
+        ) {
             Ok(capabilities) => capabilities,
             Err(error) => failed_capabilities(provider, error.to_string()),
         }
@@ -740,17 +791,36 @@ mod tests {
     }
 
     #[test]
-    fn claude_provider_reports_autonomous_support_for_build_only() {
+    fn claude_provider_reports_autonomous_support_for_bypass_permissions_only() {
         let provider = ClaudeCodeProvider;
 
-        assert_eq!(provider.autonomous_supported_mode_ids(), &["build"]);
+        assert_eq!(
+            provider.autonomous_supported_mode_ids(),
+            &["bypassPermissions"]
+        );
     }
 
     #[test]
-    fn claude_provider_normalizes_bypass_permissions_to_build() {
+    fn claude_provider_preserves_permission_modes_as_canonical_capabilities() {
         let provider = ClaudeCodeProvider;
 
-        assert_eq!(provider.normalize_mode_id("bypassPermissions"), "build");
+        let modes = provider.default_session_modes();
+        let mode_ids: Vec<&str> = modes
+            .available_modes
+            .iter()
+            .map(|mode| mode.id.as_str())
+            .collect();
+
+        assert_eq!(
+            mode_ids,
+            vec!["default", "acceptEdits", "plan", "bypassPermissions"]
+        );
+        assert_eq!(provider.visible_mode_ids(), mode_ids.as_slice());
+        assert_eq!(provider.normalize_mode_id("acceptEdits"), "acceptEdits");
+        assert_eq!(
+            provider.normalize_mode_id("bypassPermissions"),
+            "bypassPermissions"
+        );
     }
 
     #[test]

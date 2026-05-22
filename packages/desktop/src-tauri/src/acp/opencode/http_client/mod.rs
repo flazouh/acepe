@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 
 use super::manager::OpenCodeManager;
 use crate::acp::client::{
-    AvailableMode, AvailableModel, InitializeResponse, NewSessionResponse, ResumeSessionResponse,
+    AvailableModel, InitializeResponse, NewSessionResponse, ResumeSessionResponse,
     SessionModelState, SessionModes,
 };
 use crate::acp::client_trait::AgentClient;

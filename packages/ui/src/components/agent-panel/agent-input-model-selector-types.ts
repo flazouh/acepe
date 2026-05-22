@@ -8,8 +8,6 @@ export interface AgentInputModelSelectorItem {
 	description?: string;
 	searchText?: string;
 	isFavorite?: boolean;
-	isPlanDefault?: boolean;
-	isBuildDefault?: boolean;
 	hideProviderMark?: boolean;
 }
 
@@ -31,7 +29,5 @@ export interface AgentInputModelSelectorReasoningGroup {
 	providerBrand?: ProviderBrand | null;
 	providerLabel?: string;
 	preferredVariantId?: string | null;
-	isPlanDefault?: boolean;
-	isBuildDefault?: boolean;
 	variants: readonly AgentInputModelSelectorVariant[];
 }

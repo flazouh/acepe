@@ -5,6 +5,12 @@
 	import type { AgentToolStatus } from "./types.js";
 	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
+	import {
+		getNextThinkingCollapsed,
+		getThinkingCollapseLabel,
+		getThinkingPreferenceState,
+		hasThinkingContent,
+	} from "./agent-tool-thinking-state.js";
 
 	interface Props {
 		/** Label to display (e.g. "Thinking", "Thinking for 3s", "Thought for 3s") */
@@ -43,13 +49,25 @@
 	}: Props = $props();
 
 	const thinkingPrefs = getThinkingPreferences();
-	const resolvedDefaultExpanded = $derived(defaultExpanded ?? thinkingPrefs?.defaultExpanded ?? false);
-	const resolvedToggle = $derived(onToggleDefaultExpand ?? thinkingPrefs?.onToggleDefaultExpand);
-
-	const hasContent = $derived(children !== undefined);
+	const preferenceState = $derived(
+		getThinkingPreferenceState({
+			defaultExpanded,
+			onToggleDefaultExpand,
+			contextDefaultExpanded: thinkingPrefs?.defaultExpanded,
+			contextToggleDefaultExpand: thinkingPrefs?.onToggleDefaultExpand,
+		})
+	);
+	const hasContent = $derived(hasThinkingContent(children !== undefined));
+	const collapseLabel = $derived(
+		getThinkingCollapseLabel({
+			collapsed,
+			ariaExpandLabel,
+			ariaCollapseLabel,
+		})
+	);
 
 	function toggleCollapsed(): void {
-		const next = !collapsed;
+		const next = getNextThinkingCollapsed(collapsed);
 		if (onCollapseChange) {
 			onCollapseChange(next);
 		}
@@ -64,30 +82,30 @@
 				type="button"
 				class="flex min-w-0 flex-1 cursor-pointer items-center gap-1 overflow-hidden border-0 bg-transparent p-0 text-left transition-colors hover:text-foreground"
 				onclick={toggleCollapsed}
-				aria-label={collapsed ? ariaExpandLabel : ariaCollapseLabel}
+				aria-label={collapseLabel}
 				aria-expanded={!collapsed}
 			>
 				<ToolLabel {status}>{headerLabel}</ToolLabel>
 			</button>
 
 			<!-- Expand toggle — show on hover, left of chevron -->
-			{#if resolvedToggle}
+			{#if preferenceState.onToggleDefaultExpand}
 				<Tooltip>
 					<TooltipTrigger>
 						{#snippet child({ props: triggerProps })}
 							<button
 								{...triggerProps}
 								type="button"
-								class="shrink-0 p-0.5 opacity-0 group-hover/thinking-header:opacity-100 transition-opacity hover:text-foreground {resolvedDefaultExpanded ? 'text-foreground' : 'text-muted-foreground'}"
-								onclick={(e) => { e.stopPropagation(); resolvedToggle(); }}
-								aria-label={resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+								class="shrink-0 p-0.5 opacity-0 group-hover/thinking-header:opacity-100 transition-opacity hover:text-foreground {preferenceState.defaultExpandClass}"
+								onclick={(e) => { e.stopPropagation(); preferenceState.onToggleDefaultExpand?.(); }}
+								aria-label={preferenceState.defaultExpandLabel}
 							>
-								<Brain size={11} weight={resolvedDefaultExpanded ? "fill" : "regular"} />
+								<Brain size={11} weight={preferenceState.defaultExpandIconWeight} />
 							</button>
 						{/snippet}
 					</TooltipTrigger>
 					<TooltipContent>
-						{resolvedDefaultExpanded ? "Collapse thinking by default" : "Expand thinking by default"}
+						{preferenceState.defaultExpandLabel}
 					</TooltipContent>
 				</Tooltip>
 			{/if}

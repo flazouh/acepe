@@ -7,6 +7,12 @@ import {
 } from "@pierre/diffs";
 import type { WorkerPoolManager } from "@pierre/diffs/worker";
 import { onDestroy, untrack } from "svelte";
+import {
+	getEditDiffCacheKey,
+	getEditDiffContainerClass,
+	getEditDiffFileContents,
+	isEditDiffClickable,
+} from "./agent-tool-edit-diff-state.js";
 
 interface AgentToolEditDiffProps {
 	/** The old string content (what was replaced). */
@@ -53,47 +59,24 @@ let fileDiffInstance: FileDiff<never> | null = $state(null);
 let isDisposed = $state(false);
 let renderGeneration = 0;
 
-const isClickable = $derived(!isExpanded && !isStreaming);
-
-// Simple FNV-1a hash for cache keys
-function hashContent(content: string): string {
-	let hash = 2_166_136_261;
-	for (let i = 0; i < content.length; i += 1) {
-		hash ^= content.charCodeAt(i);
-		hash = Math.imul(hash, 16_777_619);
-	}
-	return (hash >>> 0).toString(36);
-}
-
-function createCacheKey(...parts: (string | null | undefined)[]): string {
-	return parts.map((p) => hashContent(p ?? "")).join("-");
-}
+const isClickable = $derived(isEditDiffClickable({ isExpanded, isStreaming }));
 
 const cacheKey = $derived.by(() => {
-	if (!oldString && !newString) return null;
-	return `edit-inline-${createCacheKey(oldString, newString, fileName)}`;
+	return getEditDiffCacheKey({ oldString, newString, fileName });
 });
 
 const diffData = $derived.by(() => {
-	if (newString === null) return null;
+	const files = getEditDiffFileContents({
+		oldString,
+		newString,
+		fileName,
+		cacheKey,
+	});
+	if (!files) return null;
 
-	const effectiveFileName = fileName || "file.txt";
+	const fileDiff = parseDiffFromFile(files.oldFile, files.newFile);
 
-	const oldFile: FileContents = {
-		name: effectiveFileName,
-		contents: oldString || "",
-		cacheKey: cacheKey ? `${cacheKey}-old` : undefined,
-	};
-
-	const newFile: FileContents = {
-		name: effectiveFileName,
-		contents: newString,
-		cacheKey: cacheKey ? `${cacheKey}-new` : undefined,
-	};
-
-	const fileDiff = parseDiffFromFile(oldFile, newFile);
-
-	return { oldFile, newFile, fileDiff };
+	return { oldFile: files.oldFile, newFile: files.newFile, fileDiff };
 });
 
 // Auto-scroll to bottom during streaming
@@ -181,10 +164,7 @@ function handleContentClick(): void {
 }
 
 const containerClass = $derived.by(() => {
-	const base = "border-t border-border font-sans text-sm transition-colors duration-150";
-	const expandedClasses = isExpanded ? "max-h-[200px] overflow-y-auto" : "h-[72px] overflow-hidden";
-	const clickableClasses = isClickable ? "cursor-pointer hover:bg-muted/50" : "";
-	return `${base} ${expandedClasses} ${clickableClasses}`;
+	return getEditDiffContainerClass({ isExpanded, isClickable });
 });
 
 onDestroy(() => {

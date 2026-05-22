@@ -1,12 +1,22 @@
 <script lang="ts">
 	import { CheckCircle, XCircle, CaretDown } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import { scrollToEnd } from "./agent-tool-execute-effects.js";
+	import {
+		getExecuteCommandSegments,
+		getExecuteDisplayHtmls,
+		getExecuteHeaderText,
+		getExecuteStderrColor,
+		getFallbackCommandHtmls,
+		hasExecuteOutput,
+		isExecuteError,
+		isExecutePending,
+		isExecuteSuccess,
+		shouldUseCommandHtmls,
+		shouldUseOutputHtml,
+	} from "./agent-tool-execute-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
-	import {
-		splitCommandSegments,
-		highlightBashSegment,
-	} from "../../lib/bash-tokenizer.js";
 
 	interface Props {
 		command: string | null;
@@ -49,56 +59,29 @@
 
 	let isExpanded = $state(false);
 
-	const isPending = $derived(status === "pending" || status === "running");
-	const isSuccess = $derived(exitCode === 0);
-	const isError = $derived(exitCode !== undefined && exitCode !== 0);
+	const isPending = $derived(isExecutePending(status));
+	const isSuccess = $derived(isExecuteSuccess(exitCode));
+	const isError = $derived(isExecuteError(exitCode));
 	const hasOutput = $derived(
-		Boolean(stdout || stderr || stdoutHtml || stderrHtml)
+		hasExecuteOutput({ stdout, stderr, stdoutHtml, stderrHtml })
 	);
-
-	const segments = $derived(command ? splitCommandSegments(command) : []);
-	const fallbackHtmls = $derived(
-		segments.map((s) => highlightBashSegment(s))
+	const segments = $derived(getExecuteCommandSegments(command));
+	const fallbackHtmls = $derived(getFallbackCommandHtmls(segments));
+	const useShiki = $derived(shouldUseCommandHtmls(commandHtmls));
+	const displayHtmls = $derived(
+		getExecuteDisplayHtmls({ commandHtmls, fallbackHtmls })
 	);
-
-	const useShiki = $derived(
-		commandHtmls !== undefined && commandHtmls.length > 0
+	const headerText = $derived(
+		getExecuteHeaderText({
+			status,
+			durationLabel,
+			runningLabel,
+			finishedLabel,
+		})
 	);
-	const displayHtmls = $derived(useShiki ? commandHtmls! : fallbackHtmls);
-
-	const headerText = $derived.by(() => {
-		if (isPending) {
-			return durationLabel ? `Executing for ${durationLabel}` : runningLabel;
-		}
-		if (status === "blocked") return "Waiting for permission";
-		if (status === "degraded") return "Degraded";
-		if (status === "cancelled") return "Cancelled";
-		if (status === "error") return "Command failed";
-		return durationLabel ? `Executed in ${durationLabel}` : finishedLabel;
-	});
-
-	const stderrColor = $derived(
-		exitCode === 0 || exitCode === undefined
-			? "execute-stderr-warn"
-			: "execute-stderr-err"
-	);
-
-	const useStdoutShiki = $derived(typeof stdoutHtml === "string");
-	const useStderrShiki = $derived(typeof stderrHtml === "string");
-
-	/** Svelte action: scroll element to bottom on mount and content changes */
-	function scrollToEnd(node: HTMLElement) {
-		node.scrollTop = node.scrollHeight;
-		const observer = new MutationObserver(() => {
-			node.scrollTop = node.scrollHeight;
-		});
-		observer.observe(node, {
-			childList: true,
-			subtree: true,
-			characterData: true,
-		});
-		return { destroy() { observer.disconnect(); } };
-	}
+	const stderrColor = $derived(getExecuteStderrColor(exitCode));
+	const useStdoutShiki = $derived(shouldUseOutputHtml(stdoutHtml));
+	const useStderrShiki = $derived(shouldUseOutputHtml(stderrHtml));
 </script>
 
 <AgentToolCard dataTestid="agent-tool-execute-card">

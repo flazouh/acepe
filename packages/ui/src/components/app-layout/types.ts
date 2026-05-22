@@ -1,5 +1,5 @@
 export type AppTabStatus = "idle" | "running" | "done" | "error" | "unseen" | "question";
-export type AppTabMode = "build" | "plan" | null;
+export type AppTabMode = string | null;
 
 export interface AppTab {
   id: string;

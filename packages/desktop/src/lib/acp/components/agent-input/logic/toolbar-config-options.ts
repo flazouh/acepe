@@ -4,20 +4,8 @@ import type { Model } from "../../../application/dto/model.js";
 
 import { supportsReasoningEffortPicker } from "../../model-selector-logic.js";
 
-const EXCLUDED_TOOLBAR_CONFIG_OPTION_CATEGORIES = new Set(["mode", "model"]);
-
-function includesNormalizedFragment(value: string, fragment: string): boolean {
-	return value.toLowerCase().includes(fragment);
-}
-
 function isReasoningConfigOption(configOption: ConfigOptionData): boolean {
-	return (
-		includesNormalizedFragment(configOption.category, "thought") ||
-		includesNormalizedFragment(configOption.category, "reason") ||
-		includesNormalizedFragment(configOption.id, "thought") ||
-		includesNormalizedFragment(configOption.id, "reason") ||
-		includesNormalizedFragment(configOption.name, "reason")
-	);
+	return configOption.presentation === "compactReasoning";
 }
 
 function isBooleanLikeValue(value: ConfigOptionData["currentValue"]): boolean {
@@ -45,6 +33,13 @@ function isInteractiveConfigOption(configOption: ConfigOptionData): boolean {
 	return Array.isArray(configOption.options) && configOption.options.length > 0;
 }
 
+function isCompactToolbarOption(configOption: ConfigOptionData): boolean {
+	return (
+		configOption.presentation === "compactReasoning" ||
+		configOption.presentation === "compactSpeed"
+	);
+}
+
 export function getToolbarConfigOptions(
 	configOptions: readonly ConfigOptionData[] | null | undefined,
 	availableModels?: readonly Model[] | null | undefined,
@@ -60,16 +55,15 @@ export function getToolbarConfigOptions(
 	const toolbarConfigOptions: ConfigOptionData[] = [];
 
 	for (const configOption of configOptions) {
-		const normalizedCategory = configOption.category.toLowerCase();
-		if (EXCLUDED_TOOLBAR_CONFIG_OPTION_CATEGORIES.has(normalizedCategory)) {
-			continue;
-		}
-
 		if (shouldHideReasoningOption && isReasoningConfigOption(configOption)) {
 			continue;
 		}
 
 		if (!isInteractiveConfigOption(configOption)) {
+			continue;
+		}
+
+		if (!isCompactToolbarOption(configOption)) {
 			continue;
 		}
 

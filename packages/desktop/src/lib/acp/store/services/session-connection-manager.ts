@@ -30,8 +30,6 @@ import {
 	SessionNotFoundError,
 } from "../../errors/app-error.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
-import type { ModeType } from "../../types/agent-model-preferences.js";
-import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { createLogger } from "../../utils/logger.js";
 import * as preferencesStore from "../agent-model-preferences-store.svelte.js";
 import { api } from "../api.js";
@@ -155,16 +153,8 @@ export class SessionConnectionManager {
 	// HELPER METHODS
 	// ============================================
 
-	/**
-	 * Convert ACP mode ID to user-friendly mode type for preferences.
-	 * "plan" mode → plan, all others (e.g., "acceptEdits") → build
-	 */
-	private getModeType(modeId: string | undefined): ModeType {
-		return modeId === CanonicalModeId.PLAN ? CanonicalModeId.PLAN : CanonicalModeId.BUILD;
-	}
-
 	private supportsAutonomousMode(modeId: string | undefined): boolean {
-		return modeId === CanonicalModeId.BUILD;
+		return modeId === "agent" || modeId === "default" || modeId === "autopilot" || modeId === "build";
 	}
 
 	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
@@ -227,19 +217,6 @@ export class SessionConnectionManager {
 		}
 
 		return null;
-	}
-
-	private resolveDefaultModelForMode(
-		agentId: string,
-		modeId: string | undefined,
-		availableModels: readonly Model[]
-	): Model | null {
-		const defaultModelId = preferencesStore.getDefaultModel(agentId, this.getModeType(modeId));
-		if (!defaultModelId) {
-			return null;
-		}
-
-		return availableModels.find((model) => model.id === defaultModelId) ?? null;
 	}
 
 	/**
@@ -412,16 +389,7 @@ export class SessionConnectionManager {
 				const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
 				const targetModeChanged =
 					explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
-				const defaultModelForTargetMode = this.resolveDefaultModelForMode(
-					options.agentId,
-					targetMode ? targetMode.id : undefined,
-					availableModels
-				);
-				const targetModel = explicitInitialModel
-					? explicitInitialModel
-					: defaultModelForTargetMode
-						? defaultModelForTargetMode
-						: currentModel;
+				const targetModel = explicitInitialModel ?? currentModel;
 
 				const applyInitialSelection = hasExplicitInitialSelection
 					? (targetModeChanged && targetMode
@@ -432,13 +400,8 @@ export class SessionConnectionManager {
 								const shouldApplyExplicitModel =
 									explicitInitialModel !== null &&
 									(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
-								const shouldApplyModeDefaultModel =
-									explicitInitialModel === null &&
-									targetModeChanged &&
-									targetModel !== null &&
-									targetModel.id !== currentModel?.id;
 
-								if ((shouldApplyExplicitModel || shouldApplyModeDefaultModel) && targetModel) {
+								if (shouldApplyExplicitModel && targetModel) {
 									return api.setModel(sessionId, targetModel.id);
 								}
 
@@ -470,30 +433,6 @@ export class SessionConnectionManager {
 					.andThen((selection) => {
 						currentMode = selection.currentMode;
 						currentModel = selection.currentModel;
-
-						if (!hasExplicitInitialSelection) {
-							const defaultModel = this.resolveDefaultModelForMode(
-								options.agentId,
-								currentMode ? currentMode.id : undefined,
-								availableModels
-							);
-							if (defaultModel) {
-								currentModel = defaultModel;
-								logger.debug("Applied default model on session creation", {
-									sessionId,
-									agentId: options.agentId,
-									modeType: this.getModeType(currentMode ? currentMode.id : undefined),
-									modelId: defaultModel.id,
-								});
-								api.setModel(sessionId, defaultModel.id).mapErr((err) => {
-									logger.warn("Failed to set default model on ACP", {
-										sessionId,
-										modelId: defaultModel.id,
-										error: err,
-									});
-								});
-							}
-						}
 
 						const requestedAutonomous = options.initialAutonomousEnabled === true;
 						const canEnableAutonomous = this.supportsAutonomousMode(
@@ -947,22 +886,6 @@ export class SessionConnectionManager {
 						modelId: previousModelForMode,
 					});
 					return this.setModel(sessionId, previousModelForMode);
-				}
-
-				// No previous choice, check for default model for this mode
-				const modeType = this.getModeType(modeId);
-				const defaultModelId = preferencesStore.getDefaultModel(sessionIdentity.agentId, modeType);
-				if (
-					defaultModelId &&
-					availableModels.some((m) => m.id === defaultModelId) === true
-				) {
-					logger.debug("Applying default model for mode", {
-						sessionId,
-						modeId,
-						modeType,
-						modelId: defaultModelId,
-					});
-					return this.setModel(sessionId, defaultModelId);
 				}
 
 				return okAsync(undefined);

@@ -6,15 +6,19 @@ import AgentToolThinking from "./agent-tool-thinking.svelte";
 import AgentMessageMeta from "./agent-message-meta.svelte";
 import ToolHeaderLeading from "./tool-header-leading.svelte";
 import {
-groupAssistantChunks,
-} from "../../lib/assistant-message/assistant-chunk-grouper.js";
+findLastTextGroupIndex,
+getAssistantMessageContentFlags,
+getAssistantTextContent,
+getFilteredAssistantThoughtGroups,
+getSanitizedAssistantChunkGroups,
+getThinkingHeaderLabel,
+} from "./agent-assistant-message-state.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import {
 resolveVisibleAssistantMessageGroups,
 shouldStreamAssistantTextContent,
 shouldStreamAssistantThoughtContent,
 } from "./agent-assistant-message-visible-groups.js";
-import { sanitizeAssistantText } from "../../lib/assistant-message/assistant-text-sanitizer.js";
 import {
 createRafDedupeScheduler,
 scrollTailToVisibleEnd,
@@ -76,58 +80,31 @@ let {
 }: Props = $props();
 
 const groupedChunks = $derived.by(() => {
-	const grouped = groupAssistantChunks(message.chunks);
-
-	if (grouped.messageGroups.length > 0 && grouped.messageGroups[0].type === "text") {
-		const firstGroup = grouped.messageGroups[0];
-		const sanitized = sanitizeAssistantText(firstGroup.text);
-
-		if (sanitized.length === 0) {
-			grouped.messageGroups = grouped.messageGroups.slice(1);
-		} else {
-			grouped.messageGroups[0] = { type: "text", text: sanitized };
-		}
-	}
-
-	return grouped;
+	return getSanitizedAssistantChunkGroups(message);
 });
 
 const filteredThoughtGroups = $derived.by(() => {
-	const hasMessageGroups = groupedChunks.messageGroups.length > 0;
-	return groupedChunks.thoughtGroups.filter((group) => {
-		if (group.type !== "text") return true;
-		const trimmed = group.text.trim();
-		if (trimmed.length === 0) return false;
-		if (hasMessageGroups && !/[A-Za-z0-9]/.test(trimmed)) return false;
-		return true;
+	return getFilteredAssistantThoughtGroups({
+		thoughtGroups: groupedChunks.thoughtGroups,
+		hasMessageGroups: groupedChunks.messageGroups.length > 0,
 	});
 });
 
-const textContent = $derived(
-	groupedChunks.messageGroups
-		.filter((group) => group.type === "text")
-		.map((group) => group.text)
-		.join("")
+const textContent = $derived(getAssistantTextContent(groupedChunks.messageGroups));
+
+const lastThoughtTextGroupIndex = $derived(findLastTextGroupIndex(filteredThoughtGroups));
+
+const lastMessageTextGroupIndex = $derived(findLastTextGroupIndex(groupedChunks.messageGroups));
+
+const contentFlags = $derived(
+	getAssistantMessageContentFlags({
+		filteredThoughtGroups,
+		messageGroups: groupedChunks.messageGroups,
+	})
 );
-
-const lastThoughtTextGroupIndex = $derived.by(() => {
-	for (let index = filteredThoughtGroups.length - 1; index >= 0; index -= 1) {
-		if (filteredThoughtGroups[index]?.type === "text") return index;
-	}
-	return -1;
-});
-
-const lastMessageTextGroupIndex = $derived.by(() => {
-	for (let index = groupedChunks.messageGroups.length - 1; index >= 0; index -= 1) {
-		if (groupedChunks.messageGroups[index]?.type === "text") return index;
-	}
-	return -1;
-});
-
-const hasThinking = $derived(filteredThoughtGroups.length > 0);
-const hasMessageContent = $derived(groupedChunks.messageGroups.length > 0);
-const hasAnyContent = $derived(hasThinking || hasMessageContent);
-const showThinkingBlock = $derived(hasThinking);
+const hasMessageContent = $derived(contentFlags.hasMessageContent);
+const hasAnyContent = $derived(contentFlags.hasAnyContent);
+const showThinkingBlock = $derived(contentFlags.showThinkingBlock);
 
 let isCollapsed = $state(untrack(() => initiallyCollapsed));
 
@@ -146,19 +123,12 @@ const visibleMessageGroups = $derived.by(() => {
 
 const activeTokenRevealCss = $derived(isStreaming ? tokenRevealCss : undefined);
 
-const thinkingHeaderLabel = $derived.by(() => {
-	const ms = message.thinkingDurationMs;
-	if (isStreaming && ms != null && ms >= 0) {
-		const s = Math.round(ms / 1000);
-		return `Thinking for ${String(s <= 1 ? 1 : s)}s`;
-	}
-	if (isStreaming) return "Thinking";
-	if (ms != null && ms >= 0) {
-		const s = Math.round(ms / 1000);
-		return `Thought for ${String(s <= 1 ? 1 : s)}s`;
-	}
-	return "Thought";
-});
+const thinkingHeaderLabel = $derived(
+	getThinkingHeaderLabel({
+		isStreaming,
+		thinkingDurationMs: message.thinkingDurationMs,
+	})
+);
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();

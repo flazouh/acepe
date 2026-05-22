@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::AppHandle;
 
 use crate::acp::capability_resolution::ResolvedCapabilities;
-use crate::acp::client_session::{SessionModelState, SessionModes};
+use crate::acp::client_session::{agent_modes, SessionModelState, SessionModes};
 use crate::acp::client_trait::CommunicationMode;
 use crate::acp::client_updates::process_through_reconciler;
 use crate::acp::error::AcpResult;
@@ -386,12 +386,17 @@ pub trait AgentProvider: Send + Sync {
 
     /// Mode IDs visible to the UI for this provider.
     fn visible_mode_ids(&self) -> &'static [&'static str] {
-        &["build", "plan"]
+        &[]
     }
 
     /// Visible UI mode IDs that support Acepe-managed Autonomous execution.
     fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
-        &["build"]
+        &["agent"]
+    }
+
+    /// Provider-owned fallback modes used when the provider does not return any modes.
+    fn default_session_modes(&self) -> SessionModes {
+        agent_modes()
     }
 
     /// Resolve the provider-native runtime mode to apply for the current working directory.

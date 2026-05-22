@@ -99,6 +99,7 @@ function toModes(capabilities: ResolvedCapabilities): Mode[] {
 		id: mode.id,
 		name: mode.name,
 		description: mode.description ?? undefined,
+		iconKind: mode.iconKind,
 	}));
 }
 

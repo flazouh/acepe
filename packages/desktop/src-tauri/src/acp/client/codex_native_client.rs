@@ -113,7 +113,7 @@ impl CodexNativeClient {
             current_turn_id: StdArc::new(Mutex::new(None)),
             execution_profile: CodexExecutionProfile::Standard,
             config_state,
-            current_mode_id: "build".to_string(),
+            current_mode_id: "agent".to_string(),
             initialized: false,
             runtime_identity: None,
         })

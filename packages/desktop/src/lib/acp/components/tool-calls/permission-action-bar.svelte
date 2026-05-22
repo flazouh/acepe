@@ -27,6 +27,7 @@ const permissionStore = getPermissionStore();
 
 const hasAlwaysOption = $derived(permission.always && permission.always.length > 0);
 const compactDisplay = $derived(extractCompactPermissionDisplay(permission, projectPath));
+const selectedReply = $derived(permissionStore.getReplyInFlight(permission.id));
 
 function handleReject() {
 	permissionStore.reply(permission.id, "reject");
@@ -43,6 +44,16 @@ function handleAlwaysAllow() {
 const greenColor = "var(--success)";
 const redColor = Colors[COLOR_NAMES.RED];
 const purpleColor = Colors[COLOR_NAMES.PURPLE];
+const mutedIconColor = "var(--muted-foreground)";
+const rejectIconColor = $derived(
+	selectedReply === null || selectedReply === "reject" ? redColor : mutedIconColor
+);
+const alwaysIconColor = $derived(
+	selectedReply === null || selectedReply === "always" ? purpleColor : mutedIconColor
+);
+const allowIconColor = $derived(
+	selectedReply === null || selectedReply === "once" ? greenColor : mutedIconColor
+);
 const buttonClass = "justify-center shrink-0";
 </script>
 
@@ -67,19 +78,19 @@ const buttonClass = "justify-center shrink-0";
 
 	<div class="flex items-center justify-end gap-1" class:w-full={!inline && !compact}>
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleReject}>
-			<XCircle weight="fill" class="size-3 shrink-0" style="color: {redColor}" />
+			<XCircle weight="fill" class="size-3 shrink-0" style="color: {rejectIconColor}" />
 			<span>{"Deny"}</span>
 		</Button>
 
 		{#if hasAlwaysOption}
 			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAlwaysAllow}>
-				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {purpleColor}" />
+				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
 				<span>{"Always"}</span>
 			</Button>
 		{/if}
 
 		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAllowOnce}>
-			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {greenColor}" />
+			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
 			<span>{"Allow"}</span>
 		</Button>
 	</div>

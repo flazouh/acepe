@@ -13,7 +13,6 @@ import {
 	hasUsableModelsDisplayGroups,
 	isContextWindowOnlyMetrics,
 	isDefaultChoiceModelId,
-	isDefaultModel,
 	isSplitSelectorOpen,
 	setPrimarySelectorOpen,
 	setVariantSelectorOpen,
@@ -272,14 +271,6 @@ describe("model-selector-logic", () => {
 			const result = groupModelsForFallback([]);
 
 			expect(result).toEqual([]);
-		});
-	});
-
-	describe("isDefaultModel", () => {
-		it("returns true only when ids match", () => {
-			expect(isDefaultModel(undefined, "foo")).toBe(false);
-			expect(isDefaultModel("bar", "foo")).toBe(false);
-			expect(isDefaultModel("foo", "foo")).toBe(true);
 		});
 	});
 

@@ -116,7 +116,6 @@ const setSessionModelForMode = vi.fn();
 const updateModelsCache = vi.fn();
 const updateModelsDisplayCache = vi.fn();
 const updateModesCache = vi.fn();
-const getDefaultModel = vi.fn();
 const getCachedModelsDisplay = vi.fn();
 const getCachedProviderMetadata = vi.fn();
 const ensureLoaded = vi.fn();
@@ -131,7 +130,6 @@ vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	updateModelsDisplayCache,
 	updateProviderMetadataCache,
 	updateModesCache,
-	getDefaultModel,
 	getCachedModelsDisplay,
 	getCachedProviderMetadata,
 	ensureLoaded,
@@ -1201,7 +1199,6 @@ describe("SessionConnectionManager.createSession", () => {
 		vi.clearAllMocks();
 		ensureLoaded.mockReturnValue(okAsync(undefined));
 		getCachedModelsDisplay.mockReturnValue(null);
-		getDefaultModel.mockReturnValue(undefined);
 		setMode.mockReturnValue(okAsync(undefined));
 		setModel.mockReturnValue(okAsync(undefined));
 		newSession.mockReturnValue(
@@ -1702,63 +1699,6 @@ describe("SessionConnectionManager.createSession", () => {
 				agentId,
 				initialModeId: "plan",
 				initialModelId: "gpt-5.2-codex/medium",
-			},
-			createMockEventHandler()
-		);
-		result._unsafeUnwrap();
-
-		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
-		expect(setModel).toHaveBeenCalledWith(sessionId, "gpt-5.2-codex/medium");
-		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "plan", "gpt-5.2-codex/medium");
-	});
-
-	it("applies the target mode default model when only the initial mode is explicit", async () => {
-		newSession.mockReturnValue(
-			okAsync({
-				sessionId,
-				modes: {
-					currentModeId: "build",
-					availableModes: [
-						{ id: "build", name: "Build", description: null },
-						{ id: "plan", name: "Plan", description: null },
-					],
-				},
-				models: {
-					currentModelId: "gpt-5.2-codex",
-					availableModels: [
-						{
-							modelId: "gpt-5.2-codex/high",
-							name: "gpt-5.2-codex (high)",
-							description: null,
-						},
-						{
-							modelId: "gpt-5.2-codex/medium",
-							name: "gpt-5.2-codex (medium)",
-							description: null,
-						},
-					],
-				},
-				availableCommands: [],
-			})
-		);
-		getDefaultModel.mockImplementation((_agentId: string, modeType: string) =>
-			modeType === "plan" ? "gpt-5.2-codex/medium" : undefined
-		);
-
-		const manager = createManager({
-			stateReader,
-			stateWriter,
-			transientProjection,
-			capabilities,
-			entryManager,
-			connectionManager,
-		});
-
-		const result = await manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModeId: "plan",
 			},
 			createMockEventHandler()
 		);

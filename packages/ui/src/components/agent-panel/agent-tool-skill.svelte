@@ -5,6 +5,11 @@
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 	import { LoadingIcon } from "../icons/index.js";
+	import {
+		getSkillDisplayArgs,
+		getSkillDisplayName,
+		getSkillViewState,
+	} from "./agent-tool-skill-state.js";
 	import type { AgentToolStatus } from "./types.js";
 
 	interface Props {
@@ -50,18 +55,11 @@
 
 	let isExpanded = $state(false);
 
-	const isPending = $derived(status === "pending" || status === "running");
-	const isSuccess = $derived(status === "done");
-	const hasDescription = $derived(Boolean(description && description.trim().length > 0));
-	const hasContent = $derived(hasDescription);
-
-	// Format display name: /skillName
-	const displayName = $derived(skillName ? `/${skillName}` : null);
-
-	// Truncate args for header display
-	const displayArgs = $derived(
-		skillArgs && skillArgs.length > 40 ? skillArgs.slice(0, 40) + "..." : skillArgs
+	const viewState = $derived(
+		getSkillViewState({ status, skillName, description })
 	);
+	const displayName = $derived(getSkillDisplayName(skillName));
+	const displayArgs = $derived(getSkillDisplayArgs(skillArgs));
 
 	function toggleExpand() {
 		isExpanded = !isExpanded;
@@ -69,7 +67,7 @@
 </script>
 
 <AgentToolCard>
-	{#if isPending && !skillName}
+	{#if viewState.showLoadingFallback}
 		<!-- Loading state: skill name not yet streamed -->
 		<div class="flex h-7 items-start gap-1.5 px-2.5 py-0.5">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
@@ -78,7 +76,7 @@
 				</ToolLabel>
 			</div>
 		</div>
-	{:else if !skillName}
+	{:else if viewState.showMissingNameFallback}
 		<!-- No skill name -->
 		<div class="flex h-7 items-center px-2.5">
 			<span class="text-sm">{fallbackLabel}</span>
@@ -88,7 +86,7 @@
 		<div class="flex h-7 items-center justify-between gap-2 px-2.5">
 			<!-- Left side: icon + skill name + args -->
 			<div class="flex min-w-0 flex-1 items-center gap-2">
-				{#if isPending}
+				{#if viewState.isPending}
 					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
 					<TextShimmer class="shrink-0 text-sm">{displayName}</TextShimmer>
 				{:else}
@@ -109,16 +107,16 @@
 				{/if}
 				<!-- Status indicator -->
 				<div class="flex items-center gap-1 text-sm">
-					{#if isPending}
+					{#if viewState.isPending}
 						<ToolLabel {status}>{runningStatusLabel}</ToolLabel>
-					{:else if isSuccess}
+					{:else if viewState.isSuccess}
 						<Check size={12} weight="bold" />
 						<span class="text-sm">{doneStatusLabel}</span>
 					{/if}
 				</div>
 
 				<!-- Expand/Collapse button - only show when has content -->
-				{#if hasContent}
+				{#if viewState.hasContent}
 					<button
 						type="button"
 						onclick={toggleExpand}
@@ -136,7 +134,7 @@
 		</div>
 
 		<!-- Expandable content -->
-		{#if hasContent}
+		{#if viewState.hasContent}
 			<div
 				class="border-t border-border/50"
 				style="border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);"
@@ -144,7 +142,7 @@
 				{#if isExpanded}
 					<!-- Expanded view: description -->
 					<div class="px-3 py-2">
-						{#if hasDescription}
+						{#if viewState.hasDescription}
 							<p
 								class="m-0 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words text-sm"
 							>
@@ -160,7 +158,7 @@
 						class="block w-full px-3 py-2 bg-transparent border-none cursor-pointer text-left transition-colors hover:bg-accent/30"
 						aria-label={ariaExpandDescriptionLabel}
 					>
-						{#if hasDescription}
+						{#if viewState.hasDescription}
 							<p class="m-0 line-clamp-2 text-left text-sm">
 								{description}
 							</p>

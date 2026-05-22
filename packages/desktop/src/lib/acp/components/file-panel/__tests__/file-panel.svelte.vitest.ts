@@ -56,7 +56,8 @@ vi.mock("../file-panel-structured-view.svelte", async () => ({
 }));
 
 const getFileContentMock = vi.fn();
-const getProjectGitStatusMapMock = vi.fn();
+const getFileDiffMock = vi.fn();
+const getProjectGitStatusSummaryMapMock = vi.fn();
 const getProjectGitStatusMock = vi.fn((_projectPath: string) => ({
 	match: () => Promise.resolve(undefined),
 }));
@@ -65,13 +66,14 @@ vi.mock("../../../services/file-content-cache.svelte.js", () => ({
 	fileContentCache: {
 		getFileContent: (filePath: string, projectPath: string) =>
 			getFileContentMock(filePath, projectPath),
-		getFileDiff: vi.fn(),
+		getFileDiff: (filePath: string, projectPath: string) => getFileDiffMock(filePath, projectPath),
 	},
 }));
 
 vi.mock("../../../services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
-		getProjectGitStatusMap: (projectPath: string) => getProjectGitStatusMapMock(projectPath),
+		getProjectGitStatusSummaryMap: (projectPath: string) =>
+			getProjectGitStatusSummaryMapMock(projectPath),
 	},
 }));
 
@@ -100,9 +102,16 @@ describe("FilePanel", () => {
 	beforeEach(() => {
 		getFileContentMock.mockReset();
 		getFileContentMock.mockReturnValue(okAsync("const answer = 42;\n"));
+		getFileDiffMock.mockReset();
+		getFileDiffMock.mockReturnValue(
+			okAsync({
+				oldContent: "const answer = 41;\n",
+				newContent: "const answer = 42;\n",
+			})
+		);
 
-		getProjectGitStatusMapMock.mockReset();
-		getProjectGitStatusMapMock.mockReturnValue({
+		getProjectGitStatusSummaryMapMock.mockReset();
+		getProjectGitStatusSummaryMapMock.mockReturnValue({
 			match: (
 				onOk: (
 					statusMap: ReadonlyMap<
@@ -135,7 +144,7 @@ describe("FilePanel", () => {
 		cleanup();
 	});
 
-	it("uses the shared git-status cache instead of fetching project status directly", async () => {
+	it("uses the summary git-status cache instead of fetching full project status directly", async () => {
 		const view = render(FilePanel, {
 			panelId: "panel-1",
 			filePath: "/repo/src/file.ts",
@@ -152,7 +161,79 @@ describe("FilePanel", () => {
 			expect(view.getByTestId("deletions").textContent).toBe("0");
 		});
 
-		expect(getProjectGitStatusMapMock).toHaveBeenCalledWith("/repo");
+		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledWith("/repo");
 		expect(getProjectGitStatusMock).not.toHaveBeenCalled();
+	});
+
+	it("defers modified-file gutter diff loading until after the next paint", async () => {
+		const scheduledFrame: { current: FrameRequestCallback | null } = { current: null };
+		const requestAnimationFrameSpy = vi
+			.spyOn(globalThis, "requestAnimationFrame")
+			.mockImplementation((callback: FrameRequestCallback) => {
+				scheduledFrame.current = callback;
+				return 1;
+			});
+		const cancelAnimationFrameSpy = vi
+			.spyOn(globalThis, "cancelAnimationFrame")
+			.mockImplementation(() => {});
+
+		getProjectGitStatusSummaryMapMock.mockReturnValue({
+			match: (
+				onOk: (
+					statusMap: ReadonlyMap<
+						string,
+						{ path: string; status: string; insertions: number; deletions: number }
+					>
+				) => void
+			) => {
+				onOk(
+					new Map([
+						[
+							"src/file.ts",
+							{
+								path: "src/file.ts",
+								status: "M",
+								insertions: 5,
+								deletions: 1,
+							},
+						],
+					])
+				);
+				return Promise.resolve();
+			},
+		});
+
+		try {
+			render(FilePanel, {
+				panelId: "panel-1",
+				filePath: "/repo/src/file.ts",
+				projectPath: "/repo",
+				projectName: "repo",
+				projectColor: "#123456",
+				width: 420,
+				onClose: vi.fn(),
+				onResize: vi.fn(),
+			});
+
+			await waitFor(() => {
+				expect(scheduledFrame.current).not.toBeNull();
+			});
+
+			expect(getFileDiffMock).not.toHaveBeenCalled();
+
+			const frame = scheduledFrame.current;
+			expect(frame).not.toBeNull();
+			if (frame === null) {
+				throw new Error("Expected modified file gutter work to be scheduled");
+			}
+			frame(performance.now());
+
+			await waitFor(() => {
+				expect(getFileDiffMock).toHaveBeenCalledWith("/repo/src/file.ts", "/repo");
+			});
+		} finally {
+			requestAnimationFrameSpy.mockRestore();
+			cancelAnimationFrameSpy.mockRestore();
+		}
 	});
 });

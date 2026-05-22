@@ -136,6 +136,39 @@ describe("projectActivityEntry", () => {
 		expect(projection.latestToolEntry?.filePath).toBe("/repo/alpha.ts");
 		expect(projection.latestTool?.filePath).toBe("/repo/alpha.ts");
 	});
+
+	it("does not reuse a completed file edit as live activity when the graph is still running", () => {
+		const editTool: ToolCall = {
+			id: "edit-main-app-view",
+			name: "Edit",
+			kind: "edit",
+			arguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/repo/packages/desktop/src/lib/components/main-app-view.svelte",
+						oldString: "old",
+						newString: "new",
+					},
+				],
+			},
+			status: "completed",
+			awaitingPlanApproval: false,
+		};
+
+		const projection = projectActivityEntry({
+			activityKind: "streaming",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: editTool,
+			lastToolKind: "edit",
+			todoProgress: null,
+		});
+
+		expect(projection.selectedTool).toBeNull();
+		expect(projection.fileToolDisplayText).toBeNull();
+		expect(projection.latestToolEntry).toBeNull();
+	});
 });
 
 describe("projectSessionPreviewActivity", () => {

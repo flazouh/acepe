@@ -28,6 +28,7 @@ describe("toolbar-config-options", () => {
 					category: "fast_mode",
 					type: "boolean",
 					currentValue: false,
+					presentation: "compactSpeed",
 				},
 			])
 		).toEqual([
@@ -37,6 +38,7 @@ describe("toolbar-config-options", () => {
 				category: "fast_mode",
 				type: "boolean",
 				currentValue: false,
+					presentation: "compactSpeed",
 			},
 		]);
 	});
@@ -50,6 +52,7 @@ describe("toolbar-config-options", () => {
 					category: "thought_level",
 					type: "select",
 					currentValue: "medium",
+					presentation: "compactReasoning",
 					options: [
 						{ name: "Low", value: "low" },
 						{ name: "Medium", value: "medium" },
@@ -61,6 +64,7 @@ describe("toolbar-config-options", () => {
 					category: "service_tier",
 					type: "select",
 					currentValue: "standard",
+					presentation: "compactSpeed",
 					options: [
 						{ name: "Standard", value: "standard" },
 						{ name: "Fast", value: "fast" },
@@ -74,6 +78,7 @@ describe("toolbar-config-options", () => {
 				category: "thought_level",
 				type: "select",
 				currentValue: "medium",
+					presentation: "compactReasoning",
 				options: [
 					{ name: "Low", value: "low" },
 					{ name: "Medium", value: "medium" },
@@ -85,6 +90,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
+					presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -103,6 +109,7 @@ describe("toolbar-config-options", () => {
 						category: "thought_level",
 						type: "select",
 						currentValue: "medium",
+					presentation: "compactReasoning",
 						options: [
 							{ name: "Low", value: "low" },
 							{ name: "Medium", value: "medium" },
@@ -114,6 +121,7 @@ describe("toolbar-config-options", () => {
 						category: "service_tier",
 						type: "select",
 						currentValue: "standard",
+					presentation: "compactSpeed",
 						options: [
 							{ name: "Standard", value: "standard" },
 							{ name: "Fast", value: "fast" },
@@ -133,6 +141,7 @@ describe("toolbar-config-options", () => {
 				category: "thought_level",
 				type: "select",
 				currentValue: "medium",
+					presentation: "compactReasoning",
 				options: [
 					{ name: "Low", value: "low" },
 					{ name: "Medium", value: "medium" },
@@ -144,6 +153,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
+					presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -162,6 +172,7 @@ describe("toolbar-config-options", () => {
 						category: "thought_level",
 						type: "select",
 						currentValue: "medium",
+					presentation: "compactReasoning",
 						options: [
 							{ name: "Low", value: "low" },
 							{ name: "Medium", value: "medium" },
@@ -173,6 +184,7 @@ describe("toolbar-config-options", () => {
 						category: "service_tier",
 						type: "select",
 						currentValue: "standard",
+					presentation: "compactSpeed",
 						options: [
 							{ name: "Standard", value: "standard" },
 							{ name: "Fast", value: "fast" },
@@ -206,6 +218,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
+					presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -223,8 +236,58 @@ describe("toolbar-config-options", () => {
 					category: "status",
 					type: "label",
 					currentValue: "ready",
+					presentation: "advanced",
 				},
 			])
 		).toEqual([]);
+	});
+
+	it("drops provider controls that are already represented by mode and autonomous UI", () => {
+		expect(
+			getToolbarConfigOptions([
+				{
+					id: "reasoning_effort",
+					name: "Reasoning Effort",
+					category: "reasoning",
+					type: "select",
+					currentValue: "medium",
+					presentation: "compactReasoning",
+					options: [
+						{ name: "Low", value: "low" },
+						{ name: "Medium", value: "medium" },
+					],
+				},
+				{
+					id: "agent",
+					name: "Agent",
+					category: "agent",
+					type: "select",
+					currentValue: "copilot",
+					presentation: "hidden",
+					options: [{ name: "Copilot", value: "copilot" }],
+				},
+				{
+					id: "allow_all",
+					name: "Allow All",
+					category: "permission",
+					type: "boolean",
+					currentValue: false,
+					presentation: "hidden",
+				},
+			])
+		).toEqual([
+			{
+				id: "reasoning_effort",
+				name: "Reasoning Effort",
+				category: "reasoning",
+				type: "select",
+				currentValue: "medium",
+					presentation: "compactReasoning",
+				options: [
+					{ name: "Low", value: "low" },
+					{ name: "Medium", value: "medium" },
+				],
+			},
+		]);
 	});
 });

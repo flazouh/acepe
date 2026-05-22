@@ -6,6 +6,7 @@ import type {
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
+	AgentToolFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
 import { setContext, untrack } from "svelte";
@@ -19,12 +20,12 @@ import ContentBlockRouter from "../../messages/content-block-router.svelte";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
 import { getPermissionStore } from "../../../store/permission-store.svelte.js";
+import { getSessionStore } from "../../../store/session-store.svelte.js";
 import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,
 } from "../logic/graph-scene-entry-match.js";
 import {
-	buildSceneDisplayRows,
 	getLatestSceneDisplayRevealTargetKey,
 	getSceneDisplayRowKey,
 	getSceneDisplayRowTimestampMs,
@@ -33,6 +34,7 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
+import { createSceneDisplayRowsReadModel } from "../logic/scene-display-row-read-model.js";
 import {
 	buildNativeFallbackWindow,
 	shouldRetryNativeFallback,
@@ -75,6 +77,7 @@ const MAX_EMPTY_RENDER_FRAMES = 4;
 const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
 const COMPACT_TOOL_NATIVE_ENTRY_LIMIT = 80;
 const NEAR_EDGE_THRESHOLD_PX = 24;
+const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 type SceneContentViewportProps = {
 	panelId: string;
 	sceneEntries?: readonly AgentPanelSceneEntryModel[];
@@ -96,12 +99,15 @@ type SceneContentViewportProps = {
 	onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
 	onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 	onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 };
 
 type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
 
 const permissionStore = getPermissionStore();
+const sessionStore = getSessionStore();
+const sceneRowsReadModel = createSceneDisplayRowsReadModel();
 
 let {
 	panelId,
@@ -119,6 +125,7 @@ let {
 	onPlanBuild,
 	onPlanCancel,
 	onPlanViewFull,
+	onToolFileSelect,
 	isPlanActionAvailable,
 }: SceneContentViewportProps = $props();
 
@@ -395,11 +402,22 @@ function getAttachedPermissionForEntry(
 		return undefined;
 	}
 
-	return permissionStore.getForToolCall(sessionId, entry.toolCallId);
+	const pendingPermission = permissionStore.getForToolCall(sessionId, entry.toolCallId);
+	if (pendingPermission !== undefined) {
+		return pendingPermission;
+	}
+
+	const answeredPermission = permissionStore.getAnsweredForToolCall(sessionId, entry.toolCallId);
+	if (answeredPermission !== null) {
+		sessionStore.isToolCallExecuting(sessionId, entry.toolCallId);
+		return answeredPermission.permission;
+	}
+
+	return undefined;
 }
 
 // ===== DISPLAY ENTRIES =====
-const mergedEntries = $derived(buildSceneDisplayRows(sceneEntries ?? []));
+const mergedEntries = $derived(sceneRowsReadModel.getRows(sceneEntries ?? EMPTY_SCENE_ENTRIES));
 
 const thinkingIndicatorStartedAtMs = $derived.by(() => {
 	if (!isWaitingForResponse) {
@@ -1241,6 +1259,7 @@ export function scrollToTop() {
 						{onPlanBuild}
 						{onPlanCancel}
 						{onPlanViewFull}
+						{onToolFileSelect}
 						{isPlanActionAvailable}
 					/>
 					{#if attachedPermission && sessionId}

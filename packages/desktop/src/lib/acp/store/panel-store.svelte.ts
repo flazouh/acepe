@@ -951,6 +951,11 @@ export class PanelStore {
 			sessionId !== null ? this.sessionStore.getSessionIdentity(sessionId) : undefined;
 		const sessionMetadata =
 			sessionId !== null ? this.sessionStore.getSessionMetadata(sessionId) : undefined;
+		const isPendingCreationSession =
+			sessionId !== null &&
+			sessionIdentity === undefined &&
+			typeof this.sessionStore.hasPendingCreationSession === "function" &&
+			this.sessionStore.hasPendingCreationSession(sessionId);
 		logger.info("[worktree-debug] updatePanelSession resolved session", {
 			panelId,
 			sessionId,
@@ -967,14 +972,25 @@ export class PanelStore {
 						pendingWorktreeEnabled: sessionId === null ? (p.pendingWorktreeEnabled ?? null) : null,
 						preparedWorktreeLaunch: sessionId === null ? (p.preparedWorktreeLaunch ?? null) : null,
 						projectPath:
-							sessionId === null ? p.projectPath : (sessionIdentity?.projectPath ?? null),
-						agentId: sessionId === null ? p.agentId : (sessionIdentity?.agentId ?? null),
+							sessionId === null || isPendingCreationSession
+								? p.projectPath
+								: (sessionIdentity?.projectPath ?? null),
+						agentId:
+							sessionId === null || isPendingCreationSession
+								? (p.agentId ?? p.selectedAgentId)
+								: (sessionIdentity?.agentId ?? null),
 						sourcePath:
-							sessionId === null ? p.sourcePath : (sessionMetadata?.sourcePath ?? null),
+							sessionId === null || isPendingCreationSession
+								? p.sourcePath
+								: (sessionMetadata?.sourcePath ?? null),
 						worktreePath:
-							sessionId === null ? p.worktreePath : (sessionIdentity?.worktreePath ?? null),
+							sessionId === null || isPendingCreationSession
+								? p.worktreePath
+								: (sessionIdentity?.worktreePath ?? null),
 						sessionTitle:
-							sessionId === null ? p.sessionTitle : (sessionMetadata?.title ?? null),
+							sessionId === null || isPendingCreationSession
+								? p.sessionTitle
+								: (sessionMetadata?.title ?? null),
 					}
 				: p
 		);

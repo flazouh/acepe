@@ -1,8 +1,6 @@
 import type { Model } from "../../../application/dto/model.js";
 import type { AvailableMode } from "../../../types/available-mode.js";
 
-import { CanonicalModeId } from "../../../types/canonical-mode-id.js";
-
 interface ResolveToolbarModeIdInput {
 	readonly liveCurrentModeId: string | null;
 	readonly provisionalModeId: string | null;
@@ -13,7 +11,6 @@ interface ResolveToolbarModelIdInput {
 	readonly liveCurrentModelId: string | null;
 	readonly provisionalModelId: string | null;
 	readonly availableModels: readonly Model[];
-	readonly preferredDefaultModelId: string | null;
 }
 
 interface ResolvePendingToolbarSelectionsInput {
@@ -44,16 +41,11 @@ export function resolveToolbarModeId(input: ResolveToolbarModeIdInput): string |
 		return provisionalModeId;
 	}
 
-	if (visibleModeIds.has(CanonicalModeId.BUILD)) {
-		return CanonicalModeId.BUILD;
-	}
-
 	return visibleModes[0]?.id ?? null;
 }
 
 export function resolveToolbarModelId(input: ResolveToolbarModelIdInput): string | null {
-	const { liveCurrentModelId, provisionalModelId, availableModels, preferredDefaultModelId } =
-		input;
+	const { liveCurrentModelId, provisionalModelId, availableModels } = input;
 	const availableModelIds = new Set(availableModels.map((model) => model.id));
 
 	if (liveCurrentModelId && availableModelIds.has(liveCurrentModelId)) {
@@ -62,10 +54,6 @@ export function resolveToolbarModelId(input: ResolveToolbarModelIdInput): string
 
 	if (provisionalModelId && availableModelIds.has(provisionalModelId)) {
 		return provisionalModelId;
-	}
-
-	if (preferredDefaultModelId && availableModelIds.has(preferredDefaultModelId)) {
-		return preferredDefaultModelId;
 	}
 
 	return availableModels[0]?.id ?? null;

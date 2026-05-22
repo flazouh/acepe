@@ -9,7 +9,6 @@ import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { getProviderBrandIcon } from "../../constants/thread-list-constants.js";
 import { getAgentStore } from "../../store/index.js";
 import type { TabBarTab } from "../../store/tab-bar-utils.js";
-import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { deriveAppTabStatus } from "./tab-bar-status.js";
 
 interface Props {
@@ -19,9 +18,11 @@ interface Props {
 	onSelectTab: (panelId: string) => void;
 	/** Callback when a tab is closed */
 	onCloseTab: (panelId: string) => void;
+	/** Stronger focused tab treatment for single-panel/fullscreen layouts. */
+	activeContrast?: "normal" | "strong";
 }
 
-let { tabs, onSelectTab, onCloseTab }: Props = $props();
+let { tabs, onSelectTab, onCloseTab, activeContrast = "normal" }: Props = $props();
 
 const themeState = useTheme();
 const agentStore = getAgentStore();
@@ -39,9 +40,7 @@ function resolveProviderIcon(agentId: string | null | undefined): string | undef
 function tabToAppTab(tab: TabBarTab): AppTab {
 	const status: AppTabStatus = deriveAppTabStatus(tab);
 
-	let mode: AppTabMode = null;
-	if (tab.currentModeId === CanonicalModeId.PLAN) mode = "plan";
-	else if (tab.currentModeId) mode = "build";
+	const mode: AppTabMode = tab.currentModeId ?? null;
 
 	return {
 		id: tab.panelId,
@@ -64,6 +63,7 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		{#each tabs as tab (tab.panelId)}
 			<AppTabBarTab
 				tab={tabToAppTab(tab)}
+				{activeContrast}
 				onclick={() => onSelectTab(tab.panelId)}
 				onclose={() => onCloseTab(tab.panelId)}
 			/>

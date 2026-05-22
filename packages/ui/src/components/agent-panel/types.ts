@@ -106,6 +106,12 @@ export interface AgentSearchMatch {
 	isMatch: boolean;
 }
 
+export interface AgentToolFileSelectEvent {
+	entryId: string;
+	toolCallId?: string;
+	filePath: string;
+}
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -122,6 +128,7 @@ export interface AgentToolEntry {
 	/** Absolute or relative file path — used to render a FilePathBadge */
 	filePath?: string;
 	sourceExcerpt?: string | null;
+	sourceExcerptHtml?: string | null;
 	sourceRangeLabel?: string | null;
 	status: AgentToolStatus;
 	startedAtMs?: number | null;

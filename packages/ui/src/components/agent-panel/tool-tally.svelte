@@ -6,7 +6,7 @@
 
 	type ToolCallTallyProps = {
 		mode?: "tools";
-		toolCalls: AgentToolEntry[];
+		toolCalls: readonly AgentToolEntry[];
 		inline?: boolean;
 		compact?: boolean;
 		filledColor?: string;

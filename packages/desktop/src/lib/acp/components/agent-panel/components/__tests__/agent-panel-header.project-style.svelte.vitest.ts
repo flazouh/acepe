@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AgentPanelHeader from "../agent-panel-header.svelte";
+import type { AgentPanelHeaderProps } from "../../types/agent-panel-header-props.js";
 
 vi.mock(
 	"svelte",
@@ -235,7 +236,7 @@ describe("AgentPanelHeader project-header style", () => {
 			onAgentChange: undefined,
 			onScrollToTop: undefined,
 			debugPanelState: null,
-		};
+		} satisfies AgentPanelHeaderProps;
 
 		const view = render(AgentPanelHeader, props);
 

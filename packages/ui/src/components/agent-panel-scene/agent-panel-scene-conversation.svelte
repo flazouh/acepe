@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { AgentPanelConversationModel } from "../agent-panel/types.js";
-	import type { EditToolTheme } from "../agent-panel/agent-panel-conversation-entry.svelte";
+	import type { EditToolTheme } from "../agent-panel/agent-tool-edit-theme.js";
 	import AgentPanelSceneEntry from "./agent-panel-scene-entry.svelte";
 
 	interface Props {

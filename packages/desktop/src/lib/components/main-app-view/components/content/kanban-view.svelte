@@ -2,19 +2,13 @@
 import {
 	Dialog,
 	DialogContent,
-	type AgentToolKind,
-	type KanbanCardData,
 	KanbanSceneBoard,
 	type KanbanSceneCardData,
 	type KanbanSceneColumnData,
 	type KanbanSceneModel,
-	type KanbanSceneMenuAction,
-	type KanbanTaskCardData,
-	type KanbanToolData,
-	type PrChecksItem,
 } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
+import { Colors } from "@acepe/ui/colors";
 import { SvelteMap } from "svelte/reactivity";
 import { onDestroy, onMount } from "svelte";
 import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
@@ -24,10 +18,6 @@ import { getProviderBrandIcon } from "$lib/acp/constants/thread-list-constants.j
 import {
 	copyTextToClipboard,
 } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
-import {
-	isActiveCompactActivityKind,
-	projectSessionPreviewActivity,
-} from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import PermissionBar from "$lib/acp/components/tool-calls/permission-bar.svelte";
 import { extractCompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
 import TodoHeader from "$lib/acp/components/todo-header.svelte";
@@ -39,8 +29,6 @@ import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte
 import { getWorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
 import { loadWorktreeEnabled } from "$lib/acp/components/worktree/worktree-storage.js";
 import {
-	deriveSessionTitleFromUserInput,
-	formatRichSessionTitle,
 	formatSessionTitleForDisplay,
 } from "$lib/acp/store/session-title-policy.js";
 import {
@@ -68,7 +56,6 @@ import type {
 	ThreadBoardItem,
 	ThreadBoardSource,
 } from "$lib/acp/store/thread-board/thread-board-item.js";
-import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
@@ -86,20 +73,43 @@ import KanbanThreadDialog from "./kanban-thread-dialog.svelte";
 import {
 	canSendWithoutSession,
 	resolveEmptyStateAgentId,
-	resolveEmptyStateWorktreePending,
-	resolveEmptyStateWorktreePendingForProjectChange,
 } from "./logic/empty-state-send-state.js";
-import { buildDesktopKanbanScene, type DesktopKanbanSceneEntry } from "./desktop-kanban-scene.js";
 import {
 	acknowledgeExplicitPanelReveal,
 	applyCompletionAttentionAction,
 	performExplicitPanelReveal,
 } from "../../logic/completion-acknowledgement.js";
 import {
-	resolveKanbanNewSessionDefaults,
+	buildKanbanNewSessionProjectChangeState,
+	buildKanbanNewSessionResetState,
+	resolveKanbanNewSessionOpenChangeAction,
 	type KanbanNewSessionRequest,
 } from "./kanban-new-session-dialog-state.js";
 import { KANBAN_SESSION_PANEL_WIDTH } from "./kanban-session-panel-width.js";
+import {
+	buildKanbanCard,
+	buildKanbanSceneCard as buildKanbanSceneCardModel,
+	buildKanbanSceneMenuActions,
+	buildOptimisticKanbanCards as buildOptimisticKanbanCardModels,
+	type OptimisticKanbanCard,
+} from "./logic/kanban-card-model.js";
+import { buildKanbanSceneColumns, buildKanbanSceneModel } from "./logic/kanban-scene-model.js";
+import {
+	buildKanbanPermissionFooter,
+	buildKanbanPlanApprovalFooter,
+	buildKanbanQuestionFooter,
+	resolveKanbanPlanApprovalPrompt,
+	resolveKanbanQuestionId,
+	resolveKanbanQuestionIndex,
+} from "./logic/kanban-footer-model.js";
+import {
+	buildKanbanOptionSelectCommands,
+	buildKanbanOtherInputCommands,
+	buildKanbanOtherKeydownCommands,
+	buildKanbanQuestionNavigationCommands,
+	buildKanbanQuestionSubmitPayload,
+	type KanbanQuestionInteractionCommand,
+} from "./logic/kanban-question-interaction-model.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -139,11 +149,6 @@ onDestroy(() => {
 
 const KANBAN_NEW_SESSION_PANEL_ID = "kanban-new-session-dialog";
 type KanbanThreadDialogMode = "inspect" | "close-panel";
-interface OptimisticKanbanCard {
-	readonly panelId: string;
-	readonly projectPath: string;
-	readonly card: KanbanCardData;
-}
 
 let newSessionOpen = $state(false);
 let newSessionDialogRef = $state<HTMLElement | null>(null);
@@ -212,26 +217,6 @@ const projectColorsByPath = $derived.by(() => {
 	}
 	return colors;
 });
-
-const SECTION_LABELS: Record<ThreadBoardStatus, () => string> = {
-	answer_needed: () => "Input needed",
-	planning: () => "Planning",
-	working: () => "Working",
-	needs_review: () => "Needs Review",
-	idle: () => "Done",
-	error: () => "Error",
-};
-
-const SECTION_ORDER: readonly ThreadBoardStatus[] = [
-	"answer_needed",
-	"planning",
-	"working",
-	"needs_review",
-	"idle",
-];
-
-// NOTE: SECTION_LABELS is also defined in queue-section.svelte. Both are
-// Thin label helpers that cannot be extracted without coupling the store; duplication is acceptable here.
 
 function getSessionDisplayName(item: ThreadBoardItem): string {
 	return formatSessionTitleForDisplay(item.title, item.projectName);
@@ -343,121 +328,14 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 
 const threadBoard = $derived.by(() => buildThreadBoard(threadBoardSources));
 
-function mapItemToCard(item: ThreadBoardItem): KanbanCardData {
-	const isWorking = isActiveCompactActivityKind(item.state.activity.kind);
-	const todoProgress = item.todoProgress
-		? {
-				current: item.todoProgress.current,
-				total: item.todoProgress.total,
-				label: item.todoProgress.label,
-			}
-		: null;
-	const activityProjection = projectSessionPreviewActivity({
-		activityKind: item.state.activity.kind,
-		currentStreamingToolCall: item.currentStreamingToolCall,
-		currentToolKind: item.currentToolKind,
-		lastToolCall: item.lastToolCall,
-		lastToolKind: item.lastToolKind,
-		todoProgress,
+function mapItemToCard(item: ThreadBoardItem) {
+	return buildKanbanCard({
+		item,
+		getAgentIcon: getCanonicalAgentIcon,
+		onOpenPrCheckDetails: (detailsUrl) => {
+			void openUrl(detailsUrl).catch(() => {});
+		},
 	});
-	const toolDisplay =
-		activityProjection.selectedTool && activityProjection.toolKind !== "think"
-			? activityProjection.selectedTool
-			: null;
-
-	const activityText: string | null = (() => {
-		if (!isWorking) return null;
-		if (toolDisplay) return null;
-		return "Thinking…";
-	})();
-
-	const isStreaming = isWorking;
-	const taskCard: KanbanTaskCardData | null = (() => {
-		if (
-			!activityProjection.showTaskSubagentList ||
-			activityProjection.taskSubagentTools.length === 0
-		) {
-			return null;
-		}
-
-		const summary = activityProjection.taskDescription
-			? activityProjection.taskDescription
-			: (activityProjection.taskSubagentSummaries[
-					activityProjection.taskSubagentSummaries.length - 1
-				] ?? null);
-		if (!summary) {
-			return null;
-		}
-
-		return {
-			summary,
-			isStreaming,
-			latestTool: activityProjection.latestTaskSubagentTool,
-			toolCalls: activityProjection.taskSubagentTools,
-		};
-	})();
-
-	const latestTool: KanbanToolData | null = (() => {
-		if (taskCard) return null;
-		if (!isWorking) return null;
-		return activityProjection.latestTool;
-	})();
-	const hasUnseenCompletion =
-		item.status === "needs_review" ? false : item.state.attention.hasUnseenCompletion;
-
-	const richTitleResult = formatRichSessionTitle(item.title, item.projectName);
-	const prFooter = item.linkedPr
-		? {
-				prNumber: item.linkedPr.prNumber,
-				state: item.linkedPr.state,
-				title: item.linkedPr.title,
-				url: item.linkedPr.url,
-				additions: item.linkedPr.additions,
-				deletions: item.linkedPr.deletions,
-				isLoading: item.linkedPr.isLoading,
-				hasResolvedDetails: item.linkedPr.hasResolvedDetails,
-				checks: item.linkedPr.checks,
-				isChecksLoading: item.linkedPr.isChecksLoading,
-				hasResolvedChecks: item.linkedPr.hasResolvedChecks,
-				onOpenCheck: (check: PrChecksItem) => {
-					if (check.detailsUrl == null) {
-						return;
-					}
-					void openUrl(check.detailsUrl).catch(() => {});
-				},
-			}
-		: null;
-
-	return {
-		id: item.sessionId,
-		title: richTitleResult.plainText,
-		richTitle: richTitleResult.richText,
-		agentIconSrc: getCanonicalAgentIcon(item.agentId),
-		agentLabel: item.agentId,
-		isAutoMode: item.autonomousEnabled === true,
-		projectName: item.projectName,
-		projectColor: item.projectColor,
-		projectIconSrc: item.projectIconSrc,
-		activityText,
-		isStreaming,
-		modeId: item.currentModeId,
-		diffInsertions: item.insertions,
-		diffDeletions: item.deletions,
-		errorText: item.connectionError
-			? item.connectionError
-			: item.state.connection === "error"
-				? "Connection error"
-				: null,
-		todoProgress,
-		taskCard,
-		latestTool,
-		hasUnseenCompletion,
-		sequenceId: item.sequenceId,
-		isWorktreeSession: Boolean(item.worktreePath),
-		worktreeDeleted: item.worktreeDeleted ?? false,
-		prFooter,
-		hideHeaderDiff: prFooter !== null,
-	};
 }
 
 function getPermissionRequest(item: ThreadBoardItem): PermissionRequest | null {
@@ -492,192 +370,48 @@ function getPlanApprovalRequest(item: ThreadBoardItem) {
 }
 
 function getPlanApprovalPrompt(item: ThreadBoardItem): string {
-	const approval = getPlanApprovalRequest(item);
-	if (!approval) {
-		return "Creating plan";
-	}
-
-	const currentTool =
-		item.currentStreamingToolCall?.id === approval.tool.callID
-			? item.currentStreamingToolCall
-			: null;
-	if (currentTool?.normalizedQuestions?.[0]?.question) {
-		return currentTool.normalizedQuestions[0].question;
-	}
-
-	const lastTool = item.lastToolCall?.id === approval.tool.callID ? item.lastToolCall : null;
-	return lastTool?.normalizedQuestions?.[0]?.question ?? "Creating plan";
+	return resolveKanbanPlanApprovalPrompt({
+		approval: getPlanApprovalRequest(item),
+		currentStreamingToolCall: item.currentStreamingToolCall,
+		lastToolCall: item.lastToolCall,
+	});
 }
 
-function buildSceneMenuActions(): readonly KanbanSceneMenuAction[] {
-	const actions: KanbanSceneMenuAction[] = [
-		{ id: "copy-id", label: "Copy session ID" },
-		{ id: "copy-title", label: "Copy session title" },
-		{ id: "open-raw", label: "Open raw session file" },
-		{ id: "open-in-acepe", label: "Open raw session in Acepe" },
-		{ id: "export-markdown", label: "Export as Markdown" },
-		{ id: "export-json", label: "Export as JSON" },
-	];
-
-	if (isDev) {
-		actions.push({ id: "copy-streaming-log-path", label: "Copy Streaming Log Path" });
-		actions.push({ id: "export-raw-streaming", label: "Open Streaming Log" });
-	}
-
-	return actions;
-}
-
-function buildSceneCard(card: KanbanCardData): KanbanSceneCardData {
+function buildSceneCard(card: ReturnType<typeof mapItemToCard>): KanbanSceneCardData {
 	const item = itemLookup.get(card.id);
 	const footer = item ? buildSceneFooter(item) : null;
-	const menuActions = item ? buildSceneMenuActions() : [];
+	const menuActions = item ? buildKanbanSceneMenuActions(isDev) : [];
 
-	return {
-		id: card.id,
-		title: card.title,
-		agentIconSrc: card.agentIconSrc,
-		agentLabel: card.agentLabel,
-		isAutoMode: card.isAutoMode,
-		projectName: card.projectName,
-		projectColor: card.projectColor,
-		projectIconSrc: card.projectIconSrc,
-		activityText: card.activityText,
-		isStreaming: card.isStreaming,
-		modeId: card.modeId,
-		diffInsertions: card.diffInsertions,
-		diffDeletions: card.diffDeletions,
-		errorText: card.errorText,
-		todoProgress: card.todoProgress,
-		taskCard: card.taskCard,
-		latestTool: card.latestTool,
-		hasUnseenCompletion: card.hasUnseenCompletion,
-		sequenceId: card.sequenceId,
-		isWorktreeSession: card.isWorktreeSession ?? false,
-		worktreeDeleted: card.worktreeDeleted ?? false,
+	return buildKanbanSceneCardModel({
+		card,
 		footer,
-		prFooter: card.prFooter ?? null,
 		menuActions,
 		showCloseAction: item !== undefined,
-		hideBody: footer?.kind === "permission",
-		flushFooter: false,
-		hideHeaderDiff: card.hideHeaderDiff ?? false,
-	};
+	});
 }
 
 function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
-	const cards: OptimisticKanbanCard[] = [];
-
-	for (const panel of panelStore.panels) {
-		if (panel.sessionId !== null || panel.projectPath === null || panel.selectedAgentId === null) {
-			continue;
-		}
-
-		const hotState = panelStore.getHotState(panel.id);
-		if (hotState.pendingUserEntry === null && hotState.pendingWorktreeSetup === null) {
-			continue;
-		}
-
-		const project = projects.find((candidate) => candidate.path === panel.projectPath) ?? null;
-		const entry = hotState.pendingUserEntry;
-		const pendingText =
-			entry && entry.type === "user" && entry.message.content.type === "text"
-				? entry.message.content.text
-				: "";
-		const title = formatSessionTitleForDisplay(
-			deriveSessionTitleFromUserInput(pendingText),
-			project ? project.name : null
-		);
-		const activityText =
-			hotState.pendingWorktreeSetup?.phase === "creating-worktree"
-				? "Creating worktree…"
-				: "Starting…";
-
-		cards.push({
-			panelId: panel.id,
-			projectPath: panel.projectPath,
-			card: {
-				id: panel.id,
-				title,
-				agentIconSrc: getCanonicalAgentIcon(panel.selectedAgentId),
-				agentLabel: panel.selectedAgentId,
-				isAutoMode: hotState.provisionalAutonomousEnabled,
-				projectName: project ? project.name : "Unknown",
-				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],
-				projectIconSrc: project ? (project.iconPath ?? null) : null,
-				activityText,
-				isStreaming: true,
-				modeId: null,
-				diffInsertions: 0,
-				diffDeletions: 0,
-				errorText: null,
-				todoProgress: null,
-				taskCard: null,
-				latestTool: null,
-				hasUnseenCompletion: false,
-				sequenceId: null,
-				isWorktreeSession: Boolean(panel.worktreePath),
-				worktreeDeleted: false,
-				prFooter: null,
-				hideHeaderDiff: false,
-			},
-		});
-	}
-
-	return cards;
+	return buildOptimisticKanbanCardModels({
+		panels: panelStore.panels,
+		projects,
+		getPanelHotState: (panelId) => panelStore.getHotState(panelId),
+		getAgentIcon: getCanonicalAgentIcon,
+	});
 }
 
 const sceneColumns = $derived.by((): readonly KanbanSceneColumnData[] => {
-	const columns: KanbanSceneColumnData[] = [];
-	for (const sectionId of SECTION_ORDER) {
-		columns.push({
-			id: sectionId,
-			label: SECTION_LABELS[sectionId](),
-		});
-	}
-	return columns;
+	return buildKanbanSceneColumns();
 });
 
 const sceneModel = $derived.by((): KanbanSceneModel => {
 	const optimisticKanbanCards = buildOptimisticKanbanCards();
-	const entries: DesktopKanbanSceneEntry[] = [];
 
-	for (let index = 0; index < optimisticKanbanCards.length; index += 1) {
-		const optimisticCard = optimisticKanbanCards[index];
-		if (!optimisticCard) {
-			continue;
-		}
-		entries.push({
-			columnId: "working",
-			card: buildSceneCard(optimisticCard.card),
-			orderKey: `optimistic:${index}:${optimisticCard.panelId}`,
-			source: "optimistic",
-		});
-	}
-
-	for (const sectionId of SECTION_ORDER) {
-		const section = threadBoard.find((group) => group.status === sectionId);
-		if (!section) {
-			continue;
-		}
-
-		for (let index = 0; index < section.items.length; index += 1) {
-			const item = section.items[index];
-			if (!item) {
-				continue;
-			}
-
-			entries.push({
-				columnId: sectionId,
-				card: buildSceneCard(mapItemToCard(item)),
-				orderKey: `session:${sectionId}:${item.lastActivityAt}:${item.sessionId}`,
-				source: "session",
-			});
-		}
-	}
-
-	return buildDesktopKanbanScene({
+	return buildKanbanSceneModel({
 		columns: sceneColumns,
-		entries,
+		optimisticCards: optimisticKanbanCards,
+		threadBoard,
+		buildOptimisticSceneCard: (optimisticCard) => buildSceneCard(optimisticCard.card),
+		buildSessionSceneCard: (item) => buildSceneCard(mapItemToCard(item)),
 	});
 });
 
@@ -873,46 +607,45 @@ async function handleMenuAction(sessionId: string, actionId: string): Promise<vo
 }
 
 function resetNewSessionState(request?: KanbanNewSessionRequest): void {
-	const defaults = resolveKanbanNewSessionDefaults({
+	const nextState = buildKanbanNewSessionResetState({
 		projects,
 		focusedProjectPath: panelStore.focusedViewProjectPath,
 		availableAgents,
 		selectedAgentIds: agentPreferencesStore.selectedAgentIds,
 		defaultAgentId: agentPreferencesStore.defaultAgentId,
-		requestedProjectPath: request?.projectPath ?? null,
-		requestedAgentId: request?.agentId ?? null,
+		request: request ?? null,
+		currentComposerKey: newSessionComposerKey,
+		fallbackModeId: CanonicalModeId.BUILD,
+		globalWorktreeDefault,
+		loadWorktreeEnabled: loadWorktreeEnabled,
+		panelId: KANBAN_NEW_SESSION_PANEL_ID,
 	});
 
-	selectedProjectPath = defaults.projectPath;
-	selectedAgentId = defaults.agentId;
-	newSessionInitialModeId = request?.modeId ?? CanonicalModeId.BUILD;
-	newSessionComposerKey += 1;
-	activeWorktreePath = null;
-	preparedWorktreeLaunch = null;
-	worktreePending = defaults.projectPath
-		? resolveEmptyStateWorktreePending({
-				activeWorktreePath: null,
-				globalWorktreeDefault,
-				loadEnabled: loadWorktreeEnabled,
-				panelId: KANBAN_NEW_SESSION_PANEL_ID,
-			})
-		: false;
+	selectedProjectPath = nextState.selectedProjectPath;
+	selectedAgentId = nextState.selectedAgentId;
+	newSessionInitialModeId = nextState.initialModeId;
+	newSessionComposerKey = nextState.composerKey;
+	activeWorktreePath = nextState.activeWorktreePath;
+	preparedWorktreeLaunch = nextState.preparedWorktreeLaunch;
+	worktreePending = nextState.worktreePending;
 }
 
 function handleNewSessionOpenChange(nextOpen: boolean): void {
-	if (nextOpen === newSessionOpen && pendingNewSessionRequest === null) {
+	const action = resolveKanbanNewSessionOpenChangeAction({
+		nextOpen,
+		currentOpen: newSessionOpen,
+		pendingRequest: pendingNewSessionRequest,
+	});
+
+	if (action.kind === "ignore") {
 		return;
 	}
 
-	newSessionOpen = nextOpen;
-	if (!nextOpen) {
-		pendingNewSessionRequest = null;
-		return;
-	}
-
-	const request = pendingNewSessionRequest;
 	pendingNewSessionRequest = null;
-	resetNewSessionState(request ? request : undefined);
+	newSessionOpen = nextOpen;
+	if (action.kind === "open") {
+		resetNewSessionState(action.request ? action.request : undefined);
+	}
 }
 
 function openNewSessionDialog(request?: KanbanNewSessionRequest): void {
@@ -929,14 +662,16 @@ function handleNewSessionAgentChange(agentId: string): void {
 }
 
 function handleNewSessionProjectChange(project: Project): void {
-	selectedProjectPath = project.path;
-	activeWorktreePath = null;
-	preparedWorktreeLaunch = null;
-	worktreePending = resolveEmptyStateWorktreePendingForProjectChange({
+	const nextState = buildKanbanNewSessionProjectChangeState({
+		projectPath: project.path,
 		globalWorktreeDefault,
-		loadEnabled: loadWorktreeEnabled,
+		loadWorktreeEnabled: loadWorktreeEnabled,
 		panelId: KANBAN_NEW_SESSION_PANEL_ID,
 	});
+	selectedProjectPath = nextState.selectedProjectPath;
+	activeWorktreePath = nextState.activeWorktreePath;
+	preparedWorktreeLaunch = nextState.preparedWorktreeLaunch;
+	worktreePending = nextState.worktreePending;
 }
 
 function handleBrowseProject(): void {
@@ -1003,8 +738,7 @@ function handleNewSessionSendError(panelId: string | null): void {
 }
 
 function resolveQuestionId(question: QuestionRequest): string {
-	const callId = question.tool?.callID;
-	return callId ? callId : question.id ? question.id : "";
+	return resolveKanbanQuestionId(question);
 }
 
 function getLiveInteractionSnapshot(item: ThreadBoardItem) {
@@ -1056,99 +790,32 @@ function buildSceneFooter(item: ThreadBoardItem) {
 	if (permission) {
 		const compactDisplay = extractCompactPermissionDisplay(permission, item.projectPath);
 		const sessionProgress = permissionStore.getSessionProgress(item.sessionId);
-		const progress = sessionProgress
-			? {
-					current:
-						sessionProgress.completed + 1 <= sessionProgress.total
-							? sessionProgress.completed + 1
-							: sessionProgress.total,
-					total: sessionProgress.total,
-					label: `Permission ${sessionProgress.total}`,
-				}
-			: null;
 
-		return {
-			kind: "permission" as const,
-			label: compactDisplay.label,
-			command: compactDisplay.command,
-			filePath: compactDisplay.filePath,
-			toolKind: toScenePermissionToolKind(compactDisplay.kind),
-			progress,
-			allowAlwaysLabel: permission.always && permission.always.length > 0 ? "Always" : undefined,
-			approveLabel: "Allow",
-			rejectLabel: "Deny",
-		};
+		return buildKanbanPermissionFooter({
+			permission,
+			compactDisplay,
+			sessionProgress,
+		});
 	}
 
 	if (item.state.pendingInput.kind === "plan_approval") {
-		return {
-			kind: "plan_approval" as const,
-			prompt: getPlanApprovalPrompt(item),
-			approveLabel: "Build",
-			rejectLabel: "Cancel",
-		};
+		return buildKanbanPlanApprovalFooter(getPlanApprovalPrompt(item));
 	}
 
 	const questionUiState = getQuestionUiState(item);
-	if (questionUiState?.currentQuestion) {
-		return {
-			kind: "question" as const,
-			currentQuestion: questionUiState.currentQuestion,
-			totalQuestions: questionUiState.totalQuestions,
-			hasMultipleQuestions: questionUiState.hasMultipleQuestions,
-			currentQuestionIndex: getCurrentQuestionIndex(item),
-			questionId: getPendingQuestionId(item),
-			questionProgress: questionUiState.questionProgress,
-			currentQuestionAnswered: questionUiState.currentQuestionAnswered,
-			currentQuestionOptions: questionUiState.currentQuestionOptions,
-			otherText: questionUiState.otherText,
-			otherPlaceholder: "Type your answer...",
-			showOtherInput: questionUiState.showOtherInput,
-			showSubmitButton: questionUiState.showSubmitButton,
-			canSubmit: questionUiState.canSubmit,
-			submitLabel: "Submit",
-		};
-	}
-
-	return null;
-}
-
-function toScenePermissionToolKind(kind: string): AgentToolKind | null {
-	switch (kind) {
-		case "read":
-		case "edit":
-		case "delete":
-		case "execute":
-		case "search":
-		case "fetch":
-		case "web_search":
-			return kind;
-		case "move":
-		case "other":
-			return "other";
-		default:
-			return null;
-	}
+	return buildKanbanQuestionFooter({
+		questionUiState,
+		currentQuestionIndex: getCurrentQuestionIndex(item),
+		questionId: getPendingQuestionId(item),
+	});
 }
 
 function getCurrentQuestionIndex(item: ThreadBoardItem): number {
-	if (item.state.pendingInput.kind !== "question") {
-		return 0;
-	}
-
-	const pendingQuestion = item.state.pendingInput.request;
-	const questionId = resolveQuestionId(pendingQuestion);
-	const current = questionIndexBySession.get(item.sessionId);
-	if (!current || current.questionId !== questionId) {
-		return 0;
-	}
-
-	const maxQuestionIndex = pendingQuestion.questions.length - 1;
-	if (current.currentQuestionIndex < 0 || current.currentQuestionIndex > maxQuestionIndex) {
-		return 0;
-	}
-
-	return current.currentQuestionIndex;
+	return resolveKanbanQuestionIndex({
+		pendingQuestion:
+			item.state.pendingInput.kind === "question" ? item.state.pendingInput.request : null,
+		current: questionIndexBySession.get(item.sessionId),
+	});
 }
 
 function setCurrentQuestionIndex(
@@ -1166,49 +833,68 @@ function getPendingQuestionId(item: ThreadBoardItem): string {
 	return resolveQuestionId(item.state.pendingInput.request);
 }
 
+function applyQuestionInteractionCommands(
+	commands: readonly KanbanQuestionInteractionCommand[]
+): void {
+	for (const command of commands) {
+		switch (command.kind) {
+			case "toggle-option":
+				selectionStore.toggleOption(command.questionId, command.questionIndex, command.optionLabel);
+				break;
+			case "set-single-option":
+				selectionStore.setSingleOption(command.questionId, command.questionIndex, command.optionLabel);
+				break;
+			case "set-current-question-index":
+				setCurrentQuestionIndex(command.sessionId, command.questionId, command.questionIndex);
+				break;
+			case "submit-question":
+				if (command.defer) {
+					requestAnimationFrame(() => {
+						handleSubmitQuestion(command.sessionId);
+					});
+				} else {
+					handleSubmitQuestion(command.sessionId);
+				}
+				break;
+			case "set-other-text":
+				selectionStore.setOtherText(command.questionId, command.questionIndex, command.value);
+				break;
+			case "set-other-active":
+				selectionStore.setOtherModeActive(command.questionId, command.questionIndex, command.active);
+				break;
+			case "clear-selections":
+				selectionStore.clearSelections(command.questionId, command.questionIndex);
+				break;
+		}
+	}
+}
+
 function handleOptionSelect(sessionId: string, currentQuestionIndex: number, optionLabel: string) {
 	const item = itemLookup.get(sessionId);
 	if (!item || item.state.pendingInput.kind !== "question") return;
-	const pendingQuestion = item.state.pendingInput.request;
-	const q = pendingQuestion.questions[currentQuestionIndex];
-	if (!q) return;
-	const questionId = resolveQuestionId(pendingQuestion);
-	if (q.multiSelect) {
-		selectionStore.toggleOption(questionId, currentQuestionIndex, optionLabel);
-		return;
-	}
-	selectionStore.setSingleOption(questionId, currentQuestionIndex, optionLabel);
-
-	const isSingleQuestionSingleSelect = pendingQuestion.questions.length === 1;
-	if (isSingleQuestionSingleSelect) {
-		requestAnimationFrame(() => {
-			handleSubmitQuestion(sessionId);
-		});
-		return;
-	}
-
-	if (currentQuestionIndex < pendingQuestion.questions.length - 1) {
-		setCurrentQuestionIndex(sessionId, questionId, currentQuestionIndex + 1);
-	}
+	applyQuestionInteractionCommands(
+		buildKanbanOptionSelectCommands({
+			sessionId,
+			pendingQuestion: item.state.pendingInput.request,
+			currentQuestionIndex,
+			optionLabel,
+		})
+	);
 }
 
 function handleOtherInput(sessionId: string, currentQuestionIndex: number, value: string) {
 	const item = itemLookup.get(sessionId);
 	if (!item || item.state.pendingInput.kind !== "question") return;
 	const pendingQuestion = item.state.pendingInput.request;
-	const currentQuestion = pendingQuestion.questions[currentQuestionIndex];
-	if (!currentQuestion) return;
 	const questionId = resolveQuestionId(pendingQuestion);
-	selectionStore.setOtherText(questionId, currentQuestionIndex, value);
-	if (value.trim() && !selectionStore.isOtherActive(questionId, currentQuestionIndex)) {
-		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, true);
-		if (!currentQuestion.multiSelect) {
-			selectionStore.clearSelections(questionId, currentQuestionIndex);
-		}
-	}
-	if (!value.trim() && selectionStore.isOtherActive(questionId, currentQuestionIndex)) {
-		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, false);
-	}
+	applyQuestionInteractionCommands(
+		buildKanbanOtherInputCommands({
+			pendingQuestion,
+			currentQuestionIndex,
+			value,
+			isOtherActive: selectionStore.isOtherActive(questionId, currentQuestionIndex),
+		})
+	);
 }
 
 function handleOtherKeydown(sessionId: string, currentQuestionIndex: number, key: string) {
@@ -1217,27 +903,29 @@ function handleOtherKeydown(sessionId: string, currentQuestionIndex: number, key
 	const pendingQuestion = item.state.pendingInput.request;
 	const questionId = resolveQuestionId(pendingQuestion);
 	const otherValue = selectionStore.getOtherText(questionId, currentQuestionIndex).trim();
-	if (key === "Enter" && otherValue) {
-		if (pendingQuestion.questions.length === 1) {
-			handleSubmitQuestion(sessionId);
-		} else if (currentQuestionIndex < pendingQuestion.questions.length - 1) {
-			setCurrentQuestionIndex(sessionId, questionId, currentQuestionIndex + 1);
-		} else {
-			handleSubmitQuestion(sessionId);
-		}
-	}
-	if (key === "Escape") {
-		selectionStore.setOtherModeActive(questionId, currentQuestionIndex, false);
-	}
+	applyQuestionInteractionCommands(
+		buildKanbanOtherKeydownCommands({
+			sessionId,
+			pendingQuestion,
+			currentQuestionIndex,
+			key,
+			otherValue,
+		})
+	);
 }
 
 function handlePrevQuestion(sessionId: string, currentQuestionIndex: number): void {
 	const item = itemLookup.get(sessionId);
 	if (!item || item.state.pendingInput.kind !== "question") return;
-	const questionId = resolveQuestionId(item.state.pendingInput.request);
-	if (currentQuestionIndex > 0) {
-		setCurrentQuestionIndex(sessionId, questionId, currentQuestionIndex - 1);
-	}
+	applyQuestionInteractionCommands(
+		buildKanbanQuestionNavigationCommands({
+			sessionId,
+			pendingQuestion: item.state.pendingInput.request,
+			currentQuestionIndex,
+			direction: "previous",
+			totalQuestions: item.state.pendingInput.request.questions.length,
+		})
+	);
 }
 
 function handleNextQuestion(
@@ -1247,10 +935,15 @@ function handleNextQuestion(
 ): void {
 	const item = itemLookup.get(sessionId);
 	if (!item || item.state.pendingInput.kind !== "question") return;
-	const questionId = resolveQuestionId(item.state.pendingInput.request);
-	if (currentQuestionIndex < totalQuestions - 1) {
-		setCurrentQuestionIndex(sessionId, questionId, currentQuestionIndex + 1);
-	}
+	applyQuestionInteractionCommands(
+		buildKanbanQuestionNavigationCommands({
+			sessionId,
+			pendingQuestion: item.state.pendingInput.request,
+			currentQuestionIndex,
+			direction: "next",
+			totalQuestions,
+		})
+	);
 }
 
 function handleSubmitQuestion(sessionId: string) {
@@ -1258,14 +951,16 @@ function handleSubmitQuestion(sessionId: string) {
 	if (!item || item.state.pendingInput.kind !== "question") return;
 	const pendingQuestion = item.state.pendingInput.request;
 	const questionId = resolveQuestionId(pendingQuestion);
-	if (!selectionStore.hasAnySelections(questionId)) return;
-	const answers = pendingQuestion.questions.map((q, questionIndex) => ({
-		questionIndex,
-		answers: selectionStore.getAnswers(questionId, questionIndex, q.multiSelect),
-	}));
-	selectionStore.clearQuestion(questionId);
+	const payload = buildKanbanQuestionSubmitPayload({
+		pendingQuestion,
+		hasAnySelections: selectionStore.hasAnySelections(questionId),
+		getAnswers: (questionIndex, multiSelect) =>
+			selectionStore.getAnswers(questionId, questionIndex, multiSelect),
+	});
+	if (!payload) return;
+	selectionStore.clearQuestion(payload.questionId);
 	questionIndexBySession.delete(sessionId);
-	questionStore.reply(pendingQuestion.id, answers, pendingQuestion.questions);
+	questionStore.reply(payload.requestId, payload.answers, payload.questions);
 }
 
 function handleApprovePlanApproval(sessionId: string): void {

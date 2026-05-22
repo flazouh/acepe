@@ -4,12 +4,7 @@
  * This module re-exports all stores and their types for convenient importing.
  */
 
-export type {
-	AgentDefaultModels,
-	AgentModelPreferencesState,
-	ModeType,
-	SessionModelPerMode,
-} from "../types/agent-model-preferences.js";
+export type { SessionModelPerMode } from "../types/agent-model-preferences.js";
 // Agent model preferences store (module-level, not context-based)
 export * as agentModelPreferencesStore from "./agent-model-preferences-store.svelte.js";
 export {

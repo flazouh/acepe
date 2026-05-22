@@ -22,7 +22,7 @@
 	import AgentUserMessage from "../agent-panel/agent-user-message.svelte";
 	import AgentMissingSceneEntry from "../agent-panel/agent-missing-scene-entry.svelte";
 	import AgentThinkingSceneEntry from "../agent-panel/agent-thinking-scene-entry.svelte";
-	import type { EditToolTheme } from "../agent-panel/agent-panel-conversation-entry.svelte";
+	import type { EditToolTheme } from "../agent-panel/agent-tool-edit-theme.js";
 
 	interface Props {
 		entry: AgentPanelConversationEntryModel;
@@ -210,8 +210,10 @@
 	/>
 {:else if isToolCall(entry) && entry.kind === "read"}
 	<AgentToolRead
+		toolCallId={entry.toolCallId ?? entry.id}
 		filePath={entry.filePath}
 		sourceExcerpt={entry.sourceExcerpt ?? null}
+		sourceExcerptHtml={entry.sourceExcerptHtml ?? null}
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
 		{iconBasePath}

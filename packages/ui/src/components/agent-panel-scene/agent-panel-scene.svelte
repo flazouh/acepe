@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import type { AgentPanelActionCallbacks, AgentPanelSceneModel } from "../agent-panel/types.js";
-	import type { EditToolTheme } from "../agent-panel/agent-panel-conversation-entry.svelte";
+	import type { EditToolTheme } from "../agent-panel/agent-tool-edit-theme.js";
 
 	import AgentPanelShell from "../agent-panel/agent-panel-shell.svelte";
 import AgentPanelComposer from "../agent-panel/agent-panel-composer.svelte";

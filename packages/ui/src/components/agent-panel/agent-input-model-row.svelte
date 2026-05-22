@@ -29,6 +29,5 @@
 		{#if leading}{@render leading()}{/if}
 		<span class="flex-1 truncate text-xs">{modelName}</span>
 		{#if actions}{@render actions()}{/if}
-		<AgentInputSelectorCheck visible={modelId === currentModelId} />
 	</div>
 </DropdownMenu.Item>

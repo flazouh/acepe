@@ -1,10 +1,30 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	resolveTokenRevealBaselineMs,
 	shouldKeepTokenRevealTiming,
 	TOKEN_REVEAL_FADE_MS,
 	TOKEN_REVEAL_STEP_MS,
 } from "./token-reveal-motion.js";
+
+describe("TOKEN_REVEAL_STEP_MS", () => {
+	it("does not delay words inside one backend delta", () => {
+		expect(TOKEN_REVEAL_STEP_MS).toBe(0);
+	});
+});
+
+describe("resolveTokenRevealBaselineMs", () => {
+	it("anchors animation timing to the latest backend delta", () => {
+		expect(
+			resolveTokenRevealBaselineMs({
+				latestDeltaProducedAtMonotonicMs: 5_000,
+				clockAnchorRustMonotonicMs: 1_000,
+				clockAnchorBrowserMs: 500,
+				browserNowMs: 4_516,
+			})
+		).toBe(-16);
+	});
+});
 
 describe("shouldKeepTokenRevealTiming", () => {
 	it("keeps non-streaming timing while the final scheduled token has not finished fading", () => {

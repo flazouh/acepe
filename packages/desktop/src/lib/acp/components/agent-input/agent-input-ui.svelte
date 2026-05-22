@@ -19,7 +19,6 @@ import {
 	getSessionStore,
 } from "../../store/index.js";
 import type { AvailableCommand } from "../../types/available-command.js";
-import { CanonicalModeId } from "../../types/canonical-mode-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { filterVisibleModes } from "../../utils/mode-filter.js";
 import { resolvePanelDraftOnMount } from "./services/index.js";
@@ -321,7 +320,6 @@ const capabilitySource = $derived.by(() =>
 const effectiveCapabilityProviderMetadata = $derived(capabilitySource.providerMetadata);
 const effectiveAvailableModes = $derived(capabilitySource.availableModes ?? []);
 
-// Filter to only show Build and Plan modes in the UI
 const visibleModes = $derived(filterVisibleModes(effectiveAvailableModes));
 
 const effectiveComposerProvisionalModeId = $derived(
@@ -338,6 +336,10 @@ const effectiveCurrentModeId = $derived.by(() =>
 		visibleModes,
 	})
 );
+const effectiveCurrentModeLabel = $derived.by(() => {
+	const currentMode = visibleModes.find((mode) => mode.id === effectiveCurrentModeId);
+	return currentMode?.name ?? effectiveCurrentModeId;
+});
 
 const panelProvisionalAutonomousEnabled = $derived.by(() => {
 	if (props.panelId) {
@@ -364,7 +366,7 @@ const autoModeSupportState = $derived.by(() =>
 		connectionPhase: sessionLifecyclePresentation
 			? sessionLifecyclePresentation.connectionPhase
 			: null,
-		currentUiModeId: CanonicalModeId.BUILD,
+		currentUiModeId: effectiveCurrentModeId,
 		agents: agentStore.agents,
 	})
 );
@@ -385,21 +387,11 @@ const selectedModeMenuOptionId = $derived(
 const effectiveAvailableModels = $derived(capabilitySource.availableModels ?? []);
 const effectiveModelsDisplay = $derived(capabilitySource.modelsDisplay);
 
-const preferredDefaultModelId = $derived.by(() => {
-	if (!capabilitiesAgentId || !effectiveCurrentModeId) {
-		return null;
-	}
-	const modeType =
-		effectiveCurrentModeId === CanonicalModeId.PLAN ? CanonicalModeId.PLAN : CanonicalModeId.BUILD;
-	return agentModelPrefs.getDefaultModel(capabilitiesAgentId, modeType) ?? null;
-});
-
 const effectiveCurrentModelId = $derived.by(() =>
 	resolveToolbarModelId({
 		liveCurrentModelId: sessionCurrentModelId,
 		provisionalModelId: effectiveComposerProvisionalModelId,
 		availableModels: effectiveAvailableModels,
-		preferredDefaultModelId,
 	})
 );
 
@@ -429,14 +421,15 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 				return [];
 			}
 		);
-		return {
-			id: option.id,
-			name: option.name,
-			category: option.category,
-			type: option.type,
-			currentValue,
-			options,
-		};
+			return {
+				id: option.id,
+				name: option.name,
+				category: option.category,
+				type: option.type,
+				currentValue,
+				options,
+				presentation: option.presentation ?? "advanced",
+			};
 	});
 });
 
@@ -1207,7 +1200,6 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		selectedOptionId: optionId,
 		currentModeId: effectiveCurrentModeId,
 		autonomousEnabled: autonomousToggleActive,
-		buildModeId: CanonicalModeId.BUILD,
 	});
 
 	if (!props.sessionId) {

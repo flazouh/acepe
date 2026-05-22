@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { ListChecks } from "phosphor-svelte";
-	import { CheckCircle } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import {
+		getTodoDisplayRows,
+		getTodoProgressSummary,
+	} from "./agent-tool-todo-state.js";
 	import TodoNumberIcon from "./todo-number-icon.svelte";
 	import type { AgentTodoItem } from "./types.js";
 
@@ -20,27 +23,17 @@
 
 	let { todos = [], isLive = false, durationLabel, tasksLabel = "Tasks", fallbackLabel = "Updated todos" }: Props = $props();
 
-	const totalTasks = $derived(todos.length);
-	const completedCount = $derived(todos.filter((t) => t.status === "completed").length);
-	const inProgressIndex = $derived(todos.findIndex((t) => t.status === "in_progress"));
-	const progressPercent = $derived(
-		totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
+	const progress = $derived(getTodoProgressSummary(todos));
+	const displayRows = $derived(
+		getTodoDisplayRows({
+			todos,
+			isLive,
+			inProgressIndex: progress.inProgressIndex,
+		})
 	);
-
-	function formatDuration(durationMs: number | null | undefined): string {
-		if (durationMs === null || durationMs === undefined) return "-";
-		const seconds = Math.floor(durationMs / 1000);
-		if (seconds < 60) return `${seconds}s`;
-		const minutes = Math.floor(seconds / 60);
-		const remainingSeconds = seconds % 60;
-		if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
-		const hours = Math.floor(minutes / 60);
-		const remainingMinutes = minutes % 60;
-		return `${hours}h ${remainingMinutes}m`;
-	}
 </script>
 
-{#if totalTasks > 0}
+{#if progress.totalTasks > 0}
 	<AgentToolCard>
 		<div class="px-3 py-2 space-y-2">
 			<!-- Header with progress -->
@@ -51,44 +44,42 @@
 						<span class="text-sm">{durationLabel}</span>
 					{/if}
 				</div>
-				<span>{completedCount}/{totalTasks}</span>
+				<span>{progress.completedCount}/{progress.totalTasks}</span>
 			</div>
 
 			<!-- Progress bar -->
 			<div class="h-1 bg-muted rounded-full overflow-hidden">
 				<div
 					class="h-full bg-primary transition-all duration-300"
-					style="width: {progressPercent}%"
+					style="width: {progress.progressPercent}%"
 				></div>
 			</div>
 
 			<!-- Task list -->
 			<div class="space-y-0.5">
-				{#each todos as todo, index (todo.content)}
-					{@const isCurrent = index === inProgressIndex}
-					{@const isCurrentAndLive = isCurrent && isLive}
+				{#each displayRows as row (row.todo.content)}
 					<div
-						class="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-1 py-0.5 rounded text-sm {isCurrent
+						class="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-1 py-0.5 rounded text-sm {row.isCurrent
 							? 'bg-muted/30'
 							: ''}"
 					>
 						<!-- Numbered icon -->
 						<span class="shrink-0">
-							<TodoNumberIcon {index} status={todo.status} {isLive} size={14} />
+							<TodoNumberIcon index={row.index} status={row.todo.status} {isLive} size={14} />
 						</span>
 
 						<!-- Content -->
 						<span>
-							{#if isCurrentAndLive && todo.activeForm}
-								<span class="text-sm">{todo.activeForm}</span>
+							{#if row.isCurrentAndLive}
+								<span class="text-sm">{row.displayText}</span>
 							{:else}
-								{todo.content}
+								{row.displayText}
 							{/if}
 						</span>
 
 						<!-- Duration -->
 						<span class="shrink-0 text-right text-sm">
-							{formatDuration(todo.duration)}
+							{row.durationText}
 						</span>
 					</div>
 				{/each}

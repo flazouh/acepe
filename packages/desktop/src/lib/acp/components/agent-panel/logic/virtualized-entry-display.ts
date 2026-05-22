@@ -253,71 +253,93 @@ export function buildVirtualizedDisplayEntriesFromScene(
 	const merged: VirtualizedDisplayEntry[] = [];
 
 	for (const entry of sceneEntries) {
-		if (entry.type === "assistant") {
-			const previous = merged.at(-1);
-			if (
-				previous !== undefined &&
-				isMergedAssistantDisplayEntry(previous) &&
-				shouldMergeSceneAssistantEntry(previous, entry)
-			) {
-				merged[merged.length - 1] = mergeSceneAssistantEntry(previous, entry);
-				continue;
-			}
-			merged.push(createMergedAssistantDisplayEntryFromScene(entry));
-			continue;
-		}
-
-		if (entry.type === "user") {
-			const syntheticUser = {
-				id: entry.id,
-				type: "user" as const,
-				timestamp: entry.timestampMs !== undefined ? new Date(entry.timestampMs) : undefined,
-				message: {
-					content: { type: "text" as const, text: entry.text },
-					chunks: [],
-				},
-			} satisfies SessionEntry;
-			merged.push(syntheticUser);
-			continue;
-		}
-
-		if (entry.type === "tool_call") {
-			// Synthetic stub — content never accessed in the scene render path because
-			// tool entries are always found in the scene index and rendered via
-			// AgentPanelConversationEntry, not getToolCallMessage.
-			const syntheticTool = {
-				id: entry.id,
-				type: "tool_call" as const,
-				message: {
-					id: entry.id,
-					name: entry.title,
-					arguments: { kind: "execute" as const },
-					status: "pending" as const,
-					awaitingPlanApproval: false,
-				},
-			} satisfies SessionEntry;
-			merged.push(syntheticTool);
-			continue;
-		}
-
-		if (entry.type === "thinking") {
-			merged.push({
-				type: THINKING_DISPLAY_ENTRY.type,
-				id: THINKING_DISPLAY_ENTRY.id,
-				startedAtMs: entry.startedAtMs,
-			});
-			continue;
-		}
-
-		if (entry.type === "missing") {
-			merged.push({
-				id: entry.id,
-				type: "missing",
-			});
-		}
+		pushSceneEntryIntoDisplayRows(merged, entry);
 	}
 
 	return merged;
+}
+
+export function appendVirtualizedDisplayEntriesFromScene(
+	currentRows: readonly VirtualizedDisplayEntry[],
+	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
+): VirtualizedDisplayEntry[] {
+	if (appendedSceneEntries.length === 0) {
+		return currentRows.slice();
+	}
+
+	const merged = currentRows.slice();
+	for (const entry of appendedSceneEntries) {
+		pushSceneEntryIntoDisplayRows(merged, entry);
+	}
+	return merged;
+}
+
+function pushSceneEntryIntoDisplayRows(
+	merged: VirtualizedDisplayEntry[],
+	entry: AgentPanelSceneEntryModel
+): void {
+	if (entry.type === "assistant") {
+		const previous = merged.at(-1);
+		if (
+			previous !== undefined &&
+			isMergedAssistantDisplayEntry(previous) &&
+			shouldMergeSceneAssistantEntry(previous, entry)
+		) {
+			merged[merged.length - 1] = mergeSceneAssistantEntry(previous, entry);
+			return;
+		}
+		merged.push(createMergedAssistantDisplayEntryFromScene(entry));
+		return;
+	}
+
+	if (entry.type === "user") {
+		const syntheticUser = {
+			id: entry.id,
+			type: "user" as const,
+			timestamp: entry.timestampMs !== undefined ? new Date(entry.timestampMs) : undefined,
+			message: {
+				content: { type: "text" as const, text: entry.text },
+				chunks: [],
+			},
+		} satisfies SessionEntry;
+		merged.push(syntheticUser);
+		return;
+	}
+
+	if (entry.type === "tool_call") {
+		// Synthetic stub — content never accessed in the scene render path because
+		// tool entries are always found in the scene index and rendered via
+		// AgentPanelConversationEntry, not getToolCallMessage.
+		const syntheticTool = {
+			id: entry.id,
+			type: "tool_call" as const,
+			message: {
+				id: entry.id,
+				name: entry.title,
+				arguments: { kind: "execute" as const },
+				status: "pending" as const,
+				awaitingPlanApproval: false,
+			},
+		} satisfies SessionEntry;
+		merged.push(syntheticTool);
+		return;
+	}
+
+	if (entry.type === "thinking") {
+		merged.push({
+			type: THINKING_DISPLAY_ENTRY.type,
+			id: THINKING_DISPLAY_ENTRY.id,
+			startedAtMs: entry.startedAtMs,
+		});
+		return;
+	}
+
+	if (entry.type === "missing") {
+		merged.push({
+			id: entry.id,
+			type: "missing",
+		});
+	}
 }
 
 /**

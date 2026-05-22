@@ -1,16 +1,15 @@
 <script lang="ts">
 import { AgentPanelStatePanel } from "@acepe/ui/agent-panel";
 import { LoadingIcon } from "@acepe/ui/icons";
-import { mapCanonicalTurnStateToPresentationStatus } from "../logic";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import {
 	deriveLiveSessionWorkProjection,
 } from "../../../store/live-session-work.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import type { TurnState } from "../../../store/types.js";
 import { createLogger } from "../../../utils/logger.js";
 import ProjectSelectionPanel from "../../project-selection-panel.svelte";
 import ReadyToAssistPlaceholder from "../../ready-to-assist-placeholder.svelte";
+import { resolveAgentPanelContentRuntime } from "../logic/agent-panel-content-runtime.js";
 import type { AgentPanelContentProps } from "../types/agent-panel-content-props.js";
 import SceneContentViewport from "./scene-content-viewport.svelte";
 
@@ -40,6 +39,7 @@ let {
 	onPlanBuild,
 	onPlanCancel,
 	onPlanViewFull,
+	onToolFileSelect,
 	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
 
@@ -86,17 +86,16 @@ const sessionWorkProjection = $derived.by(() => {
 	});
 });
 
-const turnState = $derived<TurnState>(
-	liveSessionSource.kind === "missing_canonical"
-		? "error"
-		: liveSessionSource.kind === "canonical"
-			? mapCanonicalTurnStateToPresentationStatus(liveSessionSource.projection.turnState)
-			: "idle"
+const runtime = $derived(
+	resolveAgentPanelContentRuntime({
+		liveSessionSource,
+		explicitWaiting: isWaitingProp,
+		sessionWorkProjection,
+	})
 );
-const isStreaming = $derived(turnState === "streaming");
-const isWaitingForResponse = $derived(
-	isWaitingProp ?? sessionWorkProjection?.canonicalActivity === "awaiting_model"
-);
+const turnState = $derived(runtime.turnState);
+const isStreaming = $derived(runtime.isStreaming);
+const isWaitingForResponse = $derived(runtime.isWaitingForResponse);
 
 // Sync streaming state to bindable prop for parent component
 $effect(() => {
@@ -184,6 +183,7 @@ export function scrollToTop() {
 				{onPlanBuild}
 				{onPlanCancel}
 				{onPlanViewFull}
+				{onToolFileSelect}
 				{isPlanActionAvailable}
 				onNearBottomChange={(nearBottom) => (isAtBottom = nearBottom)}
 				onNearTopChange={(nearTop) => (isAtTop = nearTop)}

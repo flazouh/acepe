@@ -14,10 +14,14 @@ type CreateGitStatusCacheOptions = {
 	ttlMs?: number;
 	now?: () => number;
 	fetchGitStatus?: FetchGitStatus;
+	fetchGitStatusSummary?: FetchGitStatus;
 };
 
 type GitStatusCacheApi = {
 	getProjectGitStatusMap: (
+		projectPath: string
+	) => ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>;
+	getProjectGitStatusSummaryMap: (
 		projectPath: string
 	) => ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>;
 	invalidateProjectGitStatus: (projectPath: string) => void;
@@ -42,52 +46,89 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		options?.fetchGitStatus ??
 		((projectPath: string): ResultAsync<ReadonlyArray<FileGitStatus>, AppError> =>
 			tauriClient.fileIndex.getProjectGitStatus(projectPath));
+	const fetchGitStatusSummary =
+		options?.fetchGitStatusSummary ??
+		((projectPath: string): ResultAsync<ReadonlyArray<FileGitStatus>, AppError> =>
+			tauriClient.fileIndex.getProjectGitStatusSummary(projectPath));
 
 	const cacheByProject = new Map<string, GitStatusCacheEntry>();
+	const summaryCacheByProject = new Map<string, GitStatusCacheEntry>();
 	const inflightByProject = new Map<
 		string,
 		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
 	>();
+	const summaryInflightByProject = new Map<
+		string,
+		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
+	>();
 
-	function getProjectGitStatusMap(
-		projectPath: string
+	function getCachedProjectStatusMap(
+		projectPath: string,
+		cache: Map<string, GitStatusCacheEntry>,
+		inflight: Map<string, ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>>,
+		fetch: FetchGitStatus
 	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
-		const cached = cacheByProject.get(projectPath);
+		const cached = cache.get(projectPath);
 		if (cached && cached.expiresAt > now()) {
 			return okAsync(cached.statusMap);
 		}
 
-		const inflight = inflightByProject.get(projectPath);
-		if (inflight) {
-			return inflight;
+		const existingRequest = inflight.get(projectPath);
+		if (existingRequest) {
+			return existingRequest;
 		}
 
-		const request = fetchGitStatus(projectPath)
+		const request = fetch(projectPath)
 			.map((statuses) => {
 				const statusMap = buildStatusMap(statuses);
-				cacheByProject.set(projectPath, {
+				cache.set(projectPath, {
 					expiresAt: now() + ttlMs,
 					statusMap,
 				});
-				inflightByProject.delete(projectPath);
+				inflight.delete(projectPath);
 				return statusMap;
 			})
 			.mapErr((error) => {
-				inflightByProject.delete(projectPath);
+				inflight.delete(projectPath);
 				return error;
 			});
 
-		inflightByProject.set(projectPath, request);
+		inflight.set(projectPath, request);
 		return request;
+	}
+
+	function getProjectGitStatusMap(
+		projectPath: string
+	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+		return getCachedProjectStatusMap(
+			projectPath,
+			cacheByProject,
+			inflightByProject,
+			fetchGitStatus
+		);
+	}
+
+	function getProjectGitStatusSummaryMap(
+		projectPath: string
+	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+		return getCachedProjectStatusMap(
+			projectPath,
+			summaryCacheByProject,
+			summaryInflightByProject,
+			fetchGitStatusSummary
+		);
 	}
 
 	function invalidateProjectGitStatus(projectPath: string): void {
 		cacheByProject.delete(projectPath);
+		summaryCacheByProject.delete(projectPath);
 		inflightByProject.delete(projectPath);
+		summaryInflightByProject.delete(projectPath);
 	}
 
 	return {
 		getProjectGitStatusMap,
+		getProjectGitStatusSummaryMap,
 		invalidateProjectGitStatus,
 	};
 }
@@ -98,6 +139,12 @@ export function getProjectGitStatusMap(
 	projectPath: string
 ): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
 	return gitStatusCache.getProjectGitStatusMap(projectPath);
+}
+
+export function getProjectGitStatusSummaryMap(
+	projectPath: string
+): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+	return gitStatusCache.getProjectGitStatusSummaryMap(projectPath);
 }
 
 export function invalidateProjectGitStatus(projectPath: string): void {

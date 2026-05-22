@@ -224,6 +224,34 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("keeps panel project and agent while a deferred session is waiting for promotion", () => {
+		const sessionStore = {
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+			hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
+		} as unknown as SessionStore;
+		const agentStore = {
+			getDefaultAgentId: vi.fn(() => "claude-code"),
+		} as unknown as AgentStore;
+		const store = new PanelStore(sessionStore, agentStore, vi.fn());
+
+		const panel = store.spawnPanel({
+			selectedAgentId: "claude-code",
+			projectPath: "/tmp/project",
+			pendingWorktreeEnabled: true,
+		});
+
+		store.updatePanelSession(panel.id, "pending-session");
+
+		expect(store.panels[0]).toMatchObject({
+			id: panel.id,
+			sessionId: "pending-session",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			pendingWorktreeEnabled: null,
+		});
+	});
+
 	it("derives top-level agent project refs without rebuilding panel snapshots", () => {
 		const sessionStore = {
 			getSessionIdentity: vi.fn((sessionId: string) =>

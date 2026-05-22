@@ -110,7 +110,7 @@ impl AgentProvider for CodexProvider {
                     crate::acp::client::codex_native_config::build_codex_native_session_model_state_with_state(
                         &state,
                     ),
-                    crate::acp::client_session::default_modes(),
+                    self.default_session_modes(),
                 ) {
                     Ok(capabilities) => capabilities,
                     Err(error) => failed_capabilities(self, error.to_string()),

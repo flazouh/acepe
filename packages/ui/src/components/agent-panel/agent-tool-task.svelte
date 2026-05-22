@@ -2,11 +2,22 @@
 	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
 	import { CaretRight, Robot } from "phosphor-svelte";
 	import { Colors } from "../../lib/colors.js";
-	import type { AgentToolStatus, AnyAgentEntry, AgentToolEntry } from "./types.js";
+	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import ToolTally from "./tool-tally.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
+	import {
+		createTaskPreview,
+		getLastTaskToolCall,
+		getTaskHeaderBorderClass,
+		getTaskTitle,
+		getTaskToolChildren,
+		getTaskUiClasses,
+		hasTaskPrompt,
+		hasTaskResult,
+		isTaskPending,
+	} from "./agent-tool-task-state.js";
 
 	interface Props {
 		description: string | null;
@@ -41,66 +52,51 @@
 	let isPromptCollapsed = $state(true);
 	let isResultCollapsed = $state(true);
 
-	const isPending = $derived(status === "pending" || status === "running");
+	const isPending = $derived(isTaskPending(status));
 	const isDone = $derived(status === "done");
-	const titleText = $derived.by(() => {
-		if (isPending) return description ?? runningFallback;
-		if (status === "blocked") return description ?? "Waiting for permission";
-		if (status === "degraded") return description ?? "Degraded";
-		if (status === "cancelled") return description ?? "Cancelled";
-		if (status === "error") return description ?? "Task failed";
-		return description ?? doneFallback;
-	});
+	const titleText = $derived(
+		getTaskTitle({
+			description,
+			status,
+			runningFallback,
+			doneFallback,
+		})
+	);
 
 	const taskChildren = $derived(Array.from(children));
 
 	/** Child tool entries only (tool_call type) for the Tool calls section. */
-	const toolCallChildren = $derived(
-		taskChildren.filter((e): e is AgentToolEntry => e.type === "tool_call"),
-	);
+	const toolCallChildren = $derived(getTaskToolChildren(taskChildren));
 
-	const lastToolCall = $derived(
-		toolCallChildren.length > 0 ? toolCallChildren[toolCallChildren.length - 1] : null,
-	);
+	const lastToolCall = $derived(getLastTaskToolCall(toolCallChildren));
 
-	const hasPrompt = $derived(Boolean(prompt));
-	const hasResult = $derived(isDone && Boolean(resultText));
+	const hasPrompt = $derived(hasTaskPrompt(prompt));
+	const hasResult = $derived(hasTaskResult({ status, resultText }));
 	const hasChildren = $derived(toolCallChildren.length > 0);
 
 	const hasBorder = $derived(hasPrompt || hasResult);
 	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
-	const cardClass = $derived(compact ? "bg-accent/30 border-border/60" : "");
-	const headerClass = $derived(compact
-		? "flex min-w-0 items-center justify-between gap-1 px-1 py-0.5 text-sm"
-		: "flex h-7 items-center justify-between gap-1 px-2 text-sm");
-	const headerBorderClass = $derived(hasBorder
-		? compact
-			? "border-b border-border/60"
-			: "border-b border-border"
-		: "");
-	const headerContentClass = $derived(compact
-		? "flex min-w-0 flex-1 items-center justify-start gap-1"
-		: "flex min-w-0 flex-1 items-center justify-start gap-2");
+	const taskClasses = $derived(getTaskUiClasses(compact));
+	const cardClass = $derived(taskClasses.card);
+	const headerClass = $derived(taskClasses.header);
+	const headerBorderClass = $derived(getTaskHeaderBorderClass({ compact, hasBorder }));
+	const headerContentClass = $derived(taskClasses.headerContent);
 	const titleClass = $derived("text-sm");
-	const promptButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-2.5 py-1.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
-	const promptBodyClass = $derived(compact ? "px-1 pb-0.5" : "px-3 pb-2");
-	const promptContentClass = $derived(compact
-		? "text-sm whitespace-pre-wrap break-words"
-		: "text-sm whitespace-pre-wrap break-words");
-	const resultSectionClass = $derived(compact ? "border-t border-border/60" : "border-t border-border");
-	const resultButtonClass = $derived(compact
-		? "w-full flex items-center gap-1 px-1 py-0.5 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer"
-		: "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/30 transition-colors border-none bg-transparent cursor-pointer");
-	const resultBodyClass = $derived(compact ? "px-1 pb-1" : "px-3 pb-3");
-	const resultContentClass = $derived(compact
-		? "bg-muted/30 rounded-sm p-1 text-sm whitespace-pre-wrap break-words"
-		: "bg-muted/30 rounded-md p-3 text-sm whitespace-pre-wrap break-words");
-	const rowSectionClass = $derived(compact ? "border-t border-border/60 py-0.5" : "border-t border-border py-1.5");
+	const promptButtonClass = $derived(taskClasses.promptButton);
+	const promptBodyClass = $derived(taskClasses.promptBody);
+	const promptContentClass = $derived(taskClasses.promptContent);
+	const resultSectionClass = $derived(taskClasses.resultSection);
+	const resultButtonClass = $derived(taskClasses.resultButton);
+	const resultBodyClass = $derived(taskClasses.resultBody);
+	const resultContentClass = $derived(taskClasses.resultContent);
+	const rowSectionClass = $derived(taskClasses.rowSection);
 	const showLiveToolRow = $derived(!compact && hasChildren && lastToolCall !== null);
 	const tallyInline = $derived(false);
 	const tallyWrapperClass = $derived("");
+	const promptPreview = $derived(prompt ? createTaskPreview({ text: prompt, limit: 80 }) : "");
+	const resultPreview = $derived(
+		resultText ? createTaskPreview({ text: resultText, limit: 100 }) : ""
+	);
 </script>
 
 <AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
@@ -141,7 +137,7 @@
 				class="shrink-0 transition-transform duration-150 {isPromptCollapsed ? '' : 'rotate-90'}"
 			/>
 			<span class="flex-1 truncate text-left">
-				{prompt.slice(0, 80)}{prompt.length > 80 ? "..." : ""}
+				{promptPreview}
 			</span>
 		</button>
 
@@ -170,7 +166,7 @@
 				<span>{resultLabel}</span>
 				{#if isResultCollapsed}
 					<span class="flex-1 truncate text-left">
-						{resultText.slice(0, 100)}{resultText.length > 100 ? "..." : ""}
+						{resultPreview}
 					</span>
 				{/if}
 			</button>

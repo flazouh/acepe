@@ -1,16 +1,15 @@
 <script lang="ts">
-import { Button } from "../button/index.js";
-import { Input } from "../input/index.js";
-import { LoadingIcon } from "../icons/index.js";
-import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
-import { Selector } from "../selector/index.js";
-import * as DropdownMenu from "../dropdown-menu/index.js";
-import { Colors } from "../../lib/colors.js";
-import { Brain } from "phosphor-svelte";
+import type { ProviderBrand } from "../provider-mark/index.js";
 
-import AgentInputModelFavoriteStar from "./agent-input-model-favorite-star.svelte";
-import AgentInputModelModeBar from "./agent-input-model-mode-bar.svelte";
-import AgentInputModelRow from "./agent-input-model-row.svelte";
+import AgentInputReasoningModelSelector from "./agent-input-reasoning-model-selector.svelte";
+import AgentInputStandardModelSelector from "./agent-input-standard-model-selector.svelte";
+import {
+	countSelectableModels,
+	filterModelGroups,
+	findSelectedReasoningGroup,
+	shouldShowModelGroups,
+	shouldShowModelSearch,
+} from "./agent-input-model-selector-state.js";
 
 import type {
 	AgentInputModelSelectorGroup,
@@ -43,12 +42,8 @@ interface Props {
 	noModelsLabel?: string;
 	noReasoningLevelsLabel?: string;
 	reasoningEffortTooltipLabel?: string;
-	planLabel?: string;
-	buildLabel?: string;
 	ontoggle?: (isOpen: boolean) => void;
 	onModelChange: (modelId: string) => void | Promise<void>;
-	onSetPlanDefault?: (modelId: string) => void;
-	onSetBuildDefault?: (modelId: string) => void;
 	onToggleFavorite?: (modelId: string) => void;
 	hideTriggerProviderMark?: boolean;
 	primaryTriggerProviderBrand?: ProviderBrand | null;
@@ -72,19 +67,13 @@ let {
 	noModelsLabel = "No models available",
 	noReasoningLevelsLabel = "No reasoning levels available",
 	reasoningEffortTooltipLabel = "Reasoning effort",
-	planLabel = "Plan",
-	buildLabel = "Build",
 	ontoggle,
 	onModelChange,
-	onSetPlanDefault,
-	onSetBuildDefault,
 	onToggleFavorite,
 	hideTriggerProviderMark = false,
 	primaryTriggerProviderBrand = triggerProviderBrand,
 	primaryTriggerProviderLabel = triggerProviderLabel,
 }: Props = $props();
-
-const MODEL_SEARCH_THRESHOLD = 8;
 
 let isOpen = $state(false);
 let isPrimarySelectorOpen = $state(false);
@@ -92,18 +81,25 @@ let isVariantSelectorOpen = $state(false);
 let searchQuery = $state("");
 
 const usesVariantSelector = $derived(reasoningGroups.length > 0);
-const totalModelCount = $derived.by(() =>
-	usesVariantSelector
-		? reasoningGroups.reduce((count, group) => count + group.variants.length, 0)
-		: modelGroups.reduce((count, group) => count + group.items.length, 0)
+const totalModelCount = $derived(
+	countSelectableModels({
+		usesVariantSelector,
+		modelGroups,
+		reasoningGroups,
+	})
 );
 const showFavorites = $derived(favoriteModels.length > 0);
-const showSearch = $derived(!usesVariantSelector && totalModelCount > MODEL_SEARCH_THRESHOLD);
-const selectedReasoningGroup = $derived.by(
-	() =>
-		reasoningGroups.find((group) => group.baseModelId === selectedReasoningBaseId) ??
-		reasoningGroups[0] ??
-		null
+const showSearch = $derived(
+	shouldShowModelSearch({
+		usesVariantSelector,
+		totalModelCount,
+	})
+);
+const selectedReasoningGroup = $derived(
+	findSelectedReasoningGroup({
+		reasoningGroups,
+		selectedReasoningBaseId,
+	})
 );
 
 function toggleSplitSelector(): void {
@@ -147,6 +143,15 @@ function setVariantOpen(open: boolean): void {
 	ontoggle?.(open);
 }
 
+function setStandardOpen(open: boolean): void {
+	isOpen = open;
+	ontoggle?.(open);
+}
+
+function setSearchQuery(query: string): void {
+	searchQuery = query;
+}
+
 async function handleModelSelection(modelId: string): Promise<void> {
 	if (modelId !== currentModelId) {
 		await onModelChange(modelId);
@@ -154,274 +159,56 @@ async function handleModelSelection(modelId: string): Promise<void> {
 	closeSelectors();
 }
 
-function resolveSearchText(item: AgentInputModelSelectorItem): string {
-	return `${item.name} ${item.id} ${item.description ?? ""} ${item.providerLabel ?? ""} ${item.searchText ?? ""}`.toLowerCase();
+function selectModel(modelId: string): void {
+	void handleModelSelection(modelId);
 }
 
-const filteredGroups = $derived.by(() => {
-	if (!searchQuery.trim()) {
-		return modelGroups;
-	}
-
-	const query = searchQuery.toLowerCase().trim();
-	return modelGroups
-		.map((group) => ({
-			label: group.label,
-			providerBrand: group.providerBrand ?? null,
-			providerLabel: group.providerLabel,
-			items: group.items.filter((item) => resolveSearchText(item).includes(query)),
-		}))
-		.filter((group) => group.items.length > 0);
-});
-
-const showGroups = $derived.by(() => {
-	const groups = filteredGroups;
-	return groups.some((group) => group.label) || groups.length > 1;
-});
+const filteredGroups = $derived(filterModelGroups({ modelGroups, searchQuery }));
+const showGroups = $derived(shouldShowModelGroups(filteredGroups));
 </script>
 
 {#if usesVariantSelector}
-	<div class="flex items-center h-7">
-		<Selector
-			open={isPrimarySelectorOpen}
-			disabled={isLoading}
-			onOpenChange={setPrimaryOpen}
-			variant="outline"
-			buttonClass="group/provider-trigger"
-		>
-			{#snippet renderButton()}
-				{#if isLoading}
-					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
-				{:else}
-					{#if !hideTriggerProviderMark && primaryTriggerProviderBrand}
-						<ProviderMark
-							brand={primaryTriggerProviderBrand}
-							label={primaryTriggerProviderLabel ?? primarySelectorLabel}
-							class="size-3.5"
-						/>
-					{/if}
-					<span class="truncate text-xs">{primarySelectorLabel}</span>
-				{/if}
-			{/snippet}
-
-			<div class="max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-				{#each reasoningGroups as group (group.baseModelId)}
-					<AgentInputModelRow
-						modelId={group.baseModelId}
-						modelName={group.baseModelName}
-						currentModelId={selectedReasoningBaseId}
-						onSelect={() => {
-							void handleModelSelection(group.preferredVariantId ?? group.variants[0]?.id ?? group.baseModelId);
-						}}
-					>
-						{#snippet leading()}
-							{#if group.providerBrand}
-								<ProviderMark
-									brand={group.providerBrand}
-									label={group.providerLabel ?? group.baseModelName}
-									class="size-3.5"
-								/>
-							{/if}
-						{/snippet}
-						{#snippet actions()}
-							{#if group.preferredVariantId && (onSetPlanDefault || onSetBuildDefault)}
-								<AgentInputModelModeBar
-									showModeBar={Boolean(group.isPlanDefault || group.isBuildDefault)}
-									isPlanDefault={Boolean(group.isPlanDefault)}
-									isBuildDefault={Boolean(group.isBuildDefault)}
-									{planLabel}
-									{buildLabel}
-									onSetPlan={() => onSetPlanDefault?.(group.preferredVariantId!)}
-									onSetBuild={() => onSetBuildDefault?.(group.preferredVariantId!)}
-								/>
-							{/if}
-						{/snippet}
-					</AgentInputModelRow>
-				{/each}
-			</div>
-		</Selector>
-		<div class="h-full w-px bg-border/50"></div>
-		<DropdownMenu.Root open={isVariantSelectorOpen} onOpenChange={setVariantOpen}>
-			<DropdownMenu.Trigger disabled={isLoading || !selectedReasoningGroup}>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={isLoading || !selectedReasoningGroup}
-						class="h-7 w-7 shrink-0 rounded-none border-0 p-0 text-muted-foreground"
-						title={reasoningEffortTooltipLabel}
-						aria-label={reasoningEffortTooltipLabel}
-					>
-						<Brain class="size-3.5 shrink-0" weight="fill" style={`color: ${Colors.purple}`} />
-					</Button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-
-			<DropdownMenu.Content align="start" sideOffset={4} class="w-fit max-w-[280px] p-0">
-				{#if selectedReasoningGroup}
-					<div class="max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-						{#each selectedReasoningGroup.variants as variant (variant.id)}
-							<AgentInputModelRow
-								modelId={variant.id}
-								modelName={variant.name}
-								currentModelId={selectedReasoningVariantId}
-								onSelect={() => {
-									void handleModelSelection(variant.id);
-								}}
-							/>
-						{/each}
-					</div>
-				{:else}
-					<div class="px-2 py-1 text-xs">{noReasoningLevelsLabel}</div>
-				{/if}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	</div>
+	<AgentInputReasoningModelSelector
+		{reasoningGroups}
+		{selectedReasoningBaseId}
+		{selectedReasoningVariantId}
+		{selectedReasoningGroup}
+		{primarySelectorLabel}
+		{isLoading}
+		{loadingLabel}
+		{noReasoningLevelsLabel}
+		{reasoningEffortTooltipLabel}
+		{hideTriggerProviderMark}
+		{primaryTriggerProviderBrand}
+		{primaryTriggerProviderLabel}
+		primaryOpen={isPrimarySelectorOpen}
+		variantOpen={isVariantSelectorOpen}
+		onPrimaryOpenChange={setPrimaryOpen}
+		onVariantOpenChange={setVariantOpen}
+		onSelect={selectModel}
+	/>
 {:else}
-	<div class="flex items-center gap-0">
-		<Selector
-			open={isOpen}
-			disabled={isLoading || totalModelCount === 0}
-			onOpenChange={(open) => {
-				isOpen = open;
-				ontoggle?.(open);
-			}}
-			variant="outline"
-			buttonClass="group/provider-trigger"
-		>
-			{#snippet renderButton()}
-				{#if isLoading}
-					<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
-				{:else}
-					{#if !hideTriggerProviderMark && triggerProviderBrand}
-						<ProviderMark
-							brand={triggerProviderBrand}
-							label={triggerProviderLabel ?? triggerLabel}
-							class="size-3.5"
-						/>
-					{/if}
-					<span class="truncate text-xs">{triggerLabel}</span>
-				{/if}
-			{/snippet}
-
-			{#if totalModelCount === 0}
-				<div class="px-2 py-1 text-xs">{noModelsLabel}</div>
-			{:else}
-				{#if showSearch}
-					<div class="sticky top-0 z-10 bg-popover px-3 py-1.5">
-						<Input bind:value={searchQuery} placeholder={searchPlaceholder} class="h-8 text-xs" />
-					</div>
-				{/if}
-
-				{#if showFavorites && !searchQuery}
-					<div class="bg-popover px-0 pb-0.5">
-						{#each favoriteModels as item (item.id)}
-							<AgentInputModelRow
-								modelId={item.id}
-								modelName={item.name}
-								currentModelId={currentModelId}
-								onSelect={() => {
-									void handleModelSelection(item.id);
-								}}
-							>
-								{#snippet leading()}
-									{#if !item.hideProviderMark && item.providerBrand}
-										<ProviderMark
-											brand={item.providerBrand}
-											label={item.providerLabel ?? item.name}
-											class="size-3.5"
-										/>
-									{/if}
-								{/snippet}
-							{#snippet actions()}
-								<div class="ml-auto flex items-center gap-1">
-									{#if onSetPlanDefault || onSetBuildDefault}
-										<AgentInputModelModeBar
-											showModeBar={Boolean(item.isPlanDefault || item.isBuildDefault)}
-											isPlanDefault={Boolean(item.isPlanDefault)}
-											isBuildDefault={Boolean(item.isBuildDefault)}
-											{planLabel}
-											{buildLabel}
-											onSetPlan={() => onSetPlanDefault?.(item.id)}
-											onSetBuild={() => onSetBuildDefault?.(item.id)}
-										/>
-									{/if}
-									{#if onToggleFavorite}
-										<AgentInputModelFavoriteStar
-											isFavorite={Boolean(item.isFavorite)}
-											onToggle={() => onToggleFavorite(item.id)}
-										/>
-									{/if}
-								</div>
-							{/snippet}
-						</AgentInputModelRow>
-					{/each}
-				</div>
-			{/if}
-
-			<div class="max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-				{#each filteredGroups as group, groupIndex (group.label)}
-					{#if showGroups}
-						<DropdownMenu.Label class="flex items-center gap-1.5 px-1.5 py-1 text-[10px] font-semibold">
-							{#if group.providerBrand}
-								<ProviderMark
-									brand={group.providerBrand}
-									label={group.providerLabel ?? group.label}
-									class="size-3"
-								/>
-							{/if}
-							{group.label}
-						</DropdownMenu.Label>
-					{/if}
-					{#each group.items as item (item.id)}
-						<AgentInputModelRow
-							modelId={item.id}
-							modelName={item.name}
-							currentModelId={currentModelId}
-							onSelect={() => {
-								void handleModelSelection(item.id);
-							}}
-						>
-							{#snippet leading()}
-								{#if !item.hideProviderMark && item.providerBrand}
-									<ProviderMark
-										brand={item.providerBrand}
-										label={item.providerLabel ?? item.name}
-										class="size-3.5"
-									/>
-								{/if}
-						{/snippet}
-								{#snippet actions()}
-									<div class="ml-auto flex items-center gap-1">
-										{#if onSetPlanDefault || onSetBuildDefault}
-											<AgentInputModelModeBar
-												showModeBar={Boolean(item.isPlanDefault || item.isBuildDefault)}
-												isPlanDefault={Boolean(item.isPlanDefault)}
-												isBuildDefault={Boolean(item.isBuildDefault)}
-												{planLabel}
-												{buildLabel}
-												onSetPlan={() => onSetPlanDefault?.(item.id)}
-												onSetBuild={() => onSetBuildDefault?.(item.id)}
-											/>
-										{/if}
-										{#if onToggleFavorite}
-											<AgentInputModelFavoriteStar
-												isFavorite={Boolean(item.isFavorite)}
-												onToggle={() => onToggleFavorite(item.id)}
-											/>
-										{/if}
-									</div>
-								{/snippet}
-							</AgentInputModelRow>
-						{/each}
-						{#if showGroups && groupIndex < filteredGroups.length - 1}
-							<DropdownMenu.Separator />
-						{/if}
-					{/each}
-				</div>
-			{/if}
-		</Selector>
-	</div>
+	<AgentInputStandardModelSelector
+		open={isOpen}
+		{triggerLabel}
+		{triggerProviderBrand}
+		{triggerProviderLabel}
+		{currentModelId}
+		{totalModelCount}
+		{filteredGroups}
+		{favoriteModels}
+		{searchQuery}
+		{showSearch}
+		{showGroups}
+		{showFavorites}
+		{isLoading}
+		{searchPlaceholder}
+		{loadingLabel}
+		{noModelsLabel}
+		{hideTriggerProviderMark}
+		onOpenChange={setStandardOpen}
+		onSearchChange={setSearchQuery}
+		onSelect={selectModel}
+		{onToggleFavorite}
+	/>
 {/if}

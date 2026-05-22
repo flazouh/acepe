@@ -3,7 +3,9 @@ import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ReviewDiffDensity } from "../../modified-files/components/review-diff-view-state.svelte.js";
-import AgentPanelReviewContent from "./agent-panel-review-content.svelte";
+import AgentPanelReviewContent, {
+	type ReviewControlsSnapshot,
+} from "./agent-panel-review-content.svelte";
 import { buildReviewWorkspaceFilesFromSessionState } from "./review-workspace-model.js";
 
 const REVIEW_WORKSPACE_EMPTY_STATE_LABEL = "Nothing to review";
@@ -20,6 +22,8 @@ interface Props {
 	showCloseButton?: boolean;
 	compact?: boolean;
 	diffDensity?: ReviewDiffDensity;
+	hideBottomWidget?: boolean;
+	onControlsChange?: (controls: ReviewControlsSnapshot | null) => void;
 }
 
 let {
@@ -34,6 +38,8 @@ let {
 	showCloseButton = true,
 	compact = false,
 	diffDensity = "default",
+	hideBottomWidget = false,
+	onControlsChange,
 }: Props = $props();
 
 const reviewWorkspaceFiles = $derived.by(() =>
@@ -97,6 +103,8 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 			{onClose}
 			{onFileIndexChange}
 			onKeepActionChange={showHeader ? handleKeepActionChange : undefined}
+			{onControlsChange}
+			{hideBottomWidget}
 		/>
 	{/snippet}
 </ReviewWorkspace>

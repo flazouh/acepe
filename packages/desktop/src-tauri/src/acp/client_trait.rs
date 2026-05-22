@@ -45,6 +45,15 @@ pub trait AgentClient: Send + Sync {
 
     fn discard_pre_reservation_events(&self, _session_id: &str, _reason: &'static str) {}
 
+    /// True when the client implementation publishes the user's prompt itself.
+    ///
+    /// Most ACP clients rely on the command layer to echo the prompt after a
+    /// successful send. Stream-verified clients may need to publish earlier so
+    /// pre-reservation ordering is correct.
+    fn publishes_user_prompt_on_send(&self) -> bool {
+        false
+    }
+
     /// Resume an existing session
     /// Per ACP protocol: ResumeSessionResponse does NOT include sessionId
     async fn resume_session(

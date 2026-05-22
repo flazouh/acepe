@@ -58,40 +58,36 @@ describe("toolbar-state", () => {
 					liveCurrentModelId: "claude-opus",
 					provisionalModelId: "claude-sonnet",
 					availableModels,
-					preferredDefaultModelId: "claude-sonnet",
 				})
 			).toBe("claude-opus");
 		});
 
-		it("uses valid provisional model before defaults", () => {
+		it("uses valid provisional model when live is missing", () => {
 			expect(
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: "claude-opus",
 					availableModels,
-					preferredDefaultModelId: "claude-sonnet",
 				})
 			).toBe("claude-opus");
 		});
 
-		it("uses valid default model when live and provisional are missing", () => {
+		it("falls back to first available model when live and provisional are missing", () => {
 			expect(
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: null,
 					availableModels,
-					preferredDefaultModelId: "claude-opus",
 				})
-			).toBe("claude-opus");
+			).toBe("claude-sonnet");
 		});
 
-		it("falls back to first available model", () => {
+		it("falls back to first available model when provisional is invalid", () => {
 			expect(
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: "invalid-model",
 					availableModels,
-					preferredDefaultModelId: "missing-default",
 				})
 			).toBe("claude-sonnet");
 		});

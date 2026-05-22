@@ -8,7 +8,7 @@ describe("filterVisibleModes", () => {
 		expect(filterVisibleModes(undefined)).toEqual([]);
 	});
 
-	it("keeps only modes visible in the composer", () => {
+	it("keeps every provider mode visible in the composer", () => {
 		expect(
 			filterVisibleModes([
 				{ id: "build", name: "Build" },
@@ -18,14 +18,15 @@ describe("filterVisibleModes", () => {
 		).toEqual([
 			{ id: "build", name: "Build" },
 			{ id: "plan", name: "Plan" },
+			{ id: "other", name: "Other" },
 		]);
 	});
 });
 
 describe("getUIModeDisplayName", () => {
-	it("maps backend mode ids to composer labels", () => {
+	it("creates readable fallback labels from provider mode ids", () => {
 		expect(getUIModeDisplayName("build")).toBe("Build");
 		expect(getUIModeDisplayName("plan")).toBe("Plan");
-		expect(getUIModeDisplayName("custom")).toBe("custom");
+		expect(getUIModeDisplayName("custom-mode")).toBe("Custom Mode");
 	});
 });

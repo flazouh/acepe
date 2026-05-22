@@ -66,7 +66,6 @@ export {
 	AgentInputMicButton,
 	AgentInputModeSelector,
 	AgentInputModelFavoriteStar,
-	AgentInputModelModeBar,
 	AgentInputModelRow,
 	AgentInputModelSelector,
 	AgentInputModelTrigger,

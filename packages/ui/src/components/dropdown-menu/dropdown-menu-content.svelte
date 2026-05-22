@@ -89,7 +89,7 @@
 			"data-[side=right]:slide-in-from-left-2",
 			"data-[side=top]:slide-in-from-bottom-2",
 			"z-[var(--overlay-z)] max-h-(--bits-dropdown-menu-content-available-height)",
-			"min-w-[8rem] overflow-y-auto overflow-x-hidden p-0",
+			"min-w-[8rem] overflow-y-auto overflow-x-hidden p-1",
 			"bg-popover text-popover-foreground shadow-md",
 			"data-[state=closed]:animate-out data-[state=open]:animate-in",
 			"border border-border",
@@ -98,10 +98,10 @@
 		)}
 		{...restProps}
 	>
-		<div class="relative flex flex-col" bind:this={containerRef}>
+		<div class="relative flex flex-col gap-0.5" bind:this={containerRef}>
 			<div
 				bind:this={highlightRef}
-				class="pointer-events-none absolute bg-muted opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"
+				class="pointer-events-none absolute rounded-sm bg-accent opacity-0 transition-[top,left,width,height,opacity] duration-75 ease-out"
 				aria-hidden="true"
 			></div>
 			{#if children}

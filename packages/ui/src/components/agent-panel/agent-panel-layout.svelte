@@ -95,7 +95,11 @@
 						/>
 					{:else if entry.kind === "read"}
 						<AgentToolRead
+							toolCallId={entry.toolCallId ?? entry.id}
 							filePath={entry.filePath}
+							sourceExcerpt={entry.sourceExcerpt ?? null}
+							sourceExcerptHtml={entry.sourceExcerptHtml ?? null}
+							sourceRangeLabel={entry.sourceRangeLabel ?? null}
 							status={entry.status}
 							{iconBasePath}
 						/>

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { XCircle } from "phosphor-svelte";
+	import { CheckCircle, FileCode, XCircle } from "phosphor-svelte";
 
-	import { BuildIcon, PlanIcon } from "../icons/index.js";
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
 
 	interface Props {
@@ -18,7 +17,7 @@
 <div class="flex flex-col overflow-hidden rounded-md border border-border/50 bg-accent/20">
 	<EmbeddedPanelHeader class="bg-accent/30">
 		<HeaderTitleCell compactPadding>
-			<PlanIcon size="sm" class="shrink-0 mr-1" />
+			<FileCode class="mr-1 size-3 shrink-0" weight="fill" />
 			<span class="truncate text-[10px] font-mono leading-none text-muted-foreground select-none">{prompt}</span>
 		</HeaderTitleCell>
 		<HeaderActionCell withDivider={false}>
@@ -29,7 +28,7 @@
 		</HeaderActionCell>
 		<HeaderActionCell>
 			<button type="button" class="plan-action-btn" onclick={onApprove}>
-				<BuildIcon size="sm" />
+				<CheckCircle weight="fill" class="size-3 shrink-0" />
 				{approveLabel}
 			</button>
 		</HeaderActionCell>

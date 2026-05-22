@@ -799,6 +799,7 @@ function mapGraphAvailableModes(capabilities: SessionGraphCapabilities): Array<M
 		id: mode.id,
 		name: mode.name,
 		description: mode.description ?? undefined,
+		iconKind: mode.iconKind,
 	}));
 }
 
@@ -968,6 +969,7 @@ function sanitizeCanonicalConfigOptions(
 			name: option.name,
 			category: option.category,
 			type: option.type,
+			presentation: option.presentation ?? "advanced",
 			options: optionsWithDescriptions,
 		};
 		const sanitizedOptionWithDescription =
@@ -978,6 +980,7 @@ function sanitizeCanonicalConfigOptions(
 						name: sanitizedOptionBase.name,
 						category: sanitizedOptionBase.category,
 						type: sanitizedOptionBase.type,
+						presentation: sanitizedOptionBase.presentation,
 						description: option.description,
 						options: sanitizedOptionBase.options,
 					};
@@ -995,6 +998,7 @@ function sanitizeCanonicalConfigOptions(
 				name: sanitizedOptionBase.name,
 				category: sanitizedOptionBase.category,
 				type: sanitizedOptionBase.type,
+				presentation: sanitizedOptionBase.presentation,
 				currentValue: sanitizedCurrentValue,
 				options: sanitizedOptionBase.options,
 			};
@@ -1004,6 +1008,7 @@ function sanitizeCanonicalConfigOptions(
 			name: sanitizedOptionWithDescription.name,
 			category: sanitizedOptionWithDescription.category,
 			type: sanitizedOptionWithDescription.type,
+			presentation: sanitizedOptionWithDescription.presentation,
 			description: option.description,
 			currentValue: sanitizedCurrentValue,
 			options: sanitizedOptionWithDescription.options,
@@ -2003,6 +2008,19 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getToolCallById(sessionId: string, toolCallId: string): ToolCall | null {
 		return this.operationStore.getToolCallById(sessionId, toolCallId);
+	}
+
+	isToolCallExecuting(sessionId: string, toolCallId: string): boolean {
+		const operation = this.operationStore.getByToolCallId(sessionId, toolCallId);
+		if (operation === undefined) {
+			return false;
+		}
+
+		return (
+			operation.operationState === "pending" ||
+			operation.operationState === "running" ||
+			operation.operationState === "blocked"
+		);
 	}
 
 	getSessionCurrentToolKind(sessionId: string): ToolKind | null {

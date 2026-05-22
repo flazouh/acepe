@@ -4,6 +4,7 @@ export type AgentPanelCanonicalSource = Pick<
 	SessionStateGraph,
 	| "canonicalSessionId"
 	| "agentId"
+	| "projectPath"
 	| "revision"
 	| "transcriptSnapshot"
 	| "operations"
@@ -21,6 +22,7 @@ export function agentPanelCanonicalSourceFromGraph(
 	return {
 		canonicalSessionId: graph.canonicalSessionId,
 		agentId: graph.agentId,
+		projectPath: graph.projectPath,
 		revision: graph.revision,
 		transcriptSnapshot: graph.transcriptSnapshot,
 		operations: graph.operations,

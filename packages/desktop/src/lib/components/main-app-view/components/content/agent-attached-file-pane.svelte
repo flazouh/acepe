@@ -3,10 +3,10 @@ import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/
 import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
+import { getFilePanelGitStats } from "$lib/acp/components/file-panel/file-panel-git-status.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
-import { findGitStatusForFile, getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 interface Props {
@@ -63,7 +63,7 @@ $effect(() => {
 	gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 
 	for (const projectPath of currentProjectPaths) {
-		gitStatusCache.getProjectGitStatusMap(projectPath).match(
+		gitStatusCache.getProjectGitStatusSummaryMap(projectPath).match(
 			(statusMap) => {
 				if (cancelled) return;
 				nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
@@ -86,15 +86,7 @@ $effect(() => {
 
 function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: number } {
 	const statusMap = gitStatusMapsByProjectPath.get(filePanel.projectPath) ?? EMPTY_GIT_STATUS_MAP;
-	const relativeFilePath = getRelativeFilePath(filePanel.filePath, filePanel.projectPath);
-	const exactFileStatus = relativeFilePath ? (statusMap.get(relativeFilePath) ?? null) : null;
-	const fileStatus =
-		exactFileStatus ??
-		findGitStatusForFile(Array.from(statusMap.values()), filePanel.filePath, filePanel.projectPath);
-	return {
-		added: fileStatus?.insertions ?? 0,
-		removed: fileStatus?.deletions ?? 0,
-	};
+	return getFilePanelGitStats(statusMap, filePanel.filePath, filePanel.projectPath);
 }
 </script>
 

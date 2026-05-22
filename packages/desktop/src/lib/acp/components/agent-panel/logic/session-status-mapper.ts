@@ -4,6 +4,8 @@ import type {
 	SessionTurnState,
 } from "$lib/services/acp-types.js";
 import type { SessionStatus } from "../../../application/dto/session-status";
+import { mapCanonicalTurnStateToPresentationStatus } from "../../../store/canonical-turn-state-mapping.js";
+import type { TurnState } from "../../../store/types.js";
 import type { SessionStatusUI } from "../types";
 
 export interface CanonicalSessionPresentationStatusInput {
@@ -42,6 +44,13 @@ export interface CanonicalAgentPanelSessionState {
 	readonly showPlanningIndicator: boolean;
 	readonly canSubmit: boolean;
 	readonly showStop: boolean;
+}
+
+export interface CanonicalAgentPanelSessionSourceInput {
+	readonly sessionId: string | null;
+	readonly lifecycle: SessionGraphLifecycle | null;
+	readonly activity: SessionGraphActivity | null;
+	readonly turnState: SessionTurnState | null;
 }
 
 /**
@@ -125,6 +134,44 @@ export function mapCanonicalSessionToPanelStatus(
 	}
 
 	return "connected";
+}
+
+export function resolveCanonicalAgentPanelSessionSource(
+	input: CanonicalAgentPanelSessionSourceInput
+): CanonicalAgentPanelSessionSource {
+	if (input.sessionId === null) {
+		return {
+			kind: "no_session",
+		};
+	}
+
+	if (input.lifecycle === null) {
+		return {
+			kind: "missing_canonical",
+			sessionId: input.sessionId,
+		};
+	}
+
+	return {
+		kind: "canonical",
+		lifecycle: input.lifecycle,
+		activity: input.activity,
+		turnState: input.turnState,
+	};
+}
+
+export function resolveCanonicalAgentPanelTurnState(
+	source: CanonicalAgentPanelSessionSource
+): TurnState {
+	if (source.kind === "missing_canonical") {
+		return "error";
+	}
+
+	if (source.kind !== "canonical" || source.turnState === null) {
+		return "idle";
+	}
+
+	return mapCanonicalTurnStateToPresentationStatus(source.turnState);
 }
 
 function isCanonicalBusy(

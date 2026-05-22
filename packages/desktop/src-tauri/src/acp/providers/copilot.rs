@@ -8,7 +8,7 @@ use crate::acp::capability_resolution::{
     ResolvedCapabilityStatus,
 };
 use crate::acp::client_session::{
-    default_modes, default_session_model_state, SessionModelState, SessionModes,
+    default_session_model_state, AvailableMode, ModeIconKind, SessionModelState, SessionModes,
 };
 use crate::acp::error::{AcpError, AcpResult};
 use crate::acp::parsers::AgentType;
@@ -163,10 +163,10 @@ impl AgentProvider for CopilotProvider {
 
     fn normalize_mode_id(&self, id: &str) -> String {
         match id {
-            COPILOT_MODE_AGENT_URI
-            | COPILOT_MODE_AUTOPILOT_URI
-            | LEGACY_COPILOT_MODE_AGENT_URI
-            | LEGACY_COPILOT_MODE_AUTOPILOT_URI => "build".to_string(),
+            COPILOT_MODE_AGENT_URI | LEGACY_COPILOT_MODE_AGENT_URI | "build" => "agent".to_string(),
+            COPILOT_MODE_AUTOPILOT_URI | LEGACY_COPILOT_MODE_AUTOPILOT_URI => {
+                "autopilot".to_string()
+            }
             COPILOT_MODE_PLAN_URI | LEGACY_COPILOT_MODE_PLAN_URI => "plan".to_string(),
             other => other.to_string(),
         }
@@ -174,9 +174,36 @@ impl AgentProvider for CopilotProvider {
 
     fn map_outbound_mode_id(&self, mode_id: &str) -> String {
         match mode_id {
-            "build" => COPILOT_MODE_AGENT_URI.to_string(),
+            "build" | "agent" => COPILOT_MODE_AGENT_URI.to_string(),
+            "autopilot" => COPILOT_MODE_AUTOPILOT_URI.to_string(),
             "plan" => COPILOT_MODE_PLAN_URI.to_string(),
             other => other.to_string(),
+        }
+    }
+
+    fn visible_mode_ids(&self) -> &'static [&'static str] {
+        &["agent", "autopilot", "plan"]
+    }
+
+    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
+        &["agent", "autopilot"]
+    }
+
+    fn default_session_modes(&self) -> SessionModes {
+        SessionModes {
+            current_mode_id: "agent".to_string(),
+            available_modes: vec![
+                AvailableMode::new("agent", "Agent", Some("Copilot agent mode".to_string()))
+                    .with_icon_kind(ModeIconKind::Agent),
+                AvailableMode::new(
+                    "autopilot",
+                    "Autopilot",
+                    Some("Copilot autonomous mode".to_string()),
+                )
+                .with_icon_kind(ModeIconKind::Autonomous),
+                AvailableMode::new("plan", "Plan", Some("Copilot planning mode".to_string()))
+                    .with_icon_kind(ModeIconKind::Plan),
+            ],
         }
     }
 
@@ -314,7 +341,13 @@ async fn resolve_copilot_preconnection_capabilities(
         copilot_model_catalog::spawn_catalog_refresh(app.clone(), cwd.to_path_buf(), reason);
     }
 
-    match resolve_static_capabilities(provider, cwd, status, models, default_modes()) {
+    match resolve_static_capabilities(
+        provider,
+        cwd,
+        status,
+        models,
+        provider.default_session_modes(),
+    ) {
         Ok(capabilities) => capabilities,
         Err(error) => failed_capabilities(provider, error.to_string()),
     }

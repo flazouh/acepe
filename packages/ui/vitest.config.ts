@@ -8,5 +8,10 @@ export default defineConfig({
 		globals: true,
 		include: ["src/**/*.svelte.vitest.ts", "src/**/*.dom.vitest.ts"],
 		exclude: ["**/node_modules/**", "**/dist/**"],
+		server: {
+			deps: {
+				inline: ["bits-ui"],
+			},
+		},
 	},
 });

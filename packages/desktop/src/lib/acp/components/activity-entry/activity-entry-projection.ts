@@ -122,6 +122,10 @@ export function selectActivityTool(
 		};
 	}
 
+	if (input.activityKind === "streaming") {
+		return null;
+	}
+
 	if (!input.lastToolCall || !input.lastToolKind) {
 		return null;
 	}

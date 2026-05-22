@@ -145,7 +145,7 @@ function measureSessionRow(node: HTMLDivElement): { destroy: () => void } {
 						{:else if entry.type === "ask"}
 							<AskMessage message={entry.message as AskMessageType} />
 						{:else if entry.type === "tool_call"}
-						{@const sceneEntry = mapToolCallToSceneEntry(entry.message as ToolCall, turnState, false, null)}
+						{@const sceneEntry = mapToolCallToSceneEntry(entry.message as ToolCall, turnState, false, undefined)}
 						<AgentPanelConversationEntry entry={sceneEntry} iconBasePath="/svgs/icons" {editToolTheme} />
 						{/if}
 					</div>

@@ -1,5 +1,4 @@
 <script lang="ts">
-import { BuildIcon, PlanIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { CaretDown, Check } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
@@ -8,18 +7,14 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
-import type { ModeType } from "$lib/acp/types/agent-model-preferences.js";
-import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import AgentEnvOverridesDialog from "./agent-env-overrides-dialog.svelte";
 import {
 	applyAgentSelectionChange,
 	getAgentsByProviderOrder,
-	getProviderDefaultLabel,
 	resolveSettingsProviderMetadata,
 	resolveSettingsCapabilitySource,
 } from "./agents-models-section.logic.js";
-import SettingsModelSelector from "./settings-model-selector.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const agentStore = getAgentStore();
@@ -121,7 +116,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 <div class="w-full space-y-4">
 	<SettingsSectionHeader
 		title="Agents & Models"
-		description="Choose which agents are enabled and set their default models."
+		description="Choose which agents are enabled."
 	/>
 
 	<!-- Default agent -->
@@ -178,68 +173,25 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 	<div class="overflow-hidden rounded-lg bg-muted/20 shadow-sm">
 		<!-- Header row -->
 		<div
-			class="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 h-8 px-3 border-b border-border/40 text-[12px] font-medium text-muted-foreground"
+			class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 h-8 px-3 border-b border-border/40 text-[12px] font-medium text-muted-foreground"
 		>
 			<span>Agent</span>
-			<span class="flex items-center gap-1">
-				<PlanIcon size="sm" class="shrink-0 opacity-60" />
-				Plan model
-			</span>
-			<span class="flex items-center gap-1">
-				<BuildIcon size="sm" class="shrink-0 opacity-60" />
-				Build model
-			</span>
 			<span class="text-right">Environment</span>
 			<span class="w-12 text-right">Enabled</span>
 		</div>
 
 		{#each sortedAgents as agent, index (agent.id)}
-			{@const capabilitySource = capabilitySourceByAgentId.get(agent.id) ?? null}
-			{@const providerMetadata = capabilitySource?.providerMetadata ?? null}
-			{@const hasModelDefaults = providerMetadata?.supportsModelDefaults ?? false}
 			{@const isCustomAgent = agentPreferencesStore.customAgentConfigs.some((config) => config.id === agent.id)}
 			{@const isEnabled = agentPreferencesStore.selectedAgentIds.includes(agent.id)}
 
 			<div
-				class="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 h-9 px-3 {index > 0 ? 'border-t border-border/40' : ''}"
+				class="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 h-9 px-3 {index > 0 ? 'border-t border-border/40' : ''}"
 			>
 				<!-- Agent cell -->
 				<div class="flex items-center gap-2 min-w-0">
 					<AgentIcon agentId={agent.id} class="size-3.5 shrink-0" size={14} />
 					<span class="truncate text-[13px] font-medium text-foreground">{agent.name}</span>
 				</div>
-
-				<!-- Plan / Build cells -->
-				{#each [CanonicalModeId.PLAN, CanonicalModeId.BUILD] as mode (mode)}
-					{@const modeType = mode as ModeType}
-					{@const availableModels = hasModelDefaults ? (capabilitySource?.availableModels ?? []) : []}
-					{@const modelsDisplay = capabilitySource?.modelsDisplay ?? null}
-					{@const fallbackLabel = providerMetadata ? getProviderDefaultLabel(providerMetadata) : "Default"}
-					{@const isModelsLoading = hasModelDefaults &&
-						availableModels.length === 0 &&
-						preconnectionCapabilitiesState.isLoading({
-							agentId: agent.id,
-							projectPath: null,
-							preconnectionCapabilityMode:
-								providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
-						})}
-
-					<div class="min-w-0">
-						{#if hasModelDefaults && providerMetadata}
-							<SettingsModelSelector
-								agentId={agent.id}
-								{modeType}
-								{availableModels}
-								{modelsDisplay}
-								{providerMetadata}
-								{fallbackLabel}
-								isLoading={isModelsLoading}
-							/>
-						{:else}
-							<span class="text-[12px] text-muted-foreground">—</span>
-						{/if}
-					</div>
-				{/each}
 
 				<!-- Environment cell -->
 				<div class="flex justify-end">

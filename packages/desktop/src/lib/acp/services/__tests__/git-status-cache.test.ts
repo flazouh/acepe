@@ -113,4 +113,56 @@ describe("git status cache", () => {
 		expect(first.isOk()).toBe(true);
 		expect(second.isOk()).toBe(true);
 	});
+
+	it("uses the summary fetcher for summary status maps", async () => {
+		let fullFetchCount = 0;
+		let summaryFetchCount = 0;
+
+		const cache = createGitStatusCache({
+			ttlMs: 2000,
+			now: () => 1000,
+			fetchGitStatus: () => {
+				fullFetchCount += 1;
+				return okAsync([createStatus("src/full.ts", 8, 3)]);
+			},
+			fetchGitStatusSummary: () => {
+				summaryFetchCount += 1;
+				return okAsync([createStatus("src/summary.ts", 0, 0)]);
+			},
+		});
+
+		const summary = await cache.getProjectGitStatusSummaryMap("/repo");
+
+		expect(summary.isOk()).toBe(true);
+		expect(fullFetchCount).toBe(0);
+		expect(summaryFetchCount).toBe(1);
+		expect(summary._unsafeUnwrap().get("src/summary.ts")?.insertions).toBe(0);
+	});
+
+	it("invalidates full and summary status maps together", async () => {
+		let fullFetchCount = 0;
+		let summaryFetchCount = 0;
+
+		const cache = createGitStatusCache({
+			ttlMs: 2000,
+			now: () => 1000,
+			fetchGitStatus: () => {
+				fullFetchCount += 1;
+				return okAsync([createStatus("src/full.ts", fullFetchCount, 0)]);
+			},
+			fetchGitStatusSummary: () => {
+				summaryFetchCount += 1;
+				return okAsync([createStatus("src/summary.ts", summaryFetchCount, 0)]);
+			},
+		});
+
+		await cache.getProjectGitStatusMap("/repo");
+		await cache.getProjectGitStatusSummaryMap("/repo");
+		cache.invalidateProjectGitStatus("/repo");
+		await cache.getProjectGitStatusMap("/repo");
+		await cache.getProjectGitStatusSummaryMap("/repo");
+
+		expect(fullFetchCount).toBe(2);
+		expect(summaryFetchCount).toBe(2);
+	});
 });

@@ -279,7 +279,9 @@ export type ConfigOptionUpdateData = { configOptions: ConfigOptionData[] }
 /**
  * Configuration option data.
  */
-export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[] }
+export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[]; presentation?: ConfigOptionPresentation }
+
+export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
 
 /**
  * Configuration option value.
@@ -838,4 +840,3 @@ export type FileExplorerPreviewResponse =
  * Fallback for binary, too-large, deleted, or unsupported files.
  */
 { kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
-

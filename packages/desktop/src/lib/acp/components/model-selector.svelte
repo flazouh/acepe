@@ -15,7 +15,6 @@ import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import * as preferencesStore from "../store/agent-model-preferences-store.svelte.js";
 import { getPanelStore, getSessionStore } from "../store/index.js";
-import { CanonicalModeId } from "../types/canonical-mode-id.js";
 import type { ModelId } from "../types/model-id.js";
 import { createLogger } from "../utils/logger.js";
 import {
@@ -25,7 +24,6 @@ import {
 	groupReasoningModelsFromDisplay,
 	hasUsableModelsDisplayGroups,
 	isDefaultChoiceModelId,
-	isDefaultModel,
 	supportsReasoningEffortPicker,
 } from "./model-selector-logic.js";
 
@@ -153,12 +151,6 @@ const totalModelCount = $derived.by(() =>
 	hasDisplayGroups ? allDisplayableModels.length : validModels.length
 );
 const showFavorites = $derived(totalModelCount >= 5);
-const planDefaultId = $derived(
-	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.PLAN) : undefined
-);
-const buildDefaultId = $derived(
-	agentId ? preferencesStore.getDefaultModel(agentId, CanonicalModeId.BUILD) : undefined
-);
 
 function getPreferredVariantId(baseModelId: string): string | null {
 	const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
@@ -172,13 +164,6 @@ function getPreferredVariantId(baseModelId: string): string | null {
 				)
 			: undefined;
 	return matchingCurrent?.fullModelId ?? baseGroup.variants[0]?.fullModelId ?? null;
-}
-
-function isDefaultForBase(defaultModelId: string | undefined, baseModelId: string): boolean {
-	if (!defaultModelId) {
-		return false;
-	}
-	return defaultModelId.startsWith(`${baseModelId}/`);
 }
 
 function getModelId(model: Model | DisplayableModel): string {
@@ -203,8 +188,6 @@ function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelecto
 		searchText: `${name} ${id} ${model.description ?? ""} ${providerLabel ?? ""}`,
 		hideProviderMark: isDefaultChoiceModelId(id),
 		isFavorite: agentId ? preferencesStore.isFavorite(agentId, id) : false,
-		isPlanDefault: isDefaultModel(planDefaultId, id),
-		isBuildDefault: isDefaultModel(buildDefaultId, id),
 	};
 }
 
@@ -252,8 +235,6 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 		providerBrand,
 		providerLabel,
 		preferredVariantId: getPreferredVariantId(group.baseModelId),
-		isPlanDefault: isDefaultForBase(planDefaultId, group.baseModelId),
-		isBuildDefault: isDefaultForBase(buildDefaultId, group.baseModelId),
 		variants: group.variants.map((variant) => ({
 			id: variant.fullModelId,
 			name: variant.name,
@@ -317,15 +298,7 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	noModelsLabel="No models available"
 	noReasoningLevelsLabel="No reasoning levels available"
 	reasoningEffortTooltipLabel={"Reasoning effort"}
-	planLabel={"Plan"}
-	buildLabel={"Build"}
 	onModelChange={handleSharedModelChange}
-	onSetPlanDefault={agentId
-		? (modelId) => preferencesStore.setDefaultModel(agentId, CanonicalModeId.PLAN, modelId)
-		: undefined}
-	onSetBuildDefault={agentId
-		? (modelId) => preferencesStore.setDefaultModel(agentId, CanonicalModeId.BUILD, modelId)
-		: undefined}
 	onToggleFavorite={agentId
 		? (modelId) => preferencesStore.toggleFavorite(agentId, modelId)
 		: undefined}

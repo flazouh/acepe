@@ -29,7 +29,7 @@ export const STREAMDOWN_SMOOTH_ANIMATION = {
 	duration: 630,
 	easing: "cubic-bezier(0.16, 1, 0.3, 1)",
 	sep: "word",
-	stagger: 48,
+	stagger: 0,
 } satisfies Exclude<StreamdownProps["animated"], boolean | undefined>;
 
 export function acepeStreamdownUrlTransform(

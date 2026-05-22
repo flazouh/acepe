@@ -1095,6 +1095,7 @@ onDestroy(() => {
 						<div class="shrink-0 overflow-hidden">
 							<TabBar
 								tabs={tabBarStore.sortedTabs}
+								activeContrast={panelStore.viewMode === "single" ? "strong" : "normal"}
 								onSelectTab={(panelId) => {
 									panelStore.focusAndSwitchToPanel(panelId);
 									acknowledgeExplicitPanelReveal(unseenStore, panelStore.getPanel(panelId));
@@ -1231,16 +1232,6 @@ onDestroy(() => {
 			}
 		}}
 	>
-		{#snippet topLeft()}
-			<div class="flex min-w-0 items-center gap-1.5">
-				<div
-					class="flex h-5 shrink-0 items-center gap-1 rounded border border-border bg-muted/60 px-1.5 text-[11px]"
-				>
-					<span class="font-medium text-foreground leading-none">Settings</span>
-				</div>
-			</div>
-		{/snippet}
-
 		<SettingsPage {projectManager} />
 	</WorkspaceDialogFrame>
 

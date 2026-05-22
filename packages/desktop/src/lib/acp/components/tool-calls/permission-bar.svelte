@@ -7,8 +7,8 @@ import {
 } from "@acepe/ui/agent-panel";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
-import type { ToolCall } from "../../types/tool-call.js";
 import type { PermissionRequest } from "../../types/permission.js";
+import type { ToolCall } from "../../types/tool-call.js";
 import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
@@ -67,6 +67,15 @@ const pendingPermissions = $derived.by(() => {
 	);
 });
 const currentPermission = $derived(pendingPermissions.length > 0 ? pendingPermissions[0] : null);
+const passedPermissionToolCallId = $derived(permission?.tool?.callID ?? null);
+const selectedReply = $derived(
+	currentPermission !== null
+		? (permissionStore.getReplyInFlight(currentPermission.id) ??
+			(passedPermissionToolCallId !== null
+				? permissionStore.getAnsweredForToolCall(sessionId, passedPermissionToolCallId)?.reply ?? null
+				: null))
+		: null
+);
 const isRepresentedByToolCall = $derived.by(() => {
 	if (!currentPermission) {
 		return false;
@@ -84,6 +93,29 @@ const currentToolCall = $derived.by((): ToolCall | null => {
 
 	return sessionStore.getToolCallById(sessionId, toolCallId);
 });
+const answeredPermission = $derived.by(() => {
+	if (currentPermission !== null) {
+		return null;
+	}
+
+	const toolCallId = passedPermissionToolCallId;
+	if (!toolCallId) {
+		return null;
+	}
+
+	const answered = permissionStore.getAnsweredForToolCall(sessionId, toolCallId);
+	if (answered === null) {
+		return null;
+	}
+
+	sessionStore.isToolCallExecuting(sessionId, toolCallId);
+	return answered;
+});
+const displayPermission = $derived(currentPermission ?? answeredPermission?.permission ?? null);
+const effectiveSelectedReply = $derived(selectedReply ?? answeredPermission?.reply ?? null);
+const canReply = $derived(
+	currentPermission !== null && permissionStore.isPending(currentPermission.id)
+);
 const showEditPreview = $derived(
 	showCompactEditPreview && currentToolCall !== null && currentToolCall.kind === "edit"
 );
@@ -94,8 +126,8 @@ const editTheme = $derived(themeState.effectiveTheme);
 </script>
 
 
-{#if currentPermission}
-	{@const compactDisplay = extractCompactPermissionDisplay(currentPermission, projectPath, currentToolCall)}
+{#if displayPermission}
+	{@const compactDisplay = extractCompactPermissionDisplay(displayPermission, projectPath, currentToolCall)}
 	{@const kind = compactDisplay.kind}
 	{@const command =
 		showCommandWhenRepresented || !isRepresentedByToolCall ? compactDisplay.command : null}
@@ -135,17 +167,24 @@ const editTheme = $derived(themeState.effectiveTheme);
 				alwaysAllowLabel={"Always"}
 				denyLabel={"Deny"}
 				align={attachment === "tool-call" ? "start" : "end"}
-				showAlwaysAllow={currentPermission.always !== undefined && currentPermission.always.length > 0}
-				onAllow={() => permissionStore.reply(currentPermission.id, "once")}
-				onAlwaysAllow={() => permissionStore.reply(currentPermission.id, "always")}
-				onDeny={() => permissionStore.reply(currentPermission.id, "reject")}
+				selectedReply={effectiveSelectedReply}
+				showAlwaysAllow={displayPermission.always !== undefined && displayPermission.always.length > 0}
+				onAllow={() => {
+					if (canReply) permissionStore.reply(displayPermission.id, "once");
+				}}
+				onAlwaysAllow={() => {
+					if (canReply) permissionStore.reply(displayPermission.id, "always");
+				}}
+				onDeny={() => {
+					if (canReply) permissionStore.reply(displayPermission.id, "reject");
+				}}
 			/>
 		{/snippet}
 
 		{#snippet editPreview()}
 			{#if showEditPreview && currentToolCall}
 				{@const mappedTurnState = effectiveTurnState !== null ? mapCanonicalTurnStateToPresentationStatus(effectiveTurnState) : undefined}
-				{@const sceneEntry = mapToolCallToSceneEntry(currentToolCall, mappedTurnState, false, null)}
+				{@const sceneEntry = mapToolCallToSceneEntry(currentToolCall, mappedTurnState, false, undefined)}
 				{#if sceneEntry.type === "tool_call" && sceneEntry.editDiffs !== undefined}
 					<AgentToolEdit
 						diffs={sceneEntry.editDiffs}

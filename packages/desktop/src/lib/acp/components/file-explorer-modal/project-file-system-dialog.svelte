@@ -86,6 +86,14 @@ function expandParents(filePath: string): void {
 	}
 }
 
+function handleOpenSelectedFile(): void {
+	if (selectedFilePath === null || onOpenFile === undefined) {
+		return;
+	}
+
+	onOpenFile(projectPath, selectedFilePath);
+}
+
 function loadProjectFiles(refresh: boolean): void {
 	loading = true;
 	error = null;
@@ -268,7 +276,7 @@ onMount(() => {
 						variant="outline"
 						size="sm"
 						class="h-6 px-2 text-[11px]"
-						onclick={() => onOpenFile(projectPath, selectedFilePath)}
+						onclick={handleOpenSelectedFile}
 					>
 						Open
 					</Button>

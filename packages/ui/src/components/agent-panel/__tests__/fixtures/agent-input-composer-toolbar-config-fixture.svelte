@@ -9,6 +9,7 @@
 			category: "reasoning",
 			type: "string",
 			currentValue: "medium",
+			presentation: "compactReasoning",
 			options: [
 				{ value: "low", name: "Low" },
 				{ value: "medium", name: "Medium" },

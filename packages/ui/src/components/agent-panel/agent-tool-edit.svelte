@@ -8,23 +8,19 @@ import ToolHeaderLeading from "./tool-header-leading.svelte";
 import AgentToolCard from "./agent-tool-card.svelte";
 import AgentToolEditDiff from "./agent-tool-edit-diff.svelte";
 import {
+	getEditDisplayModel,
+	getEditFileName,
+	getEditHeaderLabel,
 	isEditInProgress,
 	resolveEditHeaderState,
+	resolveEditDiffs,
 	shouldShowEditDiffPill,
+	type AgentToolEditDiffInput,
 } from "./agent-tool-edit-state.js";
 import type { AgentToolStatus } from "./types.js";
 
-type AgentToolEditDiffEntry = {
-	filePath?: string | null;
-	fileName?: string | null;
-	additions?: number;
-	deletions?: number;
-	oldString?: string | null;
-	newString?: string | null;
-};
-
 interface Props {
-	diffs?: readonly AgentToolEditDiffEntry[];
+	diffs?: readonly AgentToolEditDiffInput[];
 	/** File path being edited */
 	filePath?: string | null;
 	/** File name (extracted from filePath if not provided) */
@@ -121,46 +117,40 @@ let isExpanded = $state(getInitialExpanded());
 
 const isPending = $derived(isEditInProgress(status));
 const headerState = $derived(resolveEditHeaderState(status, applied, awaitingApproval));
-const showDiffPill = $derived(shouldShowEditDiffPill(status, applied, awaitingApproval));
-const displayedAdditions = $derived(showDiffPill ? additions : 0);
-const displayedDeletions = $derived(showDiffPill ? deletions : 0);
-const resolvedDiffs = $derived.by(() => {
-	if (diffs.length > 0) {
-		return diffs.filter((diff): diff is AgentToolEditDiffEntry & { newString: string } => {
-			return typeof diff.newString === "string";
-		});
-	}
-
-	if (newString === null) {
-		return [];
-	}
-
-	return [
-		{
-			filePath,
-			fileName: propFileName ?? (filePath ? (filePath.split("/").pop() ?? filePath) : null),
-			additions,
-			deletions,
-			oldString,
-			newString,
-		},
-	];
-});
-const hasMultipleDiffs = $derived(resolvedDiffs.length > 1);
-const primaryDiff = $derived(resolvedDiffs[0] ?? null);
-const hasContent = $derived(resolvedDiffs.length > 0);
-const derivedFileName = $derived(
-	primaryDiff?.fileName ??
-		propFileName ??
-		(primaryDiff?.filePath
-			? (primaryDiff.filePath.split("/").pop() ?? primaryDiff.filePath)
-			: filePath
-				? (filePath.split("/").pop() ?? filePath)
-				: null)
+const headerLabel = $derived(
+	getEditHeaderLabel(headerState, {
+		editingLabel,
+		editedLabel,
+		awaitingApprovalLabel,
+		interruptedLabel,
+		failedLabel,
+		blockedLabel,
+		cancelledLabel,
+		degradedLabel,
+		pendingLabel,
+	})
 );
-const displayedFilePath = $derived(primaryDiff?.filePath ?? filePath ?? null);
-const displayedFileCountLabel = $derived(
-	resolvedDiffs.length === 1 ? null : `${resolvedDiffs.length} files`
+const showDiffPill = $derived(shouldShowEditDiffPill(status, applied, awaitingApproval));
+const resolvedDiffs = $derived(
+	resolveEditDiffs({
+		diffs,
+		filePath,
+		fileName: propFileName,
+		additions,
+		deletions,
+		oldString,
+		newString,
+	})
+);
+const displayModel = $derived(
+	getEditDisplayModel({
+		resolvedDiffs,
+		filePath,
+		fileName: propFileName,
+		showDiffPill,
+		additions,
+		deletions,
+	})
 );
 
 function toggleExpand() {
@@ -177,64 +167,28 @@ function expand() {
 	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
 		<!-- Left side: label + file info -->
 		<div class="flex items-center gap-1 truncate flex-1 min-w-0">
-			{#if displayedFilePath && !hasMultipleDiffs}
+			{#if displayModel.displayedFilePath && !displayModel.hasMultipleDiffs}
 				<div class="flex items-center gap-1 min-w-0">
 					<ToolHeaderLeading kind="edit" {status}>
-						{#if headerState === "editing"}
-							{editingLabel}
-						{:else if headerState === "edited"}
-							{editedLabel}
-						{:else if headerState === "awaitingApproval"}
-							{awaitingApprovalLabel}
-						{:else if headerState === "interrupted"}
-							{interruptedLabel}
-						{:else if headerState === "failed"}
-							{failedLabel}
-						{:else if headerState === "blocked"}
-							{blockedLabel}
-						{:else if headerState === "cancelled"}
-							{cancelledLabel}
-						{:else if headerState === "degraded"}
-							{degradedLabel}
-						{:else}
-							{pendingLabel}
-						{/if}
+						{headerLabel}
 					</ToolHeaderLeading>
 					<FilePathBadge
-						filePath={displayedFilePath}
-						fileName={derivedFileName}
-						linesAdded={displayedAdditions}
-						linesRemoved={displayedDeletions}
+						filePath={displayModel.displayedFilePath}
+						fileName={displayModel.derivedFileName}
+						linesAdded={displayModel.displayedAdditions}
+						linesRemoved={displayModel.displayedDeletions}
 						{iconBasePath}
 						{interactive}
-						onSelect={interactive ? () => onSelect?.(displayedFilePath) : undefined}
+						onSelect={interactive ? () => onSelect?.(displayModel.displayedFilePath) : undefined}
 					/>
 				</div>
-			{:else if hasMultipleDiffs}
+			{:else if displayModel.hasMultipleDiffs}
 				<div class="flex items-center gap-1 min-w-0">
 					<ToolHeaderLeading kind="edit" {status}>
-						{#if headerState === "editing"}
-							{editingLabel}
-						{:else if headerState === "edited"}
-							{editedLabel}
-						{:else if headerState === "awaitingApproval"}
-							{awaitingApprovalLabel}
-						{:else if headerState === "interrupted"}
-							{interruptedLabel}
-						{:else if headerState === "failed"}
-							{failedLabel}
-						{:else if headerState === "blocked"}
-							{blockedLabel}
-						{:else if headerState === "cancelled"}
-							{cancelledLabel}
-						{:else if headerState === "degraded"}
-							{degradedLabel}
-						{:else}
-							{pendingLabel}
-						{/if}
+						{headerLabel}
 					</ToolHeaderLeading>
 					<span class="truncate font-sans text-sm text-muted-foreground">
-						{displayedFileCountLabel}
+						{displayModel.displayedFileCountLabel}
 					</span>
 				</div>
 			{:else if isPending}
@@ -245,12 +199,12 @@ function expand() {
 		</div>
 
 		<!-- Right side: elapsed label + expand button -->
-		{#if durationLabel || (!isPending && hasContent)}
+		{#if durationLabel || (!isPending && displayModel.hasContent)}
 			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
 				{#if durationLabel}
 					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
 				{/if}
-				{#if !isPending && hasContent}
+				{#if !isPending && displayModel.hasContent}
 					<button
 						type="button"
 						onclick={toggleExpand}
@@ -270,9 +224,9 @@ function expand() {
 	</div>
 
 	<!-- Pierre diffs content -->
-	{#if hasContent}
+	{#if displayModel.hasContent}
 		{#each resolvedDiffs as diff, index (diff.filePath ?? `edit-${index}`)}
-			{#if hasMultipleDiffs}
+			{#if displayModel.hasMultipleDiffs}
 				<div class="flex items-center gap-1.5 border-t border-border px-2.5 py-1.5 text-sm">
 					{#if diff.filePath}
 						<FilePathBadge
@@ -296,7 +250,8 @@ function expand() {
 				newString={diff.newString}
 				fileName={
 					diff.fileName ??
-					(diff.filePath ? (diff.filePath.split("/").pop() ?? diff.filePath) : derivedFileName)
+					getEditFileName(diff.filePath) ??
+					displayModel.derivedFileName
 				}
 				{isExpanded}
 				{isStreaming}

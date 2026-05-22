@@ -371,6 +371,15 @@ function getReadSourceExcerpt(toolCall: ToolCall): string | null {
 	return toolCall.arguments.source_context?.excerpt ?? null;
 }
 
+function getReadSourceExcerptHtml(toolCall: ToolCall): string | null {
+	const excerpt = getReadSourceExcerpt(toolCall);
+	if (!excerpt) {
+		return null;
+	}
+
+	return bashHighlighter.highlightSource(excerpt, getToolFilePath(toolCall));
+}
+
 function getReadSourceRangeLabel(toolCall: ToolCall): string | null {
 	if (toolCall.arguments.kind !== "read") {
 		return null;
@@ -955,6 +964,7 @@ function mapToolCallEntry(
 					: diagnosticDetails,
 		filePath: getToolFilePath(toolCall),
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
+		sourceExcerptHtml: getReadSourceExcerptHtml(toolCall),
 		sourceRangeLabel: getReadSourceRangeLabel(toolCall),
 		status,
 		startedAtMs: toolCall.startedAtMs ?? null,

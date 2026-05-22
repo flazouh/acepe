@@ -97,7 +97,7 @@ vi.mock("$lib/acp/utils/pierre-diffs-theme.js", () => ({
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
-		getProjectGitStatusMap: () => ({
+		getProjectGitStatusSummaryMap: () => ({
 			match: () => Promise.resolve(undefined),
 		}),
 	},

@@ -5,7 +5,9 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 
 export type AvailableModel = { modelId: string; name: string; description?: string | null }
 
-export type AvailableMode = { id: string; name: string; description?: string | null }
+export type ModeIconKind = "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown"
+
+export type AvailableMode = { id: string; name: string; description?: string | null; iconKind?: ModeIconKind }
 
 /**
  * Command input hint.
@@ -55,10 +57,12 @@ export type ResolvedCapabilities = { status: ResolvedCapabilityStatus; available
  */
 export type ConfigOptionValue = { name: string; value: JsonValue; description?: string | null }
 
+export type ConfigOptionPresentation = "hidden" | "advanced" | "compactReasoning" | "compactSpeed"
+
 /**
  * Configuration option data.
  */
-export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[] }
+export type ConfigOptionData = { id: string; name: string; category: string; type: string; description?: string | null; currentValue?: JsonValue | null; options?: ConfigOptionValue[]; presentation?: ConfigOptionPresentation }
 
 export type NewSessionResponse = { sessionId: string; creationAttemptId?: string | null; deferredCreation?: boolean; sequenceId?: number | null; sessionOpen?: SessionOpenResult | null; models?: SessionModelState; modes?: SessionModes; availableCommands?: AvailableCommand[]; configOptions?: ConfigOptionData[] }
 
@@ -541,4 +545,3 @@ export type ProviderMetadataProjection = {
 export type FrontendProviderProjection = ProviderMetadataProjection;
 
 export type ModelsForDisplayWithProvider = ModelsForDisplay;
-

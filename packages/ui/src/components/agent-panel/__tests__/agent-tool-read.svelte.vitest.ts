@@ -1,0 +1,133 @@
+import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import AgentToolRead from "../agent-tool-read.svelte";
+
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
+
+let storedValues = new Map<string, string>();
+
+const memoryStorage: Storage = {
+	get length() {
+		return storedValues.size;
+	},
+	clear() {
+		storedValues = new Map<string, string>();
+	},
+	getItem(key: string) {
+		return storedValues.get(key) ?? null;
+	},
+	key(index: number) {
+		return Array.from(storedValues.keys())[index] ?? null;
+	},
+	removeItem(key: string) {
+		storedValues.delete(key);
+	},
+	setItem(key: string, value: string) {
+		storedValues.set(key, value);
+	},
+};
+
+beforeEach(() => {
+	storedValues = new Map<string, string>();
+	vi.stubGlobal("localStorage", memoryStorage);
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	cleanup();
+});
+
+describe("AgentToolRead", () => {
+	it("renders read file content in the tool body", () => {
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/app.ts",
+			sourceRangeLabel: "Lines 1-2",
+			sourceExcerpt: "const answer = 42;\nexport { answer };",
+			status: "done",
+		});
+
+		expect(view.getByText("Read")).toBeTruthy();
+		expect(view.getByText("Lines 1-2")).toBeTruthy();
+		expect(view.container.querySelector("pre")?.textContent).toBe(
+			"const answer = 42;\nexport { answer };"
+		);
+	});
+
+	it("renders highlighted read file content when provided", () => {
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/app.ts",
+			sourceExcerpt: "const answer = 42;",
+			sourceExcerptHtml: '<span style="color: var(--shiki-light)">const</span> answer = 42;',
+			status: "done",
+		});
+
+		const highlightedToken = view.container.querySelector("pre code span");
+		expect(highlightedToken?.textContent).toBe("const");
+		expect(view.container.querySelector("pre")?.textContent).toBe("const answer = 42;");
+	});
+
+	it("keeps highlighted Shiki read content text exact", () => {
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/review-file-key.ts",
+			sourceExcerpt: 'import type { ModifiedFileEntry } from "../types/modified-file-entry.js";\n\ntype ReviewFileSnapshot = Pick<',
+			sourceExcerptHtml:
+				'<span class="line"><span style="color: var(--shiki-light)">import</span> type { ModifiedFileEntry } from "../types/modified-file-entry.js";</span>\n<span class="line"></span>\n<span class="line"><span style="color: var(--shiki-light)">type</span> ReviewFileSnapshot = Pick&lt;</span>',
+			status: "done",
+		});
+
+		expect(view.container.querySelector("pre")?.textContent).toBe(
+			'import type { ModifiedFileEntry } from "../types/modified-file-entry.js";\n\ntype ReviewFileSnapshot = Pick<'
+		);
+	});
+
+	it("calls onSelect when the interactive file badge is clicked", async () => {
+		const onSelect = vi.fn();
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/app.ts",
+			sourceExcerpt: "const answer = 42;",
+			status: "done",
+			interactive: true,
+			onSelect,
+		});
+
+		await fireEvent.click(view.getByRole("button", { name: "app.ts" }));
+
+		expect(onSelect).toHaveBeenCalledOnce();
+	});
+
+	it("persists collapsed read content by tool id", async () => {
+		const firstView = render(AgentToolRead, {
+			toolCallId: "tool-read-1",
+			filePath: "/repo/src/app.ts",
+			sourceExcerpt: "line 1\nline 2",
+			status: "done",
+		});
+
+		const toggle = firstView.getByRole("button", { name: "Collapse read content" });
+		await fireEvent.click(toggle);
+		expect(toggle.getAttribute("aria-expanded")).toBe("false");
+		firstView.unmount();
+
+		const secondView = render(AgentToolRead, {
+			toolCallId: "tool-read-1",
+			filePath: "/repo/src/app.ts",
+			sourceExcerpt: "line 1\nline 2",
+			status: "done",
+		});
+
+		expect(
+			secondView.getByRole("button", { name: "Expand read content" }).getAttribute("aria-expanded")
+		).toBe("false");
+	});
+});

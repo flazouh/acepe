@@ -1,4 +1,4 @@
-use crate::acp::client::{AvailableModel, SessionModelState, SessionModes};
+use crate::acp::client::{AvailableMode, AvailableModel, SessionModelState, SessionModes};
 use crate::acp::error::{AcpError, AcpResult};
 use serde::Deserialize;
 use std::fs;
@@ -37,9 +37,21 @@ pub fn apply_opencode_session_defaults_from_paths(
     let settings = load_opencode_settings_from_paths(home_dir, project_root)?;
 
     if let Some(default_agent) = settings.default_agent {
-        if default_agent == "build" || default_agent == "plan" {
-            modes.current_mode_id = default_agent;
+        if !modes
+            .available_modes
+            .iter()
+            .any(|mode| mode.id == default_agent)
+        {
+            modes.available_modes.insert(
+                0,
+                AvailableMode::new(
+                    default_agent.clone(),
+                    default_agent.clone(),
+                    Some("Configured in opencode.json".to_string()),
+                ),
+            );
         }
+        modes.current_mode_id = default_agent;
     }
 
     let should_apply_model = models

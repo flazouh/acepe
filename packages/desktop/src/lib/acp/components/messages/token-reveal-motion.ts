@@ -1,4 +1,4 @@
-export const TOKEN_REVEAL_STEP_MS = 48;
+export const TOKEN_REVEAL_STEP_MS = 0;
 export const TOKEN_REVEAL_FADE_MS = 630;
 
 export interface TokenRevealTiming {
@@ -7,6 +7,20 @@ export interface TokenRevealTiming {
 	readonly tokStepMs: number;
 	readonly tokFadeDurMs: number;
 	readonly mode: "smooth" | "instant";
+}
+
+export interface TokenRevealBaselineInput {
+	readonly latestDeltaProducedAtMonotonicMs: number;
+	readonly clockAnchorRustMonotonicMs: number;
+	readonly clockAnchorBrowserMs: number;
+	readonly browserNowMs: number;
+}
+
+export function resolveTokenRevealBaselineMs(input: TokenRevealBaselineInput): number {
+	const rustLatestDeltaOffsetMs =
+		input.latestDeltaProducedAtMonotonicMs - input.clockAnchorRustMonotonicMs;
+	const browserElapsedMs = input.browserNowMs - input.clockAnchorBrowserMs;
+	return rustLatestDeltaOffsetMs - browserElapsedMs;
 }
 
 export function resolveTokenRevealRemainingMs(timing: TokenRevealTiming): number {

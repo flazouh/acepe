@@ -1,19 +1,15 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	MODE_MENU_OPTION_ID,
-	resolveModeMenuAction,
-	resolveSelectedModeMenuOptionId,
-} from "./mode-menu-state.js";
+import { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./mode-menu-state.js";
 
 describe("mode-menu-state", () => {
-	it("reports auto as the selected option when autonomous is enabled", () => {
+	it("keeps the provider mode selected when autonomous is enabled", () => {
 		expect(
 			resolveSelectedModeMenuOptionId({
-				currentModeId: "build",
+				currentModeId: "agent",
 				autonomousEnabled: true,
 			})
-		).toBe(MODE_MENU_OPTION_ID.AUTO);
+		).toBe("agent");
 	});
 
 	it("keeps the canonical mode selected when autonomous is off", () => {
@@ -25,27 +21,12 @@ describe("mode-menu-state", () => {
 		).toBe("plan");
 	});
 
-	it("switches to build and enables autonomous when auto is chosen", () => {
+	it("turns autonomous off when a mode is chosen while autonomous is on", () => {
 		expect(
 			resolveModeMenuAction({
-				selectedOptionId: MODE_MENU_OPTION_ID.AUTO,
-				currentModeId: "plan",
-				autonomousEnabled: false,
-				buildModeId: "build",
-			})
-		).toEqual({
-			modeIdToApply: "build",
-			autonomousEnabledToApply: true,
-		});
-	});
-
-	it("turns autonomous off when build is chosen from auto", () => {
-		expect(
-			resolveModeMenuAction({
-				selectedOptionId: "build",
-				currentModeId: "build",
+				selectedOptionId: "agent",
+				currentModeId: "agent",
 				autonomousEnabled: true,
-				buildModeId: "build",
 			})
 		).toEqual({
 			modeIdToApply: null,
@@ -57,9 +38,8 @@ describe("mode-menu-state", () => {
 		expect(
 			resolveModeMenuAction({
 				selectedOptionId: "plan",
-				currentModeId: "build",
+				currentModeId: "agent",
 				autonomousEnabled: true,
-				buildModeId: "build",
 			})
 		).toEqual({
 			modeIdToApply: "plan",

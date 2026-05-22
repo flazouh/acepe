@@ -2,6 +2,10 @@
 	import { CaretRight } from "phosphor-svelte";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import {
+		getOtherToolDetailsPreview,
+		hasOtherToolDetails,
+	} from "./agent-tool-other-state.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
@@ -29,13 +33,8 @@
 
 	let isExpanded = $state(false);
 
-	const hasDetails = $derived(Boolean(detailsText && detailsText.trim().length > 0));
-	const preview = $derived.by(() => {
-		if (!detailsText) return null;
-		const compact = detailsText.replace(/\s+/g, " ").trim();
-		if (!compact) return null;
-		return compact.length > 140 ? `${compact.slice(0, 140)}...` : compact;
-	});
+	const hasDetails = $derived(hasOtherToolDetails(detailsText));
+	const preview = $derived(getOtherToolDetailsPreview(detailsText));
 </script>
 
 <AgentToolCard>

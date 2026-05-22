@@ -8,6 +8,7 @@ use super::super::provider::{
 };
 use super::cursor_session_update_enrichment::enrich_cursor_session_update;
 use crate::acp::capability_resolution::resolve_generic_preconnection_capabilities;
+use crate::acp::client_session::{AvailableMode, ModeIconKind, SessionModes};
 use crate::acp::cursor_extensions::{
     adapt_cursor_response, cursor_extension_kind, is_cursor_extension_pre_tool,
     normalize_cursor_extension,
@@ -159,15 +160,36 @@ impl AgentProvider for CursorProvider {
 
     fn normalize_mode_id(&self, id: &str) -> String {
         match id {
-            "ask" | "agent" => "build".to_string(),
+            "build" | "agent" => "agent".to_string(),
+            "ask" => "ask".to_string(),
             other => other.to_string(),
         }
     }
 
     fn map_outbound_mode_id(&self, mode_id: &str) -> String {
         match mode_id {
-            "build" => "agent".to_string(),
+            "build" | "agent" => "agent".to_string(),
             other => other.to_string(),
+        }
+    }
+
+    fn visible_mode_ids(&self) -> &'static [&'static str] {
+        &["agent", "ask"]
+    }
+
+    fn autonomous_supported_mode_ids(&self) -> &'static [&'static str] {
+        &["agent"]
+    }
+
+    fn default_session_modes(&self) -> SessionModes {
+        SessionModes {
+            current_mode_id: "agent".to_string(),
+            available_modes: vec![
+                AvailableMode::new("agent", "Agent", Some("Cursor agent mode".to_string()))
+                    .with_icon_kind(ModeIconKind::Agent),
+                AvailableMode::new("ask", "Ask", Some("Cursor ask mode".to_string()))
+                    .with_icon_kind(ModeIconKind::Ask),
+            ],
         }
     }
 

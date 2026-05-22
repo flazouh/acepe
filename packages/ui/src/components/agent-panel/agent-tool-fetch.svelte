@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { CaretRight } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import {
+		getFetchResultLabel,
+		getFetchResultPreview,
+		getFetchTargetText,
+		getFetchTitle,
+		hasFetchResult,
+	} from "./agent-tool-fetch-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
 
@@ -37,24 +44,15 @@
 
 	let isExpanded = $state(false);
 
-	const isPending = $derived(status === "pending" || status === "running");
-	const isDone = $derived(status === "done");
-	const isError = $derived(status === "error");
-	const hasResult = $derived(Boolean(resultText && resultText.trim().length > 0));
-
-	const title = $derived.by(() => {
-		if (isPending) return fetchingLabel;
-		if (isError) return fetchFailedLabel;
-		return fetchedLabel;
-	});
-
-	const preview = $derived.by(() => {
-		if (!resultText) return null;
-		const compact = resultText.replace(/\s+/g, " ").trim();
-		if (!compact) return null;
-		return compact.length > 120 ? `${compact.slice(0, 120)}...` : compact;
-	});
-	const derivedResultLabel = $derived(isError ? errorLabel : resultLabelProp);
+	const hasResult = $derived(hasFetchResult(resultText));
+	const title = $derived(
+		getFetchTitle(status, { fetchingLabel, fetchFailedLabel, fetchedLabel })
+	);
+	const targetText = $derived(getFetchTargetText({ domain, url }));
+	const preview = $derived(getFetchResultPreview(resultText));
+	const derivedResultLabel = $derived(
+		getFetchResultLabel(status, { resultLabel: resultLabelProp, errorLabel })
+	);
 </script>
 
 <AgentToolCard>
@@ -67,10 +65,8 @@
 			{title}
 		</ToolHeaderLeading>
 
-		{#if domain}
-			<span class="min-w-0 truncate text-muted-foreground/70">{domain}</span>
-		{:else if url}
-			<span class="min-w-0 truncate text-muted-foreground/70">{url}</span>
+		{#if targetText}
+			<span class="min-w-0 truncate text-muted-foreground/70">{targetText}</span>
 		{/if}
 
 		{#if durationLabel}

@@ -52,8 +52,8 @@ describe("buildStreamingReproTokenRevealCss", () => {
 		).toEqual({
 			revealCount: 2,
 			revealedCharCount: "one two three four".length,
-			baselineMs: -112,
-			tokStepMs: 48,
+			baselineMs: -16,
+			tokStepMs: 0,
 			tokFadeDurMs: 630,
 			mode: "smooth",
 		});
@@ -83,7 +83,7 @@ describe("buildStreamingReproTokenRevealCss", () => {
 			})
 		).toMatchObject({
 			revealCount: 2,
-			tokStepMs: 48,
+			tokStepMs: 0,
 			tokFadeDurMs: 630,
 			mode: "smooth",
 		});
@@ -128,7 +128,7 @@ describe("applyStreamingReproTokenReveal", () => {
 			tokenRevealCss: {
 				revealCount: 2,
 				revealedCharCount: "one two three four".length,
-				baselineMs: -112,
+				baselineMs: -16,
 			},
 		});
 	});

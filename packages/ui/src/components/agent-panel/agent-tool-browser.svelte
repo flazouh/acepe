@@ -4,10 +4,13 @@
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
-
-	const SCRIPT_COLLAPSE_CHARACTER_LIMIT = 280;
-	const SCRIPT_COLLAPSE_LINE_LIMIT = 6;
-	const SCRIPT_PREVIEW_LINE_LIMIT = 3;
+	import {
+		buildBrowserToolDetailsPreview,
+		buildBrowserToolScriptPreview,
+		hasBrowserToolDetails,
+		isBrowserToolScriptCollapsible,
+		normalizeBrowserToolScript,
+	} from "./agent-tool-browser-state.js";
 
 	interface Props {
 		title: string;
@@ -34,39 +37,19 @@
 	let isResultExpanded = $state(false);
 	let isScriptExpanded = $state(false);
 
-	function countLines(text: string): number {
-		return text.split("\n").length;
-	}
-
-	function buildScriptPreview(text: string): string {
-		const trimmed = text.trim();
-		if (!trimmed) return "";
-		const lines = trimmed.split("\n");
-		const limitedLines = lines.slice(0, SCRIPT_PREVIEW_LINE_LIMIT);
-		const preview = limitedLines.join("\n");
-		if (lines.length > SCRIPT_PREVIEW_LINE_LIMIT || trimmed.length > preview.length) {
-			return `${preview}\n...`;
-		}
-		return preview;
-	}
-
-	const hasDetails = $derived(Boolean(detailsText && detailsText.trim().length > 0));
-	const normalizedScriptText = $derived(scriptText?.trim() ?? "");
+	const hasDetails = $derived(hasBrowserToolDetails(detailsText));
+	const normalizedScriptText = $derived(normalizeBrowserToolScript(scriptText));
 	const hasScript = $derived(normalizedScriptText.length > 0);
 	const isScriptCollapsible = $derived(
 		hasScript &&
-			(normalizedScriptText.length > SCRIPT_COLLAPSE_CHARACTER_LIMIT ||
-				countLines(normalizedScriptText) > SCRIPT_COLLAPSE_LINE_LIMIT)
+			isBrowserToolScriptCollapsible({
+				scriptText: normalizedScriptText,
+			})
 	);
 	const scriptPreview = $derived(
-		hasScript ? buildScriptPreview(normalizedScriptText) : null
+		hasScript ? buildBrowserToolScriptPreview({ scriptText: normalizedScriptText }) : null
 	);
-	const preview = $derived.by(() => {
-		if (!detailsText) return null;
-		const compact = detailsText.replace(/\s+/g, " ").trim();
-		if (!compact) return null;
-		return compact.length > 140 ? `${compact.slice(0, 140)}...` : compact;
-	});
+	const preview = $derived(buildBrowserToolDetailsPreview({ detailsText }));
 </script>
 
 <AgentToolCard>

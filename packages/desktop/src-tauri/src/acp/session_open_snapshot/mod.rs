@@ -30,6 +30,7 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphLifecycle,
 };
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_update::ToolCallStatus;
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -309,8 +310,17 @@ fn operation_can_be_restored_as_historical(operation: &OperationSnapshot) -> boo
     is_terminal_operation_state(&operation.operation_state)
 }
 
+fn operation_has_active_provider_status(operation: &OperationSnapshot) -> bool {
+    matches!(
+        operation.provider_status,
+        ToolCallStatus::Pending | ToolCallStatus::InProgress
+    )
+}
+
 fn downgrade_stale_active_operation(mut operation: OperationSnapshot) -> OperationSnapshot {
-    if operation_can_be_restored_as_historical(&operation) {
+    if operation_can_be_restored_as_historical(&operation)
+        && !operation_has_active_provider_status(&operation)
+    {
         return operation;
     }
 
@@ -375,7 +385,10 @@ pub(crate) fn sanitize_interactions_for_historical_open(
     interactions
         .into_iter()
         .map(|mut interaction| {
-            if interaction.state == InteractionState::Pending {
+            if matches!(
+                interaction.state,
+                InteractionState::Pending | InteractionState::Unresolved
+            ) {
                 interaction.state = InteractionState::Unresolved;
                 interaction.reply_handler = None;
             }
@@ -774,6 +787,16 @@ mod tests {
         }
     }
 
+    fn provider_owned_agents_with_history_replay() -> Vec<CanonicalAgentId> {
+        vec![
+            CanonicalAgentId::ClaudeCode,
+            CanonicalAgentId::Copilot,
+            CanonicalAgentId::Cursor,
+            CanonicalAgentId::OpenCode,
+            CanonicalAgentId::Codex,
+        ]
+    }
+
     fn make_tool_call_entry(id: &str) -> StoredEntry {
         StoredEntry::ToolCall {
             id: id.to_string(),
@@ -920,6 +943,22 @@ mod tests {
                 sent_at: None,
             },
             timestamp: None,
+        }
+    }
+
+    fn make_provider_pipeline_snapshot(agent_id: &CanonicalAgentId) -> SessionThreadSnapshot {
+        let agent_name = agent_id.as_str();
+        SessionThreadSnapshot {
+            entries: vec![
+                make_user_entry(
+                    &format!("{agent_name}-user-1"),
+                    &format!("restore {agent_name} session"),
+                ),
+                make_tool_call_entry(&format!("{agent_name}-tool-read")),
+            ],
+            title: format!("Restore {agent_name} session"),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
         }
     }
 
@@ -1098,6 +1137,78 @@ mod tests {
             hub.has_reservation_for_session(token, session_id),
             "historical provider opens must reserve the reconnect token"
         );
+    }
+
+    #[tokio::test]
+    async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_state() {
+        for agent_id in provider_owned_agents_with_history_replay() {
+            let db = setup_db().await;
+            let hub = make_hub();
+            let runtime_registry = SessionGraphRuntimeRegistry::new();
+            let session_id = format!("{}-pipeline-session", agent_id.as_str());
+            seed_session_metadata(&db, &session_id, agent_id.as_str()).await;
+            append_frontier_barrier(&db, &session_id).await;
+
+            let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
+                make_provider_pipeline_snapshot(&agent_id),
+            );
+            let replay_context = replay_context_for_session(&session_id, agent_id.clone());
+
+            let result = session_open_result_from_provider_owned_snapshot(
+                &db,
+                &hub,
+                Some(&runtime_registry),
+                &replay_context,
+                &session_id,
+                &provider_snapshot,
+            )
+            .await;
+
+            let SessionOpenResult::Found(found) = result else {
+                panic!("expected Found for {}, got {result:?}", agent_id.as_str());
+            };
+            assert_eq!(found.agent_id, agent_id);
+            assert_eq!(found.canonical_session_id, session_id);
+            assert_eq!(found.last_event_seq, 1);
+            assert!(found.graph_revision >= found.last_event_seq);
+            assert_eq!(found.transcript_snapshot.revision, 1);
+            assert_eq!(found.transcript_snapshot.entries.len(), 2);
+            assert_eq!(
+                found.transcript_snapshot.entries[0].role,
+                TranscriptEntryRole::User
+            );
+            assert_eq!(
+                found.transcript_snapshot.entries[1].role,
+                TranscriptEntryRole::Tool
+            );
+            assert_eq!(found.operations.len(), 1);
+            assert_eq!(
+                found.operations[0].source_link,
+                OperationSourceLink::TranscriptLinked {
+                    entry_id: format!("{}-tool-read", agent_id.as_str())
+                }
+            );
+            assert_eq!(
+                found.lifecycle.status,
+                crate::acp::lifecycle::LifecycleStatus::Detached
+            );
+            assert!(found.lifecycle.actionability.can_resume);
+            assert!(!found.lifecycle.actionability.can_send);
+
+            let token = Uuid::parse_str(&found.open_token).expect("open token must be a UUID");
+            assert!(
+                hub.has_reservation_for_session(token, &session_id),
+                "open token should be reserved for {}",
+                agent_id.as_str()
+            );
+
+            let runtime_snapshot = runtime_registry.snapshot_for_session(&session_id);
+            assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
+            assert_eq!(
+                runtime_snapshot.lifecycle.status,
+                crate::acp::lifecycle::LifecycleStatus::Detached
+            );
+        }
     }
 
     #[tokio::test]

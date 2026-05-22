@@ -3,15 +3,20 @@
 	import { CaretDown } from "phosphor-svelte";
 	import { CaretRight } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
+	import {
+		getDisplayedWebSearchLinks,
+		getHiddenWebSearchLinkCount,
+		getWebSearchDomainShortLabel,
+		getWebSearchHeaderLabel,
+		getWebSearchResultText,
+		hasMoreWebSearchLinks,
+		hasWebSearchLinks,
+		hasWebSearchSummary,
+		shouldShowWebSearchNoResults,
+		type WebSearchLink,
+	} from "./agent-tool-web-search-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import type { AgentToolStatus } from "./types.js";
-
-	interface WebSearchLink {
-		title: string;
-		url: string;
-		domain: string;
-		pageAge?: string;
-	}
 
 	interface Props {
 		query?: string | null;
@@ -56,28 +61,24 @@
 	let isCollapsed = $state(true);
 	let showAll = $state(false);
 
-	const COLLAPSED_LIMIT = 6;
-
-	const isPending = $derived(status === "pending" || status === "running");
-	const isDone = $derived(status === "done");
-	const isError = $derived(status === "error");
-	const hasLinks = $derived(links.length > 0);
-	const hasSummary = $derived(Boolean(summary && summary.trim().length > 0));
-
-	const displayedLinks = $derived(showAll ? links : links.slice(0, COLLAPSED_LIMIT));
-	const hasMore = $derived(links.length > COLLAPSED_LIMIT);
-
-	const resultText = $derived.by(() => {
-		if (!isDone) return null;
-		if (links.length === 0) return null;
-		return resultCountLabel(links.length);
-	});
-
-	const headerLabel = $derived.by(() => {
-		if (isPending) return searchingLabel;
-		if (isError) return searchFailedLabel;
-		return searchedLabel;
-	});
+	const hasLinks = $derived(hasWebSearchLinks(links));
+	const hasSummary = $derived(hasWebSearchSummary(summary));
+	const displayedLinks = $derived(getDisplayedWebSearchLinks(links, showAll));
+	const hiddenLinkCount = $derived(getHiddenWebSearchLinkCount(links));
+	const hasMore = $derived(hasMoreWebSearchLinks(links));
+	const resultText = $derived(
+		getWebSearchResultText({ status, linkCount: links.length }, resultCountLabel)
+	);
+	const headerLabel = $derived(
+		getWebSearchHeaderLabel(status, {
+			searchingLabel,
+			searchFailedLabel,
+			searchedLabel,
+		})
+	);
+	const showNoResults = $derived(
+		shouldShowWebSearchNoResults({ status, hasLinks, hasSummary })
+	);
 </script>
 
 <!-- Embedded design: contrasted header + body with border -->
@@ -98,7 +99,7 @@
 					<span class="text-muted-foreground/80">·</span>
 					<span class="font-sans text-sm text-muted-foreground/80">{resultText}</span>
 				{/if}
-				{#if isDone && !hasLinks && !hasSummary}
+				{#if showNoResults}
 					<span class="font-sans text-sm text-muted-foreground/70">{noResultsLabel}</span>
 				{/if}
 				{#if durationLabel}
@@ -138,7 +139,7 @@
 							}}
 						>
 							<span class="shrink-0 text-sm text-muted-foreground/50 w-[7ch] text-right tabular-nums">
-								{link.domain.replace(/^www\./, '').split('.').slice(0, -1).join('.').slice(0, 7)}
+								{getWebSearchDomainShortLabel(link.domain)}
 							</span>
 							<span class="text-sm text-muted-foreground truncate">
 								{link.title}
@@ -157,7 +158,7 @@
 							class="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm text-muted-foreground/60 transition-colors hover:text-foreground border-none bg-transparent cursor-pointer self-start"
 						>
 							{#if !showAll}
-								<span>{showMoreCollapsedLabel(links.length - COLLAPSED_LIMIT)}</span>
+								<span>{showMoreCollapsedLabel(hiddenLinkCount)}</span>
 							{:else}
 								<span>{showLessCollapsedLabel}</span>
 							{/if}
@@ -218,7 +219,7 @@
 								>
 									{#if !showAll}
 										<CaretDown size={10} weight="bold" />
-										<span>{showMoreExpandedLabel(links.length - COLLAPSED_LIMIT)}</span>
+										<span>{showMoreExpandedLabel(hiddenLinkCount)}</span>
 									{:else}
 										<CaretRight size={10} weight="bold" class="rotate-270" />
 										<span>{showLessExpandedLabel}</span>

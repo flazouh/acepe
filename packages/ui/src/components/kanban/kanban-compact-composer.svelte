@@ -1,7 +1,6 @@
 <script lang="ts">
+	import { SlidersHorizontal } from "phosphor-svelte";
 	import type { Snippet } from "svelte";
-	import BuildIcon from "../icons/build-icon.svelte";
-	import PlanIcon from "../icons/plan-icon.svelte";
 
 	interface Props {
 		/** Current mode id used to pick the icon (e.g. "code", "plan", "build"). */
@@ -24,7 +23,7 @@
 		micButton?: Snippet;
 		/** Slot for the submit button (rendered by the host). */
 		submitButton?: Snippet;
-		/** Toggle between the available plan/build modes. */
+		/** Toggle between available provider modes. */
 		onModeToggle?: () => void;
 		/** Render without the boxed composer chrome so the footer can blend into the card edge. */
 		embedded?: boolean;
@@ -54,9 +53,7 @@
 		voiceTrailing,
 	}: Props = $props();
 
-	const modeToggleLabel = $derived(
-		modeLabel === "plan" ? "Switch to build mode" : "Switch to plan mode"
-	);
+	const modeToggleLabel = $derived(`Switch mode from ${modeLabel}`);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (disabled) return;
@@ -109,7 +106,7 @@
 			</div>
 		{/if}
 	{:else}
-		<!-- Mode icon -->
+		<!-- Mode control -->
 		{#if onModeToggle}
 			<button
 				type="button"
@@ -117,19 +114,11 @@
 				aria-label={modeToggleLabel}
 				onclick={handleModeToggle}
 			>
-				{#if modeLabel === "plan"}
-					<PlanIcon size="sm" />
-				{:else if modeLabel === "build"}
-					<BuildIcon size="sm" />
-				{/if}
+				<SlidersHorizontal class="size-3.5" />
 			</button>
 		{:else}
 			<span class="flex shrink-0 items-center justify-center">
-				{#if modeLabel === "plan"}
-					<PlanIcon size="sm" />
-				{:else if modeLabel === "build"}
-					<BuildIcon size="sm" />
-				{/if}
+				<SlidersHorizontal class="size-3.5 text-muted-foreground" />
 			</span>
 		{/if}
 

@@ -265,6 +265,20 @@ describe("getQueueItemTaskDisplay", () => {
 });
 
 describe("getQueueItemToolDisplay", () => {
+	it("suppresses completed tools for idle queue previews", () => {
+		const lastToolCall = createReadToolCall("main-app-view", "completed");
+
+		const display = getQueueItemToolDisplay(
+			createToolDisplayInput({
+				activityKind: "idle",
+				lastToolCall,
+				lastToolKind: "read",
+			})
+		);
+
+		expect(display).toBeNull();
+	});
+
 	it("suppresses completed tools while graph-backed thinking is active", () => {
 		const display = getQueueItemToolDisplay(
 			createToolDisplayInput({
@@ -277,7 +291,7 @@ describe("getQueueItemToolDisplay", () => {
 		expect(display).toBeNull();
 	});
 
-	it("falls back to the last completed tool while graph-backed running is active without a live pointer", () => {
+	it("suppresses completed tools while graph-backed running is active without a live pointer", () => {
 		const lastToolCall = createReadToolCall("finished-read", "completed");
 
 		const display = getQueueItemToolDisplay(
@@ -290,12 +304,7 @@ describe("getQueueItemToolDisplay", () => {
 			})
 		);
 
-		expect(display).toEqual({
-			toolCall: lastToolCall,
-			toolKind: "read",
-			isStreaming: false,
-			turnState: "completed",
-		});
+		expect(display).toBeNull();
 	});
 });
 
@@ -322,7 +331,7 @@ describe("getQueueItemToolDisplay", () => {
 		});
 	});
 
-	it("falls back to the last completed tool when no live tool is streaming", () => {
+	it("suppresses the last completed tool when no live tool is streaming", () => {
 		const lastToolCall = createReadToolCall("last-tool", "completed");
 
 		const display = getQueueItemToolDisplay(
@@ -333,12 +342,7 @@ describe("getQueueItemToolDisplay", () => {
 			})
 		);
 
-		expect(display).toEqual({
-			toolCall: lastToolCall,
-			toolKind: "read",
-			isStreaming: false,
-			turnState: "completed",
-		});
+		expect(display).toBeNull();
 	});
 
 	it("suppresses tool display while the session is planning next moves", () => {

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-import { resolveKanbanNewSessionDefaults } from "./kanban-new-session-dialog-state.js";
+import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
+
+import {
+	buildKanbanNewSessionProjectChangeState,
+	buildKanbanNewSessionResetState,
+	resolveKanbanNewSessionDefaults,
+	resolveKanbanNewSessionOpenChangeAction,
+} from "./kanban-new-session-dialog-state.js";
 
 describe("resolveKanbanNewSessionDefaults", () => {
 	it("uses the requested project and agent when they are available", () => {
@@ -89,5 +96,101 @@ describe("resolveKanbanNewSessionDefaults", () => {
 
 		expect(result.projectPath).toBeNull();
 		expect(result.agentId).toBeNull();
+	});
+
+	it("builds reset state for opening the dialog", () => {
+		const result = buildKanbanNewSessionResetState({
+			projects: [
+				{ path: "/a", name: "Alpha", color: "#111", createdAt: new Date() },
+				{ path: "/b", name: "Beta", color: "#222", createdAt: new Date() },
+			],
+			focusedProjectPath: "/a",
+			availableAgents: [
+				{ id: "cursor", name: "Cursor", icon: "cursor.svg" },
+				{ id: "claude-code", name: "Claude Code", icon: "claude.svg" },
+			],
+			selectedAgentIds: ["cursor"],
+			defaultAgentId: null,
+			request: {
+				projectPath: "/b",
+				agentId: "claude-code",
+				modeId: CanonicalModeId.PLAN,
+			},
+			currentComposerKey: 4,
+			fallbackModeId: CanonicalModeId.BUILD,
+			globalWorktreeDefault: true,
+			loadWorktreeEnabled: () => true,
+			panelId: "kanban-new-session-dialog",
+		});
+
+		expect(result).toEqual({
+			selectedProjectPath: "/b",
+			selectedAgentId: "claude-code",
+			initialModeId: CanonicalModeId.PLAN,
+			composerKey: 5,
+			activeWorktreePath: null,
+			preparedWorktreeLaunch: null,
+			worktreePending: true,
+		});
+	});
+
+	it("does not enable worktree pending when reset has no project", () => {
+		const result = buildKanbanNewSessionResetState({
+			projects: [],
+			focusedProjectPath: null,
+			availableAgents: [],
+			selectedAgentIds: [],
+			currentComposerKey: 1,
+			fallbackModeId: CanonicalModeId.BUILD,
+			globalWorktreeDefault: true,
+			loadWorktreeEnabled: () => true,
+			panelId: "kanban-new-session-dialog",
+		});
+
+		expect(result.selectedProjectPath).toBeNull();
+		expect(result.selectedAgentId).toBeNull();
+		expect(result.initialModeId).toBe(CanonicalModeId.BUILD);
+		expect(result.composerKey).toBe(2);
+		expect(result.worktreePending).toBe(false);
+	});
+
+	it("builds project change state with re-resolved worktree pending", () => {
+		const result = buildKanbanNewSessionProjectChangeState({
+			projectPath: "/new",
+			globalWorktreeDefault: false,
+			loadWorktreeEnabled: (panelId) => panelId === "kanban-new-session-dialog",
+			panelId: "kanban-new-session-dialog",
+		});
+
+		expect(result).toEqual({
+			selectedProjectPath: "/new",
+			activeWorktreePath: null,
+			preparedWorktreeLaunch: null,
+			worktreePending: true,
+		});
+	});
+
+	it("resolves open-change actions", () => {
+		expect(
+			resolveKanbanNewSessionOpenChangeAction({
+				nextOpen: false,
+				currentOpen: false,
+				pendingRequest: null,
+			})
+		).toEqual({ kind: "ignore" });
+		expect(
+			resolveKanbanNewSessionOpenChangeAction({
+				nextOpen: false,
+				currentOpen: true,
+				pendingRequest: null,
+			})
+		).toEqual({ kind: "close" });
+		expect(
+			resolveKanbanNewSessionOpenChangeAction({
+				nextOpen: true,
+				currentOpen: false,
+				pendingRequest: { modeId: CanonicalModeId.PLAN },
+			})
+		).toEqual({ kind: "open", request: { modeId: CanonicalModeId.PLAN } });
 	});
 });

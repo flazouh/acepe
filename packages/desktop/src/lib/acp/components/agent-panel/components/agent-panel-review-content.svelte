@@ -16,16 +16,26 @@ import type { ModifiedFilesState } from "../../../types/modified-files-state.js"
 import ReviewBottomWidget from "../../review-panel/review-bottom-widget.svelte";
 import ReviewPanelDiff from "../../review-panel/review-panel-diff.svelte";
 import type {
-	FileReviewCounters,
 	PerFileReviewState,
 } from "../../review-panel/review-session-state.js";
 import {
-	computeFileReviewStatus,
-	findNextReviewableFileIndex,
 	nextSequentialFileIndex,
 	prevSequentialFileIndex,
-	shouldAutoAdvanceAfterFileResolution,
 } from "../../review-panel/review-session-state.js";
+import {
+	appendResolvedHunkAction,
+	buildFallbackHunkAcceptStats,
+	buildFallbackHunkRejectStats,
+	buildPersistableReviewProgressInput,
+	buildReviewHunkNavigationSummary,
+	buildReviewStateFromHunkStats,
+	findStaleReviewStateKeys,
+	mapPersistedProgressToReviewState,
+	resolveAgentPanelReviewKeyAction,
+	resolveCurrentFileReviewState,
+	resolveReviewHydrationAction,
+	resolveReviewAutoAdvanceAction,
+} from "../logic/agent-panel-review-content-state.js";
 
 interface Props {
 	modifiedFilesState: ModifiedFilesState;
@@ -35,9 +45,23 @@ interface Props {
 	onClose: () => void;
 	onFileIndexChange: (index: number) => void;
 	onKeepActionChange?: (action: (() => void) | null, disabled: boolean) => void;
+	onControlsChange?: (controls: ReviewControlsSnapshot | null) => void;
+	hideBottomWidget?: boolean;
 	isActive?: boolean;
 	onExpandToFullscreen?: () => void;
 	diffDensity?: ReviewDiffDensity;
+}
+
+export interface ReviewControlsSnapshot {
+	hasPendingHunks: boolean;
+	hasPrevPendingFile: boolean;
+	hasNextPendingFile: boolean;
+	fileCurrent: number;
+	fileTotal: number;
+	onPrevFile: () => void;
+	onNextFile: () => void;
+	onAcceptFile: () => void;
+	onRejectFile: () => void;
 }
 
 let {
@@ -48,6 +72,8 @@ let {
 	onClose,
 	onFileIndexChange,
 	onKeepActionChange,
+	onControlsChange,
+	hideBottomWidget = false,
 	isActive = true,
 	onExpandToFullscreen: _onExpandToFullscreen = undefined,
 	diffDensity = "default",
@@ -93,27 +119,22 @@ const prevFileIdx = $derived(prevSequentialFileIndex(selectedFileIndex));
 const hunkStats = $derived.by(() => {
 	const state = diffViewStateRef;
 	if (!state) {
-		return {
-			hasPrev: false,
-			hasNext: false,
-			hasPending: false,
-			hunkCurrent: 0,
-			hunkTotal: 0,
-		};
+		return buildReviewHunkNavigationSummary({
+			stats: null,
+			pendingHunkIndices: [],
+			activeHunkIndex: null,
+			selectedFileIsResolved,
+			selectedFileTotalHunks: selectedFileReviewState?.totalHunks ?? null,
+		});
 	}
 	const stats = state.getHunkStats();
-	const pending = selectedFileIsResolved ? [] : state.getPendingHunkIndices();
-	const active = state.getActiveHunkIndex();
-	const activeIdx = active !== null ? pending.indexOf(active) : 0;
-	const hunkCurrent = pending.length > 0 ? activeIdx + 1 : 0;
-	const hunkTotal = pending.length || selectedFileReviewState?.totalHunks || stats.total;
-	return {
-		hasPrev: pending.length > 1 && activeIdx > 0,
-		hasNext: pending.length > 1 && activeIdx < pending.length - 1 && activeIdx >= 0,
-		hasPending: !selectedFileIsResolved && stats.pending > 0,
-		hunkCurrent,
-		hunkTotal,
-	};
+	return buildReviewHunkNavigationSummary({
+		stats,
+		pendingHunkIndices: state.getPendingHunkIndices(),
+		activeHunkIndex: state.getActiveHunkIndex(),
+		selectedFileIsResolved,
+		selectedFileTotalHunks: selectedFileReviewState?.totalHunks ?? null,
+	});
 });
 
 const fileCurrent = $derived(selectedFileIndex + 1);
@@ -121,19 +142,6 @@ const fileTotal = $derived(files.length);
 
 function getReviewFileRevisionKey(file: ModifiedFileEntry): string {
 	return createReviewFileRevisionKey(file);
-}
-
-function mapPersistedProgressToReviewState(
-	progress: PersistedFileReviewProgress
-): PerFileReviewState {
-	return {
-		filePath: progress.filePath,
-		status: progress.status,
-		acceptedHunks: progress.acceptedHunks,
-		rejectedHunks: progress.rejectedHunks,
-		pendingHunks: progress.pendingHunks,
-		totalHunks: progress.totalHunks,
-	};
 }
 
 function getPersistedReviewProgress(
@@ -152,16 +160,8 @@ function getPersistedReviewProgress(
 
 function getCurrentFileReviewState(file: ModifiedFileEntry): PerFileReviewState | undefined {
 	const persisted = getPersistedReviewProgress(file);
-	if (persisted?.pendingHunks === 0) {
-		return mapPersistedProgressToReviewState(persisted);
-	}
-
 	const local = fileStatuses.get(getReviewFileRevisionKey(file));
-	if (local) {
-		return local;
-	}
-
-	return persisted ? mapPersistedProgressToReviewState(persisted) : undefined;
+	return resolveCurrentFileReviewState({ local, persisted });
 }
 
 function persistFileStatus(fileKey: string, status: PerFileReviewState): void {
@@ -176,15 +176,12 @@ function persistFileStatus(fileKey: string, status: PerFileReviewState): void {
 	sessionReviewStateStore.upsertFileProgress(
 		sessionId,
 		fileKey,
-		toPersistedFileReviewProgress({
-			filePath: status.filePath,
-			status: status.status,
-			acceptedHunks: status.acceptedHunks,
-			rejectedHunks: status.rejectedHunks,
-			pendingHunks: status.pendingHunks,
-			totalHunks: status.totalHunks,
-			resolvedActions: resolvedActionsByFile.get(fileKey) ?? [],
-		})
+		toPersistedFileReviewProgress(
+			buildPersistableReviewProgressInput({
+				status,
+				resolvedActions: resolvedActionsByFile.get(fileKey) ?? [],
+			})
+		)
 	);
 }
 
@@ -207,19 +204,23 @@ function recordResolvedAction(
 ): void {
 	const fileKey = getReviewFileRevisionKey(file);
 	const existing = resolvedActionsByFile.get(fileKey) ?? [];
-	resolvedActionsByFile.set(fileKey, [...existing, { hunkIndex, action }]);
+	resolvedActionsByFile.set(
+		fileKey,
+		appendResolvedHunkAction(existing, { hunkIndex, action })
+	);
 }
 
 function maybeAutoAdvanceAfterResolve(nextState: PerFileReviewState, fileIndex?: number): void {
-	if (!shouldAutoAdvanceAfterFileResolution(nextState)) return;
 	const resolvedIndex = fileIndex ?? selectedFileIndex;
-
-	const nextReviewableIndex = findNextReviewableFileIndex(
+	const action = resolveReviewAutoAdvanceAction({
+		resolvedState: nextState,
 		resolvedIndex,
-		files.map((file) => fileStatuses.get(getReviewFileRevisionKey(file)))
-	);
-	if (nextReviewableIndex !== null) {
-		onFileIndexChange(nextReviewableIndex);
+		fileStates: files.map((file) => fileStatuses.get(getReviewFileRevisionKey(file))),
+	});
+
+	if (action.kind === "stay") return;
+	if (action.kind === "select") {
+		onFileIndexChange(action.index);
 		return;
 	}
 
@@ -230,26 +231,11 @@ function handleHunkAccept(hunkIndex: number): void {
 	if (!selectedFile) return;
 	recordResolvedAction(selectedFile, hunkIndex, "accept");
 	const nextState = updateFileStatus(selectedFile, (prev) => {
-		const stats = diffViewStateRef?.getHunkStats() ?? {
-			total: prev?.totalHunks ?? 0,
-			pending: (prev?.pendingHunks ?? 1) - 1,
-			accepted: (prev?.acceptedHunks ?? 0) + 1,
-			rejected: prev?.rejectedHunks ?? 0,
-		};
-		const counters: FileReviewCounters = {
-			acceptedHunks: stats.accepted,
-			rejectedHunks: stats.rejected,
-			pendingHunks: stats.pending,
-			totalHunks: stats.total,
-		};
-		return {
+		const stats = diffViewStateRef?.getHunkStats() ?? buildFallbackHunkAcceptStats(prev);
+		return buildReviewStateFromHunkStats({
 			filePath: selectedFile.filePath,
-			acceptedHunks: counters.acceptedHunks,
-			rejectedHunks: counters.rejectedHunks,
-			pendingHunks: counters.pendingHunks,
-			totalHunks: counters.totalHunks,
-			status: computeFileReviewStatus(counters, false),
-		};
+			stats,
+		});
 	});
 	maybeAutoAdvanceAfterResolve(nextState);
 }
@@ -275,26 +261,11 @@ function handleHunkReject(hunkIndex: number, revertedContent: string): void {
 			toast.success(`Reverted changes in ${capturedFile.fileName}`);
 			recordResolvedAction(capturedFile, hunkIndex, "reject");
 			const nextState = updateFileStatus(capturedFile, (prev) => {
-				const stats = capturedDiffState?.getHunkStats() ?? {
-					total: prev?.totalHunks ?? 0,
-					pending: (prev?.pendingHunks ?? 1) - 1,
-					accepted: prev?.acceptedHunks ?? 0,
-					rejected: (prev?.rejectedHunks ?? 0) + 1,
-				};
-				const counters: FileReviewCounters = {
-					acceptedHunks: stats.accepted,
-					rejectedHunks: stats.rejected,
-					pendingHunks: stats.pending,
-					totalHunks: stats.total,
-				};
-				return {
+				const stats = capturedDiffState?.getHunkStats() ?? buildFallbackHunkRejectStats(prev);
+				return buildReviewStateFromHunkStats({
 					filePath: capturedFile.filePath,
-					acceptedHunks: counters.acceptedHunks,
-					rejectedHunks: counters.rejectedHunks,
-					pendingHunks: counters.pendingHunks,
-					totalHunks: counters.totalHunks,
-					status: computeFileReviewStatus(counters, false),
-				};
+					stats,
+				});
 			});
 			maybeAutoAdvanceAfterResolve(nextState, capturedFileIndex);
 		},
@@ -324,16 +295,9 @@ function handleDiffStateReady(state: ReviewDiffViewState): void {
 			}
 		}
 		const stats = state.getHunkStats();
-		const counters: FileReviewCounters = {
-			acceptedHunks: stats.accepted,
-			rejectedHunks: stats.rejected,
-			pendingHunks: stats.pending,
-			totalHunks: stats.total,
-		};
-		updateFileStatus(selectedFile, () => ({
+		updateFileStatus(selectedFile, () => buildReviewStateFromHunkStats({
 			filePath: selectedFile.filePath,
-			...counters,
-			status: computeFileReviewStatus(counters, false),
+			stats,
 		}));
 	}
 }
@@ -404,16 +368,24 @@ function hydrateFromPersistedSessionState(currentSessionId: string): void {
 }
 
 function handleKeydown(event: KeyboardEvent): void {
-	if (!isActive) return;
-	if (event.key === "Escape") {
+	const action = resolveAgentPanelReviewKeyAction({
+		isActive,
+		key: event.key,
+		metaKey: event.metaKey,
+	});
+
+	if (action.kind === "none") return;
+	if ("preventDefault" in action && action.preventDefault) {
+		event.preventDefault();
+	}
+
+	if (action.kind === "close") {
 		onClose();
-	} else if (event.key === "ArrowRight" && event.metaKey) {
+	} else if (action.kind === "next-file") {
 		handleNextFile();
-	} else if (event.key === "y" && event.metaKey) {
-		event.preventDefault();
+	} else if (action.kind === "accept-first-pending-hunk") {
 		diffViewStateRef?.acceptFirstPendingHunk();
-	} else if (event.key === "n" && event.metaKey) {
-		event.preventDefault();
+	} else if (action.kind === "reject-first-pending-hunk") {
 		diffViewStateRef?.rejectFirstPendingHunk();
 	}
 }
@@ -437,16 +409,43 @@ $effect(() => {
 });
 
 $effect(() => {
-	const validKeys = new Set(files.map((file) => getReviewFileRevisionKey(file)));
-	for (const key of Array.from(fileStatuses.keys())) {
-		if (!validKeys.has(key)) {
-			fileStatuses.delete(key);
-		}
+	if (!onControlsChange) return;
+
+	if (!selectedFile) {
+		onControlsChange(null);
+		return () => onControlsChange(null);
 	}
-	for (const key of Array.from(resolvedActionsByFile.keys())) {
-		if (!validKeys.has(key)) {
-			resolvedActionsByFile.delete(key);
-		}
+
+	onControlsChange({
+		hasPendingHunks: hunkStats.hasPending,
+		hasPrevPendingFile: prevFileIdx !== null,
+		hasNextPendingFile: nextFileIdx !== null,
+		fileCurrent,
+		fileTotal,
+		onPrevFile: handlePrevFile,
+		onNextFile: handleNextFile,
+		onAcceptFile: handleAcceptFile,
+		onRejectFile: handleRejectFile,
+	});
+
+	return () => {
+		onControlsChange(null);
+	};
+});
+
+$effect(() => {
+	const validKeys = new Set(files.map((file) => getReviewFileRevisionKey(file)));
+	for (const key of findStaleReviewStateKeys({
+		existingKeys: fileStatuses.keys(),
+		validKeys,
+	})) {
+		fileStatuses.delete(key);
+	}
+	for (const key of findStaleReviewStateKeys({
+		existingKeys: resolvedActionsByFile.keys(),
+		validKeys,
+	})) {
+		resolvedActionsByFile.delete(key);
 	}
 });
 
@@ -460,14 +459,21 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!sessionId) return;
-	if (!sessionReviewStateStore.isLoaded(sessionId)) return;
+	const action = resolveReviewHydrationAction({
+		sessionId,
+		isLoaded: sessionId ? sessionReviewStateStore.isLoaded(sessionId) : false,
+		fileRevisionKeySignature,
+		hydratedRevisionSignature,
+	});
 
-	const nextSignature = `${sessionId}\u0000${fileRevisionKeySignature}`;
-	if (nextSignature === hydratedRevisionSignature) return;
-
-	hydratedRevisionSignature = nextSignature;
-	hydrateFromPersistedSessionState(sessionId);
+	if (action.kind === "reset") {
+		hydratedRevisionSignature = null;
+		return;
+	}
+	if (action.kind === "hydrate" && sessionId) {
+		hydratedRevisionSignature = action.signature;
+		hydrateFromPersistedSessionState(sessionId);
+	}
 });
 
 $effect(() => {
@@ -483,15 +489,12 @@ $effect(() => {
 		sessionReviewStateStore.upsertFileProgress(
 			sessionId,
 			fileKey,
-			toPersistedFileReviewProgress({
-				filePath: status.filePath,
-				status: status.status,
-				acceptedHunks: status.acceptedHunks,
-				rejectedHunks: status.rejectedHunks,
-				pendingHunks: status.pendingHunks,
-				totalHunks: status.totalHunks,
-				resolvedActions: resolvedActionsByFile.get(fileKey) ?? [],
-			})
+			toPersistedFileReviewProgress(
+				buildPersistableReviewProgressInput({
+					status,
+					resolvedActions: resolvedActionsByFile.get(fileKey) ?? [],
+				})
+			)
 		);
 	}
 });
@@ -517,7 +520,7 @@ $effect(() => {
 {/snippet}
 
 {#snippet reviewFooter()}
-	{#if selectedFile}
+	{#if selectedFile && !hideBottomWidget}
 		<ReviewBottomWidget
 			hunkCurrent={hunkStats.hunkCurrent}
 			hunkTotal={hunkStats.hunkTotal}

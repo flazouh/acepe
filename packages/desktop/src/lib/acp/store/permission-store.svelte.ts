@@ -38,10 +38,19 @@ import type { OperationStore } from "./operation-store.svelte.js";
 const PERMISSION_STORE_KEY = Symbol("permission-store");
 const logger = createLogger({ id: "permission-store", name: "PermissionStore" });
 
+export type PermissionReplyChoice = "once" | "always" | "reject";
+
+export interface AnsweredPermission {
+	readonly permission: PermissionRequest;
+	readonly reply: PermissionReplyChoice;
+}
+
 export class PermissionStore {
 	private interactions = new InteractionStore();
 	private sessionBatchTotals = new SvelteMap<string, number>();
 	private sessionBatchCompleted = new SvelteMap<string, number>();
+	private repliesInFlight = new SvelteMap<string, PermissionReplyChoice>();
+	private answeredByPermissionId = new SvelteMap<string, AnsweredPermission>();
 
 	constructor(interactions?: InteractionStore) {
 		if (interactions !== undefined) {
@@ -66,6 +75,31 @@ export class PermissionStore {
 	private clearSessionProgress(sessionId: string): void {
 		this.sessionBatchTotals.delete(sessionId);
 		this.sessionBatchCompleted.delete(sessionId);
+	}
+
+	getReplyInFlight(permissionId: string): PermissionReplyChoice | null {
+		return this.repliesInFlight.get(permissionId) ?? null;
+	}
+
+	isPending(permissionId: string): boolean {
+		return this.pending.has(permissionId);
+	}
+
+	getAnsweredForToolCall(sessionId: string, toolCallId: string): AnsweredPermission | null {
+		for (const answeredPermission of this.answeredByPermissionId.values()) {
+			if (answeredPermission.permission.sessionId !== sessionId) {
+				continue;
+			}
+			if (this.getToolCallId(answeredPermission.permission) === toolCallId) {
+				return answeredPermission;
+			}
+		}
+
+		return null;
+	}
+
+	removeAnswered(permissionId: string): void {
+		this.answeredByPermissionId.delete(permissionId);
 	}
 
 	private notePermissionAdded(sessionId: string, hadPendingBeforeAdd: boolean): void {
@@ -279,6 +313,8 @@ export class PermissionStore {
 	remove(permissionId: string): void {
 		const permission = this.pending.get(permissionId);
 		this.pending.delete(permissionId);
+		this.repliesInFlight.delete(permissionId);
+		this.answeredByPermissionId.delete(permissionId);
 		if (permission && this.countPendingForSession(permission.sessionId) === 0) {
 			this.clearSessionProgress(permission.sessionId);
 		}
@@ -290,7 +326,16 @@ export class PermissionStore {
 	 */
 	removeForSession(sessionId: string): void {
 		for (const [id, p] of this.pending) {
-			if (p.sessionId === sessionId) this.pending.delete(id);
+			if (p.sessionId === sessionId) {
+				this.pending.delete(id);
+				this.repliesInFlight.delete(id);
+				this.answeredByPermissionId.delete(id);
+			}
+		}
+		for (const [id, answered] of this.answeredByPermissionId) {
+			if (answered.permission.sessionId === sessionId) {
+				this.answeredByPermissionId.delete(id);
+			}
 		}
 		this.clearSessionProgress(sessionId);
 		logger.debug("Permissions removed for session", { sessionId });
@@ -304,7 +349,7 @@ export class PermissionStore {
 	 */
 	private resolveOptionId(
 		permission: PermissionRequest,
-		reply: "once" | "always" | "reject"
+		reply: PermissionReplyChoice
 	): string {
 		// Try to find matching option from the stored options
 		const options = permission.metadata.options;
@@ -327,22 +372,21 @@ export class PermissionStore {
 	 *
 	 * The shared interaction reply layer resolves the correct transport.
 	 */
-	reply(permissionId: string, reply: "once" | "always" | "reject"): ResultAsync<void, AppError> {
+	reply(permissionId: string, reply: PermissionReplyChoice): ResultAsync<void, AppError> {
 		const permission = this.pending.get(permissionId);
 		if (!permission) {
 			return errAsync(
 				new AgentError("replyPermission", new Error(`Permission not found: ${permissionId}`))
 			);
 		}
+		if (this.repliesInFlight.has(permissionId)) {
+			return okAsync(undefined);
+		}
 
 		const totalBeforeReply = this.sessionBatchTotals.get(permission.sessionId);
 		const completedBeforeReply = this.sessionBatchCompleted.get(permission.sessionId);
 
-		// Eagerly remove from pending map so the UI updates immediately.
-		// The user's intent is clear — don't wait for the async IPC response.
-		this.pending.delete(permissionId);
-		this.notePermissionResolved(permission.sessionId);
-		logger.debug("Permission request removed", { permissionId });
+		this.repliesInFlight.set(permissionId, reply);
 
 		const replyRequests = getPermissionRequestMembers(permission).map((member) =>
 			createPermissionRequest({
@@ -398,6 +442,13 @@ export class PermissionStore {
 			}
 		)
 			.map(() => {
+				this.pending.delete(permissionId);
+				this.repliesInFlight.delete(permissionId);
+				this.answeredByPermissionId.set(permissionId, {
+					permission,
+					reply,
+				});
+				this.notePermissionResolved(permission.sessionId);
 				logger.debug("Permission reply sent", {
 					permissionId,
 					reply,
@@ -405,6 +456,7 @@ export class PermissionStore {
 				});
 			})
 			.mapErr((error) => {
+				this.repliesInFlight.delete(permissionId);
 				const failedRequests = error.failedRequests;
 				if (failedRequests.length > 0) {
 					const restoredPermission =

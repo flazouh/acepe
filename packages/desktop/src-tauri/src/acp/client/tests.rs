@@ -1,7 +1,7 @@
 use super::*;
 use crate::acp::client::session_lifecycle::reconnect_policy_for_provider;
 use crate::acp::client_session::{
-    apply_provider_model_fallback, default_modes, parse_model_discovery_output,
+    apply_provider_model_fallback, default_modes, parse_model_discovery_output, ModeIconKind,
 };
 use crate::acp::model_display::ModelsForDisplay;
 use crate::acp::parsers::AgentType;
@@ -138,16 +138,23 @@ impl AgentProvider for TestProvider {
 
     fn normalize_mode_id(&self, id: &str) -> String {
         match (self.id, id) {
-            ("claude-code", "default" | "acceptEdits") => "build".to_string(),
-            ("cursor", "ask" | "agent") => "build".to_string(),
+            ("claude-code", "build") => "default".to_string(),
+            ("cursor", "build") => "agent".to_string(),
             _ => id.to_string(),
         }
     }
 
     fn map_outbound_mode_id(&self, mode_id: &str) -> String {
         match (self.id, mode_id) {
-            ("claude-code", "build") => "default".to_string(),
+            ("claude-code", "build" | "default") => "default".to_string(),
             _ => mode_id.to_string(),
+        }
+    }
+
+    fn visible_mode_ids(&self) -> &'static [&'static str] {
+        match self.id {
+            "claude-code" => &["default", "acceptEdits", "plan", "bypassPermissions"],
+            _ => &[],
         }
     }
 
@@ -614,10 +621,9 @@ fn session_modes_normalize_returns_defaults_when_empty() {
 
     let normalized = empty_modes.normalize_with_provider(&provider);
 
-    assert_eq!(normalized.current_mode_id, "build");
-    assert_eq!(normalized.available_modes.len(), 2);
-    assert_eq!(normalized.available_modes[0].id, "build");
-    assert_eq!(normalized.available_modes[1].id, "plan");
+    assert_eq!(normalized.current_mode_id, "agent");
+    assert_eq!(normalized.available_modes.len(), 1);
+    assert_eq!(normalized.available_modes[0].id, "agent");
 }
 
 #[test]
@@ -626,16 +632,8 @@ fn session_modes_normalize_preserves_standard_modes() {
     let existing_modes = SessionModes {
         current_mode_id: "build".to_string(),
         available_modes: vec![
-            AvailableMode {
-                id: "build".to_string(),
-                name: "Build".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: None,
-            },
+            AvailableMode::new("build", "Build", None),
+            AvailableMode::new("plan", "Plan", None),
         ],
     };
 
@@ -651,45 +649,51 @@ fn session_modes_normalize_preserves_standard_modes() {
 fn default_modes_returns_build_and_plan() {
     let modes = default_modes();
 
-    assert_eq!(modes.current_mode_id, "build");
-    assert_eq!(modes.available_modes.len(), 2);
+    assert_eq!(modes.current_mode_id, "agent");
+    assert_eq!(modes.available_modes.len(), 1);
 
-    let build_mode = &modes.available_modes[0];
-    assert_eq!(build_mode.id, "build");
-    assert_eq!(build_mode.name, "Build");
-
-    let plan_mode = &modes.available_modes[1];
-    assert_eq!(plan_mode.id, "plan");
-    assert_eq!(plan_mode.name, "Plan");
+    let agent_mode = &modes.available_modes[0];
+    assert_eq!(agent_mode.id, "agent");
+    assert_eq!(agent_mode.name, "Agent");
 }
 
 #[test]
-fn session_modes_normalize_converts_accept_edits_to_build() {
+fn available_mode_infers_unified_icon_kind_without_changing_native_text() {
+    let autopilot = AvailableMode::new(
+        "autopilot",
+        "Autopilot",
+        Some("Provider-native autonomous mode".to_string()),
+    );
+    let plan = AvailableMode::new("architect", "Architect", Some("Plan first".to_string()));
+    let ask = AvailableMode::new("ask", "Ask", Some("Chat with the agent".to_string()));
+
+    assert_eq!(autopilot.name, "Autopilot");
+    assert_eq!(autopilot.icon_kind, ModeIconKind::Autonomous);
+    assert_eq!(plan.icon_kind, ModeIconKind::Plan);
+    assert_eq!(ask.icon_kind, ModeIconKind::Ask);
+}
+
+#[test]
+fn session_modes_normalize_preserves_claude_permission_modes() {
     let provider = TestProvider { id: "claude-code" };
-    // Claude Code returns "acceptEdits" - should be normalized to "build"
     let claude_modes = SessionModes {
         current_mode_id: "acceptEdits".to_string(),
         available_modes: vec![
-            AvailableMode {
-                id: "acceptEdits".to_string(),
-                name: "Accept Edits".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: None,
-            },
+            AvailableMode::new("default", "Default", None),
+            AvailableMode::new("acceptEdits", "Accept Edits", None),
+            AvailableMode::new("plan", "Plan", None),
+            AvailableMode::new("bypassPermissions", "Bypass Permissions", None),
         ],
     };
 
     let normalized = claude_modes.normalize_with_provider(&provider);
 
-    // "acceptEdits" should be normalized to "build"
-    assert_eq!(normalized.current_mode_id, "build");
-    assert_eq!(normalized.available_modes.len(), 2);
-    assert_eq!(normalized.available_modes[0].id, "build");
-    assert_eq!(normalized.available_modes[1].id, "plan");
+    assert_eq!(normalized.current_mode_id, "acceptEdits");
+    assert_eq!(normalized.available_modes.len(), 4);
+    assert_eq!(normalized.available_modes[0].id, "default");
+    assert_eq!(normalized.available_modes[1].id, "acceptEdits");
+    assert_eq!(normalized.available_modes[2].id, "plan");
+    assert_eq!(normalized.available_modes[3].id, "bypassPermissions");
 }
 
 #[test]
@@ -698,96 +702,59 @@ fn session_modes_normalize_fixes_mismatched_current_mode() {
     // Edge case: current_mode_id doesn't match any available mode
     let mismatched_modes = SessionModes {
         current_mode_id: "unknown".to_string(),
-        available_modes: vec![AvailableMode {
-            id: "build".to_string(),
-            name: "Build".to_string(),
-            description: None,
-        }],
+        available_modes: vec![AvailableMode::new("agent", "Agent", None)],
     };
 
     let normalized = mismatched_modes.normalize_with_provider(&provider);
 
     // Should fallback to first available mode
-    assert_eq!(normalized.current_mode_id, "build");
+    assert_eq!(normalized.current_mode_id, "agent");
 }
 
 #[test]
-fn session_modes_normalize_converts_default_to_build_and_filters() {
+fn session_modes_normalize_filters_claude_unknown_modes_without_aliasing_permissions() {
     let provider = TestProvider { id: "claude-code" };
-    // Claude Code returns "default" as current mode and multiple modes
-    // Should normalize, filter to visible modes only, and deduplicate
     let claude_modes = SessionModes {
         current_mode_id: "default".to_string(),
         available_modes: vec![
-            AvailableMode {
-                id: "default".to_string(),
-                name: "Default".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "acceptEdits".to_string(),
-                name: "Accept Edits".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "dontAsk".to_string(),
-                name: "Don't Ask".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "bypassPermissions".to_string(),
-                name: "Bypass Permissions".to_string(),
-                description: None,
-            },
+            AvailableMode::new("default", "Default", None),
+            AvailableMode::new("acceptEdits", "Accept Edits", None),
+            AvailableMode::new("plan", "Plan", None),
+            AvailableMode::new("dontAsk", "Don't Ask", None),
+            AvailableMode::new("bypassPermissions", "Bypass Permissions", None),
         ],
     };
 
     let normalized = claude_modes.normalize_with_provider(&provider);
 
-    // "default" should be normalized to "build"
-    assert_eq!(normalized.current_mode_id, "build");
-    // Should have only 2 modes (build and plan) - filtered and deduplicated
-    assert_eq!(normalized.available_modes.len(), 2);
-    assert_eq!(normalized.available_modes[0].id, "build");
-    assert_eq!(normalized.available_modes[1].id, "plan");
+    assert_eq!(normalized.current_mode_id, "default");
+    assert_eq!(normalized.available_modes.len(), 4);
+    assert_eq!(normalized.available_modes[0].id, "default");
+    assert_eq!(normalized.available_modes[1].id, "acceptEdits");
+    assert_eq!(normalized.available_modes[2].id, "plan");
+    assert_eq!(normalized.available_modes[3].id, "bypassPermissions");
 }
 
 #[test]
 fn session_modes_normalize_converts_cursor_modes_to_build_and_plan() {
     let provider = TestProvider { id: "cursor" };
-    // Cursor returns ask/plan/agent. UI should still show build/plan.
+    // Cursor returns ask/plan/agent. UI should preserve provider-owned mode IDs.
     let cursor_modes = SessionModes {
         current_mode_id: "ask".to_string(),
         available_modes: vec![
-            AvailableMode {
-                id: "ask".to_string(),
-                name: "Ask".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "plan".to_string(),
-                name: "Plan".to_string(),
-                description: None,
-            },
-            AvailableMode {
-                id: "agent".to_string(),
-                name: "Agent".to_string(),
-                description: None,
-            },
+            AvailableMode::new("ask", "Ask", None),
+            AvailableMode::new("plan", "Plan", None),
+            AvailableMode::new("agent", "Agent", None),
         ],
     };
 
     let normalized = cursor_modes.normalize_with_provider(&provider);
 
-    assert_eq!(normalized.current_mode_id, "build");
-    assert_eq!(normalized.available_modes.len(), 2);
-    assert_eq!(normalized.available_modes[0].id, "build");
+    assert_eq!(normalized.current_mode_id, "ask");
+    assert_eq!(normalized.available_modes.len(), 3);
+    assert_eq!(normalized.available_modes[0].id, "ask");
     assert_eq!(normalized.available_modes[1].id, "plan");
+    assert_eq!(normalized.available_modes[2].id, "agent");
 }
 
 #[test]
@@ -795,19 +762,14 @@ fn session_modes_normalize_injects_build_when_provider_returns_plan_only() {
     let provider = TestProvider { id: "codex" };
     let plan_only_modes = SessionModes {
         current_mode_id: "plan".to_string(),
-        available_modes: vec![AvailableMode {
-            id: "plan".to_string(),
-            name: "Plan".to_string(),
-            description: None,
-        }],
+        available_modes: vec![AvailableMode::new("plan", "Plan", None)],
     };
 
     let normalized = plan_only_modes.normalize_with_provider(&provider);
 
     assert_eq!(normalized.current_mode_id, "plan");
-    assert_eq!(normalized.available_modes.len(), 2);
-    assert_eq!(normalized.available_modes[0].id, "build");
-    assert_eq!(normalized.available_modes[1].id, "plan");
+    assert_eq!(normalized.available_modes.len(), 1);
+    assert_eq!(normalized.available_modes[0].id, "plan");
 }
 
 #[test]

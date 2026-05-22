@@ -2,7 +2,7 @@
  * Agent Model Preferences Store
  *
  * Module-level store (not context-based) for managing:
- * - Default models per agent per mode (plan/build)
+ * - Default models per agent per provider mode
  * - Favorite models per agent
  * - Cached available models per agent (for settings and optimistic display)
  * - Cached available modes per agent (for optimistic display)
@@ -20,11 +20,7 @@ import {
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
 import type { AppError } from "../errors/app-error.js";
-import type {
-	AgentDefaultModels,
-	ModeType,
-	SessionModelPerMode,
-} from "../types/agent-model-preferences.js";
+import type { SessionModelPerMode } from "../types/agent-model-preferences.js";
 
 import { createLogger } from "../utils/logger.js";
 
@@ -34,7 +30,6 @@ const logger = createLogger({
 });
 
 // SQLite storage keys
-const AGENT_DEFAULT_MODELS_KEY = "agent_default_models";
 const AGENT_FAVORITE_MODELS_KEY = "agent_favorite_models";
 const AGENT_AVAILABLE_MODELS_CACHE_KEY = "agent_available_models_cache";
 const AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY = "agent_available_models_display_cache";
@@ -52,7 +47,6 @@ export interface PrGenerationPreferences {
 }
 
 // State using Svelte 5 runes
-let defaults = $state<Record<string, AgentDefaultModels>>({});
 let favorites = $state<Record<string, string[]>>({});
 let availableModelsCache = $state<Record<string, Model[]>>({});
 let availableModelsDisplayCache = $state<Record<string, ModelsForDisplay>>({});
@@ -69,35 +63,6 @@ const logger_instance = logger;
 // ============================================
 // PUBLIC API
 // ============================================
-
-/**
- * Get default model for a specific agent and mode.
- */
-export function getDefaultModel(agentId: string, mode: ModeType): string | undefined {
-	return defaults[agentId]?.[mode];
-}
-
-/**
- * Set default model for a specific agent and mode.
- * Pass undefined to clear the default.
- */
-export function setDefaultModel(
-	agentId: string,
-	mode: ModeType,
-	modelId: string | undefined
-): void {
-	if (!defaults[agentId]) {
-		defaults[agentId] = {};
-	}
-
-	if (modelId === undefined) {
-		delete defaults[agentId][mode];
-	} else {
-		defaults[agentId][mode] = modelId;
-	}
-
-	persistDefaults();
-}
 
 /**
  * Get favorite models for a specific agent.
@@ -281,25 +246,6 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 
 	sessionModelLoadState = "loading";
 
-	const defaultsLoad = tauriClient.settings
-		.get<Record<string, AgentDefaultModels>>(AGENT_DEFAULT_MODELS_KEY)
-		.map((persisted) => {
-			if (persisted && typeof persisted === "object") {
-				defaults = persisted;
-				logger_instance.debug("Loaded agent default models", {
-					agents: Object.keys(persisted).length,
-				});
-			}
-			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No persisted default models found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
-
 	const favoritesLoad = tauriClient.settings
 		.get<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY)
 		.map((persisted) => {
@@ -434,7 +380,6 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 		.orElse(() => okAsync(undefined));
 
 	loadPromise = ResultAsync.combine([
-		defaultsLoad,
 		favoritesLoad,
 		modelsCacheLoad,
 		providerMetadataCacheLoad,
@@ -456,14 +401,6 @@ export function ensureLoaded(): ResultAsync<void, AppError> {
 // ============================================
 // PRIVATE PERSISTENCE HELPERS
 // ============================================
-
-function persistDefaults(): void {
-	tauriClient.settings
-		.set<Record<string, AgentDefaultModels>>(AGENT_DEFAULT_MODELS_KEY, defaults)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist default models", { error: err.message });
-		});
-}
 
 function persistProviderMetadataCache(): void {
 	tauriClient.settings

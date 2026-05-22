@@ -23,11 +23,12 @@ vi.mock("$lib/acp/components/file-panel/index.js", async () => ({
 	FilePanel: (await import("./fixtures/file-panel-stub.svelte")).default,
 }));
 
-const getProjectGitStatusMapMock = vi.fn();
+const getProjectGitStatusSummaryMapMock = vi.fn();
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
-		getProjectGitStatusMap: (projectPath: string) => getProjectGitStatusMapMock(projectPath),
+		getProjectGitStatusSummaryMap: (projectPath: string) =>
+			getProjectGitStatusSummaryMapMock(projectPath),
 	},
 }));
 
@@ -46,7 +47,7 @@ function createFilePanel(id: string, filePath: string): FilePanelType {
 
 describe("AgentAttachedFilePane", () => {
 	beforeEach(() => {
-		getProjectGitStatusMapMock.mockReset();
+		getProjectGitStatusSummaryMapMock.mockReset();
 	});
 
 	afterEach(() => {
@@ -76,7 +77,7 @@ describe("AgentAttachedFilePane", () => {
 		]);
 		const valuesSpy = vi.spyOn(statusMap, "values");
 
-		getProjectGitStatusMapMock.mockReturnValue({
+		getProjectGitStatusSummaryMapMock.mockReturnValue({
 			match: (
 				onOk: (
 					result: ReadonlyMap<
@@ -108,8 +109,8 @@ describe("AgentAttachedFilePane", () => {
 			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
 		});
 
-		expect(getProjectGitStatusMapMock).toHaveBeenCalledTimes(1);
-		expect(getProjectGitStatusMapMock).toHaveBeenCalledWith("/repo");
+		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledTimes(1);
+		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledWith("/repo");
 		expect(valuesSpy).not.toHaveBeenCalled();
 	});
 });

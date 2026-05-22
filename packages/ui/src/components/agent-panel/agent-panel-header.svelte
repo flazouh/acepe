@@ -11,6 +11,15 @@
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+	import {
+		getAgentPanelHeaderTitle,
+		getHeaderStatusIndicatorKind,
+		getVisibleHeaderActionButtons,
+		hasAgentPanelHeaderExpansion,
+		hasAgentPanelHeaderMetaChips,
+		isHeaderActionDisabled,
+		shouldShowAgentPanelHeaderExpansion,
+	} from "./agent-panel-header-state.js";
 	import type {
 		AgentPanelActionCallbacks,
 		AgentPanelActionDescriptor,
@@ -88,24 +97,31 @@
 		class: className = "",
 	}: Props = $props();
 
-	const visibleActionButtons = $derived((actionButtons ?? []).filter((action) => action.state !== "hidden"));
-	const resolvedTitle = $derived(
-		displayTitle ? displayTitle : sessionTitle ? sessionTitle : "New thread"
-	);
+	const visibleActionButtons = $derived(getVisibleHeaderActionButtons(actionButtons));
+	const resolvedTitle = $derived(getAgentPanelHeaderTitle({ displayTitle, sessionTitle }));
 	const hasMetaChips = $derived(
-		Boolean(subtitle) || Boolean(agentLabel) || Boolean(branchLabel) || (badges?.length ?? 0) > 0
+		hasAgentPanelHeaderMetaChips({ subtitle, agentLabel, branchLabel, badges })
 	);
 	const hasExpansion = $derived(
-		!pendingProjectSelection && (Boolean(expansion) || hasMetaChips)
+		hasAgentPanelHeaderExpansion({
+			pendingProjectSelection,
+			hasExpansionSlot: Boolean(expansion),
+			hasMetaChips,
+		})
+	);
+	const statusIndicatorKind = $derived(
+		getHeaderStatusIndicatorKind({
+			hasCustomStatusIndicator: Boolean(statusIndicator),
+			isConnecting,
+			sessionStatus,
+		})
 	);
 	let titleHoverRef: HTMLDivElement | undefined = $state();
 	let expansionPanelRef: HTMLDivElement | undefined = $state();
 	let expansionActive = $state(false);
-	const showExpansion = $derived(hasExpansion && expansionActive);
-
-	function actionDisabled(action: AgentPanelActionDescriptor): boolean {
-		return action.state === "disabled" || action.state === "busy";
-	}
+	const showExpansion = $derived(
+		shouldShowAgentPanelHeaderExpansion({ hasExpansion, expansionActive })
+	);
 
 	function runAction(action: AgentPanelActionDescriptor): void {
 		const callback = actionCallbacks[action.id];
@@ -187,18 +203,18 @@
 						onfocusin={openExpansion}
 						onfocusout={closeExpansion}
 					>
-						{#if statusIndicator}
+						{#if statusIndicatorKind === "custom" && statusIndicator}
 							{@render statusIndicator()}
-						{:else if isConnecting || sessionStatus === "warming"}
+						{:else if statusIndicatorKind === "connecting"}
 							<span class="relative flex h-2 w-2 shrink-0">
 								<span
 									class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-muted-foreground"
 								></span>
 								<span class="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground"></span>
 							</span>
-						{:else if sessionStatus === "connected"}
+						{:else if statusIndicatorKind === "connected"}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-success"></span>
-						{:else if sessionStatus === "error"}
+						{:else if statusIndicatorKind === "error"}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-destructive"></span>
 						{/if}
 						<span
@@ -232,7 +248,7 @@
 									<Button
 										variant={action.destructive ? "destructive" : "headerAction"}
 										size="headerAction"
-										disabled={actionDisabled(action)}
+										disabled={isHeaderActionDisabled(action)}
 										title={action.description ?? undefined}
 										onclick={() => runAction(action)}
 									>

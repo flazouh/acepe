@@ -3,6 +3,7 @@ import type {
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelSceneEntryModel,
+	AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { PanelViewState } from "../../../logic/panel-visibility";
@@ -41,5 +42,6 @@ export interface AgentPanelContentProps {
 	readonly onPlanBuild?: (event: AgentPanelPlanActionEvent) => void;
 	readonly onPlanCancel?: (event: AgentPanelPlanActionEvent) => void;
 	readonly onPlanViewFull?: (event: AgentPanelPlanViewEvent) => void;
+	readonly onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
 	readonly isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 }

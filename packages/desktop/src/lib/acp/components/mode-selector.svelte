@@ -1,10 +1,9 @@
 <script lang="ts">
-import { BuildIcon, PlanIcon } from "@acepe/ui";
+import { SlidersHorizontal } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import type { AvailableMode } from "../types/available-mode.js";
-import { CanonicalModeId } from "../types/canonical-mode-id.js";
 import type { ModeId } from "../types/mode-id.js";
 interface ModeSelectorProps {
 	availableModes: readonly AvailableMode[];
@@ -47,17 +46,6 @@ export function cycle() {
 	}
 }
 
-function modeColor(modeId: string): string {
-	switch (modeId) {
-		case CanonicalModeId.BUILD:
-			return "var(--build-icon)";
-		case CanonicalModeId.PLAN:
-			return "var(--plan-icon)";
-		default:
-			return "var(--build-icon)";
-	}
-}
-
 async function handleModeChange(modeId: ModeId) {
 	if (modeId !== currentModeId) {
 		await onModeChange(modeId);
@@ -72,11 +60,10 @@ function isSelected(modeId: string): boolean {
 	<div role="group" class="flex h-7 w-fit items-stretch">
 		{#if availableModes.length === 0}
 			<div class="flex items-center justify-center w-7">
-				<BuildIcon size="sm" />
+				<SlidersHorizontal class="size-3.5" />
 			</div>
 		{:else}
 			{#each [...availableModes].reverse() as mode, i (mode.id)}
-				{@const color = modeColor(mode.id)}
 				{@const selected = isSelected(mode.id)}
 				{#if i > 0}
 					<div class="w-px self-stretch bg-border/50"></div>
@@ -92,27 +79,15 @@ function isSelected(modeId: string): boolean {
 									{selected
 									? 'bg-accent text-foreground'
 									: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-								title={mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
-								aria-label={mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
+								title={mode.name}
+								aria-label={mode.name}
 							>
-								{#if mode.id === CanonicalModeId.PLAN}
-									<PlanIcon
-										size="sm"
-										class="transition-colors duration-150"
-										style={selected ? `color: ${color}` : undefined}
-									/>
-								{:else}
-									<BuildIcon
-										size="sm"
-										class="transition-colors duration-150"
-										style={selected ? `color: ${color}` : undefined}
-									/>
-								{/if}
+								<SlidersHorizontal class="size-3.5 transition-colors duration-150" />
 							</button>
 						{/snippet}
 					</Tooltip.Trigger>
 					<Tooltip.Content>
-						{mode.id === CanonicalModeId.PLAN ? "Plan" : "Build"}
+						{mode.name}
 					</Tooltip.Content>
 				</Tooltip.Root>
 			{/each}

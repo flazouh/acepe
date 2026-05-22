@@ -8,10 +8,11 @@ use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, TodoItem, ToolArguments,
-    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference,
+    ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
 };
 use crate::acp::transcript_projection::live_tool_entry_id_for_event_seq;
 use crate::acp::types::CanonicalAgentId;
+use crate::acp::types::ContentBlock;
 use crate::session_jsonl::types::StoredEntry;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ use std::sync::Arc;
 
 const CLAUDE_RESUMED_MISSING_TOOL_RESULT_MESSAGE: &str =
     "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe.";
+const READ_SOURCE_EXCERPT_MAX_BYTES: u64 = 512 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum SessionTurnState {
@@ -983,6 +985,7 @@ impl ProjectionRegistry {
                 child_operation_ids.push(child_operation.id);
             }
         }
+        let arguments = enrich_read_arguments_from_filesystem(tool_call.arguments.clone());
 
         let derived_operation_state = derive_operation_state(&tool_call.status);
         let mut new_operation_state = match existing.as_ref() {
@@ -1004,13 +1007,13 @@ impl ProjectionRegistry {
             kind: tool_call.kind,
             provider_status: tool_call.status.clone(),
             title: tool_call.title.clone(),
-            arguments: tool_call.arguments.clone(),
+            arguments: arguments.clone(),
             progressive_arguments: existing
                 .as_ref()
                 .and_then(|operation| operation.progressive_arguments.clone()),
             result: tool_call.result.clone(),
             command: extract_operation_command(
-                Some(&tool_call.arguments),
+                Some(&arguments),
                 existing
                     .as_ref()
                     .and_then(|operation| operation.progressive_arguments.as_ref()),
@@ -1217,10 +1220,9 @@ impl ProjectionRegistry {
                 .clone()
                 .unwrap_or(existing.provider_status.clone())
         };
-        let next_arguments = update
-            .arguments
-            .clone()
-            .unwrap_or_else(|| existing.arguments.clone());
+        let next_arguments =
+            merge_update_arguments_with_existing(&existing.arguments, update.arguments.as_ref());
+        let next_arguments = enrich_read_arguments_with_update_output(next_arguments, update);
         let next_progressive_arguments =
             if let Some(streaming_arguments) = update.streaming_arguments.clone() {
                 Some(streaming_arguments)
@@ -2034,6 +2036,218 @@ fn live_tool_event_seq(entry_id: &str) -> Option<i64> {
     entry_id
         .strip_prefix("tool-event-")
         .and_then(|suffix| suffix.parse::<i64>().ok())
+}
+
+fn merge_update_arguments_with_existing(
+    existing: &ToolArguments,
+    incoming: Option<&ToolArguments>,
+) -> ToolArguments {
+    match (existing, incoming) {
+        (
+            ToolArguments::Read {
+                file_path: existing_file_path,
+                source_context: existing_source_context,
+            },
+            Some(ToolArguments::Read {
+                file_path: incoming_file_path,
+                source_context: incoming_source_context,
+            }),
+        ) => ToolArguments::Read {
+            file_path: incoming_file_path
+                .clone()
+                .or_else(|| existing_file_path.clone()),
+            source_context: merge_tool_source_context(
+                existing_source_context.as_ref(),
+                incoming_source_context.as_ref(),
+            ),
+        },
+        (_, Some(incoming)) => incoming.clone(),
+        (_, None) => existing.clone(),
+    }
+}
+
+fn merge_tool_source_context(
+    existing: Option<&ToolSourceContext>,
+    incoming: Option<&ToolSourceContext>,
+) -> Option<ToolSourceContext> {
+    match (existing, incoming) {
+        (Some(existing), Some(incoming)) => Some(ToolSourceContext {
+            path: incoming.path.clone().or_else(|| existing.path.clone()),
+            view_range: incoming
+                .view_range
+                .clone()
+                .or_else(|| existing.view_range.clone()),
+            excerpt: incoming
+                .excerpt
+                .clone()
+                .or_else(|| existing.excerpt.clone()),
+        }),
+        (Some(existing), None) => Some(existing.clone()),
+        (None, Some(incoming)) => Some(incoming.clone()),
+        (None, None) => None,
+    }
+}
+
+fn enrich_read_arguments_with_update_output(
+    arguments: ToolArguments,
+    update: &ToolCallUpdateData,
+) -> ToolArguments {
+    let ToolArguments::Read {
+        file_path,
+        source_context,
+    } = arguments
+    else {
+        return arguments;
+    };
+
+    if source_context
+        .as_ref()
+        .and_then(|context| context.excerpt.as_ref())
+        .is_some()
+    {
+        return ToolArguments::Read {
+            file_path,
+            source_context,
+        };
+    }
+
+    let Some(excerpt) = extract_tool_update_text(update) else {
+        return ToolArguments::Read {
+            file_path,
+            source_context,
+        };
+    };
+
+    let mut source_context = source_context.unwrap_or(ToolSourceContext {
+        path: None,
+        view_range: None,
+        excerpt: None,
+    });
+    source_context.path = source_context.path.or_else(|| file_path.clone());
+    source_context.excerpt = Some(excerpt);
+
+    ToolArguments::Read {
+        file_path,
+        source_context: Some(source_context),
+    }
+}
+
+fn enrich_read_arguments_from_filesystem(arguments: ToolArguments) -> ToolArguments {
+    let ToolArguments::Read {
+        file_path,
+        source_context,
+    } = arguments
+    else {
+        return arguments;
+    };
+
+    if source_context
+        .as_ref()
+        .and_then(|context| context.excerpt.as_ref())
+        .is_some()
+    {
+        return ToolArguments::Read {
+            file_path,
+            source_context,
+        };
+    }
+
+    let Some(path) = source_context
+        .as_ref()
+        .and_then(|context| context.path.clone())
+        .or_else(|| file_path.clone())
+    else {
+        return ToolArguments::Read {
+            file_path,
+            source_context,
+        };
+    };
+
+    let Some(excerpt) = read_source_excerpt_from_path(&path) else {
+        return ToolArguments::Read {
+            file_path,
+            source_context,
+        };
+    };
+
+    let mut source_context = source_context.unwrap_or(ToolSourceContext {
+        path: None,
+        view_range: None,
+        excerpt: None,
+    });
+    source_context.path = source_context.path.or(Some(path));
+    source_context.excerpt = Some(excerpt);
+
+    ToolArguments::Read {
+        file_path,
+        source_context: Some(source_context),
+    }
+}
+
+fn read_source_excerpt_from_path(path: &str) -> Option<String> {
+    let path = std::path::Path::new(path);
+    if !path.is_absolute() {
+        return None;
+    }
+    let metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() || metadata.len() > READ_SOURCE_EXCERPT_MAX_BYTES {
+        return None;
+    }
+    std::fs::read_to_string(path)
+        .ok()
+        .filter(|content| !content.is_empty())
+}
+
+fn extract_tool_update_text(update: &ToolCallUpdateData) -> Option<String> {
+    extract_text_from_content_blocks(update.content.as_deref())
+        .or_else(|| {
+            update
+                .result
+                .as_ref()
+                .and_then(extract_text_from_json_value)
+        })
+        .or_else(|| {
+            update
+                .raw_output
+                .as_ref()
+                .and_then(extract_text_from_json_value)
+        })
+}
+
+fn extract_text_from_content_blocks(blocks: Option<&[ContentBlock]>) -> Option<String> {
+    let text = blocks?
+        .iter()
+        .filter_map(|block| match block {
+            ContentBlock::Text { text } => Some(text.as_str()),
+            ContentBlock::Resource { resource } => resource.text.as_deref(),
+            ContentBlock::Image { .. }
+            | ContentBlock::Audio { .. }
+            | ContentBlock::ResourceLink { .. } => None,
+        })
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    (!text.is_empty()).then_some(text)
+}
+
+fn extract_text_from_json_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) if !text.is_empty() => Some(text.clone()),
+        Value::Object(object) => ["content", "detailedContent", "text", "output"]
+            .iter()
+            .find_map(|key| object.get(*key).and_then(extract_text_from_json_value)),
+        Value::Array(values) => {
+            let text = values
+                .iter()
+                .filter_map(extract_text_from_json_value)
+                .filter(|text| !text.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
+            (!text.is_empty()).then_some(text)
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn merge_operation_snapshot_evidence(
@@ -3932,6 +4146,197 @@ mod tests {
             op.locations.is_some(),
             "locations should be preserved from initial tool call"
         );
+    }
+
+    #[test]
+    fn completed_read_update_content_becomes_read_source_excerpt() {
+        let registry = ProjectionRegistry::new();
+        let read_tool_call = ToolCallData {
+            id: "tool-read".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/src/lib.rs".to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Read /repo/src/lib.rs".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: read_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: "tool-read".to_string(),
+                    status: Some(ToolCallStatus::Completed),
+                    content: Some(vec![ContentBlock::Text {
+                        text: "pub fn answer() -> i32 {\n    42\n}".to_string(),
+                    }]),
+                    ..ToolCallUpdateData::default()
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let op = registry
+            .operation_for_tool_call("session-1", "tool-read")
+            .unwrap();
+        match &op.arguments {
+            ToolArguments::Read { source_context, .. } => {
+                let source_context = source_context
+                    .as_ref()
+                    .expect("completed read should expose source context");
+                assert_eq!(
+                    source_context.excerpt.as_deref(),
+                    Some("pub fn answer() -> i32 {\n    42\n}")
+                );
+                assert_eq!(source_context.path.as_deref(), Some("/repo/src/lib.rs"));
+            }
+            other => panic!("expected read arguments, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn completed_read_update_raw_output_content_becomes_read_source_excerpt() {
+        let registry = ProjectionRegistry::new();
+        let read_tool_call = ToolCallData {
+            id: "tool-read".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/src/lib.rs".to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Read /repo/src/lib.rs".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: read_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: "tool-read".to_string(),
+                    status: Some(ToolCallStatus::Completed),
+                    raw_output: Some(json!({
+                        "content": "     1\tpub fn answer() -> i32 {\n     2\t    42\n     3\t}"
+                    })),
+                    ..ToolCallUpdateData::default()
+                },
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let op = registry
+            .operation_for_tool_call("session-1", "tool-read")
+            .unwrap();
+        match &op.arguments {
+            ToolArguments::Read { source_context, .. } => {
+                let source_context = source_context
+                    .as_ref()
+                    .expect("completed read should expose source context");
+                assert_eq!(
+                    source_context.excerpt.as_deref(),
+                    Some("     1\tpub fn answer() -> i32 {\n     2\t    42\n     3\t}")
+                );
+                assert_eq!(source_context.path.as_deref(), Some("/repo/src/lib.rs"));
+            }
+            other => panic!("expected read arguments, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn read_tool_call_with_local_path_gets_filesystem_source_excerpt() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let file_path = temp_dir.path().join("source.ts");
+        std::fs::write(&file_path, "export const answer = 42;\n").expect("write source file");
+        let registry = ProjectionRegistry::new();
+        let read_tool_call = ToolCallData {
+            id: "tool-read".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some(file_path.to_string_lossy().to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Read source.ts".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        registry.apply_session_update(
+            "session-1",
+            &SessionUpdate::ToolCall {
+                tool_call: read_tool_call,
+                session_id: Some("session-1".to_string()),
+            },
+        );
+
+        let op = registry
+            .operation_for_tool_call("session-1", "tool-read")
+            .unwrap();
+        match &op.arguments {
+            ToolArguments::Read { source_context, .. } => {
+                let source_context = source_context
+                    .as_ref()
+                    .expect("read should expose local source context");
+                assert_eq!(
+                    source_context.excerpt.as_deref(),
+                    Some("export const answer = 42;\n")
+                );
+                assert_eq!(
+                    source_context.path.as_deref(),
+                    Some(file_path.to_string_lossy().as_ref())
+                );
+            }
+            other => panic!("expected read arguments, got {:?}", other),
+        }
     }
 
     #[test]

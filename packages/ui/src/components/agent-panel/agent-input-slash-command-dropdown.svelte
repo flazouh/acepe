@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { IconTerminal } from "@tabler/icons-svelte";
-
-	export interface AgentInputSlashCommand {
-		name: string;
-		description: string;
-		input?: {
-			hint: string;
-		} | null;
-	}
+	import {
+		getEffectiveSlashCommandIndex,
+		getFilteredSlashCommands,
+		getNextSlashCommandIndex,
+		getSlashCommandEmptyState,
+		type AgentInputSlashCommand,
+	} from "./agent-input-slash-command-dropdown-state.js";
+	export type { AgentInputSlashCommand } from "./agent-input-slash-command-dropdown-state.js";
 
 	interface Props {
 		commands: ReadonlyArray<AgentInputSlashCommand>;
@@ -23,8 +23,6 @@
 		onSelect: (command: AgentInputSlashCommand) => void;
 		onClose: () => void;
 	}
-
-	const MAX_SLASH_COMMAND_RESULTS = 20;
 
 	let {
 		commands,
@@ -54,24 +52,20 @@
 		};
 	}
 
-	const filteredCommands = $derived.by(() => {
-		if (!query || !query.trim()) {
-			return commands.slice(0, MAX_SLASH_COMMAND_RESULTS);
-		}
-
-		const lowerQuery = query.toLowerCase().trim();
-		return commands
-			.filter((command) => command.name.toLowerCase().includes(lowerQuery))
-			.slice(0, MAX_SLASH_COMMAND_RESULTS);
-	});
-
-	const effectiveSelectedIndex = $derived.by(() => {
-		if (filteredCommands.length === 0) {
-			return 0;
-		}
-
-		return Math.max(0, Math.min(selectedIndex, filteredCommands.length - 1));
-	});
+	const filteredCommands = $derived(getFilteredSlashCommands(commands, query));
+	const effectiveSelectedIndex = $derived(
+		getEffectiveSlashCommandIndex({
+			selectedIndex,
+			commandCount: filteredCommands.length,
+		})
+	);
+	const emptyState = $derived(
+		getSlashCommandEmptyState({
+			commandCount: commands.length,
+			filteredCount: filteredCommands.length,
+			query,
+		})
+	);
 
 	function scrollSelectedIntoView(): void {
 		const item = itemRefs[effectiveSelectedIndex];
@@ -87,22 +81,22 @@
 
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
-			selectedIndex =
-				filteredCommands.length === 0
-					? 0
-					: (effectiveSelectedIndex + 1) % filteredCommands.length;
+			selectedIndex = getNextSlashCommandIndex({
+				currentIndex: effectiveSelectedIndex,
+				commandCount: filteredCommands.length,
+				direction: "down",
+			});
 			setTimeout(scrollSelectedIntoView, 0);
 			return true;
 		}
 
 		if (event.key === "ArrowUp") {
 			event.preventDefault();
-			selectedIndex =
-				filteredCommands.length === 0
-					? 0
-					: effectiveSelectedIndex <= 0
-						? filteredCommands.length - 1
-						: effectiveSelectedIndex - 1;
+			selectedIndex = getNextSlashCommandIndex({
+				currentIndex: effectiveSelectedIndex,
+				commandCount: filteredCommands.length,
+				direction: "up",
+			});
 			setTimeout(scrollSelectedIntoView, 0);
 			return true;
 		}
@@ -168,9 +162,9 @@
 				<kbd class="ml-1.5 rounded border bg-muted px-1 py-0.5 text-sm font-medium">Esc</kbd>
 				<span class="text-sm text-muted-foreground">{closeHintLabel}</span>
 			</div>
-		{:else if commands.length === 0}
+		{:else if emptyState === "no-commands"}
 			<div class="px-3 py-4 text-center text-sm text-muted-foreground">{noCommandsLabel}</div>
-		{:else if query.length > 0}
+		{:else if emptyState === "no-results"}
 			<div class="px-3 py-4 text-center text-sm text-muted-foreground">{noResultsLabel}</div>
 		{:else}
 			<div class="flex items-center justify-between border-b bg-muted/30 px-3 py-1.5 shrink-0">

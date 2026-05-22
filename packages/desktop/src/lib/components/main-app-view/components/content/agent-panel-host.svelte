@@ -13,6 +13,7 @@ import { ensureErrorReference } from "$lib/errors/error-reference.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { Panel } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import { buildAgentPanelHostModel } from "./logic/agent-panel-host-model.js";
 
 type ErrorLike = {
 	message?: unknown;
@@ -149,38 +150,28 @@ const sessionMetadata = $derived.by(() => {
 	return sessionId !== null ? sessionStore.getSessionMetadata(sessionId) : undefined;
 });
 const panelHotState = $derived(panel ? panelStore.getHotState(panel.id) : null);
-const projectPath = $derived(
-	panel?.sessionId !== null && panel?.sessionId !== undefined
-		? (sessionIdentity?.projectPath ?? null)
-		: (panel?.projectPath ?? null)
+const hostModel = $derived.by(() =>
+	panel === null
+		? null
+		: buildAgentPanelHostModel({
+				panel,
+				sessionIdentity,
+				projects: projectManager.projects,
+				availableAgents,
+				hotState: panelHotState,
+			})
 );
-const project = $derived.by(() => {
-	if (!projectPath) {
-		return null;
-	}
-	return projectManager.projects.find((candidate) => candidate.path === projectPath) ?? null;
-});
-const selectedAgentId = $derived.by(() => {
-	const configuredAgentId =
-		panel?.sessionId !== null && panel?.sessionId !== undefined
-			? (sessionIdentity?.agentId ?? null)
-			: (panel?.selectedAgentId ?? null);
-	if (configuredAgentId === null) {
-		return null;
-	}
-	return availableAgents.some((agent) => agent.id === configuredAgentId) ? configuredAgentId : null;
-});
-const isWaitingForSession = $derived.by(() => {
-	const sessionId = panel?.sessionId ?? null;
-	return sessionId !== null && sessionIdentity === undefined;
-});
+const projectPath = $derived(hostModel?.projectPath ?? null);
+const project = $derived(hostModel?.project ?? null);
+const selectedAgentId = $derived(hostModel?.selectedAgentId ?? null);
+const isWaitingForSession = $derived(hostModel?.isWaitingForSession ?? false);
 const attachedFilePanels = $derived(panel ? panelStore.getAttachedFilePanels(panel.id) : []);
 const activeAttachedFilePanelId = $derived(
 	panel ? panelStore.getActiveFilePanelId(panel.id) : null
 );
-const reviewMode = $derived(panelHotState?.reviewMode ?? false);
-const reviewFilesState = $derived(panelHotState?.reviewFilesState ?? null);
-const reviewFileIndex = $derived(panelHotState?.reviewFileIndex ?? 0);
+const reviewMode = $derived(hostModel?.reviewMode ?? false);
+const reviewFilesState = $derived(hostModel?.reviewFilesState ?? null);
+const reviewFileIndex = $derived(hostModel?.reviewFileIndex ?? 0);
 
 function handleAgentChange(agentId: string): void {
 	state.handlePanelAgentChange(panelId, agentId);

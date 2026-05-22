@@ -98,6 +98,16 @@ pub struct ConfigOptionValue {
     pub description: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ConfigOptionPresentation {
+    Hidden,
+    #[default]
+    Advanced,
+    CompactReasoning,
+    CompactSpeed,
+}
+
 /// Configuration option data.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -113,6 +123,8 @@ pub struct ConfigOptionData {
     pub current_value: Option<Value>,
     #[serde(default, deserialize_with = "deserialize_config_options")]
     pub options: Vec<ConfigOptionValue>,
+    #[serde(default)]
+    pub presentation: ConfigOptionPresentation,
 }
 
 /// Deserialize config options that can be either:
@@ -176,6 +188,7 @@ fn sanitize_config_option_for_canonical(mut option: ConfigOptionData) -> ConfigO
         name: option.name.clone(),
         category: option.category.clone(),
     };
+    option.presentation = classify_config_option_presentation(&identity);
     option.current_value = option
         .current_value
         .map(|value| sanitize_config_value_for_canonical(value, &identity, "currentValue"));
@@ -189,6 +202,39 @@ fn sanitize_config_option_for_canonical(mut option: ConfigOptionData) -> ConfigO
         })
         .collect();
     option
+}
+
+fn classify_config_option_presentation(
+    identity: &ConfigOptionIdentity,
+) -> ConfigOptionPresentation {
+    let id = identity.id.to_ascii_lowercase();
+    let name = identity.name.to_ascii_lowercase();
+    let category = identity.category.to_ascii_lowercase();
+    let identity_text = format!("{id} {name} {category}");
+
+    if matches!(category.as_str(), "mode" | "model" | "agent" | "permission")
+        || matches!(id.as_str(), "mode" | "model" | "agent" | "allow_all")
+    {
+        return ConfigOptionPresentation::Hidden;
+    }
+
+    if includes_config_fragment(&identity_text, "thought")
+        || includes_config_fragment(&identity_text, "reason")
+    {
+        return ConfigOptionPresentation::CompactReasoning;
+    }
+
+    if includes_config_fragment(&identity_text, "fast")
+        || includes_config_fragment(&identity_text, "tier")
+    {
+        return ConfigOptionPresentation::CompactSpeed;
+    }
+
+    ConfigOptionPresentation::Advanced
+}
+
+fn includes_config_fragment(value: &str, fragment: &str) -> bool {
+    value.contains(fragment)
 }
 
 struct ConfigOptionIdentity {
@@ -305,7 +351,10 @@ fn warn_config_redaction(
 
 #[cfg(test)]
 mod tests {
-    use super::{sanitize_config_options_for_canonical, ConfigOptionData, ConfigOptionValue};
+    use super::{
+        sanitize_config_options_for_canonical, ConfigOptionData, ConfigOptionPresentation,
+        ConfigOptionValue,
+    };
     use serde_json::{json, Value};
 
     fn config_option(id: &str, current_value: Value) -> ConfigOptionData {
@@ -317,6 +366,7 @@ mod tests {
             description: None,
             current_value: Some(current_value),
             options: Vec::new(),
+            presentation: ConfigOptionPresentation::Advanced,
         }
     }
 
@@ -334,6 +384,7 @@ mod tests {
                 value: json!("8192"),
                 description: None,
             }],
+            presentation: ConfigOptionPresentation::Advanced,
         }]);
 
         assert_eq!(
@@ -354,5 +405,62 @@ mod tests {
         assert_eq!(sanitized[0].current_value, Some(Value::Null));
         assert_eq!(sanitized[1].current_value, Some(Value::Null));
         assert_eq!(sanitized[2].current_value, Some(Value::Null));
+    }
+
+    #[test]
+    fn sanitize_config_options_assigns_canonical_presentation() {
+        let sanitized = sanitize_config_options_for_canonical(vec![
+            ConfigOptionData {
+                id: "reasoning_effort".to_string(),
+                name: "Reasoning Effort".to_string(),
+                category: "reasoning".to_string(),
+                option_type: "select".to_string(),
+                description: None,
+                current_value: Some(json!("medium")),
+                options: Vec::new(),
+                presentation: ConfigOptionPresentation::Advanced,
+            },
+            ConfigOptionData {
+                id: "service_tier".to_string(),
+                name: "Service Tier".to_string(),
+                category: "tier".to_string(),
+                option_type: "select".to_string(),
+                description: None,
+                current_value: Some(json!("standard")),
+                options: Vec::new(),
+                presentation: ConfigOptionPresentation::Advanced,
+            },
+            ConfigOptionData {
+                id: "agent".to_string(),
+                name: "Agent".to_string(),
+                category: "agent".to_string(),
+                option_type: "select".to_string(),
+                description: None,
+                current_value: Some(json!("copilot")),
+                options: Vec::new(),
+                presentation: ConfigOptionPresentation::Advanced,
+            },
+            ConfigOptionData {
+                id: "allow_all".to_string(),
+                name: "Allow All".to_string(),
+                category: "permission".to_string(),
+                option_type: "boolean".to_string(),
+                description: None,
+                current_value: Some(json!(false)),
+                options: Vec::new(),
+                presentation: ConfigOptionPresentation::Advanced,
+            },
+        ]);
+
+        assert_eq!(
+            sanitized[0].presentation,
+            ConfigOptionPresentation::CompactReasoning
+        );
+        assert_eq!(
+            sanitized[1].presentation,
+            ConfigOptionPresentation::CompactSpeed
+        );
+        assert_eq!(sanitized[2].presentation, ConfigOptionPresentation::Hidden);
+        assert_eq!(sanitized[3].presentation, ConfigOptionPresentation::Hidden);
     }
 }
