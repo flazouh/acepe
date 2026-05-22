@@ -4,7 +4,6 @@ import {
 	AgentPanelModifiedFilesHeader as SharedAgentPanelModifiedFilesHeader,
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
-	type AgentPanelFileReviewStatus,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
@@ -34,10 +33,7 @@ import SelectorCheck from "../selector-check.svelte";
 import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
 import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
-import {
-	DEFAULT_SHIP_INSTRUCTIONS,
-	normalizeCustomShipInstructions,
-} from "./logic/build-pr-prompt-preview.js";
+import { normalizeCustomShipInstructions } from "./logic/build-pr-prompt-preview.js";
 import {
 	buildPrGenerationPrefsForAgentSelection,
 	buildPrGenerationRequestConfig,
@@ -46,6 +42,14 @@ import {
 import PrLinkFooterButton from "../shared/pr-link-footer-button.svelte";
 import { getReviewStatusByFilePath, hasKeepAllBeenApplied } from "./logic/review-progress.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
+import {
+	canKeepAllFiles,
+	countReviewedFiles,
+	getModifiedFilesDiffTotals,
+	getPromptEditorState,
+	isModifiedFilesReviewComplete,
+	mapReviewStatusForHeader,
+} from "./logic/modified-files-header-state.js";
 
 import type { PrGenerationConfig } from "./types/pr-generation-config.js";
 
@@ -164,56 +168,15 @@ const effectiveAgentDisplayName = $derived.by(() => {
 	return capitalizeName(effectiveAgent.name);
 });
 
-const promptEditorBaseline = $derived.by(() => {
-	const normalizedSavedPrompt = normalizeCustomShipInstructions(prPrefs.customPrompt);
-	if (normalizedSavedPrompt) {
-		return normalizedSavedPrompt;
-	}
-
-	return DEFAULT_SHIP_INSTRUCTIONS;
-});
-
-const resolvedPromptEditorValue = $derived.by(() => {
-	if (hasPromptDraft) {
-		return promptDraft;
-	}
-
-	return promptEditorBaseline;
-});
-
-const promptPreviewHelperText = $derived.by(() => {
-	return "Acepe adds the XML response format, current branch, changed files, and diff automatically.";
-});
-
-const hasUnsavedPromptChanges = $derived(hasPromptDraft && promptDraft !== promptEditorBaseline);
-
-const canSavePrompt = $derived(
-	hasUnsavedPromptChanges && resolvedPromptEditorValue.trim().length > 0
+const promptEditorState = $derived.by(() =>
+	getPromptEditorState({
+		savedPrompt: prPrefs.customPrompt,
+		hasPromptDraft,
+		promptDraft,
+	})
 );
 
-const canResetPrompt = $derived(
-	hasPromptDraft || Boolean(normalizeCustomShipInstructions(prPrefs.customPrompt))
-);
-
-const promptStatusLabel = $derived.by(() => {
-	if (hasUnsavedPromptChanges) {
-		return "Unsaved draft";
-	}
-
-	if (normalizeCustomShipInstructions(prPrefs.customPrompt)) {
-		return "Custom";
-	}
-
-	return "Default";
-});
-
-const totalAdded = $derived(
-	modifiedFilesState ? modifiedFilesState.files.reduce((sum, f) => sum + f.totalAdded, 0) : 0
-);
-
-const totalRemoved = $derived(
-	modifiedFilesState ? modifiedFilesState.files.reduce((sum, f) => sum + f.totalRemoved, 0) : 0
-);
+const diffTotals = $derived.by(() => getModifiedFilesDiffTotals(modifiedFilesState));
 
 const reviewStatusByFilePath = $derived.by(
 	(): ReadonlyMap<string, FileReviewStatus | undefined> => {
@@ -229,23 +192,11 @@ const reviewStatusByFilePath = $derived.by(
 	}
 );
 const reviewedFileCount = $derived.by(() => {
-	if (!modifiedFilesState) return 0;
-	return modifiedFilesState.files.reduce((count, file) => {
-		const status = reviewStatusByFilePath.get(file.filePath);
-		return status === "accepted" || status === "denied" ? count + 1 : count;
-	}, 0);
+	return countReviewedFiles(modifiedFilesState, reviewStatusByFilePath);
 });
 
 const isReviewComplete = $derived.by(() => {
-	if (!modifiedFilesState) {
-		return false;
-	}
-
-	if (modifiedFilesState.fileCount === 0) {
-		return false;
-	}
-
-	return reviewedFileCount === modifiedFilesState.fileCount;
+	return isModifiedFilesReviewComplete(modifiedFilesState, reviewedFileCount);
 });
 
 const isKeepAllApplied = $derived.by(() => {
@@ -268,15 +219,11 @@ const isKeepAllApplied = $derived.by(() => {
 });
 
 const canKeepAll = $derived.by(() => {
-	if (!sessionId) {
-		return false;
-	}
-
-	if (!sessionReviewStateStore.isLoaded(sessionId)) {
-		return false;
-	}
-
-	return !isKeepAllApplied;
+	return canKeepAllFiles({
+		sessionId,
+		isSessionReviewLoaded: sessionId ? sessionReviewStateStore.isLoaded(sessionId) : false,
+		isKeepAllApplied,
+	});
 });
 
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
@@ -391,7 +338,7 @@ function resolveCustomPrompt(): string | undefined {
 }
 
 function handlePromptSaveClick(): void {
-	const nextPrompt = resolvedPromptEditorValue.trim();
+	const nextPrompt = promptEditorState.value.trim();
 	if (nextPrompt.length === 0) {
 		return;
 	}
@@ -417,13 +364,6 @@ function handlePromptResetClick(): void {
 	});
 }
 
-function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileReviewStatus {
-	if (status === "accepted" || status === "partial" || status === "denied") {
-		return status;
-	}
-
-	return "unreviewed";
-}
 </script>
 
 {#if modifiedFilesState}
@@ -435,7 +375,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 						id: file.filePath,
 						filePath: file.filePath,
 						fileName: file.fileName,
-						reviewStatus: mapReviewStatus(reviewStatusByFilePath.get(file.filePath)),
+						reviewStatus: mapReviewStatusForHeader(reviewStatusByFilePath.get(file.filePath)),
 						additions: file.totalAdded,
 						deletions: file.totalRemoved,
 						onSelect: () => {
@@ -473,7 +413,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 										{"Open PR"}
 									{/if}
 								</span>
-								<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
+								<DiffPill insertions={diffTotals.totalAdded} deletions={diffTotals.totalRemoved} variant="plain" />
 							</Button>
 
 							<!-- Generation settings: agent / model / prompt -->
@@ -567,7 +507,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 										class="cursor-pointer"
 									>
 										<span class="flex-1">Prompt</span>
-										<span class="text-[10px] text-muted-foreground">{promptStatusLabel}</span>
+										<span class="text-[10px] text-muted-foreground">{promptEditorState.statusLabel}</span>
 									</DropdownMenu.Item>
 								</DropdownMenu.Content>
 							</DropdownMenu.Root>
@@ -674,7 +614,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 
 				<!-- DiffPill when no create-PR button (PR already exists) -->
 				{#if !onCreatePr && modifiedFilesState}
-					<DiffPill insertions={totalAdded} deletions={totalRemoved} variant="plain" />
+					<DiffPill insertions={diffTotals.totalAdded} deletions={diffTotals.totalRemoved} variant="plain" />
 				{/if}
 		{/snippet}
 
@@ -702,11 +642,11 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 					class="min-h-[240px] max-h-[420px] resize-y text-xs leading-relaxed"
 					placeholder="Add PR instructions for Acepe to apply"
 					spellcheck="false"
-					value={resolvedPromptEditorValue}
+					value={promptEditorState.value}
 					oninput={handlePromptChange}
 				/>
 				<p class="text-xs text-muted-foreground">
-					{promptPreviewHelperText}
+					{promptEditorState.helperText}
 				</p>
 			</div>
 
@@ -714,7 +654,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 				<Button
 					variant="header"
 					size="header"
-					disabled={!canResetPrompt}
+					disabled={!promptEditorState.canReset}
 					onclick={handlePromptResetClick}
 				>
 					Reset
@@ -722,7 +662,7 @@ function mapReviewStatus(status: FileReviewStatus | undefined): AgentPanelFileRe
 				<Button
 					variant="invert"
 					size="header"
-					disabled={!canSavePrompt}
+					disabled={!promptEditorState.canSave}
 					onclick={handlePromptSaveClick}
 				>
 					Save prompt
