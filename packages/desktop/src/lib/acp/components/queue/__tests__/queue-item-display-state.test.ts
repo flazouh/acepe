@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
+import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { ToolCall } from "$lib/acp/types/tool-call.js";
 
 import {
 	getQueueItemStatusText,
 	getQueueItemTodoProgress,
+	getQueuePermissionDisplay,
 	getQueuePlanApprovalPrompt,
 	getQueuePlanApprovalToolCall,
 	shouldShowQueueItemShimmer,
@@ -51,6 +53,20 @@ function createPlanApproval(toolCallId: string): PlanApprovalInteraction {
 			requestId: "approval-1",
 		},
 		status: "pending",
+	};
+}
+
+function createPermission(
+	permission: string,
+	metadata: PermissionRequest["metadata"] = {}
+): PermissionRequest {
+	return {
+		id: "permission-1",
+		sessionId: "session-1",
+		permission,
+		patterns: [],
+		metadata,
+		always: [],
 	};
 }
 
@@ -199,5 +215,49 @@ describe("queue item display state", () => {
 			})
 		).toBe("Review plan?");
 		expect(getQueuePlanApprovalPrompt(null)).toBe("Creating plan");
+	});
+
+	it("builds compact permission display data for file permissions", () => {
+		expect(
+			getQueuePermissionDisplay({
+				permission: createPermission("Read /repo/src/app.ts"),
+				projectPath: "/repo",
+			})
+		).toEqual({
+			command: null,
+			filePath: "src/app.ts",
+			verb: "Read",
+		});
+	});
+
+	it("builds compact permission display data for command permissions", () => {
+		expect(
+			getQueuePermissionDisplay({
+				permission: createPermission("Run command", {
+					parsedArguments: {
+						kind: "execute",
+						command: "bun test",
+					},
+				}),
+				projectPath: "/repo",
+			})
+		).toEqual({
+			command: "bun test",
+			filePath: null,
+			verb: "Run",
+		});
+	});
+
+	it("keeps the full permission label when no compact detail exists", () => {
+		expect(
+			getQueuePermissionDisplay({
+				permission: createPermission("Access project"),
+				projectPath: "/repo",
+			})
+		).toEqual({
+			command: null,
+			filePath: null,
+			verb: "Access project",
+		});
 	});
 });

@@ -22,20 +22,16 @@ import { getQuestionStore } from "../../store/question-store.svelte.js";
 import { getPermissionStore } from "../../store/permission-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../store/session-title-policy.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
-import { makeWorkspaceRelative } from "../../utils/path-utils.js";
 import { formatTimeAgo } from "../../utils/time-utils.js";
 import AgentIcon from "../agent-icon.svelte";
 import PermissionActionBar from "../tool-calls/permission-action-bar.svelte";
-import {
-	extractPermissionCommand,
-	extractPermissionFilePath,
-} from "../tool-calls/permission-display.js";
 import { getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
 import { isExitPlanPermission } from "../../utils/exit-plan-permission.js";
 import { projectQueueItemActivity } from "./queue-item-display.js";
 import {
 	getQueueItemStatusText,
 	getQueueItemTodoProgress,
+	getQueuePermissionDisplay,
 	getQueuePlanApprovalPrompt,
 	getQueuePlanApprovalToolCall,
 	shouldShowQueueItemShimmer,
@@ -133,21 +129,12 @@ const exitPlanCard = $derived.by(() => {
 	return buildQueueExitPlanCard(effectiveToolCall, pendingPermission);
 });
 
-const permissionCommand = $derived.by(() => {
+const permissionDisplay = $derived.by(() => {
 	if (!pendingPermission) return null;
-	return extractPermissionCommand(pendingPermission);
-});
-const permissionFilePath = $derived.by(() => {
-	if (!pendingPermission) return null;
-	const path = extractPermissionFilePath(pendingPermission);
-	return path ? makeWorkspaceRelative(path, item.projectPath) : null;
-});
-const permissionVerb = $derived.by(() => {
-	if (!pendingPermission) return null;
-	if (permissionFilePath || permissionCommand) {
-		return pendingPermission.permission.split(" ")[0] ?? pendingPermission.permission;
-	}
-	return pendingPermission.permission;
+	return getQueuePermissionDisplay({
+		permission: pendingPermission,
+		projectPath: item.projectPath,
+	});
 });
 const displayTitle = $derived(normalizeTitleForDisplay(item.title || "") || "New Thread");
 
@@ -472,9 +459,9 @@ function handleNextQuestion() {
 		{timeAgo}
 		insertions={item.insertions}
 		deletions={item.deletions}
-		permissionLabel={permissionVerb ?? pendingPermission.permission}
-		command={permissionCommand}
-		filePath={permissionFilePath}
+		permissionLabel={permissionDisplay?.verb ?? pendingPermission.permission}
+		command={permissionDisplay?.command ?? null}
+		filePath={permissionDisplay?.filePath ?? null}
 		{projectBadge}
 		{agentBadge}
 	>

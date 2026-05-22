@@ -1,11 +1,23 @@
 import type { TodoProgressInfo } from "../../components/session-list/session-list-types.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
+import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
+import { makeWorkspaceRelative } from "../../utils/path-utils.js";
+import {
+	extractPermissionCommand,
+	extractPermissionFilePath,
+} from "../tool-calls/permission-display.js";
 
 export interface QueueItemTodoProgressDisplay {
 	readonly current: number;
 	readonly total: number;
 	readonly label: string;
+}
+
+export interface QueuePermissionDisplay {
+	readonly command: string | null;
+	readonly filePath: string | null;
+	readonly verb: string;
 }
 
 export function getQueueItemStatusText(input: {
@@ -71,4 +83,23 @@ export function getQueuePlanApprovalToolCall(input: {
 
 export function getQueuePlanApprovalPrompt(toolCall: ToolCall | null): string {
 	return toolCall?.normalizedQuestions?.[0]?.question ?? "Creating plan";
+}
+
+export function getQueuePermissionDisplay(input: {
+	readonly permission: PermissionRequest;
+	readonly projectPath: string;
+}): QueuePermissionDisplay {
+	const command = extractPermissionCommand(input.permission);
+	const rawFilePath = extractPermissionFilePath(input.permission);
+	const filePath = rawFilePath ? makeWorkspaceRelative(rawFilePath, input.projectPath) : null;
+	const verb =
+		filePath || command
+			? (input.permission.permission.split(" ")[0] ?? input.permission.permission)
+			: input.permission.permission;
+
+	return {
+		command,
+		filePath,
+		verb,
+	};
 }
