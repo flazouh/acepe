@@ -200,6 +200,38 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(nextIndex.get("tool-2")).toBe(nextEntry);
 	});
 
+	it("uses append-only updates when prior scene entries are fresh but content-stable", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstIndex = readModel.getIndex([
+			{
+				id: "user-1",
+				type: "user",
+				text: "Prompt",
+				timestampMs: 1,
+			},
+		]);
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 2,
+		};
+
+		const nextIndex = readModel.getIndex([
+			{
+				id: "user-1",
+				type: "user",
+				text: "Prompt",
+				timestampMs: 1,
+			},
+			nextAssistantEntry,
+		]);
+
+		expect(nextIndex).toBe(firstIndex);
+		expect(nextIndex.get("user-1")).toMatchObject({ id: "user-1", type: "user" });
+		expect(nextIndex.get("assistant-1")).toBe(nextAssistantEntry);
+	});
+
 	it("rebuilds the index when an existing scene entry object changes", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const firstEntry: AgentPanelSceneEntryModel = {
