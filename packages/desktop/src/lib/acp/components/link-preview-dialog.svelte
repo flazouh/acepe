@@ -7,6 +7,12 @@ import { WarningCircle } from "phosphor-svelte";
 import { untrack } from "svelte";
 import * as Dialog from "@acepe/ui/dialog";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import {
+	getLinkPreviewDomain,
+	getLinkPreviewErrorState,
+	getLinkPreviewLoadedState,
+	getLinkPreviewResetState,
+} from "./link-preview-dialog-state.js";
 interface Props {
 	url: string;
 	open: boolean;
@@ -21,36 +27,37 @@ let loadError = $state(false);
 // Use untrack to read initial value without warning - the $effect below handles reactive updates
 let currentUrl = $state(untrack(() => url));
 
+function applyLoadState(state: { readonly isLoading: boolean; readonly loadError: boolean }): void {
+	isLoading = state.isLoading;
+	loadError = state.loadError;
+}
+
 // Reset state when URL changes
 $effect(() => {
 	if (url) {
 		currentUrl = url;
-		isLoading = true;
-		loadError = false;
+		applyLoadState(getLinkPreviewResetState());
 	}
 });
 
 // Reset state when dialog opens
 $effect(() => {
 	if (open) {
-		isLoading = true;
-		loadError = false;
+		applyLoadState(getLinkPreviewResetState());
 	}
 });
 
 function handleIframeLoad() {
-	isLoading = false;
+	applyLoadState(getLinkPreviewLoadedState());
 }
 
 function handleIframeError() {
-	isLoading = false;
-	loadError = true;
+	applyLoadState(getLinkPreviewErrorState());
 }
 
 function refresh() {
 	if (iframeRef) {
-		isLoading = true;
-		loadError = false;
+		applyLoadState(getLinkPreviewResetState());
 		iframeRef.src = currentUrl;
 	}
 }
@@ -69,18 +76,6 @@ function goForward() {
 
 function openInBrowser() {
 	window.open(currentUrl, "_blank", "noopener,noreferrer");
-}
-
-/**
- * Extract domain from URL for display
- */
-function getDomain(urlString: string): string {
-	try {
-		const urlObj = new URL(urlString);
-		return urlObj.hostname;
-	} catch {
-		return urlString;
-	}
 }
 </script>
 
@@ -129,7 +124,7 @@ function getDomain(urlString: string): string {
 					<WarningCircle class="h-3.5 w-3.5 text-destructive shrink-0" weight="fill" />
 				{/if}
 				<span class="text-xs text-muted-foreground truncate" title={currentUrl}>
-					{getDomain(currentUrl)}
+					{getLinkPreviewDomain(currentUrl)}
 				</span>
 			</div>
 
