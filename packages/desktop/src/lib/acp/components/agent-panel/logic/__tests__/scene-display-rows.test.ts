@@ -169,6 +169,39 @@ describe("scene-display-rows", () => {
 		}
 	});
 
+	it("exposes snapshot, append patch, and select rows operations", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const snapshotRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "First" },
+		]);
+
+		const patchedRows = readModel.applyAppendPatch([
+			{ id: "assistant-2", type: "assistant", markdown: "Second" },
+		]);
+
+		expect(patchedRows[0]).toBe(snapshotRows[0]);
+		expect(readModel.selectRows()).toBe(patchedRows);
+		expect(patchedRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+			"user-1",
+			"assistant-1",
+		]);
+		expect(patchedRows[1]?.type).toBe("assistant_merged");
+		if (patchedRows[1]?.type === "assistant_merged") {
+			expect(patchedRows[1].markdown).toBe("FirstSecond");
+		}
+	});
+
+	it("keeps selected rows stable for empty append patches", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const snapshotRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+		]);
+
+		expect(readModel.applyAppendPatch([])).toBe(snapshotRows);
+		expect(readModel.selectRows()).toBe(snapshotRows);
+	});
+
 	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.getRows([
