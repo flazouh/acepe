@@ -4,6 +4,8 @@
  * Shows time in HH:MM:SS format, with optional latency measurement.
  */
 
+import { formatMessageLatency, formatMessageTimestamp } from "./message-timestamp-state.js";
+
 interface Props {
 	timestamp?: Date | string | number;
 	latencyMs?: number;
@@ -12,33 +14,19 @@ interface Props {
 
 let { timestamp, latencyMs, class: classes = "" }: Props = $props();
 
-function formatTime(date: Date | string | number): string {
-	// Handle string timestamps that are actually numbers (Unix ms)
-	const value = typeof date === "string" && /^\d+$/.test(date) ? parseInt(date, 10) : date;
-	const d = new Date(value);
-	return d.toLocaleTimeString("en-US", {
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-		hour12: false,
-	});
-}
-
-function formatLatency(ms: number): string {
-	if (ms < 1000) {
-		return `${ms.toFixed(0)}ms`;
-	}
-	return `${(ms / 1000).toFixed(1)}s`;
-}
+const formattedTimestamp = $derived(timestamp ? formatMessageTimestamp(timestamp) : null);
+const formattedLatency = $derived(
+	latencyMs === undefined ? null : formatMessageLatency(latencyMs)
+);
 </script>
 
 <div class="text-xs text-muted-foreground flex items-center gap-2 {classes}">
-	{#if timestamp}
-		<span>{formatTime(timestamp)}</span>
+	{#if formattedTimestamp}
+		<span>{formattedTimestamp}</span>
 	{/if}
-	{#if latencyMs !== undefined}
+	{#if formattedLatency}
 		<span class="font-mono text-xs opacity-75">
-			({formatLatency(latencyMs)})
+			({formattedLatency})
 		</span>
 	{/if}
 </div>
