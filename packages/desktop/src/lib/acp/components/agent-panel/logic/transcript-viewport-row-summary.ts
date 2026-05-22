@@ -21,7 +21,11 @@ export type TranscriptViewportRowSummary = {
 	firstKey: string | null;
 	lastKey: string | null;
 	latestUserKey: string | null;
+	rowKeys?: readonly string[];
 	anchorEligibleKeys: readonly string[];
+	hasLiveAssistantDisplayEntry?: boolean;
+	hasTokenRevealAssistantEntry?: boolean;
+	hasToolCallEntry?: boolean;
 	changedRange?: TranscriptViewportChangedRange;
 	reason?: TranscriptViewportRowsReason;
 };
@@ -33,7 +37,11 @@ export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummar
 		firstKey: null,
 		lastKey: null,
 		latestUserKey: null,
+		rowKeys: [],
 		anchorEligibleKeys: [],
+		hasLiveAssistantDisplayEntry: false,
+		hasTokenRevealAssistantEntry: false,
+		hasToolCallEntry: false,
 	};
 }
 
@@ -69,6 +77,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			) {
 				previousSummary = replaceTranscriptViewportRowsTailSummary(
 					previousSummary,
+					previousRows,
 					rows,
 					reason
 				);
@@ -91,14 +100,28 @@ export function buildTranscriptViewportRowsSummary(
 	reason: TranscriptViewportRowsReason
 ): TranscriptViewportRowSummary {
 	let latestUserKey: string | null = null;
+	const rowKeys: string[] = [];
 	const anchorEligibleKeys: string[] = [];
+	let hasLiveAssistantDisplayEntry = false;
+	let hasTokenRevealAssistantEntry = false;
+	let hasToolCallEntry = false;
 	for (const row of rows) {
 		const key = getSceneDisplayRowKey(row);
+		rowKeys.push(key);
 		if (row.type === "user") {
 			latestUserKey = key;
 		}
 		if (row.type !== "thinking") {
 			anchorEligibleKeys.push(key);
+		}
+		if (isLiveAssistantDisplayRow(row)) {
+			hasLiveAssistantDisplayEntry = true;
+		}
+		if (isTokenRevealAssistantDisplayRow(row)) {
+			hasTokenRevealAssistantEntry = true;
+		}
+		if (row.type === "tool_call") {
+			hasToolCallEntry = true;
 		}
 	}
 
@@ -109,7 +132,11 @@ export function buildTranscriptViewportRowsSummary(
 		firstKey: rows[0] === undefined ? null : getSceneDisplayRowKey(rows[0]),
 		lastKey: lastRow === undefined ? null : getSceneDisplayRowKey(lastRow),
 		latestUserKey,
+		rowKeys,
 		anchorEligibleKeys,
+		hasLiveAssistantDisplayEntry,
+		hasTokenRevealAssistantEntry,
+		hasToolCallEntry,
 		reason,
 	};
 }
@@ -124,7 +151,12 @@ function appendTranscriptViewportRowsSummary(
 	}
 
 	let latestUserKey = previousSummary.latestUserKey;
+	let nextRowKeys: string[] | null = null;
 	let nextAnchorEligibleKeys: string[] | null = null;
+	let hasLiveAssistantDisplayEntry = previousSummary.hasLiveAssistantDisplayEntry === true;
+	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
+	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
+	const previousRowKeys = previousSummary.rowKeys ?? [];
 	for (let index = previousSummary.count; index < rows.length; index += 1) {
 		const row = rows[index];
 		if (row === undefined) {
@@ -132,6 +164,8 @@ function appendTranscriptViewportRowsSummary(
 		}
 
 		const key = getSceneDisplayRowKey(row);
+		nextRowKeys ??= previousRowKeys.slice();
+		nextRowKeys.push(key);
 		if (row.type === "user") {
 			latestUserKey = key;
 		}
@@ -139,6 +173,9 @@ function appendTranscriptViewportRowsSummary(
 			nextAnchorEligibleKeys ??= previousSummary.anchorEligibleKeys.slice();
 			nextAnchorEligibleKeys.push(key);
 		}
+		hasLiveAssistantDisplayEntry ||= isLiveAssistantDisplayRow(row);
+		hasTokenRevealAssistantEntry ||= isTokenRevealAssistantDisplayRow(row);
+		hasToolCallEntry ||= row.type === "tool_call";
 	}
 
 	const lastRow = rows.at(-1);
@@ -149,13 +186,18 @@ function appendTranscriptViewportRowsSummary(
 			previousSummary.firstKey ?? (rows[0] === undefined ? null : getSceneDisplayRowKey(rows[0])),
 		lastKey: lastRow === undefined ? null : getSceneDisplayRowKey(lastRow),
 		latestUserKey,
+		rowKeys: nextRowKeys ?? previousSummary.rowKeys,
 		anchorEligibleKeys: nextAnchorEligibleKeys ?? previousSummary.anchorEligibleKeys,
+		hasLiveAssistantDisplayEntry,
+		hasTokenRevealAssistantEntry,
+		hasToolCallEntry,
 		reason,
 	};
 }
 
 function replaceTranscriptViewportRowsTailSummary(
 	previousSummary: TranscriptViewportRowSummary,
+	previousRows: readonly SceneDisplayRow[],
 	rows: readonly SceneDisplayRow[],
 	reason: TranscriptViewportRowsReason
 ): TranscriptViewportRowSummary {
@@ -165,7 +207,9 @@ function replaceTranscriptViewportRowsTailSummary(
 	}
 
 	const previousTailKey = previousSummary.lastKey;
+	const previousTailRow = previousRows.at(-1);
 	const nextTailKey = getSceneDisplayRowKey(tailRow);
+	const rowKeys = (previousSummary.rowKeys ?? []).slice(0, -1).concat(nextTailKey);
 	let anchorEligibleKeys = previousSummary.anchorEligibleKeys;
 	if (tailRow.type === "thinking") {
 		anchorEligibleKeys =
@@ -197,9 +241,66 @@ function replaceTranscriptViewportRowsTailSummary(
 				: previousSummary.latestUserKey === previousTailKey
 					? findLatestUserKeyBeforeTail(rows)
 					: previousSummary.latestUserKey,
+		rowKeys,
 		anchorEligibleKeys,
+		hasLiveAssistantDisplayEntry: replaceTailBooleanFact(
+			previousSummary.hasLiveAssistantDisplayEntry === true,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			isLiveAssistantDisplayRow
+		),
+		hasTokenRevealAssistantEntry: replaceTailBooleanFact(
+			previousSummary.hasTokenRevealAssistantEntry === true,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			isTokenRevealAssistantDisplayRow
+		),
+		hasToolCallEntry: replaceTailBooleanFact(
+			previousSummary.hasToolCallEntry === true,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			(row) => row.type === "tool_call"
+		),
 		reason,
 	};
+}
+
+function replaceTailBooleanFact(
+	previousValue: boolean,
+	previousRows: readonly SceneDisplayRow[],
+	previousTailRow: SceneDisplayRow | undefined,
+	nextTailRow: SceneDisplayRow,
+	predicate: (row: SceneDisplayRow) => boolean
+): boolean {
+	if (predicate(nextTailRow)) {
+		return true;
+	}
+
+	if (previousTailRow !== undefined && predicate(previousTailRow)) {
+		for (let index = 0; index < previousRows.length - 1; index += 1) {
+			const row = previousRows[index];
+			if (row !== undefined && predicate(row)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	return previousValue;
+}
+
+function isLiveAssistantDisplayRow(row: SceneDisplayRow): boolean {
+	return (
+		row.type === "assistant_merged" &&
+		(row.isStreaming === true || row.tokenRevealCss !== undefined)
+	);
+}
+
+function isTokenRevealAssistantDisplayRow(row: SceneDisplayRow): boolean {
+	return row.type === "assistant_merged" && row.tokenRevealCss !== undefined;
 }
 
 function findLatestUserKeyBeforeTail(rows: readonly SceneDisplayRow[]): string | null {

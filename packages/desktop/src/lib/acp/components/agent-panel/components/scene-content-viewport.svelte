@@ -488,36 +488,8 @@ const revealResizeObserverTargetKey = $derived(
 	viewportRowsSummary.anchorEligibleKeys.at(-1) ?? null
 );
 const hasLiveAssistantDisplayEntry = $derived(
-	displayEntries.some(
-		(entry) =>
-			entry.type === "assistant_merged" &&
-			(entry.isStreaming === true || entry.tokenRevealCss !== undefined)
-	)
+	viewportRowsSummary.hasLiveAssistantDisplayEntry === true
 );
-
-function shouldUseNativeScrollerForCompactToolTranscript(input: {
-	rows: readonly SceneDisplayRow[];
-	isStreaming: boolean;
-	isWaitingForResponse: boolean;
-}): boolean {
-	if (input.isStreaming || input.isWaitingForResponse) {
-		return false;
-	}
-	if (input.rows.length === 0 || input.rows.length > COMPACT_TOOL_NATIVE_ENTRY_LIMIT) {
-		return false;
-	}
-	for (const row of input.rows) {
-		if (row.type === "assistant_merged" && row.tokenRevealCss !== undefined) {
-			return false;
-		}
-	}
-	for (const row of input.rows) {
-		if (row.type === "tool_call") {
-			return true;
-		}
-	}
-	return false;
-}
 
 let viewportState: TranscriptViewportState = $state(
 	createInitialTranscriptViewportState({
@@ -532,11 +504,12 @@ const nativeFallbackReason = $derived(
 		: null
 );
 const shouldUseCompactToolNativeList = $derived(
-	shouldUseNativeScrollerForCompactToolTranscript({
-		rows: displayEntries,
-		isStreaming,
-		isWaitingForResponse,
-	})
+	!isStreaming &&
+		!isWaitingForResponse &&
+		viewportRowsSummary.count > 0 &&
+		viewportRowsSummary.count <= COMPACT_TOOL_NATIVE_ENTRY_LIMIT &&
+		viewportRowsSummary.hasTokenRevealAssistantEntry !== true &&
+		viewportRowsSummary.hasToolCallEntry === true
 );
 const shouldUseNativeRenderer = $derived(shouldUseNativeList || shouldUseCompactToolNativeList);
 const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
@@ -548,7 +521,7 @@ const wrapperStyle = $derived(
 );
 
 function getRowKeys(): readonly string[] {
-	return displayEntries.map((entry) => getSceneDisplayRowKey(entry));
+	return viewportRowsSummary.rowKeys ?? [];
 }
 
 function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {

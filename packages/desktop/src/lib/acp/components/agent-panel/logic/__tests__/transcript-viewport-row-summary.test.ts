@@ -36,7 +36,9 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.firstKey).toBe("user-1");
 		expect(nextSummary.lastKey).toBe("tool-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
+		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+		expect(nextSummary.hasToolCallEntry).toBe(true);
 	});
 
 	it("handles a waiting row append without changing anchor keys", () => {
@@ -54,6 +56,11 @@ describe("createTranscriptViewportRowsReadModel", () => {
 
 		expect(waitingSummary.lastKey).toBe("thinking-indicator");
 		expect(waitingSummary.latestUserKey).toBe("user-1");
+		expect(waitingSummary.rowKeys).toEqual([
+			"user-1",
+			"assistant-1",
+			"thinking-indicator",
+		]);
 		expect(waitingSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
 	});
 
@@ -75,8 +82,27 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.firstKey).toBe("user-1");
 		expect(nextSummary.lastKey).toBe("assistant-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
+		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1"]);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1"]);
 		expect(nextSummary.anchorEligibleKeys).not.toBe(firstSummary.anchorEligibleKeys);
+	});
+
+	it("updates tail-derived boolean facts without losing earlier matches", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [toolRow("tool-1"), assistantRow("assistant-1", { tokenReveal: true })];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+
+		const nextSummary = readModel.applyRows({
+			rows: [firstRows[0]!, assistantRow("assistant-2")],
+			reason: "rows-updated",
+		});
+
+		expect(nextSummary.hasToolCallEntry).toBe(true);
+		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(false);
+		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(false);
 	});
 });
 
@@ -93,7 +119,11 @@ describe("buildTranscriptViewportRowsSummary", () => {
 			firstKey: "user-1",
 			lastKey: "thinking-indicator",
 			latestUserKey: "user-1",
+			rowKeys: ["user-1", "assistant-1", "thinking-indicator"],
 			anchorEligibleKeys: ["user-1", "assistant-1"],
+			hasLiveAssistantDisplayEntry: false,
+			hasTokenRevealAssistantEntry: false,
+			hasToolCallEntry: false,
 			reason: "waiting-row-appended",
 		});
 	});
@@ -107,13 +137,27 @@ function userRow(id: string): SceneDisplayRow {
 	} as unknown as SceneDisplayRow;
 }
 
-function assistantRow(id: string): SceneDisplayRow {
+function assistantRow(
+	id: string,
+	options: { readonly tokenReveal?: boolean; readonly isStreaming?: boolean } = {}
+): SceneDisplayRow {
 	return {
 		key: id,
 		type: "assistant_merged",
 		memberIds: [id],
 		markdown: "Answer",
 		message: { chunks: [{ type: "message", block: { type: "text", text: "Answer" } }] },
+		isStreaming: options.isStreaming,
+		tokenRevealCss: options.tokenReveal
+			? {
+					revealCount: 1,
+					revealedCharCount: 1,
+					baselineMs: 0,
+					tokStepMs: 1,
+					tokFadeDurMs: 1,
+					mode: "smooth",
+				}
+			: undefined,
 	} as SceneDisplayRow;
 }
 
