@@ -20,6 +20,7 @@ import {
 	filterPullRequestsByQuery,
 	getHeaderPrLinkLabel,
 	getLinkedPrTooltipLabel,
+	getPrPickerListState,
 	groupSessionPrLinksByNumber,
 	shouldLoadOpenPullRequests,
 	shouldShowPrSearchInput,
@@ -69,6 +70,13 @@ const headerPrLinkLabel = $derived(getHeaderPrLinkLabel(linkedPr));
 const sessionsByPrNumber = $derived(groupSessionPrLinksByNumber(projectPrLinkReferences));
 const filteredPullRequests = $derived(filterPullRequestsByQuery(openPullRequests, query));
 const showSearchInput = $derived(shouldShowPrSearchInput(openPullRequests.length));
+const listState = $derived(
+	getPrPickerListState({
+		loading,
+		loadError,
+		filteredPullRequests,
+	})
+);
 
 function ensureOpenPullRequestsLoaded(): void {
 	if (
@@ -217,16 +225,16 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 						</button>
 					{/if}
 
-					{#if loading}
-						<div class="px-2 py-3 text-[11px] text-muted-foreground">Loading pull requests…</div>
-					{:else if loadError}
-						<div class="px-2 py-3 text-[11px] text-destructive">{loadError}</div>
-					{:else if filteredPullRequests.length === 0}
+					{#if listState.kind === "loading"}
+						<div class="px-2 py-3 text-[11px] text-muted-foreground">{listState.message}</div>
+					{:else if listState.kind === "error"}
+						<div class="px-2 py-3 text-[11px] text-destructive">{listState.message}</div>
+					{:else if listState.kind === "empty"}
 						<div class="px-2 py-3 text-[11px] text-muted-foreground">
-							No open pull requests in this repository
+							{listState.message}
 						</div>
 					{:else}
-						{#each filteredPullRequests as pr (pr.number)}
+						{#each listState.pullRequests as pr (pr.number)}
 							{@const linkedSessions = sessionsByPrNumber.get(pr.number) ?? []}
 							{@const isCurrent = linkedPr?.prNumber === pr.number}
 							<div
@@ -400,16 +408,16 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 					</button>
 				{/if}
 
-				{#if loading}
-					<div class="px-2 py-3 text-[11px] text-muted-foreground">Loading pull requests…</div>
-				{:else if loadError}
-					<div class="px-2 py-3 text-[11px] text-destructive">{loadError}</div>
-				{:else if filteredPullRequests.length === 0}
+				{#if listState.kind === "loading"}
+					<div class="px-2 py-3 text-[11px] text-muted-foreground">{listState.message}</div>
+				{:else if listState.kind === "error"}
+					<div class="px-2 py-3 text-[11px] text-destructive">{listState.message}</div>
+				{:else if listState.kind === "empty"}
 					<div class="px-2 py-3 text-[11px] text-muted-foreground">
-						No open pull requests in this repository
+						{listState.message}
 					</div>
 				{:else}
-					{#each filteredPullRequests as pr (pr.number)}
+					{#each listState.pullRequests as pr (pr.number)}
 						{@const linkedSessions = sessionsByPrNumber.get(pr.number) ?? []}
 						{@const isCurrent = linkedPr?.prNumber === pr.number}
 						<div
