@@ -5,7 +5,9 @@ import {
 	canShowMoveTerminalTabAction,
 	canShowTerminalTabMenu,
 	getNextOpenTerminalTabMenuId,
+	getTerminalProjectBadgeColor,
 	getTerminalShellName,
+	getTerminalTabLabel,
 	hasTerminalTabs,
 	shouldShowTerminalFullscreenAction,
 } from "./terminal-panel-header-state.js";
@@ -22,11 +24,21 @@ function makeTab(id: string): TerminalTab {
 }
 
 describe("terminal panel header state", () => {
+	it("normalizes the optional project badge color", () => {
+		expect(getTerminalProjectBadgeColor("#123456")).toBe("#123456");
+		expect(getTerminalProjectBadgeColor(undefined)).toBe("");
+	});
+
 	it("extracts a readable shell name", () => {
 		expect(getTerminalShellName("/bin/zsh")).toBe("zsh");
 		expect(getTerminalShellName("fish")).toBe("fish");
 		expect(getTerminalShellName(null)).toBeNull();
 		expect(getTerminalShellName("")).toBeNull();
+	});
+
+	it("builds terminal tab labels from zero-based indexes", () => {
+		expect(getTerminalTabLabel(0)).toBe("Terminal 1");
+		expect(getTerminalTabLabel(2)).toBe("Terminal 3");
 	});
 
 	it("shows fullscreen when either fullscreen callback exists", () => {

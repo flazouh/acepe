@@ -18,7 +18,9 @@ import {
 	canShowMoveTerminalTabAction,
 	canShowTerminalTabMenu,
 	getNextOpenTerminalTabMenuId,
+	getTerminalProjectBadgeColor,
 	getTerminalShellName,
+	getTerminalTabLabel,
 	hasTerminalTabs,
 	shouldShowTerminalFullscreenAction,
 } from "./terminal-panel-header-state.js";
@@ -73,7 +75,7 @@ const EXIT_FULLSCREEN_LABEL = "Exit fullscreen";
 const TAB_ACTIONS_LABEL = "Terminal tab actions";
 const OPEN_IN_NEW_PANEL_LABEL = "Open in new panel";
 
-const effectiveColor = $derived(projectColor ? projectColor : "");
+const effectiveColor = $derived(getTerminalProjectBadgeColor(projectColor));
 const shellName = $derived(getTerminalShellName(shell));
 const showFullscreen = $derived(
 	shouldShowTerminalFullscreenAction({ onEnterFullscreen, onExitFullscreen })
@@ -165,7 +167,7 @@ function handleFullscreenToggle() {
 							}
 						}}
 					>
-						<span class="whitespace-nowrap text-[11px]">{TERMINAL_TITLE} {i + 1}</span>
+						<span class="whitespace-nowrap text-[11px]">{getTerminalTabLabel(i)}</span>
 						{#if canShowTabMenu(tab.id)}
 							<button
 								type="button"

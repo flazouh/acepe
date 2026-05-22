@@ -1,9 +1,19 @@
 import type { TerminalTab } from "$lib/acp/store/types.js";
 
+const TERMINAL_TITLE = "Terminal";
+
+export function getTerminalProjectBadgeColor(projectColor: string | undefined): string {
+	return projectColor ? projectColor : "";
+}
+
 export function getTerminalShellName(shell: string | null): string | null {
 	if (!shell) return null;
 	const shellName = shell.split("/").pop();
 	return shellName ? shellName : null;
+}
+
+export function getTerminalTabLabel(index: number): string {
+	return `${TERMINAL_TITLE} ${index + 1}`;
 }
 
 export function shouldShowTerminalFullscreenAction(input: {
