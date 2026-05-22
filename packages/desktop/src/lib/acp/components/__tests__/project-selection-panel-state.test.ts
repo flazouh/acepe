@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import type { Project } from "../../logic/project-manager.svelte.js";
 
 import {
+	buildProjectSelectionCardDataList,
 	getProjectSelectionModifierSymbol,
 	getProjectSelectionPathsKey,
 	getProjectSelectionShortcutIndex,
@@ -13,6 +15,15 @@ const projects = [
 	{ path: "/repo/a", name: "A" },
 	{ path: "/repo/b", name: "B" },
 ] as const;
+
+function createProject(path: string, name: string): Project {
+	return {
+		path,
+		name,
+		createdAt: new Date("2024-01-01T00:00:00.000Z"),
+		color: "#123456",
+	};
+}
 
 describe("project selection panel state", () => {
 	it("uses a platform-specific shortcut modifier label", () => {
@@ -125,5 +136,62 @@ describe("project selection panel state", () => {
 				hasRetryableMetadata: true,
 			})
 		).toBe(true);
+	});
+
+	it("builds project card data from live, cached, and remote metadata", () => {
+		const projectA = createProject("/repo/a", "A");
+		const projectB = createProject("/repo/b", "B");
+		const liveGitStatus = [
+			{ path: "a.ts", status: "modified", insertions: 2, deletions: 1 },
+		] as const;
+		const cachedGitStatus = [
+			{ path: "b.ts", status: "added", insertions: 3, deletions: 0 },
+		] as const;
+
+		const cardData = buildProjectSelectionCardDataList({
+			displayProjects: [projectA, projectB],
+			cardDataByPath: new Map([
+				[
+					"/repo/a",
+					{
+						branch: "main",
+						gitStatus: liveGitStatus,
+					},
+				],
+			]),
+			getCachedMetadata: (projectPath) =>
+				projectPath === "/repo/b"
+					? {
+							branch: "feature",
+							gitStatus: cachedGitStatus,
+						}
+					: null,
+			remoteStatusByPath: new Map([
+				[
+					"/repo/a",
+					{
+						ahead: 2,
+						behind: 1,
+					},
+				],
+			]),
+		});
+
+		expect(cardData).toEqual([
+			{
+				project: projectA,
+				branch: "main",
+				gitStatus: liveGitStatus,
+				ahead: 2,
+				behind: 1,
+			},
+			{
+				project: projectB,
+				branch: "feature",
+				gitStatus: cachedGitStatus,
+				ahead: null,
+				behind: null,
+			},
+		]);
 	});
 });

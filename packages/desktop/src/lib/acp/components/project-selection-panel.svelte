@@ -8,6 +8,7 @@ import ProjectCard from "./project-card.svelte";
 import type { ProjectCardData } from "./project-card-data.js";
 import { getVisibleProjectSelectionProjects } from "./project-selection-visibility.js";
 import {
+	buildProjectSelectionCardDataList,
 	getProjectSelectionModifierSymbol,
 	getProjectSelectionPathsKey,
 	getProjectSelectionShortcutIndex,
@@ -53,16 +54,11 @@ let lastProjectsKey = "";
 let lastDisplayProjectsKey = "";
 
 const cardDataList = $derived<ProjectCardData[]>(
-	displayProjects.map((project) => {
-		const cached = cardDataMap.get(project.path) ?? getCachedProjectSelectionMetadata(project.path);
-		const remote = remoteStatusMap.get(project.path);
-		return {
-			project,
-			branch: cached?.branch ?? null,
-			gitStatus: cached?.gitStatus ?? null,
-			ahead: remote?.ahead ?? null,
-			behind: remote?.behind ?? null,
-		};
+	buildProjectSelectionCardDataList({
+		displayProjects,
+		cardDataByPath: cardDataMap,
+		getCachedMetadata: getCachedProjectSelectionMetadata,
+		remoteStatusByPath: remoteStatusMap,
 	})
 );
 

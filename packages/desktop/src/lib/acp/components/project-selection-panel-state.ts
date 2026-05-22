@@ -1,4 +1,15 @@
 import type { Project } from "../logic/project-manager.svelte.js";
+import type { ProjectCardData } from "./project-card-data.js";
+
+export interface ProjectSelectionMetadata {
+	readonly branch: string | null;
+	readonly gitStatus: ProjectCardData["gitStatus"];
+}
+
+export interface ProjectSelectionRemoteStatus {
+	readonly ahead: number;
+	readonly behind: number;
+}
 
 export function getProjectSelectionModifierSymbol(platform: string | null | undefined): string {
 	return platform?.includes("Mac") ? "⌘" : "Ctrl";
@@ -52,4 +63,24 @@ export function shouldSyncProjectSelectionMetadata(input: {
 	hasRetryableMetadata: boolean;
 }): boolean {
 	return input.displayProjectsKey !== input.lastDisplayProjectsKey || input.hasRetryableMetadata;
+}
+
+export function buildProjectSelectionCardDataList(input: {
+	readonly displayProjects: readonly Project[];
+	readonly cardDataByPath: Pick<ReadonlyMap<string, ProjectSelectionMetadata>, "get">;
+	readonly getCachedMetadata: (projectPath: string) => ProjectSelectionMetadata | null | undefined;
+	readonly remoteStatusByPath: Pick<ReadonlyMap<string, ProjectSelectionRemoteStatus>, "get">;
+}): ProjectCardData[] {
+	return input.displayProjects.map((project) => {
+		const cached =
+			input.cardDataByPath.get(project.path) ?? input.getCachedMetadata(project.path) ?? null;
+		const remote = input.remoteStatusByPath.get(project.path);
+		return {
+			project,
+			branch: cached?.branch ?? null,
+			gitStatus: cached?.gitStatus ?? null,
+			ahead: remote?.ahead ?? null,
+			behind: remote?.behind ?? null,
+		};
+	});
 }
