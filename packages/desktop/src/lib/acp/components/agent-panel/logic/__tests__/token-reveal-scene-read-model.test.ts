@@ -103,4 +103,43 @@ describe("createTokenRevealSceneReadModel", () => {
 		expect(secondEntries).toBe(firstEntries);
 		expect(readModel.selectSettlingTimings()).toEqual([]);
 	});
+
+	it("keeps selecting the same tail row when token reveal css changes", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const sourceEntriesById = new Map([[assistantEntry.id, assistantEntry]]);
+		const firstCss = createTokenRevealCss();
+		const nextCss: TokenRevealCss = {
+			...firstCss,
+			revealCount: firstCss.revealCount + 1,
+		};
+
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry],
+			sourceEntriesById,
+			tailRowId: "assistant-1",
+			tokenRevealCss: firstCss,
+		});
+		const nextEntries = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry],
+			sourceEntriesById,
+			tailRowId: "assistant-1",
+			tokenRevealCss: nextCss,
+		});
+
+		expect(firstEntries[0]).toBe(userEntry);
+		expect(nextEntries[0]).toBe(userEntry);
+		expect(firstEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: firstCss });
+		expect(nextEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: nextCss });
+	});
 });

@@ -18,6 +18,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 	let previousSnapshot: TokenRevealSceneSnapshot | null = null;
 	let previousEntries: readonly AgentPanelSceneEntryModel[] = [];
 	let previousTimings: readonly TokenRevealTiming[] = [];
+	let previousTokenRevealEntryIndex = -1;
 
 	return {
 		applySnapshot(snapshot) {
@@ -25,15 +26,17 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				return previousEntries;
 			}
 
-			const tokenRevealEntryIndex = findTokenRevealEntryIndex(
+			const tokenRevealEntryIndex = resolveTokenRevealEntryIndex(
 				snapshot.sceneEntries,
 				snapshot.tailRowId,
-				snapshot.tokenRevealCss
+				snapshot.tokenRevealCss,
+				previousTokenRevealEntryIndex
 			);
 			if (tokenRevealEntryIndex === -1) {
 				previousSnapshot = snapshot;
 				previousEntries = snapshot.sceneEntries;
 				previousTimings = [];
+				previousTokenRevealEntryIndex = -1;
 				return previousEntries;
 			}
 
@@ -49,6 +52,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			previousSnapshot = snapshot;
 			previousEntries = nextEntries;
 			previousTimings = collectTokenRevealTiming(tokenRevealEntry);
+			previousTokenRevealEntryIndex = tokenRevealEntryIndex;
 			return previousEntries;
 		},
 		selectEntries() {
@@ -71,6 +75,24 @@ function isSameTokenRevealSnapshot(
 		previous.tailRowId === next.tailRowId &&
 		previous.tokenRevealCss === next.tokenRevealCss
 	);
+}
+
+function resolveTokenRevealEntryIndex(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	tailRowId: string | null,
+	tokenRevealCss: TokenRevealCss | undefined,
+	previousIndex: number
+): number {
+	if (tailRowId === null || tokenRevealCss === undefined) {
+		return -1;
+	}
+
+	const previousEntry = sceneEntries[previousIndex];
+	if (previousEntry?.type === "assistant" && previousEntry.id === tailRowId) {
+		return previousIndex;
+	}
+
+	return findTokenRevealEntryIndex(sceneEntries, tailRowId, tokenRevealCss);
 }
 
 function findTokenRevealEntryIndex(
