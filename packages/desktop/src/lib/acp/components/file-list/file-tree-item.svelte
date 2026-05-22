@@ -16,6 +16,16 @@ import { tick } from "svelte";
 import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 import * as ContextMenu from "$lib/components/ui/context-menu/index.js";
 import FileIcon from "./file-icon.svelte";
+import {
+	canShowFileTreeItemActions,
+	getFileTreeItemFullPath,
+	getFileTreeItemIndentPx,
+	getFileTreeItemNameColor,
+	getFileTreeItemParentPath,
+	getFileTreeItemRenameSubmission,
+	hasFileTreeItemDiff,
+	shouldShowFileTreeItemDuplicate,
+} from "./file-tree-item-state.js";
 import type { FileTreeNode } from "./file-list-types.js";
 
 interface Props {
@@ -59,7 +69,12 @@ let {
 	onNewFolder,
 }: Props = $props();
 
-const fullPath = $derived(projectPath.replace(/\/$/, "") + (node.path ? `/${node.path}` : ""));
+const fullPath = $derived(getFileTreeItemFullPath({ projectPath, nodePath: node.path }));
+
+let deleteConfirming = $state(false);
+let isRenaming = $state(false);
+let renameInput = $state("");
+let renameInputRef = $state<HTMLInputElement | undefined>(undefined);
 
 function handleClick() {
 	if (isRenaming) return;
@@ -113,9 +128,12 @@ function handleRenameKeydown(event: KeyboardEvent) {
 }
 
 function submitRename() {
-	const trimmed = renameInput.trim();
-	if (trimmed && trimmed !== node.name) {
-		onRename?.(projectPath, node.path, trimmed);
+	const nextName = getFileTreeItemRenameSubmission({
+		renameInput,
+		currentName: node.name,
+	});
+	if (nextName) {
+		onRename?.(projectPath, node.path, nextName);
 	}
 	isRenaming = false;
 }
@@ -129,45 +147,38 @@ function handleDuplicate() {
 }
 
 function handleNewFile() {
-	const parent = node.isDirectory
-		? node.path
-		: node.path.includes("/")
-			? node.path.replace(/\/[^/]+$/, "")
-			: "";
+	const parent = getFileTreeItemParentPath(node);
 	onNewFile?.(projectPath, parent);
 }
 
 function handleNewFolder() {
-	const parent = node.isDirectory
-		? node.path
-		: node.path.includes("/")
-			? node.path.replace(/\/[^/]+$/, "")
-			: "";
+	const parent = getFileTreeItemParentPath(node);
 	onNewFolder?.(projectPath, parent);
 }
 
-const indentPx = $derived(node.depth * 12);
-
-const nameColor = $derived.by(() => {
-	if (node.isDirectory) {
-		return node.hasModifiedDescendants ? "#E2BF8D" : null;
-	}
-	const status = node.gitStatus?.status;
-	if (status === "M") return "#E2BF8D";
-	if (status === "A" || status === "?") return "var(--success)";
-	if (status === "D") return "#FF5D5A";
-	if (status === "R") return "#E2BF8D";
-	return null;
-});
-
-const hasDiff = $derived(
-	!!node.gitStatus && (node.gitStatus.insertions > 0 || node.gitStatus.deletions > 0)
+const indentPx = $derived(getFileTreeItemIndentPx(node.depth));
+const nameColor = $derived(getFileTreeItemNameColor(node));
+const hasDiff = $derived(hasFileTreeItemDiff(node));
+const showActions = $derived(
+	canShowFileTreeItemActions({
+		isRenaming,
+		onCopyPath,
+		onRevealInFinder,
+		onRefresh,
+		onDelete,
+		onDeleteConfirm,
+		onRename,
+		onDuplicate,
+		onNewFile,
+		onNewFolder,
+	})
 );
-
-let deleteConfirming = $state(false);
-let isRenaming = $state(false);
-let renameInput = $state("");
-let renameInputRef = $state<HTMLInputElement | undefined>(undefined);
+const showDuplicate = $derived(
+	shouldShowFileTreeItemDuplicate({
+		onDuplicate,
+		isDirectory: node.isDirectory,
+	})
+);
 
 function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 	event?.preventDefault?.();
@@ -261,7 +272,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 					/>
 				{/if}
 			{/if}
-			{#if !isRenaming && (onCopyPath || onRevealInFinder || onRefresh || onDelete || onDeleteConfirm || onRename || onDuplicate || onNewFile || onNewFolder)}
+			{#if showActions}
 				<DropdownMenu.Root
 					onOpenChange={(open) => {
 						if (!open) deleteConfirming = false;
@@ -320,7 +331,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 									{"Rename"}
 								</DropdownMenu.Item>
 							{/if}
-							{#if onDuplicate && !node.isDirectory}
+							{#if showDuplicate}
 								<DropdownMenu.Item
 									onSelect={handleDuplicate}
 									class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
@@ -432,7 +443,7 @@ function handleDeleteClick(event: Event & { preventDefault?: () => void }) {
 				{"Rename"}
 			</ContextMenu.Item>
 		{/if}
-		{#if onDuplicate && !node.isDirectory}
+		{#if showDuplicate}
 			<ContextMenu.Item
 				onSelect={handleDuplicate}
 				class="group/item !py-1 data-[highlighted]:[&_svg]:!text-primary"
