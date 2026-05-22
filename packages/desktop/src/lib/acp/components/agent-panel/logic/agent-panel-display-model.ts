@@ -113,11 +113,17 @@ function isBusy(
 	);
 }
 
+type AgentPanelDisplayRowsProjection = {
+	readonly rows: readonly AgentPanelDisplayRow[];
+	readonly hasLiveTail: boolean;
+};
+
 function createRowsFromScene(
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	transcriptRevision: number
-): readonly AgentPanelDisplayRow[] {
+): AgentPanelDisplayRowsProjection {
 	const rows: AgentPanelDisplayRow[] = [];
+	let hasLiveTail = false;
 	for (const entry of sceneEntries) {
 		if (entry.type === "user") {
 			rows.push({
@@ -129,23 +135,26 @@ function createRowsFromScene(
 			continue;
 		}
 		if (entry.type === "assistant") {
+			const isLiveTail = entry.isStreaming === true;
+			hasLiveTail ||= isLiveTail;
 			rows.push({
 				id: entry.id,
 				type: "assistant",
 				canonicalText: entry.markdown,
 				displayText: entry.markdown,
 				canonicalTextRevision: `${String(transcriptRevision)}:${entry.id}`,
-				isLiveTail: entry.isStreaming === true,
+				isLiveTail,
 			});
 		}
 	}
-	return rows;
+	return { rows, hasLiveTail };
 }
 
 export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPanelBaseModel {
 	const graph = input.graph;
 	const transcriptRevision = graph?.revision.transcriptRevision ?? 0;
-	const rows = createRowsFromScene(input.sceneEntries, transcriptRevision);
+	const rowProjection = createRowsFromScene(input.sceneEntries, transcriptRevision);
+	const rows = rowProjection.rows;
 	if (graph === null) {
 		const hasPending = rows.length > 0 || input.local.pendingSendIntent;
 		const pendingLabel = getPreparingThreadLabel(input.header.agentName);
@@ -172,7 +181,7 @@ export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPa
 	}
 
 	const busy = isBusy(graph.activity, graph.turnState);
-	const hasLiveTail = rows.some((row) => row.type === "assistant" && row.isLiveTail);
+	const hasLiveTail = rowProjection.hasLiveTail;
 	const shouldShowWaiting =
 		input.local.pendingSendIntent || (graph.activity.kind === "awaiting_model" && !hasLiveTail);
 	return {
