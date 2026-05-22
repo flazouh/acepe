@@ -14,13 +14,21 @@ import { MarkdownDisplay } from "@acepe/ui";
 import "@acepe/ui/markdown-prose.css";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
-import { getLanguageFromFilename } from "$lib/components/ui/codemirror-editor/language-loader.js";
 import type { FileExplorerPreviewResponse } from "$lib/services/converted-session-types.js";
 import {
 	buildPierreDiffOptions,
 	ensurePierreThemeRegistered,
 } from "../../utils/pierre-rendering.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
+import {
+	buildFileExplorerDiffInput,
+	getFileExplorerCodePreviewLanguage,
+	getFileExplorerFallbackMessage,
+	getFileExplorerTextFallbackContent,
+	isFileExplorerMarkdownPreview,
+	shouldRenderFileExplorerPlainText,
+	type FileExplorerDiffInput,
+} from "./file-explorer-preview-pane-state.js";
 
 interface Props {
 	preview: FileExplorerPreviewResponse | null;
@@ -40,69 +48,25 @@ const effectiveTheme = $derived(themeState.effectiveTheme);
 // Derive before/after content from the preview response
 // ---------------------------------------------------------------------------
 
-type DiffInput = {
-	fileName: string;
-	oldContent: string;
-	newContent: string;
-};
-
 function buildFileDiffOptions(theme: "light" | "dark") {
 	return Object.assign(buildPierreDiffOptions<never>(theme, "unified", "wrap", false), {
 		disableErrorHandling: true,
 	});
 }
 
-const isMarkdownPreview = $derived.by(() => {
-	if (preview === null || preview.kind !== "text") return false;
-	if (preview.language_hint === "markdown") return true;
-	return preview.file_name.toLowerCase().endsWith(".md");
-});
-
-const textFallbackContent = $derived.by(() => {
-	if (preview === null) return null;
-	if (preview.kind === "diff") return preview.new_content;
-	if (preview.kind !== "text") return null;
-	return preview.content;
-});
-
-const shouldRenderPlainText = $derived.by(() => {
-	if (!preferPlainText) return false;
-	if (preview === null) return false;
-	return preview.kind === "text" || preview.kind === "diff";
-});
-
-const codePreviewLanguage = $derived.by(() => {
-	if (preview === null) return "plaintext";
-	if (preview.kind === "text" && preview.language_hint !== null) {
-		return preview.language_hint;
-	}
-	if (preview.kind === "text" || preview.kind === "diff") {
-		return getLanguageFromFilename(preview.file_name);
-	}
-	return "plaintext";
-});
-
-const diffInput = $derived.by((): DiffInput | null => {
-	if (preview === null) return null;
-	if (shouldRenderPlainText) return null;
-	if (isMarkdownPreview) return null;
-	if (preview.kind === "diff") {
-		return {
-			fileName: preview.file_name,
-			oldContent: preview.old_content !== null ? preview.old_content : "",
-			newContent: preview.new_content,
-		};
-	}
-	if (preview.kind === "text") {
-		// Show as diff with identical before/after so Pierre renders with syntax highlighting
-		return {
-			fileName: preview.file_name,
-			oldContent: preview.content,
-			newContent: preview.content,
-		};
-	}
-	return null;
-});
+const isMarkdownPreview = $derived(isFileExplorerMarkdownPreview(preview));
+const textFallbackContent = $derived(getFileExplorerTextFallbackContent(preview));
+const shouldRenderPlainText = $derived(
+	shouldRenderFileExplorerPlainText({ preview, preferPlainText })
+);
+const codePreviewLanguage = $derived(getFileExplorerCodePreviewLanguage(preview));
+const diffInput = $derived(
+	buildFileExplorerDiffInput({
+		preview,
+		shouldRenderPlainText,
+		isMarkdownPreview,
+	})
+);
 
 // Re-render when diffInput or theme changes
 $effect(() => {
@@ -129,7 +93,7 @@ $effect(() => {
 
 async function renderDiff(
 	container: HTMLDivElement,
-	input: DiffInput,
+	input: FileExplorerDiffInput,
 	theme: "light" | "dark"
 ): Promise<void> {
 	if (isDisposed) return;
@@ -191,15 +155,7 @@ onDestroy(() => {
 // Fallback reason label
 // ---------------------------------------------------------------------------
 
-const fallbackMessage = $derived.by(() => {
-	if (preview === null) return null;
-	if (preview.kind !== "fallback") return null;
-	const kind = preview.preview_kind;
-	if (kind === "binary") return "Binary file - cannot display preview";
-	if (kind === "large") return "File is too large to preview";
-	if (kind === "deleted") return "File has been deleted";
-	return "Preview unavailable";
-});
+const fallbackMessage = $derived(getFileExplorerFallbackMessage(preview));
 </script>
 
 <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
