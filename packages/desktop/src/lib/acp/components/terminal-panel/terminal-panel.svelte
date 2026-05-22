@@ -5,6 +5,11 @@ import { shell as shellClient } from "$lib/utils/tauri-client/shell.js";
 
 import TerminalPanelHeader from "./terminal-panel-header.svelte";
 import TerminalRenderer from "./terminal-renderer.svelte";
+import {
+	getTerminalPanelCombinedError,
+	getTerminalPanelWidthStyle,
+	shouldShowTerminalPanelResizeEdge,
+} from "./terminal-panel-state.js";
 
 interface Props {
 	panelId: string;
@@ -58,9 +63,6 @@ let {
 	canMoveTabToNewPanel,
 }: Props = $props();
 
-const SHELL_ERROR_PREFIX = "Failed to load shell";
-const PTY_ERROR_PREFIX = "Failed to start terminal";
-
 // Resize state
 let isDragging = $state(false);
 let startX = $state(0);
@@ -86,17 +88,18 @@ $effect(() => {
 
 const effectiveShell = $derived(shell ?? detectedShell);
 const widthStyle = $derived(
-	isFullscreenEmbedded
-		? "min-width: 0;"
-		: `min-width: ${width}px; width: ${width}px; max-width: ${width}px;`
+	getTerminalPanelWidthStyle({
+		width,
+		isFullscreenEmbedded,
+	})
 );
 const combinedError = $derived(
-	shellError
-		? `${SHELL_ERROR_PREFIX}: ${shellError}`
-		: ptyError
-			? `${PTY_ERROR_PREFIX}: ${ptyError}`
-			: null
+	getTerminalPanelCombinedError({
+		shellError,
+		ptyError,
+	})
 );
+const showResizeEdge = $derived(shouldShowTerminalPanelResizeEdge(isFullscreenEmbedded));
 
 function handlePtyCreated(ptyId: number) {
 	if (effectiveShell) {
@@ -175,7 +178,7 @@ function handlePointerUp() {
 		{/snippet}
 	</TerminalPanelLayout>
 
-	{#if !isFullscreenEmbedded}
+	{#if showResizeEdge}
 		<!-- Resize Edge -->
 		<div
 			class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors"
