@@ -3419,42 +3419,29 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activeStreamingTail: null,
 					transcriptOperations: [
 						{
-							kind: "replaceSnapshot",
-							snapshot: {
-								revision: 8,
-								entries: [
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-live-1",
+								role: "user",
+								segments: [
 									{
-										entryId: "assistant-history-1",
-										role: "assistant",
-										segments: [
-											{
-												kind: "text",
-												segmentId: "assistant-history-1:block:0",
-												text: "existing answer",
-											},
-										],
+										kind: "text",
+										segmentId: "user-live-1:block:0",
+										text: "follow-up question",
 									},
+								],
+							},
+						},
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-live-1",
+								role: "assistant",
+								segments: [
 									{
-										entryId: "user-live-1",
-										role: "user",
-										segments: [
-											{
-												kind: "text",
-												segmentId: "user-live-1:block:0",
-												text: "follow-up question",
-											},
-										],
-									},
-									{
-										entryId: "assistant-live-1",
-										role: "assistant",
-										segments: [
-											{
-												kind: "text",
-												segmentId: "assistant-live-1:block:0",
-												text: "new live answer",
-											},
-										],
+										kind: "text",
+										segmentId: "assistant-live-1:block:0",
+										text: "new live answer",
 									},
 								],
 							},

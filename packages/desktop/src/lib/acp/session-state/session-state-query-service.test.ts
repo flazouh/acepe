@@ -112,4 +112,54 @@ describe("resolveSessionStateDelta", () => {
 			toRevision: 7,
 		});
 	});
+
+	it("refreshes instead of applying replacement snapshots from delta envelopes", () => {
+		const delta: SessionStateDelta = {
+			fromRevision: {
+				graphRevision: 6,
+				transcriptRevision: 4,
+				lastEventSeq: 6,
+			},
+			toRevision: {
+				graphRevision: 7,
+				transcriptRevision: 5,
+				lastEventSeq: 7,
+			},
+			activity: idleActivity,
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			transcriptOperations: [
+				{
+					kind: "replaceSnapshot",
+					snapshot: {
+						revision: 5,
+						entries: [
+							{
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:block:0",
+										text: "full replacement",
+									},
+								],
+							},
+						],
+					},
+				},
+			],
+			operationPatches: [],
+			interactionPatches: [],
+			changedFields: ["transcriptSnapshot"],
+		};
+
+		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
+			kind: "refreshSnapshot",
+			fromRevision: 4,
+			toRevision: 5,
+		});
+	});
 });

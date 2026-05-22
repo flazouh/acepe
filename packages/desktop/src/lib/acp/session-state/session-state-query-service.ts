@@ -82,6 +82,12 @@ export function sessionStateDeltaHasAssistantMutation(delta: SessionStateDelta):
 	return false;
 }
 
+function transcriptOperationsIncludeSnapshotReplacement(
+	operations: readonly TranscriptDeltaOperation[]
+): boolean {
+	return operations.some((operation) => operation.kind === "replaceSnapshot");
+}
+
 export function resolveSessionStateDelta(
 	sessionId: string,
 	currentRevision: number | undefined,
@@ -91,6 +97,14 @@ export function resolveSessionStateDelta(
 	const isTranscriptBearing = operations.length > 0;
 	const fromRevision = delta.fromRevision.transcriptRevision;
 	const toRevision = delta.toRevision.transcriptRevision;
+
+	if (transcriptOperationsIncludeSnapshotReplacement(operations)) {
+		return {
+			kind: "refreshSnapshot",
+			fromRevision,
+			toRevision,
+		};
+	}
 
 	if (isTranscriptBearing && currentRevision === undefined) {
 		if (fromRevision > 0) {
