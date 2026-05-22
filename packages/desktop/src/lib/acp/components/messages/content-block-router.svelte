@@ -1,12 +1,10 @@
 <script lang="ts">
 import type { TokenRevealCss } from "@acepe/ui/agent-panel";
-import type { ContentBlock } from "../../schemas/content-block.schema.js";
 import {
 	DEFAULT_STREAMING_ANIMATION_MODE,
 	type StreamingAnimationMode,
 } from "../../types/streaming-animation-mode.js";
-import { validateContentBlock } from "../../utils/content-block-validator.js";
-import { getBlockRenderer } from "./acp-block-types/registry.js";
+import { resolveContentBlockRouteState } from "./content-block-router-state.js";
 
 interface Props {
 	block: unknown;
@@ -27,31 +25,24 @@ let {
 }: Props = $props();
 
 const projectPath = $derived(propProjectPath);
-const validationResult = $derived(validateContentBlock(block));
+const routeState = $derived(resolveContentBlockRouteState(block));
 </script>
 
-{#if validationResult.isOk()}
-	{@const validatedBlock = validationResult.value}
-	{@const renderer = getBlockRenderer(validatedBlock.type)}
-	{#if renderer}
-		{@const Component = renderer.component}
-		{@const blockProps = (
-			renderer as { getProps: (b: ContentBlock) => Record<string, unknown> }
-		).getProps(validatedBlock)}
-		<Component
-			{...blockProps}
-			{isStreaming}
-			{tokenRevealCss}
-			{projectPath}
-			{streamingAnimationMode}
-		/>
-	{:else}
-		<div class="text-xs text-muted-foreground/70 italic">
-			Unknown block type: {validatedBlock.type}
-		</div>
-	{/if}
+{#if routeState.type === "render"}
+	{@const Component = routeState.renderer.component}
+	<Component
+		{...routeState.props}
+		{isStreaming}
+		{tokenRevealCss}
+		{projectPath}
+		{streamingAnimationMode}
+	/>
+{:else if routeState.type === "unknown"}
+	<div class="text-xs text-muted-foreground/70 italic">
+		Unknown block type: {routeState.blockType}
+	</div>
 {:else}
 	<div class="text-xs text-muted-foreground/70 italic">
-		Invalid content block: {validationResult.error.message}
+		Invalid content block: {routeState.message}
 	</div>
 {/if}
