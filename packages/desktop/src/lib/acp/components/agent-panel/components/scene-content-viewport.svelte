@@ -25,7 +25,6 @@ import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-
 import {
 	getSceneDisplayRowKey,
 	getSceneDisplayRowTimestampMs,
-	resolveSceneDisplayRowThinkingDurationMs,
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
@@ -1195,10 +1194,7 @@ export function scrollToTop() {
 
 	{#snippet renderEntry(entry: SceneDisplayRow | undefined, index: number)}
 		{#if entry}
-			{@const mergedThoughtDurationMs = resolveSceneDisplayRowThinkingDurationMs(
-				displayEntries,
-				index
-			)}
+			{@const mergedThoughtDurationMs = viewportRowsReadModel.selectThinkingDurationMs(index)}
 			{@const sharedEntry = getSharedEntry(entry, mergedThoughtDurationMs, index)}
 			{@const attachedPermission = getAttachedPermissionForEntry(sharedEntry)}
 			<MessageWrapper

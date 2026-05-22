@@ -104,6 +104,32 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(false);
 		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(false);
 	});
+
+	it("selects fixed thinking durations from the next timed row", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
+		readModel.applyRows({
+			rows: [
+				assistantRow("assistant-1", { thought: true, timestampMs: startedAtMs }),
+				userRow("user-2", { timestampMs: startedAtMs + 4_000 }),
+			],
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 30_000)).toBe(4_000);
+		expect(readModel.selectThinkingDurationMs(1, startedAtMs + 30_000)).toBeNull();
+	});
+
+	it("selects elapsed thinking durations for waiting rows", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
+		readModel.applyRows({
+			rows: [userRow("user-1"), thinkingRow("Working", startedAtMs)],
+			reason: "waiting-row-appended",
+		});
+
+		expect(readModel.selectThinkingDurationMs(1, startedAtMs + 2_500)).toBe(2_500);
+	});
 });
 
 describe("buildTranscriptViewportRowsSummary", () => {
@@ -129,24 +155,40 @@ describe("buildTranscriptViewportRowsSummary", () => {
 	});
 });
 
-function userRow(id: string): SceneDisplayRow {
+function userRow(
+	id: string,
+	options: { readonly timestampMs?: number } = {}
+): SceneDisplayRow {
 	return {
 		id,
 		type: "user",
 		text: "Prompt",
+		timestamp: options.timestampMs === undefined ? undefined : new Date(options.timestampMs),
 	} as unknown as SceneDisplayRow;
 }
 
 function assistantRow(
 	id: string,
-	options: { readonly tokenReveal?: boolean; readonly isStreaming?: boolean } = {}
+	options: {
+		readonly tokenReveal?: boolean;
+		readonly isStreaming?: boolean;
+		readonly thought?: boolean;
+		readonly timestampMs?: number;
+	} = {}
 ): SceneDisplayRow {
 	return {
 		key: id,
 		type: "assistant_merged",
 		memberIds: [id],
 		markdown: "Answer",
-		message: { chunks: [{ type: "message", block: { type: "text", text: "Answer" } }] },
+		message: {
+			chunks: [
+				options.thought
+					? { type: "thought", block: { type: "text", text: "Thinking" } }
+					: { type: "message", block: { type: "text", text: "Answer" } },
+			],
+		},
+		timestamp: options.timestampMs === undefined ? undefined : new Date(options.timestampMs),
 		isStreaming: options.isStreaming,
 		tokenRevealCss: options.tokenReveal
 			? {
@@ -170,11 +212,11 @@ function toolRow(id: string): SceneDisplayRow {
 	} as unknown as SceneDisplayRow;
 }
 
-function thinkingRow(label: string): SceneDisplayRow {
+function thinkingRow(label: string, startedAtMs = 1): SceneDisplayRow {
 	return {
 		id: "thinking-indicator",
 		type: "thinking",
-		startedAtMs: 1,
+		startedAtMs,
 		label,
 	} as SceneDisplayRow;
 }

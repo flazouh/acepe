@@ -1,5 +1,6 @@
 import {
 	getSceneDisplayRowKey,
+	getSceneDisplayRowTimestampMs,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
 
@@ -51,11 +52,18 @@ export interface TranscriptViewportRowsReadModel {
 		reason: TranscriptViewportRowsReason;
 	}): TranscriptViewportRowSummary;
 	selectSummary(): TranscriptViewportRowSummary;
+	selectThinkingDurationMs(index: number, nowMs?: number): number | null;
 }
+
+type ThinkingDurationSource =
+	| { readonly type: "none" }
+	| { readonly type: "fixed"; readonly durationMs: number }
+	| { readonly type: "elapsed"; readonly startedAtMs: number };
 
 export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsReadModel {
 	let previousRows: readonly SceneDisplayRow[] | null = null;
 	let previousSummary: TranscriptViewportRowSummary = createEmptyTranscriptViewportRows();
+	let thinkingDurationSources: readonly ThinkingDurationSource[] = [];
 
 	return {
 		applyRows({ rows, reason }) {
@@ -65,6 +73,11 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 
 			if (previousRows !== null && isSamePrefix(previousRows, rows, previousRows.length)) {
 				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, previousRows.length - 1)
+				);
 				previousRows = rows;
 				return previousSummary;
 			}
@@ -81,16 +94,32 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					rows,
 					reason
 				);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, rows.length - 2)
+				);
 				previousRows = rows;
 				return previousSummary;
 			}
 
 			previousSummary = buildTranscriptViewportRowsSummary(rows, reason);
+			thinkingDurationSources = buildThinkingDurationSources(rows);
 			previousRows = rows;
 			return previousSummary;
 		},
 		selectSummary() {
 			return previousSummary;
+		},
+		selectThinkingDurationMs(index, nowMs = Date.now()) {
+			const source = thinkingDurationSources[index];
+			if (source === undefined || source.type === "none") {
+				return null;
+			}
+			if (source.type === "fixed") {
+				return source.durationMs;
+			}
+			return Math.max(0, nowMs - source.startedAtMs);
 		},
 	};
 }
@@ -301,6 +330,93 @@ function isLiveAssistantDisplayRow(row: SceneDisplayRow): boolean {
 
 function isTokenRevealAssistantDisplayRow(row: SceneDisplayRow): boolean {
 	return row.type === "assistant_merged" && row.tokenRevealCss !== undefined;
+}
+
+function updateThinkingDurationSources(
+	previousSources: readonly ThinkingDurationSource[],
+	rows: readonly SceneDisplayRow[],
+	startIndex: number
+): readonly ThinkingDurationSource[] {
+	const nextSources = previousSources.slice(0, startIndex);
+	for (let index = startIndex; index < rows.length; index += 1) {
+		nextSources[index] = buildThinkingDurationSource(rows, index);
+	}
+	return nextSources;
+}
+
+function buildThinkingDurationSources(
+	rows: readonly SceneDisplayRow[]
+): readonly ThinkingDurationSource[] {
+	const sources: ThinkingDurationSource[] = [];
+	for (let index = 0; index < rows.length; index += 1) {
+		sources[index] = buildThinkingDurationSource(rows, index);
+	}
+	return sources;
+}
+
+function buildThinkingDurationSource(
+	rows: readonly SceneDisplayRow[],
+	index: number
+): ThinkingDurationSource {
+	const row = rows[index];
+	if (row === undefined) {
+		return { type: "none" };
+	}
+
+	if (row.type === "thinking") {
+		return row.startedAtMs === null || row.startedAtMs === undefined
+			? { type: "none" }
+			: { type: "elapsed", startedAtMs: row.startedAtMs };
+	}
+
+	if (row.type !== "assistant_merged" || !hasThoughtChunks(row)) {
+		return { type: "none" };
+	}
+
+	const startedAtMs = row.timestamp?.getTime();
+	if (startedAtMs === undefined) {
+		return { type: "none" };
+	}
+
+	for (let offset = index + 1; offset < rows.length; offset += 1) {
+		const nextRow = rows[offset];
+		if (nextRow === undefined) {
+			continue;
+		}
+
+		if (nextRow.type === "thinking") {
+			return { type: "elapsed", startedAtMs };
+		}
+
+		const nextTimestampMs = getSceneDisplayRowTimestampMs(nextRow);
+		if (nextTimestampMs !== null) {
+			return {
+				type: "fixed",
+				durationMs: Math.max(0, nextTimestampMs - startedAtMs),
+			};
+		}
+	}
+
+	const endedAtMs = row.latestTimestamp?.getTime();
+	if (endedAtMs !== undefined && endedAtMs > startedAtMs) {
+		return {
+			type: "fixed",
+			durationMs: Math.max(0, endedAtMs - startedAtMs),
+		};
+	}
+
+	if (row.isStreaming === true) {
+		return { type: "elapsed", startedAtMs };
+	}
+
+	return { type: "none" };
+}
+
+function hasThoughtChunks(row: SceneDisplayRow): boolean {
+	return (
+		row.type === "assistant_merged" &&
+		row.message.chunks.some((chunk) => chunk.type === "thought")
+	);
 }
 
 function findLatestUserKeyBeforeTail(rows: readonly SceneDisplayRow[]): string | null {
