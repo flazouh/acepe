@@ -31,6 +31,10 @@ export function createAgentPanelSceneReadModel(input?: {
 }): AgentPanelSceneReadModel {
 	const rows = input?.rows ?? createSceneDisplayRowsReadModel();
 	const entryIndex = input?.entryIndex ?? createGraphSceneEntryIndexReadModel();
+	let previousSnapshot: AgentPanelSceneReadModelSnapshot = {
+		rows: rows.selectRows(),
+		entriesById: entryIndex.selectIndex(),
+	};
 
 	return {
 		applySnapshot(sceneEntries) {
@@ -44,10 +48,20 @@ export function createAgentPanelSceneReadModel(input?: {
 			return this.selectSnapshot();
 		},
 		selectSnapshot() {
-			return {
-				rows: rows.selectRows(),
-				entriesById: entryIndex.selectIndex(),
+			const nextRows = rows.selectRows();
+			const nextEntriesById = entryIndex.selectIndex();
+			if (
+				previousSnapshot.rows === nextRows &&
+				previousSnapshot.entriesById === nextEntriesById
+			) {
+				return previousSnapshot;
+			}
+
+			previousSnapshot = {
+				rows: nextRows,
+				entriesById: nextEntriesById,
 			};
+			return previousSnapshot;
 		},
 	};
 }

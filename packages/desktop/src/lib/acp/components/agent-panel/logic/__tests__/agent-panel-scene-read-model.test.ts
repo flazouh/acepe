@@ -18,7 +18,9 @@ describe("createAgentPanelSceneReadModel", () => {
 			markdown: "Answer",
 		};
 
-		const snapshot = readModel.applySnapshot([userEntry, assistantEntry]);
+		const entries = [userEntry, assistantEntry];
+
+		const snapshot = readModel.applySnapshot(entries);
 
 		expect(snapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
 			"user-1",
@@ -26,7 +28,8 @@ describe("createAgentPanelSceneReadModel", () => {
 		]);
 		expect(snapshot.entriesById.get("user-1")).toBe(userEntry);
 		expect(snapshot.entriesById.get("assistant-1")).toBe(assistantEntry);
-		expect(readModel.selectSnapshot()).toEqual(snapshot);
+		expect(readModel.selectSnapshot()).toBe(snapshot);
+		expect(readModel.applySnapshot(entries)).toBe(snapshot);
 	});
 
 	it("applies append patches to rows and graph entry index together", () => {
@@ -57,6 +60,7 @@ describe("createAgentPanelSceneReadModel", () => {
 		]);
 		expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
 		expect(patchedSnapshot.entriesById.get("assistant-2")).toBe(nextAssistantEntry);
-		expect(readModel.selectSnapshot()).toEqual(patchedSnapshot);
+		expect(readModel.selectSnapshot()).toBe(patchedSnapshot);
+		expect(readModel.applyAppendPatch([])).toBe(patchedSnapshot);
 	});
 });
