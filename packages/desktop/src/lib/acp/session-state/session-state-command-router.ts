@@ -20,8 +20,16 @@ import {
 	resolveSessionStateDelta,
 	type SessionStateDeltaResolution,
 } from "./session-state-query-service.js";
+import {
+	checkSessionStateEnvelopeByteBudget,
+	type SessionStateEnvelopeByteBudgetResult,
+} from "./session-state-envelope-budget.js";
 
 export type SessionStateCommand =
+	| {
+			kind: "rejectOversizedEnvelope";
+			budget: SessionStateEnvelopeByteBudgetResult;
+	  }
 	| {
 			kind: "replaceGraph";
 			graph: SessionStateGraph;
@@ -99,6 +107,16 @@ export function routeSessionStateEnvelope(
 	currentTranscriptRevision: number | undefined,
 	envelope: SessionStateEnvelope
 ): SessionStateCommand[] {
+	const budget = checkSessionStateEnvelopeByteBudget(envelope);
+	if (!budget.ok) {
+		return [
+			{
+				kind: "rejectOversizedEnvelope",
+				budget,
+			},
+		];
+	}
+
 	switch (envelope.payload.kind) {
 		case "snapshot":
 			return [

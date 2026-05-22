@@ -3366,6 +3366,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		);
 
 		for (const command of commands) {
+			if (command.kind === "rejectOversizedEnvelope") {
+				logger.warn("Rejected oversized session-state envelope", {
+					sessionId,
+					kind: command.budget.kind,
+					byteLength: command.budget.byteLength,
+					maxBytes: command.budget.maxBytes,
+				});
+				continue;
+			}
+
 			if (command.kind === "replaceGraph") {
 				const graph = command.graph;
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;

@@ -6,6 +6,7 @@ import type {
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "./session-state-command-router.js";
+import { getSessionStateEnvelopeByteBudget } from "./session-state-envelope-budget.js";
 
 const runningOperationActivity: SessionGraphActivity = {
 	kind: "running_operation",
@@ -272,5 +273,36 @@ describe("routeSessionStateEnvelope", () => {
 				toRevision: 8,
 			},
 		]);
+	});
+
+	it("rejects oversized assistant text deltas before routing work", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "assistantTextDelta",
+				delta: {
+					turnId: "turn-1",
+					rowId: "assistant-1",
+					charOffset: 0,
+					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
+					producedAtMonotonicMs: 12,
+					revision: 1,
+				},
+			},
+		};
+
+		const commands = routeSessionStateEnvelope("session-1", 7, envelope);
+
+		expect(commands).toHaveLength(1);
+		expect(commands[0]).toMatchObject({
+			kind: "rejectOversizedEnvelope",
+			budget: {
+				ok: false,
+				kind: "assistantTextDelta",
+				maxBytes: getSessionStateEnvelopeByteBudget("assistantTextDelta"),
+			},
+		});
 	});
 });
