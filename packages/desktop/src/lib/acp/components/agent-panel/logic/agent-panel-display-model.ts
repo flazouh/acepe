@@ -445,19 +445,22 @@ export function applyAgentPanelDisplayModelToSceneEntries(
 			assistantRowsById.set(row.id, row);
 		}
 	}
-	return sceneEntries.map((entry) => {
+	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	sceneEntries.forEach((entry, index) => {
 		if (entry.type !== "assistant") {
-			return entry;
+			return;
 		}
 
 		const row = findAssistantDisplayRow(assistantRowsById, entry.id);
 		if (row === null) {
-			return entry;
+			return;
 		}
 		if (entry.markdown === row.displayText) {
-			return entry;
+			return;
 		}
 
-		return applyDisplayRowToAssistantEntry(entry, row);
+		nextEntries ??= sceneEntries.slice();
+		nextEntries[index] = applyDisplayRowToAssistantEntry(entry, row);
 	});
+	return nextEntries ?? sceneEntries;
 }
