@@ -7,8 +7,8 @@ import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
-import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { PROJECT_COLOR_OPTIONS } from "../utils/project-color-options.js";
+import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
 interface Props {
 	projectName: string;
@@ -38,29 +38,23 @@ function handleColorSelect(colorName: string) {
 	onColorChange?.(colorName);
 }
 
-const selectedColorHex = $derived.by(() => {
-	const selectedOption = colorOptions.find(
-		(option) => currentColor === option.name || currentColor === option.hex
-	);
-	return selectedOption?.hex ?? colorOptions[0]?.hex ?? Colors[COLOR_NAMES.RED];
-});
-
-const hasIcon = $derived(Boolean(projectIconSrc));
-const hasResetProjectIcon = $derived(Boolean(hasIcon && onResetProjectIcon));
-const showColorPicker = $derived(Boolean(onColorChange && !hasIcon));
-const showSettingsSection = $derived(
-	Boolean(showColorPicker || onRemoveProject || hasResetProjectIcon)
+const menuState = $derived(
+	buildProjectHeaderOverflowMenuState({
+		currentColor,
+		colorOptions,
+		projectIconSrc,
+		hasColorChange: Boolean(onColorChange),
+		hasResetProjectIconAction: Boolean(onResetProjectIcon),
+		hasRemoveProjectAction: Boolean(onRemoveProject),
+	})
 );
-const displaySectionClass = $derived(
-	`px-2 py-1.5${
-		showColorPicker || onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
-	}`
-);
-const colorTriggerClass = $derived(
-	`rounded-none px-2 py-1.5 text-[11px]${
-		onRemoveProject || hasResetProjectIcon ? " border-b border-border/20" : ""
-	}`
-);
+const selectedColorHex = $derived(menuState.selectedColorHex);
+const hasIcon = $derived(menuState.hasIcon);
+const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
+const showColorPicker = $derived(menuState.showColorPicker);
+const showSettingsSection = $derived(menuState.showSettingsSection);
+const displaySectionClass = $derived(menuState.displaySectionClass);
+const colorTriggerClass = $derived(menuState.colorTriggerClass);
 
 function handleRemoveClick() {
 	menuOpen = false;
