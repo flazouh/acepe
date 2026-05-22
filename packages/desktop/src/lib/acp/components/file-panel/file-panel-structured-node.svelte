@@ -5,16 +5,9 @@ import { CaretRight } from "phosphor-svelte";
 import { CheckCircle } from "phosphor-svelte";
 import { CircleDashed } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
-import { Colors } from "@acepe/ui/colors";
 
 import type { StructuredData } from "./format/types.js";
-import {
-	formatStructuredPrimitive,
-	getStructuredContainerSummary,
-	isStructuredContainer,
-	toStructuredEntries,
-	tryParseJsonString,
-} from "./format/parsers/structured.js";
+import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";
 import FilePanelStructuredNode from "./file-panel-structured-node.svelte";
 
 interface Props {
@@ -36,70 +29,14 @@ $effect(() => {
 	}
 });
 
-const displayValue = $derived.by(() => {
-	if (typeof value === "string") {
-		const parsed = tryParseJsonString(value);
-		return parsed ?? value;
-	}
-	return value;
-});
-
-const isContainer = $derived(isStructuredContainer(displayValue));
-const isArray = $derived(isContainer && Array.isArray(displayValue));
-const containerSummary = $derived.by(() => {
-	if (isContainer) {
-		return getStructuredContainerSummary(displayValue);
-	}
-	return formatStructuredPrimitive(displayValue);
-});
-const entries = $derived.by(() => {
-	if (!isContainer) {
-		return [];
-	}
-	return toStructuredEntries(displayValue);
-});
-const isExpandable = $derived(isContainer && entries.length > 0);
-const leftPadding = $derived(`${depth * 12}px`);
-const primitiveStyle = $derived.by(() => {
-	if (isContainer) {
-		return "";
-	}
-
-	if (displayValue === null) {
-		return `color: ${Colors.orange}`;
-	}
-
-	if (typeof displayValue === "boolean") {
-		return `color: ${Colors.purple}`;
-	}
-
-	if (typeof displayValue === "number") {
-		return `color: ${Colors.cyan}`;
-	}
-
-	if (typeof displayValue === "string") {
-		return "color: var(--success)";
-	}
-
-	return "";
-});
-
-const keyPrefix = $derived.by(() => {
-	if (label === null) {
-		return "root";
-	}
-
-	if (typeof label === "string" && /^\d+$/.test(label)) {
-		return `[${label}]`;
-	}
-
-	return label;
+const nodeState = $derived.by(() => {
+	return buildStructuredNodeDisplayState({ value, label, depth });
 });
 </script>
 
-<div class="structured-node" style={`padding-left: ${leftPadding};`}>
-	<div class="structured-card {isContainer ? 'container-card' : 'leaf-card'}">
-		{#if isExpandable}
+<div class="structured-node" style={`padding-left: ${nodeState.leftPadding};`}>
+	<div class="structured-card {nodeState.isContainer ? 'container-card' : 'leaf-card'}">
+		{#if nodeState.isExpandable}
 			<button
 				type="button"
 				class="structured-card-header"
@@ -115,47 +52,47 @@ const keyPrefix = $derived.by(() => {
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">
-					{#if isArray}
+					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
 						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
 					{/if}
 				</span>
-				<span class="structured-key">{keyPrefix}</span>
-				<span class="structured-summary">{containerSummary}</span>
+				<span class="structured-key">{nodeState.keyPrefix}</span>
+				<span class="structured-summary">{nodeState.containerSummary}</span>
 			</button>
 
 			{#if isExpanded}
 				<div class="structured-card-content">
-					{#each entries as entry (entry.key)}
+					{#each nodeState.entries as entry (entry.key)}
 						<FilePanelStructuredNode value={entry.value} label={entry.key} depth={depth + 1} />
 					{/each}
 				</div>
 			{/if}
-		{:else if isContainer}
+		{:else if nodeState.isContainer}
 			<div class="structured-card-header">
 				<span class="structured-chevron" aria-hidden="true">
-					{#if isArray}
+					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
 						<Folder class="h-3.5 w-3.5 text-violet-500" weight="bold" />
 					{/if}
 				</span>
-				<span class="structured-key">{keyPrefix}</span>
-				<span class="structured-summary">{containerSummary}</span>
+				<span class="structured-key">{nodeState.keyPrefix}</span>
+				<span class="structured-summary">{nodeState.containerSummary}</span>
 			</div>
 		{:else}
 			<div class="structured-card-header">
 				<span class="structured-chevron" aria-hidden="true">
-					{#if typeof displayValue === "boolean" && displayValue}
+					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
 						<CheckCircle class="h-3.5 w-3.5 text-emerald-500" weight="fill" />
 					{:else}
 						<CircleDashed class="h-3.5 w-3.5 text-muted-foreground" weight="bold" />
 					{/if}
 				</span>
-				<span class="structured-key">{keyPrefix}</span>
-				<span class="structured-summary" style={primitiveStyle || undefined}
-					>{containerSummary}</span
+				<span class="structured-key">{nodeState.keyPrefix}</span>
+				<span class="structured-summary" style={nodeState.primitiveStyle || undefined}
+					>{nodeState.containerSummary}</span
 				>
 			</div>
 		{/if}
