@@ -4,6 +4,7 @@ import type { PermissionRequest } from "../../../types/permission.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 
 import {
+	buildPermissionBarDisplayModel,
 	extractCompactPermissionDisplay,
 	extractPermissionCommand,
 	extractPermissionFilePath,
@@ -348,5 +349,68 @@ describe("permission-display", () => {
 				toolCall,
 			})
 		).toBe(false);
+	});
+
+	it("builds permission bar display model for standalone file permissions", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "edit",
+				edits: [
+					{
+						filePath: "/repo/packages/ui/src/index.ts",
+						oldString: null,
+						newString: null,
+						content: null,
+					},
+				],
+			},
+		});
+		permission.permission = "Edit /repo/packages/ui/src/index.ts";
+
+		expect(
+			buildPermissionBarDisplayModel({
+				permission,
+				projectPath: "/repo",
+				toolCall: null,
+				isRepresentedByToolCall: false,
+				showCommandWhenRepresented: false,
+			})
+		).toEqual({
+			kind: "edit",
+			verb: "Edit",
+			command: null,
+			filePath: "packages/ui/src/index.ts",
+			showSummary: true,
+		});
+	});
+
+	it("hides represented command text unless explicitly requested", () => {
+		const permission = createPermission({
+			parsedArguments: {
+				kind: "execute",
+				command: "bun test",
+			},
+		});
+		permission.permission = "Execute bun test";
+
+		expect(
+			buildPermissionBarDisplayModel({
+				permission,
+				projectPath: "/repo",
+				toolCall: null,
+				isRepresentedByToolCall: true,
+				showCommandWhenRepresented: false,
+			}).command
+		).toBeNull();
+
+		expect(
+			buildPermissionBarDisplayModel({
+				permission,
+				projectPath: "/repo",
+				toolCall: null,
+				isRepresentedByToolCall: true,
+				showCommandWhenRepresented: true,
+			}).command
+		).toBe("bun test");
 	});
 });

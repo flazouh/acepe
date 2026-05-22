@@ -84,6 +84,14 @@ export interface PermissionBarSummaryVisibilityInput {
 	readonly toolCall?: ToolCall | null;
 }
 
+export interface PermissionBarDisplayModel {
+	readonly kind: PermissionDisplayKind;
+	readonly verb: string;
+	readonly command: string | null;
+	readonly filePath: string | null;
+	readonly showSummary: boolean;
+}
+
 function normalizePermissionDisplayKind(value: string | null | undefined): PermissionDisplayKind {
 	if (!value) {
 		return "other";
@@ -249,4 +257,34 @@ export function shouldShowPermissionBarSummary(
 	}
 
 	return !toolCallFilePath && !toolCallCommand;
+}
+
+export function buildPermissionBarDisplayModel(input: {
+	readonly permission: PermissionRequest;
+	readonly projectPath?: string | null;
+	readonly toolCall?: ToolCall | null;
+	readonly isRepresentedByToolCall: boolean;
+	readonly showCommandWhenRepresented: boolean;
+}): PermissionBarDisplayModel {
+	const compactDisplay = extractCompactPermissionDisplay(
+		input.permission,
+		input.projectPath,
+		input.toolCall
+	);
+	const command =
+		input.showCommandWhenRepresented || !input.isRepresentedByToolCall
+			? compactDisplay.command
+			: null;
+
+	return {
+		kind: compactDisplay.kind,
+		verb: compactDisplay.label,
+		command,
+		filePath: compactDisplay.filePath,
+		showSummary: shouldShowPermissionBarSummary({
+			isRepresentedByToolCall: input.isRepresentedByToolCall,
+			display: compactDisplay,
+			toolCall: input.toolCall,
+		}),
+	};
 }

@@ -13,10 +13,7 @@ import { Colors, COLOR_NAMES } from "@acepe/ui/colors";
 import { AgentToolEdit } from "@acepe/ui/agent-panel";
 import { mapToolCallToSceneEntry } from "../agent-panel/scene/desktop-agent-panel-scene.js";
 import { mapCanonicalTurnStateToPresentationStatus } from "../../store/canonical-turn-state-mapping.js";
-import {
-	extractCompactPermissionDisplay,
-	shouldShowPermissionBarSummary,
-} from "./permission-display.js";
+import { buildPermissionBarDisplayModel } from "./permission-display.js";
 import { useTheme } from "../../../components/theme/context.svelte.js";
 import { getWorkerPool } from "../../utils/worker-pool-singleton.js";
 import {
@@ -127,29 +124,25 @@ const editTheme = $derived(themeState.effectiveTheme);
 
 
 {#if displayPermission}
-	{@const compactDisplay = extractCompactPermissionDisplay(displayPermission, projectPath, currentToolCall)}
-	{@const kind = compactDisplay.kind}
-	{@const command =
-		showCommandWhenRepresented || !isRepresentedByToolCall ? compactDisplay.command : null}
-	{@const filePath = compactDisplay.filePath}
-	{@const verb = compactDisplay.label}
-	{@const showSummary = shouldShowPermissionBarSummary({
-		isRepresentedByToolCall,
-		display: compactDisplay,
+	{@const permissionDisplay = buildPermissionBarDisplayModel({
+		permission: displayPermission,
+		projectPath,
 		toolCall: currentToolCall,
+		isRepresentedByToolCall,
+		showCommandWhenRepresented,
 	})}
 	<SharedAgentPanelPermissionBar
-		{verb}
-		{filePath}
+		verb={permissionDisplay.verb}
+		filePath={permissionDisplay.filePath}
 		showFilePath={!showEditPreview}
-		{showSummary}
-		{command}
+		showSummary={permissionDisplay.showSummary}
+		command={permissionDisplay.command}
 		{attachment}
 		hasProgress={sessionProgress !== null && sessionProgress !== undefined}
 		hasEditPreview={showEditPreview && currentToolCall !== null}
 	>
 		{#snippet leading()}
-			<AgentPanelPermissionBarIcon {kind} color={Colors[COLOR_NAMES.PURPLE]} />
+			<AgentPanelPermissionBarIcon kind={permissionDisplay.kind} color={Colors[COLOR_NAMES.PURPLE]} />
 		{/snippet}
 
 		{#snippet progress()}
