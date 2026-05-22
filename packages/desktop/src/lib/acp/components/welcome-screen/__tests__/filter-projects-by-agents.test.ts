@@ -1,35 +1,11 @@
 import { describe, expect, it } from "bun:test";
-
-interface ProjectWithSessions {
-	path: string;
-	name: string;
-	agentCounts: Map<string, number | "loading" | "error">;
-	totalSessions: number | "loading" | "error";
-}
-
-/**
- * Filters projects to show only those with sessions from selected agents.
- * If no agents are selected, shows all projects (inverted logic).
- */
-function filterProjectsBySelectedAgents(
-	projects: ProjectWithSessions[],
-	selectedAgentIds: string[]
-): ProjectWithSessions[] {
-	// If no agents selected, show all projects
-	if (selectedAgentIds.length === 0) {
-		return projects;
-	}
-
-	const selectedSet = new Set(selectedAgentIds);
-
-	// Filter: keep only projects where at least one selected agent has sessions
-	return projects.filter((project) => {
-		return Array.from(selectedSet).some((agentId) => {
-			const count = project.agentCounts.get(agentId);
-			return typeof count === "number" && count > 0;
-		});
-	});
-}
+import type { ProjectWithSessions } from "../../add-repository/open-project-dialog-props.js";
+import {
+	extractNameFromPath,
+	filterProjectsBySelectedAgents,
+	getCurrentOnboardingStepIndex,
+	toggleSelectedOnboardingAgent,
+} from "../welcome-screen-state.js";
 
 describe("filterProjectsBySelectedAgents", () => {
 	const createProject = (
@@ -149,5 +125,29 @@ describe("filterProjectsBySelectedAgents", () => {
 		expect(filtered.length).toBe(2);
 		expect(filtered.some((p) => p.path === "/project1")).toBe(true);
 		expect(filtered.some((p) => p.path === "/project2")).toBe(true);
+	});
+
+	it("should extract names from unix-style paths", () => {
+		expect(extractNameFromPath("/Users/alex/project-one")).toBe("project-one");
+		expect(extractNameFromPath("project-two")).toBe("project-two");
+		expect(extractNameFromPath("/")).toBe("/");
+	});
+
+	it("should map scanning to the projects progress step", () => {
+		expect(getCurrentOnboardingStepIndex("splash")).toBe(0);
+		expect(getCurrentOnboardingStepIndex("agents")).toBe(1);
+		expect(getCurrentOnboardingStepIndex("projects")).toBe(2);
+		expect(getCurrentOnboardingStepIndex("scanning")).toBe(2);
+	});
+
+	it("should toggle selected agents while keeping at least one selected", () => {
+		expect(toggleSelectedOnboardingAgent(["codex"], "claude-code")).toEqual([
+			"codex",
+			"claude-code",
+		]);
+		expect(toggleSelectedOnboardingAgent(["codex", "claude-code"], "codex")).toEqual([
+			"claude-code",
+		]);
+		expect(toggleSelectedOnboardingAgent(["codex"], "codex")).toEqual(["codex"]);
 	});
 });

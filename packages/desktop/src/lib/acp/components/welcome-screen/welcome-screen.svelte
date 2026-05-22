@@ -1,9 +1,8 @@
 <script lang="ts">
-import { BrandLockup, BrandShaderBackground, Button, type ProviderBrand } from "@acepe/ui";
+import { BrandLockup, BrandShaderBackground, Button } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { ArrowRight } from "phosphor-svelte";
 import { onDestroy, onMount } from "svelte";
-import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
@@ -27,29 +26,17 @@ import {
 } from "../add-repository/project-discovery.js";
 import ProjectTable from "../add-repository/project-table.svelte";
 import { getOnboardingSelectableAgents } from "./onboarding-agent-discovery.js";
+import {
+	AGENT_VENDORS,
+	ONBOARDING_STEPS,
+	SPLASH_AGENTS,
+	type OnboardingStep,
+	extractNameFromPath,
+	filterProjectsBySelectedAgents,
+	getCurrentOnboardingStepIndex,
+	toggleSelectedOnboardingAgent,
+} from "./welcome-screen-state.js";
 import type { WelcomeScreenProps } from "./welcome-screen-props.js";
-
-const SPLASH_AGENTS: { brand: ProviderBrand; alt: string }[] = [
-	{ brand: "claude-code", alt: "Claude" },
-	{ brand: "copilot", alt: "GitHub Copilot" },
-	{ brand: "codex", alt: "Codex" },
-	{ brand: "cursor", alt: "Cursor" },
-	{ brand: "opencode", alt: "OpenCode" },
-];
-
-// Vendor labels grounded in reality — confident product data, not marketing copy.
-const AGENT_VENDORS: Record<string, string> = {
-	"claude-code": "Anthropic",
-	cursor: "Cursor",
-	copilot: "GitHub",
-	opencode: "SST",
-	codex: "OpenAI",
-};
-
-type OnboardingStep = "splash" | "agents" | "projects" | "scanning";
-
-// Visible steps for the progress indicator — scanning is an internal transition, not a step.
-const ONBOARDING_STEPS: readonly OnboardingStep[] = ["splash", "agents", "projects"] as const;
 
 interface OnboardingImportErrorState {
 	readonly title: string;
@@ -78,9 +65,7 @@ const filteredProjects = $derived(
 	filterProjectsBySelectedAgents(onboardingProjects, onboardingSelectedAgents)
 );
 // Index into ONBOARDING_STEPS for the progress indicator. Scanning reuses the projects step.
-const currentStepIndex = $derived(
-	onboardingStep === "scanning" ? 2 : ONBOARDING_STEPS.indexOf(onboardingStep)
-);
+const currentStepIndex = $derived(getCurrentOnboardingStepIndex(onboardingStep));
 
 function isUnexpectedOnboardingImportError(error: AppError): boolean {
 	return error.code !== "VALIDATION_ERROR";
@@ -110,16 +95,7 @@ function getOnboardingDefaultAgents(): string[] {
 }
 
 function toggleOnboardingAgent(agentId: string): void {
-	const current = new SvelteSet(onboardingSelectedAgents);
-	if (current.has(agentId)) {
-		if (current.size === 1) {
-			return;
-		}
-		current.delete(agentId);
-	} else {
-		current.add(agentId);
-	}
-	onboardingSelectedAgents = Array.from(current);
+	onboardingSelectedAgents = toggleSelectedOnboardingAgent(onboardingSelectedAgents, agentId);
 }
 
 async function loadExistingProjects() {
@@ -231,35 +207,6 @@ function handleOnboardingIssueAction() {
 	}
 
 	openIssueReportDraft(onboardingIssueDraft);
-}
-
-function extractNameFromPath(path: string): string {
-	const segments = path.split("/").filter((segment) => segment.length > 0);
-	return segments.length > 0 ? (segments[segments.length - 1] ?? path) : path;
-}
-
-/**
- * Filters projects to show only those with sessions from selected agents.
- * If no agents are selected, shows all projects (inverted logic).
- */
-function filterProjectsBySelectedAgents(
-	projects: ProjectWithSessions[],
-	selectedAgentIds: string[]
-): ProjectWithSessions[] {
-	// If no agents selected, show all projects
-	if (selectedAgentIds.length === 0) {
-		return projects;
-	}
-
-	const selectedSet = new Set(selectedAgentIds);
-
-	// Filter: keep only projects where at least one selected agent has sessions
-	return projects.filter((project) => {
-		return Array.from(selectedSet).some((agentId) => {
-			const count = project.agentCounts.get(agentId);
-			return typeof count === "number" && count > 0;
-		});
-	});
 }
 
 async function loadOnboardingProjects(): Promise<void> {
