@@ -9,6 +9,10 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
+import {
+	getBrowserPanelWidthStyle,
+	shouldShowBrowserPanelResizeEdge,
+} from "./logic/browser-panel-layout.js";
 import { createLogger } from "../../utils/logger.js";
 import { observeScrollParents } from "./logic/scroll-sync.js";
 
@@ -43,9 +47,14 @@ let isDragging = $state(false);
 let startX = $state(0);
 
 const widthStyle = $derived(
-	props.isFullscreenEmbedded || props.isFillContainer
-		? "width: 100%; height: 100%;"
-		: `width: ${props.width}px;`
+	getBrowserPanelWidthStyle({
+		width: props.width,
+		isFullscreenEmbedded: props.isFullscreenEmbedded,
+		isFillContainer: props.isFillContainer,
+	})
+);
+const showResizeEdge = $derived(
+	shouldShowBrowserPanelResizeEdge({ isFullscreenEmbedded: props.isFullscreenEmbedded })
 );
 
 const webviewLabel = $derived(`browser-${props.panelId}`);
@@ -323,7 +332,7 @@ $effect(() => {
 		<div bind:this={webviewAreaRef} class="flex-1 min-h-0 bg-white"></div>
 	{/snippet}
 
-	{#if !props.isFullscreenEmbedded}
+	{#if showResizeEdge}
 		{#snippet resizeEdge()}
 			<div
 				class="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors"
