@@ -65,6 +65,7 @@ import {
 	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
+	createAgentPanelDisplayRowsReadModel,
 	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
 	derivePanelErrorInfo,
@@ -229,6 +230,7 @@ const messageQueueStore = getMessageQueueStore();
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
 let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
+const agentPanelDisplayRowsReadModel = createAgentPanelDisplayRowsReadModel();
 const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
 const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
@@ -886,6 +888,7 @@ const agentPanelBaseDisplayModel = $derived(
 			agentName,
 		},
 		sceneEntries: graphMaterializedScene.conversation.entries,
+		rows: agentPanelDisplayRowsReadModel,
 		local: {
 			pendingSendIntent: hasImmediatePendingSendIntent,
 		},

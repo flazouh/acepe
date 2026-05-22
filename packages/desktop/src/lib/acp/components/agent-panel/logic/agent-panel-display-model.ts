@@ -42,6 +42,7 @@ export interface AgentPanelDisplayInput {
 	readonly local: {
 		readonly pendingSendIntent: boolean;
 	};
+	readonly rows?: AgentPanelDisplayRowsReadModel;
 }
 
 export interface AgentPanelBaseModel {
@@ -113,12 +114,65 @@ function isBusy(
 	);
 }
 
-type AgentPanelDisplayRowsProjection = {
+export type AgentPanelDisplayRowsProjection = {
 	readonly rows: readonly AgentPanelDisplayRow[];
 	readonly hasLiveTail: boolean;
 };
 
-function createRowsFromScene(
+export interface AgentPanelDisplayRowsReadModel {
+	applySnapshot(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection;
+	selectProjection(): AgentPanelDisplayRowsProjection;
+}
+
+export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsReadModel {
+	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
+	let previousTranscriptRevision = 0;
+	let previousProjection: AgentPanelDisplayRowsProjection = {
+		rows: [],
+		hasLiveTail: false,
+	};
+
+	return {
+		applySnapshot({ sceneEntries, transcriptRevision }) {
+			if (
+				sceneEntries === previousSceneEntries &&
+				transcriptRevision === previousTranscriptRevision
+			) {
+				return previousProjection;
+			}
+
+			if (
+				previousSceneEntries !== null &&
+				transcriptRevision === previousTranscriptRevision &&
+				isStableDisplaySceneAppend(previousSceneEntries, sceneEntries)
+			) {
+				const appendedProjection = createRowsFromScene(
+					sceneEntries.slice(previousSceneEntries.length),
+					transcriptRevision
+				);
+				previousProjection = {
+					rows: previousProjection.rows.concat(appendedProjection.rows),
+					hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
+				};
+				previousSceneEntries = sceneEntries;
+				return previousProjection;
+			}
+
+			previousProjection = createRowsFromScene(sceneEntries, transcriptRevision);
+			previousSceneEntries = sceneEntries;
+			previousTranscriptRevision = transcriptRevision;
+			return previousProjection;
+		},
+		selectProjection() {
+			return previousProjection;
+		},
+	};
+}
+
+export function createRowsFromScene(
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	transcriptRevision: number
 ): AgentPanelDisplayRowsProjection {
@@ -150,10 +204,53 @@ function createRowsFromScene(
 	return { rows, hasLiveTail };
 }
 
+function isStableDisplaySceneAppend(
+	previous: readonly AgentPanelSceneEntryModel[],
+	next: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (next.length < previous.length) {
+		return false;
+	}
+
+	for (let index = 0; index < previous.length; index += 1) {
+		if (!isDisplaySceneEntryStable(previous[index], next[index])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function isDisplaySceneEntryStable(
+	previous: AgentPanelSceneEntryModel | undefined,
+	next: AgentPanelSceneEntryModel | undefined
+): boolean {
+	if (previous === next) {
+		return true;
+	}
+	if (previous === undefined || next === undefined || previous.id !== next.id || previous.type !== next.type) {
+		return false;
+	}
+	if (previous.type === "user" && next.type === "user") {
+		return previous.text === next.text && previous.isOptimistic === next.isOptimistic;
+	}
+	if (previous.type === "assistant" && next.type === "assistant") {
+		return (
+			previous.markdown === next.markdown &&
+			previous.isStreaming === next.isStreaming
+		);
+	}
+	return false;
+}
+
 export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPanelBaseModel {
 	const graph = input.graph;
 	const transcriptRevision = graph?.revision.transcriptRevision ?? 0;
-	const rowProjection = createRowsFromScene(input.sceneEntries, transcriptRevision);
+	const rowProjection =
+		input.rows?.applySnapshot({
+			sceneEntries: input.sceneEntries,
+			transcriptRevision,
+		}) ?? createRowsFromScene(input.sceneEntries, transcriptRevision);
 	const rows = rowProjection.rows;
 	if (graph === null) {
 		const hasPending = rows.length > 0 || input.local.pendingSendIntent;

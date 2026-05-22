@@ -6,6 +6,7 @@ import {
 	type AgentPanelDisplayModel,
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
+	createAgentPanelDisplayRowsReadModel,
 } from "../agent-panel-display-model.js";
 
 describe("applyAgentPanelDisplayModelToSceneEntries identity", () => {
@@ -105,5 +106,54 @@ describe("buildAgentPanelBaseModel row projection", () => {
 			hasLiveTail: true,
 			requiresStableTailMount: true,
 		});
+	});
+});
+
+describe("createAgentPanelDisplayRowsReadModel", () => {
+	it("reuses the projection for the same scene entries and transcript revision", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const sceneEntries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "Answer" },
+		];
+
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries,
+			transcriptRevision: 1,
+		});
+		const secondProjection = readModel.applySnapshot({
+			sceneEntries,
+			transcriptRevision: 1,
+		});
+
+		expect(secondProjection).toBe(firstProjection);
+		expect(readModel.selectProjection()).toBe(firstProjection);
+	});
+
+	it("keeps existing display rows stable for append-only scene updates", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+
+		const nextProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry],
+			transcriptRevision: 1,
+		});
+
+		expect(nextProjection).not.toBe(firstProjection);
+		expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
 	});
 });

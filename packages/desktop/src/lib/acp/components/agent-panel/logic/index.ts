@@ -49,12 +49,15 @@ export {
 	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
+	createAgentPanelDisplayRowsReadModel,
 	type AgentPanelBaseModel,
 	type AgentPanelDisplayInput,
 	type AgentPanelDisplayMemory,
 	type AgentPanelDisplayModel,
 	type AgentPanelDisplayResult,
 	type AgentPanelDisplayRow,
+	type AgentPanelDisplayRowsProjection,
+	type AgentPanelDisplayRowsReadModel,
 } from "./agent-panel-display-model.js";
 export {
 	deriveCanonicalAgentPanelSessionState,
