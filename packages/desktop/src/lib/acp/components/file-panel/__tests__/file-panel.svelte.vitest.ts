@@ -156,6 +156,7 @@ describe("FilePanel", () => {
 			onResize: vi.fn(),
 		});
 
+		expect(getFileContentMock).not.toHaveBeenCalled();
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
 
 		await waitFor(() => {

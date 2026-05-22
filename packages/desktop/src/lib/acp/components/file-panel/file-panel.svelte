@@ -130,26 +130,38 @@ $effect(() => {
 	// Capture current values for stale closure prevention
 	const currentFilePath = filePath;
 	const currentProjectPath = projectPath;
+	let cancelled = false;
 
 	loading = true;
 	error = null;
 
-	fileContentCache.getFileContent(currentFilePath, currentProjectPath).match(
-		(fileContent) => {
-			// Only update if still relevant (file hasn't changed)
-			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				content = fileContent;
-				loading = false;
-			}
-		},
-		(err) => {
-			// Only update if still relevant (file hasn't changed)
-			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				error = err.message;
-				loading = false;
-			}
+	const timeoutId = window.setTimeout(() => {
+		if (cancelled) {
+			return;
 		}
-	);
+
+		fileContentCache.getFileContent(currentFilePath, currentProjectPath).match(
+			(fileContent) => {
+				// Only update if still relevant (file hasn't changed)
+				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+					content = fileContent;
+					loading = false;
+				}
+			},
+			(err) => {
+				// Only update if still relevant (file hasn't changed)
+				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+					error = err.message;
+					loading = false;
+				}
+			}
+		);
+	});
+
+	return () => {
+		cancelled = true;
+		window.clearTimeout(timeoutId);
+	};
 });
 
 // Load git status for the file
