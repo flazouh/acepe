@@ -1,4 +1,6 @@
 <script lang="ts">
+import { buildImageBlockDisplayState } from "./media-block-state.js";
+
 interface Props {
 	data: string;
 	mimeType: string;
@@ -7,13 +9,13 @@ interface Props {
 
 let { data, mimeType, uri }: Props = $props();
 
-const imageSrc = $derived(uri || (data ? `data:${mimeType};base64,${data}` : null));
+const imageState = $derived(buildImageBlockDisplayState({ data, mimeType, uri }));
 </script>
 
 <div class="space-y-1">
-	{#if imageSrc}
-		<img src={imageSrc} alt="" class="max-w-full rounded border border-border/30" />
+	{#if imageState.src}
+		<img src={imageState.src} alt="" class="max-w-full rounded border border-border/30" />
 	{:else}
-		<div class="text-xs text-muted-foreground/70">Image ({mimeType})</div>
+		<div class="text-xs text-muted-foreground/70">{imageState.fallbackLabel}</div>
 	{/if}
 </div>
