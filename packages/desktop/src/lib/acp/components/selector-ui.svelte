@@ -1,7 +1,7 @@
 <script lang="ts">
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { ResultAsync } from "neverthrow";
-import type { Component, Snippet } from "svelte";
+import type { Snippet } from "svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as ButtonGroup from "$lib/components/ui/button-group/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -12,6 +12,13 @@ import type { SelectorItem } from "../types/selector-item.js";
 import { createLogger } from "../utils/logger.js";
 import AnimatedChevron from "./animated-chevron.svelte";
 import SelectorCheck from "./selector-check.svelte";
+import {
+	findSelectedSelectorItem,
+	normalizeSelectorActionButtons,
+	shouldDisableSelector,
+	shouldShowSelectorActionSeparator,
+	type SelectorActionButton,
+} from "./selector-ui-state.js";
 
 interface SelectorUIProps<T = string> {
 	/**
@@ -74,11 +81,7 @@ interface SelectorUIProps<T = string> {
 	 * If provided, will be shown at the bottom of the dropdown.
 	 * Icon can be either a Svelte component or an image path (string).
 	 */
-	actionButtons?: Array<{
-		label: string;
-		icon?: Component | string;
-		onClick: () => void | Promise<void>;
-	}>;
+	actionButtons?: SelectorActionButton[];
 
 	/**
 	 * Callback to check if an item is selected.
@@ -108,14 +111,24 @@ const logger = createLogger({
 });
 
 const selectedItem = $derived.by(() => {
-	return items.find((item) => item.id === selectedId) ?? null;
+	return findSelectedSelectorItem(items, selectedId);
 });
 
-/**
- * Get all action buttons.
- */
 const allActionButtons = $derived.by(() => {
-	return actionButtons ?? [];
+	return normalizeSelectorActionButtons(actionButtons);
+});
+
+const isSelectorDisabled = $derived.by(() => {
+	return shouldDisableSelector({
+		disabled,
+		isLoading,
+		itemCount: items.length,
+		actionButtonCount: allActionButtons.length,
+	});
+});
+
+const showActionSeparator = $derived.by(() => {
+	return shouldShowSelectorActionSeparator(items, groups);
 });
 
 /**
@@ -124,7 +137,7 @@ const allActionButtons = $derived.by(() => {
  * Note: DropdownMenu.Item's onSelect automatically closes the dropdown,
  * so we don't need to manually close it.
  */
-async function handleActionButtonClick(button: { onClick: () => void | Promise<void> }) {
+async function handleActionButtonClick(button: SelectorActionButton) {
 	const result = button.onClick();
 	// If onClick returns a Promise, wait for it
 	if (result instanceof Promise) {
@@ -149,7 +162,7 @@ async function handleActionButtonClick(button: { onClick: () => void | Promise<v
 		variant="outline"
 		size="sm"
 		class="gap-1.5 h-7 flex-1 min-w-0 max-w-full px-2 text-[11px]"
-		disabled={disabled || isLoading || (items.length === 0 && allActionButtons.length === 0)}
+		disabled={isSelectorDisabled}
 	>
 		{#if renderButton}
 			{@render renderButton({ item: selectedItem, isLoading })}
@@ -175,7 +188,7 @@ async function handleActionButtonClick(button: { onClick: () => void | Promise<v
 					variant="outline"
 					size="icon-sm"
 					class="h-7 w-7"
-					disabled={disabled || isLoading || (items.length === 0 && allActionButtons.length === 0)}
+					disabled={isSelectorDisabled}
 				>
 					<AnimatedChevron {isOpen} />
 				</Button>
@@ -248,7 +261,7 @@ async function handleActionButtonClick(button: { onClick: () => void | Promise<v
 			{/if}
 
 			{#if allActionButtons.length > 0}
-				{#if items.length > 0 || (groups && groups.length > 0)}
+				{#if showActionSeparator}
 					<DropdownMenu.Separator />
 				{/if}
 				{#each allActionButtons as button, index (index)}
