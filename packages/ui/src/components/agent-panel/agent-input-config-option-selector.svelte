@@ -9,6 +9,7 @@
 	import { Brain, Lightning, ShieldCheck } from "phosphor-svelte";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 	import { Colors } from "../../lib/colors.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
@@ -102,6 +103,11 @@
 
 	const buttonTitle = $derived(`${configOption.name}: ${currentValueLabel}`);
 
+	const effectiveDescription = $derived.by(() => {
+		if (configOption.description) return configOption.description;
+		return null;
+	});
+
 	function handleSelect(value: string) {
 		if (value !== currentValue) {
 			onValueChange(configOption.id, value);
@@ -165,25 +171,40 @@
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {:else}
-	<button
-		type="button"
-		{disabled}
-		aria-pressed={isBooleanEnabled}
-		onclick={handleBooleanToggle}
-		title={buttonTitle}
-		class="flex items-center justify-center w-7 h-7 transition-colors rounded-none
-			{disabled
-			? 'text-muted-foreground/50 cursor-not-allowed'
-			: isBooleanEnabled
-				? 'bg-accent/60 text-foreground hover:bg-accent/80'
-				: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-	>
-		{#if isReasoningConfigOption}
-			<Brain class={iconClass} size={14} weight={iconWeight} style={iconStyle} />
-		{:else if isFastConfigOption}
-			<Lightning class={iconClass} size={14} weight={iconWeight} style={iconStyle} />
-		{:else}
-			<ShieldCheck size={14} weight="fill" style="color: {iconColor}" />
-		{/if}
-	</button>
+	<Tooltip>
+		<TooltipTrigger>
+			{#snippet child({ props: triggerProps })}
+				<button
+					{...triggerProps}
+					type="button"
+					{disabled}
+					aria-pressed={isBooleanEnabled}
+					onclick={handleBooleanToggle}
+					aria-label={buttonTitle}
+					class="flex items-center justify-center w-7 h-7 transition-colors rounded-none
+						{disabled
+						? 'text-muted-foreground/50 cursor-not-allowed'
+						: isBooleanEnabled
+							? 'bg-accent/60 text-foreground hover:bg-accent/80'
+							: 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
+				>
+					{#if isReasoningConfigOption}
+						<Brain class={iconClass} size={14} weight={iconWeight} style={iconStyle} />
+					{:else if isFastConfigOption}
+						<Lightning class={iconClass} size={14} weight={iconWeight} style={iconStyle} />
+					{:else}
+						<ShieldCheck size={14} weight="fill" style="color: {iconColor}" />
+					{/if}
+				</button>
+			{/snippet}
+		</TooltipTrigger>
+		<TooltipContent class="max-w-xs">
+			<div class="flex flex-col gap-0.5">
+				<span class="font-medium">{configOption.name}: {currentValueLabel}</span>
+				{#if effectiveDescription}
+					<span class="text-muted-foreground">{effectiveDescription}</span>
+				{/if}
+			</div>
+		</TooltipContent>
+	</Tooltip>
 {/if}

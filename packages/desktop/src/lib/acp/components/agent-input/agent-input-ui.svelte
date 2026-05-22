@@ -413,6 +413,7 @@ const toolbarConfigOptions = $derived.by((): AgentInputConfigOption[] => {
 			name: option.name,
 			category: option.category,
 			type: option.type,
+			description: option.description ?? null,
 			currentValue,
 			options,
 		};

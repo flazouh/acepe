@@ -6,6 +6,18 @@ import { supportsReasoningEffortPicker } from "../../model-selector-logic.js";
 
 const EXCLUDED_TOOLBAR_CONFIG_OPTION_CATEGORIES = new Set(["mode", "model"]);
 
+function isPermissionConfigOption(configOption: ConfigOptionData): boolean {
+	const id = configOption.id.toLowerCase();
+	const name = configOption.name.toLowerCase();
+	return (
+		id === "bypasspermissions" ||
+		id.includes("allow_all") ||
+		id.includes("allowall") ||
+		name.includes("allow all") ||
+		name.includes("bypass permission")
+	);
+}
+
 function includesNormalizedFragment(value: string, fragment: string): boolean {
 	return value.toLowerCase().includes(fragment);
 }
@@ -62,6 +74,10 @@ export function getToolbarConfigOptions(
 	for (const configOption of configOptions) {
 		const normalizedCategory = configOption.category.toLowerCase();
 		if (EXCLUDED_TOOLBAR_CONFIG_OPTION_CATEGORIES.has(normalizedCategory)) {
+			continue;
+		}
+
+		if (isPermissionConfigOption(configOption)) {
 			continue;
 		}
 

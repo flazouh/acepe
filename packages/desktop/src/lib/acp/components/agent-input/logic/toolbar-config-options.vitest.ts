@@ -227,4 +227,40 @@ describe("toolbar-config-options", () => {
 			])
 		).toEqual([]);
 	});
+
+	it("filters out permission-related options already covered by autonomous toggle", () => {
+		expect(
+			getToolbarConfigOptions([
+				{
+					id: "bypassPermissions",
+					name: "Bypass Permissions",
+					category: "permissions",
+					type: "boolean",
+					currentValue: true,
+				},
+				{
+					id: "allow_all",
+					name: "Allow All",
+					category: "tools",
+					type: "boolean",
+					currentValue: false,
+				},
+				{
+					id: "fast_mode",
+					name: "Fast Mode",
+					category: "fast_mode",
+					type: "boolean",
+					currentValue: false,
+				},
+			])
+		).toEqual([
+			{
+				id: "fast_mode",
+				name: "Fast Mode",
+				category: "fast_mode",
+				type: "boolean",
+				currentValue: false,
+			},
+		]);
+	});
 });
