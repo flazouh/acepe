@@ -8,7 +8,6 @@ import {
 	HeaderTitleCell,
 } from "@acepe/ui/panel-header";
 import { Dialog } from "bits-ui";
-import { ResultAsync } from "neverthrow";
 import { DownloadSimple } from "phosphor-svelte";
 import { Folder } from "phosphor-svelte";
 import { FolderOpen } from "phosphor-svelte";
@@ -29,6 +28,12 @@ import type {
 
 import { shouldShowDiscoveredProject, sortProjectsBySessionCount } from "./project-discovery.js";
 import ProjectTable from "./project-table.svelte";
+import {
+	extractProjectDisplayNameFromPath,
+	filterProjectsBySearchQuery,
+	getImportFooterProjectLabel,
+	isCloneFormValid,
+} from "./open-project-dialog-state.js";
 
 let {
 	open,
@@ -58,14 +63,17 @@ let activeView = $state<AddProjectView>("import");
 const projectClient = new ProjectClient();
 
 const filteredProjects = $derived.by(() => {
-	const q = searchQuery.trim().toLowerCase();
-	if (!q) return projects;
-	return projects.filter(
-		(p) => p.name.toLowerCase().includes(q) || p.path.toLowerCase().includes(q)
-	);
+	return filterProjectsBySearchQuery(projects, searchQuery);
 });
 
-const cloneIsValid = $derived(cloneUrl.trim().length > 0 && cloneDestination.trim().length > 0);
+const cloneIsValid = $derived(isCloneFormValid(cloneUrl, cloneDestination));
+const importFooterProjectLabel = $derived.by(() =>
+	getImportFooterProjectLabel({
+		searchQuery,
+		filteredProjectCount: filteredProjects.length,
+		projectCount: projects.length,
+	})
+);
 
 // Scan for projects when dialog opens
 $effect(() => {
@@ -100,7 +108,7 @@ async function loadProjects() {
 			// Create projects with loading placeholders, filter out root directory and "global"
 			projects = projectInfos.filter(shouldShowDiscoveredProject).map((info) => ({
 				path: info.path,
-				name: extractNameFromPath(info.path),
+				name: extractProjectDisplayNameFromPath(info.path),
 				agentCounts: new Map(),
 				totalSessions: "loading" as const,
 			}));
@@ -160,16 +168,6 @@ async function loadSessionCountsProgressively() {
 
 	// Wait for all counts to load (but UI updates progressively)
 	await Promise.allSettled(countPromises);
-}
-
-function extractNameFromPath(path: string): string {
-	const parts = path.split("/");
-	const name = parts[parts.length - 1] ?? "Unknown";
-	// Capitalize first letter of each word
-	return name
-		.split(/[-_]/)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-		.join(" ");
 }
 
 async function handleImport(path: string, name: string) {
@@ -337,11 +335,7 @@ function handleOpenChange(newOpen: boolean) {
 						class="flex items-center px-3 h-7 border-t border-border/30 text-[10px] font-mono text-muted-foreground bg-accent/5 shrink-0"
 					>
 						<span>
-							{#if searchQuery.trim()}
-								{`${filteredProjects.length} of ${projects.length} projects`}
-							{:else}
-								{`${projects.length} projects found`}
-							{/if}
+							{importFooterProjectLabel}
 						</span>
 						{#if addedPaths.size > 0}
 							<span class="mx-1.5 text-border">·</span>
