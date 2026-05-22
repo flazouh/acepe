@@ -3,6 +3,10 @@ import { IconCheck } from "@tabler/icons-svelte";
 import { ResultAsync } from "neverthrow";
 import { Copy } from "phosphor-svelte";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
+import {
+	buildCopyButtonDisplayState,
+	type CopyButtonVariant,
+} from "./copy-button-state.js";
 interface Props {
 	/**
 	 * Text to copy when clicked. Component handles clipboard + toast internally.
@@ -21,7 +25,7 @@ interface Props {
 	onClick?: () => void;
 	copied?: boolean;
 	/** Style variant */
-	variant?: "inline" | "footer" | "icon" | "menu" | "embedded";
+	variant?: CopyButtonVariant;
 	/** Label text (for menu variant); shows next to icon */
 	label?: string;
 	/** When true, do not show the copy/check icon (menu variant: label only) */
@@ -52,38 +56,22 @@ let {
 
 let internalCopied = $state(false);
 
-const isControlled = $derived(onClick !== undefined);
-const copied = $derived(isControlled ? (controlledCopied ?? false) : internalCopied);
-
-const isFooter = $derived(variant === "footer");
-const isIcon = $derived(variant === "icon");
-const isMenu = $derived(variant === "menu");
-const isEmbedded = $derived(variant === "embedded");
-const isInlineWithLabel = $derived(variant === "inline" && Boolean(label));
-
-const baseClass = $derived(
-	isEmbedded
-		? "h-7 w-7 inline-flex items-center justify-center text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
-		: isFooter
-			? "inline-flex items-center justify-center p-0.5 rounded-full hover:bg-accent transition-colors"
-			: isMenu
-				? "w-full justify-start gap-2 flex items-center cursor-pointer border-none bg-transparent font-inherit text-inherit px-2 py-1 text-[11px] font-medium -mx-2 -my-1"
-				: isInlineWithLabel
-					? "inline-flex items-center gap-1 p-0 rounded transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 font-medium"
-					: isIcon
-						? "inline-flex items-center justify-center p-0.5 rounded transition-colors text-muted-foreground/50 hover:text-foreground"
-						: "inline-flex items-center justify-center p-0.5 rounded transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 shrink-0"
-);
-
-const colorClass = $derived(
-	copied ? "text-emerald-500" : isFooter ? "text-muted-foreground hover:text-foreground" : ""
+const buttonState = $derived(
+	buildCopyButtonDisplayState({
+		variant,
+		label,
+		onClick,
+		controlledCopied,
+		internalCopied,
+		titleOverride,
+	})
 );
 
 async function handleClick(event?: MouseEvent) {
 	if (stopPropagation) {
 		event?.stopPropagation?.();
 	}
-	if (isControlled && onClick) {
+	if (buttonState.isControlled && onClick) {
 		onClick();
 		return;
 	}
@@ -124,18 +112,18 @@ async function handleClick(event?: MouseEvent) {
 
 <button
 	onclick={(e) => handleClick(e)}
-	title={copied ? "Copied!" : (titleOverride ?? "Copy")}
-	class="{baseClass} {colorClass} {className}"
+	title={buttonState.title}
+	class="{buttonState.baseClass} {buttonState.colorClass} {className}"
 	type="button"
 >
 	{#if !hideIcon}
-		{#if copied}
+		{#if buttonState.copied}
 			<IconCheck {size} stroke={2} />
 		{:else}
 			<Copy {size} weight="fill" />
 		{/if}
 	{/if}
-	{#if (isMenu || isInlineWithLabel) && label}
-		<span class={isInlineWithLabel ? "truncate" : ""}>{label}</span>
+	{#if buttonState.showLabel && label}
+		<span class={buttonState.labelClass}>{label}</span>
 	{/if}
 </button>
