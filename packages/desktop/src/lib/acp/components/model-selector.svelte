@@ -19,13 +19,21 @@ import type { ModelId } from "../types/model-id.js";
 import { createLogger } from "../utils/logger.js";
 import {
 	getCurrentReasoningVariant,
-	getModelDisplayName,
 	groupModelsForFallback,
 	groupReasoningModelsFromDisplay,
 	hasUsableModelsDisplayGroups,
 	isDefaultChoiceModelId,
 	supportsReasoningEffortPicker,
 } from "./model-selector-logic.js";
+import {
+	getModelSelectorDisplayName,
+	getModelSelectorItemId,
+	getModelSelectorItemLabel,
+	getModelSelectorSearchText,
+	getPreferredReasoningVariantId,
+	getSelectedModel,
+	getSelectedReasoningBaseGroup,
+} from "./model-selector-state.js";
 
 interface ModelSelectorProps {
 	availableModels: readonly Model[];
@@ -83,30 +91,15 @@ const agentId = $derived.by(() => {
 	return null;
 });
 
-const selectedModel = $derived(
-	currentModelId && availableModels.length > 0
-		? (availableModels.find((model) => model.id === currentModelId) ?? null)
-		: null
+const selectedModel = $derived(getSelectedModel({ currentModelId, availableModels }));
+const displayName = $derived(
+	getModelSelectorDisplayName({
+		currentModelId,
+		modelsDisplay,
+		selectedModel,
+		agentId: agentId ?? null,
+	})
 );
-
-const displayName = $derived.by(() => {
-	if (!currentModelId) return "Model";
-
-	if (modelsDisplay?.groups) {
-		for (const group of modelsDisplay.groups) {
-			const match = group.models.find((model) => model.modelId === currentModelId);
-			if (match) {
-				return match.displayName;
-			}
-		}
-	}
-
-	if (!selectedModel) {
-		return "Model";
-	}
-
-	return getModelDisplayName(selectedModel, agentId ?? null, modelsDisplay);
-});
 
 const providerBrand = $derived<ProviderBrand | null>(providerMetadata?.providerBrand ?? null);
 const providerLabel = $derived(providerMetadata?.displayName);
@@ -121,21 +114,14 @@ const reasoningBaseGroups = $derived.by(() =>
 const selectedReasoningVariant = $derived.by(() =>
 	usesVariantSelector ? getCurrentReasoningVariant(reasoningBaseGroups, currentModelId) : null
 );
-const selectedReasoningBaseGroup = $derived.by(() => {
-	if (!usesVariantSelector || reasoningBaseGroups.length === 0) {
-		return null;
-	}
-	if (!selectedReasoningVariant) {
-		return currentModelId ? null : (reasoningBaseGroups[0] ?? null);
-	}
-	return (
-		reasoningBaseGroups.find(
-			(group) => group.baseModelId === selectedReasoningVariant.baseModelId
-		) ??
-		reasoningBaseGroups[0] ??
-		null
-	);
-});
+const selectedReasoningBaseGroup = $derived(
+	getSelectedReasoningBaseGroup({
+		usesVariantSelector,
+		reasoningBaseGroups,
+		selectedReasoningVariant,
+		currentModelId,
+	})
+);
 const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName ?? "Model");
 
 const validModels = $derived(availableModels.filter((model) => model.id));
@@ -152,40 +138,25 @@ const totalModelCount = $derived.by(() =>
 );
 const showFavorites = $derived(totalModelCount >= 5);
 
-function getPreferredVariantId(baseModelId: string): string | null {
-	const baseGroup = reasoningBaseGroups.find((group) => group.baseModelId === baseModelId);
-	if (!baseGroup) {
-		return null;
-	}
-	const matchingCurrent =
-		selectedReasoningVariant && selectedReasoningVariant.baseModelId === baseModelId
-			? baseGroup.variants.find(
-					(variant) => variant.fullModelId === selectedReasoningVariant.fullModelId
-				)
-			: undefined;
-	return matchingCurrent?.fullModelId ?? baseGroup.variants[0]?.fullModelId ?? null;
-}
-
-function getModelId(model: Model | DisplayableModel): string {
-	return "displayName" in model ? model.modelId : model.id;
-}
-
-function getDisplayLabel(model: Model | DisplayableModel): string {
-	return "displayName" in model
-		? model.displayName
-		: getModelDisplayName(model, agentId ?? null, modelsDisplay);
-}
-
 function toSelectorItem(model: Model | DisplayableModel): AgentInputModelSelectorItem {
-	const id = getModelId(model);
-	const name = getDisplayLabel(model);
+	const id = getModelSelectorItemId(model);
+	const name = getModelSelectorItemLabel({
+		model,
+		agentId: agentId ?? null,
+		modelsDisplay,
+	});
 	return {
 		id,
 		name,
 		providerBrand,
 		providerLabel,
 		description: model.description ?? undefined,
-		searchText: `${name} ${id} ${model.description ?? ""} ${providerLabel ?? ""}`,
+		searchText: getModelSelectorSearchText({
+			name,
+			id,
+			description: model.description,
+			providerLabel,
+		}),
 		hideProviderMark: isDefaultChoiceModelId(id),
 		isFavorite: agentId ? preferencesStore.isFavorite(agentId, id) : false,
 	};
@@ -234,7 +205,11 @@ const reasoningGroups = $derived.by<AgentInputModelSelectorReasoningGroup[]>(() 
 		baseModelName: group.baseModelName,
 		providerBrand,
 		providerLabel,
-		preferredVariantId: getPreferredVariantId(group.baseModelId),
+		preferredVariantId: getPreferredReasoningVariantId({
+			baseModelId: group.baseModelId,
+			reasoningBaseGroups,
+			selectedReasoningVariant,
+		}),
 		variants: group.variants.map((variant) => ({
 			id: variant.fullModelId,
 			name: variant.name,
