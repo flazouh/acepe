@@ -156,6 +156,7 @@ $effect(() => {
 $effect(() => {
 	const currentFilePath = filePath;
 	const currentProjectPath = projectPath;
+	let cancelled = false;
 
 	// Reset git status when file changes
 	gitStatus = null;
@@ -164,39 +165,50 @@ $effect(() => {
 		currentProjectPath,
 	});
 
-	gitStatusCache.getProjectGitStatusSummaryMap(currentProjectPath).match(
-		(statusMap) => {
-			// Find status for this specific file
-			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				const fileStatus = resolveFilePanelGitStatus(
-					statusMap,
-					currentFilePath,
-					currentProjectPath
-				);
-				logger.info("Git status lookup result", {
-					currentFilePath,
-					currentProjectPath,
-					statusCount: statusMap.size,
-					fileStatusPath: fileStatus?.path ?? null,
-					fileStatusCode: fileStatus?.status ?? null,
-					insertions: fileStatus?.insertions ?? null,
-					deletions: fileStatus?.deletions ?? null,
-				});
-				gitStatus = toFilePanelGitStatus(fileStatus);
-			}
-		},
-		(error) => {
-			// Silently ignore git status errors - file might not be in a git repo
-			if (filePath === currentFilePath && projectPath === currentProjectPath) {
-				logger.info("Git status fetch failed", {
-					currentFilePath,
-					currentProjectPath,
-					error: String(error),
-				});
-				gitStatus = null;
-			}
+	const timeoutId = window.setTimeout(() => {
+		if (cancelled) {
+			return;
 		}
-	);
+
+		gitStatusCache.getProjectGitStatusSummaryMap(currentProjectPath).match(
+			(statusMap) => {
+				// Find status for this specific file
+				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+					const fileStatus = resolveFilePanelGitStatus(
+						statusMap,
+						currentFilePath,
+						currentProjectPath
+					);
+					logger.info("Git status lookup result", {
+						currentFilePath,
+						currentProjectPath,
+						statusCount: statusMap.size,
+						fileStatusPath: fileStatus?.path ?? null,
+						fileStatusCode: fileStatus?.status ?? null,
+						insertions: fileStatus?.insertions ?? null,
+						deletions: fileStatus?.deletions ?? null,
+					});
+					gitStatus = toFilePanelGitStatus(fileStatus);
+				}
+			},
+			(error) => {
+				// Silently ignore git status errors - file might not be in a git repo
+				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+					logger.info("Git status fetch failed", {
+						currentFilePath,
+						currentProjectPath,
+						error: String(error),
+					});
+					gitStatus = null;
+				}
+			}
+		);
+	});
+
+	return () => {
+		cancelled = true;
+		window.clearTimeout(timeoutId);
+	};
 });
 
 // Compute git gutter input from git status

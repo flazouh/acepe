@@ -156,6 +156,8 @@ describe("FilePanel", () => {
 			onResize: vi.fn(),
 		});
 
+		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
+
 		await waitFor(() => {
 			expect(view.getByTestId("insertions").textContent).toBe("5");
 			expect(view.getByTestId("deletions").textContent).toBe("0");

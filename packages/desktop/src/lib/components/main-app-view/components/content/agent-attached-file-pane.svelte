@@ -46,7 +46,7 @@ const activeFilePanel = $derived.by(() => {
 });
 
 const panelProjectPaths = $derived.by(() =>
-	Array.from(new Set(filePanels.map((panel) => panel.projectPath)))
+	activeFilePanel === null ? [] : [activeFilePanel.projectPath]
 );
 
 $effect(() => {
@@ -62,25 +62,30 @@ $effect(() => {
 	}
 	gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 
-	for (const projectPath of currentProjectPaths) {
-		gitStatusCache.getProjectGitStatusSummaryMap(projectPath).match(
-			(statusMap) => {
-				if (cancelled) return;
-				nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
-				nextStatusMapsByProjectPath.set(projectPath, statusMap);
-				gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
-			},
-			() => {
-				if (cancelled) return;
-				nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
-				nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
-				gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
-			}
-		);
-	}
+	const timeoutId = window.setTimeout(() => {
+		if (cancelled) return;
+
+		for (const projectPath of currentProjectPaths) {
+			gitStatusCache.getProjectGitStatusSummaryMap(projectPath).match(
+				(statusMap) => {
+					if (cancelled) return;
+					nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
+					nextStatusMapsByProjectPath.set(projectPath, statusMap);
+					gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
+				},
+				() => {
+					if (cancelled) return;
+					nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
+					nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
+					gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
+				}
+			);
+		}
+	});
 
 	return () => {
 		cancelled = true;
+		window.clearTimeout(timeoutId);
 	};
 });
 
