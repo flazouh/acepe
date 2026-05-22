@@ -13,6 +13,9 @@ import * as Popover from "$lib/components/ui/popover/index.js";
 import { toast } from "svelte-sonner";
 import {
 	filterPullRequestsByQuery,
+	getPrPickerListState,
+	getSessionPrLinkMenuStatusLabel,
+	getSessionPrLinkMenuTriggerLabel,
 	normalizePrListItemState,
 	shouldLoadOpenPullRequests,
 } from "./pr-link-picker-state.js";
@@ -38,6 +41,13 @@ let openPullRequests = $state<readonly PrListItem[]>([]);
 let loadedProjectPath = $state<string | null>(null);
 
 const filteredPullRequests = $derived(filterPullRequestsByQuery(openPullRequests, query));
+const listState = $derived(
+	getPrPickerListState({
+		loading,
+		loadError,
+		filteredPullRequests,
+	})
+);
 
 function ensureOpenPullRequestsLoaded(): void {
 	if (
@@ -117,7 +127,7 @@ function handleSelectPullRequest(pr: PrListItem): void {
 
 <div bind:this={triggerAnchor}>
 	<DropdownMenu.Item onSelect={handleOpenPicker} class="cursor-pointer">
-		{linkedPr ? "Change linked pull request" : "Link pull request"}
+		{getSessionPrLinkMenuTriggerLabel(linkedPr)}
 	</DropdownMenu.Item>
 </div>
 
@@ -132,11 +142,7 @@ function handleSelectPullRequest(pr: PrListItem): void {
 		<div class="border-b border-border/40 px-3 py-2">
 			<p class="text-[11px] font-medium">Pull request link</p>
 			<p class="mt-0.5 text-[10px] text-muted-foreground">
-				{#if linkedPr}
-					{prLinkMode === "manual" ? "Manual" : "Automatic"} link to #{linkedPr.prNumber}
-				{:else}
-					No linked pull request
-				{/if}
+				{getSessionPrLinkMenuStatusLabel({ linkedPr, prLinkMode })}
 			</p>
 		</div>
 
@@ -156,16 +162,16 @@ function handleSelectPullRequest(pr: PrListItem): void {
 				</button>
 			{/if}
 
-			{#if loading}
-				<div class="px-2 py-4 text-xs text-muted-foreground">Loading pull requests…</div>
-			{:else if loadError}
-				<div class="px-2 py-4 text-xs text-destructive">{loadError}</div>
-			{:else if filteredPullRequests.length === 0}
+			{#if listState.kind === "loading"}
+				<div class="px-2 py-4 text-xs text-muted-foreground">{listState.message}</div>
+			{:else if listState.kind === "error"}
+				<div class="px-2 py-4 text-xs text-destructive">{listState.message}</div>
+			{:else if listState.kind === "empty"}
 				<div class="px-2 py-4 text-xs text-muted-foreground">
-					No open pull requests in this repository
+					{listState.message}
 				</div>
 			{:else}
-				{#each filteredPullRequests as pr (pr.number)}
+				{#each listState.pullRequests as pr (pr.number)}
 					<button
 						type="button"
 						class="flex w-full items-start gap-2 rounded-md px-2 py-2 text-left hover:bg-accent"

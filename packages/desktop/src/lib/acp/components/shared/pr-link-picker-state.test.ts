@@ -6,6 +6,9 @@ import {
 	filterPullRequestsByQuery,
 	getHeaderPrLinkLabel,
 	getLinkedPrTooltipLabel,
+	getPrPickerListState,
+	getSessionPrLinkMenuStatusLabel,
+	getSessionPrLinkMenuTriggerLabel,
 	groupSessionPrLinksByNumber,
 	normalizePrListItemState,
 	shouldLoadOpenPullRequests,
@@ -31,24 +34,35 @@ function pr(overrides: Partial<PrListItem>): PrListItem {
 describe("pr link picker state", () => {
 	it("builds labels from the linked PR", () => {
 		expect(getLinkedPrTooltipLabel(null)).toBe("Link pull request");
-		expect(
-			getLinkedPrTooltipLabel({
-				prNumber: 42,
-				state: "OPEN",
-				url: null,
-				title: null,
-				additions: null,
-				deletions: null,
-				isDraft: null,
-				isLoading: false,
-				hasResolvedDetails: false,
-				checksHeadSha: null,
-				checks: [],
-				isChecksLoading: false,
-				hasResolvedChecks: false,
-			})
-		).toBe("#42");
+		const linkedPr = {
+			prNumber: 42,
+			state: "OPEN",
+			url: null,
+			title: null,
+			additions: null,
+			deletions: null,
+			isDraft: null,
+			isLoading: false,
+			hasResolvedDetails: false,
+			checksHeadSha: null,
+			checks: [],
+			isChecksLoading: false,
+			hasResolvedChecks: false,
+		} as const;
+
+		expect(getLinkedPrTooltipLabel(linkedPr)).toBe("#42");
 		expect(getHeaderPrLinkLabel(null)).toBe("Link existing PR");
+		expect(getSessionPrLinkMenuTriggerLabel(null)).toBe("Link pull request");
+		expect(getSessionPrLinkMenuTriggerLabel(linkedPr)).toBe("Change linked pull request");
+		expect(getSessionPrLinkMenuStatusLabel({ linkedPr: null, prLinkMode: "automatic" })).toBe(
+			"No linked pull request"
+		);
+		expect(getSessionPrLinkMenuStatusLabel({ linkedPr, prLinkMode: "manual" })).toBe(
+			"Manual link to #42"
+		);
+		expect(getSessionPrLinkMenuStatusLabel({ linkedPr, prLinkMode: "automatic" })).toBe(
+			"Automatic link to #42"
+		);
 	});
 
 	it("groups linked sessions by PR number", () => {
@@ -121,5 +135,38 @@ describe("pr link picker state", () => {
 		expect(normalizePrListItemState("open")).toBe("OPEN");
 		expect(normalizePrListItemState("closed")).toBe("CLOSED");
 		expect(normalizePrListItemState("merged")).toBe("MERGED");
+	});
+
+	it("builds PR picker list state", () => {
+		const pullRequests = [pr({ number: 12 })];
+
+		expect(
+			getPrPickerListState({
+				loading: true,
+				loadError: null,
+				filteredPullRequests: pullRequests,
+			})
+		).toEqual({ kind: "loading", message: "Loading pull requests..." });
+		expect(
+			getPrPickerListState({
+				loading: false,
+				loadError: "GitHub failed",
+				filteredPullRequests: pullRequests,
+			})
+		).toEqual({ kind: "error", message: "GitHub failed" });
+		expect(
+			getPrPickerListState({
+				loading: false,
+				loadError: null,
+				filteredPullRequests: [],
+			})
+		).toEqual({ kind: "empty", message: "No open pull requests in this repository" });
+		expect(
+			getPrPickerListState({
+				loading: false,
+				loadError: null,
+				filteredPullRequests: pullRequests,
+			})
+		).toEqual({ kind: "items", pullRequests });
 	});
 });

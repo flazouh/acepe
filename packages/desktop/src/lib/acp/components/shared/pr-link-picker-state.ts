@@ -1,5 +1,6 @@
 import type {
 	SessionLinkedPr,
+	SessionPrLinkMode,
 	SessionPrLinkReference,
 } from "$lib/acp/application/dto/session-linked-pr.js";
 import type { PrListItem } from "$lib/acp/types/github-integration.js";
@@ -11,6 +12,30 @@ export function getLinkedPrTooltipLabel(linkedPr: SessionLinkedPr | null): strin
 export function getHeaderPrLinkLabel(linkedPr: SessionLinkedPr | null): string {
 	return linkedPr ? `Linked to #${linkedPr.prNumber}` : "Link existing PR";
 }
+
+export function getSessionPrLinkMenuTriggerLabel(
+	linkedPr: SessionLinkedPr | null | undefined
+): string {
+	return linkedPr ? "Change linked pull request" : "Link pull request";
+}
+
+export function getSessionPrLinkMenuStatusLabel(input: {
+	readonly linkedPr: SessionLinkedPr | null | undefined;
+	readonly prLinkMode: SessionPrLinkMode | null | undefined;
+}): string {
+	if (!input.linkedPr) {
+		return "No linked pull request";
+	}
+
+	const modeLabel = input.prLinkMode === "manual" ? "Manual" : "Automatic";
+	return `${modeLabel} link to #${input.linkedPr.prNumber}`;
+}
+
+export type PrPickerListState =
+	| { readonly kind: "loading"; readonly message: "Loading pull requests..." }
+	| { readonly kind: "error"; readonly message: string }
+	| { readonly kind: "empty"; readonly message: "No open pull requests in this repository" }
+	| { readonly kind: "items"; readonly pullRequests: readonly PrListItem[] };
 
 export function groupSessionPrLinksByNumber(
 	references: readonly SessionPrLinkReference[]
@@ -69,4 +94,21 @@ export function normalizePrListItemState(
 		case "open":
 			return "OPEN";
 	}
+}
+
+export function getPrPickerListState(input: {
+	readonly loading: boolean;
+	readonly loadError: string | null;
+	readonly filteredPullRequests: readonly PrListItem[];
+}): PrPickerListState {
+	if (input.loading) {
+		return { kind: "loading", message: "Loading pull requests..." };
+	}
+	if (input.loadError) {
+		return { kind: "error", message: input.loadError };
+	}
+	if (input.filteredPullRequests.length === 0) {
+		return { kind: "empty", message: "No open pull requests in this repository" };
+	}
+	return { kind: "items", pullRequests: input.filteredPullRequests };
 }
