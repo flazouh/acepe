@@ -5,14 +5,19 @@
  */
 import {
 	CheckpointCard as BaseCheckpointCard,
-	type CheckpointData,
 	FilePathBadge,
 	type FileRowState,
-	type CheckpointFile as UICheckpointFile,
 } from "@acepe/ui";
 import { SvelteMap } from "svelte/reactivity";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
+import {
+	buildCheckpointCardData,
+	buildCheckpointFiles,
+	getCheckpointFileName,
+	getCheckpointLanguageFromPath,
+	getDefaultCheckpointFileRowState,
+} from "./checkpoint-card-state.js";
 import CheckpointDiffPreview from "./checkpoint-diff-preview.svelte";
 
 interface Props {
@@ -54,30 +59,13 @@ let isConfirming = $state(false);
 // File-level state for reverts and diff expansion
 let fileStates = new SvelteMap<string, FileRowState>();
 
-// Convert Checkpoint to CheckpointData for the UI component
-const checkpointData: CheckpointData = $derived({
-	id: checkpoint.id,
-	number: checkpoint.checkpointNumber,
-	message: userMessagePreview,
-	timestamp: checkpoint.createdAt,
-	fileCount: checkpoint.fileCount,
-	totalInsertions: checkpoint.totalLinesAdded,
-	totalDeletions: checkpoint.totalLinesRemoved,
-	isAuto: checkpoint.isAuto,
-});
-
-// Convert FileSnapshot[] to CheckpointFile[] for the UI component
-const files: UICheckpointFile[] = $derived(
-	fileSnapshots
-		.filter((f) => (f.linesAdded ?? 0) > 0 || (f.linesRemoved ?? 0) > 0)
-		.map((f) => ({
-			id: f.id,
-			filePath: f.filePath,
-			linesAdded: f.linesAdded,
-			linesRemoved: f.linesRemoved,
-			fileSize: f.fileSize,
-		}))
+const checkpointData = $derived(
+	buildCheckpointCardData({
+		checkpoint,
+		userMessagePreview,
+	})
 );
+const files = $derived(buildCheckpointFiles(fileSnapshots));
 
 function handleRevertClick() {
 	if (isReverting) return;
@@ -96,7 +84,7 @@ function handleRevertCancel() {
 async function handleRevertFile(fileId: string, filePath: string) {
 	const currentState = fileStates.get(fileId);
 	fileStates.set(fileId, {
-		...(currentState ?? { isDiffExpanded: false, isLoadingDiff: false, diff: null }),
+		...(currentState ?? getDefaultCheckpointFileRowState()),
 		isReverting: true,
 	});
 
@@ -117,7 +105,7 @@ async function handleRevertFile(fileId: string, filePath: string) {
 	);
 
 	fileStates.set(fileId, {
-		...(currentState ?? { isDiffExpanded: false, isLoadingDiff: false, diff: null }),
+		...(currentState ?? getDefaultCheckpointFileRowState()),
 		isReverting: false,
 	});
 }
@@ -154,7 +142,7 @@ async function handleToggleFileDiff(fileId: string) {
 							filePath: fileSnapshot.filePath,
 							content: newContent,
 							oldContent,
-							language: getLanguageFromPath(fileSnapshot.filePath),
+							language: getCheckpointLanguageFromPath(fileSnapshot.filePath),
 						},
 					});
 				},
@@ -176,24 +164,6 @@ async function handleToggleFileDiff(fileId: string) {
 			diff: current?.diff ?? null,
 		});
 	}
-}
-
-function getLanguageFromPath(filePath: string): string {
-	const ext = filePath.split(".").pop()?.toLowerCase();
-	const langMap: Record<string, string> = {
-		ts: "typescript",
-		tsx: "typescript",
-		js: "javascript",
-		jsx: "javascript",
-		svelte: "svelte",
-		rs: "rust",
-		py: "python",
-		json: "json",
-		md: "markdown",
-		css: "css",
-		html: "html",
-	};
-	return langMap[ext ?? ""] ?? "text";
 }
 </script>
 
@@ -223,7 +193,7 @@ function getLanguageFromPath(filePath: string): string {
 	{#snippet fileDisplay({ file })}
 		<FilePathBadge
 			filePath={file.filePath}
-			fileName={file.filePath.split("/").pop() ?? file.filePath}
+			fileName={getCheckpointFileName(file.filePath)}
 			linesAdded={file.linesAdded ?? 0}
 			linesRemoved={file.linesRemoved ?? 0}
 			interactive={false}
