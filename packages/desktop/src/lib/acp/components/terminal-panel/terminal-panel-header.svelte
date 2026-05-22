@@ -13,6 +13,15 @@ import {
 import { IconPlus } from "@tabler/icons-svelte";
 import { IconTerminal } from "@tabler/icons-svelte";
 import type { TerminalTab } from "$lib/acp/store/types.js";
+import {
+	canShowCloseTerminalTabAction,
+	canShowMoveTerminalTabAction,
+	canShowTerminalTabMenu,
+	getNextOpenTerminalTabMenuId,
+	getTerminalShellName,
+	hasTerminalTabs,
+	shouldShowTerminalFullscreenAction,
+} from "./terminal-panel-header-state.js";
 
 interface Props {
 	projectName: string;
@@ -65,37 +74,31 @@ const TAB_ACTIONS_LABEL = "Terminal tab actions";
 const OPEN_IN_NEW_PANEL_LABEL = "Open in new panel";
 
 const effectiveColor = $derived(projectColor ? projectColor : "");
-const shellName = $derived(shell ? (shell.split("/").pop() ? shell.split("/").pop() : null) : null);
-const showFullscreen = $derived(onEnterFullscreen !== undefined || onExitFullscreen !== undefined);
-const hasTabs = $derived(tabs !== undefined && tabs.length > 0);
+const shellName = $derived(getTerminalShellName(shell));
+const showFullscreen = $derived(
+	shouldShowTerminalFullscreenAction({ onEnterFullscreen, onExitFullscreen })
+);
+const hasTabs = $derived(hasTerminalTabs(tabs));
 
 function canShowTabMenu(_tabId: string): boolean {
-	if (tabs === undefined) {
-		return false;
-	}
-
-	return onCloseTab !== undefined || onMoveTabToNewPanel !== undefined;
+	return canShowTerminalTabMenu({ tabs, onCloseTab, onMoveTabToNewPanel });
 }
 
 function canShowMoveTabAction(tabId: string): boolean {
-	if (!tabs || tabs.length <= 1) {
-		return false;
-	}
-	if (!onMoveTabToNewPanel) {
-		return false;
-	}
-	return canMoveTabToNewPanel ? canMoveTabToNewPanel(tabId) : false;
+	return canShowMoveTerminalTabAction({
+		tabId,
+		tabs,
+		onMoveTabToNewPanel,
+		canMoveTabToNewPanel,
+	});
 }
 
 function canShowCloseTabAction(): boolean {
-	if (!tabs) {
-		return false;
-	}
-	return tabs.length > 1 && onCloseTab !== undefined;
+	return canShowCloseTerminalTabAction({ tabs, onCloseTab });
 }
 
 function toggleTabMenu(tabId: string): void {
-	openMenuTabId = openMenuTabId === tabId ? null : tabId;
+	openMenuTabId = getNextOpenTerminalTabMenuId({ openMenuTabId, tabId });
 }
 
 function closeTabMenu(): void {
