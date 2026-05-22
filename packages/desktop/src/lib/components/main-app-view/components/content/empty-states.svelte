@@ -47,6 +47,14 @@ import {
 	type EmptyStateProjectImportErrorState,
 } from "./logic/empty-state-project-import-model.js";
 import { createEmptyStateBranchMetadataLoader } from "./logic/empty-state-branch-metadata-loader.js";
+import {
+	canShowEmptyStateInput,
+	getEmptyStateProjectName,
+	getEmptyStateProjectPath,
+	isEmptyStateWorktreeEffectivelyPending,
+	resolveEmptyStateProject,
+	shouldShowEmptyStateProjectPicker,
+} from "./logic/empty-state-view-state.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -110,16 +118,28 @@ const effectiveAgentId = $derived(
 	})
 );
 
-// Resolve effective project: user selection, then auto-select for single/multi
 const effectiveProject = $derived(
-	selectedProject ?? (projects.length >= 1 ? projects[0] : null) ?? null
+	resolveEmptyStateProject({
+		selectedProject,
+		projects,
+	})
 );
-const projectPath = $derived(effectiveProject?.path ?? null);
-const projectName = $derived(effectiveProject?.name ?? null);
+const projectPath = $derived(getEmptyStateProjectPath(effectiveProject));
+const projectName = $derived(getEmptyStateProjectName(effectiveProject));
 
-const showProjectPicker = $derived(projects.length > 1);
-const canShowInput = $derived(projects.length > 0 && availableAgents.length > 0);
-const effectiveWorktreePending = $derived(worktreePending && activeWorktreePath === null);
+const showProjectPicker = $derived(shouldShowEmptyStateProjectPicker(projects.length));
+const canShowInput = $derived(
+	canShowEmptyStateInput({
+		projectCount: projects.length,
+		availableAgentCount: availableAgents.length,
+	})
+);
+const effectiveWorktreePending = $derived(
+	isEmptyStateWorktreeEffectivelyPending({
+		worktreePending,
+		activeWorktreePath,
+	})
+);
 const canSendFromEmptyState = $derived(
 	canSendWithoutSession({
 		projectPath,
