@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { VoiceInputPhase } from "$lib/acp/types/voice-input.js";
-import { getMicButtonVisualState } from "../mic-button-state.js";
+import { getMicButtonTitle, getMicButtonVisualState } from "../mic-button-state.js";
 
 describe("getMicButtonVisualState", () => {
 	it.each([
@@ -29,5 +29,18 @@ describe("getMicButtonVisualState", () => {
 		"error",
 	] satisfies VoiceInputPhase[])("returns mic for %s", (phase) => {
 		expect(getMicButtonVisualState(phase)).toBe("mic");
+	});
+});
+
+describe("getMicButtonTitle", () => {
+	it.each([
+		["downloading_model", "Downloading speech model..."],
+		["loading_model", "Loading model..."],
+		["checking_permission", "Checking..."],
+		["transcribing", "Transcribing..."],
+		["recording", "Stop recording"],
+		["idle", "Start voice recording"],
+	] satisfies [VoiceInputPhase, string][])("returns %s label", (phase, title) => {
+		expect(getMicButtonTitle(phase)).toBe(title);
 	});
 });

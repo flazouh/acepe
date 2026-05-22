@@ -17,7 +17,7 @@ import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
 import * as Tooltip from "$lib/components/ui/tooltip/index.js";
 import { canCancelVoiceInteraction } from "../logic/voice-ui-state.js";
-import { getMicButtonVisualState } from "./mic-button-state.js";
+import { getMicButtonTitle, getMicButtonVisualState } from "./mic-button-state.js";
 import type { VoiceInputState } from "../state/voice-input-state.svelte.js";
 
 interface Props {
@@ -59,25 +59,8 @@ function handleKeyDown(event: KeyboardEvent) {
 }
 
 const isRecording = $derived(voiceState.phase === "recording");
-const isTranscribing = $derived(voiceState.phase === "transcribing");
-const isDownloading = $derived(voiceState.phase === "downloading_model");
-const isLoadingModel = $derived(voiceState.phase === "loading_model");
-const isCheckingPermission = $derived(voiceState.phase === "checking_permission");
 const visualState = $derived(getMicButtonVisualState(voiceState.phase));
-
-const title = $derived(
-	isDownloading
-		? "Downloading speech model…"
-		: isLoadingModel
-			? "Loading model…"
-			: isCheckingPermission
-				? "Checking…"
-				: isTranscribing
-					? "Transcribing…"
-					: isRecording
-						? "Stop recording"
-						: "Start voice recording"
-);
+const title = $derived(getMicButtonTitle(voiceState.phase));
 
 const hoverTitle = $derived(visualState === "mic" ? "Hold Right ⌥ to talk" : title);
 
