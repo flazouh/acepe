@@ -12,6 +12,11 @@ import {
 	buildPierreFileOptions,
 	ensurePierreThemeRegistered,
 } from "../../utils/pierre-rendering.js";
+import {
+	getFilePreviewCacheKeys,
+	getFilePreviewName,
+	shouldRenderFilePreviewDiff,
+} from "./file-picker-preview-state.js";
 
 interface Props {
 	file: FilePickerEntry | null;
@@ -78,7 +83,10 @@ function renderFileContent(content: string, fileName: string): void {
 		file: {
 			name: fileName,
 			contents: content,
-			cacheKey: `file-${projectPath}-${file?.path}`,
+			cacheKey: getFilePreviewCacheKeys({
+				projectPath,
+				filePath: file?.path ?? fileName,
+			}).file,
 		},
 		containerWrapper: containerRef,
 	});
@@ -103,22 +111,27 @@ function renderFileDiff(oldContent: string | null, newContent: string, fileName:
 		fileInstance = null;
 	}
 
+	const cacheKeys = getFilePreviewCacheKeys({
+		projectPath,
+		filePath: file?.path ?? fileName,
+	});
+
 	const oldFile = oldContent
 		? {
 				name: fileName,
 				contents: oldContent,
-				cacheKey: `diff-old-${projectPath}-${file?.path}`,
+				cacheKey: cacheKeys.diffOld,
 			}
 		: {
 				name: fileName,
 				contents: "",
-				cacheKey: `diff-old-empty-${projectPath}-${file?.path}`,
+				cacheKey: cacheKeys.diffOldEmpty,
 			};
 
 	const newFile = {
 		name: fileName,
 		contents: newContent,
-		cacheKey: `diff-new-${projectPath}-${file?.path}`,
+		cacheKey: cacheKeys.diffNew,
 	};
 
 	diffInstance.render({
@@ -143,7 +156,7 @@ async function loadAndRender(): Promise<void> {
 	errorMessage = null;
 
 	// If file has git status, load diff
-	if (file.gitStatus) {
+	if (shouldRenderFilePreviewDiff(file)) {
 		const result = await fileContentCache.getFileDiff(file.path, projectPath);
 
 		result.match(
@@ -162,7 +175,7 @@ async function loadAndRender(): Promise<void> {
 
 		result.match(
 			(content) => {
-				const fileName = file.path.split("/").pop() ?? file.path;
+				const fileName = getFilePreviewName(file.path);
 				renderFileContent(content, fileName);
 				isLoading = false;
 			},
