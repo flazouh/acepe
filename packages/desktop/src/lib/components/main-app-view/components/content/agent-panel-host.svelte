@@ -13,15 +13,11 @@ import { ensureErrorReference } from "$lib/errors/error-reference.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { Panel } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import {
+	formatAgentPanelBoundaryError,
+	normalizeAgentPanelBoundaryError,
+} from "./logic/agent-panel-host-boundary-error.js";
 import { buildAgentPanelHostModel } from "./logic/agent-panel-host-model.js";
-
-type ErrorLike = {
-	message?: unknown;
-	stack?: unknown;
-	name?: unknown;
-	backendCorrelationId?: unknown;
-	backendEventId?: unknown;
-};
 
 interface Props {
 	panelId: string;
@@ -53,68 +49,8 @@ const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
 const themeState = useTheme();
 
-function normalizeBoundaryError(error: unknown): Error {
-	if (error instanceof Error) {
-		return error;
-	}
-
-	if (typeof error === "string" && error.length > 0) {
-		return new Error(error);
-	}
-
-	if (error !== null && typeof error === "object") {
-		const errorLike = error as ErrorLike;
-		const message =
-			typeof errorLike.message === "string" && errorLike.message.length > 0
-				? errorLike.message
-				: "Unknown agent panel error";
-		const nextError = new Error(message);
-		if (typeof errorLike.name === "string" && errorLike.name.length > 0) {
-			nextError.name = errorLike.name;
-		}
-		if (typeof errorLike.stack === "string" && errorLike.stack.length > 0) {
-			nextError.stack = errorLike.stack;
-		}
-		if (typeof errorLike.backendCorrelationId === "string") {
-			(nextError as Error & { backendCorrelationId?: string }).backendCorrelationId =
-				errorLike.backendCorrelationId;
-		}
-		if (typeof errorLike.backendEventId === "string") {
-			(nextError as Error & { backendEventId?: string }).backendEventId = errorLike.backendEventId;
-		}
-		return nextError;
-	}
-
-	return new Error("Unknown agent panel error");
-}
-
-function formatBoundaryError(error: Error): string {
-	const lines: string[] = [];
-	if (error.name && error.name !== "Error") {
-		lines.push(`${error.name}: ${error.message}`);
-	} else {
-		lines.push(error.message);
-	}
-
-	if (error.stack) {
-		const stackLines = error.stack.split("\n");
-		const firstLine = stackLines[0]?.trim() ?? "";
-		const isMessageLine =
-			firstLine === `${error.name}: ${error.message}` || firstLine === error.message;
-		const relevantLines = isMessageLine ? stackLines.slice(1) : stackLines;
-
-		if (relevantLines.length > 0) {
-			lines.push("");
-			lines.push("Stack trace:");
-			lines.push(...relevantLines.slice(0, 30));
-		}
-	}
-
-	return lines.join("\n");
-}
-
 function logAgentPanelBoundaryError(nextPanelId: string, error: unknown): void {
-	const normalized = normalizeBoundaryError(error);
+	const normalized = normalizeAgentPanelBoundaryError(error);
 	const reference = ensureErrorReference(normalized);
 	console.error("[boundary:agent-panel]", nextPanelId, {
 		name: normalized.name,
@@ -283,7 +219,7 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 			onResizeAttachedFilePanel={handleResizeAttachedFilePanel}
 		/>
 		{#snippet failed(error, reset)}
-			{@const boundaryError = normalizeBoundaryError(error)}
+			{@const boundaryError = normalizeAgentPanelBoundaryError(error)}
 			{@const boundaryReference = ensureErrorReference(boundaryError)}
 			{@const boundaryIssueDraft = buildAgentErrorIssueDraft({
 				agentId: selectedAgentId ?? "unknown",
@@ -294,7 +230,7 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 					boundaryError.message.length > 0
 						? boundaryError.message
 						: "Agent panel crashed while rendering.",
-				errorDetails: formatBoundaryError(boundaryError),
+				errorDetails: formatAgentPanelBoundaryError(boundaryError),
 				referenceId: boundaryReference.referenceId,
 				referenceSearchable: boundaryReference.searchable,
 				diagnosticsSummary: boundaryError.message,
@@ -309,7 +245,7 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 					<AgentErrorCard
 						title="Agent panel crashed"
 						summary={boundaryError.message || "Unexpected render error"}
-						details={formatBoundaryError(boundaryError)}
+						details={formatAgentPanelBoundaryError(boundaryError)}
 						referenceId={boundaryReference.referenceId}
 						referenceSearchable={boundaryReference.searchable}
 						onRetry={reset}
