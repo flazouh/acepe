@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { FilePanelFormatKind } from "./format/types.js";
-import { parseTableContent } from "./format/parsers/delimited.js";
+import { buildFilePanelCsvViewState } from "./file-panel-csv-view-state.js";
 
 interface Props {
 	content: string;
@@ -9,43 +9,30 @@ interface Props {
 
 let { content, formatKind }: Props = $props();
 
-const parseResult = $derived.by(() => {
-	if (formatKind !== "csv" && formatKind !== "tsv") {
-		return parseTableContent(content, "csv");
-	}
-	return parseTableContent(content, formatKind);
-});
-const parseError = $derived.by(() => {
-	const result = parseResult;
-	return result.isErr() ? result.error.message : null;
-});
-const csvData = $derived.by(() => {
-	const result = parseResult;
-	return result.isOk() ? result.value : null;
-});
+const viewState = $derived(buildFilePanelCsvViewState({ content, formatKind }));
 </script>
 
-{#if parseError}
+{#if viewState.type === "error"}
 	<div
 		class="text-sm text-destructive p-3 border border-destructive/20 rounded-md bg-destructive/5"
 	>
 		<div class="font-medium">Unable to parse CSV</div>
-		<div class="mt-1 text-xs">{parseError}</div>
+		<div class="mt-1 text-xs">{viewState.message}</div>
 	</div>
-{:else if csvData === null || csvData.headers.length === 0}
+{:else if viewState.type === "empty"}
 	<div class="text-sm text-muted-foreground p-2">No rows to display.</div>
 {:else}
 	<div class="csv-table-wrapper">
 		<table class="csv-table">
 			<thead>
 				<tr>
-					{#each csvData.headers as header, i (`header-${i}`)}
+					{#each viewState.data.headers as header, i (`header-${i}`)}
 						<th>{header}</th>
 					{/each}
 				</tr>
 			</thead>
 			<tbody>
-				{#each csvData.rows as row, rowIndex (`row-${rowIndex}`)}
+				{#each viewState.data.rows as row, rowIndex (`row-${rowIndex}`)}
 					<tr>
 						{#each row as cell, columnIndex (`cell-${rowIndex}-${columnIndex}`)}
 							<td>{cell}</td>
