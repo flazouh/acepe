@@ -16,6 +16,14 @@ import { GitHubBadge, ProjectLetterBadge } from "@acepe/ui";
 import { Tooltip } from "bits-ui";
 import { LinkSimple } from "phosphor-svelte";
 import { toast } from "svelte-sonner";
+import {
+	filterPullRequestsByQuery,
+	getHeaderPrLinkLabel,
+	getLinkedPrTooltipLabel,
+	groupSessionPrLinksByNumber,
+	shouldLoadOpenPullRequests,
+	shouldShowPrSearchInput,
+} from "./pr-link-picker-state.js";
 
 interface Props {
 	sessionId: string;
@@ -56,43 +64,21 @@ let openPullRequests = $state<readonly PrListItem[]>([]);
 let loadedProjectPath = $state<string | null>(null);
 let loadedRepoContext = $state<RepoContext | null>(null);
 
-const tooltipLabel = $derived.by(() => {
-	if (!linkedPr) return "Link pull request";
-	return `#${linkedPr.prNumber}`;
-});
-
-/**
- * Map: prNumber → readonly session references already linked to that PR.
- */
-const sessionsByPrNumber = $derived.by(() => {
-	const map = new Map<number, SessionPrLinkReference[]>();
-	for (const reference of projectPrLinkReferences) {
-		let arr = map.get(reference.prNumber);
-		if (!arr) {
-			arr = [];
-			map.set(reference.prNumber, arr);
-		}
-		arr.push(reference);
-	}
-	return map;
-});
-
-const filteredPullRequests = $derived.by(() => {
-	const normalizedQuery = query.trim().toLowerCase();
-	if (normalizedQuery === "") {
-		return openPullRequests;
-	}
-	return openPullRequests.filter((pr) => {
-		return (
-			pr.title.toLowerCase().includes(normalizedQuery) ||
-			pr.author.toLowerCase().includes(normalizedQuery) ||
-			`#${pr.number}`.includes(normalizedQuery)
-		);
-	});
-});
+const tooltipLabel = $derived(getLinkedPrTooltipLabel(linkedPr));
+const headerPrLinkLabel = $derived(getHeaderPrLinkLabel(linkedPr));
+const sessionsByPrNumber = $derived(groupSessionPrLinksByNumber(projectPrLinkReferences));
+const filteredPullRequests = $derived(filterPullRequestsByQuery(openPullRequests, query));
+const showSearchInput = $derived(shouldShowPrSearchInput(openPullRequests.length));
 
 function ensureOpenPullRequestsLoaded(): void {
-	if (loadedProjectPath === projectPath || (loading && loadingProjectPath === projectPath)) {
+	if (
+		!shouldLoadOpenPullRequests({
+			projectPath,
+			loadedProjectPath,
+			loading,
+			loadingProjectPath,
+		})
+	) {
 		return;
 	}
 	const requestedProjectPath = projectPath;
@@ -213,7 +199,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 				{/if}
 			</DropdownMenu.SubTrigger>
 			<DropdownMenu.SubContent class="w-[300px] p-0 overflow-hidden">
-				{#if openPullRequests.length >= 10}
+				{#if showSearchInput}
 					<div class="px-2 py-1.5">
 						<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />
 					</div>
@@ -323,7 +309,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 							class="self-stretch flex items-center px-1.5 border-l border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset {pickerOpen
 								? 'bg-muted/80 text-foreground'
 								: ''}"
-							aria-label={linkedPr ? `Linked to #${linkedPr.prNumber}` : "Link existing PR"}
+							aria-label={headerPrLinkLabel}
 						>
 							{#if linkedPr}
 								<span class="inline-flex items-center gap-1 text-[0.6875rem] font-medium tabular-nums shrink-0">
@@ -342,7 +328,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 						sideOffset={4}
 						side="top"
 					>
-						{linkedPr ? `Linked to #${linkedPr.prNumber}` : "Link existing PR"}
+						{headerPrLinkLabel}
 					</Tooltip.Content>
 				</Tooltip.Portal>
 			</Tooltip.Root>
@@ -396,7 +382,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 			class="w-[300px] p-0 overflow-hidden"
 			onInteractOutside={handleClosePicker}
 		>
-			{#if openPullRequests.length >= 10}
+			{#if showSearchInput}
 				<div class="px-2 py-1.5">
 					<Input bind:value={query} placeholder="Search open PRs" class="h-7 text-xs" />
 				</div>

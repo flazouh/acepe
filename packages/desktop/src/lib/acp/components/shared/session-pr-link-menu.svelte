@@ -11,6 +11,11 @@ import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import * as Popover from "$lib/components/ui/popover/index.js";
 import { toast } from "svelte-sonner";
+import {
+	filterPullRequestsByQuery,
+	normalizePrListItemState,
+	shouldLoadOpenPullRequests,
+} from "./pr-link-picker-state.js";
 
 interface Props {
 	sessionId: string;
@@ -32,34 +37,17 @@ let loadingProjectPath = $state<string | null>(null);
 let openPullRequests = $state<readonly PrListItem[]>([]);
 let loadedProjectPath = $state<string | null>(null);
 
-const filteredPullRequests = $derived.by(() => {
-	const normalizedQuery = query.trim().toLowerCase();
-	if (normalizedQuery === "") {
-		return openPullRequests;
-	}
-
-	return openPullRequests.filter((pr) => {
-		return (
-			pr.title.toLowerCase().includes(normalizedQuery) ||
-			pr.author.toLowerCase().includes(normalizedQuery) ||
-			`#${pr.number}`.includes(normalizedQuery)
-		);
-	});
-});
-
-function normalizePrState(state: PrListItem["state"]): SessionLinkedPr["state"] {
-	switch (state) {
-		case "merged":
-			return "MERGED";
-		case "closed":
-			return "CLOSED";
-		case "open":
-			return "OPEN";
-	}
-}
+const filteredPullRequests = $derived(filterPullRequestsByQuery(openPullRequests, query));
 
 function ensureOpenPullRequestsLoaded(): void {
-	if (loadedProjectPath === projectPath || (loading && loadingProjectPath === projectPath)) {
+	if (
+		!shouldLoadOpenPullRequests({
+			projectPath,
+			loadedProjectPath,
+			loading,
+			loadingProjectPath,
+		})
+	) {
 		return;
 	}
 
@@ -184,7 +172,7 @@ function handleSelectPullRequest(pr: PrListItem): void {
 						onclick={() => handleSelectPullRequest(pr)}
 					>
 						<div class="mt-0.5 shrink-0">
-							<PrStateIcon state={normalizePrState(pr.state)} size={12} />
+							<PrStateIcon state={normalizePrListItemState(pr.state)} size={12} />
 						</div>
 						<div class="min-w-0 flex-1">
 							<div class="truncate text-xs font-medium text-foreground">{pr.title}</div>
