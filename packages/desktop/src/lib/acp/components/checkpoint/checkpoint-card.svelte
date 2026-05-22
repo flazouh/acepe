@@ -13,10 +13,13 @@ import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
 import {
 	buildCheckpointCardData,
+	buildCheckpointDiffLoadedState,
+	buildCheckpointDiffLoadFailedState,
+	buildCheckpointDiffLoadingState,
+	buildCheckpointDiffToggleState,
+	buildCheckpointFileRevertState,
 	buildCheckpointFiles,
 	getCheckpointFileName,
-	getCheckpointLanguageFromPath,
-	getDefaultCheckpointFileRowState,
 } from "./checkpoint-card-state.js";
 import CheckpointDiffPreview from "./checkpoint-diff-preview.svelte";
 
@@ -83,10 +86,7 @@ function handleRevertCancel() {
 
 async function handleRevertFile(fileId: string, filePath: string) {
 	const currentState = fileStates.get(fileId);
-	fileStates.set(fileId, {
-		...(currentState ?? getDefaultCheckpointFileRowState()),
-		isReverting: true,
-	});
+	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, true));
 
 	const result = await checkpointStore.revertFile(
 		checkpoint.sessionId,
@@ -104,10 +104,7 @@ async function handleRevertFile(fileId: string, filePath: string) {
 		}
 	);
 
-	fileStates.set(fileId, {
-		...(currentState ?? getDefaultCheckpointFileRowState()),
-		isReverting: false,
-	});
+	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, false));
 }
 
 async function handleToggleFileDiff(fileId: string) {
@@ -116,12 +113,7 @@ async function handleToggleFileDiff(fileId: string) {
 
 	if (newExpanded && !current?.diff) {
 		// Load the file diff content (old + new) from checkpoint
-		fileStates.set(fileId, {
-			isDiffExpanded: true,
-			isLoadingDiff: true,
-			isReverting: false,
-			diff: null,
-		});
+		fileStates.set(fileId, buildCheckpointDiffLoadingState());
 
 		// Get the file snapshot to find the file path
 		const fileSnapshot = fileSnapshots.find((f) => f.id === fileId);
@@ -134,35 +126,28 @@ async function handleToggleFileDiff(fileId: string) {
 
 			result.match(
 				({ oldContent, newContent }) => {
-					fileStates.set(fileId, {
-						isDiffExpanded: true,
-						isLoadingDiff: false,
-						isReverting: false,
-						diff: {
+					fileStates.set(
+						fileId,
+						buildCheckpointDiffLoadedState({
 							filePath: fileSnapshot.filePath,
-							content: newContent,
 							oldContent,
-							language: getCheckpointLanguageFromPath(fileSnapshot.filePath),
-						},
-					});
+							newContent,
+						})
+					);
 				},
 				() => {
-					fileStates.set(fileId, {
-						isDiffExpanded: true,
-						isLoadingDiff: false,
-						isReverting: false,
-						diff: null,
-					});
+					fileStates.set(fileId, buildCheckpointDiffLoadFailedState());
 				}
 			);
 		}
 	} else {
-		fileStates.set(fileId, {
-			isDiffExpanded: newExpanded,
-			isLoadingDiff: false,
-			isReverting: current?.isReverting ?? false,
-			diff: current?.diff ?? null,
-		});
+		fileStates.set(
+			fileId,
+			buildCheckpointDiffToggleState({
+				currentState: current,
+				isDiffExpanded: newExpanded,
+			})
+		);
 	}
 }
 </script>

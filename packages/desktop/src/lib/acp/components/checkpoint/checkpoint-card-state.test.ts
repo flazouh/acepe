@@ -2,6 +2,11 @@ import { describe, expect, it } from "bun:test";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
 import {
 	buildCheckpointCardData,
+	buildCheckpointDiffLoadedState,
+	buildCheckpointDiffLoadFailedState,
+	buildCheckpointDiffLoadingState,
+	buildCheckpointDiffToggleState,
+	buildCheckpointFileRevertState,
 	buildCheckpointFiles,
 	getCheckpointFileName,
 	getCheckpointLanguageFromPath,
@@ -85,6 +90,79 @@ describe("checkpoint card state", () => {
 			isDiffExpanded: false,
 			isLoadingDiff: false,
 			isReverting: false,
+			diff: null,
+		});
+	});
+
+	it("builds file revert row states without changing other fields", () => {
+		const currentState = {
+			isDiffExpanded: true,
+			isLoadingDiff: false,
+			isReverting: false,
+			diff: {
+				filePath: "src/app.ts",
+				content: "after",
+				oldContent: "before",
+				language: "typescript",
+			},
+		};
+
+		expect(buildCheckpointFileRevertState(currentState, true)).toEqual({
+			...currentState,
+			isReverting: true,
+		});
+		expect(buildCheckpointFileRevertState(undefined, true)).toEqual({
+			isDiffExpanded: false,
+			isLoadingDiff: false,
+			isReverting: true,
+			diff: null,
+		});
+	});
+
+	it("builds diff loading, loaded, failed, and toggle states", () => {
+		expect(buildCheckpointDiffLoadingState()).toEqual({
+			isDiffExpanded: true,
+			isLoadingDiff: true,
+			isReverting: false,
+			diff: null,
+		});
+		expect(
+			buildCheckpointDiffLoadedState({
+				filePath: "src/app.ts",
+				oldContent: "before",
+				newContent: "after",
+			})
+		).toEqual({
+			isDiffExpanded: true,
+			isLoadingDiff: false,
+			isReverting: false,
+			diff: {
+				filePath: "src/app.ts",
+				content: "after",
+				oldContent: "before",
+				language: "typescript",
+			},
+		});
+		expect(buildCheckpointDiffLoadFailedState()).toEqual({
+			isDiffExpanded: true,
+			isLoadingDiff: false,
+			isReverting: false,
+			diff: null,
+		});
+		expect(
+			buildCheckpointDiffToggleState({
+				currentState: {
+					isDiffExpanded: true,
+					isLoadingDiff: true,
+					isReverting: true,
+					diff: null,
+				},
+				isDiffExpanded: false,
+			})
+		).toEqual({
+			isDiffExpanded: false,
+			isLoadingDiff: false,
+			isReverting: true,
 			diff: null,
 		});
 	});

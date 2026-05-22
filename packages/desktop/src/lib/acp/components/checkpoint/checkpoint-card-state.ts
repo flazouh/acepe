@@ -42,6 +42,64 @@ export function getDefaultCheckpointFileRowState(): FileRowState {
 	};
 }
 
+export function buildCheckpointFileRevertState(
+	currentState: FileRowState | undefined,
+	isReverting: boolean
+): FileRowState {
+	return {
+		...(currentState ?? getDefaultCheckpointFileRowState()),
+		isReverting,
+	};
+}
+
+export function buildCheckpointDiffLoadingState(): FileRowState {
+	return {
+		isDiffExpanded: true,
+		isLoadingDiff: true,
+		isReverting: false,
+		diff: null,
+	};
+}
+
+export function buildCheckpointDiffLoadedState(input: {
+	readonly filePath: string;
+	readonly oldContent: string | null;
+	readonly newContent: string;
+}): FileRowState {
+	return {
+		isDiffExpanded: true,
+		isLoadingDiff: false,
+		isReverting: false,
+		diff: {
+			filePath: input.filePath,
+			content: input.newContent,
+			oldContent: input.oldContent,
+			language: getCheckpointLanguageFromPath(input.filePath),
+		},
+	};
+}
+
+export function buildCheckpointDiffLoadFailedState(): FileRowState {
+	return {
+		isDiffExpanded: true,
+		isLoadingDiff: false,
+		isReverting: false,
+		diff: null,
+	};
+}
+
+export function buildCheckpointDiffToggleState(input: {
+	readonly currentState: FileRowState | undefined;
+	readonly isDiffExpanded: boolean;
+}): FileRowState {
+	return {
+		isDiffExpanded: input.isDiffExpanded,
+		isLoadingDiff: false,
+		isReverting: input.currentState?.isReverting ?? false,
+		diff: input.currentState?.diff ?? null,
+	};
+}
+
 export function getCheckpointFileName(filePath: string): string {
 	return filePath.split("/").pop() ?? filePath;
 }
