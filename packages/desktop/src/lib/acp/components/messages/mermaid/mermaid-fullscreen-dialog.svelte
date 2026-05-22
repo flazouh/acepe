@@ -1,6 +1,12 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
 
+import {
+	applyPanZoomStateUpdate,
+	getPanZoomLevel,
+	getPanZoomTransform,
+	MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE,
+} from "./mermaid-pan-zoom-state.js";
 import { createPanZoomHandlers } from "./use-pan-zoom.js";
 
 let {
@@ -11,27 +17,26 @@ let {
 	svg?: string | null;
 } = $props();
 
-let scale = $state(1);
-let translateX = $state(0);
-let translateY = $state(0);
+let scale = $state(MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE.scale);
+let translateX = $state(MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE.translateX);
+let translateY = $state(MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE.translateY);
 
 const getState = () => ({ scale, translateX, translateY });
 const setState = (updates: { scale?: number; translateX?: number; translateY?: number }) => {
-	if (updates.scale !== undefined) scale = updates.scale;
-	if (updates.translateX !== undefined) translateX = updates.translateX;
-	if (updates.translateY !== undefined) translateY = updates.translateY;
+	const next = applyPanZoomStateUpdate(getState(), updates);
+	scale = next.scale;
+	translateX = next.translateX;
+	translateY = next.translateY;
 };
 
 const panZoom = createPanZoomHandlers(getState, setState, { minScale: 0.1, maxScale: 10 });
 
-const transform = $derived(`translate(${translateX}px, ${translateY}px) scale(${scale})`);
-const zoomLevel = $derived(Math.round(scale * 100));
+const transform = $derived(getPanZoomTransform(getState()));
+const zoomLevel = $derived(getPanZoomLevel(scale));
 
 $effect(() => {
 	if (open) {
-		scale = 1;
-		translateX = 0;
-		translateY = 0;
+		setState(MERMAID_CANVAS_DEFAULT_PAN_ZOOM_STATE);
 	}
 });
 </script>

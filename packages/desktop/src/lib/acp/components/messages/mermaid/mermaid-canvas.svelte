@@ -1,4 +1,8 @@
 <script lang="ts">
+import {
+	applyPanZoomStateUpdate,
+	getPanZoomTransform,
+} from "./mermaid-pan-zoom-state.js";
 import { createPanZoomHandlers } from "./use-pan-zoom.js";
 
 let {
@@ -25,14 +29,15 @@ let {
 
 const getState = () => ({ scale, translateX, translateY });
 const setState = (updates: { scale?: number; translateX?: number; translateY?: number }) => {
-	if (updates.scale !== undefined) scale = updates.scale;
-	if (updates.translateX !== undefined) translateX = updates.translateX;
-	if (updates.translateY !== undefined) translateY = updates.translateY;
+	const next = applyPanZoomStateUpdate(getState(), updates);
+	scale = next.scale;
+	translateX = next.translateX;
+	translateY = next.translateY;
 };
 
 const panZoom = createPanZoomHandlers(getState, setState, { minScale: 0.2, maxScale: 5 });
 
-const transform = $derived(`translate(${translateX}px, ${translateY}px) scale(${scale})`);
+const transform = $derived(getPanZoomTransform(getState()));
 
 function toggleSource(): void {
 	onToggleSource?.();
