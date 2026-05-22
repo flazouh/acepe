@@ -7,6 +7,13 @@ import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";
 import { fetchCommitDiff, fetchPrDiff } from "../services/github-service.js";
 import { getPanelStore } from "../store/panel-store.svelte.js";
+import {
+	enhanceGitHubReference,
+	getGitHubBadgeCopyText,
+	getGitHubDiffStats,
+	getGitHubStatsKey,
+	shouldLoadGitHubStats,
+} from "./github-badge-state.js";
 import CopyButton from "./messages/copy-button.svelte";
 
 interface Props {
@@ -19,17 +26,8 @@ let { ref, repoContext, projectPath }: Props = $props();
 
 const panelStore = getPanelStore();
 
-// Enhance commit ref with repo context if available
 const enhancedRef = $derived.by(() => {
-	if (ref.type === "commit" && repoContext && !ref.owner) {
-		return {
-			type: "commit" as const,
-			sha: ref.sha,
-			owner: repoContext.owner,
-			repo: repoContext.repo,
-		};
-	}
-	return ref;
+	return enhanceGitHubReference(ref, repoContext);
 });
 
 const githubUrl = $derived(getGitHubURL(enhancedRef));
@@ -42,15 +40,7 @@ let hasLoadedStats = $state(false);
 let lastStatsKey = $state("");
 
 const statsKey = $derived.by(() => {
-	if (enhancedRef.type === "commit") {
-		return `commit:${projectPath ?? ""}:${enhancedRef.sha}`;
-	}
-
-	if (enhancedRef.type === "pr") {
-		return `pr:${projectPath ?? ""}:${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
-	}
-
-	return `issue:${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
+	return getGitHubStatsKey({ ref: enhancedRef, projectPath });
 });
 
 $effect(() => {
@@ -72,7 +62,19 @@ $effect(() => {
 });
 
 function ensureStatsLoaded() {
-	if (hasLoadedStats || statsLoading || !projectPath || enhancedRef.type === "issue") {
+	if (
+		!shouldLoadGitHubStats({
+			ref: enhancedRef,
+			hasLoadedStats,
+			statsLoading,
+			projectPath,
+		})
+	) {
+		return;
+	}
+
+	const currentProjectPath = projectPath;
+	if (!currentProjectPath) {
 		return;
 	}
 
@@ -80,16 +82,10 @@ function ensureStatsLoaded() {
 	statsLoading = true;
 
 	if (enhancedRef.type === "commit" && enhancedRef.sha) {
-		void fetchCommitDiff(enhancedRef.sha, projectPath).then((result) => {
+		void fetchCommitDiff(enhancedRef.sha, currentProjectPath).then((result) => {
 			result.match(
 				(diff) => {
-					const stats = diff.files.reduce(
-						(acc, file) => ({
-							insertions: acc.insertions + (file.additions ?? 0),
-							deletions: acc.deletions + (file.deletions ?? 0),
-						}),
-						{ insertions: 0, deletions: 0 }
-					);
+					const stats = getGitHubDiffStats(diff.files);
 					insertions = stats.insertions;
 					deletions = stats.deletions;
 				},
@@ -105,13 +101,7 @@ function ensureStatsLoaded() {
 			result.match(
 				(diff) => {
 					prState = diff.pr.state;
-					const stats = diff.files.reduce(
-						(acc, file) => ({
-							insertions: acc.insertions + (file.additions ?? 0),
-							deletions: acc.deletions + (file.deletions ?? 0),
-						}),
-						{ insertions: 0, deletions: 0 }
-					);
+					const stats = getGitHubDiffStats(diff.files);
 					insertions = stats.insertions;
 					deletions = stats.deletions;
 				},
@@ -161,8 +151,7 @@ function handleFocus() {
 }
 
 function getTextToCopy(): string {
-	if (enhancedRef.type === "commit") return enhancedRef.sha;
-	return `${enhancedRef.owner}/${enhancedRef.repo}#${enhancedRef.number}`;
+	return getGitHubBadgeCopyText(enhancedRef);
 }
 </script>
 
