@@ -34,6 +34,13 @@ import { getExitPlanDisplayPlan } from "../tool-calls/exit-plan-helpers.js";
 import { isExitPlanPermission } from "../../utils/exit-plan-permission.js";
 import { projectQueueItemActivity } from "./queue-item-display.js";
 import {
+	getQueueItemStatusText,
+	getQueueItemTodoProgress,
+	getQueuePlanApprovalPrompt,
+	getQueuePlanApprovalToolCall,
+	shouldShowQueueItemShimmer,
+} from "./queue-item-display-state.js";
+import {
 	buildQueueItemQuestionUiState,
 	type QuestionSelectionReader,
 } from "./queue-item-question-ui-state.js";
@@ -204,30 +211,22 @@ const isThinking = $derived(item.state.activity.kind === "thinking");
 const hasError = $derived(item.state.connection === "error" || item.connectionError !== null);
 
 const statusText = $derived.by(() => {
-	if (hasPendingQuestion || hasPendingPlanApproval) return null;
-	if (isThinking) {
-		return "Thinking";
-	}
-	if (item.pendingText) {
-		return item.pendingText;
-	}
-	// Show error message in attention queue when session has error
-	if (hasError && item.urgency.detail) {
-		return item.urgency.detail;
-	}
-	return null;
+	return getQueueItemStatusText({
+		hasPendingQuestion,
+		hasPendingPlanApproval,
+		isThinking,
+		pendingText: item.pendingText,
+		hasError,
+		urgencyDetail: item.urgency.detail,
+	});
 });
 
-const showShimmer = $derived(isThinking && !hasPendingQuestion && !hasPendingPlanApproval);
+const showShimmer = $derived(
+	shouldShowQueueItemShimmer({ isThinking, hasPendingQuestion, hasPendingPlanApproval })
+);
 
 const todoProgress = $derived<ActivityEntryTodoProgress | null>(
-	item.todoProgress
-		? {
-				current: item.todoProgress.current,
-				total: item.todoProgress.total,
-				label: item.todoProgress.label,
-			}
-		: null
+	getQueueItemTodoProgress(item.todoProgress)
 );
 
 const activityProjection = $derived.by(() =>
@@ -244,27 +243,14 @@ const displayedToolIsStreaming = $derived(activityProjection.isStreaming);
 const effectiveToolCall = $derived(activityProjection.toolCall);
 const effectiveToolKind = $derived(activityProjection.toolKind);
 const planApprovalToolCall = $derived.by(() => {
-	if (!pendingPlanApproval) {
-		return null;
-	}
-
-	if (effectiveToolCall?.id === pendingPlanApproval.tool.callID) {
-		return effectiveToolCall;
-	}
-
-	if (item.currentStreamingToolCall?.id === pendingPlanApproval.tool.callID) {
-		return item.currentStreamingToolCall;
-	}
-
-	if (item.lastToolCall?.id === pendingPlanApproval.tool.callID) {
-		return item.lastToolCall;
-	}
-
-	return null;
+	return getQueuePlanApprovalToolCall({
+		pendingPlanApproval,
+		effectiveToolCall,
+		currentStreamingToolCall: item.currentStreamingToolCall,
+		lastToolCall: item.lastToolCall,
+	});
 });
-const planApprovalPrompt = $derived(
-	planApprovalToolCall?.normalizedQuestions?.[0]?.question ?? "Creating plan"
-);
+const planApprovalPrompt = $derived(getQueuePlanApprovalPrompt(planApprovalToolCall));
 
 const toolContent = $derived(activityProjection.toolContent);
 const isFileTool = $derived(activityProjection.isFileTool);
