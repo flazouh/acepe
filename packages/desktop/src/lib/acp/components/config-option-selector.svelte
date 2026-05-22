@@ -10,6 +10,10 @@ import type { ConfigOptionData } from "../../services/converted-session-types.js
 
 import { Colors } from "@acepe/ui/colors";
 import { resolveConfigOptionIconState } from "./config-option-selector-icon-state.js";
+import {
+	buildConfigOptionSelectorState,
+	getNextBooleanConfigOptionValue,
+} from "./config-option-selector-state.js";
 
 interface ConfigOptionSelectorProps {
 	configOption: ConfigOptionData;
@@ -19,83 +23,13 @@ interface ConfigOptionSelectorProps {
 
 let { configOption, onValueChange, disabled = false }: ConfigOptionSelectorProps = $props();
 
-function includesNormalizedFragment(value: string, fragment: string): boolean {
-	return value.toLowerCase().includes(fragment);
-}
-
-function isBooleanOption(configOption: ConfigOptionData): boolean {
-	if (configOption.type === "boolean") {
-		return true;
-	}
-
-	if (typeof configOption.currentValue === "boolean") {
-		return true;
-	}
-
-	if (typeof configOption.currentValue !== "string") {
-		return false;
-	}
-
-	const normalizedValue = configOption.currentValue.toLowerCase();
-	return normalizedValue === "true" || normalizedValue === "false";
-}
-
-function isReasoningOption(configOption: ConfigOptionData): boolean {
-	return (
-		includesNormalizedFragment(configOption.category, "thought") ||
-		includesNormalizedFragment(configOption.category, "reason") ||
-		includesNormalizedFragment(configOption.id, "thought") ||
-		includesNormalizedFragment(configOption.id, "reason") ||
-		includesNormalizedFragment(configOption.name, "reason")
-	);
-}
-
-function isFastOption(configOption: ConfigOptionData): boolean {
-	return (
-		includesNormalizedFragment(configOption.category, "fast") ||
-		includesNormalizedFragment(configOption.category, "tier") ||
-		includesNormalizedFragment(configOption.id, "fast") ||
-		includesNormalizedFragment(configOption.id, "tier") ||
-		includesNormalizedFragment(configOption.name, "fast") ||
-		includesNormalizedFragment(configOption.name, "tier")
-	);
-}
-
-// Normalize currentValue to string once for all comparisons
-const currentValue = $derived(
-	configOption.currentValue != null ? String(configOption.currentValue) : null
-);
-
-const isBooleanConfigOption = $derived(isBooleanOption(configOption));
-
-const isBooleanEnabled = $derived.by(() => {
-	if (!isBooleanConfigOption || currentValue == null) {
-		return false;
-	}
-
-	const normalizedValue = currentValue.toLowerCase();
-	return normalizedValue === "true" || normalizedValue === "on" || normalizedValue === "enabled";
-});
-
-const isReasoningConfigOption = $derived(isReasoningOption(configOption));
-const isFastConfigOption = $derived(isFastOption(configOption));
-
-const currentValueLabel = $derived.by(() => {
-	const options = configOption.options;
-	if (options && currentValue != null) {
-		return options.find((opt) => String(opt.value) === currentValue)?.name ?? currentValue;
-	}
-
-	if (isBooleanConfigOption) {
-		return isBooleanEnabled ? "On" : "Off";
-	}
-
-	if (currentValue != null) {
-		return currentValue;
-	}
-
-	return configOption.name;
-});
+const selectorState = $derived(buildConfigOptionSelectorState(configOption));
+const currentValue = $derived(selectorState.currentValue);
+const isBooleanConfigOption = $derived(selectorState.isBoolean);
+const isBooleanEnabled = $derived(selectorState.isBooleanEnabled);
+const isReasoningConfigOption = $derived(selectorState.kind === "reasoning");
+const isFastConfigOption = $derived(selectorState.kind === "fast");
+const currentValueLabel = $derived(selectorState.currentValueLabel);
 
 const iconColor = $derived.by(() => {
 	if (isFastConfigOption) {
@@ -138,7 +72,7 @@ function handleBooleanToggle() {
 		return;
 	}
 
-	const nextValue = isBooleanEnabled ? "false" : "true";
+	const nextValue = getNextBooleanConfigOptionValue(isBooleanEnabled);
 	if (nextValue !== currentValue) {
 		void onValueChange(configOption.id, nextValue);
 	}
