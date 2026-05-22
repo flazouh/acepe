@@ -2,6 +2,12 @@ export interface BranchPrefixOption {
 	readonly value: string;
 }
 
+export type BranchListDisplayState =
+	| { readonly kind: "loading"; readonly message: "Loading..." }
+	| { readonly kind: "failed"; readonly message: "Could not load branches" }
+	| { readonly kind: "empty"; readonly message: "No branches found" }
+	| { readonly kind: "branches"; readonly branches: readonly string[] };
+
 export function filterBranchesByQuery(
 	branches: readonly string[],
 	query: string
@@ -63,4 +69,21 @@ export function shouldLoadBranchList(input: {
 
 export function getWorktreeBranches(currentBranch: string | null): string[] {
 	return currentBranch ? [currentBranch] : [];
+}
+
+export function getBranchListDisplayState(input: {
+	readonly loadingBranches: boolean;
+	readonly branchLoadFailed: boolean;
+	readonly filteredBranches: readonly string[];
+}): BranchListDisplayState {
+	if (input.loadingBranches) {
+		return { kind: "loading", message: "Loading..." };
+	}
+	if (input.branchLoadFailed) {
+		return { kind: "failed", message: "Could not load branches" };
+	}
+	if (input.filteredBranches.length === 0) {
+		return { kind: "empty", message: "No branches found" };
+	}
+	return { kind: "branches", branches: input.filteredBranches };
 }

@@ -4,6 +4,7 @@ import {
 	branchExists,
 	canCreateBranch,
 	filterBranchesByQuery,
+	getBranchListDisplayState,
 	getFullBranchName,
 	getNewBranchNameError,
 	getNormalizedBranchName,
@@ -124,5 +125,39 @@ describe("branch picker state", () => {
 	it("uses only the current branch for worktrees", () => {
 		expect(getWorktreeBranches("feature")).toEqual(["feature"]);
 		expect(getWorktreeBranches(null)).toEqual([]);
+	});
+
+	it("describes the branch list display state", () => {
+		expect(
+			getBranchListDisplayState({
+				loadingBranches: true,
+				branchLoadFailed: false,
+				filteredBranches: ["main"],
+			})
+		).toEqual({ kind: "loading", message: "Loading..." });
+
+		expect(
+			getBranchListDisplayState({
+				loadingBranches: false,
+				branchLoadFailed: true,
+				filteredBranches: ["main"],
+			})
+		).toEqual({ kind: "failed", message: "Could not load branches" });
+
+		expect(
+			getBranchListDisplayState({
+				loadingBranches: false,
+				branchLoadFailed: false,
+				filteredBranches: [],
+			})
+		).toEqual({ kind: "empty", message: "No branches found" });
+
+		expect(
+			getBranchListDisplayState({
+				loadingBranches: false,
+				branchLoadFailed: false,
+				filteredBranches: ["main", "feat/chat"],
+			})
+		).toEqual({ kind: "branches", branches: ["main", "feat/chat"] });
 	});
 });

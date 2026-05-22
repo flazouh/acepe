@@ -24,6 +24,7 @@ import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
 	canCreateBranch as getCanCreateBranch,
 	filterBranchesByQuery,
+	getBranchListDisplayState,
 	getFullBranchName,
 	getNewBranchNameError,
 	getNormalizedBranchName,
@@ -91,6 +92,13 @@ const minimalTriggerClass =
 	"!border-0 !h-[26px] rounded-md hover:rounded-full transition-[border-radius]";
 
 const filteredBranches = $derived(filterBranchesByQuery(branches, branchQuery));
+const branchListDisplay = $derived(
+	getBranchListDisplayState({
+		loadingBranches,
+		branchLoadFailed,
+		filteredBranches,
+	})
+);
 const normalizedNewBranchName = $derived(getNormalizedBranchName(newBranchName));
 const fullBranchName = $derived(getFullBranchName({ prefix: selectedPrefix, branchName: newBranchName }));
 const newBranchNameError = $derived(
@@ -245,14 +253,16 @@ function openCreateBranchDialog(): void {
 		<div
 			class="max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
 		>
-			{#if loadingBranches}
-				<div class="px-2 py-1 text-[11px] text-muted-foreground/60 font-mono">Loading...</div>
-			{:else if branchLoadFailed}
-				<div class="px-2 py-1 text-[11px] text-muted-foreground/60">Could not load branches</div>
-			{:else if filteredBranches.length === 0}
-				<div class="px-2 py-1 text-[11px] text-muted-foreground/60">No branches found</div>
+			{#if branchListDisplay.kind === "loading"}
+				<div class="px-2 py-1 text-[11px] text-muted-foreground/60 font-mono">
+					{branchListDisplay.message}
+				</div>
+			{:else if branchListDisplay.kind === "failed" || branchListDisplay.kind === "empty"}
+				<div class="px-2 py-1 text-[11px] text-muted-foreground/60">
+					{branchListDisplay.message}
+				</div>
 			{:else}
-				{#each filteredBranches as branch (branch)}
+				{#each branchListDisplay.branches as branch (branch)}
 					<DropdownMenu.Item
 						onSelect={() => handleSwitchBranch(branch, false)}
 						class={cn(branch === currentBranch && "bg-accent")}
