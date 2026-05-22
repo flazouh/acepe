@@ -3,7 +3,7 @@ import { CaretDown } from "phosphor-svelte";
 import { CaretRight } from "phosphor-svelte";
 
 import type { StructuredData } from "./format/types.js";
-import { isStructuredContainer, toStructuredEntries } from "./format/parsers/structured.js";
+import { buildStructuredNavNodeDisplayState } from "./file-panel-structured-nav-node-state.js";
 import FilePanelStructuredNavNode from "./file-panel-structured-nav-node.svelte";
 
 interface Props {
@@ -26,12 +26,9 @@ let {
 	initiallyExpanded = false,
 }: Props = $props();
 
-const isContainer = $derived(isStructuredContainer(value));
-const entries = $derived.by(() => {
-	if (!isContainer) return [];
-	return toStructuredEntries(value);
-});
-const isExpandable = $derived(isContainer && entries.length > 0);
+const nodeState = $derived.by(() =>
+	buildStructuredNavNodeDisplayState({ value, label, depth, currentPath, selectedPath })
+);
 
 let isExpanded = $state(false);
 let hasInitialized = $state(false);
@@ -43,21 +40,8 @@ $effect(() => {
 	}
 });
 
-const isSelected = $derived(
-	currentPath.length === selectedPath.length &&
-		currentPath.every((seg, i) => seg === selectedPath[i])
-);
-
-const displayLabel = $derived.by(() => {
-	if (label === null) return "/";
-	if (/^\d+$/.test(label)) return `[${label}]`;
-	return label;
-});
-
-const leftPadding = $derived(`${depth * 12 + 8}px`);
-
 function handleClick() {
-	if (isExpandable) {
+	if (nodeState.isExpandable) {
 		isExpanded = !isExpanded;
 	}
 	onSelect(currentPath);
@@ -72,15 +56,15 @@ function handleKeyDown(e: KeyboardEvent) {
 </script>
 
 <div
-	class="nav-item {isSelected ? 'nav-item-selected' : ''}"
-	style={`padding-left: ${leftPadding};`}
+	class="nav-item {nodeState.isSelected ? 'nav-item-selected' : ''}"
+	style={`padding-left: ${nodeState.leftPadding};`}
 	role="button"
 	tabindex="0"
 	onclick={handleClick}
 	onkeydown={handleKeyDown}
 >
 	<span class="nav-caret">
-		{#if isExpandable}
+		{#if nodeState.isExpandable}
 			{#if isExpanded}
 				<CaretDown class="h-3 w-3" weight="bold" />
 			{:else}
@@ -88,11 +72,11 @@ function handleKeyDown(e: KeyboardEvent) {
 			{/if}
 		{/if}
 	</span>
-	<span class="nav-label">{displayLabel}</span>
+	<span class="nav-label">{nodeState.displayLabel}</span>
 </div>
 
-{#if isExpanded && isContainer}
-	{#each entries as entry (entry.key)}
+{#if isExpanded && nodeState.isContainer}
+	{#each nodeState.entries as entry (entry.key)}
 		<FilePanelStructuredNavNode
 			value={entry.value}
 			label={entry.key}
