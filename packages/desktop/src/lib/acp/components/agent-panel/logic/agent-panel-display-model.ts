@@ -77,6 +77,11 @@ export interface AgentPanelDisplaySceneEntriesReadModel {
 		readonly memory: AgentPanelDisplayMemory;
 		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	}): readonly AgentPanelSceneEntryModel[];
+	applyPatch(input: {
+		readonly model: AgentPanelDisplayModel;
+		readonly memory: AgentPanelDisplayMemory;
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	}): readonly AgentPanelSceneEntryModel[] | null;
 }
 
 export type AgentPanelDisplayScenePatch = {
@@ -1255,16 +1260,71 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 	> | null = null;
 	let previousDisplayedSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 
+	function applyGraphScenePatchIndexes(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): boolean {
+		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+		if (
+			graphScenePatch?.baseSceneEntries !== previousSceneEntries ||
+			!canKeepSceneEntryIndexesForGraphPatch(graphScenePatch.entries, sceneEntryIndexesById)
+		) {
+			return false;
+		}
+		previousSceneEntries = sceneEntries;
+		return true;
+	}
+
+	function selectAssistantRows(
+		model: AgentPanelDisplayModel
+	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
+		let assistantRowsById = previousAssistantRowsById;
+		if (
+			assistantRowsById === null ||
+			previousModelRows !== model.rows ||
+			previousModelTurnState !== model.turnState
+		) {
+			assistantRowsById = selectAssistantRowsForScenePatch(model);
+			previousAssistantRowsById = assistantRowsById;
+			previousModelRows = model.rows;
+			previousModelTurnState = model.turnState;
+		}
+		return assistantRowsById;
+	}
+
+	function applyDisplaySceneEntries(
+		model: AgentPanelDisplayModel,
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly AgentPanelSceneEntryModel[] {
+		const assistantRowsById = selectAssistantRows(model);
+		if (
+			previousPatchedSceneEntries === sceneEntries &&
+			previousPatchedAssistantRowsById === assistantRowsById &&
+			previousDisplayedSceneEntries !== null
+		) {
+			return previousDisplayedSceneEntries;
+		}
+
+		const indexedEntries = applyAssistantDisplayRowsToSceneEntriesByIndex(
+			assistantRowsById,
+			sceneEntries,
+			sceneEntryIndexesById
+		);
+		const displayedEntries =
+			indexedEntries ??
+			applyAssistantDisplayRowsToSceneEntriesByScan(assistantRowsById, sceneEntries);
+		previousPatchedSceneEntries = sceneEntries;
+		previousPatchedAssistantRowsById = assistantRowsById;
+		previousDisplayedSceneEntries = displayedEntries;
+		return displayedEntries;
+	}
+
 	return {
 		apply({ model, sceneEntries }) {
 			if (sceneEntries !== previousSceneEntries) {
-				const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+				if (applyGraphScenePatchIndexes(sceneEntries)) {
+					return applyDisplaySceneEntries(model, sceneEntries);
+				}
 				if (
-					graphScenePatch?.baseSceneEntries === previousSceneEntries &&
-					canKeepSceneEntryIndexesForGraphPatch(graphScenePatch.entries, sceneEntryIndexesById)
-				) {
-					// Patched scene entries keep their ids, so the cached id -> index map is still valid.
-				} else if (
 					previousSceneEntries !== null &&
 					isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 				) {
@@ -1294,44 +1354,13 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				previousSceneEntries = sceneEntries;
 			}
 
-			let assistantRowsById = previousAssistantRowsById;
-			if (
-				assistantRowsById === null ||
-				previousModelRows !== model.rows ||
-				previousModelTurnState !== model.turnState
-			) {
-				assistantRowsById = selectAssistantRowsForScenePatch(model);
-				previousAssistantRowsById = assistantRowsById;
-				previousModelRows = model.rows;
-				previousModelTurnState = model.turnState;
+			return applyDisplaySceneEntries(model, sceneEntries);
+		},
+		applyPatch({ model, sceneEntries }) {
+			if (!applyGraphScenePatchIndexes(sceneEntries)) {
+				return null;
 			}
-			if (
-				previousPatchedSceneEntries === sceneEntries &&
-				previousPatchedAssistantRowsById === assistantRowsById &&
-				previousDisplayedSceneEntries !== null
-			) {
-				return previousDisplayedSceneEntries;
-			}
-
-			const indexedEntries = applyAssistantDisplayRowsToSceneEntriesByIndex(
-				assistantRowsById,
-				sceneEntries,
-				sceneEntryIndexesById
-			);
-			if (indexedEntries !== null) {
-				previousPatchedSceneEntries = sceneEntries;
-				previousPatchedAssistantRowsById = assistantRowsById;
-				previousDisplayedSceneEntries = indexedEntries;
-				return indexedEntries;
-			}
-			const displayedEntries = applyAssistantDisplayRowsToSceneEntriesByScan(
-				assistantRowsById,
-				sceneEntries
-			);
-			previousPatchedSceneEntries = sceneEntries;
-			previousPatchedAssistantRowsById = assistantRowsById;
-			previousDisplayedSceneEntries = displayedEntries;
-			return displayedEntries;
+			return applyDisplaySceneEntries(model, sceneEntries);
 		},
 	};
 }

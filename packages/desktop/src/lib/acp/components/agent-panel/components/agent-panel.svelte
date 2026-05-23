@@ -903,11 +903,15 @@ const agentPanelDisplayResult = $derived.by(() => {
 });
 const agentPanelDisplayModel = $derived(agentPanelDisplayResult.model);
 const graphSceneEntries = $derived.by(() => {
-	return agentPanelDisplaySceneEntriesReadModel.apply({
+	const input = {
 		model: agentPanelDisplayModel,
 		memory: agentPanelDisplayResult.memory,
 		sceneEntries: graphMaterializedScene.conversation.entries,
-	});
+	};
+	return (
+		agentPanelDisplaySceneEntriesReadModel.applyPatch(input) ??
+		agentPanelDisplaySceneEntriesReadModel.apply(input)
+	);
 });
 const tokenRevealSceneEntries = $derived.by(() => {
 	tokenRevealSettleRevision;

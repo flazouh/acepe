@@ -393,7 +393,7 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		});
 	});
 
-	it("keeps the cached scene entry index for marked graph patches without scanning unchanged scene entries", () => {
+	it("applies marked graph patches without scanning unchanged scene entries", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
 			id: "user-1",
@@ -448,12 +448,16 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		});
 
 		try {
-			const displayedEntries = readModel.apply({
+			const displayedEntries = readModel.applyPatch({
 				model,
 				memory: createAgentPanelDisplayMemory(),
 				sceneEntries: patchedEntries,
 			});
 
+			expect(displayedEntries).not.toBeNull();
+			if (displayedEntries === null) {
+				return;
+			}
 			expect(displayedEntries[0]).toBe(userEntry);
 			expect(displayedEntries[1]).toMatchObject({
 				id: "assistant-1",
@@ -466,6 +470,39 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 				value: userEntry,
 			});
 		}
+	});
+
+	it("does not treat unmarked scene entries as display scene entry patches", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "completed",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: true, showStop: false },
+			rows: [{ id: "user-1", type: "user", text: "Prompt" }],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry],
+		});
+
+		expect(
+			readModel.applyPatch({
+				model,
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: [userEntry],
+			})
+		).toBeNull();
 	});
 });
 
