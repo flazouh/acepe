@@ -1032,7 +1032,7 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(truncatedProjection).toBe(firstProjection);
 	});
 
-	it("reuses display row projection for marked non-display graph patches without scanning unchanged entries", () => {
+	it("applies marked non-display graph patches without scanning unchanged entries", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
 			id: "user-1",
@@ -1067,12 +1067,16 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		});
 
 		try {
-			const nextProjection = readModel.applySnapshot({
+			const nextProjection = readModel.applyPatch({
 				sceneEntries: patchedEntries,
 				transcriptRevision: 2,
 			});
 
 			expect(nextProjection).toBe(firstProjection);
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
 			expect(nextProjection.rows).toHaveLength(1);
 			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
 		} finally {
@@ -1081,5 +1085,25 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 				value: userEntry,
 			});
 		}
+	});
+
+	it("does not treat unmarked scene entries as display row patches", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+
+		expect(
+			readModel.applyPatch({
+				sceneEntries: [userEntry],
+				transcriptRevision: 2,
+			})
+		).toBeNull();
 	});
 });

@@ -168,6 +168,10 @@ export interface AgentPanelDisplayRowsReadModel {
 		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 		readonly transcriptRevision: number;
 	}): AgentPanelDisplayRowsProjection;
+	applyPatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null;
 	selectProjection(): AgentPanelDisplayRowsProjection;
 }
 
@@ -179,6 +183,22 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 		hasLiveTail: false,
 	};
 
+	function applyGraphScenePatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null {
+		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(input.sceneEntries);
+		if (
+			graphScenePatch?.baseSceneEntries !== previousSceneEntries ||
+			!areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entries)
+		) {
+			return null;
+		}
+		previousSceneEntries = input.sceneEntries;
+		previousTranscriptRevision = input.transcriptRevision;
+		return previousProjection;
+	}
+
 	return {
 		applySnapshot({ sceneEntries, transcriptRevision }) {
 			if (
@@ -188,14 +208,9 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				return previousProjection;
 			}
 
-			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
-			if (
-				graphScenePatch?.baseSceneEntries === previousSceneEntries &&
-				areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entries)
-			) {
-				previousSceneEntries = sceneEntries;
-				previousTranscriptRevision = transcriptRevision;
-				return previousProjection;
+			const graphPatchProjection = applyGraphScenePatch({ sceneEntries, transcriptRevision });
+			if (graphPatchProjection !== null) {
+				return graphPatchProjection;
 			}
 
 			if (
@@ -245,6 +260,9 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			previousSceneEntries = sceneEntries;
 			previousTranscriptRevision = transcriptRevision;
 			return previousProjection;
+		},
+		applyPatch(input) {
+			return applyGraphScenePatch(input);
 		},
 		selectProjection() {
 			return previousProjection;
@@ -538,6 +556,10 @@ export function buildAgentPanelBaseModel(input: AgentPanelDisplayInput): AgentPa
 	const graph = input.graph;
 	const transcriptRevision = graph?.revision.transcriptRevision ?? 0;
 	const rowProjection =
+		input.rows?.applyPatch({
+			sceneEntries: input.sceneEntries,
+			transcriptRevision,
+		}) ??
 		input.rows?.applySnapshot({
 			sceneEntries: input.sceneEntries,
 			transcriptRevision,
