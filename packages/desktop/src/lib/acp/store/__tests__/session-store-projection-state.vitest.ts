@@ -320,6 +320,71 @@ afterEach(() => {
 });
 
 describe("SessionStore.applySessionStateGraph", () => {
+	it("drops session-state envelopes whose session id does not match the target session", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const initialGraph = createSessionStateGraph({
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			turnState: "Running",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			lifecycle: createGraphLifecycle("ready"),
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-1",
+				blockingInteractionId: null,
+			},
+		});
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-2",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: createIdleActivity(),
+					turnState: "Completed",
+					activeTurnFailure: null,
+					lastTerminalTurnId: "turn-8",
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity", "turnState", "lastTerminalTurnId"],
+				},
+			},
+		});
+
+		const graph = store.getSessionStateGraphForTest("session-1");
+		expect(graph?.revision).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		});
+		expect(graph?.turnState).toBe("Running");
+		expect(graph?.activity.kind).toBe("running_operation");
+		expect(graph?.lastTerminalTurnId).not.toBe("turn-8");
+	});
+
 	it("treats raw assistant chunks as diagnostic and leaves transcript entries unchanged", () => {
 		const store = new SessionStore();
 		addColdSession(store);
