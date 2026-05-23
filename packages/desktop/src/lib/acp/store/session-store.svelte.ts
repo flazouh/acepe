@@ -644,7 +644,7 @@ function replaceTranscriptEntry(
 	const currentIndex = getTranscriptEntryIndex(entries);
 	const index = currentIndex.get(nextEntry.entryId);
 	if (index === undefined) {
-		const nextEntries = entries.concat([nextEntry]);
+		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
 		transcriptEntryIndexes.set(
 			nextEntries,
 			new Map(currentIndex).set(nextEntry.entryId, entries.length)
@@ -656,8 +656,11 @@ function replaceTranscriptEntry(
 		return entries as TranscriptEntry[];
 	}
 
-	const nextEntries = entries.slice();
-	nextEntries[index] = nextEntry;
+	const nextEntries = createPatchedTranscriptEntryArray(
+		entries,
+		new Map([[index, nextEntry]]),
+		null
+	);
 	transcriptEntryIndexes.set(nextEntries, currentIndex);
 	return nextEntries;
 }
@@ -676,7 +679,7 @@ function appendTranscriptSegment(
 			role,
 			segments: [segment],
 		};
-		const nextEntries = entries.concat([nextEntry]);
+		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
 		transcriptEntryIndexes.set(
 			nextEntries,
 			new Map(currentIndex).set(entryId, entries.length)
@@ -685,27 +688,102 @@ function appendTranscriptSegment(
 	}
 
 	if (entries[index]?.role !== role) {
-		return entries.concat([
-			{
-				entryId,
-				role,
-				segments: [segment],
-			},
-		]);
+		const nextEntry = {
+			entryId,
+			role,
+			segments: [segment],
+		};
+		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
+		transcriptEntryIndexes.set(
+			nextEntries,
+			new Map(currentIndex).set(entryId, entries.length)
+		);
+		return nextEntries;
 	}
 
 	const entry = entries[index];
 	if (entry === undefined) {
 		return entries as TranscriptEntry[];
 	}
-	const nextEntries = entries.slice();
-	nextEntries[index] = {
-		entryId: entry.entryId,
-		role: entry.role,
-		segments: entry.segments.concat([segment]),
-	};
+	const nextEntries = createPatchedTranscriptEntryArray(
+		entries,
+		new Map([
+			[
+				index,
+				{
+					entryId: entry.entryId,
+					role: entry.role,
+					segments: entry.segments.concat([segment]),
+				},
+			],
+		]),
+		null
+	);
 	transcriptEntryIndexes.set(nextEntries, currentIndex);
 	return nextEntries;
+}
+
+function createPatchedTranscriptEntryArray(
+	base: readonly TranscriptEntry[],
+	patchedIndexes: ReadonlyMap<number, TranscriptEntry> | null,
+	appendedEntries: readonly TranscriptEntry[] | null
+): TranscriptEntry[] {
+	const appended = appendedEntries ?? [];
+	const target = new Array<TranscriptEntry>(base.length + appended.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectPatchedTranscriptEntry(base, patchedIndexes, appended, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectPatchedTranscriptEntry(base, patchedIndexes, appended, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectPatchedTranscriptEntry(base, patchedIndexes, appended, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function selectPatchedTranscriptEntry(
+	base: readonly TranscriptEntry[],
+	patchedIndexes: ReadonlyMap<number, TranscriptEntry> | null,
+	appended: readonly TranscriptEntry[],
+	index: number
+): TranscriptEntry | undefined {
+	if (index < base.length) {
+		return patchedIndexes?.get(index) ?? base[index];
+	}
+	return appended[index - base.length];
 }
 
 export function applyTranscriptDeltaToSnapshot(
