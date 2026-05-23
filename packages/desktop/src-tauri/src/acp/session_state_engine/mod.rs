@@ -12,7 +12,10 @@ pub mod snapshot_builder;
 pub use bridge::{
     build_delta_envelope, build_snapshot_envelope, DeltaEnvelopeParts, DeltaSessionProjectionFields,
 };
-pub use envelope::SessionStateEnvelope;
+pub use envelope::{
+    session_state_envelope_byte_budget_status, SessionStateEnvelope,
+    SessionStateEnvelopeByteBudgetStatus, SessionStatePayloadKind,
+};
 pub use frontier::{FrontierFallbackReason, SessionFrontierDecision};
 pub use graph::{ActiveStreamingTail, ActiveStreamingTailContentKind, SessionStateGraph};
 pub use protocol::{

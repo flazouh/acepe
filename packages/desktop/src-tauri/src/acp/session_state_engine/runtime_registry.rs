@@ -11,8 +11,9 @@ use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::{
-    build_delta_envelope, CapabilityPreviewState, DeltaEnvelopeParts, DeltaSessionProjectionFields,
-    SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
+    build_delta_envelope, session_state_envelope_byte_budget_status, CapabilityPreviewState,
+    DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
+    SessionStatePayload,
 };
 use crate::acp::session_update::{sanitize_config_options_for_canonical, SessionUpdate};
 use crate::acp::transcript_projection::{
@@ -825,7 +826,7 @@ fn build_assistant_text_delta_from_components(
     };
     let row_id = sanitize_row_id(row_entry_id);
     let turn_id = assistant_turn_id_from_snapshot(snapshot, row_index, &row_id);
-    Some(build_assistant_text_delta_state_envelope(
+    let envelope = build_assistant_text_delta_state_envelope(
         session_id,
         revision,
         AssistantTextDeltaPayload {
@@ -836,7 +837,18 @@ fn build_assistant_text_delta_from_components(
             produced_at_monotonic_ms: *produced_at_monotonic_ms,
             revision: revision.transcript_revision,
         },
-    ))
+    );
+    if let Err(status) = session_state_envelope_byte_budget_status(&envelope) {
+        tracing::warn!(
+            session_id,
+            row_entry_id,
+            byte_len = status.byte_len,
+            max_bytes = status.max_bytes,
+            "Skipping oversized assistant text delta envelope"
+        );
+        return None;
+    }
+    Some(envelope)
 }
 
 fn build_assistant_text_delta_state_envelope(
@@ -1402,6 +1414,36 @@ mod tests {
             }
             other => panic!("expected assistant text delta payload, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn assistant_text_delta_envelope_respects_byte_budget_at_source() {
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let update = create_agent_message_chunk_update(
+            "session-1",
+            Some("assistant-1"),
+            &"x".repeat(8_000),
+            5,
+        );
+        let transcript_delta = transcript_projection_registry
+            .apply_session_update(1, &update)
+            .expect("transcript delta");
+        let snapshot = transcript_projection_registry
+            .snapshot_for_session("session-1")
+            .expect("transcript snapshot");
+
+        let envelope = build_assistant_text_delta_from_components(
+            "session-1",
+            &update,
+            &transcript_delta,
+            &snapshot,
+            SessionGraphRevision::new(1, 1, 1),
+        );
+
+        assert!(
+            envelope.is_none(),
+            "oversized assistant text deltas should fall back to regular transcript delivery"
+        );
     }
 
     fn assert_hot_tool_delta_contract(envelope: &SessionStateEnvelope) {
