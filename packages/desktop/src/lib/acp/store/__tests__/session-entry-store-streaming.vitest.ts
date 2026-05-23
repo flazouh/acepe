@@ -398,6 +398,81 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		}
 	});
 
+	it("applies batch transcript deltas without copying the stored entry list", () => {
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 5,
+				entries: [
+					{
+						entryId: "user-1",
+						role: "user",
+						segments: [{ kind: "text", segmentId: "user-1:block:0", text: "hello" }],
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:00.000Z")
+		);
+		const entries = readStoredEntries(store, "session-1");
+		const originalSlice = entries.slice;
+
+		entries.slice = () => {
+			throw new Error("must not copy whole stored entry list for batch transcript deltas");
+		};
+
+		try {
+			store.applyTranscriptDelta(
+				"session-1",
+				{
+					eventSeq: 6,
+					sessionId: "session-1",
+					snapshotRevision: 6,
+					operations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:segment:0",
+										text: "hi",
+									},
+								],
+							},
+						},
+						{
+							kind: "appendSegment",
+							entryId: "assistant-1",
+							role: "assistant",
+							segment: {
+								kind: "text",
+								segmentId: "assistant-1:segment:1",
+								text: " there",
+							},
+						},
+					],
+				},
+				new Date("2026-04-16T00:00:01.000Z")
+			);
+
+			const nextEntries = readStoredEntries(store, "session-1");
+			expect(nextEntries).toHaveLength(2);
+			expect(nextEntries[0]).toBe(entries[0]);
+			expect(nextEntries[1]?.type).toBe("assistant");
+			if (nextEntries[1]?.type !== "assistant") {
+				throw new Error("expected assistant entry");
+			}
+			expect(nextEntries[1].message.chunks).toEqual([
+				{ type: "message", block: { type: "text", text: "hi" } },
+				{ type: "message", block: { type: "text", text: " there" } },
+			]);
+		} finally {
+			entries.slice = originalSlice;
+		}
+	});
+
 	it("applies user and tool transcript deltas with runtime side effects", () => {
 		const operationStore = new OperationStore();
 		store = new SessionEntryStore(operationStore);

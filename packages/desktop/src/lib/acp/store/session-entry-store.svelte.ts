@@ -225,7 +225,8 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		timestamp: Date
 	): void {
 		let entries = this.entriesById.get(sessionId) ?? [];
-		let nextEntries: SessionEntry[] | null = null;
+		let patchedIndexes: Map<number, SessionEntry> | null = null;
+		let appendedEntries: SessionEntry[] = [];
 		const appendedEntryIndexes = new Map<string, number>();
 		let replacedSnapshot = false;
 		const changedEntryIndexes = new Map<
@@ -239,9 +240,19 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				(replacedSnapshot ? undefined : this.entryIndex.getEntryIdIndex(sessionId, entryId))
 			);
 		};
-		const ensureMutableEntries = (): SessionEntry[] => {
-			nextEntries ??= entries.slice();
-			return nextEntries;
+		const readEntryAt = (index: number): SessionEntry | undefined => {
+			if (index < entries.length) {
+				return patchedIndexes?.get(index) ?? entries[index];
+			}
+			return appendedEntries[index - entries.length];
+		};
+		const writeEntryAt = (index: number, entry: SessionEntry): void => {
+			if (index < entries.length) {
+				patchedIndexes ??= new Map();
+				patchedIndexes.set(index, entry);
+				return;
+			}
+			appendedEntries[index - entries.length] = entry;
 		};
 		const recordChangedEntry = (
 			index: number,
@@ -256,7 +267,8 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				entries = convertTranscriptSnapshotToSessionEntries(operation.snapshot, timestamp).map(
 					(entry) => this.normalizeRuntimeEntry(entry)
 				);
-				nextEntries = entries;
+				patchedIndexes = null;
+				appendedEntries = [];
 				appendedEntryIndexes.clear();
 				entries.forEach((entry, index) => appendedEntryIndexes.set(entry.id, index));
 				replacedSnapshot = true;
@@ -270,14 +282,13 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				);
 				const existingIndex = resolveEntryIndex(operation.entry.entryId);
 				if (existingIndex === undefined) {
-					const mutableEntries = ensureMutableEntries();
-					appendedEntryIndexes.set(operation.entry.entryId, mutableEntries.length);
-					mutableEntries.push(convertedEntry);
-					recordChangedEntry(mutableEntries.length - 1, undefined, convertedEntry);
+					const nextIndex = entries.length + appendedEntries.length;
+					appendedEntryIndexes.set(operation.entry.entryId, nextIndex);
+					appendedEntries.push(convertedEntry);
+					recordChangedEntry(nextIndex, undefined, convertedEntry);
 				} else {
-					const mutableEntries = ensureMutableEntries();
-					const previousEntry = mutableEntries[existingIndex];
-					mutableEntries[existingIndex] = convertedEntry;
+					const previousEntry = readEntryAt(existingIndex);
+					writeEntryAt(existingIndex, convertedEntry);
 					recordChangedEntry(existingIndex, previousEntry, convertedEntry);
 				}
 				continue;
@@ -295,14 +306,14 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 						timestamp
 					)
 				);
-				const mutableEntries = ensureMutableEntries();
-				appendedEntryIndexes.set(operation.entryId, mutableEntries.length);
-				mutableEntries.push(nextEntry);
-				recordChangedEntry(mutableEntries.length - 1, undefined, nextEntry);
+				const nextIndex = entries.length + appendedEntries.length;
+				appendedEntryIndexes.set(operation.entryId, nextIndex);
+				appendedEntries.push(nextEntry);
+				recordChangedEntry(nextIndex, undefined, nextEntry);
 				continue;
 			}
 
-			const existingEntry = (nextEntries ?? entries)[existingIndex];
+			const existingEntry = readEntryAt(existingIndex);
 			if (existingEntry === undefined) {
 				continue;
 			}
@@ -313,21 +324,24 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			if (updatedEntry === null) {
 				continue;
 			}
-			const mutableEntries = ensureMutableEntries();
 			const normalizedEntry = this.normalizeRuntimeEntry(updatedEntry);
-			mutableEntries[existingIndex] = normalizedEntry;
+			writeEntryAt(existingIndex, normalizedEntry);
 			recordChangedEntry(existingIndex, existingEntry, normalizedEntry);
 		}
 
-		if (nextEntries !== null) {
+		if (replacedSnapshot) {
+			this.entriesById.set(sessionId, entries);
+			this.entryIndex.rebuildEntryIdIndex(sessionId, entries);
+			this.entryIndex.rebuildToolCallIdIndex(sessionId, entries);
+		} else if (patchedIndexes !== null || appendedEntries.length > 0) {
+			const nextEntries = createPatchedSessionEntryArray(
+				entries,
+				patchedIndexes,
+				appendedEntries.length === 0 ? null : appendedEntries
+			);
 			this.entriesById.set(sessionId, nextEntries);
-			if (replacedSnapshot) {
-				this.entryIndex.rebuildEntryIdIndex(sessionId, nextEntries);
-				this.entryIndex.rebuildToolCallIdIndex(sessionId, nextEntries);
-			} else {
-				for (const [index, change] of changedEntryIndexes) {
-					this.updateEntryIndexesForReplacement(sessionId, index, change.previous, change.next);
-				}
+			for (const [index, change] of changedEntryIndexes) {
+				this.updateEntryIndexesForReplacement(sessionId, index, change.previous, change.next);
 			}
 		}
 		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
