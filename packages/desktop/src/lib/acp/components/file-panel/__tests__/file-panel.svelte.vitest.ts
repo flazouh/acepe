@@ -58,6 +58,7 @@ vi.mock("../file-panel-structured-view.svelte", async () => ({
 const getFileContentMock = vi.fn();
 const getFileDiffMock = vi.fn();
 const getProjectGitStatusSummaryMapMock = vi.fn();
+const getProjectFileGitStatusSummaryMock = vi.fn();
 const getProjectGitStatusMock = vi.fn((_projectPath: string) => ({
 	match: () => Promise.resolve(undefined),
 }));
@@ -74,6 +75,8 @@ vi.mock("../../../services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
 		getProjectGitStatusSummaryMap: (projectPath: string) =>
 			getProjectGitStatusSummaryMapMock(projectPath),
+		getProjectFileGitStatusSummary: (projectPath: string, filePath: string) =>
+			getProjectFileGitStatusSummaryMock(projectPath, filePath),
 	},
 }));
 
@@ -136,6 +139,25 @@ describe("FilePanel", () => {
 				return Promise.resolve();
 			},
 		});
+		getProjectFileGitStatusSummaryMock.mockReset();
+		getProjectFileGitStatusSummaryMock.mockReturnValue({
+			match: (
+				onOk: (fileStatus: {
+					path: string;
+					status: string;
+					insertions: number;
+					deletions: number;
+				}) => void
+			) => {
+				onOk({
+					path: "src/file.ts",
+					status: "A",
+					insertions: 5,
+					deletions: 0,
+				});
+				return Promise.resolve();
+			},
+		});
 
 		getProjectGitStatusMock.mockClear();
 	});
@@ -158,13 +180,15 @@ describe("FilePanel", () => {
 
 		expect(getFileContentMock).not.toHaveBeenCalled();
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
+		expect(getProjectFileGitStatusSummaryMock).not.toHaveBeenCalled();
 
 		await waitFor(() => {
 			expect(view.getByTestId("insertions").textContent).toBe("5");
 			expect(view.getByTestId("deletions").textContent).toBe("0");
 		});
 
-		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledWith("/repo");
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "/repo/src/file.ts");
+		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
 		expect(getProjectGitStatusMock).not.toHaveBeenCalled();
 	});
 
@@ -180,27 +204,22 @@ describe("FilePanel", () => {
 			.spyOn(globalThis, "cancelAnimationFrame")
 			.mockImplementation(() => {});
 
-		getProjectGitStatusSummaryMapMock.mockReturnValue({
+		getProjectFileGitStatusSummaryMock.mockReturnValue({
 			match: (
-				onOk: (
-					statusMap: ReadonlyMap<
-						string,
-						{ path: string; status: string; insertions: number; deletions: number }
-					>
-				) => void
+				onOk: (fileStatus: {
+					path: string;
+					status: string;
+					insertions: number;
+					deletions: number;
+				}) => void
 			) => {
 				onOk(
-					new Map([
-						[
-							"src/file.ts",
-							{
-								path: "src/file.ts",
-								status: "M",
-								insertions: 5,
-								deletions: 1,
-							},
-						],
-					])
+					{
+						path: "src/file.ts",
+						status: "M",
+						insertions: 5,
+						deletions: 1,
+					}
 				);
 				return Promise.resolve();
 			},

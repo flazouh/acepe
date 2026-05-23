@@ -1,6 +1,6 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import { findGitStatusForFile, getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
+import { getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
@@ -58,14 +58,50 @@ function selectFileStatusFromSummaryMap(
 	projectPath: string,
 	filePath: string
 ): FileGitStatus | null {
+	for (const key of createFileStatusLookupKeys(projectPath, filePath)) {
+		const status = statusMap.get(key);
+		if (status !== undefined) {
+			return status;
+		}
+	}
+	return null;
+}
+
+function createFileStatusLookupKeys(projectPath: string, filePath: string): string[] {
+	const keys: string[] = [];
+	const seen = new Set<string>();
+
+	function addKey(value: string | null | undefined): void {
+		if (value === null || value === undefined || value.length === 0) {
+			return;
+		}
+		if (seen.has(value)) {
+			return;
+		}
+		seen.add(value);
+		keys.push(value);
+	}
+
 	const relativeFilePath = getRelativeFilePath(filePath, projectPath);
-	if (relativeFilePath === null) {
+	addKey(relativeFilePath);
+	addKey(normalizeGitStatusLookupKey(relativeFilePath));
+	addKey(normalizeGitStatusLookupKey(filePath));
+	return keys;
+}
+
+function normalizeGitStatusLookupKey(path: string | null | undefined): string | null {
+	if (path === null || path === undefined || path.length === 0) {
 		return null;
 	}
-	return (
-		statusMap.get(relativeFilePath) ??
-		findGitStatusForFile(Array.from(statusMap.values()), filePath, projectPath)
-	);
+
+	const normalizedSlashes = path.replaceAll("\\", "/");
+	if (normalizedSlashes.startsWith("./")) {
+		return normalizedSlashes.slice(2);
+	}
+	if (normalizedSlashes.startsWith("/")) {
+		return normalizedSlashes.slice(1);
+	}
+	return normalizedSlashes;
 }
 
 export function createGitStatusCache(options?: CreateGitStatusCacheOptions): GitStatusCacheApi {
@@ -166,7 +202,14 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	): ResultAsync<FileGitStatus | null, AppError> {
 		const cachedSummary = summaryCacheByProject.get(projectPath);
 		if (cachedSummary && cachedSummary.expiresAt > now()) {
-			return okAsync(selectFileStatusFromSummaryMap(cachedSummary.statusMap, projectPath, filePath));
+			const cachedFileStatus = selectFileStatusFromSummaryMap(
+				cachedSummary.statusMap,
+				projectPath,
+				filePath
+			);
+			if (cachedFileStatus !== null) {
+				return okAsync(cachedFileStatus);
+			}
 		}
 
 		const cacheKey = createFileSummaryCacheKey(projectPath, filePath);

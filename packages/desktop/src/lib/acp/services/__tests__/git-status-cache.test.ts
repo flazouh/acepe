@@ -196,6 +196,36 @@ describe("git status cache", () => {
 		expect(fileSummaryFetchCount).toBe(0);
 	});
 
+	it("does not scan a cached project summary map for one file lookup misses", async () => {
+		let fileSummaryFetchCount = 0;
+		const statuses = [
+			createStatus("src/one.ts", 1, 0),
+			createStatus("src/two.ts", 4, 2),
+		];
+
+		const cache = createGitStatusCache({
+			ttlMs: 2000,
+			now: () => 1000,
+			fetchGitStatusSummary: () => okAsync(statuses),
+			fetchFileGitStatusSummary: (_projectPath, filePath) => {
+				fileSummaryFetchCount += 1;
+				return okAsync(
+					filePath.endsWith("nested/two.ts") ? createStatus("nested/two.ts", 7, 3) : null
+				);
+			},
+		});
+
+		await cache.getProjectGitStatusSummaryMap("/repo");
+		const result = await cache.getProjectFileGitStatusSummary(
+			"/repo/nested",
+			"/repo/nested/two.ts"
+		);
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap()?.path).toBe("nested/two.ts");
+		expect(fileSummaryFetchCount).toBe(1);
+	});
+
 	it("invalidates full and summary status maps together", async () => {
 		let fullFetchCount = 0;
 		let summaryFetchCount = 0;
