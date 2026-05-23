@@ -191,6 +191,19 @@ export type SessionPaletteReference = {
 	readonly title: string | null;
 };
 
+type SnapshotWithId = {
+	readonly id: string;
+};
+
+const operationSnapshotIndexes = new WeakMap<
+	readonly OperationSnapshot[],
+	ReadonlyMap<string, number>
+>();
+const interactionSnapshotIndexes = new WeakMap<
+	readonly InteractionSnapshot[],
+	ReadonlyMap<string, number>
+>();
+
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
 	previous: SessionUsageTelemetry | undefined,
@@ -401,92 +414,79 @@ function graphWithCapabilities(
 	};
 }
 
-function mergeOperationSnapshots(
-	current: readonly OperationSnapshot[],
-	patches: readonly OperationSnapshot[]
-): OperationSnapshot[] {
-	const patchesById = new Map<string, OperationSnapshot>();
-	const appendedPatches: OperationSnapshot[] = [];
+function getSnapshotIndex<TSnapshot extends SnapshotWithId>(
+	snapshots: readonly TSnapshot[],
+	indexes: WeakMap<readonly TSnapshot[], ReadonlyMap<string, number>>
+): ReadonlyMap<string, number> {
+	const existing = indexes.get(snapshots);
+	if (existing !== undefined) {
+		return existing;
+	}
 
+	const next = new Map<string, number>();
+	for (let index = 0; index < snapshots.length; index += 1) {
+		const snapshot = snapshots[index];
+		if (snapshot !== undefined && !next.has(snapshot.id)) {
+			next.set(snapshot.id, index);
+		}
+	}
+	indexes.set(snapshots, next);
+	return next;
+}
+
+function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
+	current: readonly TSnapshot[],
+	patches: readonly TSnapshot[],
+	indexes: WeakMap<readonly TSnapshot[], ReadonlyMap<string, number>>
+): TSnapshot[] {
+	const currentIndex = getSnapshotIndex(current, indexes);
+	const patchesById = new Map<string, TSnapshot>();
 	for (const patch of patches) {
 		patchesById.set(patch.id, patch);
 	}
 
-	let operations: OperationSnapshot[] | null = null;
-	for (let index = 0; index < current.length; index += 1) {
-		const operation = current[index];
-		if (operation === undefined) {
-			continue;
+	const next = current.slice();
+	for (const [id, patch] of patchesById) {
+		const index = currentIndex.get(id);
+		if (index !== undefined) {
+			next[index] = patch;
 		}
-		const patch = patchesById.get(operation.id);
-		if (patch === undefined) {
-			operations?.push(operation);
-			continue;
-		}
-		operations ??= current.slice(0, index);
-		operations.push(patch);
-		patchesById.delete(operation.id);
 	}
 
+	let nextIndex: Map<string, number> | null = null;
 	const appendedIds = new Set<string>();
 	for (const patch of patches) {
-		if (patchesById.has(patch.id)) {
-			if (!appendedIds.has(patch.id)) {
-				appendedPatches.push(patchesById.get(patch.id)!);
-				appendedIds.add(patch.id);
-			}
+		if (currentIndex.has(patch.id) || appendedIds.has(patch.id)) {
+			continue;
 		}
+
+		const appendedPatch = patchesById.get(patch.id);
+		if (appendedPatch === undefined) {
+			continue;
+		}
+
+		nextIndex ??= new Map(currentIndex);
+		nextIndex.set(patch.id, next.length);
+		next.push(appendedPatch);
+		appendedIds.add(patch.id);
 	}
 
-	if (operations === null && appendedPatches.length === 0) {
-		return current.slice();
-	}
+	indexes.set(next, nextIndex ?? currentIndex);
+	return next;
+}
 
-	return (operations ?? current.slice()).concat(appendedPatches);
+function mergeOperationSnapshots(
+	current: readonly OperationSnapshot[],
+	patches: readonly OperationSnapshot[]
+): OperationSnapshot[] {
+	return mergeSnapshotsById(current, patches, operationSnapshotIndexes);
 }
 
 function mergeInteractionSnapshots(
 	current: readonly InteractionSnapshot[],
 	patches: readonly InteractionSnapshot[]
 ): InteractionSnapshot[] {
-	const patchesById = new Map<string, InteractionSnapshot>();
-	const appendedPatches: InteractionSnapshot[] = [];
-
-	for (const patch of patches) {
-		patchesById.set(patch.id, patch);
-	}
-
-	let interactions: InteractionSnapshot[] | null = null;
-	for (let index = 0; index < current.length; index += 1) {
-		const interaction = current[index];
-		if (interaction === undefined) {
-			continue;
-		}
-		const patch = patchesById.get(interaction.id);
-		if (patch === undefined) {
-			interactions?.push(interaction);
-			continue;
-		}
-		interactions ??= current.slice(0, index);
-		interactions.push(patch);
-		patchesById.delete(interaction.id);
-	}
-
-	const appendedIds = new Set<string>();
-	for (const patch of patches) {
-		if (patchesById.has(patch.id)) {
-			if (!appendedIds.has(patch.id)) {
-				appendedPatches.push(patchesById.get(patch.id)!);
-				appendedIds.add(patch.id);
-			}
-		}
-	}
-
-	if (interactions === null && appendedPatches.length === 0) {
-		return current.slice();
-	}
-
-	return (interactions ?? current.slice()).concat(appendedPatches);
+	return mergeSnapshotsById(current, patches, interactionSnapshotIndexes);
 }
 
 function graphWithPatches(input: {
