@@ -916,7 +916,8 @@ const tokenRevealSceneEntries = $derived.by(() => {
 		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
 	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
 
-	tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
+	tokenRevealSourceIndexReadModel.applyPatch(graphMaterializedScene.conversation.entries) ??
+		tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
 	const tailEntry =
 		tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
 	const tailEntryIndex =

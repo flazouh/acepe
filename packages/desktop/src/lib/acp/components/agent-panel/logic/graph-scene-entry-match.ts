@@ -47,6 +47,9 @@ export interface GraphSceneEntryIndexReadModel {
 	applyAppendPatch(
 		appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
 	): ReadonlyMap<string, AgentPanelSceneEntryModel>;
+	applyPatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null;
 	selectIndex(): ReadonlyMap<string, AgentPanelSceneEntryModel>;
 	selectEntryById(id: string | null | undefined): AgentPanelSceneEntryModel | undefined;
 	selectEntryIndexById(id: string | null | undefined): number | undefined;
@@ -62,23 +65,34 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		null;
 	let entryIndexesById: Map<string, number> = new Map();
 
+	function applyGraphScenePatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
+		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+		if (
+			graphScenePatch === undefined ||
+			graphScenePatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		baseEntriesByIdBeforeTokenReveal = null;
+		const patchedEntriesById = patchSameLengthGraphSceneEntrySet(
+			entriesById,
+			graphScenePatch.entries
+		);
+		if (patchedEntriesById === null) {
+			return null;
+		}
+		entriesById = patchedEntriesById;
+		previousSceneEntries = sceneEntries;
+		return entriesById;
+	}
+
 	return {
 		applySnapshot(sceneEntries) {
-			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
-			if (
-				graphScenePatch !== undefined &&
-				graphScenePatch.baseSceneEntries === previousSceneEntries
-			) {
-				baseEntriesByIdBeforeTokenReveal = null;
-				const patchedEntriesById = patchSameLengthGraphSceneEntrySet(
-					entriesById,
-					graphScenePatch.entries
-				);
-				if (patchedEntriesById !== null) {
-					entriesById = patchedEntriesById;
-					previousSceneEntries = sceneEntries;
-					return entriesById;
-				}
+			const patchedIndex = applyGraphScenePatch(sceneEntries);
+			if (patchedIndex !== null) {
+				return patchedIndex;
 			}
 
 			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
@@ -207,6 +221,9 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				appendedSceneEntries
 			);
 			return entriesById;
+		},
+		applyPatch(sceneEntries) {
+			return applyGraphScenePatch(sceneEntries);
 		},
 		selectIndex() {
 			return entriesById;

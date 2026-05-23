@@ -504,8 +504,12 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		});
 
 		try {
-			const patchedIndex = readModel.getIndex(patchedEntries);
+			const patchedIndex = readModel.applyPatch(patchedEntries);
 
+			expect(patchedIndex).not.toBeNull();
+			if (patchedIndex === null) {
+				return;
+			}
 			expect(patchedIndex).not.toBe(overlayIndex);
 			expect(patchedIndex.get("assistant-1")).toBe(patchedEntry);
 			expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
@@ -514,5 +518,17 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 				Symbol.iterator
 			] = originalIterator;
 		}
+	});
+
+	it("does not treat unmarked scene entries as graph index patches", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const entry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		} satisfies AgentPanelSceneEntryModel;
+		readModel.applySnapshot([entry]);
+
+		expect(readModel.applyPatch([entry])).toBeNull();
 	});
 });
