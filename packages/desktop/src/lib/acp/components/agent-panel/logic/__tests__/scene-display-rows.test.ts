@@ -17,11 +17,11 @@ import {
 	getTokenRevealScenePatch,
 } from "../token-reveal-scene-read-model.js";
 import {
-	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	getAgentPanelDisplayScenePatch,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 import {
 	markAgentPanelSceneEntryArrayPatch,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";

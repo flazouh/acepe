@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
 	type AgentPanelDisplayModel,
-	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	getAgentPanelDisplayScenePatch,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,

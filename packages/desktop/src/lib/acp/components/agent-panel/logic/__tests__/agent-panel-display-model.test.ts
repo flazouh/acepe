@@ -16,10 +16,10 @@ import {
 	type AgentPanelDisplayModel,
 	type AgentPanelDisplayRow,
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 
 function createActionability(canSend = true): SessionGraphActionability {
 	return {

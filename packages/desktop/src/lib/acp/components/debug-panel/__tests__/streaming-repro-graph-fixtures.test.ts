@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 } from "$lib/acp/components/agent-panel/logic/agent-panel-display-model.js";
@@ -12,6 +11,7 @@ import {
 	buildStreamingReproGraphMaterializerInput,
 	getStreamingReproPresetById,
 } from "../streaming-repro-graph-fixtures";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../../agent-panel/logic/agent-panel-display-scene-test-helper.js";
 
 describe("streaming-repro-graph-fixtures", () => {
 	it("builds a graph-backed thinking-only phase for the core preset", () => {

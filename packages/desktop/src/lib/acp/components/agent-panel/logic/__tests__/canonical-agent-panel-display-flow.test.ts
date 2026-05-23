@@ -14,10 +14,10 @@ import type {
 import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/agent-panel-graph-materializer.js";
 import {
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 import {
 	createGraphSceneEntryIndex,
 	findGraphSceneEntryForDisplayEntry,

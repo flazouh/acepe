@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { createAgentPanelSceneReadModel } from "../agent-panel-scene-read-model.js";
 import {
-	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
 import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import {

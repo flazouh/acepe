@@ -2067,18 +2067,6 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 	return sceneEntries;
 }
 
-export function applyAgentPanelDisplayModelToSceneEntries(
-	model: AgentPanelDisplayModel,
-	memory: AgentPanelDisplayMemory,
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): readonly AgentPanelSceneEntryModel[] {
-	return createAgentPanelDisplaySceneEntriesReadModel().apply({
-		model,
-		memory,
-		sceneEntries,
-	});
-}
-
 export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDisplaySceneEntriesReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let sceneEntryIndexesById: Map<string, number> = new Map();

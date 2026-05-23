@@ -14,12 +14,12 @@ import {
 import {
 	type AgentPanelDisplayModel,
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	createAgentPanelDisplaySceneEntriesReadModel,
 	createAgentPanelDisplayRowsReadModel,
 	markAgentPanelDisplayRowArrayPatch,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 
 describe("applyAgentPanelDisplayModelToSceneEntries identity", () => {
 	it("keeps the scene entries array stable when display rows do not change entries", () => {

@@ -6,10 +6,10 @@ import {
 	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
-	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
+import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
 import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
