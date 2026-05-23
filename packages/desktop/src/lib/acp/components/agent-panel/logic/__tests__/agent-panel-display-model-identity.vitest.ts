@@ -406,6 +406,73 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 			"Second answer updated"
 		);
 	});
+
+	it("patches only rows whose display text changes when streaming completes", () => {
+		const stableAssistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "Stable answer",
+			displayText: "Stable answer",
+			canonicalTextRevision: "1:assistant-1",
+			isLiveTail: false,
+		};
+		const retainedAssistantRow = {
+			id: "assistant-2",
+			type: "assistant" as const,
+			canonicalText: "",
+			displayText: "",
+			canonicalTextRevision: "1:assistant-2",
+			isLiveTail: true,
+		};
+		const streamingModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [stableAssistantRow, retainedAssistantRow],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const streamingResult = applyAgentPanelDisplayMemory(
+			{
+				...createAgentPanelDisplayMemory(),
+				sessionId: "session-1",
+				turnId: "turn-1",
+				displayTextByRowKey: new Map([["assistant-2", "Retained answer"]]),
+				sourceRows: streamingModel.rows,
+				displayRows: [
+					stableAssistantRow,
+					{
+						...retainedAssistantRow,
+						displayText: "Retained answer",
+					},
+				],
+				turnState: "streaming",
+			},
+			streamingModel
+		);
+
+		const completedResult = applyAgentPanelDisplayMemory(streamingResult.memory, {
+			...streamingModel,
+			status: "connected",
+			turnState: "completed",
+			composer: { canSubmit: true, showStop: false },
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		});
+
+		expect(completedResult.model.rows[0]).toBe(streamingResult.model.rows[0]);
+		expect(completedResult.model.rows[1]).not.toBe(streamingResult.model.rows[1]);
+		expect(completedResult.model.rows[1]).toMatchObject({
+			id: "assistant-2",
+			displayText: "",
+		});
+		expect(completedResult.memory.displayTextByRowKey.get("assistant-1")).toBe(
+			"Stable answer"
+		);
+		expect(completedResult.memory.displayTextByRowKey.get("assistant-2")).toBe("");
+	});
 });
 
 describe("createAgentPanelDisplayRowsReadModel", () => {

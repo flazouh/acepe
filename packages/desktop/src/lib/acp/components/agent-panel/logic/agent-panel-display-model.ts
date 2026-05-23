@@ -414,6 +414,50 @@ export function applyAgentPanelDisplayMemory(
 
 	if (
 		!shouldReset &&
+		previousMemory.sourceRows === baseModel.rows &&
+		previousMemory.displayRows !== null
+	) {
+		const previousTexts = previousMemory.displayTextByRowKey;
+		const nextTexts = new Map<string, string>();
+		let rows: AgentPanelDisplayRow[] | null = null;
+		for (let index = 0; index < baseModel.rows.length; index += 1) {
+			const sourceRow = baseModel.rows[index];
+			if (sourceRow === undefined) {
+				continue;
+			}
+			const displayRow = applyDisplayTextToRow(sourceRow, baseModel, nextTexts, previousTexts);
+			if (displayRow === previousMemory.displayRows[index]) {
+				continue;
+			}
+			rows ??= previousMemory.displayRows.slice();
+			rows[index] = displayRow;
+		}
+		const displayRows = rows ?? previousMemory.displayRows;
+		return {
+			model: {
+				panelId: baseModel.panelId,
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				status: baseModel.status,
+				turnState: baseModel.turnState,
+				waiting: baseModel.waiting,
+				composer: baseModel.composer,
+				rows: displayRows,
+				viewport: baseModel.viewport,
+			},
+			memory: {
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				displayTextByRowKey: nextTexts,
+				sourceRows: baseModel.rows,
+				displayRows,
+				turnState: baseModel.turnState,
+			},
+		};
+	}
+
+	if (
+		!shouldReset &&
 		previousMemory.sourceRows !== null &&
 		previousMemory.displayRows !== null &&
 		previousMemory.turnState === baseModel.turnState &&
