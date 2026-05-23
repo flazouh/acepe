@@ -39,6 +39,7 @@ export class OperationStore {
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
 	private readonly sessionOperationIdSets = new Map<string, Set<string>>();
+	private readonly sessionRootOperationIds = new SvelteMap<string, Array<string>>();
 	private readonly sessionOperationVersions = new SvelteMap<string, number>();
 	private readonly currentStreamingOperationIdBySession = new SvelteMap<string, string>();
 	private readonly lastRootOperationIdBySession = new SvelteMap<string, string>();
@@ -138,11 +139,11 @@ export class OperationStore {
 			return cached.toolCalls;
 		}
 
-		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		const operationIds = this.sessionRootOperationIds.get(sessionId) ?? [];
 		const toolCalls: Array<ToolCall> = [];
 		for (const operationId of operationIds) {
 			const operation = this.operationsById.get(operationId);
-			if (operation == null || operation.parentOperationId !== null) {
+			if (operation == null) {
 				continue;
 			}
 			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
@@ -270,6 +271,7 @@ export class OperationStore {
 
 		this.sessionOperationIds.delete(sessionId);
 		this.sessionOperationIdSets.delete(sessionId);
+		this.sessionRootOperationIds.delete(sessionId);
 		this.currentStreamingOperationIdBySession.delete(sessionId);
 		this.lastRootOperationIdBySession.delete(sessionId);
 		this.lastTodoOperationIdBySession.delete(sessionId);
@@ -281,6 +283,7 @@ export class OperationStore {
 		this.clearSession(sessionId);
 		const nextSessionOperationIds: Array<string> = [];
 		const nextSessionOperationIdSet = new Set<string>();
+		const nextSessionRootOperationIds: Array<string> = [];
 		let currentStreamingOperationId: string | null = null;
 		let lastRootOperationId: string | null = null;
 		let lastTodoOperationId: string | null = null;
@@ -291,6 +294,7 @@ export class OperationStore {
 			nextSessionOperationIds.push(operation.id);
 			nextSessionOperationIdSet.add(operation.id);
 			if (operation.parentOperationId === null) {
+				nextSessionRootOperationIds.push(operation.id);
 				lastRootOperationId = operation.id;
 			}
 			if (operationHasTodos(operation)) {
@@ -302,6 +306,7 @@ export class OperationStore {
 		}
 		this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
 		this.sessionOperationIdSets.set(sessionId, nextSessionOperationIdSet);
+		this.sessionRootOperationIds.set(sessionId, nextSessionRootOperationIds);
 		if (currentStreamingOperationId === null) {
 			this.currentStreamingOperationIdBySession.delete(sessionId);
 		} else {
@@ -365,6 +370,7 @@ export class OperationStore {
 			cachedLastTodoToolCall.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
+		let shouldRecomputeRootOperationIds = false;
 		let shouldRecomputeLastRootOperation = false;
 		let shouldRecomputeLastTodoOperation = false;
 		for (const snapshot of snapshots) {
@@ -419,6 +425,7 @@ export class OperationStore {
 					(this.lastRootOperationIdBySession.get(sessionId) === operation.id &&
 						!nextIsRootOperation)
 				) {
+					shouldRecomputeRootOperationIds = true;
 					shouldRecomputeLastRootOperation = true;
 				}
 				if (
@@ -445,6 +452,13 @@ export class OperationStore {
 					cachedOperationAppends.push(operation);
 				}
 				if (nextIsRootOperation) {
+					this.sessionRootOperationIds.set(
+						sessionId,
+						createAppendedOperationIdArray(
+							this.sessionRootOperationIds.get(sessionId) ?? [],
+							operation.id
+						)
+					);
 					this.lastRootOperationIdBySession.set(sessionId, operation.id);
 				}
 				if (operationHasTodos(operation)) {
@@ -489,6 +503,9 @@ export class OperationStore {
 			this.sessionOperationIds.set(sessionId, sessionOperationIds);
 		}
 		if (changed) {
+			if (shouldRecomputeRootOperationIds) {
+				this.recomputeRootOperationIds(sessionId);
+			}
 			if (shouldRecomputeLastRootOperation) {
 				this.recomputeLastRootOperationId(sessionId);
 			}
@@ -657,12 +674,26 @@ export class OperationStore {
 		return null;
 	}
 
-	private recomputeLastRootOperationId(sessionId: string): string | null {
+	private recomputeRootOperationIds(sessionId: string): Array<string> {
 		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		const rootOperationIds: Array<string> = [];
+		for (const operationId of operationIds) {
+			const operation = this.operationsById.get(operationId);
+			if (operation?.parentOperationId === null) {
+				rootOperationIds.push(operation.id);
+			}
+		}
+		this.sessionRootOperationIds.set(sessionId, rootOperationIds);
+		return rootOperationIds;
+	}
+
+	private recomputeLastRootOperationId(sessionId: string): string | null {
+		const operationIds =
+			this.sessionRootOperationIds.get(sessionId) ?? this.recomputeRootOperationIds(sessionId);
 		for (let index = operationIds.length - 1; index >= 0; index -= 1) {
 			const operationId = operationIds[index];
 			const operation = this.operationsById.get(operationId);
-			if (operation !== undefined && operation.parentOperationId === null) {
+			if (operation !== undefined) {
 				this.lastRootOperationIdBySession.set(sessionId, operation.id);
 				return operation.id;
 			}
@@ -826,6 +857,65 @@ function createPatchedOperationArray(
 			return createArrayLikeOwnKeys(targetArray.length);
 		},
 	}) as Array<Operation>;
+}
+
+function createAppendedOperationIdArray(
+	baseOperationIds: readonly string[],
+	appendedOperationId: string
+): Array<string> {
+	const target = new Array<string>(baseOperationIds.length + 1);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index === baseOperationIds.length
+							? appendedOperationId
+							: baseOperationIds[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === baseOperationIds.length
+						? appendedOperationId
+						: baseOperationIds[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value:
+						index === baseOperationIds.length
+							? appendedOperationId
+							: baseOperationIds[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	}) as Array<string>;
 }
 
 function createPatchedToolCallArray(

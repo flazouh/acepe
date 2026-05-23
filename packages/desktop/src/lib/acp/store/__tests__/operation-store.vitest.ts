@@ -739,6 +739,48 @@ describe("OperationStore", () => {
 		expect(state?.byPath.get("src/app.ts")?.fileName).toBe("app.ts");
 	});
 
+	it("materializes session tool calls from the root operation index only", () => {
+		const operationStore = new OperationStore();
+		const rootOperationId = buildCanonicalOperationId("session-1", "root-tool");
+		const childOperationId = buildCanonicalOperationId("session-1", "child-tool");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: rootOperationId,
+				tool_call_id: "root-tool",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "child-tool",
+				parent_operation_id: rootOperationId,
+				parent_tool_call_id: "root-tool",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+		]);
+		const operationsById = (operationStore as unknown as {
+			operationsById: Map<string, unknown>;
+		}).operationsById;
+		const originalGet = operationsById.get;
+		operationsById.get = (operationId: string) => {
+			if (operationId === childOperationId) {
+				throw new Error("session tool-call selector must not scan child operations");
+			}
+			return originalGet.call(operationsById, operationId);
+		};
+
+		try {
+			const toolCalls = operationStore.getSessionToolCalls("session-1");
+
+			expect(toolCalls).toHaveLength(1);
+			expect(toolCalls[0]?.id).toBe("root-tool");
+		} finally {
+			operationsById.get = originalGet;
+		}
+	});
+
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
 
