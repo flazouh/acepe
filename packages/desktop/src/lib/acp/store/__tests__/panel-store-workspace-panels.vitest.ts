@@ -195,7 +195,7 @@ describe("PanelStore workspacePanels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
 		const firstPanel = store.openFilePanel("src/one.ts", "/tmp/project");
-		store.openFilePanel("src/attached.ts", "/tmp/project", {
+		const attachedPanel = store.openFilePanel("src/attached.ts", "/tmp/project", {
 			ownerPanelId: owner.id,
 		});
 		const secondPanel = store.openFilePanel("src/two.ts", "/tmp/project");
@@ -205,7 +205,13 @@ describe("PanelStore workspacePanels", () => {
 			secondPanel,
 			firstPanel,
 		]);
+		expect(store.getFilePanelsForProject("/tmp/project")).toEqual([
+			secondPanel,
+			attachedPanel,
+			firstPanel,
+		]);
 		expect(store.getTopLevelFilePanelsForProject("/tmp/other")).toEqual([]);
+		expect(store.getFilePanelsForProject("/tmp/other")).toEqual([]);
 	});
 
 	it("falls back to attached file panel groups without scanning all file panels", () => {
@@ -226,6 +232,20 @@ describe("PanelStore workspacePanels", () => {
 		store.closePanel(terminalPanel.id);
 
 		expect(store.workspacePanels.some((panel) => panel.id === terminalPanel.id)).toBe(false);
+	});
+
+	it("selects browser panels by project through the panel index", () => {
+		const store = createStore();
+		const firstPanel = store.openBrowserPanel("/tmp/project", "https://one.example", "One");
+		const otherPanel = store.openBrowserPanel("/tmp/other", "https://other.example", "Other");
+		const secondPanel = store.openBrowserPanel("/tmp/project", "https://two.example", "Two");
+
+		expect(store.getBrowserPanelsForProject("/tmp/project")).toEqual([
+			secondPanel,
+			firstPanel,
+		]);
+		expect(store.getBrowserPanelsForProject("/tmp/other")).toEqual([otherPanel]);
+		expect(store.getBrowserPanelsForProject("/tmp/missing")).toEqual([]);
 	});
 
 	it("opens source control as a dialog without creating a workspace panel", () => {

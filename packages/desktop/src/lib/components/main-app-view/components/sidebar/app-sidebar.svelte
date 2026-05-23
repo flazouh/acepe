@@ -121,16 +121,16 @@ function handleRemoveProject(projectPath: string) {
 		panelStore.closePanelBySessionId(sessionId);
 		sessionStore.removeSession(sessionId);
 	}
-	for (const tp of panelStore.terminalPanels.filter((p) => p.projectPath === projectPath)) {
+	for (const tp of panelStore.getTerminalPanelsForProject(projectPath)) {
 		panelStore.closeTerminalPanel(tp.id);
 	}
 	if (panelStore.gitDialog?.projectPath === projectPath) {
 		panelStore.closeGitDialog();
 	}
-	for (const fp of panelStore.filePanels.filter((p) => p.projectPath === projectPath)) {
+	for (const fp of panelStore.getFilePanelsForProject(projectPath)) {
 		panelStore.closeFilePanel(fp.id);
 	}
-	for (const bp of panelStore.browserPanels.filter((p) => p.projectPath === projectPath)) {
+	for (const bp of panelStore.getBrowserPanelsForProject(projectPath)) {
 		panelStore.closeBrowserPanel(bp.id);
 	}
 	panelStore.workspacePanels = panelStore.workspacePanels.filter(

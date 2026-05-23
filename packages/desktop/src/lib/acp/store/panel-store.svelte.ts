@@ -94,6 +94,23 @@ function areFilePanelListsEqual(
 	);
 }
 
+function areBrowserPanelListsEqual(
+	left: readonly BrowserPanel[] | undefined,
+	right: readonly BrowserPanel[]
+): boolean {
+	if (left === undefined || left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		(panel, index) =>
+			panel.id === right[index]?.id &&
+			panel.projectPath === right[index]?.projectPath &&
+			panel.url === right[index]?.url &&
+			panel.title === right[index]?.title &&
+			panel.width === right[index]?.width
+	);
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -115,8 +132,10 @@ export class PanelStore {
 	private suppressedAutoSessionSignals = new SvelteMap<string, string>();
 	private latestLiveSessionSignals = new SvelteMap<string, string>();
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
+	private filePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
+	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
 	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
 	private filePanelById = new SvelteMap<string, FilePanel>();
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
@@ -364,6 +383,7 @@ export class PanelStore {
 		this.filePanelByCacheKey.clear();
 		this.filePanelById.clear();
 		const groupedPanels = new Map<string, FilePanel[]>();
+		const projectGroupedPanels = new Map<string, FilePanel[]>();
 		const topLevelPanels: FilePanel[] = [];
 		const topLevelGroupedPanels = new Map<string, FilePanel[]>();
 		for (const panel of nextPanels) {
@@ -372,6 +392,12 @@ export class PanelStore {
 				createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
 				panel
 			);
+			const projectExisting = projectGroupedPanels.get(panel.projectPath);
+			if (projectExisting) {
+				projectExisting.push(panel);
+			} else {
+				projectGroupedPanels.set(panel.projectPath, [panel]);
+			}
 			if (panel.ownerPanelId === null) {
 				topLevelPanels.push(panel);
 				const topLevelExisting = topLevelGroupedPanels.get(panel.projectPath);
@@ -398,6 +424,18 @@ export class PanelStore {
 			const current = this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId);
 			if (!areFilePanelListsEqual(current, panels)) {
 				this.attachedFilePanelsByOwnerPanelId.set(ownerPanelId, panels);
+			}
+		}
+
+		for (const projectPath of this.filePanelsByProject.keys()) {
+			if (!projectGroupedPanels.has(projectPath)) {
+				this.filePanelsByProject.delete(projectPath);
+			}
+		}
+		for (const [projectPath, panels] of projectGroupedPanels.entries()) {
+			const current = this.filePanelsByProject.get(projectPath);
+			if (!areFilePanelListsEqual(current, panels)) {
+				this.filePanelsByProject.set(projectPath, panels);
 			}
 		}
 
@@ -434,7 +472,31 @@ export class PanelStore {
 	}
 
 	set browserPanels(nextPanels: BrowserPanel[]) {
+		this.syncBrowserPanelIndexes(nextPanels);
 		this.replaceWorkspacePanels("browser", nextPanels);
+	}
+
+	private syncBrowserPanelIndexes(nextPanels: readonly BrowserPanel[]): void {
+		const groupedPanels = new Map<string, BrowserPanel[]>();
+		for (const panel of nextPanels) {
+			const existing = groupedPanels.get(panel.projectPath);
+			if (existing) {
+				existing.push(panel);
+			} else {
+				groupedPanels.set(panel.projectPath, [panel]);
+			}
+		}
+		for (const projectPath of this.browserPanelsByProject.keys()) {
+			if (!groupedPanels.has(projectPath)) {
+				this.browserPanelsByProject.delete(projectPath);
+			}
+		}
+		for (const [projectPath, panels] of groupedPanels.entries()) {
+			const current = this.browserPanelsByProject.get(projectPath);
+			if (!areBrowserPanelListsEqual(current, panels)) {
+				this.browserPanelsByProject.set(projectPath, panels);
+			}
+		}
 	}
 
 	get reviewPanels(): ReviewPanel[] {
@@ -1605,6 +1667,10 @@ export class PanelStore {
 		return this.filePanelByCacheKey.get(cacheKey);
 	}
 
+	getFilePanelsForProject(projectPath: string): FilePanel[] {
+		return this.filePanelsByProject.get(projectPath) ?? [];
+	}
+
 	getAttachedFilePanels(ownerPanelId: string): FilePanel[] {
 		return this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId) ?? [];
 	}
@@ -2372,6 +2438,10 @@ export class PanelStore {
 	 */
 	getBrowserPanel(panelId: string): BrowserPanel | undefined {
 		return this.browserPanels.find((p) => p.id === panelId);
+	}
+
+	getBrowserPanelsForProject(projectPath: string): BrowserPanel[] {
+		return this.browserPanelsByProject.get(projectPath) ?? [];
 	}
 }
 
