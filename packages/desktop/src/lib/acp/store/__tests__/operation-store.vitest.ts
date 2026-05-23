@@ -942,6 +942,105 @@ describe("OperationStore", () => {
 		operationStore.getSessionOperations = originalGetSessionOperations;
 	});
 
+	it("updates the last todo selector when a nested child changes under the last todo root tool", () => {
+		const operationStore = new OperationStore();
+		const parentOperationId = buildCanonicalOperationId("session-1", "task-parent");
+		const childOperationId = buildCanonicalOperationId("session-1", "task-child");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: parentOperationId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "completed",
+				operation_state: "completed",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				normalized_todos: [
+					{
+						content: "Keep selectors small",
+						status: "in_progress",
+						activeForm: "Keeping selectors small",
+					},
+				],
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childOperationId],
+			}),
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "before",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const firstTodoTool = operationStore.getLastTodoToolCall("session-1");
+		expect(firstTodoTool?.id).toBe("task-parent");
+		expect(firstTodoTool?.taskChildren?.[0]).toMatchObject({
+			id: "task-child",
+			status: "completed",
+			result: "before",
+		});
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "after",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const originalMaterializeToolCall = (
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall;
+		(
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall = () => {
+			throw new Error("last todo selector should reuse the patched root tool call cache");
+		};
+
+		try {
+			const patchedTodoTool = operationStore.getLastTodoToolCall("session-1");
+			expect(patchedTodoTool).not.toBe(firstTodoTool);
+			expect(patchedTodoTool?.taskChildren?.[0]).toMatchObject({
+				id: "task-child",
+				status: "completed",
+				result: "after",
+			});
+		} finally {
+			(
+				operationStore as unknown as {
+					materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+				}
+			).materializeToolCall = originalMaterializeToolCall;
+		}
+	});
+
 	it("caches modified files read-model state until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");

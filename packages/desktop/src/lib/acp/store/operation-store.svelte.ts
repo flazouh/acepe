@@ -472,6 +472,15 @@ export class OperationStore {
 			) {
 				canPreserveCurrentStreamingToolCall = false;
 			}
+			if (
+				rootOperationId !== null &&
+				cachedLastTodoToolCall?.version === previousVersion &&
+				cachedLastTodoToolCall.toolCall !== null &&
+				this.getByToolCallId(sessionId, cachedLastTodoToolCall.toolCall.id)?.id ===
+					rootOperationId
+			) {
+				canPreserveLastTodoToolCall = false;
+			}
 			changed = true;
 			if (existingOperation !== undefined) {
 				if (
@@ -681,6 +690,20 @@ export class OperationStore {
 					version: nextVersion,
 					toolCall: cachedLastTodoToolCall.toolCall,
 				});
+			} else if (cachedLastTodoToolCall?.version === previousVersion) {
+				const lastTodoOperation = cachedLastTodoToolCall.toolCall
+					? this.getByToolCallId(sessionId, cachedLastTodoToolCall.toolCall.id)
+					: undefined;
+				const patchedLastTodoToolCall =
+					lastTodoOperation?.parentOperationId === null
+						? resolvePatchedRootToolCall(lastTodoOperation.id)
+						: undefined;
+				if (patchedLastTodoToolCall !== undefined) {
+					this.lastTodoToolCallBySession.set(sessionId, {
+						version: nextVersion,
+						toolCall: patchedLastTodoToolCall,
+					});
+				}
 			}
 		}
 	}
