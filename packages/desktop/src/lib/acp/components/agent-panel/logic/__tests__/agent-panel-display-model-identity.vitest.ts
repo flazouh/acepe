@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-panel-canonical-source.js";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
+	getAgentPanelSceneEntryArrayTruncation,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
 	markAgentPanelSceneEntryArraySplicePatch,
@@ -618,6 +620,166 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 				value: userEntry,
 			});
 		}
+	});
+
+	it("keeps truncation shape when display overlay changes a kept assistant", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const keptAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "First patched",
+					displayText: "First patched",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [
+			userEntry,
+			keptAssistantEntry,
+			removedAssistantEntry,
+		];
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const truncatedEntries = [userEntry, keptAssistantEntry];
+		markAgentPanelSceneEntryArrayTruncation(truncatedEntries, {
+			baseSceneEntries: baseEntries,
+			length: truncatedEntries.length,
+		});
+
+		const displayedEntries = readModel.applyPatch({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: truncatedEntries,
+		});
+
+		expect(displayedEntries).not.toBeNull();
+		if (displayedEntries === null) {
+			return;
+		}
+		expect(displayedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First patched",
+		});
+		const truncation = getAgentPanelSceneEntryArrayTruncation(displayedEntries);
+		expect(truncation?.baseSceneEntries).toHaveLength(3);
+		expect(truncation?.baseSceneEntries[0]).toBe(userEntry);
+		expect(truncation?.baseSceneEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First patched",
+		});
+		expect(truncation?.length).toBe(2);
+		expect(getAgentPanelSceneEntryArraySplicePatch(displayedEntries)).toBeUndefined();
+	});
+
+	it("keeps splice shape when display overlay changes a replacement assistant", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const oldAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Old",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Backend next",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-2",
+					type: "assistant",
+					canonicalText: "Backend next",
+					displayText: "Display next",
+					canonicalTextRevision: "2:assistant-2",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, oldAssistantEntry];
+		readModel.apply({
+			model: {
+				...model,
+				rows: [],
+			},
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const splicedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArraySplicePatch(splicedEntries, {
+			baseSceneEntries: baseEntries,
+			startIndex: 1,
+			insertedEntries: [nextAssistantEntry],
+			trailingEntries: [],
+		});
+
+		const displayedEntries = readModel.applyPatch({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: splicedEntries,
+		});
+
+		expect(displayedEntries).not.toBeNull();
+		if (displayedEntries === null) {
+			return;
+		}
+		expect(displayedEntries[1]).toMatchObject({
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Display next",
+		});
+		const splice = getAgentPanelSceneEntryArraySplicePatch(displayedEntries);
+		expect(splice?.baseSceneEntries).toBe(baseEntries);
+		expect(splice?.startIndex).toBe(1);
+		expect(splice?.insertedEntries).toHaveLength(1);
+		expect(splice?.insertedEntries[0]).toMatchObject({
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Display next",
+		});
 	});
 
 	it("keeps the cached scene entry index valid for same-length scene entry patches", () => {
