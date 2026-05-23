@@ -1,12 +1,6 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 import {
-	getAgentPanelSceneEntryArrayAppendPatch,
-	getAgentPanelSceneEntryArrayPatch,
-	getAgentPanelSceneEntryArraySplicePatch,
-	getAgentPanelSceneEntryArrayTruncation,
-} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
-import {
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
 	type GraphSceneEntryIndexReadModel,
@@ -16,8 +10,6 @@ import {
 	type SceneDisplayRowsReadModel,
 } from "./scene-display-row-read-model.js";
 import type { SceneDisplayRow } from "./scene-display-rows.js";
-import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
-import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export type AgentPanelSceneReadModelSnapshot = {
 	readonly rows: readonly SceneDisplayRow[];
@@ -65,16 +57,6 @@ export function createAgentPanelSceneReadModel(input?: {
 			return this.selectSnapshot();
 		},
 		applyPatch(sceneEntries) {
-			if (
-				getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined &&
-				getAgentPanelSceneEntryArrayAppendPatch(sceneEntries) === undefined &&
-				getAgentPanelSceneEntryArrayTruncation(sceneEntries) === undefined &&
-				getAgentPanelSceneEntryArraySplicePatch(sceneEntries) === undefined &&
-				getAgentPanelDisplayScenePatch(sceneEntries) === undefined &&
-				getTokenRevealScenePatch(sceneEntries) === undefined
-			) {
-				return null;
-			}
 			const patchedRows = rows.applyPatch(sceneEntries);
 			const patchedIndex = entryIndex.applyPatch(sceneEntries);
 			if (patchedRows === null || patchedIndex === null) {

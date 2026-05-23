@@ -381,7 +381,8 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				applyGraphSceneTruncation(sceneEntries) ??
 				applyGraphSceneSplice(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
-				applyTokenRevealPatch(sceneEntries)
+				applyTokenRevealPatch(sceneEntries) ??
+				applyStableIncrementalPatch(sceneEntries)
 			);
 		},
 		selectIndex() {
@@ -394,6 +395,92 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return id == null ? undefined : entryIndexesById.get(id);
 		},
 	};
+
+	function applyStableIncrementalPatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
+		const previousEntries = previousSceneEntries;
+		if (previousEntries === null) {
+			return null;
+		}
+
+		baseEntriesByIdBeforeTokenReveal = null;
+
+		const patchedPrefixAppendIndex = patchStablePrefixAppendGraphSceneEntries(
+			entriesById,
+			previousEntries,
+			sceneEntries
+		);
+		if (patchedPrefixAppendIndex !== null) {
+			appendGraphSceneEntriesToIndexes(
+				patchedPrefixAppendIndex,
+				entryIndexesById,
+				sceneEntries,
+				previousEntries.length,
+				previousEntries.length
+			);
+			entriesById = patchedPrefixAppendIndex;
+			previousSceneEntries = sceneEntries;
+			return entriesById;
+		}
+
+		if (isStableSceneEntryAppend(previousEntries, sceneEntries)) {
+			const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+			entriesById = mutableEntriesById;
+			appendGraphSceneEntriesToIndexes(
+				mutableEntriesById,
+				entryIndexesById,
+				sceneEntries,
+				previousEntries.length,
+				previousEntries.length
+			);
+			previousSceneEntries = sceneEntries;
+			return entriesById;
+		}
+
+		if (isStableSceneEntryTruncation(previousEntries, sceneEntries)) {
+			const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+			entriesById = mutableEntriesById;
+			removeTruncatedGraphSceneEntries(
+				mutableEntriesById,
+				entryIndexesById,
+				previousEntries,
+				sceneEntries.length
+			);
+			previousSceneEntries = sceneEntries;
+			return entriesById;
+		}
+
+		if (previousEntries.length === sceneEntries.length) {
+			const mutableEntriesById = patchSameLengthGraphSceneEntries(
+				entriesById,
+				previousEntries,
+				sceneEntries
+			);
+			if (mutableEntriesById !== null) {
+				entriesById = mutableEntriesById;
+				previousSceneEntries = sceneEntries;
+				return entriesById;
+			}
+		}
+
+		const insertion = findStableSceneEntryInsertion(previousEntries, sceneEntries);
+		if (insertion !== null) {
+			const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+			entriesById = mutableEntriesById;
+			patchInsertedGraphSceneEntries(
+				mutableEntriesById,
+				entryIndexesById,
+				sceneEntries,
+				insertion.startIndex,
+				insertion.insertedCount
+			);
+			previousSceneEntries = sceneEntries;
+			return entriesById;
+		}
+
+		return null;
+	}
 }
 
 function patchSameLengthGraphSceneEntrySet(

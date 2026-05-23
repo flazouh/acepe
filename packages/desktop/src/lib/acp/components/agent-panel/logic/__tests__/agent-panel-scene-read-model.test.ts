@@ -602,16 +602,16 @@ describe("createAgentPanelSceneReadModel", () => {
 		}
 	});
 
-	it("does not treat unmarked scene entries as graph patches", () => {
+	it("treats unchanged unmarked scene entries as a no-op patch", () => {
 		const readModel = createAgentPanelSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
 			id: "user-1",
 			type: "user",
 			text: "Prompt",
 		};
-		readModel.applySnapshot([userEntry]);
+		const firstSnapshot = readModel.applySnapshot([userEntry]);
 
-		expect(readModel.applyPatch([userEntry])).toBeNull();
+		expect(readModel.applyPatch([userEntry])).toBe(firstSnapshot);
 	});
 
 	it("patches stable transcript insertion before a pending interaction", () => {
@@ -742,6 +742,51 @@ describe("createAgentPanelSceneReadModel", () => {
 		}
 	});
 
+	it("keeps stable transcript insertion on the patch lane", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Check",
+			status: "done",
+		};
+		readModel.applySnapshot([userEntry, nextToolEntry]);
+		const nextSceneEntries = [userEntry, toolEntry, nextToolEntry];
+		const originalSlice = nextSceneEntries.slice;
+
+		nextSceneEntries.slice = () => {
+			throw new Error("must not fall back to full scene snapshot for stable insertion patch");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applyPatch(nextSceneEntries);
+
+			expect(patchedSnapshot).not.toBeNull();
+			if (patchedSnapshot === null) {
+				return;
+			}
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"tool-1",
+				"tool-2",
+			]);
+		} finally {
+			nextSceneEntries.slice = originalSlice;
+		}
+	});
+
 	it("patches assistant insertion without copying preserved display rows", () => {
 		const readModel = createAgentPanelSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
@@ -852,6 +897,49 @@ describe("createAgentPanelSceneReadModel", () => {
 		expect(restoredSnapshot.rows).toBe(baseSnapshot.rows);
 		expect(restoredSnapshot.entriesById).toBe(baseSnapshot.entriesById);
 		expect(restoredSnapshot.latestRowTimestampMs).toBe(baseSnapshot.latestRowTimestampMs);
+	});
+
+	it("keeps stable truncation on the patch lane", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 20,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, assistantEntry, toolEntry]);
+		const truncatedEntries = [userEntry, assistantEntry];
+		const originalSlice = firstSnapshot.rows.slice;
+
+		firstSnapshot.rows.slice = () => {
+			throw new Error("must not fall back to full row snapshot for stable truncation patch");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applyPatch(truncatedEntries);
+
+			expect(patchedSnapshot).not.toBeNull();
+			if (patchedSnapshot === null) {
+				return;
+			}
+			expect(patchedSnapshot.rows).toHaveLength(2);
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows[1]).toBe(firstSnapshot.rows[1]);
+		} finally {
+			firstSnapshot.rows.slice = originalSlice;
+		}
 	});
 
 	it("applies display scene overlays through the patch path", () => {

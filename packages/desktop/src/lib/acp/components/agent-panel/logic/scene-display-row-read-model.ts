@@ -493,7 +493,8 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				applyGraphSceneTruncation(sceneEntries) ??
 				applyGraphSceneSplice(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
-				applyTokenRevealPatch(sceneEntries)
+				applyTokenRevealPatch(sceneEntries) ??
+				applyStableIncrementalPatch(sceneEntries)
 			);
 		},
 		selectRows() {
@@ -503,6 +504,114 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return latestTimestampMs;
 		},
 	};
+
+	function applyStableIncrementalPatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const previousEntries = previousSceneEntries;
+		if (previousEntries === null) {
+			return null;
+		}
+
+		const patchedPrefixAppend = patchStablePrefixAppendSceneDisplayRows(
+			previousEntries,
+			sceneEntries,
+			previousRows,
+			rowIndexBySceneEntryId
+		);
+		if (patchedPrefixAppend !== null) {
+			previousRows = patchedPrefixAppend.rows;
+			latestTimestampMs = selectLatestTimestampMsFrom(
+				previousRows,
+				patchedPrefixAppend.firstChangedRowIndex,
+				latestTimestampMs
+			);
+			previousSceneEntries = sceneEntries;
+			return previousRows;
+		}
+
+		if (isStableSceneEntryAppend(previousEntries, sceneEntries)) {
+			const baseRows = previousRows;
+			const firstChangedRowIndex = Math.max(0, baseRows.length - 1);
+			const appendedEntries: AgentPanelSceneEntryModel[] = [];
+			for (let index = previousEntries.length; index < sceneEntries.length; index += 1) {
+				const entry = sceneEntries[index];
+				if (entry !== undefined) {
+					appendedEntries.push(entry);
+				}
+			}
+			previousRows = appendSceneDisplayRows(baseRows, appendedEntries);
+			markSceneDisplayRowAppend(previousRows, baseRows);
+			latestTimestampMs = selectLatestTimestampMsFrom(
+				previousRows,
+				firstChangedRowIndex,
+				latestTimestampMs
+			);
+			previousSceneEntries = sceneEntries;
+			indexRowsBySceneEntryId(rowIndexBySceneEntryId, previousRows, firstChangedRowIndex);
+			return previousRows;
+		}
+
+		if (isStableSceneEntryTruncation(previousEntries, sceneEntries)) {
+			const truncatedRows = truncateStableSceneDisplayRows(
+				previousEntries,
+				sceneEntries,
+				previousRows,
+				rowIndexBySceneEntryId
+			);
+			if (truncatedRows === null) {
+				return null;
+			}
+			previousRows = truncatedRows;
+			latestTimestampMs = selectLatestTimestampMsFrom(previousRows, 0);
+			previousSceneEntries = sceneEntries;
+			return previousRows;
+		}
+
+		if (previousEntries.length === sceneEntries.length) {
+			const patchedRows = patchSameLengthSceneDisplayRows(
+				previousEntries,
+				sceneEntries,
+				previousRows,
+				rowIndexBySceneEntryId
+			);
+			if (patchedRows !== null) {
+				previousRows = patchedRows.rows;
+				latestTimestampMs = selectLatestTimestampMsFrom(
+					previousRows,
+					patchedRows.firstChangedRowIndex,
+					latestTimestampMs
+				);
+				previousSceneEntries = sceneEntries;
+				return previousRows;
+			}
+		}
+
+		const insertion = findStableSceneEntryInsertion(previousEntries, sceneEntries);
+		if (insertion !== null) {
+			const insertedRows = patchInsertedSceneDisplayRows(
+				previousEntries,
+				sceneEntries,
+				previousRows,
+				rowIndexBySceneEntryId,
+				insertion.startIndex,
+				insertion.insertedCount
+			);
+			if (insertedRows === null) {
+				return null;
+			}
+			previousRows = insertedRows.rows;
+			latestTimestampMs = selectLatestTimestampMsFrom(
+				previousRows,
+				insertedRows.firstChangedRowIndex,
+				latestTimestampMs
+			);
+			previousSceneEntries = sceneEntries;
+			return previousRows;
+		}
+
+		return null;
+	}
 }
 
 function findFirstSpliceRowIndex(
