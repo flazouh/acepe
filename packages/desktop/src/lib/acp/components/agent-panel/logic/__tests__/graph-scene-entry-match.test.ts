@@ -686,6 +686,77 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		}
 	});
 
+	it("restores the base index after a failed marked graph patch over an overlay index", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstAssistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondAssistantEntry = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		const baseIndex = readModel.applySnapshot(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+				{
+					id: "assistant-2",
+					type: "assistant",
+					canonicalText: "Second",
+					displayText: "Second",
+					canonicalTextRevision: "1:assistant-2",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const overlayEntries = applyAgentPanelDisplayModelToSceneEntries(
+			model,
+			createAgentPanelDisplayMemory(),
+			baseEntries
+		);
+		const overlayIndex = readModel.applySnapshot(overlayEntries);
+		expect(overlayIndex).not.toBe(baseIndex);
+
+		const mismatchedPatchedEntry = {
+			...secondAssistantEntry,
+			markdown: "Patched second",
+		} satisfies AgentPanelSceneEntryModel;
+		const invalidPatchedEntries = [firstAssistantEntry, secondAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(invalidPatchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [mismatchedPatchedEntry],
+			entriesByIndex: new Map([[0, mismatchedPatchedEntry]]),
+		});
+
+		expect(readModel.applyPatch(invalidPatchedEntries)).toBeNull();
+
+		const restoredBaseIndex = readModel.applySnapshot(baseEntries);
+		expect(restoredBaseIndex).toBe(baseIndex);
+		expect(restoredBaseIndex.get("assistant-1")).toBe(firstAssistantEntry);
+		expect(restoredBaseIndex.get("assistant-2")).toBe(secondAssistantEntry);
+	});
+
 	it("does not treat unmarked scene entries as graph index patches", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const entry = {

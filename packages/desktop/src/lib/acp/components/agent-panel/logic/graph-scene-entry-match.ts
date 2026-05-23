@@ -77,7 +77,6 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		) {
 			return null;
 		}
-		baseEntriesByIdBeforeTokenReveal = null;
 		const patchedEntriesById = patchSameLengthGraphSceneEntrySet(
 			entriesById,
 			entryIndexesById,
@@ -86,6 +85,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		if (patchedEntriesById === null) {
 			return null;
 		}
+		baseEntriesByIdBeforeTokenReveal = null;
 		entriesById = patchedEntriesById;
 		previousSceneEntries = sceneEntries;
 		return entriesById;
@@ -375,15 +375,25 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return entriesById;
 		},
 		applyPatch(sceneEntries) {
-			return (
-				applyGraphScenePatch(sceneEntries) ??
-				applyGraphSceneAppendPatch(sceneEntries) ??
-				applyGraphSceneTruncation(sceneEntries) ??
-				applyGraphSceneSplice(sceneEntries) ??
-				applyDisplayScenePatch(sceneEntries) ??
-				applyTokenRevealPatch(sceneEntries) ??
-				applyStableIncrementalPatch(sceneEntries)
-			);
+			if (getAgentPanelSceneEntryArrayPatch(sceneEntries) !== undefined) {
+				return applyGraphScenePatch(sceneEntries);
+			}
+			if (getAgentPanelSceneEntryArrayAppendPatch(sceneEntries) !== undefined) {
+				return applyGraphSceneAppendPatch(sceneEntries);
+			}
+			if (getAgentPanelSceneEntryArrayTruncation(sceneEntries) !== undefined) {
+				return applyGraphSceneTruncation(sceneEntries);
+			}
+			if (getAgentPanelSceneEntryArraySplicePatch(sceneEntries) !== undefined) {
+				return applyGraphSceneSplice(sceneEntries);
+			}
+			if (getAgentPanelDisplayScenePatch(sceneEntries) !== undefined) {
+				return applyDisplayScenePatch(sceneEntries);
+			}
+			if (getTokenRevealScenePatch(sceneEntries) !== undefined) {
+				return applyTokenRevealPatch(sceneEntries);
+			}
+			return applyStableIncrementalPatch(sceneEntries);
 		},
 		selectIndex() {
 			return entriesById;
@@ -401,6 +411,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
 		const previousEntries = previousSceneEntries;
 		if (previousEntries === null) {
+			return null;
+		}
+
+		if (areSceneEntryListsEquivalent(previousEntries, sceneEntries)) {
 			return null;
 		}
 
@@ -538,6 +552,28 @@ function patchSameLengthGraphSceneEntries(
 	}
 
 	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
+}
+
+function areSceneEntryListsEquivalent(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (previousSceneEntries.length !== sceneEntries.length) {
+		return false;
+	}
+	for (let index = 0; index < sceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (
+			previousEntry !== nextEntry &&
+			(previousEntry === undefined ||
+				nextEntry === undefined ||
+				!areJsonLikeValuesEquivalent(previousEntry, nextEntry))
+		) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function patchStablePrefixAppendGraphSceneEntries(
