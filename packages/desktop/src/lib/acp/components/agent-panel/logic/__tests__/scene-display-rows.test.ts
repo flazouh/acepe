@@ -399,6 +399,42 @@ describe("scene-display-rows", () => {
 		expect(readModel.applyPatch([userEntry])).toBeNull();
 	});
 
+	it("fails closed on malformed marked graph patches instead of guessing a row patch shape", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstAssistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			timestampMs: 1,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondAssistantEntry = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		const baseRows = readModel.applySnapshot(baseEntries);
+		const mismatchedPatchedEntry = {
+			...secondAssistantEntry,
+			markdown: "Patched second",
+			timestampMs: 3,
+		} satisfies AgentPanelSceneEntryModel;
+		const invalidPatchedEntries = [firstAssistantEntry, secondAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(invalidPatchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [mismatchedPatchedEntry],
+			entriesByIndex: new Map([[0, mismatchedPatchedEntry]]),
+		});
+
+		expect(readModel.applyPatch(invalidPatchedEntries)).toBeNull();
+
+		const restoredRows = readModel.applySnapshot(baseEntries);
+		expect(restoredRows).toBe(baseRows);
+		expect(restoredRows[0]).toBe(baseRows[0]);
+		expect(restoredRows[1]).toBe(baseRows[1]);
+	});
+
 	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.applySnapshot([

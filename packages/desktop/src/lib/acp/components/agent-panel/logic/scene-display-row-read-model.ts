@@ -487,15 +487,26 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return previousRows;
 		},
 		applyPatch(sceneEntries) {
-			return (
-				applyGraphScenePatch(sceneEntries) ??
-				applyGraphSceneAppendPatch(sceneEntries) ??
-				applyGraphSceneTruncation(sceneEntries) ??
-				applyGraphSceneSplice(sceneEntries) ??
-				applyDisplayScenePatch(sceneEntries) ??
-				applyTokenRevealPatch(sceneEntries) ??
-				applyStableIncrementalPatch(sceneEntries)
-			);
+			if (getAgentPanelSceneEntryArrayPatch(sceneEntries) !== undefined) {
+				return applyGraphScenePatch(sceneEntries);
+			}
+			const explicitAppendPatch = getAgentPanelSceneEntryArrayAppendPatch(sceneEntries);
+			if (explicitAppendPatch !== undefined) {
+				return applyGraphSceneAppendPatch(sceneEntries);
+			}
+			if (getAgentPanelSceneEntryArrayTruncation(sceneEntries) !== undefined) {
+				return applyGraphSceneTruncation(sceneEntries);
+			}
+			if (getAgentPanelSceneEntryArraySplicePatch(sceneEntries) !== undefined) {
+				return applyGraphSceneSplice(sceneEntries);
+			}
+			if (getAgentPanelDisplayScenePatch(sceneEntries) !== undefined) {
+				return applyDisplayScenePatch(sceneEntries);
+			}
+			if (getTokenRevealScenePatch(sceneEntries) !== undefined) {
+				return applyTokenRevealPatch(sceneEntries);
+			}
+			return applyStableIncrementalPatch(sceneEntries);
 		},
 		selectRows() {
 			return previousRows;
@@ -510,6 +521,10 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 	): readonly SceneDisplayRow[] | null {
 		const previousEntries = previousSceneEntries;
 		if (previousEntries === null) {
+			return null;
+		}
+
+		if (areSceneEntryListsEquivalent(previousEntries, sceneEntries)) {
 			return null;
 		}
 
@@ -1146,6 +1161,28 @@ function areSceneDisplayRowRangesEquivalent(
 	}
 	for (let index = startIndex; index < previousRows.length; index += 1) {
 		if (!areJsonLikeValuesEquivalent(previousRows[index], nextRows[index])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function areSceneEntryListsEquivalent(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (previousSceneEntries.length !== sceneEntries.length) {
+		return false;
+	}
+	for (let index = 0; index < sceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (
+			previousEntry !== nextEntry &&
+			(previousEntry === undefined ||
+				nextEntry === undefined ||
+				!areJsonLikeValuesEquivalent(previousEntry, nextEntry))
+		) {
 			return false;
 		}
 	}
