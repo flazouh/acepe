@@ -248,6 +248,42 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.getBrowserPanelsForProject("/tmp/missing")).toEqual([]);
 	});
 
+	it("keeps terminal group indexes current across open, move, and close", () => {
+		const store = createStore();
+		const firstGroup = store.openTerminalPanel("/tmp/project");
+		const otherGroup = store.openTerminalPanel("/tmp/other");
+		const secondGroup = store.openTerminalPanel("/tmp/project");
+
+		expect(store.getTerminalPanelGroup(firstGroup.id)).toEqual(firstGroup);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
+			firstGroup.id,
+			secondGroup.id,
+		]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/other").map((group) => group.id)).toEqual([
+			otherGroup.id,
+		]);
+
+		const extraTab = store.openTerminalTab(firstGroup.id);
+		expect(extraTab).not.toBeNull();
+
+		const movedGroup = store.moveTerminalTabToNewPanel(extraTab!.id);
+		expect(movedGroup).not.toBeNull();
+		expect(store.getTerminalPanelGroup(movedGroup!.id)).toEqual(movedGroup);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
+			firstGroup.id,
+			movedGroup!.id,
+			secondGroup.id,
+		]);
+
+		store.closeTerminalPanel(movedGroup!.id);
+		expect(store.getTerminalPanelGroup(movedGroup!.id)).toBeUndefined();
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
+			firstGroup.id,
+			secondGroup.id,
+		]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/missing")).toEqual([]);
+	});
+
 	it("opens source control as a dialog without creating a workspace panel", () => {
 		const store = createStore() as GitDialogCapableStore;
 

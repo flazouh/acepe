@@ -111,6 +111,23 @@ function areBrowserPanelListsEqual(
 	);
 }
 
+function areTerminalPanelGroupListsEqual(
+	left: readonly TerminalPanelGroup[] | undefined,
+	right: readonly TerminalPanelGroup[]
+): boolean {
+	if (left === undefined || left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		(group, index) =>
+			group.id === right[index]?.id &&
+			group.projectPath === right[index]?.projectPath &&
+			group.width === right[index]?.width &&
+			group.selectedTabId === right[index]?.selectedTabId &&
+			group.order === right[index]?.order
+	);
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -136,6 +153,8 @@ export class PanelStore {
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
+	private terminalPanelGroupById = new SvelteMap<string, TerminalPanelGroup>();
+	private terminalPanelGroupsByProject = new SvelteMap<string, TerminalPanelGroup[]>();
 	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
 	private filePanelById = new SvelteMap<string, FilePanel>();
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
@@ -147,7 +166,7 @@ export class PanelStore {
 		if (this.findTopLevelWorkspacePanel(panelId) !== undefined) return true;
 		// Terminal and browser panels are stored outside workspacePanels but are
 		// valid top-level fullscreen targets.
-		if (this.terminalPanelGroups.some((g) => g.id === panelId)) return true;
+		if (this.terminalPanelGroupById.has(panelId)) return true;
 		if (this.browserPanels.some((p) => p.id === panelId)) return true;
 		return false;
 	}
@@ -264,7 +283,7 @@ export class PanelStore {
 	private resolveTopLevelPanelProjectPath(panelId: string): string | null {
 		const workspacePanel = this.findTopLevelWorkspacePanel(panelId);
 		if (workspacePanel) return workspacePanel.projectPath;
-		const terminalGroup = this.terminalPanelGroups.find((g) => g.id === panelId);
+		const terminalGroup = this.terminalPanelGroupById.get(panelId);
 		if (terminalGroup) return terminalGroup.projectPath;
 		const browserPanel = this.browserPanels.find((p) => p.id === panelId);
 		if (browserPanel) return browserPanel.projectPath;
@@ -1894,7 +1913,36 @@ export class PanelStore {
 			selectedTabId: group.selectedTabId,
 			order: index,
 		}));
+		this.rebuildTerminalPanelGroupIndexes();
 		this.syncTerminalWorkspacePanels();
+	}
+
+	private rebuildTerminalPanelGroupIndexes(): void {
+		const groupsById = new SvelteMap<string, TerminalPanelGroup>();
+		const groupsByProject = new Map<string, TerminalPanelGroup[]>();
+
+		for (const group of this.terminalPanelGroups) {
+			groupsById.set(group.id, group);
+			const projectGroups = groupsByProject.get(group.projectPath);
+			if (projectGroups === undefined) {
+				groupsByProject.set(group.projectPath, [group]);
+			} else {
+				projectGroups.push(group);
+			}
+		}
+
+		for (const projectGroups of groupsByProject.values()) {
+			projectGroups.sort((left, right) => left.order - right.order);
+		}
+
+		this.terminalPanelGroupById = groupsById;
+		for (const [projectPath, groups] of groupsByProject) {
+			const existingGroups = this.terminalPanelGroupsByProject.get(projectPath);
+			if (areTerminalPanelGroupListsEqual(existingGroups, groups)) {
+				groupsByProject.set(projectPath, existingGroups ?? groups);
+			}
+		}
+		this.terminalPanelGroupsByProject = new SvelteMap(groupsByProject);
 	}
 
 	private updateTerminalGroup(
@@ -1962,11 +2010,11 @@ export class PanelStore {
 	}
 
 	getTerminalPanelGroup(groupId: string): TerminalPanelGroup | undefined {
-		return this.terminalPanelGroups.find((group) => group.id === groupId);
+		return this.terminalPanelGroupById.get(groupId);
 	}
 
 	getTerminalPanelGroupsForProject(projectPath: string): TerminalPanelGroup[] {
-		return this.getAllTerminalPanelGroups().filter((group) => group.projectPath === projectPath);
+		return this.terminalPanelGroupsByProject.get(projectPath) ?? [];
 	}
 
 	getTerminalTabsForGroup(groupId: string): TerminalTab[] {
