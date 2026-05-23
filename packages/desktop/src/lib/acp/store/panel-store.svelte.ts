@@ -1179,12 +1179,7 @@ export class PanelStore {
 
 	// Derived lookups
 	readonly panelBySessionId = $derived.by(
-		() =>
-			new SvelteMap(
-				this.topLevelAgentPanelList
-					.filter((panel) => panel.sessionId !== null)
-					.map((panel) => [panel.sessionId!, panel])
-			)
+		() => this.topLevelAgentPanelBySessionId
 	);
 
 	readonly panelCount = $derived(this.topLevelAgentPanelList.length);

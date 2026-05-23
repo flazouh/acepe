@@ -475,6 +475,28 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("selects panels by session id without filtering agent panel lists", () => {
+		const store = createStore();
+		const panel = store.openSession("session-indexed", 450);
+		const agentPanels = store.getTopLevelAgentPanels() as ReturnType<
+			PanelStore["getTopLevelAgentPanels"]
+		> & {
+			filter: typeof Array.prototype.filter;
+		};
+		const originalFilter = agentPanels.filter;
+
+		agentPanels.filter = () => {
+			throw new Error("must not filter agent panels for session-id lookup");
+		};
+
+		try {
+			expect(store.panelBySessionId.get("session-indexed")).toBe(panel);
+			expect(store.getPanelBySessionId("session-indexed")).toBe(panel);
+		} finally {
+			agentPanels.filter = originalFilter;
+		}
+	});
+
 	it("materializes background session panels without copying existing panel lists", () => {
 		const store = createStore();
 		const firstPanel = store.spawnPanel({ projectPath: "/tmp/project" });
