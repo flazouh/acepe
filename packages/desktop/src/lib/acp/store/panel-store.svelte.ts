@@ -484,7 +484,9 @@ export class PanelStore {
 	);
 
 	readonly focusedPanel = $derived(
-		this.focusedPanelId ? (this.panels.find((p) => p.id === this.focusedPanelId) ?? null) : null
+		this.focusedPanelId
+			? (this.topLevelAgentPanelsById.get(this.focusedPanelId) ?? null)
+			: null
 	);
 
 	readonly filePanelByPath = $derived.by(

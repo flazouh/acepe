@@ -74,6 +74,15 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("resolves the focused agent panel from the panel index", () => {
+		const store = createStore();
+		const panel = store.spawnPanel();
+
+		store.focusPanel(panel.id);
+
+		expect(store.focusedPanel).toBe(panel);
+	});
+
 	it("stores the seeded pending worktree choice for fresh panels", () => {
 		const store = createStore();
 
