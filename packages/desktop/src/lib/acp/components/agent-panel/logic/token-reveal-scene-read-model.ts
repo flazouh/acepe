@@ -1,5 +1,15 @@
 import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import type { TokenRevealTiming } from "../../messages/token-reveal-motion.js";
+import {
+	createAppendedSceneEntriesArray,
+	createPatchedSceneEntriesArray,
+} from "./scene-entry-array-view.js";
+import {
+	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 export type TokenRevealSceneSnapshot = {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
@@ -10,6 +20,7 @@ export type TokenRevealSceneSnapshot = {
 };
 
 export interface TokenRevealSceneReadModel {
+	applyPatch(snapshot: TokenRevealSceneSnapshot): readonly AgentPanelSceneEntryModel[] | null;
 	applySnapshot(snapshot: TokenRevealSceneSnapshot): readonly AgentPanelSceneEntryModel[];
 	selectEntries(): readonly AgentPanelSceneEntryModel[];
 	selectSettlingTimings(): readonly TokenRevealTiming[];
@@ -38,6 +49,72 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 	let previousTokenRevealEntryIndex = -1;
 
 	return {
+		applyPatch(snapshot) {
+			if (isSameTokenRevealSnapshot(previousSnapshot, snapshot)) {
+				return previousEntries;
+			}
+			const previous = previousSnapshot;
+			if (previous === null) {
+				return null;
+			}
+
+			const revealStateUnchanged =
+				previous.sourceEntry === snapshot.sourceEntry &&
+				previous.tailRowId === snapshot.tailRowId &&
+				previous.tailRowIndex === snapshot.tailRowIndex &&
+				previous.tokenRevealCss === snapshot.tokenRevealCss;
+			if (!revealStateUnchanged) {
+				return null;
+			}
+
+			const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(snapshot.sceneEntries);
+			if (
+				appendPatch?.baseSceneEntries === previous.sceneEntries &&
+				previousTokenRevealEntryIndex === -1
+			) {
+				previousSnapshot = snapshot;
+				previousEntries = snapshot.sceneEntries;
+				return previousEntries;
+			}
+			if (
+				appendPatch?.baseSceneEntries === previous.sceneEntries &&
+				previousTokenRevealEntryIndex !== -1
+			) {
+				const nextEntries = createAppendedSceneEntriesArray(
+					previousEntries,
+					appendPatch.appendedEntries
+				);
+				markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
+					baseSceneEntries: previousEntries,
+					appendedEntries: appendPatch.appendedEntries,
+				});
+				previousSnapshot = snapshot;
+				previousEntries = nextEntries;
+				return previousEntries;
+			}
+
+			const graphPatch = getAgentPanelSceneEntryArrayPatch(snapshot.sceneEntries);
+			if (
+				graphPatch?.baseSceneEntries === previous.sceneEntries &&
+				previousTokenRevealEntryIndex !== -1 &&
+				!graphPatch.entriesByIndex.has(previousTokenRevealEntryIndex)
+			) {
+				const nextEntries = createPatchedSceneEntriesArray(
+					previousEntries,
+					graphPatch.entriesByIndex
+				);
+				markAgentPanelSceneEntryArrayPatch(nextEntries, {
+					baseSceneEntries: previousEntries,
+					entries: graphPatch.entries,
+					entriesByIndex: graphPatch.entriesByIndex,
+				});
+				previousSnapshot = snapshot;
+				previousEntries = nextEntries;
+				return previousEntries;
+			}
+
+			return null;
+		},
 		applySnapshot(snapshot) {
 			if (isSameTokenRevealSnapshot(previousSnapshot, snapshot)) {
 				return previousEntries;

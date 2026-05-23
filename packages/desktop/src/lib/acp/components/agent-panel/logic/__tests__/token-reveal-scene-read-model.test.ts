@@ -1,6 +1,10 @@
 import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import {
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
 } from "../token-reveal-scene-read-model.js";
@@ -271,5 +275,99 @@ describe("createTokenRevealSceneReadModel", () => {
 		expect(movedEntries[0]).toBe(firstAssistantEntry);
 		expect(movedEntries[1]).not.toBe(secondAssistantEntry);
 		expect(movedEntries[1]).toMatchObject({ id: "assistant-2", tokenRevealCss });
+	});
+
+	it("applies append patches without rebuilding the existing reveal overlay", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Read file",
+			status: "done",
+		};
+		const tokenRevealCss = createTokenRevealCss();
+		const baseEntries = [assistantEntry];
+
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+		const appendedEntries = [...baseEntries, toolEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(appendedEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [toolEntry],
+		});
+
+		const patchedEntries = readModel.applyPatch({
+			sceneEntries: appendedEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		expect(patchedEntries).not.toBeNull();
+		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
+		expect(patchedEntries?.[1]).toBe(toolEntry);
+	});
+
+	it("applies unrelated graph patches over the existing reveal overlay", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Read file",
+			status: "running",
+		};
+		const patchedToolEntry: AgentPanelSceneEntryModel = {
+			...toolEntry,
+			status: "done",
+		};
+		const tokenRevealCss = createTokenRevealCss();
+		const baseEntries = [assistantEntry, toolEntry];
+
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+		const patchedBaseEntries = [assistantEntry, patchedToolEntry];
+		const entriesByIndex = new Map<number, AgentPanelSceneEntryModel>([[1, patchedToolEntry]]);
+		markAgentPanelSceneEntryArrayPatch(patchedBaseEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [patchedToolEntry],
+			entriesByIndex,
+		});
+
+		const patchedEntries = readModel.applyPatch({
+			sceneEntries: patchedBaseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		expect(patchedEntries).not.toBeNull();
+		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
+		expect(patchedEntries?.[1]).toBe(patchedToolEntry);
 	});
 });

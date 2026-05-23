@@ -926,14 +926,18 @@ const tokenRevealSceneEntries = $derived.by(() => {
 					tailEntry.isStreaming === true
 				)
 			: undefined;
-
-	return tokenRevealSceneReadModel.applySnapshot({
+	const tokenRevealSnapshot = {
 		sceneEntries: graphSceneEntries,
 		sourceEntry: tailEntry,
 		tailRowId: tokenRevealTailRowId,
 		tailRowIndex: tailEntryIndex,
 		tokenRevealCss,
-	});
+	};
+
+	return (
+		tokenRevealSceneReadModel.applyPatch(tokenRevealSnapshot) ??
+		tokenRevealSceneReadModel.applySnapshot(tokenRevealSnapshot)
+	);
 });
 const tokenRevealSettleDelayMs = $derived(
 	resolveTokenRevealSettleDelayMs(tokenRevealSceneReadModel.selectSettlingTimings())
