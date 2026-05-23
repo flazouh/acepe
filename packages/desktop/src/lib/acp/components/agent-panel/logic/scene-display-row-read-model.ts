@@ -22,6 +22,7 @@ export interface SceneDisplayRowsReadModel {
 	applyAppendPatch(
 		appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
 	): readonly SceneDisplayRow[];
+	applyPatch(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[] | null;
 	selectRows(): readonly SceneDisplayRow[];
 	selectLatestTimestampMs(): number | null;
 	getRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
@@ -65,6 +66,35 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 	let rowIndexBySceneEntryId: Map<string, number> = new Map();
 	let latestTimestampMs: number | null = null;
 
+	function applyGraphScenePatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+		if (
+			graphScenePatch === undefined ||
+			graphScenePatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		baseRowsBeforeTokenReveal = null;
+		const patchedRows = patchDisplaySceneDisplayRows(
+			previousRows,
+			rowIndexBySceneEntryId,
+			graphScenePatch.entries
+		);
+		if (patchedRows === null) {
+			return null;
+		}
+		previousRows = patchedRows.rows;
+		latestTimestampMs = selectLatestTimestampMsFrom(
+			previousRows,
+			patchedRows.firstChangedRowIndex,
+			latestTimestampMs
+		);
+		previousSceneEntries = sceneEntries;
+		return previousRows;
+	}
+
 	return {
 		applySnapshot(sceneEntries) {
 			const tokenRevealPatch = getTokenRevealScenePatch(sceneEntries);
@@ -103,26 +133,9 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			}
 
 			baseRowsBeforeTokenReveal = null;
-			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
-			if (
-				graphScenePatch !== undefined &&
-				graphScenePatch.baseSceneEntries === previousSceneEntries
-			) {
-				const patchedRows = patchDisplaySceneDisplayRows(
-					previousRows,
-					rowIndexBySceneEntryId,
-					graphScenePatch.entries
-				);
-				if (patchedRows !== null) {
-					previousRows = patchedRows.rows;
-					latestTimestampMs = selectLatestTimestampMsFrom(
-						previousRows,
-						patchedRows.firstChangedRowIndex,
-						latestTimestampMs
-					);
-					previousSceneEntries = sceneEntries;
-					return previousRows;
-				}
+			const graphPatchRows = applyGraphScenePatch(sceneEntries);
+			if (graphPatchRows !== null) {
+				return graphPatchRows;
 			}
 
 			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
@@ -254,6 +267,9 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			);
 			indexRowsBySceneEntryId(rowIndexBySceneEntryId, previousRows, firstChangedRowIndex);
 			return previousRows;
+		},
+		applyPatch(sceneEntries) {
+			return applyGraphScenePatch(sceneEntries);
 		},
 		selectRows() {
 			return previousRows;

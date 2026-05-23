@@ -15,6 +15,7 @@ import {
 	createAgentPanelDisplayMemory,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
+import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 describe("scene-display-rows", () => {
 	it("builds stable scene-derived display rows for mixed conversation entries", () => {
@@ -279,6 +280,86 @@ describe("scene-display-rows", () => {
 				value: { id: "tool-1", type: "tool_call", title: "Run", status: "done" },
 			});
 		}
+	});
+
+	it("applies graph scene patches without scanning unchanged scene entries", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const toolEntry = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "running",
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [userEntry, toolEntry, assistantEntry];
+		const baseRows = readModel.applySnapshot(baseEntries);
+		const nextToolEntry = {
+			...toolEntry,
+			status: "done",
+		} satisfies AgentPanelSceneEntryModel;
+		const patchedEntries = [userEntry, nextToolEntry, assistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextToolEntry],
+		});
+		Object.defineProperty(patchedEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for graph scene patch");
+			},
+		});
+		Object.defineProperty(patchedEntries, "2", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for graph scene patch");
+			},
+		});
+
+		try {
+			const patchedRows = readModel.applyPatch(patchedEntries);
+
+			expect(patchedRows).not.toBeNull();
+			if (patchedRows === null) {
+				return;
+			}
+			expect(patchedRows[0]).toBe(baseRows[0]);
+			expect(patchedRows[1]).not.toBe(baseRows[1]);
+			expect(patchedRows[2]).toBe(baseRows[2]);
+			expect(patchedRows[1]).toMatchObject({
+				id: "tool-1",
+				type: "tool_call",
+			});
+		} finally {
+			Object.defineProperty(patchedEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(patchedEntries, "2", {
+				configurable: true,
+				value: assistantEntry,
+			});
+		}
+	});
+
+	it("does not treat unmarked scene entries as graph scene patches", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		readModel.applySnapshot([userEntry]);
+
+		expect(readModel.applyPatch([userEntry])).toBeNull();
 	});
 
 	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {

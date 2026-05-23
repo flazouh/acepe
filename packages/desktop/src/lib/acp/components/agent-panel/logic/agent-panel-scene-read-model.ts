@@ -61,8 +61,11 @@ export function createAgentPanelSceneReadModel(input?: {
 			if (getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined) {
 				return null;
 			}
-			rows.applySnapshot(sceneEntries);
-			entryIndex.applySnapshot(sceneEntries);
+			const patchedRows = rows.applyPatch(sceneEntries);
+			const patchedIndex = entryIndex.applyPatch(sceneEntries);
+			if (patchedRows === null || patchedIndex === null) {
+				return null;
+			}
 			return this.selectSnapshot();
 		},
 		selectSnapshot() {
