@@ -1,5 +1,5 @@
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
-import { findGitStatusForFile, getRelativeFilePath } from "../../utils/file-utils.js";
+import { getRelativeFilePath } from "../../utils/file-utils.js";
 
 export type FilePanelGitStatus = Pick<FileGitStatus, "status" | "insertions" | "deletions">;
 
@@ -8,14 +8,45 @@ export const EMPTY_FILE_PANEL_GIT_STATS = {
 	removed: 0,
 } as const;
 
+function normalizeGitStatusLookupKey(path: string): string {
+	const normalizedSlashes = path.replaceAll("\\", "/");
+	if (normalizedSlashes.startsWith("./")) {
+		return normalizedSlashes.slice(2);
+	}
+	if (normalizedSlashes.startsWith("/")) {
+		return normalizedSlashes.slice(1);
+	}
+	return normalizedSlashes;
+}
+
+function getStatusByLikelyKey(
+	statusMap: ReadonlyMap<string, FileGitStatus>,
+	path: string | null
+): FileGitStatus | null {
+	if (!path) {
+		return null;
+	}
+
+	const exactStatus = statusMap.get(path);
+	if (exactStatus) {
+		return exactStatus;
+	}
+
+	const normalizedPath = normalizeGitStatusLookupKey(path);
+	if (normalizedPath === path) {
+		return null;
+	}
+
+	return statusMap.get(normalizedPath) ?? null;
+}
+
 export function resolveFilePanelGitStatus(
 	statusMap: ReadonlyMap<string, FileGitStatus>,
 	filePath: string,
 	projectPath: string
 ): FileGitStatus | null {
 	const relativeFilePath = getRelativeFilePath(filePath, projectPath);
-	const exactFileStatus = relativeFilePath ? (statusMap.get(relativeFilePath) ?? null) : null;
-	return exactFileStatus ?? findGitStatusForFile(Array.from(statusMap.values()), filePath, projectPath);
+	return getStatusByLikelyKey(statusMap, relativeFilePath) ?? getStatusByLikelyKey(statusMap, filePath);
 }
 
 export function toFilePanelGitStatus(

@@ -24,6 +24,15 @@ describe("file panel git status logic", () => {
 		);
 	});
 
+	it("does not scan the whole status map when a file has no git status", () => {
+		const statusMap = new Map([["src/other.ts", status("src/other.ts", 4, 1)]]);
+		statusMap.values = () => {
+			throw new Error("must not scan every git status");
+		};
+
+		expect(resolveFilePanelGitStatus(statusMap, "/repo/src/app.ts", "/repo")).toBeNull();
+	});
+
 	it("returns zero stats when the file has no git status", () => {
 		expect(getFilePanelGitStats(new Map(), "src/app.ts", "/repo")).toEqual({
 			added: 0,
