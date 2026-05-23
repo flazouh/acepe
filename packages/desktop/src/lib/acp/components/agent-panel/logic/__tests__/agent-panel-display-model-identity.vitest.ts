@@ -5,6 +5,7 @@ import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArraySplicePatch,
 	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
@@ -1721,6 +1722,131 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 			Object.defineProperty(firstProjection.rows, "0", {
 				configurable: true,
 				value: preservedUserRow,
+			});
+		}
+	});
+
+	it("applies marked truncation patches without checking preserved scene entries", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [
+			userEntry,
+			assistantEntry,
+			removedAssistantEntry,
+		];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const nextEntries = [userEntry, assistantEntry];
+		markAgentPanelSceneEntryArrayTruncation(nextEntries, {
+			baseSceneEntries: baseEntries,
+			length: nextEntries.length,
+		});
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan preserved scene entries for display truncation patch");
+			},
+		});
+
+		try {
+			const nextProjection = readModel.applyPatch({
+				sceneEntries: nextEntries,
+				transcriptRevision: 2,
+			});
+
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
+			expect(nextProjection.rows).toHaveLength(2);
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toBe(firstProjection.rows[1]);
+			expect(nextProjection.hasLiveTail).toBe(true);
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
+	});
+
+	it("applies marked splice patches without checking preserved scene entries", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const oldAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Old",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Next",
+			isStreaming: true,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, oldAssistantEntry];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const nextEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArraySplicePatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			startIndex: 1,
+			insertedEntries: [nextAssistantEntry],
+			trailingEntries: [],
+		});
+		Object.defineProperty(nextEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan preserved scene entries for display splice patch");
+			},
+		});
+
+		try {
+			const nextProjection = readModel.applyPatch({
+				sceneEntries: nextEntries,
+				transcriptRevision: 2,
+			});
+
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				canonicalText: "Next",
+				canonicalTextRevision: "2:assistant-2",
+				isLiveTail: true,
+			});
+			expect(nextProjection.hasLiveTail).toBe(true);
+		} finally {
+			Object.defineProperty(nextEntries, "0", {
+				configurable: true,
+				value: userEntry,
 			});
 		}
 	});

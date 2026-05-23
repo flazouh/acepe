@@ -323,6 +323,111 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 		return previousProjection;
 	}
 
+	function applyGraphSceneTruncationPatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null {
+		const truncation = getAgentPanelSceneEntryArrayTruncation(input.sceneEntries);
+		if (
+			truncation === undefined ||
+			truncation.baseSceneEntries !== previousSceneEntries ||
+			truncation.length !== input.sceneEntries.length
+		) {
+			return null;
+		}
+		const removedRowCount = countDisplayRowsInRange(
+			truncation.baseSceneEntries,
+			truncation.length,
+			truncation.baseSceneEntries.length
+		);
+		if (removedRowCount === 0) {
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			return previousProjection;
+		}
+
+		const nextRowCount = previousProjection.rows.length - removedRowCount;
+		for (
+			let removedRowIndex = nextRowCount;
+			removedRowIndex < previousProjection.rows.length;
+			removedRowIndex += 1
+		) {
+			const removedRow = previousProjection.rows[removedRowIndex];
+			if (removedRow !== undefined) {
+				rowIndexById.delete(removedRow.id);
+				liveTailRowIds.delete(removedRow.id);
+			}
+		}
+
+		previousProjection = {
+			rows: createTruncatedDisplayRowArray(previousProjection.rows, nextRowCount),
+			hasLiveTail: liveTailRowIds.size > 0,
+		};
+		previousSceneEntries = input.sceneEntries;
+		previousTranscriptRevision = input.transcriptRevision;
+		return previousProjection;
+	}
+
+	function applyGraphSceneSplicePatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null {
+		const splicePatch = getAgentPanelSceneEntryArraySplicePatch(input.sceneEntries);
+		if (
+			splicePatch === undefined ||
+			splicePatch.baseSceneEntries !== previousSceneEntries ||
+			splicePatch.startIndex < 0 ||
+			splicePatch.startIndex > splicePatch.baseSceneEntries.length ||
+			input.sceneEntries.length !==
+				splicePatch.startIndex +
+					splicePatch.insertedEntries.length +
+					splicePatch.trailingEntries.length
+		) {
+			return null;
+		}
+
+		const firstChangedRowIndex = countDisplayRowsInRange(
+			splicePatch.baseSceneEntries,
+			0,
+			splicePatch.startIndex
+		);
+		for (
+			let removedRowIndex = firstChangedRowIndex;
+			removedRowIndex < previousProjection.rows.length;
+			removedRowIndex += 1
+		) {
+			const removedRow = previousProjection.rows[removedRowIndex];
+			if (removedRow !== undefined) {
+				rowIndexById.delete(removedRow.id);
+				liveTailRowIds.delete(removedRow.id);
+			}
+		}
+
+		const nextSuffixProjection = createRowsFromSceneRange(
+			input.sceneEntries,
+			input.transcriptRevision,
+			splicePatch.startIndex
+		);
+		const prefixRows = createTruncatedDisplayRowArray(
+			previousProjection.rows,
+			firstChangedRowIndex
+		);
+		const rows = createAppendedDisplayRowArray(prefixRows, nextSuffixProjection.rows);
+		previousProjection = {
+			rows,
+			hasLiveTail: liveTailRowIds.size > 0 || nextSuffixProjection.hasLiveTail,
+		};
+		previousSceneEntries = input.sceneEntries;
+		previousTranscriptRevision = input.transcriptRevision;
+		indexDisplayRowsByIdFrom(rowIndexById, rows, firstChangedRowIndex);
+		for (const row of nextSuffixProjection.rows) {
+			if (row.type === "assistant" && row.isLiveTail) {
+				liveTailRowIds.add(row.id);
+			}
+		}
+		return previousProjection;
+	}
+
 	return {
 		applySnapshot({ sceneEntries, transcriptRevision }) {
 			if (
@@ -413,7 +518,12 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			);
 		},
 		applyPatch(input) {
-			return applyGraphScenePatch(input) ?? applyGraphSceneAppendPatch(input);
+			return (
+				applyGraphScenePatch(input) ??
+				applyGraphSceneAppendPatch(input) ??
+				applyGraphSceneTruncationPatch(input) ??
+				applyGraphSceneSplicePatch(input)
+			);
 		},
 		selectProjection() {
 			return previousProjection;
