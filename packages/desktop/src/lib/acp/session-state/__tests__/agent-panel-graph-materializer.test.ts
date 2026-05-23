@@ -668,6 +668,90 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("applies stable marked operation patches and appends without cloning indexes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run first"),
+			createTranscriptEntry("tool-2", "tool", "Run second"),
+			createTranscriptEntry("tool-3", "tool", "Run third"),
+		]);
+		const firstOperation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+		});
+		const secondOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+			result: null,
+			operation_state: "running",
+		});
+		const appendedOperation = createOperationSnapshot({
+			id: "op-3",
+			tool_call_id: "tool-3",
+			source_link: { kind: "transcript_linked", entry_id: "tool-3" },
+		});
+		const operations = [firstOperation, secondOperation];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const patchedSecondOperation = {
+			...secondOperation,
+			result: { stdout: "done", stderr: null, exitCode: 0 },
+			operation_state: "completed" as const,
+		};
+		const nextOperations = [firstOperation, patchedSecondOperation, appendedOperation];
+		markOperationSnapshotArrayPatch(nextOperations, {
+			baseOperations: operations,
+			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
+			appendedOperations: [appendedOperation],
+		});
+		const originalMapIterator = Map.prototype[Symbol.iterator];
+		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+				throw new Error("must not clone operation index maps for patch plus append");
+			}
+			return originalMapIterator.call(this);
+		};
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					operations: nextOperations,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+			expect(nextScene.conversation.entries[1]).toMatchObject({
+				id: "tool-2",
+				type: "tool_call",
+				stdout: "done",
+			});
+			expect(nextScene.conversation.entries[2]).toMatchObject({
+				id: "tool-3",
+				type: "tool_call",
+			});
+		} finally {
+			Map.prototype[Symbol.iterator] = originalMapIterator;
+		}
+	});
+
 	it("applies marked operation patches without copying unaffected parent lists", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("parent-tool", "tool", "Task completed"),

@@ -1779,12 +1779,12 @@ function applyStableMarkedOperationIndexPatchInPlace(
 	const operationArrayPatch = getOperationSnapshotArrayPatch(nextOperations);
 	if (
 		operationArrayPatch?.baseOperations !== previousOperations ||
-		operationArrayPatch.appendedOperations !== null ||
 		operationArrayPatch.patchedOperationsByIndex === null
 	) {
 		return null;
 	}
 
+	const patchedOperationIds = new Set<string>();
 	const changedOperationIds = new Set<string>();
 	const operationsToPatch: OperationSnapshot[] = [];
 	for (const [index, nextOperation] of operationArrayPatch.patchedOperationsByIndex) {
@@ -1798,11 +1798,14 @@ function applyStableMarkedOperationIndexPatchInPlace(
 		if (!canPatchOperationIndexInPlace(previousOperation, nextOperation)) {
 			return null;
 		}
+		patchedOperationIds.add(nextOperation.id);
 		changedOperationIds.add(nextOperation.id);
 		operationsToPatch.push(nextOperation);
 	}
 
-	if (changedOperationIds.size === 0) {
+	const appendedOperations = operationArrayPatch.appendedOperations;
+	const hasAppendedOperations = appendedOperations !== null && appendedOperations.length > 0;
+	if (changedOperationIds.size === 0 && !hasAppendedOperations) {
 		return {
 			operationIndex: previousIndex,
 			changedOperationIds,
@@ -1813,7 +1816,7 @@ function applyStableMarkedOperationIndexPatchInPlace(
 	const affectedEntryIds = collectAffectedTranscriptEntryIds(
 		previousIndex,
 		previousIndex,
-		changedOperationIds
+		patchedOperationIds
 	);
 	for (const nextOperation of operationsToPatch) {
 		previousIndex.byOperationId.set(nextOperation.id, nextOperation);
@@ -1825,8 +1828,26 @@ function applyStableMarkedOperationIndexPatchInPlace(
 		}
 	}
 
+	let operationIndex = previousIndex;
+	if (hasAppendedOperations) {
+		operationIndex = appendOperationIndex(previousIndex, appendedOperations);
+		const appendedOperationIds = new Set<string>();
+		for (const operation of appendedOperations) {
+			appendedOperationIds.add(operation.id);
+			changedOperationIds.add(operation.id);
+		}
+		const appendedAffectedEntryIds = collectAffectedTranscriptEntryIds(
+			previousIndex,
+			operationIndex,
+			appendedOperationIds
+		);
+		for (const entryId of appendedAffectedEntryIds) {
+			affectedEntryIds.add(entryId);
+		}
+	}
+
 	return {
-		operationIndex: previousIndex,
+		operationIndex,
 		changedOperationIds,
 		affectedEntryIds,
 	};
