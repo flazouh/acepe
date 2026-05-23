@@ -111,6 +111,31 @@ function areBrowserPanelListsEqual(
 	);
 }
 
+function areAgentPanelListsEqual(
+	left: readonly Panel[] | undefined,
+	right: readonly Panel[]
+): boolean {
+	if (left === undefined || left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		(panel, index) =>
+			panel.id === right[index]?.id &&
+			panel.sessionId === right[index]?.sessionId &&
+			panel.width === right[index]?.width &&
+			panel.pendingProjectSelection === right[index]?.pendingProjectSelection &&
+			panel.pendingWorktreeEnabled === right[index]?.pendingWorktreeEnabled &&
+			panel.preparedWorktreeLaunch === right[index]?.preparedWorktreeLaunch &&
+			panel.selectedAgentId === right[index]?.selectedAgentId &&
+			panel.projectPath === right[index]?.projectPath &&
+			panel.agentId === right[index]?.agentId &&
+			panel.sourcePath === right[index]?.sourcePath &&
+			panel.worktreePath === right[index]?.worktreePath &&
+			panel.sessionTitle === right[index]?.sessionTitle &&
+			panel.autoCreated === right[index]?.autoCreated
+	);
+}
+
 function areTerminalPanelGroupListsEqual(
 	left: readonly TerminalPanelGroup[] | undefined,
 	right: readonly TerminalPanelGroup[]
@@ -142,6 +167,7 @@ export class PanelStore {
 	private hotState = new SvelteMap<string, PanelHotState>();
 	private topLevelAgentPanelsById = new SvelteMap<string, Panel>();
 	private topLevelAgentPanelBySessionId = new SvelteMap<string, Panel>();
+	private topLevelAgentPanelsByProject = new SvelteMap<string, Panel[]>();
 	private topLevelAgentPanelRefs = new Map<string, ReactiveValue<Panel | null>>();
 
 	// Track in-flight opens
@@ -355,9 +381,18 @@ export class PanelStore {
 
 	private syncTopLevelAgentPanelIndex(nextPanels: readonly Panel[]): void {
 		this.topLevelAgentPanelBySessionId.clear();
+		const panelsByProject = new Map<string, Panel[]>();
 		for (const panel of nextPanels) {
 			if (panel.sessionId !== null) {
 				this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
+			}
+			if (panel.projectPath !== null) {
+				const projectPanels = panelsByProject.get(panel.projectPath);
+				if (projectPanels === undefined) {
+					panelsByProject.set(panel.projectPath, [panel]);
+				} else {
+					projectPanels.push(panel);
+				}
 			}
 			const current = this.topLevelAgentPanelsById.get(panel.id);
 			const isSame =
@@ -385,6 +420,13 @@ export class PanelStore {
 				this.topLevelAgentPanelRefs.set(panel.id, createReactiveValue(panel));
 			}
 		}
+		for (const [projectPath, panels] of panelsByProject) {
+			const existingPanels = this.topLevelAgentPanelsByProject.get(projectPath);
+			if (areAgentPanelListsEqual(existingPanels, panels)) {
+				panelsByProject.set(projectPath, existingPanels ?? panels);
+			}
+		}
+		this.topLevelAgentPanelsByProject = new SvelteMap(panelsByProject);
 	}
 
 	private clearRemovedTopLevelAgentPanelRefs(nextPanels: readonly Panel[]): void {
@@ -651,6 +693,16 @@ export class PanelStore {
 
 	getTopLevelAgentPanel(panelId: string): Panel | undefined {
 		return this.topLevelAgentPanelsById.get(panelId);
+	}
+
+	getTopLevelAgentPanelsForProject(projectPath: string): readonly Panel[] {
+		return this.topLevelAgentPanelsByProject.get(projectPath) ?? [];
+	}
+
+	getFirstSessionAgentPanelForProject(projectPath: string): Panel | undefined {
+		return this.getTopLevelAgentPanelsForProject(projectPath).find(
+			(panel) => panel.sessionId !== null
+		);
 	}
 
 	getTopLevelAgentPanelRef(panelId: string): ReactiveValue<Panel | null> {

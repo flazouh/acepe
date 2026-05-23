@@ -114,6 +114,28 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.getTopLevelAgentPanelRef(panel.id).current).toBeNull();
 	});
 
+	it("selects top-level agent panels by project through the panel index", () => {
+		const store = createStore();
+		const firstPanel = store.spawnPanel({ projectPath: "/tmp/project" });
+		const otherPanel = store.spawnPanel({ projectPath: "/tmp/other" });
+		const secondPanel = store.spawnPanel({ projectPath: "/tmp/project" });
+
+		store.panels = store.panels.map((panel) =>
+			panel.id === secondPanel.id ? { ...panel, sessionId: "session-2" } : panel
+		);
+
+		expect(store.getTopLevelAgentPanelsForProject("/tmp/project").map((panel) => panel.id)).toEqual([
+			secondPanel.id,
+			firstPanel.id,
+		]);
+		expect(store.getTopLevelAgentPanelsForProject("/tmp/other").map((panel) => panel.id)).toEqual([
+			otherPanel.id,
+		]);
+		expect(store.getFirstSessionAgentPanelForProject("/tmp/project")?.id).toBe(secondPanel.id);
+		expect(store.getTopLevelAgentPanelsForProject("/tmp/missing")).toEqual([]);
+		expect(store.getFirstSessionAgentPanelForProject("/tmp/missing")).toBeUndefined();
+	});
+
 	it("stores file, terminal, and browser panels in the canonical workspace panel list", () => {
 		const store = createStore();
 

@@ -21,9 +21,7 @@ function handleOpenChange(open: boolean) {
 }
 
 function handleRequestGeneration(projectPath: string, prompt: string) {
-	const agentPanel = panelStore.panels.find(
-		(panel) => panel.projectPath === projectPath && panel.sessionId
-	);
+	const agentPanel = panelStore.getFirstSessionAgentPanelForProject(projectPath);
 	if (agentPanel?.sessionId) {
 		sessionStore.sendMessage(agentPanel.sessionId, prompt);
 	}
