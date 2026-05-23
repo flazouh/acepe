@@ -8,7 +8,10 @@ import type {
 } from "@acepe/ui/agent-panel";
 import type { SessionGraphActivity, SessionTurnState } from "$lib/services/acp-types.js";
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
-import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArrayPatch,
+} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
 import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
@@ -204,6 +207,36 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 		return previousProjection;
 	}
 
+	function applyGraphSceneAppendPatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null {
+		const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(input.sceneEntries);
+		if (
+			appendPatch === undefined ||
+			appendPatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		if (appendPatch.appendedEntries.length === 0) {
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			return previousProjection;
+		}
+		const appendedProjection = createRowsFromSceneRange(
+			appendPatch.appendedEntries,
+			input.transcriptRevision,
+			0
+		);
+		previousProjection = {
+			rows: createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows),
+			hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
+		};
+		previousSceneEntries = input.sceneEntries;
+		previousTranscriptRevision = input.transcriptRevision;
+		return previousProjection;
+	}
+
 	return {
 		applySnapshot({ sceneEntries, transcriptRevision }) {
 			if (
@@ -267,7 +300,7 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			return previousProjection;
 		},
 		applyPatch(input) {
-			return applyGraphScenePatch(input);
+			return applyGraphScenePatch(input) ?? applyGraphSceneAppendPatch(input);
 		},
 		selectProjection() {
 			return previousProjection;

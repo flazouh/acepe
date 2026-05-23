@@ -1,7 +1,10 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-panel-canonical-source.js";
-import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 import {
 	type AgentPanelDisplayModel,
@@ -874,6 +877,59 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 			expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
 		} finally {
 			firstProjection.rows.concat = originalConcat;
+		}
+	});
+
+	it("applies marked append patches without scanning unchanged scene entries", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const baseEntries = [userEntry];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const nextEntries = [userEntry, assistantEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [assistantEntry],
+		});
+		Object.defineProperty(nextEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for display append patch");
+			},
+		});
+
+		try {
+			const nextProjection = readModel.applyPatch({
+				sceneEntries: nextEntries,
+				transcriptRevision: 2,
+			});
+
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				canonicalTextRevision: "2:assistant-1",
+			});
+		} finally {
+			Object.defineProperty(nextEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
 		}
 	});
 
