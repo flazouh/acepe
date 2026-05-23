@@ -2384,6 +2384,79 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionStateGraphForTest("session-1")?.turnState ?? null).toBe("Running");
 	});
 
+	it("ignores stale graph patch revisions instead of rolling canonical state backward", () => {
+		const store = new SessionStore();
+		const initialActivity: SessionGraphActivity = {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+		const staleActivity: SessionGraphActivity = {
+			kind: "running_operation",
+			activeOperationCount: 1,
+			activeSubagentCount: 0,
+			dominantOperationId: "op-stale",
+			blockingInteractionId: null,
+		};
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Idle",
+					lifecycle: createGraphLifecycle("ready"),
+					activity: initialActivity,
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 6,
+			lastEventSeq: 6,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 5,
+						transcriptRevision: 7,
+						lastEventSeq: 5,
+					},
+					toRevision: {
+						graphRevision: 6,
+						transcriptRevision: 7,
+						lastEventSeq: 6,
+					},
+					activity: staleActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity", "turnState"],
+				},
+			},
+		});
+
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		});
+		expect(store.getSessionActivity("session-1")).toEqual(initialActivity);
+		expect(store.getSessionTurnState("session-1")).toBe("Idle");
+	});
+
 	it("applies canonical blocked to running patches to graph, operation store, and scene", () => {
 		const store = new SessionStore();
 		const interactions = new InteractionStore();

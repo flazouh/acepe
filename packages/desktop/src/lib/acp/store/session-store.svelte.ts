@@ -3607,6 +3607,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					);
 					continue;
 				}
+				if (!isNewerGraphRevision(previousProjection.revision, command.revision)) {
+					logger.debug("Ignoring stale session-state graph patch", {
+						sessionId,
+						currentRevision: previousProjection.revision,
+						incomingRevision: command.revision,
+					});
+					continue;
+				}
 				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				this.operationStore.applySessionOperationPatches(sessionId, command.operationPatches);
 				this.liveSessionStateGraphConsumer?.applySessionInteractionPatches?.(
