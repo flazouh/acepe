@@ -311,6 +311,58 @@ describe("workspace sidebar state persistence", () => {
 		});
 	});
 
+	it("persists from workspace panel indexes without rebuilding panel lists", () => {
+		const panelStore = createPanelStoreStub();
+		panelStore.workspacePanels = [
+			{
+				id: "agent-1",
+				kind: "agent",
+				sessionId: "session-1",
+				width: 500,
+				ownerPanelId: null,
+				projectPath: "/workspace/app",
+				pendingProjectSelection: null,
+				pendingWorktreeEnabled: null,
+				preparedWorktreeLaunch: null,
+				selectedAgentId: null,
+				agentId: null,
+				sourcePath: null,
+				worktreePath: null,
+				sessionTitle: "Session",
+			},
+			{
+				id: "file-1",
+				kind: "file",
+				filePath: "src/app.ts",
+				projectPath: "/workspace/app",
+				ownerPanelId: "agent-1",
+				width: 420,
+			},
+		] as WorkspacePanel[];
+		Object.defineProperty(panelStore, "panels", {
+			get() {
+				throw new Error("must not rebuild agent panels while persisting");
+			},
+		});
+		Object.defineProperty(panelStore, "filePanels", {
+			get() {
+				throw new Error("must not rebuild file panels while persisting");
+			},
+		});
+		const store = new WorkspaceStore(panelStore as never, createSessionStoreStub() as never);
+
+		store.persist(true);
+
+		expect(saveWorkspaceStateMock).toHaveBeenCalledTimes(1);
+		const savedState = saveWorkspaceStateMock.mock.calls[0]?.[0] as
+			| Record<string, unknown>
+			| undefined;
+		expect(savedState?.workspacePanels).toHaveLength(2);
+		expect(savedState?.filePanels).toEqual([
+			expect.objectContaining({ id: "file-1", filePath: "src/app.ts" }),
+		]);
+	});
+
 	it("does not persist auto-created session panels", () => {
 		const panelStore = createPanelStoreStub();
 		panelStore.workspacePanels = [
@@ -449,7 +501,7 @@ describe("workspace sidebar state persistence", () => {
 
 	it("persists and restores worktree session context", () => {
 		const panelStore = createPanelStoreStub();
-		panelStore.panels = [
+		const workspacePanels = [
 			{
 				id: "panel-1",
 				sessionId: "session-1",
@@ -465,6 +517,8 @@ describe("workspace sidebar state persistence", () => {
 				worktreePath: null,
 			},
 		] as Panel[];
+		panelStore.panels = workspacePanels;
+		panelStore.workspacePanels = workspacePanels;
 
 		const sessionStore = {
 			getSessionIdentity: mock(() => ({

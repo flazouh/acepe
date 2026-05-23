@@ -54,6 +54,28 @@ function isPersistableAgentPanel(panel: Panel): boolean {
 	return panel.autoCreated !== true;
 }
 
+function selectPersistableRuntimePanels(
+	workspacePanels: ReadonlyArray<WorkspacePanel>
+): {
+	readonly agentPanels: Panel[];
+	readonly filePanels: FilePanel[];
+} {
+	const agentPanels: Panel[] = [];
+	const filePanels: FilePanel[] = [];
+	for (const panel of workspacePanels) {
+		if (panel.kind === "agent") {
+			if (isPersistableAgentPanel(panel)) {
+				agentPanels.push(panel);
+			}
+			continue;
+		}
+		if (panel.kind === "file") {
+			filePanels.push(panel);
+		}
+	}
+	return { agentPanels, filePanels };
+}
+
 function isPersistablePersistedAgentPanel(
 	panel: PersistedAgentWorkspacePanelState | PersistedPanelState
 ): boolean {
@@ -499,13 +521,8 @@ export class WorkspaceStore {
 		const saveState = () => {
 			this.persistDebounce = null;
 			const persistableWorkspacePanels = this.panelStore.getPersistableWorkspacePanels();
-			const persistableAgentPanels = this.panelStore.panels.filter(isPersistableAgentPanel);
-			const persistableAgentPanelIds = new Set<string>(
-				persistableAgentPanels.map((panel) => panel.id)
-			);
-			const persistableFilePanels = this.panelStore.filePanels.filter(
-				(panel) => panel.ownerPanelId === null || persistableAgentPanelIds.has(panel.ownerPanelId)
-			);
+			const { agentPanels: persistableAgentPanels, filePanels: persistableFilePanels } =
+				selectPersistableRuntimePanels(persistableWorkspacePanels);
 			const state: PersistedWorkspaceState = {
 				version: 12,
 				workspacePanels: serializeWorkspacePanels(persistableWorkspacePanels),
