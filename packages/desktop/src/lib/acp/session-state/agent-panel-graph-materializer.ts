@@ -31,6 +31,7 @@ import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-u
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
+const UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT = 40;
 
 export const AGENT_PANEL_SCENE_TEXT_LIMITS = {
 	output: 12000,
@@ -202,17 +203,26 @@ function logUnresolvedToolDiagnostics(
 		return;
 	}
 
-	const transcriptLinkedEntryIds = Array.from(index.byTranscriptSourceEntryId.keys()).slice(0, 40);
-	const operationSummaries = graph.operations.slice(0, 40).map((operation) => {
-		return {
-			id: operation.id,
-			toolCallId: operation.tool_call_id,
-			name: operation.name,
-			title: operation.title,
-			state: operation.operation_state,
-			sourceLink: operation.source_link,
-		};
-	});
+	const transcriptLinkedEntryIds = Array.from(index.byTranscriptSourceEntryId.keys()).slice(
+		0,
+		UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT
+	);
+	const operationSummaries = graph.operations
+		.slice(0, UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT)
+		.map((operation) => {
+			return {
+				id: operation.id,
+				toolCallId: operation.tool_call_id,
+				name: operation.name,
+				title: operation.title,
+				state: operation.operation_state,
+				sourceLink: operation.source_link,
+			};
+		});
+	const sampledToolTranscriptEntryCount = countSampledToolTranscriptEntries(
+		graph.transcriptSnapshot.entries,
+		UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT
+	);
 
 	console.warn("[agent-panel] unresolved restored tool row", {
 		sessionId: graph.canonicalSessionId,
@@ -224,13 +234,26 @@ function logUnresolvedToolDiagnostics(
 		entryId: entry.entryId,
 		entrySegmentCount: entry.segments.length,
 		entryTextLength: segmentText(entry).length,
-		toolTranscriptEntryCount: graph.transcriptSnapshot.entries.filter(
-			(candidate) => candidate.role === "tool"
-		).length,
+		sampledToolTranscriptEntryCount,
+		toolTranscriptEntrySampleLimit: UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT,
 		operationCount: graph.operations.length,
 		transcriptLinkedEntryIds,
 		operationSummaries,
 	});
+}
+
+function countSampledToolTranscriptEntries(
+	entries: readonly TranscriptEntry[],
+	limit: number
+): number {
+	let count = 0;
+	const sampleLength = Math.min(entries.length, limit);
+	for (let index = 0; index < sampleLength; index += 1) {
+		if (entries[index]?.role === "tool") {
+			count += 1;
+		}
+	}
+	return count;
 }
 
 function mapGraphStatus(graph: AgentPanelCanonicalSource): AgentPanelSessionStatus {

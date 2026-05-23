@@ -1259,10 +1259,22 @@ describe("agent panel graph materializer", () => {
 			globalThis,
 			"localStorage"
 		);
-		let warningDetails: { readonly entryText?: string; readonly entryId?: string } | null = null;
+		let warningDetails: {
+			readonly entryText?: string;
+			readonly entryId?: string;
+			readonly toolTranscriptEntryCount?: number;
+			readonly sampledToolTranscriptEntryCount?: number;
+			readonly toolTranscriptEntrySampleLimit?: number;
+		} | null = null;
 		console.warn = (
 			message?: string,
-			details?: { readonly entryText?: string; readonly entryId?: string }
+			details?: {
+				readonly entryText?: string;
+				readonly entryId?: string;
+				readonly toolTranscriptEntryCount?: number;
+				readonly sampledToolTranscriptEntryCount?: number;
+				readonly toolTranscriptEntrySampleLimit?: number;
+			}
 		) => {
 			if (message === "[agent-panel] unresolved restored tool row") {
 				warningDetails = details ?? null;
@@ -1302,7 +1314,10 @@ describe("agent panel graph materializer", () => {
 		expect(warningDetails).not.toHaveProperty("entryText");
 		expect(warningDetails).toMatchObject({
 			entryId: "tool-missing",
+			sampledToolTranscriptEntryCount: 1,
+			toolTranscriptEntrySampleLimit: 40,
 		});
+		expect(warningDetails).not.toHaveProperty("toolTranscriptEntryCount");
 	});
 
 	it("recursively materializes task children from canonical child operations", () => {
