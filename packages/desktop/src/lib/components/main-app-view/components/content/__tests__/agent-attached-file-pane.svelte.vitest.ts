@@ -74,7 +74,7 @@ describe("AgentAttachedFilePane", () => {
 		cleanup();
 	});
 
-	it("renders attached tab diff stats without materializing the full project status list", async () => {
+	it("loads only the active attached tab diff stats", async () => {
 		const statusByFilePath = new Map([
 			[
 				"src/a.ts",
@@ -128,13 +128,30 @@ describe("AgentAttachedFilePane", () => {
 		await waitFor(() => {
 			const badges = view.getAllByTestId("file-path-badge");
 			expect(badges[0]?.textContent).toBe("src/a.ts:3:1");
-			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
+			expect(badges[1]?.textContent).toBe("src/b.ts:0:0");
 		});
 
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
-		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(1);
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "src/a.ts");
-		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "src/b.ts");
+
+		await view.rerender({
+			ownerPanelId: "panel-1",
+			filePanels: [createFilePanel("file-a", "src/a.ts"), createFilePanel("file-b", "src/b.ts")],
+			activeFilePanelId: "file-b",
+			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
+			onSelectFilePanel: vi.fn(),
+			onCloseFilePanel: vi.fn(),
+			onResizeFilePanel: vi.fn(),
+		});
+
+		await waitFor(() => {
+			const badges = view.getAllByTestId("file-path-badge");
+			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
+		});
+
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenLastCalledWith("/repo", "src/b.ts");
 	});
 
 	it("uses the active file project metadata from the project lookup", () => {

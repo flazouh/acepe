@@ -57,9 +57,11 @@ const activeFileProject = $derived(
 
 $effect(() => {
 	const currentFilePanels = filePanels;
+	const currentActiveFilePanel = activeFilePanel;
 	let cancelled = false;
 
-	// Reset cache to currently relevant tabs only.
+	// Reset cache to currently relevant tabs only, but keep git metadata lazy.
+	// Opening a file should not kick off metadata work for every attached tab.
 	// Important: keep updates based on a local map snapshot so sync test doubles or
 	// immediate cache hits do not create a read/write self-dependency loop.
 	let nextGitStatusByFilePanelKey = new Map<string, FileGitStatus | null>();
@@ -68,12 +70,22 @@ $effect(() => {
 	}
 	gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 
+	if (currentActiveFilePanel === null) {
+		return () => {
+			cancelled = true;
+		};
+	}
+
 	const deferredWork = scheduleLazyPanelMetadataWork(() => {
 		if (cancelled) return;
 
-		for (const filePanel of currentFilePanels) {
-			const filePanelStatusKey = getFilePanelStatusKey(filePanel);
-			gitStatusCache.getProjectFileGitStatusSummary(filePanel.projectPath, filePanel.filePath).match(
+		const filePanelStatusKey = getFilePanelStatusKey(currentActiveFilePanel);
+		gitStatusCache
+			.getProjectFileGitStatusSummary(
+				currentActiveFilePanel.projectPath,
+				currentActiveFilePanel.filePath
+			)
+			.match(
 				(fileStatus) => {
 					if (cancelled) return;
 					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
@@ -87,7 +99,6 @@ $effect(() => {
 					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 				}
 			);
-		}
 	});
 
 	return () => {
