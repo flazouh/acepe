@@ -902,6 +902,16 @@ function findSessionColdIndexById(sessions: readonly SessionCold[], sessionId: s
 	return -1;
 }
 
+function rebuildSessionByIdIndex(
+	index: SvelteMap<string, SessionCold>,
+	sessions: readonly SessionCold[]
+): void {
+	index.clear();
+	for (const session of sessions) {
+		index.set(session.id, session);
+	}
+}
+
 export function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
@@ -1684,6 +1694,7 @@ export interface SessionStoreCallbacks {
 export class SessionStore implements SessionEventHandler, ISessionStateReader, ISessionStateWriter {
 	// === PRIMARY STATE ===
 	private sessions = $state<SessionCold[]>([]);
+	private readonly sessionById = new SvelteMap<string, SessionCold>();
 	loading = $state(false);
 
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
@@ -1745,10 +1756,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private callbacks: SessionStoreCallbacks = {};
 
 	// === DERIVED LOOKUPS ===
-	private readonly sessionById = $derived.by(() => {
-		return new Map(this.sessions.map((s) => [s.id, s]));
-	});
-
 	private readonly sessionsByProject = $derived.by(() => {
 		const map = new Map<string, SessionCold[]>();
 		for (const s of this.sessions) {
@@ -1809,6 +1816,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	setSessions(sessions: SessionCold[]): void {
 		this.sessions = sessions;
+		rebuildSessionByIdIndex(this.sessionById, sessions);
 	}
 
 	/**
@@ -2648,6 +2656,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	addSession(session: SessionCold): void {
 		this.sessions = createPrependedSessionColdArray(session, this.sessions);
+		this.sessionById.set(session.id, session);
 		logger.debug("Added session", { sessionId: session.id });
 	}
 
@@ -2733,6 +2742,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				sessionIndex === -1
 					? createPrependedSessionColdArray(snapshotSession, this.sessions)
 					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
+			this.sessionById.set(canonicalSessionId, snapshotSession);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -2857,6 +2867,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		const updatedSession = sessionColdWithMutableUpdates(session, updates, updatedAt);
 		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
+		this.sessionById.set(id, updatedSession);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {

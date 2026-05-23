@@ -122,4 +122,28 @@ describe("SessionStore renameSession", () => {
 			sessions.map = originalMap;
 		}
 	});
+
+	it("looks up a session by id without rebuilding a derived session map", () => {
+		store.addSession({
+			id: "session-indexed",
+			projectPath: "/project",
+			agentId: "claude-code",
+			title: "Indexed",
+			updatedAt: new Date("2026-04-06T10:00:00.000Z"),
+			createdAt: new Date("2026-04-06T09:00:00.000Z"),
+			parentId: null,
+		});
+		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
+		const originalMap = sessions.map;
+		sessions.map = () => {
+			throw new Error("must not rebuild session id map for a lookup");
+		};
+
+		try {
+			expect(store.getSessionCold("session-indexed")?.title).toBe("Indexed");
+			expect(store.hasSession("session-indexed")).toBe(true);
+		} finally {
+			sessions.map = originalMap;
+		}
+	});
 });
