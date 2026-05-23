@@ -3884,9 +3884,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		};
 		const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
 		nextTokenStream.set(rowKey, nextRow);
-		const nextTokenStreamByRowId = new Map(this.rowTokenStreamsByRowId.get(sessionId) ?? []);
-		nextTokenStreamByRowId.set(delta.rowId, nextRow);
-		this.rowTokenStreamsByRowId.set(sessionId, nextTokenStreamByRowId);
+		getOrCreateRowTokenStreamByRowId(this.rowTokenStreamsByRowId, sessionId).set(
+			delta.rowId,
+			nextRow
+		);
 		const nextClockAnchor =
 			projection.clockAnchor ??
 			({
@@ -4008,6 +4009,20 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.eventService.cleanupSessionUpdates();
 		this.clearAllAwaitingModelRefreshTimers();
 	}
+}
+
+function getOrCreateRowTokenStreamByRowId(
+	rowsBySessionId: Map<string, Map<string, RowTokenStream>>,
+	sessionId: string
+): Map<string, RowTokenStream> {
+	const existing = rowsBySessionId.get(sessionId);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const created = new Map<string, RowTokenStream>();
+	rowsBySessionId.set(sessionId, created);
+	return created;
 }
 
 /**
