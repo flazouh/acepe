@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionStateEnvelope } from "../../services/acp-types.js";
+import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
 import {
 	checkSessionStateEnvelopeByteBudget,
 	getSessionStateEnvelopeByteBudget,
@@ -27,6 +27,116 @@ function createEnvelope(payload: SessionStateEnvelope["payload"]): SessionStateE
 		graphRevision: 1,
 		lastEventSeq: 1,
 		payload,
+	};
+}
+
+function createLifecycle(errorMessage: string | null = null) {
+	return {
+		status: "ready" as const,
+		detachedReason: null,
+		failureReason: null,
+		errorMessage,
+		actionability: {
+			canSend: true,
+			canResume: false,
+			canRetry: false,
+			canArchive: true,
+			canConfigure: true,
+			recommendedAction: "send" as const,
+			recoveryPhase: "none" as const,
+			compactStatus: "ready" as const,
+		},
+	};
+}
+
+function createCapabilities(description = "Describe the command") {
+	return {
+		availableCommands: [
+			{
+				name: "plan",
+				description,
+			},
+		],
+		autonomousEnabled: true,
+	};
+}
+
+function createTelemetry(sourceModelId = "claude-sonnet") {
+	return {
+		sessionId: "session-1",
+		eventId: "event-1",
+		scope: "step",
+		costUsd: 0.02,
+		tokens: {
+			total: 42,
+			input: 20,
+			output: 22,
+		},
+		sourceModelId,
+		timestampMs: 123,
+		contextWindowSize: 200_000,
+	};
+}
+
+function createPlan(contentMarkdown: string | null = "## Plan") {
+	return {
+		steps: [
+			{
+				description: "Inspect the current state",
+				status: "completed" as const,
+			},
+			{
+				description: "Apply a small patch",
+				status: "in_progress" as const,
+			},
+		],
+		currentStep: 1,
+		hasPlan: true,
+		contentMarkdown,
+		title: "Plan",
+		source: "deterministic" as const,
+		confidence: "high" as const,
+		agentId: "agent-1",
+		updatedAt: 123,
+	};
+}
+
+function createSnapshotGraph(assistantText = "Hello"): SessionStateGraph {
+	return {
+		requestedSessionId: "session-1",
+		canonicalSessionId: "session-1",
+		isAlias: false,
+		agentId: "agent-1" as SessionStateGraph["agentId"],
+		projectPath: "/tmp/project",
+		worktreePath: null,
+		sourcePath: null,
+		revision,
+		transcriptSnapshot: {
+			revision: 1,
+			entries: [
+				{
+					entryId: "assistant-1",
+					role: "assistant",
+					segments: [
+						{
+							kind: "text",
+							segmentId: "segment-1",
+							text: assistantText,
+						},
+					],
+				},
+			],
+		},
+		operations: [],
+		interactions: [],
+		turnState: "Idle",
+		messageCount: 1,
+		activeStreamingTail: null,
+		activeTurnFailure: null,
+		lastTerminalTurnId: null,
+		lifecycle: createLifecycle(),
+		activity: idleActivity,
+		capabilities: createCapabilities(),
 	};
 }
 
@@ -198,5 +308,166 @@ describe("session-state envelope byte budgets", () => {
 			getSessionStateEnvelopeByteBudget("plan")
 		);
 		expect(getSessionStateEnvelopeByteBudget("snapshot")).toBeLessThanOrEqual(2_000_000);
+	});
+
+	it("accepts normal small lifecycle envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "lifecycle",
+				lifecycle: createLifecycle(),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "lifecycle",
+		});
+	});
+
+	it("rejects oversized lifecycle envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "lifecycle",
+				lifecycle: createLifecycle("x".repeat(getSessionStateEnvelopeByteBudget("lifecycle"))),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "lifecycle",
+			maxBytes: getSessionStateEnvelopeByteBudget("lifecycle"),
+		});
+	});
+
+	it("accepts normal small capabilities envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "capabilities",
+				capabilities: createCapabilities(),
+				revision,
+				preview_state: "canonical",
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "capabilities",
+		});
+	});
+
+	it("rejects oversized capabilities envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "capabilities",
+				capabilities: createCapabilities(
+					"x".repeat(getSessionStateEnvelopeByteBudget("capabilities"))
+				),
+				revision,
+				preview_state: "canonical",
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "capabilities",
+			maxBytes: getSessionStateEnvelopeByteBudget("capabilities"),
+		});
+	});
+
+	it("accepts normal small telemetry envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "telemetry",
+				telemetry: createTelemetry(),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "telemetry",
+		});
+	});
+
+	it("rejects oversized telemetry envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "telemetry",
+				telemetry: createTelemetry(
+					"x".repeat(getSessionStateEnvelopeByteBudget("telemetry"))
+				),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "telemetry",
+			maxBytes: getSessionStateEnvelopeByteBudget("telemetry"),
+		});
+	});
+
+	it("accepts normal small plan envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "plan",
+				plan: createPlan(),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "plan",
+		});
+	});
+
+	it("rejects oversized plan envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "plan",
+				plan: createPlan("x".repeat(getSessionStateEnvelopeByteBudget("plan"))),
+				revision,
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "plan",
+			maxBytes: getSessionStateEnvelopeByteBudget("plan"),
+		});
+	});
+
+	it("accepts normal small snapshot envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "snapshot",
+				graph: createSnapshotGraph(),
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "snapshot",
+		});
+	});
+
+	it("rejects oversized snapshot envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "snapshot",
+				graph: createSnapshotGraph(
+					"x".repeat(getSessionStateEnvelopeByteBudget("snapshot"))
+				),
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "snapshot",
+			maxBytes: getSessionStateEnvelopeByteBudget("snapshot"),
+		});
 	});
 });
