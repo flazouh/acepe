@@ -786,6 +786,122 @@ function selectPatchedTranscriptEntry(
 	return appended[index - base.length];
 }
 
+function createPrependedSessionColdArray(
+	session: SessionCold,
+	base: readonly SessionCold[]
+): SessionCold[] {
+	const target = new Array<SessionCold>(base.length + 1);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectPrependedSessionCold(session, base, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectPrependedSessionCold(session, base, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectPrependedSessionCold(session, base, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function selectPrependedSessionCold(
+	session: SessionCold,
+	base: readonly SessionCold[],
+	index: number
+): SessionCold | undefined {
+	return index === 0 ? session : base[index - 1];
+}
+
+function createPatchedSessionColdArray(
+	base: readonly SessionCold[],
+	patchedIndex: number,
+	session: SessionCold
+): SessionCold[] {
+	const target = new Array<SessionCold>(base.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index === patchedIndex ? session : base[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === patchedIndex ? session : base[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === patchedIndex ? session : base[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function findSessionColdIndexById(sessions: readonly SessionCold[], sessionId: string): number {
+	for (let index = 0; index < sessions.length; index += 1) {
+		if (sessions[index]?.id === sessionId) {
+			return index;
+		}
+	}
+	return -1;
+}
+
 export function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
@@ -2531,7 +2647,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Add a session to the store.
 	 */
 	addSession(session: SessionCold): void {
-		this.sessions = [session, ...this.sessions];
+		this.sessions = createPrependedSessionColdArray(session, this.sessions);
 		logger.debug("Added session", { sessionId: session.id });
 	}
 
@@ -2612,9 +2728,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 
 		if (canonicalSession) {
-			this.sessions = this.sessions.map((session) =>
-				session.id === canonicalSessionId ? snapshotSession : session
-			);
+			const sessionIndex = findSessionColdIndexById(this.sessions, canonicalSessionId);
+			this.sessions =
+				sessionIndex === -1
+					? createPrependedSessionColdArray(snapshotSession, this.sessions)
+					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -2720,20 +2838,25 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		updates: SessionMutableColdUpdates,
 		options?: { touchUpdatedAt?: boolean }
 	): void {
-		this.sessions = this.sessions.map((session) => {
-			if (session.id !== id) {
-				return session;
-			}
+		const sessionIndex = findSessionColdIndexById(this.sessions, id);
+		if (sessionIndex === -1) {
+			return;
+		}
 
-			const updatedAt =
-				updates.updatedAt !== undefined
-					? updates.updatedAt
-					: options?.touchUpdatedAt === false
-						? session.updatedAt
-						: new Date();
+		const session = this.sessions[sessionIndex];
+		if (session === undefined) {
+			return;
+		}
 
-			return sessionColdWithMutableUpdates(session, updates, updatedAt);
-		});
+		const updatedAt =
+			updates.updatedAt !== undefined
+				? updates.updatedAt
+				: options?.touchUpdatedAt === false
+					? session.updatedAt
+					: new Date();
+
+		const updatedSession = sessionColdWithMutableUpdates(session, updates, updatedAt);
+		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {
