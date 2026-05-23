@@ -405,7 +405,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	}
 
 	private normalizePreloadedEntries(entries: SessionEntry[]): SessionEntry[] {
-		return entries.map((entry) => this.normalizeRuntimeEntry(entry));
+		const normalizedEntries: SessionEntry[] = [];
+		for (const entry of entries) {
+			normalizedEntries.push(this.normalizeRuntimeEntry(entry));
+		}
+		return normalizedEntries;
 	}
 
 	/**

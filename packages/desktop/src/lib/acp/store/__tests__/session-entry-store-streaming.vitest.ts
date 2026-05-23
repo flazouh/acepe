@@ -12,6 +12,7 @@ vi.mock("../../utils/logger.js", () => ({
 }));
 
 import type { TranscriptDelta, TranscriptSnapshot } from "../../../services/acp-types.js";
+import type { SessionEntry } from "../types.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import {
@@ -910,7 +911,7 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 		});
 
 		it("rebuilds normalized results when tool-call history is preloaded", () => {
-			preloadEntriesAndBuildIndex(store, "session1", [
+			const entriesToPreload: SessionEntry[] = [
 				{
 					id: "entry-tool-1",
 					type: "tool_call",
@@ -931,7 +932,17 @@ describe("SessionEntryStore - Synchronous Entry Writes", () => {
 					},
 					timestamp: new Date(1),
 				},
-			]);
+			];
+			const originalMap = entriesToPreload.map;
+			entriesToPreload.map = () => {
+				throw new Error("must not map all preloaded entries during normalization");
+			};
+
+			try {
+				preloadEntriesAndBuildIndex(store, "session1", entriesToPreload);
+			} finally {
+				entriesToPreload.map = originalMap;
+			}
 
 			const entries = readStoredEntries(store, "session1");
 			expect(entries).toHaveLength(1);
