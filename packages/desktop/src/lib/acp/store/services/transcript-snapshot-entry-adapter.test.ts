@@ -95,6 +95,51 @@ describe("convertTranscriptSnapshotToSessionEntries", () => {
 		});
 	});
 
+	it("converts transcript snapshots without using broad map helpers", () => {
+		const timestamp = new Date("2026-04-16T00:00:00Z");
+		const snapshot = {
+			revision: 10,
+			entries: [
+				{
+					entryId: "assistant-1",
+					role: "assistant" as const,
+					segments: [
+						{ kind: "thought" as const, segmentId: "assistant-1:chunk:0", text: "thinking" },
+						{ kind: "text" as const, segmentId: "assistant-1:chunk:1", text: "hi" },
+					],
+				},
+			],
+		};
+		const originalEntriesMap = snapshot.entries.map;
+		const originalSegmentsMap = snapshot.entries[0]!.segments.map;
+		snapshot.entries.map = () => {
+			throw new Error("must not map every transcript entry during snapshot conversion");
+		};
+		snapshot.entries[0]!.segments.map = () => {
+			throw new Error("must not map every transcript segment during entry conversion");
+		};
+
+		try {
+			const entries = convertTranscriptSnapshotToSessionEntries(snapshot, timestamp);
+
+			expect(entries).toHaveLength(1);
+			expect(entries[0]).toEqual({
+				id: "assistant-1",
+				type: "assistant",
+				message: {
+					chunks: [
+						{ type: "thought", block: { type: "text", text: "thinking" } },
+						{ type: "message", block: { type: "text", text: "hi" } },
+					],
+				},
+				timestamp,
+			});
+		} finally {
+			snapshot.entries.map = originalEntriesMap;
+			snapshot.entries[0]!.segments.map = originalSegmentsMap;
+		}
+	});
+
 	it("appends transcript segments to tool entries", () => {
 		const timestamp = new Date("2026-04-16T00:00:00Z");
 		const updatedEntry = appendTranscriptSegmentToSessionEntry(

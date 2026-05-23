@@ -26,11 +26,19 @@ function toContentBlock(text: string): ContentBlock {
 }
 
 function segmentText(entry: TranscriptEntry): string {
-	return entry.segments.map((segment) => segment.text).join("\n");
+	let text = "";
+	for (const segment of entry.segments) {
+		text = text.length === 0 ? segment.text : `${text}\n${segment.text}`;
+	}
+	return text;
 }
 
 function segmentBlocks(entry: TranscriptEntry): ContentBlock[] {
-	return entry.segments.map((segment) => toContentBlock(segment.text));
+	const blocks: ContentBlock[] = [];
+	for (const segment of entry.segments) {
+		blocks.push(toContentBlock(segment.text));
+	}
+	return blocks;
 }
 
 function toTranscriptToolSpineMessage(entry: TranscriptEntry): ToolCallData {
@@ -80,14 +88,21 @@ export function convertTranscriptEntryToSessionEntry(
 	}
 
 	if (entry.role === "assistant") {
+		const chunks: Array<{
+			type: "thought" | "message";
+			block: ContentBlock;
+		}> = [];
+		for (const segment of entry.segments) {
+			chunks.push({
+				type: segment.kind === "thought" ? "thought" : "message",
+				block: toContentBlock(segment.text),
+			});
+		}
 		return {
 			id: entry.entryId,
 			type: "assistant",
 			message: {
-				chunks: entry.segments.map((segment) => ({
-					type: segment.kind === "thought" ? ("thought" as const) : ("message" as const),
-					block: toContentBlock(segment.text),
-				})),
+				chunks,
 			},
 			timestamp,
 		};
@@ -209,5 +224,9 @@ export function convertTranscriptSnapshotToSessionEntries(
 	snapshot: TranscriptSnapshot,
 	timestamp: Date
 ): SessionEntry[] {
-	return snapshot.entries.map((entry) => convertTranscriptEntryToSessionEntry(entry, timestamp));
+	const entries: SessionEntry[] = [];
+	for (const entry of snapshot.entries) {
+		entries.push(convertTranscriptEntryToSessionEntry(entry, timestamp));
+	}
+	return entries;
 }
