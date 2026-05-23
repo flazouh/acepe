@@ -161,6 +161,8 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(readModel.selectIndex()).toBe(patchedIndex);
 		expect(patchedIndex.get("tool-1")).toBe(firstEntry);
 		expect(patchedIndex.get("tool-2")).toBe(nextEntry);
+		expect(readModel.selectEntryById("tool-2")).toBe(nextEntry);
+		expect(readModel.selectEntryById(null)).toBeUndefined();
 	});
 
 	it("keeps the selected index stable for empty append patches", () => {

@@ -22,7 +22,7 @@ describe("createTokenRevealSceneReadModel", () => {
 
 		const selectedEntries = readModel.applySnapshot({
 			sceneEntries: entries,
-			sourceEntriesById: new Map(entries.map((entry) => [entry.id, entry])),
+			sourceEntry: undefined,
 			tailRowId: null,
 			tokenRevealCss: undefined,
 		});
@@ -56,7 +56,7 @@ describe("createTokenRevealSceneReadModel", () => {
 
 		const selectedEntries = readModel.applySnapshot({
 			sceneEntries: [userEntry, assistantEntry],
-			sourceEntriesById: new Map([[sourceAssistantEntry.id, sourceAssistantEntry]]),
+			sourceEntry: sourceAssistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss,
 		});
@@ -88,11 +88,10 @@ describe("createTokenRevealSceneReadModel", () => {
 			markdown: "Answer",
 			isStreaming: true,
 		};
-		const sourceEntriesById = new Map([[assistantEntry.id, assistantEntry]]);
 		const tokenRevealCss = createTokenRevealCss();
 		const snapshot = {
 			sceneEntries: [assistantEntry],
-			sourceEntriesById,
+			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss,
 		};
@@ -117,7 +116,6 @@ describe("createTokenRevealSceneReadModel", () => {
 			markdown: "Answer",
 			isStreaming: true,
 		};
-		const sourceEntriesById = new Map([[assistantEntry.id, assistantEntry]]);
 		const firstCss = createTokenRevealCss();
 		const nextCss: TokenRevealCss = {
 			...firstCss,
@@ -126,13 +124,13 @@ describe("createTokenRevealSceneReadModel", () => {
 
 		const firstEntries = readModel.applySnapshot({
 			sceneEntries: [userEntry, assistantEntry],
-			sourceEntriesById,
+			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss: firstCss,
 		});
 		const nextEntries = readModel.applySnapshot({
 			sceneEntries: [userEntry, assistantEntry],
-			sourceEntriesById,
+			sourceEntry: assistantEntry,
 			tailRowId: "assistant-1",
 			tokenRevealCss: nextCss,
 		});

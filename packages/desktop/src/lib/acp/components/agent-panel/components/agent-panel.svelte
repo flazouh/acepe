@@ -914,11 +914,9 @@ const tokenRevealSceneEntries = $derived.by(() => {
 		sessionId === null ? null : sessionStore.getActiveStreamingTailRowId(sessionId);
 	const clockAnchor = sessionId === null ? null : sessionStore.getClockAnchor(sessionId);
 
-	const sourceEntriesById = tokenRevealSourceIndexReadModel.getIndex(
-		graphMaterializedScene.conversation.entries
-	);
+	tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
 	const tailEntry =
-		tokenRevealTailRowId === null ? undefined : sourceEntriesById.get(tokenRevealTailRowId);
+		tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
 	const tokenRevealCss =
 		tailEntry?.type === "assistant"
 			? buildTokenRevealCss(
@@ -934,7 +932,7 @@ const tokenRevealSceneEntries = $derived.by(() => {
 
 	return tokenRevealSceneReadModel.applySnapshot({
 		sceneEntries: graphSceneEntries,
-		sourceEntriesById,
+		sourceEntry: tailEntry,
 		tailRowId: tokenRevealTailRowId,
 		tokenRevealCss,
 	});

@@ -3,7 +3,7 @@ import type { TokenRevealTiming } from "../../messages/token-reveal-motion.js";
 
 export type TokenRevealSceneSnapshot = {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly sourceEntriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>;
+	readonly sourceEntry: AgentPanelSceneEntryModel | undefined;
 	readonly tailRowId: string | null;
 	readonly tokenRevealCss: TokenRevealCss | undefined;
 };
@@ -40,10 +40,9 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				return previousEntries;
 			}
 
-			const sourceEntry = snapshot.sourceEntriesById.get(snapshot.tailRowId ?? "");
 			const tokenRevealEntry = copyAssistantSceneEntryWithTokenReveal(
 				snapshot.sceneEntries[tokenRevealEntryIndex],
-				sourceEntry,
+				snapshot.sourceEntry,
 				snapshot.tokenRevealCss
 			);
 			const nextEntries = snapshot.sceneEntries.slice();
@@ -71,7 +70,7 @@ function isSameTokenRevealSnapshot(
 	return (
 		previous !== null &&
 		previous.sceneEntries === next.sceneEntries &&
-		previous.sourceEntriesById === next.sourceEntriesById &&
+		previous.sourceEntry === next.sourceEntry &&
 		previous.tailRowId === next.tailRowId &&
 		previous.tokenRevealCss === next.tokenRevealCss
 	);
