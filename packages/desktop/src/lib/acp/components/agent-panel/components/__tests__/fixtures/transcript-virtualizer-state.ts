@@ -1,6 +1,8 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 export const dataLengthHistory: number[] = [];
+export const measureCalls: string[] = [];
+export const measureElementCalls: string[] = [];
 
 export const scrollToIndexCalls: Array<{
 	index: number;
@@ -15,6 +17,8 @@ let useIndexKeys = false;
 
 export function clearHistory(): void {
 	dataLengthHistory.length = 0;
+	measureCalls.length = 0;
+	measureElementCalls.length = 0;
 	scrollToIndexCalls.length = 0;
 	currentScrollOffset = 0;
 	conversationEntryHistory.length = 0;

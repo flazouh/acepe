@@ -11,6 +11,8 @@ import {
 	conversationEntryHistory,
 	dataLengthHistory,
 	getCurrentScrollOffset,
+	measureCalls,
+	measureElementCalls,
 	scrollToIndexCalls,
 	setDefaultViewportSize,
 	setSuppressRenderedChildren,
@@ -135,6 +137,21 @@ function triggerResizeObserversForEntryKey(entryKey: string): void {
 				continue;
 			}
 			if (target.dataset.entryKey !== entryKey) {
+				continue;
+			}
+			observer.trigger();
+			break;
+		}
+	}
+}
+
+function triggerResizeObserversForVirtualIndex(index: number): void {
+	for (const observer of resizeObservers) {
+		for (const target of observer.targets) {
+			if (!(target instanceof HTMLElement)) {
+				continue;
+			}
+			if (target.dataset.index !== String(index)) {
 				continue;
 			}
 			observer.trigger();
@@ -1234,6 +1251,26 @@ describe("SceneContentViewport auto-scroll", () => {
 			.filter((entryKey): entryKey is string => entryKey !== undefined);
 
 		expect(observedEntryKeys).toEqual(["tool-1"]);
+	});
+
+	it("remeasures only the resized TanStack row", async () => {
+		renderList({
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createAssistantSceneEntry("assistant-1", "world"),
+			],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		measureCalls.length = 0;
+		measureElementCalls.length = 0;
+
+		triggerResizeObserversForVirtualIndex(0);
+
+		expect(measureElementCalls).toContain("0");
+		expect(measureCalls).toHaveLength(0);
 	});
 
 	it("tracks last assistant id for streaming indicator", async () => {

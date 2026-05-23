@@ -532,7 +532,6 @@ function measureVirtualizedRow(
 	virtualizer.measureElement(node);
 	const observer = new ResizeObserver(() => {
 		virtualizer.measureElement(node);
-		virtualizer.measure();
 	});
 	observer.observe(node);
 	return {

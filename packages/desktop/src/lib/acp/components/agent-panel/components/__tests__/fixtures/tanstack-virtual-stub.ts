@@ -3,6 +3,8 @@ import { writable, type Readable } from "svelte/store";
 import {
 	dataLengthHistory,
 	getDefaultViewportSize,
+	measureCalls,
+	measureElementCalls,
 	recordScrollOffset,
 	scrollToIndexCalls,
 	shouldSuppressRenderedChildren,
@@ -89,9 +91,15 @@ export function createVirtualizer(initialOptions: VirtualizerOptions): Readable<
 			return items;
 		},
 		measure() {
+			measureCalls.push("measure");
 			return;
 		},
-		measureElement() {
+		measureElement(node) {
+			measureElementCalls.push(
+				node instanceof HTMLElement
+					? (node.dataset.entryKey ?? node.dataset.index ?? node.tagName)
+					: "element"
+			);
 			return;
 		},
 		scrollToIndex(index, scrollOptions) {
