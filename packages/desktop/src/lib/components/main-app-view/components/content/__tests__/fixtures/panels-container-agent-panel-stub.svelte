@@ -15,10 +15,6 @@ interface AgentRef {
 	readonly id: string;
 }
 
-interface FilePanelRef {
-	readonly id: string;
-}
-
 interface Props {
 	panelId: string;
 	project?: ProjectRef | null;
@@ -26,7 +22,7 @@ interface Props {
 	pendingProjectSelection?: boolean;
 	isFullscreen?: boolean;
 	availableAgents?: readonly AgentRef[];
-	attachedFilePanels?: readonly FilePanelRef[];
+	hasAttachedFilePane?: boolean;
 }
 
 let {
@@ -36,7 +32,7 @@ let {
 	pendingProjectSelection = false,
 	isFullscreen = false,
 	availableAgents = [],
-	attachedFilePanels = [],
+	hasAttachedFilePane = false,
 }: Props = $props();
 
 onMount(() => {
@@ -47,7 +43,7 @@ onMount(() => {
 const projectPath = $derived(project?.path ?? "no-project");
 const selectedAgent = $derived(selectedAgentId ?? "no-agent");
 const availableAgentCount = $derived(availableAgents.length);
-const attachedFileCount = $derived(attachedFilePanels.length);
+const attachedFileCount = $derived(hasAttachedFilePane ? 1 : 0);
 const renderTick = $derived.by(() => {
 	recordAgentPanelRender(panelId);
 	return getAgentPanelRenderCount(panelId);

@@ -1,7 +1,6 @@
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { Project } from "../../../logic/project-manager.svelte";
-import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 
 /**
@@ -179,9 +178,9 @@ export interface AgentPanelProps {
 	readonly onOpenFullscreenReview?: (sessionId: string, fileIndex: number) => void;
 
 	/**
-	 * Attached file panels owned by this agent panel.
+	 * Whether this agent panel currently has any attached file tabs.
 	 */
-	readonly attachedFilePanels?: readonly FilePanel[];
+	readonly hasAttachedFilePane?: boolean;
 
 	/**
 	 * Callback to select active attached file tab.

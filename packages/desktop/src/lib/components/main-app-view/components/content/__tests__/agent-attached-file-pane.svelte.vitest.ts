@@ -41,6 +41,7 @@ vi.mock("$lib/acp/components/file-panel/file-panel-defer.js", () => ({
 
 const getProjectGitStatusSummaryMapMock = vi.fn();
 const getProjectFileGitStatusSummaryMock = vi.fn();
+const getAttachedFilePanelsMock = vi.fn();
 const getActiveFilePanelIdMock = vi.fn();
 const getActiveAttachedFilePanelMock = vi.fn();
 
@@ -55,6 +56,7 @@ vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 
 vi.mock("$lib/acp/store/index.js", () => ({
 	getPanelStore: () => ({
+		getAttachedFilePanels: (ownerPanelId: string) => getAttachedFilePanelsMock(ownerPanelId),
 		getActiveFilePanelId: (ownerPanelId: string) => getActiveFilePanelIdMock(ownerPanelId),
 		getActiveAttachedFilePanel: (ownerPanelId: string) =>
 			getActiveAttachedFilePanelMock(ownerPanelId),
@@ -78,6 +80,7 @@ describe("AgentAttachedFilePane", () => {
 	beforeEach(() => {
 		getProjectGitStatusSummaryMapMock.mockReset();
 		getProjectFileGitStatusSummaryMock.mockReset();
+		getAttachedFilePanelsMock.mockReset();
 		getActiveFilePanelIdMock.mockReset();
 		getActiveAttachedFilePanelMock.mockReset();
 	});
@@ -128,11 +131,11 @@ describe("AgentAttachedFilePane", () => {
 			createFilePanel("file-a", "src/a.ts"),
 			createFilePanel("file-b", "src/b.ts"),
 		];
+		getAttachedFilePanelsMock.mockImplementation(() => initialFilePanels);
 		getActiveFilePanelIdMock.mockImplementation(() => "file-a");
 		getActiveAttachedFilePanelMock.mockImplementation(() => initialFilePanels[0]);
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
-			filePanels: initialFilePanels,
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
 			onSelectFilePanel: vi.fn(),
 			onCloseFilePanel: vi.fn(),
@@ -156,11 +159,11 @@ describe("AgentAttachedFilePane", () => {
 			createFilePanel("file-a", "src/a.ts"),
 			createFilePanel("file-b", "src/b.ts"),
 		];
+		getAttachedFilePanelsMock.mockImplementation(() => nextFilePanels);
 		getActiveFilePanelIdMock.mockImplementation(() => "file-b");
 		getActiveAttachedFilePanelMock.mockImplementation(() => nextFilePanels[1]);
 		await view.rerender({
 			ownerPanelId: "panel-1",
-			filePanels: nextFilePanels,
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
 			onSelectFilePanel: vi.fn(),
 			onCloseFilePanel: vi.fn(),
@@ -186,11 +189,11 @@ describe("AgentAttachedFilePane", () => {
 			createFilePanel("file-a", "src/a.ts", "/repo-a"),
 			createFilePanel("file-b", "src/b.ts", "/repo-b"),
 		];
+		getAttachedFilePanelsMock.mockImplementation(() => filePanels);
 		getActiveFilePanelIdMock.mockImplementation(() => "file-b");
 		getActiveAttachedFilePanelMock.mockImplementation(() => filePanels[1]);
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
-			filePanels,
 			projects: [
 				{ path: "/repo-a", name: "Repo A", createdAt: new Date(0), color: "#123456" },
 				{ path: "/repo-b", name: "Repo B", createdAt: new Date(0), color: "#abcdef" },

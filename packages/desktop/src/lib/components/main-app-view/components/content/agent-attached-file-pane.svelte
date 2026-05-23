@@ -13,7 +13,6 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 interface Props {
 	ownerPanelId: string;
-	filePanels: readonly FilePanelType[];
 	projects: readonly Project[];
 	columnWidth?: number;
 	isFullscreenEmbedded?: boolean;
@@ -24,7 +23,6 @@ interface Props {
 
 let {
 	ownerPanelId,
-	filePanels,
 	projects,
 	columnWidth = 450,
 	isFullscreenEmbedded: _isFullscreenEmbedded = false,
@@ -34,6 +32,7 @@ let {
 }: Props = $props();
 
 const panelStore = getPanelStore();
+const filePanels = $derived(panelStore.getAttachedFilePanels(ownerPanelId));
 
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 

@@ -197,7 +197,7 @@ let {
 	onEnterReviewMode,
 	onExitReviewMode,
 	onReviewFileIndexChange,
-	attachedFilePanels = [],
+	hasAttachedFilePane = false,
 	onSelectAttachedFilePanel,
 	onCloseAttachedFilePanel,
 	onResizeAttachedFilePanel,
@@ -1128,7 +1128,7 @@ $effect(() => {
 });
 
 const toolbarMinWidthWithPadding = $derived(toolbarMinWidth > 0 ? toolbarMinWidth + 16 : 0);
-const hasAttachedPane = $derived(Boolean(panelId) && attachedFilePanels.length > 0);
+const hasAttachedPane = $derived(Boolean(panelId) && hasAttachedFilePane);
 const requiredSplitWidth = $derived(
 	hasAttachedPane ? ATTACHED_COLUMN_WIDTH * 2 + ATTACHED_COLUMN_GAP_WIDTH : 0
 );
@@ -2326,10 +2326,9 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 	{/snippet}
 
 	{#snippet leadingPane()}
-		{#if panelId && attachedFilePanels.length > 0}
+		{#if panelId && hasAttachedFilePane}
 			<AgentAttachedFilePane
 				ownerPanelId={panelId}
-				filePanels={attachedFilePanels}
 				projects={allProjects}
 				columnWidth={ATTACHED_COLUMN_WIDTH}
 				isFullscreenEmbedded={isFullscreen}
