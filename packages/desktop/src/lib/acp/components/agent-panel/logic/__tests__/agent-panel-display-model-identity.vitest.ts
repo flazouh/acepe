@@ -833,6 +833,51 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(truncatedProjection.hasLiveTail).toBe(true);
 	});
 
+	it("truncates display rows without copying preserved rows", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry, removedAssistantEntry],
+			transcriptRevision: 1,
+		});
+		const originalSlice = firstProjection.rows.slice;
+
+		firstProjection.rows.slice = () => {
+			throw new Error("must not copy preserved display rows for truncation");
+		};
+
+		try {
+			const truncatedProjection = readModel.applySnapshot({
+				sceneEntries: [userEntry, assistantEntry],
+				transcriptRevision: 1,
+			});
+
+			expect(truncatedProjection.rows).toHaveLength(2);
+			expect(truncatedProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(truncatedProjection.rows[1]).toBe(firstProjection.rows[1]);
+			expect(truncatedProjection.rows.map((row) => row.id)).toEqual([
+				"user-1",
+				"assistant-1",
+			]);
+		} finally {
+			firstProjection.rows.slice = originalSlice;
+		}
+	});
+
 	it("reuses display row projection when only non-display tail entries are removed", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
