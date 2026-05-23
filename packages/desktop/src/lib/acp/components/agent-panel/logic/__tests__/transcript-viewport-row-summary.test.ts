@@ -634,6 +634,40 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(readModel.selectThinkingDurationMs(1, startedAtMs + 30_000)).toBeNull();
 	});
 
+	it("builds initial thinking durations without repeatedly scanning row suffixes", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
+		const rawRows: SceneDisplayRow[] = [];
+		for (let group = 0; group < 60; group += 1) {
+			rawRows.push(
+				assistantRow(`assistant-${group}`, {
+					thought: true,
+					timestampMs: startedAtMs + group * 1_000,
+				})
+			);
+			for (let gap = 0; gap < 30; gap += 1) {
+				rawRows.push(missingRow(`missing-${group}-${gap}`));
+			}
+		}
+		rawRows.push(userRow("user-final", { timestampMs: startedAtMs + 60_000 }));
+		const rows = rawRows.slice();
+		let rowReads = 0;
+		for (let index = 0; index < rawRows.length; index += 1) {
+			Object.defineProperty(rows, String(index), {
+				configurable: true,
+				get() {
+					rowReads += 1;
+					return rawRows[index];
+				},
+			});
+		}
+
+		readModel.applyRows({ rows, reason: "rows-updated" });
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 90_000)).toBe(1_000);
+		expect(rowReads).toBeLessThan(rawRows.length * 3);
+	});
+
 	it("updates thinking duration sources incrementally after an append", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
@@ -784,6 +818,14 @@ function toolRow(id: string): SceneDisplayRow {
 		type: "tool_call",
 		title: "Run",
 		status: "done",
+	} as unknown as SceneDisplayRow;
+}
+
+function missingRow(id: string): SceneDisplayRow {
+	return {
+		id,
+		type: "missing",
+		diagnosticLabel: id,
 	} as unknown as SceneDisplayRow;
 }
 

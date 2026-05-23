@@ -1151,10 +1151,79 @@ function truncateThinkingDurationSources(
 
 function buildThinkingDurationSources(rows: readonly SceneDisplayRow[]): ThinkingDurationSource[] {
 	const sources: ThinkingDurationSource[] = [];
-	for (let index = 0; index < rows.length; index += 1) {
-		sources[index] = buildThinkingDurationSource(rows, index);
+	let nextDurationBoundary:
+		| { readonly type: "thinking" }
+		| { readonly type: "timestamp"; readonly timestampMs: number }
+		| null = null;
+
+	for (let index = rows.length - 1; index >= 0; index -= 1) {
+		const row = rows[index];
+		sources[index] = buildThinkingDurationSourceFromBoundary(row, nextDurationBoundary);
+
+		if (row === undefined) {
+			continue;
+		}
+		if (row.type === "thinking") {
+			nextDurationBoundary = { type: "thinking" };
+			continue;
+		}
+		const timestampMs = getSceneDisplayRowTimestampMs(row);
+		if (timestampMs !== null) {
+			nextDurationBoundary = { type: "timestamp", timestampMs };
+		}
 	}
 	return sources;
+}
+
+function buildThinkingDurationSourceFromBoundary(
+	row: SceneDisplayRow | undefined,
+	nextDurationBoundary:
+		| { readonly type: "thinking" }
+		| { readonly type: "timestamp"; readonly timestampMs: number }
+		| null
+): ThinkingDurationSource {
+	if (row === undefined) {
+		return { type: "none" };
+	}
+
+	if (row.type === "thinking") {
+		return row.startedAtMs === null || row.startedAtMs === undefined
+			? { type: "none" }
+			: { type: "elapsed", startedAtMs: row.startedAtMs };
+	}
+
+	if (row.type !== "assistant_merged" || !hasThoughtChunks(row)) {
+		return { type: "none" };
+	}
+
+	const startedAtMs = row.timestamp?.getTime();
+	if (startedAtMs === undefined) {
+		return { type: "none" };
+	}
+
+	if (nextDurationBoundary?.type === "thinking") {
+		return { type: "elapsed", startedAtMs };
+	}
+	if (nextDurationBoundary?.type === "timestamp") {
+		return {
+			type: "fixed",
+			durationMs: Math.max(0, nextDurationBoundary.timestampMs - startedAtMs),
+		};
+	}
+
+	const endedAtMs = row.latestTimestamp?.getTime();
+	if (endedAtMs !== undefined && endedAtMs > startedAtMs) {
+		return {
+			type: "fixed",
+			durationMs: Math.max(0, endedAtMs - startedAtMs),
+		};
+	}
+
+	if (row.isStreaming === true) {
+		return { type: "elapsed", startedAtMs };
+	}
+
+	return { type: "none" };
 }
 
 function buildThinkingDurationSource(
