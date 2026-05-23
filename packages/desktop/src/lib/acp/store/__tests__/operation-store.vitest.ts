@@ -384,6 +384,157 @@ describe("OperationStore", () => {
 		}
 	});
 
+	it("updates cached root tool calls for nested child patches without rematerializing unchanged roots", () => {
+		const operationStore = new OperationStore();
+		const parentOperationId = buildCanonicalOperationId("session-1", "task-parent");
+		const childOperationId = buildCanonicalOperationId("session-1", "task-child");
+		const untouchedRootOperationId = buildCanonicalOperationId("session-1", "tool-2");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: parentOperationId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "in_progress",
+				operation_state: "running",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childOperationId],
+			}),
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "in_progress",
+				operation_state: "running",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+			createOperationSnapshot({
+				id: untouchedRootOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "untouched",
+			}),
+		]);
+
+		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+		expect(firstToolCalls[0]?.taskChildren?.[0]?.status).toBe("in_progress");
+		const originalSecondRoot = firstToolCalls[1];
+		const operationsById = (operationStore as unknown as {
+			operationsById: Map<string, unknown>;
+		}).operationsById;
+		const originalGet = operationsById.get;
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "ok",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		operationsById.get = function patchedGet(this: Map<string, unknown>, key: string) {
+			if (key === untouchedRootOperationId) {
+				throw new Error("must not rematerialize unchanged root tool calls");
+			}
+			return originalGet.call(this, key);
+		};
+
+		try {
+			const patchedToolCalls = operationStore.getSessionToolCalls("session-1");
+			expect(patchedToolCalls).not.toBe(firstToolCalls);
+			expect(patchedToolCalls[0]?.taskChildren?.[0]).toMatchObject({
+				id: "task-child",
+				status: "completed",
+				result: "ok",
+			});
+			expect(patchedToolCalls[1]).toBe(originalSecondRoot);
+		} finally {
+			operationsById.get = originalGet;
+		}
+	});
+
+	it("materializes appended root tool calls after same-batch child appends", () => {
+		const operationStore = new OperationStore();
+		const existingRootOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const appendedParentOperationId = buildCanonicalOperationId("session-1", "task-parent");
+		const appendedChildOperationId = buildCanonicalOperationId("session-1", "task-child");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: existingRootOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "existing",
+			}),
+		]);
+
+		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+		expect(firstToolCalls).toHaveLength(1);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: appendedParentOperationId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "running",
+				operation_state: "running",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [appendedChildOperationId],
+			}),
+			createOperationSnapshot({
+				id: appendedChildOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: appendedParentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "ok",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const patchedToolCalls = operationStore.getSessionToolCalls("session-1");
+		expect(patchedToolCalls).toHaveLength(2);
+		expect(patchedToolCalls[0]).toBe(firstToolCalls[0]);
+		expect(patchedToolCalls[1]?.id).toBe("task-parent");
+		expect(patchedToolCalls[1]?.taskChildren?.[0]).toMatchObject({
+			id: "task-child",
+			status: "completed",
+			result: "ok",
+		});
+	});
+
 	it("caches current and last tool selectors until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");

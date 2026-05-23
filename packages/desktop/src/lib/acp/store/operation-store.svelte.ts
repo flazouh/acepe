@@ -367,6 +367,8 @@ export class OperationStore {
 		let cachedOperationAppends: Operation[] | null = null;
 		let cachedToolCallPatches: Map<number, ToolCall> | null = null;
 		let cachedToolCallAppends: ToolCall[] | null = null;
+		const patchedRootOperationIds = new Set<string>();
+		const appendedRootOperationIds: string[] = [];
 		let canPatchCachedToolCalls =
 			cachedSessionToolCalls === undefined || cachedSessionToolCalls.version === previousVersion;
 		let canPreserveModifiedFilesState =
@@ -458,9 +460,6 @@ export class OperationStore {
 			const canPatchRootToolCall =
 				nextIsRootOperation &&
 				(existingOperation === undefined || existingOperation.parentOperationId === null);
-			if (cachedSessionToolCalls?.version === previousVersion && !canPatchRootToolCall) {
-				canPatchCachedToolCalls = false;
-			}
 			let wasAppendedOperation = false;
 			if (!sessionOperationIdSet.has(operation.id)) {
 				sessionOperationIds.push(operation.id);
@@ -485,11 +484,7 @@ export class OperationStore {
 					this.lastTodoOperationIdBySession.set(sessionId, operation.id);
 				}
 				if (cachedSessionToolCalls?.version === previousVersion && canPatchRootToolCall) {
-					const toolCall = this.materializeToolCall(operation.id, new Set<string>());
-					if (toolCall !== null) {
-						cachedToolCallAppends ??= [];
-						cachedToolCallAppends.push(toolCall);
-					}
+					appendedRootOperationIds.push(operation.id);
 				}
 			} else if (cachedSessionOperations?.version === previousVersion) {
 				const cachedOperationIndex =
@@ -502,18 +497,55 @@ export class OperationStore {
 			if (
 				sessionOperationIdSet.has(operation.id) &&
 				!wasAppendedOperation &&
-				cachedSessionToolCalls?.version === previousVersion &&
-				canPatchRootToolCall
+				cachedSessionToolCalls?.version === previousVersion
 			) {
-				const cachedToolCallIndex =
-					cachedSessionToolCalls.toolCallIndexById.get(operation.toolCallId) ?? -1;
-				const toolCall = this.materializeToolCall(operation.id, new Set<string>());
-				if (cachedToolCallIndex !== -1 && toolCall !== null) {
-					cachedToolCallPatches ??= new Map<number, ToolCall>();
-					cachedToolCallPatches.set(cachedToolCallIndex, toolCall);
+				if (
+					existingOperation !== undefined &&
+					existingOperation.parentOperationId !== operation.parentOperationId
+				) {
+					canPatchCachedToolCalls = false;
+				} else {
+					const rootOperationId = this.findRootOperationId(operation.id);
+					if (rootOperationId === null) {
+						canPatchCachedToolCalls = false;
+					} else if (
+						!appendedRootOperationIds.includes(rootOperationId) &&
+						(canPatchRootToolCall || operation.parentOperationId !== null)
+					) {
+						patchedRootOperationIds.add(rootOperationId);
+					}
 				}
 			}
 			this.updateCurrentStreamingOperation(sessionId, operation);
+		}
+		if (cachedSessionToolCalls?.version === previousVersion && canPatchCachedToolCalls) {
+			for (const rootOperationId of patchedRootOperationIds) {
+				const rootOperation = this.operationsById.get(rootOperationId);
+				if (rootOperation == null) {
+					canPatchCachedToolCalls = false;
+					break;
+				}
+				const cachedToolCallIndex =
+					cachedSessionToolCalls.toolCallIndexById.get(rootOperation.toolCallId) ?? -1;
+				const toolCall = this.materializeToolCall(rootOperationId, new Set<string>());
+				if (cachedToolCallIndex === -1 || toolCall === null) {
+					canPatchCachedToolCalls = false;
+					break;
+				}
+				cachedToolCallPatches ??= new Map<number, ToolCall>();
+				cachedToolCallPatches.set(cachedToolCallIndex, toolCall);
+			}
+			if (canPatchCachedToolCalls) {
+				for (const rootOperationId of appendedRootOperationIds) {
+					const toolCall = this.materializeToolCall(rootOperationId, new Set<string>());
+					if (toolCall === null) {
+						canPatchCachedToolCalls = false;
+						break;
+					}
+					cachedToolCallAppends ??= [];
+					cachedToolCallAppends.push(toolCall);
+				}
+			}
 		}
 		if (appendedOperationId) {
 			this.sessionOperationIds.set(sessionId, sessionOperationIds);
@@ -743,6 +775,26 @@ export class OperationStore {
 		}
 
 		this.lastTodoOperationIdBySession.delete(sessionId);
+		return null;
+	}
+
+	private findRootOperationId(operationId: string): string | null {
+		const visited = new Set<string>();
+		let currentOperationId: string | null = operationId;
+		while (currentOperationId !== null) {
+			if (visited.has(currentOperationId)) {
+				return null;
+			}
+			visited.add(currentOperationId);
+			const operation = this.operationsById.get(currentOperationId);
+			if (operation == null) {
+				return null;
+			}
+			if (operation.parentOperationId === null) {
+				return operation.id;
+			}
+			currentOperationId = operation.parentOperationId;
+		}
 		return null;
 	}
 
