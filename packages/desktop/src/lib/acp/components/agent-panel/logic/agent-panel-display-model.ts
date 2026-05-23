@@ -764,6 +764,18 @@ export function applyAgentPanelDisplayModelToSceneEntries(
 export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDisplaySceneEntriesReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let sceneEntryIndexesById: Map<string, number> = new Map();
+	let previousModelRows: readonly AgentPanelDisplayRow[] | null = null;
+	let previousModelTurnState: TurnState | null = null;
+	let previousAssistantRowsById: ReadonlyMap<
+		string,
+		Extract<AgentPanelDisplayRow, { type: "assistant" }>
+	> | null = null;
+	let previousPatchedSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
+	let previousPatchedAssistantRowsById: ReadonlyMap<
+		string,
+		Extract<AgentPanelDisplayRow, { type: "assistant" }>
+	> | null = null;
+	let previousDisplayedSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 
 	return {
 		apply({ model, sceneEntries }) {
@@ -784,16 +796,44 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				previousSceneEntries = sceneEntries;
 			}
 
-			const assistantRowsById = selectAssistantRowsForScenePatch(model);
+			let assistantRowsById = previousAssistantRowsById;
+			if (
+				assistantRowsById === null ||
+				previousModelRows !== model.rows ||
+				previousModelTurnState !== model.turnState
+			) {
+				assistantRowsById = selectAssistantRowsForScenePatch(model);
+				previousAssistantRowsById = assistantRowsById;
+				previousModelRows = model.rows;
+				previousModelTurnState = model.turnState;
+			}
+			if (
+				previousPatchedSceneEntries === sceneEntries &&
+				previousPatchedAssistantRowsById === assistantRowsById &&
+				previousDisplayedSceneEntries !== null
+			) {
+				return previousDisplayedSceneEntries;
+			}
+
 			const indexedEntries = applyAssistantDisplayRowsToSceneEntriesByIndex(
 				assistantRowsById,
 				sceneEntries,
 				sceneEntryIndexesById
 			);
 			if (indexedEntries !== null) {
+				previousPatchedSceneEntries = sceneEntries;
+				previousPatchedAssistantRowsById = assistantRowsById;
+				previousDisplayedSceneEntries = indexedEntries;
 				return indexedEntries;
 			}
-			return applyAssistantDisplayRowsToSceneEntriesByScan(assistantRowsById, sceneEntries);
+			const displayedEntries = applyAssistantDisplayRowsToSceneEntriesByScan(
+				assistantRowsById,
+				sceneEntries
+			);
+			previousPatchedSceneEntries = sceneEntries;
+			previousPatchedAssistantRowsById = assistantRowsById;
+			previousDisplayedSceneEntries = displayedEntries;
+			return displayedEntries;
 		},
 	};
 }

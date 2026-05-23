@@ -141,6 +141,18 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			type: "assistant",
 			markdown: "Answer",
 		});
+
+		expect(
+			readModel.apply({
+				model: {
+					...model,
+					status: "connected",
+					waiting: { show: true, label: "Planning next moves..." },
+				},
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries,
+			})
+		).toBe(displayedEntries);
 	});
 
 	it("keeps the cached scene entry index valid after append-only scene updates", () => {
