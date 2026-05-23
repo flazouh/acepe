@@ -369,6 +369,7 @@ export class OperationStore {
 		let cachedToolCallAppends: ToolCall[] | null = null;
 		const patchedRootOperationIds = new Set<string>();
 		const appendedRootOperationIds: string[] = [];
+		const patchedRootToolCallsByOperationId = new Map<string, ToolCall>();
 		let canPatchCachedToolCalls =
 			cachedSessionToolCalls === undefined || cachedSessionToolCalls.version === previousVersion;
 		let canPreserveModifiedFilesState =
@@ -382,6 +383,18 @@ export class OperationStore {
 		let canPreserveLastTodoToolCall =
 			cachedLastTodoToolCall === undefined ||
 			cachedLastTodoToolCall.version === previousVersion;
+		const resolvePatchedRootToolCall = (rootOperationId: string): ToolCall | undefined => {
+			const cachedToolCall = patchedRootToolCallsByOperationId.get(rootOperationId);
+			if (cachedToolCall !== undefined) {
+				return cachedToolCall;
+			}
+			const toolCall = this.materializeToolCall(rootOperationId, new Set<string>());
+			if (toolCall !== null) {
+				patchedRootToolCallsByOperationId.set(rootOperationId, toolCall);
+				return toolCall;
+			}
+			return undefined;
+		};
 		let changed = false;
 		let appendedOperationId = false;
 		let shouldRecomputeRootOperationIds = false;
@@ -550,6 +563,7 @@ export class OperationStore {
 					canPatchCachedToolCalls = false;
 					break;
 				}
+				patchedRootToolCallsByOperationId.set(rootOperationId, toolCall);
 				cachedToolCallPatches ??= new Map<number, ToolCall>();
 				cachedToolCallPatches.set(cachedToolCallIndex, toolCall);
 			}
@@ -560,6 +574,7 @@ export class OperationStore {
 						canPatchCachedToolCalls = false;
 						break;
 					}
+					patchedRootToolCallsByOperationId.set(rootOperationId, toolCall);
 					cachedToolCallAppends ??= [];
 					cachedToolCallAppends.push(toolCall);
 				}
@@ -622,6 +637,20 @@ export class OperationStore {
 					version: nextVersion,
 					toolCall: cachedLastToolCall.toolCall,
 				});
+			} else if (cachedLastToolCall?.version === previousVersion) {
+				const lastToolOperation = cachedLastToolCall.toolCall
+					? this.getByToolCallId(sessionId, cachedLastToolCall.toolCall.id)
+					: undefined;
+				const patchedLastRootToolCall =
+					lastToolOperation?.parentOperationId === null
+						? resolvePatchedRootToolCall(lastToolOperation.id)
+						: undefined;
+				if (patchedLastRootToolCall !== undefined) {
+					this.lastToolCallBySession.set(sessionId, {
+						version: nextVersion,
+						toolCall: patchedLastRootToolCall,
+					});
+				}
 			}
 			if (
 				cachedCurrentStreamingToolCall?.version === previousVersion &&
@@ -631,6 +660,21 @@ export class OperationStore {
 					version: nextVersion,
 					toolCall: cachedCurrentStreamingToolCall.toolCall,
 				});
+			} else if (cachedCurrentStreamingToolCall?.version === previousVersion) {
+				const currentStreamingOperation = cachedCurrentStreamingToolCall.toolCall
+					? this.getByToolCallId(sessionId, cachedCurrentStreamingToolCall.toolCall.id)
+					: undefined;
+				const patchedCurrentStreamingToolCall =
+					currentStreamingOperation?.parentOperationId === null &&
+					isStreamingOperationState(currentStreamingOperation.operationState)
+						? resolvePatchedRootToolCall(currentStreamingOperation.id)
+						: undefined;
+				if (patchedCurrentStreamingToolCall !== undefined) {
+					this.currentStreamingToolCallBySession.set(sessionId, {
+						version: nextVersion,
+						toolCall: patchedCurrentStreamingToolCall,
+					});
+				}
 			}
 			if (cachedLastTodoToolCall?.version === previousVersion && canPreserveLastTodoToolCall) {
 				this.lastTodoToolCallBySession.set(sessionId, {

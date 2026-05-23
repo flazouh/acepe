@@ -681,13 +681,34 @@ describe("OperationStore", () => {
 			}),
 		]);
 
-		const patchedLastTool = operationStore.getLastToolCall("session-1");
-		expect(patchedLastTool).not.toBe(firstLastTool);
-		expect(patchedLastTool?.taskChildren?.[0]).toMatchObject({
-			id: "task-child",
-			status: "completed",
-			result: "done",
-		});
+		const originalMaterializeToolCall = (
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall;
+		(
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall = () => {
+			throw new Error("last tool selector should reuse the patched root tool call cache");
+		};
+
+		try {
+			const patchedLastTool = operationStore.getLastToolCall("session-1");
+			expect(patchedLastTool).not.toBe(firstLastTool);
+			expect(patchedLastTool?.taskChildren?.[0]).toMatchObject({
+				id: "task-child",
+				status: "completed",
+				result: "done",
+			});
+		} finally {
+			(
+				operationStore as unknown as {
+					materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+				}
+			).materializeToolCall = originalMaterializeToolCall;
+		}
 	});
 
 	it("preserves current streaming selector when an unrelated completed operation changes", () => {
@@ -795,14 +816,37 @@ describe("OperationStore", () => {
 			}),
 		]);
 
-		const patchedCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
-		expect(patchedCurrentTool).not.toBe(firstCurrentTool);
-		expect(patchedCurrentTool?.id).toBe("task-parent");
-		expect(patchedCurrentTool?.taskChildren?.[0]).toMatchObject({
-			id: "task-child",
-			status: "completed",
-			result: "after",
-		});
+		const originalMaterializeToolCall = (
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall;
+		(
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall = () => {
+			throw new Error(
+				"current streaming selector should reuse the patched root tool call cache"
+			);
+		};
+
+		try {
+			const patchedCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
+			expect(patchedCurrentTool).not.toBe(firstCurrentTool);
+			expect(patchedCurrentTool?.id).toBe("task-parent");
+			expect(patchedCurrentTool?.taskChildren?.[0]).toMatchObject({
+				id: "task-child",
+				status: "completed",
+				result: "after",
+			});
+		} finally {
+			(
+				operationStore as unknown as {
+					materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+				}
+			).materializeToolCall = originalMaterializeToolCall;
+		}
 	});
 
 	it("caches the last todo selector until canonical operations change", () => {
