@@ -350,6 +350,46 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(store.getActiveStreamingTailRowId("missing-session")).toBeNull();
 	});
 
+	it("selects token streams by row id without depending on stream insertion order", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope());
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-old",
+				charOffset: 0,
+				deltaText: "old row",
+				producedAtMonotonicMs: 1_000,
+				revision: 2,
+			})
+		);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-2",
+				rowId: "assistant-active",
+				charOffset: 0,
+				deltaText: "active row",
+				producedAtMonotonicMs: 1_016,
+				revision: 3,
+			})
+		);
+
+		expect(store.getRowTokenStreamByRowId("session-1", "assistant-active")).toMatchObject({
+			turnId: "turn-2",
+			rowId: "assistant-active",
+			accumulatedText: "active row",
+		});
+		expect(store.getRowTokenStreamByRowId("session-1", "assistant-old")).toMatchObject({
+			turnId: "turn-1",
+			rowId: "assistant-old",
+			accumulatedText: "old row",
+		});
+	});
+
 	it("treats replayed revisions as idempotent and rejects non-append offsets", () => {
 		const store = new SessionStore();
 		addColdSession(store);

@@ -1353,6 +1353,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 	private readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
 	private readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
+	private readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 	private readonly pendingCreationSessions = new SvelteMap<string, CreatedPendingSessionResult>();
 
 	// Canonical tool execution domain state
@@ -1780,12 +1781,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (projection === null) {
 			return null;
 		}
-		for (const rowTokenStream of projection.tokenStream.values()) {
-			if (rowTokenStream.rowId === rowId) {
-				return rowTokenStream;
-			}
-		}
-		return null;
+		return this.rowTokenStreamsByRowId.get(sessionId)?.get(rowId) ?? null;
 	}
 
 	getActiveStreamingTailRowId(sessionId: string): string | null {
@@ -2321,6 +2317,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.canonicalProjections.delete(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
 		this.canonicalCapabilitiesMaterialized.delete(sessionId);
+		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 		this.composerMachineService.removeMachine(sessionId);
 		preferencesStore.clearSessionModelPerMode(sessionId);
@@ -2336,6 +2333,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	clearSessionEntries(sessionId: string): void {
 		this.entryStore.clearEntries(sessionId);
 		this.sessionStateGraphs.delete(sessionId);
+		this.rowTokenStreamsByRowId.delete(sessionId);
 		this.messagingSvc.clearSessionState(sessionId);
 	}
 
@@ -3868,8 +3866,13 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
 				revision: delta.revision,
 			};
-		const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
-		nextTokenStream.set(rowKey, nextRow);
+			const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
+			nextTokenStream.set(rowKey, nextRow);
+			const nextTokenStreamByRowId = new Map(
+				this.rowTokenStreamsByRowId.get(sessionId) ?? []
+			);
+			nextTokenStreamByRowId.set(delta.rowId, nextRow);
+			this.rowTokenStreamsByRowId.set(sessionId, nextTokenStreamByRowId);
 		const nextClockAnchor =
 			projection.clockAnchor ??
 			({
