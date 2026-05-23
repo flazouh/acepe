@@ -237,5 +237,5 @@ function handleVListScroll(): void {
 ## References
 
 - Original issue: Scroll anchoring doesn't work, causes flickering
-- Component: `virtualized-entry-list.svelte`
-- Library: `virtua/svelte` VList
+- Component: `scene-content-viewport.svelte`
+- Library: `@tanstack/svelte-virtual`

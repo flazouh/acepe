@@ -78,7 +78,7 @@ Do not silently rebuild content from transcript-shaped rows just to avoid a blan
 
 ### 2. Do not broadcast live timers from the virtualized viewport
 
-A `$state` timer read inside a `VList` render snippet subscribes every visible item to that timer. Even when only one row displays a live "thinking" duration, all visible rows re-evaluate every second.
+A `$state` timer read inside a virtual row render block subscribes every visible item to that timer. Even when only one row displays a live "thinking" duration, all visible rows re-evaluate every second.
 
 Avoid this pattern:
 

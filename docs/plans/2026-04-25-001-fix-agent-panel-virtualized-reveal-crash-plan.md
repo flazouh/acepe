@@ -98,17 +98,17 @@ The confirmed root causal chain is:
 
 ```mermaid
 sequenceDiagram
-    participant Virtua as Virtua row slot
-    participant VList as VirtualizedEntryList children snippet
+    participant Virtualizer as TanStack virtual row
+    participant Viewport as SceneContentViewport virtual row block
     participant Row as renderEntry / MessageWrapper
     participant Assistant as AssistantMessage
     participant Markdown as MarkdownText reveal
 
-    Virtua->>VList: entry from current display-entry shape
+    Virtualizer->>Viewport: entry from current display-entry shape
     alt display-entry keys shrink or reorder
-        VList-->>Virtua: remount Virtua with new shape revision
+        Viewport-->>Virtualizer: remount virtualizer with new shape revision
     else entry is defined
-        VList->>Row: render stable row
+        Viewport->>Row: render stable row
         Row->>Assistant: pass message snapshot
         Assistant->>Markdown: pass reveal activity callback
         Markdown->>Assistant: active/complete while mounted

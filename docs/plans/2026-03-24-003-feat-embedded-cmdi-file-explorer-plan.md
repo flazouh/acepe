@@ -394,9 +394,9 @@ Performance tasks:
 
 Research insights:
 
-- `virtua` is already in the workspace and supports dynamic measurement in Svelte 5, so prefer the same `VList` family already used elsewhere in the repo over introducing another virtualizer.
-- Reuse the repo's strongest existing Virtua pattern in `packages/desktop/src/lib/acp/components/agent-panel/components/virtualized-entry-list.svelte:1` for mounting, key stability, and fallback behavior.
-- Key virtual rows by file path, never by list index; the Virtua docs call out key stability as required for correct item measurement and resize handling.
+- `@tanstack/svelte-virtual` is already in the workspace and supports dynamic measurement in Svelte 5, so prefer the same virtualizer family already used elsewhere in the repo over introducing another virtualizer.
+- Reuse the repo's strongest existing TanStack Virtual pattern in `packages/desktop/src/lib/acp/components/agent-panel/components/scene-content-viewport.svelte:492` for mounting, key stability, and fallback behavior.
+- Key virtual rows by file path, never by list index; TanStack Virtual's `getItemKey` option lets the caller keep measurement and resize handling tied to stable item identity.
 - Start with a conservative buffer size because each row carries icons and git metadata while the right pane is doing expensive preview work; raise it only if scroll testing shows visible pop-in.
 - Keep list items presentational and let the listbox container own keyboard focus via `aria-activedescendant`, which works better with virtualization than moving DOM focus into rows that may unmount.
 - Keep the active option mounted or otherwise guaranteed addressable while using `aria-activedescendant`; do not let virtualization unmount the active row reference.
