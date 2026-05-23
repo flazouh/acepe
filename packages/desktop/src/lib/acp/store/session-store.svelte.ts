@@ -912,6 +912,82 @@ function rebuildSessionByIdIndex(
 	}
 }
 
+function rebuildSessionsByProjectIndex(
+	index: SvelteMap<string, SessionCold[]>,
+	sessions: readonly SessionCold[]
+): void {
+	index.clear();
+	for (const session of sessions) {
+		const projectSessions = index.get(session.projectPath);
+		if (projectSessions === undefined) {
+			index.set(session.projectPath, [session]);
+			continue;
+		}
+		projectSessions.push(session);
+	}
+}
+
+function patchSessionsByProjectIndex(
+	index: SvelteMap<string, SessionCold[]>,
+	previousSession: SessionCold | undefined,
+	nextSession: SessionCold
+): void {
+	if (previousSession !== undefined && previousSession.projectPath !== nextSession.projectPath) {
+		const previousProjectSessions = index.get(previousSession.projectPath);
+		if (previousProjectSessions !== undefined) {
+			const nextPreviousProjectSessions = removeSessionColdFromArray(
+				previousProjectSessions,
+				previousSession.id
+			);
+			if (nextPreviousProjectSessions.length === 0) {
+				index.delete(previousSession.projectPath);
+			} else {
+				index.set(previousSession.projectPath, nextPreviousProjectSessions);
+			}
+		}
+	}
+
+	const currentProjectSessions = index.get(nextSession.projectPath);
+	if (currentProjectSessions === undefined) {
+		index.set(nextSession.projectPath, [nextSession]);
+		return;
+	}
+
+	const projectIndex = findSessionColdIndexById(currentProjectSessions, nextSession.id);
+	if (projectIndex === -1) {
+		index.set(
+			nextSession.projectPath,
+			createPrependedSessionColdArray(nextSession, currentProjectSessions)
+		);
+		return;
+	}
+
+	index.set(
+		nextSession.projectPath,
+		createPatchedSessionColdArray(currentProjectSessions, projectIndex, nextSession)
+	);
+}
+
+function removeSessionColdFromArray(
+	sessions: readonly SessionCold[],
+	sessionId: string
+): SessionCold[] {
+	const removedIndex = findSessionColdIndexById(sessions, sessionId);
+	if (removedIndex === -1) {
+		return sessions as SessionCold[];
+	}
+	const nextSessions: SessionCold[] = [];
+	for (let index = 0; index < sessions.length; index += 1) {
+		if (index !== removedIndex) {
+			const session = sessions[index];
+			if (session !== undefined) {
+				nextSessions.push(session);
+			}
+		}
+	}
+	return nextSessions;
+}
+
 export function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
@@ -1695,6 +1771,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	// === PRIMARY STATE ===
 	private sessions = $state<SessionCold[]>([]);
 	private readonly sessionById = new SvelteMap<string, SessionCold>();
+	private readonly sessionsByProject = new SvelteMap<string, SessionCold[]>();
 	loading = $state(false);
 
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
@@ -1756,19 +1833,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private callbacks: SessionStoreCallbacks = {};
 
 	// === DERIVED LOOKUPS ===
-	private readonly sessionsByProject = $derived.by(() => {
-		const map = new Map<string, SessionCold[]>();
-		for (const s of this.sessions) {
-			let arr = map.get(s.projectPath);
-			if (!arr) {
-				arr = [];
-				map.set(s.projectPath, arr);
-			}
-			arr.push(s);
-		}
-		return map;
-	});
-
 	private readonly liveSessionSyncReferences = $derived.by(() =>
 		this.sessions.map((session) => ({
 			id: session.id,
@@ -1817,6 +1881,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	setSessions(sessions: SessionCold[]): void {
 		this.sessions = sessions;
 		rebuildSessionByIdIndex(this.sessionById, sessions);
+		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
 	}
 
 	/**
@@ -2657,6 +2722,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	addSession(session: SessionCold): void {
 		this.sessions = createPrependedSessionColdArray(session, this.sessions);
 		this.sessionById.set(session.id, session);
+		patchSessionsByProjectIndex(this.sessionsByProject, undefined, session);
 		logger.debug("Added session", { sessionId: session.id });
 	}
 
@@ -2743,6 +2809,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					? createPrependedSessionColdArray(snapshotSession, this.sessions)
 					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
 			this.sessionById.set(canonicalSessionId, snapshotSession);
+			patchSessionsByProjectIndex(this.sessionsByProject, canonicalSession, snapshotSession);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -2868,6 +2935,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const updatedSession = sessionColdWithMutableUpdates(session, updates, updatedAt);
 		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
 		this.sessionById.set(id, updatedSession);
+		patchSessionsByProjectIndex(this.sessionsByProject, session, updatedSession);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {

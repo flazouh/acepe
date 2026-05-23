@@ -146,4 +146,37 @@ describe("SessionStore renameSession", () => {
 			sessions.map = originalMap;
 		}
 	});
+
+	it("looks up project sessions without rebuilding all project groups", () => {
+		store.addSession({
+			id: "session-project-a",
+			projectPath: "/project-a",
+			agentId: "claude-code",
+			title: "Project A",
+			updatedAt: new Date("2026-04-06T10:00:00.000Z"),
+			createdAt: new Date("2026-04-06T09:00:00.000Z"),
+			parentId: null,
+		});
+		store.addSession({
+			id: "session-project-b",
+			projectPath: "/project-b",
+			agentId: "claude-code",
+			title: "Project B",
+			updatedAt: new Date("2026-04-06T11:00:00.000Z"),
+			createdAt: new Date("2026-04-06T11:00:00.000Z"),
+			parentId: null,
+		});
+		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
+		const originalIterator = sessions[Symbol.iterator];
+		sessions[Symbol.iterator] = function* () {
+			throw new Error("must not regroup every session for a project lookup");
+		};
+
+		try {
+			expect(store.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
+			expect(store.getSessionIdsForProject("/project-b")).toEqual(["session-project-b"]);
+		} finally {
+			sessions[Symbol.iterator] = originalIterator;
+		}
+	});
 });
