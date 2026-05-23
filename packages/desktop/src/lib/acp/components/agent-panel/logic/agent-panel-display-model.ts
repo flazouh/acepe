@@ -417,6 +417,76 @@ export function applyAgentPanelDisplayMemory(
 		previousMemory.sourceRows !== null &&
 		previousMemory.displayRows !== null &&
 		previousMemory.turnState === baseModel.turnState &&
+		previousMemory.sourceRows.length === baseModel.rows.length
+	) {
+		const previousTexts = previousMemory.displayTextByRowKey;
+		let rows: AgentPanelDisplayRow[] | null = null;
+		for (let index = 0; index < baseModel.rows.length; index += 1) {
+			const previousSourceRow = previousMemory.sourceRows[index];
+			const nextSourceRow = baseModel.rows[index];
+			if (previousSourceRow === nextSourceRow || nextSourceRow === undefined) {
+				continue;
+			}
+			rows ??= previousMemory.displayRows.slice();
+			if (
+				previousSourceRow?.type === "assistant" &&
+				(previousSourceRow.id !== nextSourceRow.id || nextSourceRow.type !== "assistant")
+			) {
+				previousTexts.delete(previousSourceRow.id);
+			}
+			rows[index] = applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts);
+		}
+		if (rows === null) {
+			return {
+				model: {
+					panelId: baseModel.panelId,
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					status: baseModel.status,
+					turnState: baseModel.turnState,
+					waiting: baseModel.waiting,
+					composer: baseModel.composer,
+					rows: previousMemory.displayRows,
+					viewport: baseModel.viewport,
+				},
+				memory: {
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					displayTextByRowKey: previousTexts,
+					sourceRows: baseModel.rows,
+					displayRows: previousMemory.displayRows,
+					turnState: baseModel.turnState,
+				},
+			};
+		}
+		return {
+			model: {
+				panelId: baseModel.panelId,
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				status: baseModel.status,
+				turnState: baseModel.turnState,
+				waiting: baseModel.waiting,
+				composer: baseModel.composer,
+				rows,
+				viewport: baseModel.viewport,
+			},
+			memory: {
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				displayTextByRowKey: previousTexts,
+				sourceRows: baseModel.rows,
+				displayRows: rows,
+				turnState: baseModel.turnState,
+			},
+		};
+	}
+
+	if (
+		!shouldReset &&
+		previousMemory.sourceRows !== null &&
+		previousMemory.displayRows !== null &&
+		previousMemory.turnState === baseModel.turnState &&
 		isStableDisplayRowAppend(previousMemory.sourceRows, baseModel.rows)
 	) {
 		const previousTexts = previousMemory.displayTextByRowKey;

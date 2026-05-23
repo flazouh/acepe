@@ -357,6 +357,55 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 		expect(nextResult.model.rows[1]).toBe(nextAssistantRow);
 		expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
 	});
+
+	it("updates only changed same-length rows without rebuilding display text memory", () => {
+		const firstAssistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "First answer",
+			displayText: "First answer",
+			canonicalTextRevision: "1:assistant-1",
+			isLiveTail: false,
+		};
+		const secondAssistantRow = {
+			id: "assistant-2",
+			type: "assistant" as const,
+			canonicalText: "Second answer",
+			displayText: "Second answer",
+			canonicalTextRevision: "1:assistant-2",
+			isLiveTail: false,
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [firstAssistantRow, secondAssistantRow],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(createAgentPanelDisplayMemory(), firstModel);
+		const updatedSecondAssistantRow = {
+			...secondAssistantRow,
+			canonicalText: "Second answer updated",
+			displayText: "Second answer updated",
+			canonicalTextRevision: "2:assistant-2",
+		};
+
+		const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+			...firstModel,
+			rows: [firstResult.model.rows[0]!, updatedSecondAssistantRow],
+		});
+
+		expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
+		expect(nextResult.model.rows[1]).toBe(updatedSecondAssistantRow);
+		expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
+		expect(nextResult.memory.displayTextByRowKey.get("assistant-2")).toBe(
+			"Second answer updated"
+		);
+	});
 });
 
 describe("createAgentPanelDisplayRowsReadModel", () => {
