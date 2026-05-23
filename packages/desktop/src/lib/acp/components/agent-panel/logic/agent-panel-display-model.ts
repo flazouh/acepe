@@ -8,6 +8,7 @@ import type {
 } from "@acepe/ui/agent-panel";
 import type { SessionGraphActivity, SessionTurnState } from "$lib/services/acp-types.js";
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
+import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
 import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
@@ -1214,7 +1215,13 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 	return {
 		apply({ model, sceneEntries }) {
 			if (sceneEntries !== previousSceneEntries) {
+				const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
 				if (
+					graphScenePatch?.baseSceneEntries === previousSceneEntries &&
+					canKeepSceneEntryIndexesForGraphPatch(graphScenePatch.entries, sceneEntryIndexesById)
+				) {
+					// Patched scene entries keep their ids, so the cached id -> index map is still valid.
+				} else if (
 					previousSceneEntries !== null &&
 					isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 				) {
@@ -1284,6 +1291,18 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			return displayedEntries;
 		},
 	};
+}
+
+function canKeepSceneEntryIndexesForGraphPatch(
+	patchedEntries: readonly AgentPanelSceneEntryModel[],
+	indexesById: ReadonlyMap<string, number>
+): boolean {
+	for (const entry of patchedEntries) {
+		if (!indexesById.has(entry.id)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function hasSameSceneEntryIdOrder(

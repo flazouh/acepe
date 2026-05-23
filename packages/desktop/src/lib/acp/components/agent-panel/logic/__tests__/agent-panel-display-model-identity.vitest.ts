@@ -1,6 +1,7 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-panel-canonical-source.js";
+import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 import {
 	type AgentPanelDisplayModel,
@@ -390,6 +391,81 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			type: "assistant",
 			markdown: "Patched answer",
 		});
+	});
+
+	it("keeps the cached scene entry index for marked graph patches without scanning unchanged scene entries", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Display text",
+					displayText: "Display text",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			...assistantEntry,
+			markdown: "Backend update",
+		};
+		const patchedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextAssistantEntry],
+		});
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for marked graph patch");
+			},
+		});
+
+		try {
+			const displayedEntries = readModel.apply({
+				model,
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: patchedEntries,
+			});
+
+			expect(displayedEntries[0]).toBe(userEntry);
+			expect(displayedEntries[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "Display text",
+			});
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
 	});
 });
 
