@@ -328,6 +328,39 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		}
 	});
 
+	it("updates replaced tail row indexes without cloning the previous index", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const rowIndexByKey = firstSummary.rowIndexByKey as
+			| (ReadonlyMap<string, number> & Record<symbol, unknown>)
+			| undefined;
+		const originalIterator = rowIndexByKey?.[Symbol.iterator];
+		if (rowIndexByKey !== undefined) {
+			rowIndexByKey[Symbol.iterator] = () => {
+				throw new Error("must not clone previous row index for tail replacement");
+			};
+		}
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: [firstRows[0]!, assistantRow("assistant-2")],
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBeUndefined();
+			expect(nextSummary.rowIndexByKey?.get("assistant-2")).toBe(1);
+		} finally {
+			if (rowIndexByKey !== undefined && originalIterator !== undefined) {
+				rowIndexByKey[Symbol.iterator] = originalIterator;
+			}
+		}
+	});
+
 	it("updates same-key patched display rows without scanning unchanged row prefixes", () => {
 		const displayRows = createSceneDisplayRowsReadModel();
 		const readModel = createTranscriptViewportRowsReadModel();

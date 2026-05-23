@@ -746,12 +746,110 @@ function replaceTailRowIndexByKey(
 	if (previousTailKey === nextTailKey && baseIndexByKey !== undefined) {
 		return baseIndexByKey;
 	}
-	const nextIndexByKey = new Map(baseIndexByKey ?? []);
-	if (previousTailKey !== null) {
-		nextIndexByKey.delete(previousTailKey);
+	if (baseIndexByKey === undefined) {
+		return new Map([[nextTailKey, tailIndex]]);
 	}
-	nextIndexByKey.set(nextTailKey, tailIndex);
-	return nextIndexByKey;
+	return new ReplacedTailRowIndexByKeyMap(
+		baseIndexByKey,
+		previousTailKey,
+		nextTailKey,
+		tailIndex
+	);
+}
+
+class ReplacedTailRowIndexByKeyMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "ReplacedTailRowIndexByKeyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly previousTailKey: string | null,
+		private readonly nextTailKey: string,
+		private readonly tailIndex: number
+	) {}
+
+	get size(): number {
+		let size = this.base.size;
+		if (
+			this.previousTailKey !== null &&
+			this.previousTailKey !== this.nextTailKey &&
+			this.base.has(this.previousTailKey)
+		) {
+			size -= 1;
+		}
+		if (!this.base.has(this.nextTailKey)) {
+			size += 1;
+		}
+		return size;
+	}
+
+	get(key: string): number | undefined {
+		if (key === this.nextTailKey) {
+			return this.tailIndex;
+		}
+		if (this.previousTailKey !== null && key === this.previousTailKey) {
+			return undefined;
+		}
+		return this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		let yieldedNextTailKey = false;
+		for (const [key, value] of this.base.entries()) {
+			if (this.previousTailKey !== null && key === this.previousTailKey) {
+				continue;
+			}
+			if (key === this.nextTailKey) {
+				yield [key, this.tailIndex];
+				yieldedNextTailKey = true;
+				continue;
+			}
+			yield [key, value];
+		}
+		if (!yieldedNextTailKey) {
+			yield [this.nextTailKey, this.tailIndex];
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function createTruncatedRowIndexByKey(
