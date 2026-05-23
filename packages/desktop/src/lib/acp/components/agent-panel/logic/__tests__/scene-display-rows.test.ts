@@ -22,7 +22,9 @@ import {
 	getAgentPanelDisplayScenePatch,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
-import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 describe("scene-display-rows", () => {
 	it("builds stable scene-derived display rows for mixed conversation entries", () => {
@@ -536,6 +538,33 @@ describe("scene-display-rows", () => {
 		} finally {
 			firstRows.slice = originalSlice;
 		}
+	});
+
+	it("keeps same-length suffix replacements on the splice lane", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt 1", timestampMs: 1 },
+			{ id: "tool-1", type: "tool_call", title: "Old tool", status: "running" },
+			{ id: "user-2", type: "user", text: "Prompt 2", timestampMs: 2 },
+		]);
+
+		const nextRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt 1", timestampMs: 1 },
+			{ id: "assistant-1", type: "assistant", markdown: "Replacement", timestampMs: 3 },
+			{ id: "tool-2", type: "tool_call", title: "New tool", status: "done" },
+		]);
+
+		expect(nextRows).not.toBe(firstRows);
+		expect(nextRows[0]).toBe(firstRows[0]);
+		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+			"user-1",
+			"assistant-1",
+			"tool-2",
+		]);
+		expect(getSceneDisplayRowArraySplice(nextRows)).toMatchObject({
+			baseRows: firstRows,
+			startIndex: 1,
+		});
 	});
 
 	it("skips marked row rewrites when a patched scene entry renders the same row", () => {

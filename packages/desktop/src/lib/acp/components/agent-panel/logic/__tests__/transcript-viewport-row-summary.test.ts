@@ -888,6 +888,64 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		}
 	});
 
+	it("applies same-length suffix replacement splice metadata without checking the whole row prefix", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const baseEntries: AgentPanelSceneEntryModel[] = [
+			{ id: "user-0", type: "user", text: "Earlier prefix" },
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "tool-1", type: "tool_call", title: "Old tool", status: "running" },
+			{ id: "user-2", type: "user", text: "Follow-up" },
+		];
+		const firstRows = displayRows.applySnapshot(baseEntries);
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+
+		const nextRows = displayRows.applySnapshot([
+			{ id: "user-0", type: "user", text: "Earlier prefix" },
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "Replacement", isStreaming: true },
+			{ id: "tool-2", type: "tool_call", title: "New tool", status: "done" },
+		]);
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error(
+					"must not compare every previous row for same-length suffix replacement metadata"
+				);
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(4);
+			expect(nextSummary.rowKeys).toEqual(["user-0", "user-1", "assistant-1", "tool-2"]);
+			expect(nextSummary.rowIndexByKey?.get("user-0")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(1);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBe(2);
+			expect(nextSummary.rowIndexByKey?.get("tool-2")).toBe(3);
+			expect(nextSummary.rowIndexByKey?.get("tool-1")).toBeUndefined();
+			expect(nextSummary.rowIndexByKey?.get("user-2")).toBeUndefined();
+			expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
+			expect(nextSummary.lastLiveAssistantDisplayEntryIndex).toBe(2);
+			expect(nextSummary.hasToolCallEntry).toBe(true);
+			expect(nextSummary.lastToolCallEntryIndex).toBe(3);
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
+	});
+
 	it("updates thinking durations after truncating the following timed row", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");

@@ -783,19 +783,17 @@ function patchSameLengthSceneDisplayRows(
 			return null;
 		}
 		if (previousEntry.id !== nextEntry.id) {
-			const tailReplacement = patchTailReplacementSceneDisplayRow(
+			const suffixReplacement = patchSuffixReplacementSceneDisplayRows(
 				previousSceneEntries,
 				sceneEntries,
 				previousRows,
 				rowIndexBySceneEntryId,
 				index,
-				previousEntry,
-				nextEntry
 			);
-			if (tailReplacement === null) {
+			if (suffixReplacement === null) {
 				return null;
 			}
-			return tailReplacement;
+			return suffixReplacement;
 		}
 		const rowIndex = rowIndexBySceneEntryId.get(nextEntry.id);
 		if (rowIndex === undefined) {
@@ -911,45 +909,70 @@ function patchStablePrefixAppendSceneDisplayRows(
 	};
 }
 
-function patchTailReplacementSceneDisplayRow(
+function patchSuffixReplacementSceneDisplayRows(
 	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	previousRows: readonly SceneDisplayRow[],
 	rowIndexBySceneEntryId: Map<string, number>,
-	entryIndex: number,
-	previousEntry: AgentPanelSceneEntryModel,
-	nextEntry: AgentPanelSceneEntryModel
+	entryIndex: number
 ): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
-	if (entryIndex !== sceneEntries.length - 1 || previousSceneEntries.length !== sceneEntries.length) {
+	if (previousSceneEntries.length !== sceneEntries.length) {
 		return null;
 	}
-	const previousRowIndex = rowIndexBySceneEntryId.get(previousEntry.id);
+	const previousEntry = previousSceneEntries[entryIndex];
+	const nextEntry = sceneEntries[entryIndex];
+	if (previousEntry === undefined || nextEntry === undefined) {
+		return null;
+	}
+
+	const canMergeWithPreviousAssistant =
+		entryIndex > 0 &&
+		previousSceneEntries[entryIndex - 1]?.type === "assistant" &&
+		nextEntry.type === "assistant";
+	const rebuildSceneIndex = canMergeWithPreviousAssistant ? entryIndex - 1 : entryIndex;
+	const firstRebuiltEntry = previousSceneEntries[rebuildSceneIndex];
+	if (firstRebuiltEntry === undefined) {
+		return null;
+	}
+	const previousRowIndex =
+		rebuildSceneIndex === 0
+			? 0
+			: rowIndexBySceneEntryId.get(firstRebuiltEntry.id);
+	if (previousRowIndex === undefined || previousRowIndex < 0 || previousRowIndex > previousRows.length) {
+		return null;
+	}
+
+	for (let index = rebuildSceneIndex; index < previousSceneEntries.length; index += 1) {
+		const removedEntry = previousSceneEntries[index];
+		if (removedEntry !== undefined) {
+			rowIndexBySceneEntryId.delete(removedEntry.id);
+		}
+	}
+
+	const replacementRows = appendSceneDisplayRowsFromIndex([], sceneEntries, rebuildSceneIndex);
+	if (replacementRows.length === 0) {
+		return null;
+	}
+
+	const rows = createSplicedSceneDisplayRowsArray(
+		previousRows,
+		previousRowIndex,
+		replacementRows
+	);
+	indexRowsBySceneEntryId(rowIndexBySceneEntryId, rows, previousRowIndex);
+
 	if (
-		previousRowIndex === undefined ||
-		previousRowIndex !== previousRows.length - 1 ||
-		previousRows.length === 0
+		rows.length === previousRows.length &&
+		areSceneDisplayRowRangesEquivalent(previousRows, rows, previousRowIndex)
 	) {
-		return null;
-	}
-	const patchedRow = buildSceneDisplayRows([nextEntry])[0];
-	if (patchedRow === undefined) {
-		return null;
-	}
-	if (areJsonLikeValuesEquivalent(previousRows[previousRowIndex], patchedRow)) {
-		rowIndexBySceneEntryId.delete(previousEntry.id);
-		rowIndexBySceneEntryId.set(nextEntry.id, previousRowIndex);
 		return {
 			rows: previousRows,
 			firstChangedRowIndex: previousRows.length,
 		};
 	}
-	rowIndexBySceneEntryId.delete(previousEntry.id);
-	rowIndexBySceneEntryId.set(nextEntry.id, previousRowIndex);
+
 	return {
-		rows: createPatchedSceneDisplayRowsArray(
-			previousRows,
-			new Map([[previousRowIndex, patchedRow]])
-		),
+		rows,
 		firstChangedRowIndex: previousRowIndex,
 	};
 }
@@ -1002,6 +1025,22 @@ function canPatchSceneDisplayRow(row: SceneDisplayRow, entryId: string): boolean
 		return false;
 	}
 	return getSceneDisplayRowKey(row) === entryId;
+}
+
+function areSceneDisplayRowRangesEquivalent(
+	previousRows: readonly SceneDisplayRow[],
+	nextRows: readonly SceneDisplayRow[],
+	startIndex: number
+): boolean {
+	if (previousRows.length !== nextRows.length) {
+		return false;
+	}
+	for (let index = startIndex; index < previousRows.length; index += 1) {
+		if (!areJsonLikeValuesEquivalent(previousRows[index], nextRows[index])) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
