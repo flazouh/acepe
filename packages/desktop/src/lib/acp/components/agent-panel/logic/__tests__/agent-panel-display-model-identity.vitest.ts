@@ -1295,6 +1295,70 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
+	it("applies marked assistant graph patches without rebuilding display rows", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft",
+			isStreaming: true,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			...assistantEntry,
+			markdown: "Patched answer",
+			isStreaming: false,
+		};
+		const patchedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextAssistantEntry],
+			entriesByIndex: new Map([[1, nextAssistantEntry]]),
+		});
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for assistant graph patch");
+			},
+		});
+
+		try {
+			const nextProjection = readModel.applyPatch({
+				sceneEntries: patchedEntries,
+				transcriptRevision: 2,
+			});
+
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				canonicalText: "Patched answer",
+				displayText: "Patched answer",
+				canonicalTextRevision: "2:assistant-1",
+				isLiveTail: false,
+			});
+			expect(nextProjection.hasLiveTail).toBe(false);
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
+	});
+
 	it("does not treat unmarked scene entries as display row patches", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

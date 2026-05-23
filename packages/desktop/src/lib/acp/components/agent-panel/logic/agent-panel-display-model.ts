@@ -196,20 +196,63 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 		rows: [],
 		hasLiveTail: false,
 	};
+	let rowIndexById: Map<string, number> = new Map();
+	let liveTailRowIds: Set<string> = new Set();
+
+	function rememberProjection(
+		projection: AgentPanelDisplayRowsProjection,
+		sceneEntries: readonly AgentPanelSceneEntryModel[],
+		transcriptRevision: number
+	): AgentPanelDisplayRowsProjection {
+		previousProjection = projection;
+		previousSceneEntries = sceneEntries;
+		previousTranscriptRevision = transcriptRevision;
+		rowIndexById = indexDisplayRowsById(projection.rows);
+		liveTailRowIds = collectLiveTailRowIds(projection.rows);
+		return previousProjection;
+	}
 
 	function applyGraphScenePatch(input: {
 		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 		readonly transcriptRevision: number;
 	}): AgentPanelDisplayRowsProjection | null {
 		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(input.sceneEntries);
-		if (
-			graphScenePatch?.baseSceneEntries !== previousSceneEntries ||
-			!areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entriesByIndex.values())
-		) {
+		if (graphScenePatch?.baseSceneEntries !== previousSceneEntries) {
 			return null;
+		}
+		const rowPatches = new Map<number, AgentPanelDisplayRow>();
+		const nextLiveTailRowIds = new Set(liveTailRowIds);
+		for (const entry of graphScenePatch.entriesByIndex.values()) {
+			const nextRow = createDisplayRowFromSceneEntry(entry, input.transcriptRevision);
+			if (nextRow === null) {
+				continue;
+			}
+			const rowIndex = rowIndexById.get(entry.id);
+			const previousRow = rowIndex === undefined ? undefined : previousProjection.rows[rowIndex];
+			if (
+				rowIndex === undefined ||
+				previousRow === undefined ||
+				previousRow.id !== nextRow.id ||
+				previousRow.type !== nextRow.type
+			) {
+				return null;
+			}
+			rowPatches.set(rowIndex, nextRow);
+			if (nextRow.type === "assistant" && nextRow.isLiveTail) {
+				nextLiveTailRowIds.add(nextRow.id);
+			} else {
+				nextLiveTailRowIds.delete(nextRow.id);
+			}
 		}
 		previousSceneEntries = input.sceneEntries;
 		previousTranscriptRevision = input.transcriptRevision;
+		if (rowPatches.size > 0) {
+			previousProjection = {
+				rows: createPatchedDisplayRowArray(previousProjection.rows, rowPatches),
+				hasLiveTail: nextLiveTailRowIds.size > 0,
+			};
+			liveTailRowIds = nextLiveTailRowIds;
+		}
 		return previousProjection;
 	}
 
@@ -234,12 +277,20 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			input.transcriptRevision,
 			0
 		);
+		const baseRowCount = previousProjection.rows.length;
+		const rows = createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows);
 		previousProjection = {
-			rows: createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows),
+			rows,
 			hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
 		};
 		previousSceneEntries = input.sceneEntries;
 		previousTranscriptRevision = input.transcriptRevision;
+		indexDisplayRowsByIdFrom(rowIndexById, rows, baseRowCount);
+		for (const row of appendedProjection.rows) {
+			if (row.type === "assistant" && row.isLiveTail) {
+				liveTailRowIds.add(row.id);
+			}
+		}
 		return previousProjection;
 	}
 
@@ -271,12 +322,23 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 					transcriptRevision,
 					previousSceneEntries.length
 				);
+				const baseRowCount = previousProjection.rows.length;
+				const rows = createAppendedDisplayRowArray(
+					previousProjection.rows,
+					appendedProjection.rows
+				);
 				previousProjection = {
-					rows: createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows),
+					rows,
 					hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
 				};
 				previousSceneEntries = sceneEntries;
 				previousTranscriptRevision = transcriptRevision;
+				indexDisplayRowsByIdFrom(rowIndexById, rows, baseRowCount);
+				for (const row of appendedProjection.rows) {
+					if (row.type === "assistant" && row.isLiveTail) {
+						liveTailRowIds.add(row.id);
+					}
+				}
 				return previousProjection;
 			}
 
@@ -297,13 +359,16 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				};
 				previousSceneEntries = sceneEntries;
 				previousTranscriptRevision = transcriptRevision;
+				rowIndexById = indexDisplayRowsById(rows);
+				liveTailRowIds = collectLiveTailRowIds(rows);
 				return previousProjection;
 			}
 
-			previousProjection = createRowsFromScene(sceneEntries, transcriptRevision);
-			previousSceneEntries = sceneEntries;
-			previousTranscriptRevision = transcriptRevision;
-			return previousProjection;
+			return rememberProjection(
+				createRowsFromScene(sceneEntries, transcriptRevision),
+				sceneEntries,
+				transcriptRevision
+			);
 		},
 		applyPatch(input) {
 			return applyGraphScenePatch(input) ?? applyGraphSceneAppendPatch(input);
@@ -312,17 +377,6 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			return previousProjection;
 		},
 	};
-}
-
-function areDisplayRowsUnaffectedByGraphPatch(
-	patchedEntries: Iterable<AgentPanelSceneEntryModel>
-): boolean {
-	for (const entry of patchedEntries) {
-		if (entry.type === "user" || entry.type === "assistant") {
-			return false;
-		}
-	}
-	return true;
 }
 
 function createAppendedDisplayRowArray(
@@ -495,29 +549,70 @@ function createRowsFromSceneRange(
 		if (entry === undefined) {
 			continue;
 		}
-		if (entry.type === "user") {
-			rows.push({
-				id: entry.id,
-				type: "user",
-				text: entry.text,
-				isOptimistic: entry.isOptimistic,
-			});
-			continue;
-		}
-		if (entry.type === "assistant") {
-			const isLiveTail = entry.isStreaming === true;
-			hasLiveTail ||= isLiveTail;
-			rows.push({
-				id: entry.id,
-				type: "assistant",
-				canonicalText: entry.markdown,
-				displayText: entry.markdown,
-				canonicalTextRevision: `${String(transcriptRevision)}:${entry.id}`,
-				isLiveTail,
-			});
+		const row = createDisplayRowFromSceneEntry(entry, transcriptRevision);
+		if (row !== null) {
+			rows.push(row);
+			hasLiveTail ||= row.type === "assistant" && row.isLiveTail;
 		}
 	}
 	return { rows, hasLiveTail };
+}
+
+function createDisplayRowFromSceneEntry(
+	entry: AgentPanelSceneEntryModel,
+	transcriptRevision: number
+): AgentPanelDisplayRow | null {
+	if (entry.type === "user") {
+		return {
+			id: entry.id,
+			type: "user",
+			text: entry.text,
+			isOptimistic: entry.isOptimistic,
+		};
+	}
+	if (entry.type === "assistant") {
+		const isLiveTail = entry.isStreaming === true;
+		return {
+			id: entry.id,
+			type: "assistant",
+			canonicalText: entry.markdown,
+			displayText: entry.markdown,
+			canonicalTextRevision: `${String(transcriptRevision)}:${entry.id}`,
+			isLiveTail,
+		};
+	}
+	return null;
+}
+
+function indexDisplayRowsById(
+	rows: readonly AgentPanelDisplayRow[]
+): Map<string, number> {
+	const rowIndexById = new Map<string, number>();
+	indexDisplayRowsByIdFrom(rowIndexById, rows, 0);
+	return rowIndexById;
+}
+
+function indexDisplayRowsByIdFrom(
+	rowIndexById: Map<string, number>,
+	rows: readonly AgentPanelDisplayRow[],
+	startIndex: number
+): void {
+	for (let index = startIndex; index < rows.length; index += 1) {
+		const row = rows[index];
+		if (row !== undefined) {
+			rowIndexById.set(row.id, index);
+		}
+	}
+}
+
+function collectLiveTailRowIds(rows: readonly AgentPanelDisplayRow[]): Set<string> {
+	const liveTailRowIds = new Set<string>();
+	for (const row of rows) {
+		if (row.type === "assistant" && row.isLiveTail) {
+			liveTailRowIds.add(row.id);
+		}
+	}
+	return liveTailRowIds;
 }
 
 function isStableDisplaySceneAppend(
