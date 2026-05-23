@@ -1349,6 +1349,177 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 		}
 	});
 
+	it("uses display row truncation metadata when applying display memory", () => {
+		const rowsReadModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			isStreaming: false,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+			isStreaming: false,
+		};
+		const baseEntries = [userEntry, firstAssistantEntry, removedAssistantEntry];
+		const firstProjection = rowsReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: firstProjection.rows,
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(
+			createAgentPanelDisplayMemory(),
+			firstModel
+		);
+		const truncatedEntries = [userEntry, firstAssistantEntry];
+		markAgentPanelSceneEntryArrayTruncation(truncatedEntries, {
+			baseSceneEntries: baseEntries,
+			length: truncatedEntries.length,
+		});
+		const nextProjection = rowsReadModel.applyPatch({
+			sceneEntries: truncatedEntries,
+			transcriptRevision: 2,
+		});
+		expect(nextProjection).not.toBeNull();
+		if (nextProjection === null) {
+			return;
+		}
+		const preservedFirstRow = firstResult.model.rows[0];
+		const preservedSecondRow = firstResult.model.rows[1];
+		Object.defineProperty(firstResult.memory.sourceRows!, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged source rows for display memory truncation");
+			},
+		});
+
+		try {
+			const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+				...firstModel,
+				rows: nextProjection.rows,
+			});
+
+			expect(nextResult.model.rows).toHaveLength(2);
+			expect(nextResult.model.rows[0]).toBe(preservedFirstRow);
+			expect(nextResult.model.rows[1]).toBe(preservedSecondRow);
+			expect(nextResult.memory.displayTextByRowKey.has("assistant-2")).toBe(false);
+		} finally {
+			Object.defineProperty(firstResult.memory.sourceRows!, "0", {
+				configurable: true,
+				value: preservedFirstRow,
+			});
+		}
+	});
+
+	it("uses display row splice metadata when applying display memory", () => {
+		const rowsReadModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			isStreaming: false,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: false,
+		};
+		const baseEntries = [userEntry, firstAssistantEntry, removedAssistantEntry];
+		const firstProjection = rowsReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: firstProjection.rows,
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(
+			createAgentPanelDisplayMemory(),
+			firstModel
+		);
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-3",
+			type: "assistant",
+			markdown: "Replacement",
+			isStreaming: false,
+		};
+		const splicedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArraySplicePatch(splicedEntries, {
+			baseSceneEntries: baseEntries,
+			startIndex: 1,
+			insertedEntries: [nextAssistantEntry],
+			trailingEntries: [],
+		});
+		const nextProjection = rowsReadModel.applyPatch({
+			sceneEntries: splicedEntries,
+			transcriptRevision: 2,
+		});
+		expect(nextProjection).not.toBeNull();
+		if (nextProjection === null) {
+			return;
+		}
+		const preservedFirstRow = firstResult.model.rows[0];
+		Object.defineProperty(firstResult.memory.sourceRows!, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged source rows for display memory splice");
+			},
+		});
+
+		try {
+			const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+				...firstModel,
+				rows: nextProjection.rows,
+			});
+
+			expect(nextResult.model.rows).toHaveLength(2);
+			expect(nextResult.model.rows[0]).toBe(preservedFirstRow);
+			expect(nextResult.model.rows[1]).toMatchObject({
+				id: "assistant-3",
+				type: "assistant",
+				canonicalText: "Replacement",
+				displayText: "Replacement",
+			});
+			expect(nextResult.memory.displayTextByRowKey.has("assistant-2")).toBe(false);
+			expect(nextResult.memory.displayTextByRowKey.get("assistant-3")).toBe("Replacement");
+		} finally {
+			Object.defineProperty(firstResult.memory.sourceRows!, "0", {
+				configurable: true,
+				value: preservedFirstRow,
+			});
+		}
+	});
+
 	it("patches only rows whose display text changes when streaming completes", () => {
 		const stableAssistantRow = {
 			id: "assistant-1",

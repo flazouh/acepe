@@ -107,6 +107,23 @@ type AgentPanelDisplayRowArrayPatch = {
 	readonly rowPatches: ReadonlyMap<number, AgentPanelDisplayRow>;
 };
 
+type AgentPanelDisplayRowArrayAppendPatch = {
+	readonly baseRows: readonly AgentPanelDisplayRow[];
+	readonly appendedRows: readonly AgentPanelDisplayRow[];
+};
+
+type AgentPanelDisplayRowArrayTruncation = {
+	readonly baseRows: readonly AgentPanelDisplayRow[];
+	readonly length: number;
+};
+
+type AgentPanelDisplayRowArraySplicePatch = {
+	readonly baseRows: readonly AgentPanelDisplayRow[];
+	readonly startIndex: number;
+	readonly insertedRows: readonly AgentPanelDisplayRow[];
+	readonly trailingRows: readonly AgentPanelDisplayRow[];
+};
+
 const agentPanelDisplayScenePatches = new WeakMap<
 	readonly AgentPanelSceneEntryModel[],
 	AgentPanelDisplayScenePatch
@@ -114,6 +131,18 @@ const agentPanelDisplayScenePatches = new WeakMap<
 const agentPanelDisplayRowArrayPatches = new WeakMap<
 	readonly AgentPanelDisplayRow[],
 	AgentPanelDisplayRowArrayPatch
+>();
+const agentPanelDisplayRowArrayAppendPatches = new WeakMap<
+	readonly AgentPanelDisplayRow[],
+	AgentPanelDisplayRowArrayAppendPatch
+>();
+const agentPanelDisplayRowArrayTruncations = new WeakMap<
+	readonly AgentPanelDisplayRow[],
+	AgentPanelDisplayRowArrayTruncation
+>();
+const agentPanelDisplayRowArraySplicePatches = new WeakMap<
+	readonly AgentPanelDisplayRow[],
+	AgentPanelDisplayRowArraySplicePatch
 >();
 
 export function getAgentPanelDisplayScenePatch(
@@ -126,6 +155,24 @@ function getAgentPanelDisplayRowArrayPatch(
 	rows: readonly AgentPanelDisplayRow[]
 ): AgentPanelDisplayRowArrayPatch | undefined {
 	return agentPanelDisplayRowArrayPatches.get(rows);
+}
+
+function getAgentPanelDisplayRowArrayAppendPatch(
+	rows: readonly AgentPanelDisplayRow[]
+): AgentPanelDisplayRowArrayAppendPatch | undefined {
+	return agentPanelDisplayRowArrayAppendPatches.get(rows);
+}
+
+function getAgentPanelDisplayRowArrayTruncation(
+	rows: readonly AgentPanelDisplayRow[]
+): AgentPanelDisplayRowArrayTruncation | undefined {
+	return agentPanelDisplayRowArrayTruncations.get(rows);
+}
+
+function getAgentPanelDisplayRowArraySplicePatch(
+	rows: readonly AgentPanelDisplayRow[]
+): AgentPanelDisplayRowArraySplicePatch | undefined {
+	return agentPanelDisplayRowArraySplicePatches.get(rows);
 }
 
 export function markAgentPanelDisplayRowArrayPatch(
@@ -410,11 +457,11 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			input.transcriptRevision,
 			splicePatch.startIndex
 		);
-		const prefixRows = createTruncatedDisplayRowArray(
+		const rows = createSplicedDisplayRowArray(
 			previousProjection.rows,
-			firstChangedRowIndex
+			firstChangedRowIndex,
+			nextSuffixProjection.rows
 		);
-		const rows = createAppendedDisplayRowArray(prefixRows, nextSuffixProjection.rows);
 		previousProjection = {
 			rows,
 			hasLiveTail: liveTailRowIds.size > 0 || nextSuffixProjection.hasLiveTail,
@@ -580,6 +627,10 @@ function createAppendedDisplayRowArray(
 		},
 	});
 	appendedDisplayRowLayouts.set(rows, layout);
+	agentPanelDisplayRowArrayAppendPatches.set(rows, {
+		baseRows,
+		appendedRows,
+	});
 	return rows;
 }
 
@@ -637,7 +688,7 @@ function createTruncatedDisplayRowArray(
 	}
 
 	const target = new Array<AgentPanelDisplayRow>(length);
-	return new Proxy(target, {
+	const rows = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -679,6 +730,78 @@ function createTruncatedDisplayRowArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	agentPanelDisplayRowArrayTruncations.set(rows, {
+		baseRows,
+		length,
+	});
+	return rows;
+}
+
+function createSplicedDisplayRowArray(
+	baseRows: readonly AgentPanelDisplayRow[],
+	startIndex: number,
+	replacementRows: readonly AgentPanelDisplayRow[]
+): readonly AgentPanelDisplayRow[] {
+	if (startIndex >= baseRows.length) {
+		return createAppendedDisplayRowArray(baseRows, replacementRows);
+	}
+	if (replacementRows.length === 0) {
+		return createTruncatedDisplayRowArray(baseRows, startIndex);
+	}
+
+	const target = new Array<AgentPanelDisplayRow>(startIndex + replacementRows.length);
+	const rows = new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index < startIndex ? baseRows[index] : replacementRows[index - startIndex];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index < startIndex ? baseRows[index] : replacementRows[index - startIndex];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index < startIndex ? baseRows[index] : replacementRows[index - startIndex],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	});
+	agentPanelDisplayRowArraySplicePatches.set(rows, {
+		baseRows,
+		startIndex,
+		insertedRows: replacementRows,
+		trailingRows: [],
+	});
+	return rows;
 }
 
 export function createRowsFromScene(
@@ -1029,6 +1152,20 @@ function applyDisplayTextToRow(
 	};
 }
 
+function removeAssistantDisplayTextsForRows(
+	rows: readonly AgentPanelDisplayRow[],
+	displayTexts: Map<string, string>,
+	startIndex: number,
+	endIndex: number
+): void {
+	for (let index = startIndex; index < endIndex; index += 1) {
+		const row = rows[index];
+		if (row?.type === "assistant") {
+			displayTexts.delete(row.id);
+		}
+	}
+}
+
 export function applyAgentPanelDisplayMemory(
 	previousMemory: AgentPanelDisplayMemory,
 	baseModel: AgentPanelBaseModel
@@ -1208,6 +1345,139 @@ export function applyAgentPanelDisplayMemory(
 				turnState: baseModel.turnState,
 			},
 		};
+	}
+
+	if (
+		!shouldReset &&
+		previousMemory.sourceRows !== null &&
+		previousMemory.displayRows !== null &&
+		previousMemory.turnState === baseModel.turnState
+	) {
+		const appendPatch = getAgentPanelDisplayRowArrayAppendPatch(baseModel.rows);
+		if (appendPatch?.baseRows === previousMemory.sourceRows) {
+			const previousTexts = previousMemory.displayTextByRowKey;
+			if (appendPatch.appendedRows.length === 0) {
+				return {
+					model: {
+						panelId: baseModel.panelId,
+						sessionId: baseModel.sessionId,
+						turnId: baseModel.turnId,
+						status: baseModel.status,
+						turnState: baseModel.turnState,
+						waiting: baseModel.waiting,
+						composer: baseModel.composer,
+						rows: previousMemory.displayRows,
+						viewport: baseModel.viewport,
+					},
+					memory: {
+						sessionId: baseModel.sessionId,
+						turnId: baseModel.turnId,
+						displayTextByRowKey: previousTexts,
+						sourceRows: baseModel.rows,
+						displayRows: previousMemory.displayRows,
+						turnState: baseModel.turnState,
+					},
+				};
+			}
+			const appendedRows = appendPatch.appendedRows.map((row) =>
+				applyDisplayTextToRow(row, baseModel, previousTexts, previousTexts)
+			);
+			const rows = createAppendedDisplayRowArray(previousMemory.displayRows, appendedRows);
+			return {
+				model: {
+					panelId: baseModel.panelId,
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					status: baseModel.status,
+					turnState: baseModel.turnState,
+					waiting: baseModel.waiting,
+					composer: baseModel.composer,
+					rows,
+					viewport: baseModel.viewport,
+				},
+				memory: {
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					displayTextByRowKey: previousTexts,
+					sourceRows: baseModel.rows,
+					displayRows: rows,
+					turnState: baseModel.turnState,
+				},
+			};
+		}
+
+		const truncation = getAgentPanelDisplayRowArrayTruncation(baseModel.rows);
+		if (truncation?.baseRows === previousMemory.sourceRows) {
+			const previousTexts = previousMemory.displayTextByRowKey;
+			removeAssistantDisplayTextsForRows(
+				previousMemory.sourceRows,
+				previousTexts,
+				truncation.length,
+				previousMemory.sourceRows.length
+			);
+			const rows = createTruncatedDisplayRowArray(previousMemory.displayRows, truncation.length);
+			return {
+				model: {
+					panelId: baseModel.panelId,
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					status: baseModel.status,
+					turnState: baseModel.turnState,
+					waiting: baseModel.waiting,
+					composer: baseModel.composer,
+					rows,
+					viewport: baseModel.viewport,
+				},
+				memory: {
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					displayTextByRowKey: previousTexts,
+					sourceRows: baseModel.rows,
+					displayRows: rows,
+					turnState: baseModel.turnState,
+				},
+			};
+		}
+
+		const splicePatch = getAgentPanelDisplayRowArraySplicePatch(baseModel.rows);
+		if (splicePatch?.baseRows === previousMemory.sourceRows) {
+			const previousTexts = previousMemory.displayTextByRowKey;
+			removeAssistantDisplayTextsForRows(
+				previousMemory.sourceRows,
+				previousTexts,
+				splicePatch.startIndex,
+				previousMemory.sourceRows.length
+			);
+			const replacementRows = splicePatch.insertedRows.map((row) =>
+				applyDisplayTextToRow(row, baseModel, previousTexts, previousTexts)
+			);
+			const rows = createSplicedDisplayRowArray(
+				previousMemory.displayRows,
+				splicePatch.startIndex,
+				replacementRows
+			);
+			return {
+				model: {
+					panelId: baseModel.panelId,
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					status: baseModel.status,
+					turnState: baseModel.turnState,
+					waiting: baseModel.waiting,
+					composer: baseModel.composer,
+					rows,
+					viewport: baseModel.viewport,
+				},
+				memory: {
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					displayTextByRowKey: previousTexts,
+					sourceRows: baseModel.rows,
+					displayRows: rows,
+					turnState: baseModel.turnState,
+				},
+			};
+		}
 	}
 
 	if (
