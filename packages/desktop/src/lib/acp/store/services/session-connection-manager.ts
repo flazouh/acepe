@@ -520,9 +520,6 @@ export class SessionConnectionManager {
 									});
 							}
 
-							// Mark as preloaded since it's a new session with no entries
-							this.entryManager.markPreloaded(sessionId);
-
 							// New sessions have empty content immediately, but their transport
 							// remains disconnected until resume or first send activates them.
 							this.connectionManager.sendContentLoad(sessionId);

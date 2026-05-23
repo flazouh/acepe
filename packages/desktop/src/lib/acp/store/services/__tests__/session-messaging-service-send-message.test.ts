@@ -88,6 +88,7 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
+		isPreloaded: vi.fn(() => false),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),

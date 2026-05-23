@@ -279,6 +279,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
+		isPreloaded: vi.fn(() => false),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -1167,6 +1168,7 @@ describe("SessionConnectionManager.createSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
+		isPreloaded: vi.fn(() => false),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -1903,6 +1905,7 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const entryManager: IEntryManager = {
+		isPreloaded: vi.fn(() => false),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2390,6 +2393,7 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const entryManager: IEntryManager = {
+		isPreloaded: vi.fn(() => false),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2546,7 +2550,8 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		};
 
 		const entryManager: IEntryManager = {
-			markPreloaded: vi.fn(),
+			isPreloaded: vi.fn(() => false),
+		markPreloaded: vi.fn(),
 			clearEntries: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
 		};
