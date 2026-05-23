@@ -486,6 +486,10 @@ function getRowKeys(): readonly string[] {
 	return viewportRowsSummary.rowKeys ?? [];
 }
 
+function getRowIndex(rowKey: string): number {
+	return viewportRowsSummary.rowIndexByKey?.get(rowKey) ?? -1;
+}
+
 function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {
 	if (vlistRef == null || !("scrollTo" in vlistRef)) {
 		return undefined;
@@ -547,6 +551,7 @@ function recordScrollWrite(
 const virtuaAdapter = createVirtuaTranscriptRendererAdapter({
 	getHandle: getVirtuaHandle,
 	getRowKeys,
+	getRowIndex,
 	getContainer: () => virtuaViewportRef,
 	getRowElement: (rowKey: string) => virtuaRowRefs.get(rowKey) ?? null,
 });

@@ -116,6 +116,13 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.lastKey).toBe("tool-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
 		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+		expect(nextSummary.rowIndexByKey).toEqual(
+			new Map([
+				["user-1", 0],
+				["assistant-1", 1],
+				["tool-1", 2],
+			])
+		);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
 		expect(nextSummary.hasToolCallEntry).toBe(true);
 	});
@@ -339,6 +346,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 
 			expect(nextSummary.count).toBe(3);
 			expect(nextSummary.rowKeys).toBe(firstSummary.rowKeys);
+			expect(nextSummary.rowIndexByKey).toBe(firstSummary.rowIndexByKey);
 			expect(nextSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
 			expect(nextSummary.changedRange).toEqual({ startIndex: 2, endIndex: 3 });
 			expect(nextSummary.hasToolCallEntry).toBe(true);
@@ -392,6 +400,12 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.lastKey).toBe("assistant-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
 		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1"]);
+		expect(nextSummary.rowIndexByKey).toEqual(
+			new Map([
+				["user-1", 0],
+				["assistant-1", 1],
+			])
+		);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1"]);
 		expect(nextSummary.hasToolCallEntry).toBe(false);
 		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(true);
@@ -567,6 +581,11 @@ describe("buildTranscriptViewportRowsSummary", () => {
 			lastKey: "thinking-indicator",
 			latestUserKey: "user-1",
 			rowKeys: ["user-1", "assistant-1", "thinking-indicator"],
+			rowIndexByKey: new Map([
+				["user-1", 0],
+				["assistant-1", 1],
+				["thinking-indicator", 2],
+			]),
 			anchorEligibleKeys: ["user-1", "assistant-1"],
 			hasLiveAssistantDisplayEntry: false,
 			hasTokenRevealAssistantEntry: false,

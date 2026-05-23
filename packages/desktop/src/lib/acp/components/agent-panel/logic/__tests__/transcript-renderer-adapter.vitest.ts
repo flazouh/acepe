@@ -128,6 +128,64 @@ describe("TranscriptRendererAdapter", () => {
 		expect(deck.scrollLeft).toBe(120);
 	});
 
+	it("reveals Virtua rows through the row index without scanning row keys", () => {
+		const scrollToIndex = vi.fn();
+		const adapter = createVirtuaTranscriptRendererAdapter({
+			getHandle: () => {
+				return {
+					getScrollOffset: () => 0,
+					getScrollSize: () => 900,
+					getViewportSize: () => 300,
+					scrollToIndex,
+					scrollTo: vi.fn(),
+				};
+			},
+			getRowKeys: () => {
+				throw new Error("must not scan row keys");
+			},
+			getRowIndex: (rowKey) => (rowKey === "target-row" ? 7 : -1),
+		});
+
+		expect(
+			adapter.revealRow({
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "target-row",
+				align: "center",
+				reason: "explicit-reveal",
+			})
+		).toEqual({
+			type: "applied",
+			effectType: "RevealRow",
+		});
+		expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
+	});
+
+	it("measures missing Virtua anchors through the row index without scanning row keys", () => {
+		const adapter = createVirtuaTranscriptRendererAdapter({
+			getHandle: () => {
+				return {
+					getScrollOffset: () => 240,
+					getScrollSize: () => 900,
+					getViewportSize: () => 300,
+					scrollToIndex: vi.fn(),
+					scrollTo: vi.fn(),
+				};
+			},
+			getRowKeys: () => {
+				throw new Error("must not scan row keys");
+			},
+			getRowIndex: (rowKey) => (rowKey === "target-row" ? 7 : -1),
+		});
+
+		expect(adapter.measureAnchor("target-row")).toEqual({
+			type: "measured",
+			anchorKey: "target-row",
+			offsetPx: 240,
+		});
+	});
+
 	it("treats a null Virtua handle as temporarily missing during teardown", () => {
 		const adapter = createVirtuaTranscriptRendererAdapter({
 			getHandle: () => null as never,

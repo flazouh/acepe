@@ -82,6 +82,7 @@ export type VirtuaTranscriptHandle = {
 export type VirtuaTranscriptRendererAdapterOptions = {
 	getHandle(): VirtuaTranscriptHandle | null | undefined;
 	getRowKeys(): readonly string[];
+	getRowIndex?(rowKey: string): number | undefined;
 	getContainer?(): HTMLElement | null;
 	getRowElement?(rowKey: string): HTMLElement | null;
 };
@@ -107,7 +108,15 @@ function missingEffect(effectType: string): TranscriptRendererEffectOutcome {
 	};
 }
 
-function findRowIndex(rowKeys: readonly string[], rowKey: string): number {
+function findRowIndex(
+	options: Pick<VirtuaTranscriptRendererAdapterOptions, "getRowKeys" | "getRowIndex">,
+	rowKey: string
+): number {
+	const indexedRow = options.getRowIndex?.(rowKey);
+	if (typeof indexedRow === "number") {
+		return indexedRow;
+	}
+	const rowKeys = options.getRowKeys();
 	for (let index = 0; index < rowKeys.length; index += 1) {
 		if (rowKeys[index] === rowKey) {
 			return index;
@@ -226,7 +235,7 @@ export function createVirtuaTranscriptRendererAdapter(
 					offsetPx: measureRowOffsetInContainer(container, row),
 				};
 			}
-			const index = findRowIndex(options.getRowKeys(), anchorKey);
+			const index = findRowIndex(options, anchorKey);
 			if (index < 0) {
 				return {
 					type: "missing",
@@ -245,7 +254,7 @@ export function createVirtuaTranscriptRendererAdapter(
 			if (handle == null) {
 				return missingEffect(effect.type);
 			}
-			const index = findRowIndex(options.getRowKeys(), effect.targetKey);
+			const index = findRowIndex(options, effect.targetKey);
 			if (index < 0) {
 				return {
 					type: "skipped",

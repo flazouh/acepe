@@ -29,6 +29,7 @@ export type TranscriptViewportRowSummary = {
 	lastKey: string | null;
 	latestUserKey: string | null;
 	rowKeys?: readonly string[];
+	rowIndexByKey?: ReadonlyMap<string, number>;
 	anchorEligibleKeys: readonly string[];
 	hasLiveAssistantDisplayEntry?: boolean;
 	hasTokenRevealAssistantEntry?: boolean;
@@ -50,6 +51,7 @@ export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummar
 		lastKey: null,
 		latestUserKey: null,
 		rowKeys: [],
+		rowIndexByKey: new Map(),
 		anchorEligibleKeys: [],
 		hasLiveAssistantDisplayEntry: false,
 		hasTokenRevealAssistantEntry: false,
@@ -422,6 +424,10 @@ function truncateTranscriptViewportRowsSummary(
 	const lastKey = lastRow === undefined ? null : getSceneDisplayRowKey(lastRow);
 	const previousRowKeys = previousSummary.rowKeys ?? [];
 	const rowKeys = createArrayView(rows.length, (index) => previousRowKeys[index]);
+	const rowIndexByKey = createTruncatedRowIndexByKey(
+		previousSummary.rowIndexByKey,
+		rows.length
+	);
 	const anchorEligibleKeys = createArrayView(countAnchorEligibleRows(rows), (index) => {
 		return previousSummary.anchorEligibleKeys[index];
 	});
@@ -435,6 +441,7 @@ function truncateTranscriptViewportRowsSummary(
 			? findLatestUserKeyFromEnd(rows)
 			: previousSummary.latestUserKey,
 		rowKeys,
+		rowIndexByKey,
 		anchorEligibleKeys,
 		hasLiveAssistantDisplayEntry: truncateBooleanFact(
 			previousSummary.hasLiveAssistantDisplayEntry === true,
@@ -519,12 +526,14 @@ export function buildTranscriptViewportRowsSummary(
 ): TranscriptViewportRowSummary {
 	let latestUserKey: string | null = null;
 	const rowKeys: string[] = [];
+	const rowIndexByKey = new Map<string, number>();
 	const anchorEligibleKeys: string[] = [];
 	let hasLiveAssistantDisplayEntry = false;
 	let hasTokenRevealAssistantEntry = false;
 	let hasToolCallEntry = false;
 	for (const row of rows) {
 		const key = getSceneDisplayRowKey(row);
+		rowIndexByKey.set(key, rowKeys.length);
 		rowKeys.push(key);
 		if (row.type === "user") {
 			latestUserKey = key;
@@ -551,6 +560,7 @@ export function buildTranscriptViewportRowsSummary(
 		lastKey: lastRow === undefined ? null : getSceneDisplayRowKey(lastRow),
 		latestUserKey,
 		rowKeys,
+		rowIndexByKey,
 		anchorEligibleKeys,
 		hasLiveAssistantDisplayEntry,
 		hasTokenRevealAssistantEntry,
@@ -575,6 +585,7 @@ function appendTranscriptViewportRowsSummary(
 	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
 	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
 	const previousRowKeys = previousSummary.rowKeys ?? [];
+	let appendedRowIndexByKey: Map<string, number> | null = null;
 	for (let index = previousSummary.count; index < rows.length; index += 1) {
 		const row = rows[index];
 		if (row === undefined) {
@@ -583,6 +594,8 @@ function appendTranscriptViewportRowsSummary(
 
 		const key = getSceneDisplayRowKey(row);
 		appendedRowKeys ??= [];
+		appendedRowIndexByKey ??= new Map(previousSummary.rowIndexByKey ?? []);
+		appendedRowIndexByKey.set(key, index);
 		appendedRowKeys.push(key);
 		if (row.type === "user") {
 			latestUserKey = key;
@@ -608,6 +621,7 @@ function appendTranscriptViewportRowsSummary(
 			appendedRowKeys === null
 				? previousSummary.rowKeys
 				: createAppendedArrayView(previousRowKeys, appendedRowKeys),
+		rowIndexByKey: appendedRowIndexByKey ?? previousSummary.rowIndexByKey,
 		anchorEligibleKeys:
 			appendedAnchorEligibleKeys === null
 				? previousSummary.anchorEligibleKeys
@@ -626,6 +640,36 @@ function createAppendedArrayView<T>(
 	return createArrayView(baseItems.length + appendedItems.length, (index) => {
 		return index < baseItems.length ? baseItems[index] : appendedItems[index - baseItems.length];
 	});
+}
+
+function replaceTailRowIndexByKey(
+	baseIndexByKey: ReadonlyMap<string, number> | undefined,
+	previousTailKey: string | null,
+	nextTailKey: string,
+	tailIndex: number
+): ReadonlyMap<string, number> {
+	if (previousTailKey === nextTailKey && baseIndexByKey !== undefined) {
+		return baseIndexByKey;
+	}
+	const nextIndexByKey = new Map(baseIndexByKey ?? []);
+	if (previousTailKey !== null) {
+		nextIndexByKey.delete(previousTailKey);
+	}
+	nextIndexByKey.set(nextTailKey, tailIndex);
+	return nextIndexByKey;
+}
+
+function createTruncatedRowIndexByKey(
+	baseIndexByKey: ReadonlyMap<string, number> | undefined,
+	length: number
+): ReadonlyMap<string, number> {
+	const nextIndexByKey = new Map<string, number>();
+	for (const [key, index] of baseIndexByKey ?? []) {
+		if (index < length) {
+			nextIndexByKey.set(key, index);
+		}
+	}
+	return nextIndexByKey;
 }
 
 function createReplacedTailArrayView<T>(baseItems: readonly T[], tailItem: T): readonly T[] {
@@ -707,6 +751,12 @@ function replaceTranscriptViewportRowsTailSummary(
 	const previousTailRow = previousRows.at(-1);
 	const nextTailKey = getSceneDisplayRowKey(tailRow);
 	const rowKeys = createReplacedTailArrayView(previousSummary.rowKeys ?? [], nextTailKey);
+	const rowIndexByKey = replaceTailRowIndexByKey(
+		previousSummary.rowIndexByKey,
+		previousTailKey,
+		nextTailKey,
+		rows.length - 1
+	);
 	let anchorEligibleKeys = previousSummary.anchorEligibleKeys;
 	if (tailRow.type === "thinking") {
 		anchorEligibleKeys =
@@ -740,6 +790,7 @@ function replaceTranscriptViewportRowsTailSummary(
 					? findLatestUserKeyBeforeTail(rows)
 					: previousSummary.latestUserKey,
 		rowKeys,
+		rowIndexByKey,
 		anchorEligibleKeys,
 		hasLiveAssistantDisplayEntry: replaceTailBooleanFact(
 			previousSummary.hasLiveAssistantDisplayEntry === true,
