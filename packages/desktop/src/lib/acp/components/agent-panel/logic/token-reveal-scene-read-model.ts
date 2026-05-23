@@ -6,6 +6,10 @@ import {
 } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import {
+	isStableSceneEntryAppend,
+	isStableSceneEntryTruncation,
+} from "./scene-entry-stability.js";
+import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
 	getAgentPanelSceneEntryArraySplicePatch,
@@ -98,6 +102,28 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				previousEntries = nextEntries;
 				return previousEntries;
 			}
+			if (
+				appendPatch === undefined &&
+				isStableSceneEntryAppend(previous.sceneEntries, snapshot.sceneEntries)
+			) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				const appendedEntries = snapshot.sceneEntries.slice(previous.sceneEntries.length);
+				const nextEntries = createAppendedSceneEntriesArray(
+					previousEntries,
+					appendedEntries
+				);
+				markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
+					baseSceneEntries: previousEntries,
+					appendedEntries,
+				});
+				previousSnapshot = snapshot;
+				previousEntries = nextEntries;
+				return previousEntries;
+			}
 
 			const graphPatch = getAgentPanelSceneEntryArrayPatch(snapshot.sceneEntries);
 			if (graphPatch?.baseSceneEntries === previous.sceneEntries) {
@@ -160,6 +186,29 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 					markAgentPanelSceneEntryArrayTruncation(nextEntries, {
 						baseSceneEntries: previousEntries,
 						length: truncation.length,
+					});
+					previousSnapshot = snapshot;
+					previousEntries = nextEntries;
+					return previousEntries;
+				}
+			}
+			if (
+				truncation === undefined &&
+				isStableSceneEntryTruncation(previous.sceneEntries, snapshot.sceneEntries)
+			) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				if (previousTokenRevealEntryIndex < snapshot.sceneEntries.length) {
+					const nextEntries = createTruncatedSceneEntriesArray(
+						previousEntries,
+						snapshot.sceneEntries.length
+					);
+					markAgentPanelSceneEntryArrayTruncation(nextEntries, {
+						baseSceneEntries: previousEntries,
+						length: snapshot.sceneEntries.length,
 					});
 					previousSnapshot = snapshot;
 					previousEntries = nextEntries;
