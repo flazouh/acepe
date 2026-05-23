@@ -240,6 +240,11 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			}
 
 			baseEntriesByIdBeforeTokenReveal = null;
+			const splicedIndex = applyGraphSceneSplice(sceneEntries);
+			if (splicedIndex !== null) {
+				return splicedIndex;
+			}
+
 			if (
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
