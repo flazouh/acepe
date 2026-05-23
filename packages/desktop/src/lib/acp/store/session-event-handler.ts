@@ -26,11 +26,6 @@ export interface SessionEventHandler {
 	 */
 	getSessionIdentity(sessionId: string): SessionIdentity | undefined;
 
-	/**
-	 * Check if a session's entries have been preloaded from disk.
-	 */
-	isPreloaded(sessionId: string): boolean;
-
 	getSessionCanSend(sessionId: string): boolean | null;
 	hasPendingCreationSession?(sessionId: string): boolean;
 	materializePendingCreationSession?(sessionId: string): boolean;

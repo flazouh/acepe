@@ -141,7 +141,6 @@ function createMockEventHandler(): SessionEventHandler {
 	return {
 		getSessionCold: vi.fn(),
 		getSessionIdentity: vi.fn(),
-		isPreloaded: vi.fn(),
 		getSessionCanSend: vi.fn(),
 		updateUsageTelemetry: vi.fn(),
 		applySessionStateEnvelope: vi.fn(),
