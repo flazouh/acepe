@@ -38,6 +38,48 @@ describe("resolveVisibleSessionEntries", () => {
 		expect(result).toEqual([]);
 	});
 
+	it("hides a trailing persisted error row without copying the transcript entries", () => {
+		const sessionEntries: SessionEntry[] = [
+			{
+				id: "user-1",
+				type: "user",
+				message: {
+					content: { type: "text", text: "hello" },
+					chunks: [{ type: "text", text: "hello" }],
+				},
+				timestamp: new Date("2026-04-15T00:00:00.000Z"),
+			},
+			createErrorEntry({
+				content: "Usage limit reached",
+				code: "429",
+				kind: "recoverable",
+				source: "process",
+			}),
+		];
+		const originalSlice = sessionEntries.slice;
+		sessionEntries.slice = () => {
+			throw new Error("must not copy session entries to hide a duplicate error tail");
+		};
+
+		try {
+			const result = resolveVisibleSessionEntries({
+				sessionEntries,
+				activeTurnError: {
+					content: "Usage limit reached",
+					code: "429",
+					kind: "recoverable",
+					source: "process",
+				},
+			});
+
+			expect(result).toEqual([sessionEntries[0]]);
+			expect(result).toHaveLength(1);
+			expect(result[0]).toBe(sessionEntries[0]);
+		} finally {
+			sessionEntries.slice = originalSlice;
+		}
+	});
+
 	it("hides a trailing transcript error row when canonical failed-turn metadata is richer", () => {
 		const sessionEntries: SessionEntry[] = [
 			createErrorEntry({
