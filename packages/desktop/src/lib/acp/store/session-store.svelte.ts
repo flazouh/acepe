@@ -3580,6 +3580,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyTelemetry") {
+				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				if (!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+					logger.debug("Ignoring stale session-state telemetry envelope", {
+						sessionId,
+						currentRevision: previousProjection?.revision ?? null,
+						incomingRevision: command.revision,
+					});
+					continue;
+				}
 				const transientProjection = this.getTransientProjection(sessionId);
 				const nextTelemetry = buildCanonicalUsageTelemetry(
 					command.telemetry,

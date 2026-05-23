@@ -3226,6 +3226,72 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("ignores stale telemetry envelopes instead of overwriting newer usage selectors", () => {
+		const store = new SessionStore();
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 7,
+						lastEventSeq: 10,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 11,
+			lastEventSeq: 11,
+			payload: {
+				kind: "telemetry",
+				telemetry: {
+					sessionId: "session-1",
+					eventId: "telemetry-new",
+					scope: "step",
+					tokens: {
+						total: 1200,
+					},
+				},
+				revision: {
+					graphRevision: 11,
+					transcriptRevision: 7,
+					lastEventSeq: 11,
+				},
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 9,
+			payload: {
+				kind: "telemetry",
+				telemetry: {
+					sessionId: "session-1",
+					eventId: "telemetry-stale",
+					scope: "turn",
+					tokens: {
+						total: 9999,
+					},
+					costUsd: 99,
+				},
+				revision: {
+					graphRevision: 9,
+					transcriptRevision: 7,
+					lastEventSeq: 9,
+				},
+			},
+		});
+
+		expect(store.getSessionUsageTelemetry("session-1")).toMatchObject({
+			latestTokensTotal: 1200,
+			lastTelemetryEventId: "telemetry-new",
+		});
+	});
+
 	it("refreshes from the canonical provider-open snapshot when a delta frontier mismatches the loaded transcript", async () => {
 		const store = new SessionStore();
 		const initialGraph = createSessionStateGraph();

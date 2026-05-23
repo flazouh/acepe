@@ -48,6 +48,7 @@ export type SessionStateCommand =
 	| {
 			kind: "applyTelemetry";
 			telemetry: UsageTelemetryData;
+			revision: SessionGraphRevision;
 	  }
 	| {
 			kind: "applyPlan";
@@ -147,6 +148,7 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyTelemetry",
 					telemetry: envelope.payload.telemetry,
+					revision: envelope.payload.revision,
 				},
 			];
 		case "plan":
