@@ -27,6 +27,64 @@ function isReadEffect(effect: TranscriptViewportEffect): boolean {
 	);
 }
 
+function isScrollWriteEffect(effect: TranscriptViewportEffect): boolean {
+	return (
+		effect.type === "RevealRow" ||
+		effect.type === "RevealTail" ||
+		effect.type === "ApplyScrollOffset"
+	);
+}
+
+function haveSameViewportRevision(
+	left: TranscriptViewportEffect,
+	right: TranscriptViewportEffect
+): boolean {
+	return left.sessionId === right.sessionId && left.generation === right.generation;
+}
+
+function removePendingEffects(
+	pendingEffects: TranscriptViewportEffect[],
+	shouldRemove: (effect: TranscriptViewportEffect) => boolean
+): void {
+	for (let index = pendingEffects.length - 1; index >= 0; index -= 1) {
+		const effect = pendingEffects[index];
+		if (effect !== undefined && shouldRemove(effect)) {
+			pendingEffects.splice(index, 1);
+		}
+	}
+}
+
+function appendPendingEffect(
+	pendingEffects: TranscriptViewportEffect[],
+	effect: TranscriptViewportEffect
+): void {
+	if (isScrollWriteEffect(effect)) {
+		removePendingEffects(pendingEffects, (pendingEffect) => {
+			return isScrollWriteEffect(pendingEffect) && haveSameViewportRevision(pendingEffect, effect);
+		});
+		pendingEffects.push(effect);
+		return;
+	}
+
+	if (effect.type === "PreserveAnchor") {
+		removePendingEffects(pendingEffects, (pendingEffect) => {
+			return pendingEffect.type === "PreserveAnchor" && haveSameViewportRevision(pendingEffect, effect);
+		});
+		pendingEffects.push(effect);
+		return;
+	}
+
+	if (effect.type === "MeasureViewport" || effect.type === "ProbeRendererHealth") {
+		removePendingEffects(pendingEffects, (pendingEffect) => {
+			return pendingEffect.type === effect.type && haveSameViewportRevision(pendingEffect, effect);
+		});
+		pendingEffects.push(effect);
+		return;
+	}
+
+	pendingEffects.push(effect);
+}
+
 function isEffectCurrent(
 	effect: TranscriptViewportEffect,
 	getSessionId: () => string | null,
@@ -166,7 +224,7 @@ export function createTranscriptViewportScheduler(
 	return {
 		schedule(effects) {
 			for (const effect of effects) {
-				pendingEffects.push(effect);
+				appendPendingEffect(pendingEffects, effect);
 			}
 			if (pendingEffects.length > 0) {
 				ensureFrame();

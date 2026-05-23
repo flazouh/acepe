@@ -296,4 +296,77 @@ describe("TranscriptViewportScheduler", () => {
 
 		expect(order).toEqual([]);
 	});
+
+	it("coalesces same-frame scroll writes down to the latest intent", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: createRecordingAdapter(order),
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "RevealTail",
+				sessionId: "session-1",
+				generation: 0,
+				force: false,
+				reason: "rows-changed-following",
+			},
+			{
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "user-2",
+				align: "end",
+				reason: "send-started",
+			},
+		]);
+		frame.flush();
+
+		expect(order).toEqual([
+			"write:revealRow:user-2",
+			"outcome:applied",
+		]);
+	});
+
+	it("keeps the latest preserve-anchor request in the same frame", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: createRecordingAdapter(order),
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "PreserveAnchor",
+				sessionId: "session-1",
+				generation: 0,
+				anchorKey: "row-1",
+				offsetPx: 12,
+			},
+			{
+				type: "PreserveAnchor",
+				sessionId: "session-1",
+				generation: 0,
+				anchorKey: "row-2",
+				offsetPx: 20,
+			},
+		]);
+		frame.flush();
+
+		expect(order).toEqual([
+			"read:measureAnchor:row-2",
+			"read:measureViewport",
+			"write:applyScrollOffset:-8",
+			"outcome:applied",
+		]);
+	});
 });
