@@ -91,6 +91,62 @@ describe("session-state snapshot merges", () => {
 		expect(next[1]).toBe(patchedOperation);
 	});
 
+	it("patches operation arrays without slicing the whole snapshot list", () => {
+		const firstOperation = createOperationSnapshot({ id: "op-1" });
+		const secondOperation = createOperationSnapshot({ id: "op-2", tool_call_id: "tool-2" });
+		const patchedOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+			provider_status: "completed",
+			operation_state: "completed",
+		});
+		const current = [firstOperation, secondOperation];
+		const originalSlice = current.slice;
+
+		current.slice = () => {
+			throw new Error("must not copy whole operation snapshot list");
+		};
+
+		try {
+			const next = mergeOperationSnapshots(current, [patchedOperation]);
+
+			expect(Array.isArray(next)).toBe(true);
+			expect(next).toHaveLength(2);
+			expect(next[0]).toBe(firstOperation);
+			expect(next[1]).toBe(patchedOperation);
+			expect(next.map((operation) => operation.id)).toEqual(["op-1", "op-2"]);
+			expect([...next][1]).toBe(patchedOperation);
+		} finally {
+			current.slice = originalSlice;
+		}
+	});
+
+	it("appends operation patches without slicing the whole snapshot list", () => {
+		const firstOperation = createOperationSnapshot({ id: "op-1" });
+		const appendedOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+		});
+		const current = [firstOperation];
+		const originalSlice = current.slice;
+
+		current.slice = () => {
+			throw new Error("must not copy whole operation snapshot list");
+		};
+
+		try {
+			const next = mergeOperationSnapshots(current, [appendedOperation]);
+
+			expect(Array.isArray(next)).toBe(true);
+			expect(next).toHaveLength(2);
+			expect(next[0]).toBe(firstOperation);
+			expect(next[1]).toBe(appendedOperation);
+			expect(next.map((operation) => operation.id)).toEqual(["op-1", "op-2"]);
+		} finally {
+			current.slice = originalSlice;
+		}
+	});
+
 	it("keeps interaction arrays stable for duplicate object patches", () => {
 		const interaction = createInteractionSnapshot();
 		const current = [interaction];

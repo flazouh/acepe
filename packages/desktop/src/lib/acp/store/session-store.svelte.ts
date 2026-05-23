@@ -449,19 +449,20 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 		patchesById.set(patch.id, patch);
 	}
 
-	let next: TSnapshot[] | null = null;
+	let patchedIndexes: Map<number, TSnapshot> | null = null;
 	for (const [id, patch] of patchesById) {
 		const index = currentIndex.get(id);
 		if (index !== undefined) {
 			if (current[index] === patch) {
 				continue;
 			}
-			next ??= current.slice();
-			next[index] = patch;
+			patchedIndexes ??= new Map<number, TSnapshot>();
+			patchedIndexes.set(index, patch);
 		}
 	}
 
 	let nextIndex: Map<string, number> | null = null;
+	let appendedSnapshots: TSnapshot[] | null = null;
 	const appendedIds = new Set<string>();
 	for (const patch of patches) {
 		if (currentIndex.has(patch.id) || appendedIds.has(patch.id)) {
@@ -473,19 +474,91 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 			continue;
 		}
 
-		next ??= current.slice();
+		appendedSnapshots ??= [];
 		nextIndex ??= new Map(currentIndex);
-		nextIndex.set(patch.id, next.length);
-		next.push(appendedPatch);
+		nextIndex.set(patch.id, current.length + appendedSnapshots.length);
+		appendedSnapshots.push(appendedPatch);
 		appendedIds.add(patch.id);
 	}
 
-	if (next === null) {
+	if (patchedIndexes === null && appendedSnapshots === null) {
 		return current as TSnapshot[];
 	}
 
+	const next = createMergedSnapshotArray(current, patchedIndexes, appendedSnapshots);
 	indexes.set(next, nextIndex ?? currentIndex);
 	return next;
+}
+
+function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
+	base: readonly TSnapshot[],
+	patchedIndexes: ReadonlyMap<number, TSnapshot> | null,
+	appendedSnapshots: readonly TSnapshot[] | null
+): TSnapshot[] {
+	const appended = appendedSnapshots ?? [];
+	const target = new Array<TSnapshot>(base.length + appended.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectMergedSnapshot(base, patchedIndexes, appended, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectMergedSnapshot(base, patchedIndexes, appended, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectMergedSnapshot(base, patchedIndexes, appended, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function selectMergedSnapshot<TSnapshot extends SnapshotWithId>(
+	base: readonly TSnapshot[],
+	patchedIndexes: ReadonlyMap<number, TSnapshot> | null,
+	appended: readonly TSnapshot[],
+	index: number
+): TSnapshot | undefined {
+	if (index < base.length) {
+		return patchedIndexes?.get(index) ?? base[index];
+	}
+	return appended[index - base.length];
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 export function mergeOperationSnapshots(
