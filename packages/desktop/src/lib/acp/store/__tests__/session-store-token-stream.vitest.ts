@@ -19,7 +19,7 @@ import type {
 	SessionStateEnvelope,
 	SessionStateGraph,
 } from "$lib/services/acp-types.js";
-import { SessionStore } from "../session-store.svelte.js";
+import { countAppendedMarkdownWords, SessionStore } from "../session-store.svelte.js";
 
 function createReadyLifecycle(): SessionGraphLifecycle {
 	return {
@@ -218,6 +218,39 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it("counts appended markdown words from the changed tail only", () => {
+		expect(
+			countAppendedMarkdownWords({
+				previousText: "The quick brown",
+				previousWordCount: 3,
+				deltaText: " fox",
+			})
+		).toEqual({
+			wordCount: 4,
+			latestWordCount: 1,
+		});
+		expect(
+			countAppendedMarkdownWords({
+				previousText: "The quick hel",
+				previousWordCount: 3,
+				deltaText: "lo world",
+			})
+		).toEqual({
+			wordCount: 4,
+			latestWordCount: 2,
+		});
+		expect(
+			countAppendedMarkdownWords({
+				previousText: "**hello world** after",
+				previousWordCount: 2,
+				deltaText: " `pwd`",
+			})
+		).toEqual({
+			wordCount: 3,
+			latestWordCount: 1,
+		});
 	});
 
 	it("builds canonical row token streams and preserves them across graph replacement", () => {
