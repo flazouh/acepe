@@ -7,31 +7,20 @@ export const scrollToIndexCalls: Array<{
 	options?: { align?: string };
 }> = [];
 let currentScrollOffset = 0;
-export const renderedItemHistory: Array<{
-	index: number;
-	isUndefined: boolean;
-}> = [];
 export const conversationEntryHistory: AgentPanelSceneEntryModel[] = [];
 
 let defaultViewportSize = 100;
 let suppressRenderedChildren = false;
-let undefinedRenderedIndexes = new Set<number>();
 let useIndexKeys = false;
 
 export function clearHistory(): void {
 	dataLengthHistory.length = 0;
 	scrollToIndexCalls.length = 0;
 	currentScrollOffset = 0;
-	renderedItemHistory.length = 0;
 	conversationEntryHistory.length = 0;
 	defaultViewportSize = 100;
 	suppressRenderedChildren = false;
-	undefinedRenderedIndexes = new Set<number>();
 	useIndexKeys = false;
-}
-
-export function recordRenderedItem(index: number, isUndefined: boolean): void {
-	renderedItemHistory.push({ index, isUndefined });
 }
 
 export function recordConversationEntry(entry: AgentPanelSceneEntryModel): void {
@@ -62,22 +51,10 @@ export function setSuppressRenderedChildren(value: boolean): void {
 	suppressRenderedChildren = value;
 }
 
-export function setUndefinedRenderedIndexes(indexes: readonly number[]): void {
-	undefinedRenderedIndexes = new Set<number>(indexes);
-}
-
 export function shouldUseIndexKeys(): boolean {
 	return useIndexKeys;
 }
 
 export function setUseIndexKeys(value: boolean): void {
 	useIndexKeys = value;
-}
-
-export function getRenderedItemAt<T>(data: readonly T[], index: number): T | undefined {
-	if (undefinedRenderedIndexes.has(index)) {
-		return undefined;
-	}
-
-	return data[index];
 }

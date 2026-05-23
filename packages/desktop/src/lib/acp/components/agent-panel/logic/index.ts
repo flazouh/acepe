@@ -29,7 +29,7 @@ export {
 export type { TranscriptViewportRowSummary } from "./transcript-viewport-row-summary.js";
 export {
 	createNativeTranscriptRendererAdapter,
-	createVirtuaTranscriptRendererAdapter,
+	createTranscriptVirtualizerRendererAdapter,
 	type TranscriptRendererAdapter,
 } from "./transcript-renderer-adapter.js";
 export {

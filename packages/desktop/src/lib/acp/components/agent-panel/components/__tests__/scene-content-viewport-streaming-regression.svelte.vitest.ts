@@ -66,9 +66,9 @@ vi.mock(
 		import("../../../../../../../node_modules/svelte/src/index-client.js")
 );
 
-vi.mock("virtua/svelte", async () => ({
-	VList: (await import("./fixtures/vlist-stub.svelte")).default,
-}));
+vi.mock("@tanstack/svelte-virtual", async () =>
+	await import("./fixtures/tanstack-virtual-stub.js")
+);
 
 vi.mock("mode-watcher", () => ({
 	mode: { current: "dark" },
@@ -156,7 +156,7 @@ describe("SceneContentViewport streaming regression", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("keeps a visible assistant prefix when thinking-only updates into first-token on healthy Virtua", async () => {
+	it("keeps a visible assistant prefix when thinking-only updates into first-token on healthy TanStack Virtual", async () => {
 		const view = render(SceneContentViewport, {
 			panelId: "panel-1",
 			sceneEntries: [createUserSceneEntry("user-1", "Explain umbrellas slowly.")],
@@ -172,7 +172,7 @@ describe("SceneContentViewport streaming regression", () => {
 		await tick();
 		await tick();
 
-		expect(view.queryByTestId("vlist-stub")).not.toBeNull();
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
 		expect(view.queryByTestId("native-fallback")).toBeNull();
 
 		await view.rerender({

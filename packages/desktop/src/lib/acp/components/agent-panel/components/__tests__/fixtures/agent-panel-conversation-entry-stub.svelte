@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
-import { recordConversationEntry } from "./vlist-stub-state.js";
+import { recordConversationEntry } from "./transcript-virtualizer-state.js";
 
 interface Props {
 	entry: AgentPanelSceneEntryModel;

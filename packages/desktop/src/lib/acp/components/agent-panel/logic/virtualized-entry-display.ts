@@ -241,7 +241,7 @@ function shouldMergeSceneAssistantEntry(
  * Builds virtualized display entries from scene-model entries.
  *
  * Produces the same `VirtualizedDisplayEntry[]` shape as `buildVirtualizedDisplayEntries`,
- * so `VList` keying and the streaming-indicator state machine are unchanged.
+ * so virtualizer keying and the streaming-indicator state machine are unchanged.
  * Consecutive assistant entries are merged into a single `MergedAssistantDisplayEntry`.
  * User and tool entries pass through as synthetic `SessionEntry`-compatible objects
  * (content sourced from scene fields; the actual render is either the legacy desktop

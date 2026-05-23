@@ -71,7 +71,7 @@ export type TranscriptRendererAdapter = {
 	reportEffectOutcome(outcome: TranscriptRendererEffectOutcome): void;
 };
 
-export type VirtuaTranscriptHandle = {
+export type TranscriptVirtualizerHandle = {
 	getScrollOffset(): number;
 	getScrollSize(): number;
 	getViewportSize(): number;
@@ -79,8 +79,8 @@ export type VirtuaTranscriptHandle = {
 	scrollTo(offset: number): void;
 };
 
-export type VirtuaTranscriptRendererAdapterOptions = {
-	getHandle(): VirtuaTranscriptHandle | null | undefined;
+export type TranscriptVirtualizerRendererAdapterOptions = {
+	getHandle(): TranscriptVirtualizerHandle | null | undefined;
 	getRowKeys(): readonly string[];
 	getRowIndex?(rowKey: string): number | undefined;
 	getContainer?(): HTMLElement | null;
@@ -109,7 +109,7 @@ function missingEffect(effectType: string): TranscriptRendererEffectOutcome {
 }
 
 function findRowIndex(
-	options: Pick<VirtuaTranscriptRendererAdapterOptions, "getRowKeys" | "getRowIndex">,
+	options: Pick<TranscriptVirtualizerRendererAdapterOptions, "getRowKeys" | "getRowIndex">,
 	rowKey: string
 ): number {
 	const indexedRow = options.getRowIndex?.(rowKey);
@@ -179,8 +179,8 @@ function revealRowInContainer(
 	container.scrollTop += rowRect.bottom - containerRect.bottom;
 }
 
-export function createVirtuaTranscriptRendererAdapter(
-	options: VirtuaTranscriptRendererAdapterOptions
+export function createTranscriptVirtualizerRendererAdapter(
+	options: TranscriptVirtualizerRendererAdapterOptions
 ): TranscriptRendererAdapter {
 	return {
 		measureViewport() {

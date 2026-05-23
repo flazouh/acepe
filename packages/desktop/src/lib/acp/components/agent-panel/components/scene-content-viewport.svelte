@@ -9,8 +9,9 @@ import type {
 	AgentToolFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
+import { createVirtualizer } from "@tanstack/svelte-virtual";
+import { get } from "svelte/store";
 import { setContext, untrack } from "svelte";
-import { VList, type VListHandle } from "virtua/svelte";
 import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import type { TurnState } from "../../../store/types.js";
@@ -43,10 +44,10 @@ import type {
 import type { TranscriptViewportEffect } from "../logic/transcript-viewport-effects.js";
 import {
 	createNativeTranscriptRendererAdapter,
-	createVirtuaTranscriptRendererAdapter,
+	createTranscriptVirtualizerRendererAdapter,
 	type TranscriptRendererEffectOutcome,
 	type TranscriptRendererAdapter,
-	type VirtuaTranscriptHandle,
+	type TranscriptVirtualizerHandle,
 } from "../logic/transcript-renderer-adapter.js";
 import {
 	isTranscriptViewportFlightRecordingEnabled,
@@ -70,6 +71,8 @@ const MAX_EMPTY_RENDER_FRAMES = 4;
 const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
 const COMPACT_TOOL_NATIVE_ENTRY_LIMIT = 80;
 const NEAR_EDGE_THRESHOLD_PX = 24;
+const TANSTACK_TRANSCRIPT_OVERSCAN = 8;
+const ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX = 120;
 const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 type SceneContentViewportProps = {
 	panelId: string;
@@ -169,32 +172,31 @@ setContext(SESSION_CONTEXT_KEY_EXPORT, {
 });
 
 // ===== REFS =====
-let vlistRef: VListHandle | undefined = $state(undefined);
 let wrapperRef: HTMLDivElement | null = $state(null);
-let virtuaViewportRef: HTMLDivElement | null = $state(null);
+let virtualizerViewportRef: HTMLDivElement | null = $state(null);
 let fallbackViewportRef: HTMLDivElement | null = $state(null);
 let viewportNudgeOffsetPx = $state(0);
 let nativeFallbackRetryCount = $state(0);
-const virtuaRowRefs = new Map<string, HTMLElement>();
+const virtualizedRowRefs = new Map<string, HTMLElement>();
 const fallbackRowRefs = new Map<string, HTMLElement>();
 
-function bindVirtuaRow(
+function bindVirtualizedRow(
 	node: HTMLElement,
 	key: string
 ): { update: (nextKey: string) => void; destroy: () => void } {
 	let currentKey = key;
-	virtuaRowRefs.set(currentKey, node);
+	virtualizedRowRefs.set(currentKey, node);
 	return {
 		update(nextKey) {
 			if (nextKey === currentKey) {
 				return;
 			}
-			virtuaRowRefs.delete(currentKey);
+			virtualizedRowRefs.delete(currentKey);
 			currentKey = nextKey;
-			virtuaRowRefs.set(currentKey, node);
+			virtualizedRowRefs.set(currentKey, node);
 		},
 		destroy() {
-			virtuaRowRefs.delete(currentKey);
+			virtualizedRowRefs.delete(currentKey);
 		},
 	};
 }
@@ -428,11 +430,9 @@ const displayEntriesRaw = $derived.by((): readonly SceneDisplayRow[] => {
 	});
 });
 
-// Restored historical sessions can mount while the panel is still settling into the
-// layout tree. Virtua's root ResizeObserver ignores callbacks when offsetParent is null,
-// leaving the viewport size at 0 and the rendered range empty even though totalSize is set.
-// Fix: on the first mount with preloaded entries, give VList an empty dataset for one frame
-// and then remount it with the real entries once layout has settled.
+// Restored historical sessions can mount while the panel is still settling into the layout
+// tree. Start with an empty dataset for one frame and then remount with real entries once
+// layout has settled.
 let shouldDeferInitialHydration = untrack(() => displayEntriesRaw.length > 0);
 let hydrationFrameId: number | null = null;
 let initialHydrationComplete = $state(!shouldDeferInitialHydration);
@@ -477,10 +477,65 @@ const shouldUseNativeRenderer = $derived(shouldUseNativeList || shouldUseCompact
 const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
 	return viewportRowsReadModel.selectNativeFallbackWindow(NATIVE_FALLBACK_ENTRY_LIMIT);
 });
-const vlistRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
+const virtualizerRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
 const wrapperStyle = $derived(
 	viewportNudgeOffsetPx === 0 ? "height: 100%;" : `height: calc(100% - ${viewportNudgeOffsetPx}px);`
 );
+const transcriptVirtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
+	count: 0,
+	getScrollElement: () => virtualizerViewportRef,
+	estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
+	overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
+	getItemKey: (index) => index,
+});
+
+$effect(() => {
+	const currentRows = displayEntries;
+	get(transcriptVirtualizer).setOptions({
+		count: currentRows.length,
+		getItemKey: (index) => {
+			const row = currentRows[index];
+			return row === undefined ? index : getSceneDisplayRowKey(row);
+		},
+		estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
+		overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
+	});
+});
+
+$effect(() => {
+	const viewport = virtualizerViewportRef;
+	if (viewport === null) {
+		return;
+	}
+	const virtualizer = get(transcriptVirtualizer);
+	const observer = new ResizeObserver(() => {
+		virtualizer.measure();
+	});
+	observer.observe(viewport);
+	return () => {
+		observer.disconnect();
+	};
+});
+
+function measureVirtualizedRow(
+	node: HTMLDivElement
+): { update: () => void; destroy: () => void } {
+	const virtualizer = get(transcriptVirtualizer);
+	virtualizer.measureElement(node);
+	const observer = new ResizeObserver(() => {
+		virtualizer.measureElement(node);
+		virtualizer.measure();
+	});
+	observer.observe(node);
+	return {
+		update() {
+			virtualizer.measureElement(node);
+		},
+		destroy() {
+			observer.disconnect();
+		},
+	};
+}
 
 function getRowKeys(): readonly string[] {
 	return viewportRowsSummary.rowKeys ?? [];
@@ -490,11 +545,29 @@ function getRowIndex(rowKey: string): number {
 	return viewportRowsSummary.rowIndexByKey?.get(rowKey) ?? -1;
 }
 
-function getVirtuaHandle(): VirtuaTranscriptHandle | undefined {
-	if (vlistRef == null || !("scrollTo" in vlistRef)) {
+function getVirtualizerHandle(): TranscriptVirtualizerHandle | undefined {
+	const viewport = virtualizerViewportRef;
+	if (viewport === null) {
 		return undefined;
 	}
-	return vlistRef as VListHandle & { scrollTo(offset: number): void };
+	const virtualizer = get(transcriptVirtualizer);
+	return {
+		getScrollOffset() {
+			return viewport.scrollTop || virtualizer.scrollOffset || 0;
+		},
+		getScrollSize() {
+			return virtualizer.getTotalSize();
+		},
+		getViewportSize() {
+			return viewport.clientHeight || virtualizer.scrollRect?.height || 0;
+		},
+		scrollToIndex(index, options) {
+			virtualizer.scrollToIndex(index, options);
+		},
+		scrollTo(offset) {
+			virtualizer.scrollToOffset(offset);
+		},
+	};
 }
 
 function formatTraceAnchor(anchor: TranscriptViewportAnchor): string {
@@ -548,12 +621,12 @@ function recordScrollWrite(
 	});
 }
 
-const virtuaAdapter = createVirtuaTranscriptRendererAdapter({
-	getHandle: getVirtuaHandle,
+const virtualizerAdapter = createTranscriptVirtualizerRendererAdapter({
+	getHandle: getVirtualizerHandle,
 	getRowKeys,
 	getRowIndex,
-	getContainer: () => virtuaViewportRef,
-	getRowElement: (rowKey: string) => virtuaRowRefs.get(rowKey) ?? null,
+	getContainer: () => virtualizerViewportRef,
+	getRowElement: (rowKey: string) => virtualizedRowRefs.get(rowKey) ?? null,
 });
 
 const nativeAdapter = createNativeTranscriptRendererAdapter({
@@ -564,44 +637,44 @@ const nativeAdapter = createNativeTranscriptRendererAdapter({
 
 const transcriptRendererAdapter: TranscriptRendererAdapter = {
 	measureViewport() {
-		return shouldUseNativeRenderer ? nativeAdapter.measureViewport() : virtuaAdapter.measureViewport();
+		return shouldUseNativeRenderer ? nativeAdapter.measureViewport() : virtualizerAdapter.measureViewport();
 	},
 	captureAnchor() {
-		return shouldUseNativeRenderer ? nativeAdapter.captureAnchor() : virtuaAdapter.captureAnchor();
+		return shouldUseNativeRenderer ? nativeAdapter.captureAnchor() : virtualizerAdapter.captureAnchor();
 	},
 	measureAnchor(anchorKey) {
 		return shouldUseNativeRenderer
 			? nativeAdapter.measureAnchor(anchorKey)
-			: virtuaAdapter.measureAnchor(anchorKey);
+			: virtualizerAdapter.measureAnchor(anchorKey);
 	},
 	revealRow(effect) {
 		const outcome = shouldUseNativeRenderer
 			? nativeAdapter.revealRow(effect)
-			: virtuaAdapter.revealRow(effect);
+			: virtualizerAdapter.revealRow(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	revealTail(effect) {
 		const outcome = shouldUseNativeRenderer
 			? nativeAdapter.revealTail(effect)
-			: virtuaAdapter.revealTail(effect);
+			: virtualizerAdapter.revealTail(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	applyScrollOffset(effect) {
 		const outcome = shouldUseNativeRenderer
 			? nativeAdapter.applyScrollOffset(effect)
-			: virtuaAdapter.applyScrollOffset(effect);
+			: virtualizerAdapter.applyScrollOffset(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	probeRendererHealth() {
 		return shouldUseNativeRenderer
 			? nativeAdapter.probeRendererHealth()
-			: virtuaAdapter.probeRendererHealth();
+			: virtualizerAdapter.probeRendererHealth();
 	},
 	reportEffectOutcome(outcome) {
-		virtuaAdapter.reportEffectOutcome(outcome);
+		virtualizerAdapter.reportEffectOutcome(outcome);
 	},
 };
 
@@ -677,13 +750,14 @@ function measureCurrentViewport(): TranscriptViewportMeasurement {
 }
 
 $effect(() => {
+	const rows = viewportRowsSummary;
 	const generation = untrack(() => viewportState.generation);
 	untrack(() => {
 		dispatchViewportEvent({
 			type: "RowsChanged",
 			sessionId,
 			generation,
-			rows: viewportRowsSummary,
+			rows,
 		});
 	});
 });
@@ -764,7 +838,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!initialHydrationComplete || shouldUseNativeRenderer || displayEntries.length === 0 || !vlistRef) {
+	if (!initialHydrationComplete || shouldUseNativeRenderer || displayEntries.length === 0) {
 		viewportNudgeOffsetPx = 0;
 		return;
 	}
@@ -780,7 +854,7 @@ $effect(() => {
 			return;
 		}
 
-		const viewportSize = vlistRef?.getViewportSize() ?? 0;
+		const viewportSize = getVirtualizerHandle()?.getViewportSize() ?? 0;
 		if (viewportSize > 0) {
 			viewportNudgeOffsetPx = 0;
 			return;
@@ -790,7 +864,7 @@ $effect(() => {
 			viewportNudgeOffsetPx = 0;
 			if (import.meta.env.DEV) {
 				console.warn(
-					"[VLIST_FALLBACK]",
+					"[TRANSCRIPT_VIRTUALIZER_FALLBACK]",
 					"reason=zero_viewport",
 					`sessionId=${sessionId}`,
 					`entries=${displayEntries.length}`
@@ -851,7 +925,7 @@ $effect(() => {
 			viewportNudgeOffsetPx = 0;
 			if (import.meta.env.DEV) {
 				console.warn(
-					"[VLIST_FALLBACK]",
+					"[TRANSCRIPT_VIRTUALIZER_FALLBACK]",
 					"reason=no_rendered_entries",
 					`sessionId=${sessionId}`,
 					`entries=${displayEntries.length}`
@@ -897,14 +971,14 @@ $effect(() => {
 	const fallbackSessionId = sessionId;
 	const fallbackGeneration = untrack(() => viewportState.generation);
 
-	const retryVirtuaAfterFallback = () => {
+	const retryVirtualizerAfterFallback = () => {
 		if (cancelled || sessionId !== fallbackSessionId) {
 			return;
 		}
 
 		frameCount += 1;
 		if (frameCount < 2) {
-			retryFrameId = requestAnimationFrame(retryVirtuaAfterFallback);
+			retryFrameId = requestAnimationFrame(retryVirtualizerAfterFallback);
 			return;
 		}
 
@@ -917,7 +991,7 @@ $effect(() => {
 		});
 	};
 
-	retryFrameId = requestAnimationFrame(retryVirtuaAfterFallback);
+	retryFrameId = requestAnimationFrame(retryVirtualizerAfterFallback);
 
 	return () => {
 		cancelled = true;
@@ -929,8 +1003,8 @@ $effect(() => {
 
 // ===== SCROLL TO BOTTOM ON HISTORICAL SESSION LOAD =====
 // When a session mounts with pre-existing entries (historical), shouldDeferInitialHydration
-// is true. Once hydration completes and VList renders, force a scroll to the bottom so the
-// user sees the most recent messages instead of the top of the conversation.
+// is true. Once hydration completes and the virtualizer renders, force a scroll to the
+// bottom so the user sees the most recent messages instead of the top of the conversation.
 const isHistoricalLoad = shouldDeferInitialHydration;
 let historicalScrollApplied = false;
 $effect(() => {
@@ -941,7 +1015,7 @@ $effect(() => {
 	const historicalSessionId = sessionId;
 	const historicalGeneration = untrack(() => viewportState.generation);
 
-	// Wait two frames: one for VList to process the entries, one for layout to settle.
+	// Wait two frames: one for the virtualizer to process entries, one for layout to settle.
 	let frameCount = 0;
 	let scrollRafId: number | null = null;
 	const scrollAfterSettle = () => {
@@ -1033,8 +1107,8 @@ function captureCurrentAnchor(source: string):
 	};
 }
 
-function handleVListScroll(_offset: number): void {
-	const anchor = captureCurrentAnchor("vlist-scroll");
+function handleVirtualizerScroll(): void {
+	const anchor = captureCurrentAnchor("virtualizer-scroll");
 	dispatchViewportEvent({
 		type: "UserScroll",
 		sessionId,
@@ -1138,13 +1212,7 @@ export function scrollToTop() {
 }
 </script>
 
-<!--
-	Virtual scrolling using Virtua with passive wheel detection.
-	VList config:
-	- bufferSize: pixels of content to render outside viewport (800px = ~6 items)
-	- itemSize: estimated average item height in px for initial layout calculations
-	- contain: strict prevents layout recalculation from propagating to parent
--->
+<!-- Virtual scrolling uses TanStack Virtual with passive wheel detection. -->
 <div bind:this={wrapperRef} use:wheelAction class="h-full min-h-0" style={wrapperStyle}>
 	{#snippet renderAssistantBlock(context: AssistantRenderBlockContext)}
 		{#if context.group.type === "text"}
@@ -1221,25 +1289,31 @@ export function scrollToTop() {
 			{/each}
 		</div>
 	{:else}
-		{#key `${sessionId ?? "pre-session"}:${vlistRenderKey}`}
-			<div bind:this={virtuaViewportRef} class="h-full min-h-0">
-				<VList
-					bind:this={vlistRef}
-					data={displayEntries}
-					{getKey}
-					onscroll={handleVListScroll}
-					bufferSize={800}
-					itemSize={120}
-					class="h-full"
-					style="contain: strict;"
+		{#key `${sessionId ?? "pre-session"}:${virtualizerRenderKey}`}
+			<div
+				bind:this={virtualizerViewportRef}
+				data-testid="transcript-virtualizer"
+				class="h-full min-h-0 overflow-y-auto"
+				style="contain: strict;"
+				onscroll={handleVirtualizerScroll}
+			>
+				<div
+					style={`height: ${$transcriptVirtualizer.getTotalSize()}px; position: relative; width: 100%;`}
 				>
-					{#snippet children(entry: SceneDisplayRow, index: number)}
-						{@const entryKey = getKey(entry, index)}
-						<div use:bindVirtuaRow={entryKey} data-entry-key={entryKey}>
-							{@render renderEntry(entry, index)}
+					{#each $transcriptVirtualizer.getVirtualItems() as virtualItem (virtualItem.key)}
+						{@const entry = displayEntries[virtualItem.index]}
+						{@const entryKey = getKey(entry, virtualItem.index)}
+						<div
+							use:measureVirtualizedRow
+							data-index={virtualItem.index}
+							style={`position: absolute; top: 0; left: 0; width: 100%; transform: translateY(${virtualItem.start}px);`}
+						>
+							<div use:bindVirtualizedRow={entryKey} data-entry-key={entryKey}>
+								{@render renderEntry(entry, virtualItem.index)}
+							</div>
 						</div>
-					{/snippet}
-				</VList>
+					{/each}
+				</div>
 			</div>
 		{/key}
 	{/if}

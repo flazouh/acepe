@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	createNativeTranscriptRendererAdapter,
-	createVirtuaTranscriptRendererAdapter,
+	createTranscriptVirtualizerRendererAdapter,
 } from "../transcript-renderer-adapter.js";
 
 function defineRect(element: HTMLElement, rect: { top: number; bottom: number }): void {
@@ -21,8 +21,8 @@ function defineRect(element: HTMLElement, rect: { top: number; bottom: number })
 }
 
 describe("TranscriptRendererAdapter", () => {
-	it("normalizes Virtua viewport measurement", () => {
-		const adapter = createVirtuaTranscriptRendererAdapter({
+	it("normalizes TanStack Virtual viewport measurement", () => {
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 40,
@@ -45,9 +45,9 @@ describe("TranscriptRendererAdapter", () => {
 		});
 	});
 
-	it("reports missing Virtua target instead of scrolling fallback by itself", () => {
+	it("reports missing TanStack Virtual target instead of scrolling fallback by itself", () => {
 		const scrollToIndex = vi.fn();
-		const adapter = createVirtuaTranscriptRendererAdapter({
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 0,
@@ -77,7 +77,7 @@ describe("TranscriptRendererAdapter", () => {
 		expect(scrollToIndex).not.toHaveBeenCalled();
 	});
 
-	it("preserves horizontal panel-row position around Virtua reveal writes", () => {
+	it("preserves horizontal panel-row position around TanStack Virtual reveal writes", () => {
 		const deck = document.createElement("div");
 		const container = document.createElement("div");
 		deck.appendChild(container);
@@ -97,7 +97,7 @@ describe("TranscriptRendererAdapter", () => {
 		const scrollToIndex = vi.fn(() => {
 			deck.scrollLeft = 480;
 		});
-		const adapter = createVirtuaTranscriptRendererAdapter({
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 0,
@@ -128,9 +128,9 @@ describe("TranscriptRendererAdapter", () => {
 		expect(deck.scrollLeft).toBe(120);
 	});
 
-	it("reveals Virtua rows through the row index without scanning row keys", () => {
+	it("reveals TanStack Virtual rows through the row index without scanning row keys", () => {
 		const scrollToIndex = vi.fn();
-		const adapter = createVirtuaTranscriptRendererAdapter({
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 0,
@@ -162,8 +162,8 @@ describe("TranscriptRendererAdapter", () => {
 		expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
 	});
 
-	it("measures missing Virtua anchors through the row index without scanning row keys", () => {
-		const adapter = createVirtuaTranscriptRendererAdapter({
+	it("measures missing TanStack Virtual anchors through the row index without scanning row keys", () => {
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 240,
@@ -186,8 +186,8 @@ describe("TranscriptRendererAdapter", () => {
 		});
 	});
 
-	it("treats a null Virtua handle as temporarily missing during teardown", () => {
-		const adapter = createVirtuaTranscriptRendererAdapter({
+	it("treats a null TanStack Virtual handle as temporarily missing during teardown", () => {
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => null as never,
 			getRowKeys: () => ["row-1"],
 		});
@@ -307,7 +307,7 @@ describe("TranscriptRendererAdapter", () => {
 		});
 	});
 
-	it("captures the first visible Virtua anchor when row elements are available", () => {
+	it("captures the first visible TanStack Virtual anchor when row elements are available", () => {
 		const container = document.createElement("div");
 		const rowAbove = document.createElement("div");
 		const firstVisible = document.createElement("div");
@@ -319,7 +319,7 @@ describe("TranscriptRendererAdapter", () => {
 			["row-above", rowAbove],
 			["first-visible", firstVisible],
 		]);
-		const adapter = createVirtuaTranscriptRendererAdapter({
+		const adapter = createTranscriptVirtualizerRendererAdapter({
 			getHandle: () => {
 				return {
 					getScrollOffset: () => 900,
