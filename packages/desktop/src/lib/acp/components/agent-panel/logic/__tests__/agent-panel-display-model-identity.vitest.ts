@@ -1026,7 +1026,7 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		}
 	});
 
-	it("does not treat unmarked scene entries as display scene entry patches", () => {
+	it("treats unchanged unmarked scene entries as a successful display scene patch", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
 			id: "user-1",
@@ -1044,19 +1044,20 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			rows: [{ id: "user-1", type: "user", text: "Prompt" }],
 			viewport: { hasLiveTail: false, requiresStableTailMount: false },
 		};
-		readModel.apply({
+		const firstDisplayedEntries = readModel.apply({
 			model,
 			memory: createAgentPanelDisplayMemory(),
 			sceneEntries: [userEntry],
 		});
 
-		expect(
-			readModel.applyPatch({
-				model,
-				memory: createAgentPanelDisplayMemory(),
-				sceneEntries: [userEntry],
-			})
-		).toBeNull();
+		const patchedEntries = readModel.applyPatch({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry],
+		});
+
+		expect(patchedEntries).not.toBeNull();
+		expect(patchedEntries).toEqual(firstDisplayedEntries);
 	});
 
 	it("keeps mixed prefix updates plus appended tail on the structural patch lane", () => {

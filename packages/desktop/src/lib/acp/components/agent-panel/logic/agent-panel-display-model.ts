@@ -2451,6 +2451,12 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 					stablePrefixAppendStartIndex
 				);
 			}
+			if (
+				previousSceneEntries !== null &&
+				hasSameSceneEntryIdOrder(previousSceneEntries, sceneEntries)
+			) {
+				return applyDisplaySceneEntries(model, sceneEntries);
+			}
 			return null;
 		},
 	};
