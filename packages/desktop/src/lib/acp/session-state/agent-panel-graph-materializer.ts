@@ -2073,6 +2073,8 @@ class AppendedOperationByTranscriptEntryMap extends Map<string, OperationSnapsho
 }
 
 class AppendedParentsByChildOperationMap extends Map<string, OperationSnapshot[]> {
+	private appendedParentsByChildOperationId: Map<string, OperationSnapshot[]> | null = null;
+
 	constructor(
 		private readonly base: Map<string, OperationSnapshot[]>,
 		private readonly appendedOperations: readonly OperationSnapshot[]
@@ -2083,9 +2085,7 @@ class AppendedParentsByChildOperationMap extends Map<string, OperationSnapshot[]
 	override get(key: string): OperationSnapshot[] | undefined {
 		const local = super.get(key);
 		const baseParents = this.base.get(key);
-		const appendedParents = this.appendedOperations.filter((operation) =>
-			operation.child_operation_ids.includes(key)
-		);
+		const appendedParents = this.getAppendedParentsByChildOperationId().get(key) ?? [];
 		if (local === undefined && appendedParents.length === 0) {
 			return baseParents;
 		}
@@ -2125,6 +2125,26 @@ class AppendedParentsByChildOperationMap extends Map<string, OperationSnapshot[]
 
 	override [Symbol.iterator](): MapIterator<[string, OperationSnapshot[]]> {
 		return this.entries();
+	}
+
+	private getAppendedParentsByChildOperationId(): Map<string, OperationSnapshot[]> {
+		if (this.appendedParentsByChildOperationId !== null) {
+			return this.appendedParentsByChildOperationId;
+		}
+
+		const next = new Map<string, OperationSnapshot[]>();
+		for (const operation of this.appendedOperations) {
+			for (const childOperationId of operation.child_operation_ids) {
+				const parents = next.get(childOperationId);
+				if (parents === undefined) {
+					next.set(childOperationId, [operation]);
+					continue;
+				}
+				parents.push(operation);
+			}
+		}
+		this.appendedParentsByChildOperationId = next;
+		return next;
 	}
 }
 

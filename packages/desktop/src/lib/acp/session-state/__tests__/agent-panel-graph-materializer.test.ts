@@ -668,6 +668,67 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("applies marked operation appends without filtering appended parent lists on lookup", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run first"),
+			createTranscriptEntry("tool-2", "tool", "Run second"),
+		]);
+		const firstOperation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+		});
+		const appendedOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+		});
+		const operations = [firstOperation];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const appendedOperations = [appendedOperation];
+		const nextOperations = [firstOperation, appendedOperation];
+		markOperationSnapshotArrayPatch(nextOperations, {
+			baseOperations: operations,
+			patchedOperationsByIndex: null,
+			appendedOperations,
+		});
+		Object.defineProperty(appendedOperations, "filter", {
+			configurable: true,
+			value() {
+				throw new Error("must not filter appended parent operations on lookup");
+			},
+		});
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: nextOperations,
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			id: "tool-2",
+			type: "tool_call",
+		});
+	});
+
 	it("applies stable marked operation patches and appends without cloning indexes", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("tool-1", "tool", "Run first"),
