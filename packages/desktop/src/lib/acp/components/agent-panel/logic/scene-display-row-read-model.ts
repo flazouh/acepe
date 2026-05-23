@@ -25,7 +25,6 @@ export interface SceneDisplayRowsReadModel {
 	applyPatch(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[] | null;
 	selectRows(): readonly SceneDisplayRow[];
 	selectLatestTimestampMs(): number | null;
-	getRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
 }
 
 export type SceneDisplayRowArrayPatch = {
@@ -276,9 +275,6 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		},
 		selectLatestTimestampMs() {
 			return latestTimestampMs;
-		},
-		getRows(sceneEntries) {
-			return this.applySnapshot(sceneEntries);
 		},
 	};
 }

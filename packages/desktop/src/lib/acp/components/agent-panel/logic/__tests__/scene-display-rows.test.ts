@@ -141,8 +141,8 @@ describe("scene-display-rows", () => {
 			{ id: "assistant-1", type: "assistant", markdown: "Answer" },
 		];
 
-		const firstRows = readModel.getRows(entries);
-		const secondRows = readModel.getRows(entries);
+		const firstRows = readModel.applySnapshot(entries);
+		const secondRows = readModel.applySnapshot(entries);
 
 		expect(secondRows).toBe(firstRows);
 	});
@@ -180,9 +180,9 @@ describe("scene-display-rows", () => {
 			type: "assistant",
 			markdown: "Second",
 		} satisfies AgentPanelSceneEntryModel;
-		const firstRows = readModel.getRows([firstUser, firstAssistant]);
+		const firstRows = readModel.applySnapshot([firstUser, firstAssistant]);
 
-		const nextRows = readModel.getRows([firstUser, firstAssistant, nextAssistant]);
+		const nextRows = readModel.applySnapshot([firstUser, firstAssistant, nextAssistant]);
 
 		expect(nextRows[0]).toBe(firstRows[0]);
 		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual(["user-1", "assistant-1"]);
@@ -364,12 +364,12 @@ describe("scene-display-rows", () => {
 
 	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {
 		const readModel = createSceneDisplayRowsReadModel();
-		const firstRows = readModel.getRows([
+		const firstRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
 			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
 		]);
 
-		const nextRows = readModel.getRows([
+		const nextRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
 			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
 			{ id: "assistant-2", type: "assistant", markdown: "Second", timestampMs: 3 },
@@ -385,12 +385,12 @@ describe("scene-display-rows", () => {
 
 	it("keeps rows stable when a fresh snapshot has the same content and no appended entries", () => {
 		const readModel = createSceneDisplayRowsReadModel();
-		const firstRows = readModel.getRows([
+		const firstRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
 			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
 		]);
 
-		const nextRows = readModel.getRows([
+		const nextRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
 			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
 		]);
@@ -412,9 +412,9 @@ describe("scene-display-rows", () => {
 			markdown: "Answer",
 			timestampMs: 2,
 		} satisfies AgentPanelSceneEntryModel;
-		const firstRows = readModel.getRows([userEntry, assistantEntry]);
+		const firstRows = readModel.applySnapshot([userEntry, assistantEntry]);
 
-		const nextRows = readModel.getRows([
+		const nextRows = readModel.applySnapshot([
 			userEntry,
 			{ ...assistantEntry, markdown: "Answer changed", timestampMs: 3 },
 		]);
@@ -439,7 +439,7 @@ describe("scene-display-rows", () => {
 			markdown: "Answer",
 			timestampMs: 2,
 		} satisfies AgentPanelSceneEntryModel;
-		const firstRows = readModel.getRows([userEntry, assistantEntry]);
+		const firstRows = readModel.applySnapshot([userEntry, assistantEntry]);
 		const originalSlice = firstRows.slice;
 
 		firstRows.slice = () => {
@@ -447,7 +447,7 @@ describe("scene-display-rows", () => {
 		};
 
 		try {
-			const nextRows = readModel.getRows([
+			const nextRows = readModel.applySnapshot([
 				userEntry,
 				{ ...assistantEntry, markdown: "Answer changed", timestampMs: 3 },
 			]);
@@ -467,12 +467,12 @@ describe("scene-display-rows", () => {
 
 	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
 		const readModel = createSceneDisplayRowsReadModel();
-		const firstRows = readModel.getRows([
+		const firstRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt" },
 			{ id: "assistant-1", type: "assistant", markdown: "First" },
 		]);
 
-		const nextRows = readModel.getRows([
+		const nextRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt changed" },
 			{ id: "assistant-1", type: "assistant", markdown: "First" },
 			{ id: "assistant-2", type: "assistant", markdown: "Second" },
@@ -484,12 +484,12 @@ describe("scene-display-rows", () => {
 
 	it("rebuilds rows when the scene is replaced instead of appended", () => {
 		const readModel = createSceneDisplayRowsReadModel();
-		const firstRows = readModel.getRows([
+		const firstRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt" },
 			{ id: "assistant-1", type: "assistant", markdown: "First" },
 		]);
 
-		const replacementRows = readModel.getRows([
+		const replacementRows = readModel.applySnapshot([
 			{ id: "user-1", type: "user", text: "Prompt" },
 			{ id: "assistant-2", type: "assistant", markdown: "Replacement" },
 		]);
@@ -516,9 +516,9 @@ describe("scene-display-rows", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [userEntry, assistantEntry];
-		const baseRows = readModel.getRows(baseEntries);
+		const baseRows = readModel.applySnapshot(baseEntries);
 
-		const tokenRevealRows = readModel.getRows(
+		const tokenRevealRows = readModel.applySnapshot(
 			tokenRevealReadModel.applySnapshot({
 				sceneEntries: baseEntries,
 				sourceEntry: assistantEntry,
@@ -542,7 +542,7 @@ describe("scene-display-rows", () => {
 			expect(tokenRevealRows[1].tokenRevealCss?.revealCount).toBe(1);
 		}
 
-		expect(readModel.getRows(baseEntries)).toBe(baseRows);
+		expect(readModel.applySnapshot(baseEntries)).toBe(baseRows);
 	});
 
 	it("patches token reveal rows without slicing the whole row array", () => {
@@ -560,7 +560,7 @@ describe("scene-display-rows", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [userEntry, assistantEntry];
-		const baseRows = readModel.getRows(baseEntries);
+		const baseRows = readModel.applySnapshot(baseEntries);
 		const originalSlice = baseRows.slice;
 
 		baseRows.slice = () => {
@@ -568,7 +568,7 @@ describe("scene-display-rows", () => {
 		};
 
 		try {
-			const tokenRevealRows = readModel.getRows(
+			const tokenRevealRows = readModel.applySnapshot(
 				tokenRevealReadModel.applySnapshot({
 					sceneEntries: baseEntries,
 					sourceEntry: assistantEntry,

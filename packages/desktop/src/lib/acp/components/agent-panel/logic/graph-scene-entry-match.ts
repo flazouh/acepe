@@ -53,9 +53,6 @@ export interface GraphSceneEntryIndexReadModel {
 	selectIndex(): ReadonlyMap<string, AgentPanelSceneEntryModel>;
 	selectEntryById(id: string | null | undefined): AgentPanelSceneEntryModel | undefined;
 	selectEntryIndexById(id: string | null | undefined): number | undefined;
-	getIndex(
-		sceneEntries: readonly AgentPanelSceneEntryModel[]
-	): ReadonlyMap<string, AgentPanelSceneEntryModel>;
 }
 
 export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadModel {
@@ -233,9 +230,6 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		},
 		selectEntryIndexById(id) {
 			return id == null ? undefined : entryIndexesById.get(id);
-		},
-		getIndex(sceneEntries) {
-			return this.applySnapshot(sceneEntries);
 		},
 	};
 }

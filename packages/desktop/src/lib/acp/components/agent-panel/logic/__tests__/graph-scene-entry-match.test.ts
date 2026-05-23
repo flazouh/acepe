@@ -204,9 +204,9 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			title: "Run second command",
 			status: "pending",
 		};
-		const firstIndex = readModel.getIndex([firstEntry]);
+		const firstIndex = readModel.applySnapshot([firstEntry]);
 
-		const nextIndex = readModel.getIndex([firstEntry, nextEntry]);
+		const nextIndex = readModel.applySnapshot([firstEntry, nextEntry]);
 
 		expect(nextIndex).toBe(firstIndex);
 		expect(nextIndex.get("tool-1")).toBe(firstEntry);
@@ -216,7 +216,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 
 	it("uses append-only updates when prior scene entries are fresh but content-stable", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
-		const firstIndex = readModel.getIndex([
+		const firstIndex = readModel.applySnapshot([
 			{
 				id: "user-1",
 				type: "user",
@@ -231,7 +231,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			timestampMs: 2,
 		};
 
-		const nextIndex = readModel.getIndex([
+		const nextIndex = readModel.applySnapshot([
 			{
 				id: "user-1",
 				type: "user",
@@ -260,9 +260,9 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			title: "Run changed command",
 			status: "done",
 		};
-		const firstIndex = readModel.getIndex([firstEntry]);
+		const firstIndex = readModel.applySnapshot([firstEntry]);
 
-		const nextIndex = readModel.getIndex([changedEntry]);
+		const nextIndex = readModel.applySnapshot([changedEntry]);
 
 		expect(nextIndex).toBe(firstIndex);
 		expect(nextIndex.get("tool-1")).toBe(changedEntry);
@@ -286,9 +286,9 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			type: "assistant",
 			markdown: "Answer",
 		};
-		const firstIndex = readModel.getIndex([userEntry, interactionEntry]);
+		const firstIndex = readModel.applySnapshot([userEntry, interactionEntry]);
 
-		const nextIndex = readModel.getIndex([userEntry, assistantEntry, interactionEntry]);
+		const nextIndex = readModel.applySnapshot([userEntry, assistantEntry, interactionEntry]);
 
 		expect(nextIndex).toBe(firstIndex);
 		expect(nextIndex.get("user-1")).toBe(userEntry);
@@ -308,9 +308,9 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
-		const baseIndex = readModel.getIndex(baseEntries);
+		const baseIndex = readModel.applySnapshot(baseEntries);
 
-		const patchedIndex = readModel.getIndex(
+		const patchedIndex = readModel.applySnapshot(
 			tokenRevealReadModel.applySnapshot({
 				sceneEntries: baseEntries,
 				sourceEntry: assistantEntry,
@@ -339,7 +339,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			tokenRevealCss: { revealCount: 1 },
 		});
 		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
-		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
+		expect(readModel.applySnapshot(baseEntries)).toBe(baseIndex);
 	});
 
 	it("overlays display-patched scene entries without rebuilding indexes", () => {
@@ -351,7 +351,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
-		const baseIndex = readModel.getIndex(baseEntries);
+		const baseIndex = readModel.applySnapshot(baseEntries);
 		const model: AgentPanelDisplayModel = {
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -373,7 +373,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			viewport: { hasLiveTail: true, requiresStableTailMount: true },
 		};
 
-		const patchedIndex = readModel.getIndex(
+		const patchedIndex = readModel.applySnapshot(
 			applyAgentPanelDisplayModelToSceneEntries(
 				model,
 				createAgentPanelDisplayMemory(),
@@ -389,7 +389,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(patchedIndex.size).toBe(baseIndex.size);
 		expect([...patchedIndex.keys()]).toEqual(["assistant-1"]);
 		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
-		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
+		expect(readModel.applySnapshot(baseEntries)).toBe(baseIndex);
 	});
 
 	it("indexes display-patched entries without mapping the patch list", () => {
@@ -401,7 +401,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
-		readModel.getIndex(baseEntries);
+		readModel.applySnapshot(baseEntries);
 		const model: AgentPanelDisplayModel = {
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -437,7 +437,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		}
 
 		try {
-			const patchedIndex = readModel.getIndex(patchedEntries);
+			const patchedIndex = readModel.applySnapshot(patchedEntries);
 
 			expect(patchedIndex.get("assistant-1")).toMatchObject({
 				id: "assistant-1",
@@ -459,7 +459,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			isStreaming: true,
 		} satisfies AgentPanelSceneEntryModel;
 		const baseEntries = [assistantEntry];
-		readModel.getIndex(baseEntries);
+		readModel.applySnapshot(baseEntries);
 		const model: AgentPanelDisplayModel = {
 			panelId: "panel-1",
 			sessionId: "session-1",
@@ -480,7 +480,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			],
 			viewport: { hasLiveTail: true, requiresStableTailMount: true },
 		};
-		const overlayIndex = readModel.getIndex(
+		const overlayIndex = readModel.applySnapshot(
 			applyAgentPanelDisplayModelToSceneEntries(
 				model,
 				createAgentPanelDisplayMemory(),
