@@ -796,6 +796,14 @@ function materializeCachedConversation(
 		return transcriptArrayPatched;
 	}
 
+	const transcriptPatchedAndAppended = materializeTranscriptPatchedAndAppendedConversation(
+		previous,
+		input
+	);
+	if (transcriptPatchedAndAppended !== null) {
+		return transcriptPatchedAndAppended;
+	}
+
 	const transcriptPatched = materializeTranscriptPatchedConversation(previous, input);
 	if (transcriptPatched !== null) {
 		return transcriptPatched;
@@ -1098,6 +1106,200 @@ function materializeTranscriptPatchedConversation(
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+	};
+}
+
+function materializeTranscriptPatchedAndAppendedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.operations !== input.graph.operations ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesCompatibleForConversationPatch(previous.activity, input.graph.activity)
+	) {
+		return null;
+	}
+
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	const transcriptPatch = getTranscriptEntryArrayPatch(transcriptEntries);
+	if (
+		transcriptPatch === undefined ||
+		transcriptPatch.baseEntries !== previous.transcriptEntries ||
+		transcriptPatch.patchedEntriesByIndex === null ||
+		transcriptPatch.appendedEntries === null
+	) {
+		return null;
+	}
+
+	const appendStartIndex = previous.transcriptEntries.length;
+	const isRunning = input.graph.turnState === "Running";
+	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
+	let transcriptEntryPatches: Map<string, TranscriptEntry> | null = null;
+	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
+
+	for (const [index, nextTranscriptEntry] of transcriptPatch.patchedEntriesByIndex) {
+		if (index < 0 || index >= appendStartIndex) {
+			return null;
+		}
+		const previousTranscriptEntry = previous.transcriptEntries[index];
+		if (
+			previousTranscriptEntry === undefined ||
+			previousTranscriptEntry.entryId !== nextTranscriptEntry.entryId
+		) {
+			return null;
+		}
+
+		const rowIndex = previous.sceneEntryRowIndex.get(nextTranscriptEntry.entryId);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousSceneEntry = previous.conversation.entries[rowIndex];
+		if (previousSceneEntry === undefined) {
+			return null;
+		}
+		const nextSceneEntry = materializeTranscriptEntry(
+			nextTranscriptEntry,
+			input.graph,
+			previous.operationIndex,
+			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
+		);
+		transcriptEntryPatches ??= new Map<string, TranscriptEntry>();
+		transcriptEntryPatches.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
+			continue;
+		}
+		entryPatches = addSceneEntryPatch(entryPatches, rowIndex, nextSceneEntry);
+		firstChangedRowIndex = Math.min(firstChangedRowIndex, rowIndex);
+	}
+
+	const appendedSceneEntries: AgentPanelSceneEntryModel[] = [];
+	for (const nextTranscriptEntry of transcriptPatch.appendedEntries) {
+		transcriptEntryPatches ??= new Map<string, TranscriptEntry>();
+		transcriptEntryPatches.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		appendedSceneEntries.push(
+			materializeTranscriptEntry(
+				nextTranscriptEntry,
+				input.graph,
+				previous.operationIndex,
+				isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
+			)
+		);
+	}
+
+	const transcriptEntryById =
+		transcriptEntryPatches === null
+			? previous.transcriptEntryById
+			: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches);
+
+	if (entryPatches === null) {
+		const transcriptSceneEntryCount = previous.transcriptEntries.length;
+		const hasTrailingInteractionEntries =
+			previous.conversation.entries.length > transcriptSceneEntryCount;
+		const previousTrailingEntries = hasTrailingInteractionEntries
+			? collectTrailingSceneEntries(previous.conversation.entries, transcriptSceneEntryCount)
+			: [];
+		const nextEntries = hasTrailingInteractionEntries
+			? appendTranscriptEntriesBeforeTrailingInteractions(
+					previous.conversation.entries,
+					transcriptSceneEntryCount,
+					appendedSceneEntries,
+					previousTrailingEntries
+				)
+			: createAppendedSceneEntryArray(previous.conversation.entries, appendedSceneEntries);
+		const sceneEntryRowIndex = hasTrailingInteractionEntries
+			? createSplicedSceneEntryRowIndex(
+					previous.sceneEntryRowIndex,
+					previousTrailingEntries,
+					createAppendedInteractionTail(previousTrailingEntries, appendedSceneEntries),
+					transcriptSceneEntryCount
+				)
+			: createAppendedSceneEntryRowIndex(
+					previous.sceneEntryRowIndex,
+					appendedSceneEntries,
+					transcriptSceneEntryCount
+				);
+		return {
+			transcriptEntries,
+			operations: input.graph.operations,
+			operationIndex: previous.operationIndex,
+			interactions: input.graph.interactions,
+			turnState: input.graph.turnState,
+			activeStreamingTail: input.graph.activeStreamingTail,
+			activity: input.graph.activity,
+			transcriptEntryById,
+			conversation: {
+				entries: nextEntries,
+				isStreaming: previous.conversation.isStreaming,
+			},
+			sceneEntryRowIndex,
+		};
+	}
+
+	const previousSuffixEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		firstChangedRowIndex
+	);
+	const nextTrailingEntries =
+		previous.conversation.entries.length > previous.transcriptEntries.length
+			? filterTrailingEntriesAfterAppends(
+					collectTrailingSceneEntries(
+						previous.conversation.entries,
+						previous.transcriptEntries.length
+					),
+					appendedSceneEntries
+				)
+			: [];
+	const replacementEntries: AgentPanelSceneEntryModel[] = [];
+	for (let index = firstChangedRowIndex; index < transcriptEntries.length; index += 1) {
+		const nextTranscriptEntry = transcriptEntries[index];
+		if (nextTranscriptEntry === undefined) {
+			continue;
+		}
+		replacementEntries.push(
+			materializeTranscriptEntry(
+				nextTranscriptEntry,
+				input.graph,
+				previous.operationIndex,
+				isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
+			)
+		);
+	}
+	for (const trailingEntry of nextTrailingEntries) {
+		replacementEntries.push(trailingEntry);
+	}
+
+	return {
+		transcriptEntries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById,
+		conversation: {
+			entries: createInsertedSceneEntryArray(
+				previous.conversation.entries,
+				firstChangedRowIndex,
+				replacementEntries,
+				[]
+			),
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			previousSuffixEntries,
+			replacementEntries,
+			firstChangedRowIndex
+		),
 	};
 }
 
