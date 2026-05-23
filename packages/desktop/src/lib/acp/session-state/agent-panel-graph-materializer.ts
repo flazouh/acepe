@@ -1202,7 +1202,7 @@ export function materializeAgentPanelSceneFromGraph(
 	const status = mapGraphStatus(input.graph);
 	const conversation = materializeConversation(input.graph);
 
-	let conversationEntries: readonly AgentPanelSceneEntryModel[] = Array.from(conversation.entries);
+	let conversationEntries: readonly AgentPanelSceneEntryModel[] = conversation.entries;
 	if (input.optimistic?.pendingUserEntry != null) {
 		const mapped = mapSessionEntryToConversationEntry(
 			input.optimistic.pendingUserEntry,
