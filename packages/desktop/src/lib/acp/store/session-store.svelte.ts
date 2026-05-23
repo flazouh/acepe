@@ -2942,6 +2942,31 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.liveSessionSyncReferences;
 	}
 
+	getLiveSessionPanelSyncInput(
+		reference: SessionLiveSyncReference,
+		interactions: InteractionStore
+	) {
+		const lifecyclePresentation = this.getSessionLifecyclePresentation(reference.id);
+		const interactionSnapshot = this.getSessionOperationInteractionSnapshot(
+			reference.id,
+			interactions
+		);
+		const pendingQuestion = interactionSnapshot.pendingQuestion;
+		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
+		const pendingPermission = interactionSnapshot.pendingPermission;
+
+		return {
+			sessionId: reference.id,
+			updatedAtMs: reference.updatedAtMs,
+			hasCanonicalProjection: this.hasSessionCanonicalProjection(reference.id),
+			connectionPhase: lifecyclePresentation.connectionPhase,
+			activityPhase: lifecyclePresentation.activityPhase,
+			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
+			pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
+			pendingPermissionId: pendingPermission ? pendingPermission.id : null,
+		};
+	}
+
 	getSessionPaletteReferences(): SessionPaletteReference[] {
 		return this.sessionPaletteReferences;
 	}

@@ -70,25 +70,7 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 	const inputs: LiveSessionPanelSyncInput[] = [];
 
 	for (const session of sessionStore.getLiveSessionSyncReferences()) {
-		const lifecyclePresentation = sessionStore.getSessionLifecyclePresentation(session.id);
-		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
-			session.id,
-			interactionStore
-		);
-		const pendingQuestion = interactionSnapshot.pendingQuestion;
-		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
-		const pendingPermission = interactionSnapshot.pendingPermission;
-
-		inputs.push({
-			sessionId: session.id,
-			updatedAtMs: session.updatedAtMs,
-			hasCanonicalProjection: sessionStore.hasSessionCanonicalProjection(session.id),
-			connectionPhase: lifecyclePresentation.connectionPhase,
-			activityPhase: lifecyclePresentation.activityPhase,
-			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
-			pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
-			pendingPermissionId: pendingPermission ? pendingPermission.id : null,
-		});
+		inputs.push(sessionStore.getLiveSessionPanelSyncInput(session, interactionStore));
 	}
 
 	return inputs;

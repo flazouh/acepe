@@ -374,6 +374,24 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingPlanApproval: null,
 			pendingPermission: null,
 		});
+		expect(
+			store.getLiveSessionPanelSyncInput(
+				{
+					id: "session-1",
+					updatedAtMs: new Date("2026-04-28T00:00:00.000Z").getTime(),
+				},
+				new InteractionStore()
+			)
+		).toEqual({
+			sessionId: "session-1",
+			updatedAtMs: new Date("2026-04-28T00:00:00.000Z").getTime(),
+			hasCanonicalProjection: true,
+			connectionPhase: "connected",
+			activityPhase: "idle",
+			pendingQuestionId: null,
+			pendingPlanApprovalId: null,
+			pendingPermissionId: null,
+		});
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
