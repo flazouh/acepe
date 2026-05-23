@@ -82,6 +82,26 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				return previousRows;
 			}
 
+			const patchedRows =
+				previousSceneEntries !== null
+					? patchSameLengthSceneDisplayRows(
+							previousSceneEntries,
+							sceneEntries,
+							previousRows,
+							rowIndexBySceneEntryId
+						)
+					: null;
+			if (patchedRows !== null) {
+				previousRows = patchedRows.rows;
+				latestTimestampMs = selectLatestTimestampMsFrom(
+					previousRows,
+					patchedRows.firstChangedRowIndex,
+					latestTimestampMs
+				);
+				previousSceneEntries = sceneEntries;
+				return previousRows;
+			}
+
 			previousRows = buildSceneDisplayRows(sceneEntries);
 			latestTimestampMs = selectLatestTimestampMsFrom(previousRows, 0);
 			rowIndexBySceneEntryId = buildRowIndexBySceneEntryId(previousRows);
@@ -114,6 +134,67 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return this.applySnapshot(sceneEntries);
 		},
 	};
+}
+
+function patchSameLengthSceneDisplayRows(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: ReadonlyMap<string, number>
+): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
+	if (previousSceneEntries.length !== sceneEntries.length) {
+		return null;
+	}
+
+	let rows: SceneDisplayRow[] | null = null;
+	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
+	for (let index = 0; index < sceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (previousEntry === nextEntry) {
+			continue;
+		}
+		if (
+			previousEntry === undefined ||
+			nextEntry === undefined ||
+			previousEntry.id !== nextEntry.id
+		) {
+			return null;
+		}
+		const rowIndex = rowIndexBySceneEntryId.get(nextEntry.id);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousRow = previousRows[rowIndex];
+		if (previousRow === undefined || !canPatchSceneDisplayRow(previousRow, nextEntry.id)) {
+			return null;
+		}
+		const patchedRow = buildSceneDisplayRows([nextEntry])[0];
+		if (
+			patchedRow === undefined ||
+			getSceneDisplayRowKey(patchedRow) !== getSceneDisplayRowKey(previousRow)
+		) {
+			return null;
+		}
+		rows ??= previousRows.slice();
+		rows[rowIndex] = patchedRow;
+		firstChangedRowIndex = Math.min(firstChangedRowIndex, rowIndex);
+	}
+
+	if (rows === null) {
+		return { rows: previousRows, firstChangedRowIndex: previousRows.length };
+	}
+	return { rows, firstChangedRowIndex };
+}
+
+function canPatchSceneDisplayRow(row: SceneDisplayRow, entryId: string): boolean {
+	if (row.type === "assistant_merged") {
+		return row.memberIds.length === 1 && row.memberIds[0] === entryId;
+	}
+	if (row.type === "thinking" || row.type === "missing") {
+		return false;
+	}
+	return getSceneDisplayRowKey(row) === entryId;
 }
 
 function buildRowIndexBySceneEntryId(

@@ -255,6 +255,33 @@ describe("scene-display-rows", () => {
 		expect(nextRows).toBe(firstRows);
 	});
 
+	it("patches same-length scene entry changes without rebuilding unchanged rows", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 1,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = readModel.getRows([userEntry, assistantEntry]);
+
+		const nextRows = readModel.getRows([
+			userEntry,
+			{ ...assistantEntry, markdown: "Answer changed", timestampMs: 3 },
+		]);
+
+		expect(nextRows).not.toBe(firstRows);
+		expect(nextRows[0]).toBe(firstRows[0]);
+		expect(nextRows[1]).not.toBe(firstRows[1]);
+		expect(readModel.selectLatestTimestampMs()).toBe(3);
+	});
+
 	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.getRows([
