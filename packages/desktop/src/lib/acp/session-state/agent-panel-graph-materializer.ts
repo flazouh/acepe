@@ -1883,17 +1883,11 @@ function materializeBlockingInteractionRetargetConversation(
 		nextVisibleInteraction === null
 			? null
 			: questionInteractionToSceneEntry(nextVisibleInteraction, input.graph);
-	const interactionById =
-		input.graph.interactions === previous.interactions
-			? previous.interactionById
-			: nextBlockingInteractionId === null &&
-				  input.graph.interactions.length < previous.interactions.length
-				? createTruncatedInteractionIndex(
-						previous.interactionById,
-						previous.interactions,
-						input.graph.interactions.length
-					)
-				: buildInteractionIndex(input.graph.interactions);
+	const interactionById = resolveUpdatedInteractionIndex(
+		previous.interactionById,
+		previous.interactions,
+		input.graph.interactions
+	);
 
 	if (
 		previousVisibleEntry !== null &&
@@ -3752,14 +3746,40 @@ function resolveUpdatedInteractionIndex(
 		);
 	}
 
-	if (previousInteractions.length === 0 && nextInteractions.length > 0) {
-		return createAppendedInteractionIndex(previousInteractionById, nextInteractions);
+	if (nextInteractions.length > previousInteractions.length) {
+		return createAppendedInteractionIndex(
+			previousInteractionById,
+			collectAppendedInteractions(nextInteractions, previousInteractions.length)
+		);
 	}
-	if (nextInteractions.length === 0 && previousInteractions.length > 0) {
-		return createTruncatedInteractionIndex(previousInteractionById, previousInteractions, 0);
+	if (nextInteractions.length < previousInteractions.length) {
+		return createTruncatedInteractionIndex(
+			previousInteractionById,
+			previousInteractions,
+			nextInteractions.length
+		);
 	}
 
-	return buildInteractionIndex(nextInteractions);
+	const patchedInteractionsByIndex = new Map<number, InteractionSnapshot>();
+	for (let index = 0; index < nextInteractions.length; index += 1) {
+		const previousInteraction = previousInteractions[index];
+		const nextInteraction = nextInteractions[index];
+		if (
+			previousInteraction === undefined ||
+			nextInteraction === undefined ||
+			previousInteraction.id !== nextInteraction.id
+		) {
+			return buildInteractionIndex(nextInteractions);
+		}
+		if (previousInteraction !== nextInteraction) {
+			patchedInteractionsByIndex.set(index, nextInteraction);
+		}
+	}
+	if (patchedInteractionsByIndex.size > 0) {
+		return createPatchedInteractionIndex(previousInteractionById, patchedInteractionsByIndex, null);
+	}
+
+	return previousInteractionById;
 }
 
 function appendTranscriptEntryIndexFromRange(
