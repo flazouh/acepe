@@ -98,6 +98,7 @@ interface CachedConversationInput {
 interface CachedConversationState {
 	readonly transcriptEntries: AgentPanelCanonicalSource["transcriptSnapshot"]["entries"];
 	readonly operations: AgentPanelCanonicalSource["operations"];
+	readonly operationIndex: OperationIndex;
 	readonly interactions: AgentPanelCanonicalSource["interactions"];
 	readonly turnState: AgentPanelCanonicalSource["turnState"];
 	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
@@ -694,16 +695,167 @@ function materializeCachedConversation(
 		return previous;
 	}
 
+	const operationPatched = materializeOperationPatchedConversation(previous, input);
+	if (operationPatched !== null) {
+		return operationPatched;
+	}
+
+	const operationIndex = buildOperationIndex(input.graph.operations);
 	const conversation = materializeConversation(input.graph);
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,
+		operationIndex,
 		interactions: input.graph.interactions,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		conversation,
 	};
+}
+
+function materializeOperationPatchedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.transcriptEntries !== input.graph.transcriptSnapshot.entries ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
+		previous.activity !== input.graph.activity
+	) {
+		return null;
+	}
+
+	const changedOperationIds = collectChangedOperationIds(previous.operations, input.graph.operations);
+	if (changedOperationIds.size === 0) {
+		return {
+			...previous,
+			operations: input.graph.operations,
+			operationIndex: buildOperationIndex(input.graph.operations),
+		};
+	}
+
+	const operationIndex = buildOperationIndex(input.graph.operations);
+	const affectedEntryIds = collectAffectedTranscriptEntryIds(
+		previous.operationIndex,
+		operationIndex,
+		changedOperationIds
+	);
+	if (affectedEntryIds.size === 0) {
+		return {
+			...previous,
+			operations: input.graph.operations,
+			operationIndex,
+		};
+	}
+
+	const nextEntries = previous.conversation.entries.slice();
+	const rowIndexByEntryId = buildSceneEntryRowIndex(previous.conversation.entries);
+	const isRunning = input.graph.turnState === "Running";
+	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+	for (const transcriptEntry of input.graph.transcriptSnapshot.entries) {
+		if (!affectedEntryIds.has(transcriptEntry.entryId)) {
+			continue;
+		}
+		const rowIndex = rowIndexByEntryId.get(transcriptEntry.entryId);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		nextEntries[rowIndex] = materializeTranscriptEntry(
+			transcriptEntry,
+			input.graph,
+			operationIndex,
+			isRunning && transcriptEntry.entryId === liveAssistantEntryId
+		);
+	}
+
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+	};
+}
+
+function collectChangedOperationIds(
+	previousOperations: readonly OperationSnapshot[],
+	nextOperations: readonly OperationSnapshot[]
+): Set<string> {
+	const previousById = new Map<string, OperationSnapshot>();
+	const nextById = new Map<string, OperationSnapshot>();
+	for (const operation of previousOperations) {
+		previousById.set(operation.id, operation);
+	}
+	for (const operation of nextOperations) {
+		nextById.set(operation.id, operation);
+	}
+
+	const changed = new Set<string>();
+	for (const [operationId, nextOperation] of nextById) {
+		if (previousById.get(operationId) !== nextOperation) {
+			changed.add(operationId);
+		}
+	}
+	for (const operationId of previousById.keys()) {
+		if (!nextById.has(operationId)) {
+			changed.add(operationId);
+		}
+	}
+	return changed;
+}
+
+function collectAffectedTranscriptEntryIds(
+	previousOperationIndex: OperationIndex,
+	operationIndex: OperationIndex,
+	changedOperationIds: ReadonlySet<string>
+): Set<string> {
+	const affectedEntryIds = new Set<string>();
+	collectAffectedTranscriptEntryIdsFromIndex(
+		previousOperationIndex,
+		changedOperationIds,
+		affectedEntryIds
+	);
+	collectAffectedTranscriptEntryIdsFromIndex(operationIndex, changedOperationIds, affectedEntryIds);
+	return affectedEntryIds;
+}
+
+function collectAffectedTranscriptEntryIdsFromIndex(
+	operationIndex: OperationIndex,
+	changedOperationIds: ReadonlySet<string>,
+	affectedEntryIds: Set<string>
+): void {
+	for (const operation of operationIndex.byOperationId.values()) {
+		if (operation.source_link.kind !== "transcript_linked") {
+			continue;
+		}
+		if (changedOperationIds.has(operation.id)) {
+			affectedEntryIds.add(operation.source_link.entry_id);
+			continue;
+		}
+		if (operation.child_operation_ids.some((operationId) => changedOperationIds.has(operationId))) {
+			affectedEntryIds.add(operation.source_link.entry_id);
+		}
+	}
+}
+
+function buildSceneEntryRowIndex(
+	entries: readonly AgentPanelSceneEntryModel[]
+): ReadonlyMap<string, number> {
+	const byEntryId = new Map<string, number>();
+	entries.forEach((entry, index) => {
+		byEntryId.set(entry.id, index);
+	});
+	return byEntryId;
 }
 
 function materializeAgentPanelSceneFromConversation(

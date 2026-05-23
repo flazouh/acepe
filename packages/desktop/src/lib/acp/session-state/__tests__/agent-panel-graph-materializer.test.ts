@@ -263,6 +263,62 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
 	});
 
+	it("reuses unaffected conversation rows when one linked operation changes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "hello"),
+			createTranscriptEntry("tool-1", "tool", "Run tests"),
+			createTranscriptEntry("assistant-1", "assistant", "done"),
+		]);
+		const operation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+			operation_state: "pending",
+			provider_status: "pending",
+			result: null,
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [operation],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const completedOperation = {
+			...operation,
+			operation_state: "completed" as const,
+			provider_status: "completed" as const,
+			result: { stdout: "ok", stderr: null, exitCode: 0 },
+		};
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: [completedOperation],
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			type: "tool_call",
+			status: "done",
+			stdout: "ok",
+		});
+	});
+
 	it("projects canonical transcript timestamps directly into message scene entries", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			{
