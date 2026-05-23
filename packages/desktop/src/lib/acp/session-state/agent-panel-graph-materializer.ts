@@ -2984,6 +2984,15 @@ function applyOperationIndexPatch(
 		);
 	}
 
+	const stableInPlacePatch = applyStableOperationIndexPatchInPlace(
+		previousOperations,
+		nextOperations,
+		previousIndex
+	);
+	if (stableInPlacePatch !== null) {
+		return stableInPlacePatch;
+	}
+
 	let operationIndex: OperationIndex | null = null;
 	const changedOperationIds = new Set<string>();
 
@@ -3020,6 +3029,95 @@ function applyOperationIndexPatch(
 	return {
 		operationIndex: operationIndex ?? previousIndex,
 		changedOperationIds,
+	};
+}
+
+function applyStableOperationIndexPatchInPlace(
+	previousOperations: readonly OperationSnapshot[],
+	nextOperations: readonly OperationSnapshot[],
+	previousIndex: OperationIndex
+): OperationIndexPatchResult | null {
+	if (nextOperations.length < previousOperations.length) {
+		return null;
+	}
+
+	const changedOperationIds = new Set<string>();
+	const patchedOperationIds = new Set<string>();
+	const operationsToPatch: OperationSnapshot[] = [];
+	for (let index = 0; index < previousOperations.length; index += 1) {
+		const previousOperation = previousOperations[index];
+		const nextOperation = nextOperations[index];
+		if (
+			previousOperation === undefined ||
+			nextOperation === undefined ||
+			previousOperation.id !== nextOperation.id
+		) {
+			return null;
+		}
+		if (previousOperation === nextOperation) {
+			continue;
+		}
+		if (!canPatchOperationIndexInPlace(previousOperation, nextOperation)) {
+			return null;
+		}
+		patchedOperationIds.add(nextOperation.id);
+		changedOperationIds.add(nextOperation.id);
+		operationsToPatch.push(nextOperation);
+	}
+
+	const affectedEntryIds = collectAffectedTranscriptEntryIds(
+		previousIndex,
+		previousIndex,
+		patchedOperationIds
+	);
+	const patchedOperationById = createOperationPatchMap(operationsToPatch);
+	const patchedOperationByTranscriptEntryId =
+		createTranscriptLinkedOperationPatchMap(operationsToPatch);
+	const hasPatchedOperations = changedOperationIds.size > 0;
+	let operationIndex =
+		hasPatchedOperations
+			? createPatchedOperationIndex(
+					previousIndex,
+					patchedOperationById,
+					patchedOperationByTranscriptEntryId
+				)
+			: previousIndex;
+
+	if (nextOperations.length > previousOperations.length) {
+		const appendedOperations: OperationSnapshot[] = [];
+		const appendedOperationIds = new Set<string>();
+		for (let index = previousOperations.length; index < nextOperations.length; index += 1) {
+			const operation = nextOperations[index];
+			if (operation === undefined) {
+				return null;
+			}
+			appendedOperations.push(operation);
+			appendedOperationIds.add(operation.id);
+			changedOperationIds.add(operation.id);
+		}
+		operationIndex = appendOperationIndex(operationIndex, appendedOperations);
+		const appendedAffectedEntryIds = collectAffectedTranscriptEntryIds(
+			previousIndex,
+			operationIndex,
+			appendedOperationIds
+		);
+		for (const entryId of appendedAffectedEntryIds) {
+			affectedEntryIds.add(entryId);
+		}
+	}
+
+	if (changedOperationIds.size === 0) {
+		return {
+			operationIndex: previousIndex,
+			changedOperationIds,
+			affectedEntryIds,
+		};
+	}
+
+	return {
+		operationIndex,
+		changedOperationIds,
+		affectedEntryIds,
 	};
 }
 
