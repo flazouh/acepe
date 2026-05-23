@@ -1135,11 +1135,22 @@ function materializeTranscriptPatchedAndAppendedConversation(
 
 	const transcriptEntries = input.graph.transcriptSnapshot.entries;
 	const transcriptPatch = getTranscriptEntryArrayPatch(transcriptEntries);
+	const hasMarkedAppendOnly =
+		transcriptPatch?.baseEntries === previous.transcriptEntries &&
+		transcriptPatch.patchedEntriesByIndex === null &&
+		transcriptPatch.appendedEntries !== null;
+	const hasMarkedPatchAndAppend =
+		transcriptPatch?.baseEntries === previous.transcriptEntries &&
+		transcriptPatch.patchedEntriesByIndex !== null &&
+		transcriptPatch.appendedEntries !== null;
+	const hasStablePatchAndAppend =
+		!hasMarkedAppendOnly &&
+		!hasMarkedPatchAndAppend &&
+		transcriptEntries.length > previous.transcriptEntries.length &&
+		isStableTranscriptPatchAndAppend(previous.transcriptEntries, transcriptEntries);
 	if (
-		transcriptPatch === undefined ||
-		transcriptPatch.baseEntries !== previous.transcriptEntries ||
-		transcriptPatch.patchedEntriesByIndex === null ||
-		transcriptPatch.appendedEntries === null
+		!hasMarkedPatchAndAppend &&
+		!hasStablePatchAndAppend
 	) {
 		return null;
 	}
@@ -1147,11 +1158,22 @@ function materializeTranscriptPatchedAndAppendedConversation(
 	const appendStartIndex = previous.transcriptEntries.length;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+	const patchedEntriesByIndex =
+		hasMarkedPatchAndAppend
+			? transcriptPatch.patchedEntriesByIndex
+			: collectStableTranscriptPatchedEntriesByIndex(previous.transcriptEntries, transcriptEntries);
+	const appendedTranscriptEntries =
+		hasMarkedPatchAndAppend
+			? transcriptPatch.appendedEntries
+			: collectAppendedTranscriptEntries(transcriptEntries, appendStartIndex);
+	if (patchedEntriesByIndex === null || appendedTranscriptEntries.length === 0) {
+		return null;
+	}
 	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
 	let transcriptEntryPatches: Map<string, TranscriptEntry> | null = null;
 	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
 
-	for (const [index, nextTranscriptEntry] of transcriptPatch.patchedEntriesByIndex) {
+	for (const [index, nextTranscriptEntry] of patchedEntriesByIndex) {
 		if (index < 0 || index >= appendStartIndex) {
 			return null;
 		}
@@ -1187,7 +1209,7 @@ function materializeTranscriptPatchedAndAppendedConversation(
 	}
 
 	const appendedSceneEntries: AgentPanelSceneEntryModel[] = [];
-	for (const nextTranscriptEntry of transcriptPatch.appendedEntries) {
+	for (const nextTranscriptEntry of appendedTranscriptEntries) {
 		transcriptEntryPatches ??= new Map<string, TranscriptEntry>();
 		transcriptEntryPatches.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		appendedSceneEntries.push(
@@ -1872,6 +1894,31 @@ function isStableTranscriptAppend(
 	return true;
 }
 
+function isStableTranscriptPatchAndAppend(
+	previousEntries: readonly TranscriptEntry[],
+	nextEntries: readonly TranscriptEntry[]
+): boolean {
+	if (nextEntries.length <= previousEntries.length) {
+		return false;
+	}
+
+	let sawPatchedPrefixEntry = false;
+	for (let index = 0; index < previousEntries.length; index += 1) {
+		const previousEntry = previousEntries[index];
+		const nextEntry = nextEntries[index];
+		if (previousEntry === undefined || nextEntry === undefined) {
+			return false;
+		}
+		if (previousEntry.entryId !== nextEntry.entryId) {
+			return false;
+		}
+		if (previousEntry !== nextEntry) {
+			sawPatchedPrefixEntry = true;
+		}
+	}
+	return sawPatchedPrefixEntry;
+}
+
 function isStableTranscriptTruncation(
 	previousEntries: readonly TranscriptEntry[],
 	nextEntries: readonly TranscriptEntry[]
@@ -1887,6 +1934,43 @@ function isStableTranscriptTruncation(
 	}
 
 	return true;
+}
+
+function collectStableTranscriptPatchedEntriesByIndex(
+	previousEntries: readonly TranscriptEntry[],
+	nextEntries: readonly TranscriptEntry[]
+): ReadonlyMap<number, TranscriptEntry> | null {
+	let patches: Map<number, TranscriptEntry> | null = null;
+	for (let index = 0; index < previousEntries.length; index += 1) {
+		const previousEntry = previousEntries[index];
+		const nextEntry = nextEntries[index];
+		if (previousEntry === undefined || nextEntry === undefined) {
+			return null;
+		}
+		if (previousEntry.entryId !== nextEntry.entryId) {
+			return null;
+		}
+		if (previousEntry === nextEntry) {
+			continue;
+		}
+		patches ??= new Map<number, TranscriptEntry>();
+		patches.set(index, nextEntry);
+	}
+	return patches;
+}
+
+function collectAppendedTranscriptEntries(
+	entries: readonly TranscriptEntry[],
+	startIndex: number
+): readonly TranscriptEntry[] {
+	const appendedEntries: TranscriptEntry[] = [];
+	for (let index = startIndex; index < entries.length; index += 1) {
+		const entry = entries[index];
+		if (entry !== undefined) {
+			appendedEntries.push(entry);
+		}
+	}
+	return appendedEntries;
 }
 
 function materializeOperationPatchedConversation(

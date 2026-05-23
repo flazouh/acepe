@@ -1712,6 +1712,103 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("applies stable transcript patch-plus-append updates without rematerializing the preserved prefix", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+		const secondAssistantEntry = createTranscriptEntry("assistant-2", "assistant", "stream");
+		const patchedSecondAssistantEntry = createTranscriptEntry(
+			"assistant-2",
+			"assistant",
+			"streaming update"
+		);
+		const appendedAssistantEntry = createTranscriptEntry(
+			"assistant-3",
+			"assistant",
+			"done"
+		);
+		const transcriptSnapshot = createTranscriptSnapshot([
+			userEntry,
+			firstAssistantEntry,
+			secondAssistantEntry,
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activeStreamingTail: {
+				rowId: "assistant-2",
+				contentKind: "message",
+			},
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			slice: typeof Array.prototype.slice;
+		};
+		const originalSlice = firstEntries.slice;
+		firstEntries.slice = () => {
+			throw new Error(
+				"must not slice whole materialized scene entries for stable patch plus append"
+			);
+		};
+
+		let nextScene: typeof firstScene;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: {
+						revision: transcriptSnapshot.revision + 1,
+						entries: [
+							userEntry,
+							firstAssistantEntry,
+							patchedSecondAssistantEntry,
+							appendedAssistantEntry,
+						],
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: transcriptSnapshot.revision + 1,
+						lastEventSeq: 44,
+					},
+				},
+				header: { title: "Session" },
+			});
+		} finally {
+			firstEntries.slice = originalSlice;
+		}
+
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).toMatchObject({
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "streaming update",
+			isStreaming: true,
+		});
+		expect(nextScene.conversation.entries[3]).toMatchObject({
+			id: "assistant-3",
+			type: "assistant",
+			markdown: "done",
+		});
+		const splice = getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries);
+		expect(splice?.baseSceneEntries).toBe(firstScene.conversation.entries);
+		expect(splice?.startIndex).toBe(2);
+		expect(splice?.insertedEntries).toHaveLength(2);
+		expect(splice?.trailingEntries).toEqual([]);
+	});
+
 	it("patches only affected assistant rows when the active streaming tail moves", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("u1", "user", "First question"),
