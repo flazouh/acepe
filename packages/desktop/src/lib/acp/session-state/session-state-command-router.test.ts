@@ -654,6 +654,55 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("refreshes when activity is marked changed but omitted from the delta payload", () => {
+		const envelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity"],
+				},
+			},
+		} as unknown as SessionStateEnvelope;
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 6,
+				toRevision: 7,
+			},
+		]);
+	});
+
 	it("refreshes mixed deltas when operations are marked changed without operation patches", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",

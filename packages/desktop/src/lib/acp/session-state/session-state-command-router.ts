@@ -8,6 +8,7 @@ import type {
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
+	SessionStateDelta,
 	ActiveStreamingTail,
 	SessionStateEnvelope,
 	SessionStateGraph,
@@ -161,6 +162,36 @@ function graphDeltaIsMissingRequiredPatches(
 	return false;
 }
 
+function graphDeltaIsMissingRequiredScalars(
+	delta: SessionStateDelta,
+	changedFields: readonly string[] | null
+): boolean {
+	if (changedFields === null) {
+		return false;
+	}
+
+	const hasOwn = (field: string): boolean =>
+		Object.prototype.hasOwnProperty.call(delta as Record<string, unknown>, field);
+
+	if (changedFields.includes("activity") && !hasOwn("activity")) {
+		return true;
+	}
+	if (changedFields.includes("turnState") && !hasOwn("turnState")) {
+		return true;
+	}
+	if (changedFields.includes("activeTurnFailure") && !hasOwn("activeTurnFailure")) {
+		return true;
+	}
+	if (changedFields.includes("lastTerminalTurnId") && !hasOwn("lastTerminalTurnId")) {
+		return true;
+	}
+	if (changedFields.includes("activeStreamingTail") && !hasOwn("activeStreamingTail")) {
+		return true;
+	}
+
+	return false;
+}
+
 export function routeSessionStateEnvelope(
 	sessionId: string,
 	currentRevision: CurrentSessionStateRevision,
@@ -247,6 +278,10 @@ export function routeSessionStateEnvelope(
 				operationPatches,
 				interactionPatches
 			);
+			const graphDeltaMissingRequiredScalars = graphDeltaIsMissingRequiredScalars(
+				envelope.payload.delta,
+				changedFields
+			);
 			const includesActivity = changedFields?.includes("activity") ?? false;
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
@@ -261,7 +296,7 @@ export function routeSessionStateEnvelope(
 				includesActiveStreamingTail;
 			const includesGraphPatch =
 				operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState;
-			if (graphDeltaMissingRequiredPatches) {
+			if (graphDeltaMissingRequiredPatches || graphDeltaMissingRequiredScalars) {
 				return [
 					{
 						kind: "refreshSnapshot",
