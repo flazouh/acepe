@@ -449,10 +449,14 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 		patchesById.set(patch.id, patch);
 	}
 
-	const next = current.slice();
+	let next: TSnapshot[] | null = null;
 	for (const [id, patch] of patchesById) {
 		const index = currentIndex.get(id);
 		if (index !== undefined) {
+			if (current[index] === patch) {
+				continue;
+			}
+			next ??= current.slice();
 			next[index] = patch;
 		}
 	}
@@ -469,24 +473,29 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 			continue;
 		}
 
+		next ??= current.slice();
 		nextIndex ??= new Map(currentIndex);
 		nextIndex.set(patch.id, next.length);
 		next.push(appendedPatch);
 		appendedIds.add(patch.id);
 	}
 
+	if (next === null) {
+		return current as TSnapshot[];
+	}
+
 	indexes.set(next, nextIndex ?? currentIndex);
 	return next;
 }
 
-function mergeOperationSnapshots(
+export function mergeOperationSnapshots(
 	current: readonly OperationSnapshot[],
 	patches: readonly OperationSnapshot[]
 ): OperationSnapshot[] {
 	return mergeSnapshotsById(current, patches, operationSnapshotIndexes);
 }
 
-function mergeInteractionSnapshots(
+export function mergeInteractionSnapshots(
 	current: readonly InteractionSnapshot[],
 	patches: readonly InteractionSnapshot[]
 ): InteractionSnapshot[] {
