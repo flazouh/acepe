@@ -15,7 +15,6 @@ import { CaretLeft, CaretRight, CheckCircle, Clock, GitPullRequest, XCircle } fr
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import { deriveLocalReferenceId } from "$lib/errors/error-reference.js";
-import type { SessionTurnState } from "../../../../services/acp-types.js";
 import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
@@ -71,7 +70,6 @@ import {
 	derivePanelErrorInfo,
 	matchesWorktreeSetupContext,
 	resolveOptimisticUserEntryForGraph,
-	resolveCanonicalAgentPanelSessionSource,
 	resolveCanonicalAgentPanelTurnState,
 	resolveVisibleEntryCount,
 	removeWorktreeAndMarkSessionWorktreeDeleted,
@@ -508,22 +506,11 @@ const lifecyclePresentation = $derived(
 const agentPanelCanonicalSource = $derived(
 	sessionId ? sessionStore.getSessionAgentPanelCanonicalSource(sessionId) : null
 );
-const canonicalSessionActivity = $derived(
-	sessionId ? sessionStore.getSessionActivity(sessionId) : null
-);
-const canonicalSessionLifecycle = $derived(
-	sessionId ? sessionStore.getSessionLifecycle(sessionId) : null
-);
-const canonicalSessionTurnState = $derived<SessionTurnState | null>(
-	sessionId ? sessionStore.getSessionTurnState(sessionId) : null
-);
 const canonicalPanelSessionSource = $derived(
-	resolveCanonicalAgentPanelSessionSource({
-		sessionId,
-		lifecycle: canonicalSessionLifecycle,
-		activity: canonicalSessionActivity,
-		turnState: canonicalSessionTurnState,
-	})
+	sessionStore.getSessionAgentPanelSessionSource(sessionId)
+);
+const canonicalSessionActivity = $derived(
+	canonicalPanelSessionSource.kind === "canonical" ? canonicalPanelSessionSource.activity : null
 );
 const sessionTurnState = $derived(resolveCanonicalAgentPanelTurnState(canonicalPanelSessionSource));
 const entriesCount = $derived(knownVisibleEntryCount);

@@ -2565,6 +2565,29 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		});
 	}
 
+	getSessionAgentPanelSessionSource(sessionId: string | null) {
+		if (sessionId === null) {
+			return {
+				kind: "no_session" as const,
+			};
+		}
+
+		const graph = this.sessionStateGraphs.get(sessionId) ?? null;
+		if (graph === null) {
+			return {
+				kind: "missing_canonical" as const,
+				sessionId,
+			};
+		}
+
+		return {
+			kind: "canonical" as const,
+			lifecycle: graph.lifecycle,
+			activity: graph.activity,
+			turnState: graph.turnState,
+		};
+	}
+
 	getSessionLiveWorkSource(sessionId: string | null, active: boolean): LiveSessionWorkSource {
 		const projection =
 			sessionId === null ? null : (this.canonicalProjections.get(sessionId) ?? null);

@@ -242,6 +242,13 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 		expect(store.getSessionMessageCount("session-1")).toBeNull();
 		expect(store.getSessionAgentPanelCanonicalSource("session-1")).toBeNull();
+		expect(store.getSessionAgentPanelSessionSource(null)).toEqual({
+			kind: "no_session",
+		});
+		expect(store.getSessionAgentPanelSessionSource("session-1")).toEqual({
+			kind: "missing_canonical",
+			sessionId: "session-1",
+		});
 		expect(store.getSessionQuestionInteraction("session-1", "question-1")).toBeNull();
 		expect(store.getSessionLiveWorkSource("session-1", true)).toEqual({
 			kind: "missing_canonical",
@@ -304,6 +311,18 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.hasSessionCanonicalProjection("session-1")).toBe(true);
 		expect(store.getSessionLifecycle("session-1")).toEqual(createReadyLifecycle());
 		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionAgentPanelSessionSource("session-1")).toEqual({
+			kind: "canonical",
+			lifecycle: createReadyLifecycle(),
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: "Running",
+		});
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
