@@ -13,11 +13,7 @@ import { createLogger } from "../../utils/logger.js";
 import { scheduleLazyPanelMetadataWork, scheduleLazyPanelWork } from "./file-panel-defer.js";
 import FilePanelCsvView from "./file-panel-csv-view.svelte";
 import { resolveFilePanelGutterAction } from "./file-panel-gutter.js";
-import {
-	resolveFilePanelGitStatus,
-	toFilePanelGitStatus,
-	type FilePanelGitStatus,
-} from "./file-panel-git-status.js";
+import { toFilePanelGitStatus, type FilePanelGitStatus } from "./file-panel-git-status.js";
 import type { FilePanelDisplayMode } from "./format/types.js";
 import { getDisplayOptions } from "./format/registry.js";
 import FilePanelHeader from "./file-panel-header.svelte";
@@ -183,19 +179,12 @@ $effect(() => {
 			return;
 		}
 
-		gitStatusCache.getProjectGitStatusSummaryMap(currentProjectPath).match(
-			(statusMap) => {
-				// Find status for this specific file
+		gitStatusCache.getProjectFileGitStatusSummary(currentProjectPath, currentFilePath).match(
+			(fileStatus) => {
 				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-					const fileStatus = resolveFilePanelGitStatus(
-						statusMap,
-						currentFilePath,
-						currentProjectPath
-					);
 					logger.info("Git status lookup result", {
 						currentFilePath,
 						currentProjectPath,
-						statusCount: statusMap.size,
 						fileStatusPath: fileStatus?.path ?? null,
 						fileStatusCode: fileStatus?.status ?? null,
 						insertions: fileStatus?.insertions ?? null,

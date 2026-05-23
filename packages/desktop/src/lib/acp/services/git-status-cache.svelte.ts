@@ -1,5 +1,6 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
+import { findGitStatusForFile, getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
@@ -24,6 +25,10 @@ type GitStatusCacheApi = {
 	getProjectGitStatusSummaryMap: (
 		projectPath: string
 	) => ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>;
+	getProjectFileGitStatusSummary: (
+		projectPath: string,
+		filePath: string
+	) => ResultAsync<FileGitStatus | null, AppError>;
 	invalidateProjectGitStatus: (projectPath: string) => void;
 };
 
@@ -119,6 +124,22 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		);
 	}
 
+	function getProjectFileGitStatusSummary(
+		projectPath: string,
+		filePath: string
+	): ResultAsync<FileGitStatus | null, AppError> {
+		return getProjectGitStatusSummaryMap(projectPath).map((statusMap) => {
+			const relativeFilePath = getRelativeFilePath(filePath, projectPath);
+			if (relativeFilePath === null) {
+				return null;
+			}
+			return (
+				statusMap.get(relativeFilePath) ??
+				findGitStatusForFile(Array.from(statusMap.values()), filePath, projectPath)
+			);
+		});
+	}
+
 	function invalidateProjectGitStatus(projectPath: string): void {
 		cacheByProject.delete(projectPath);
 		summaryCacheByProject.delete(projectPath);
@@ -129,6 +150,7 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	return {
 		getProjectGitStatusMap,
 		getProjectGitStatusSummaryMap,
+		getProjectFileGitStatusSummary,
 		invalidateProjectGitStatus,
 	};
 }
@@ -145,6 +167,13 @@ export function getProjectGitStatusSummaryMap(
 	projectPath: string
 ): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
 	return gitStatusCache.getProjectGitStatusSummaryMap(projectPath);
+}
+
+export function getProjectFileGitStatusSummary(
+	projectPath: string,
+	filePath: string
+): ResultAsync<FileGitStatus | null, AppError> {
+	return gitStatusCache.getProjectFileGitStatusSummary(projectPath, filePath);
 }
 
 export function invalidateProjectGitStatus(projectPath: string): void {

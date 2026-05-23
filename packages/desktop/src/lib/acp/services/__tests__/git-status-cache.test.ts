@@ -139,6 +139,31 @@ describe("git status cache", () => {
 		expect(summary._unsafeUnwrap().get("src/summary.ts")?.insertions).toBe(0);
 	});
 
+	it("selects one file summary status from the cached project summary map", async () => {
+		let summaryFetchCount = 0;
+
+		const cache = createGitStatusCache({
+			ttlMs: 2000,
+			now: () => 1000,
+			fetchGitStatusSummary: () => {
+				summaryFetchCount += 1;
+				return okAsync([
+					createStatus("src/one.ts", 1, 0),
+					createStatus("src/two.ts", 4, 2),
+				]);
+			},
+		});
+
+		const first = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
+		const second = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/one.ts");
+
+		expect(first.isOk()).toBe(true);
+		expect(second.isOk()).toBe(true);
+		expect(first._unsafeUnwrap()?.path).toBe("src/two.ts");
+		expect(second._unsafeUnwrap()?.path).toBe("src/one.ts");
+		expect(summaryFetchCount).toBe(1);
+	});
+
 	it("invalidates full and summary status maps together", async () => {
 		let fullFetchCount = 0;
 		let summaryFetchCount = 0;
