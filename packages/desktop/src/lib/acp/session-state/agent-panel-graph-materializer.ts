@@ -104,12 +104,12 @@ interface CachedConversationState {
 	readonly turnState: AgentPanelCanonicalSource["turnState"];
 	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
 	readonly activity: AgentPanelCanonicalSource["activity"];
-	readonly transcriptEntryById: ReadonlyMap<string, TranscriptEntry>;
+	readonly transcriptEntryById: Map<string, TranscriptEntry>;
 	readonly conversation: {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
 	};
-	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
+	readonly sceneEntryRowIndex: Map<string, number>;
 }
 
 export interface AgentPanelGraphMaterializerReadModel {
@@ -594,13 +594,7 @@ function materializeTranscriptEntry(
 			return materializeMissingToolEntry(entry, graph);
 		}
 
-		return materializeOperationEntry(
-			operation,
-			graph,
-			index,
-			new Set<string>(),
-			entry.entryId
-		);
+		return materializeOperationEntry(operation, graph, index, new Set<string>(), entry.entryId);
 	}
 
 	return {
@@ -768,70 +762,98 @@ function materializeTranscriptAppendedConversation(
 		previous.turnState !== input.graph.turnState ||
 		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
 		previous.activity !== input.graph.activity ||
-		!isStableTranscriptAppend(
-			previous.transcriptEntries,
-			input.graph.transcriptSnapshot.entries
-		)
+		!isStableTranscriptAppend(previous.transcriptEntries, input.graph.transcriptSnapshot.entries)
 	) {
 		return null;
 	}
 
-	const appendedTranscriptEntries = input.graph.transcriptSnapshot.entries.slice(
-		previous.transcriptEntries.length
-	);
-	if (appendedTranscriptEntries.length === 0) {
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	const appendStartIndex = previous.transcriptEntries.length;
+	if (appendStartIndex === transcriptEntries.length) {
 		return {
 			...previous,
-			transcriptEntries: input.graph.transcriptSnapshot.entries,
+			transcriptEntries,
 			transcriptEntryById: previous.transcriptEntryById,
 		};
 	}
 
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
-	const appendedSceneEntries = appendedTranscriptEntries.map((entry) =>
-		materializeTranscriptEntry(
-			entry,
-			input.graph,
-			previous.operationIndex,
-			isRunning && entry.entryId === liveAssistantEntryId
-		)
+	const appendedSceneEntries: AgentPanelSceneEntryModel[] = [];
+	for (let index = appendStartIndex; index < transcriptEntries.length; index += 1) {
+		const entry = transcriptEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
+		appendedSceneEntries.push(
+			materializeTranscriptEntry(
+				entry,
+				input.graph,
+				previous.operationIndex,
+				isRunning && entry.entryId === liveAssistantEntryId
+			)
+		);
+	}
+	appendTranscriptEntryIndexFromRange(
+		previous.transcriptEntryById,
+		transcriptEntries,
+		appendStartIndex
 	);
-	const appendedIds = new Set(appendedSceneEntries.map((entry) => entry.id));
+
 	const transcriptSceneEntryCount = previous.transcriptEntries.length;
-	const existingTranscriptEntries = previous.conversation.entries.slice(
-		0,
-		transcriptSceneEntryCount
-	);
-	const trailingInteractionEntries = previous.conversation.entries
-		.slice(transcriptSceneEntryCount)
-		.filter((entry) => !appendedIds.has(entry.id));
-	const nextEntries = existingTranscriptEntries
-		.concat(appendedSceneEntries)
-		.concat(trailingInteractionEntries);
-	const sceneEntryRowIndex =
-		trailingInteractionEntries.length === 0
-			? appendSceneEntryRowIndex(previous.sceneEntryRowIndex, appendedSceneEntries, transcriptSceneEntryCount)
-			: buildSceneEntryRowIndex(nextEntries);
+	const hasTrailingInteractionEntries =
+		previous.conversation.entries.length > transcriptSceneEntryCount;
+	const nextEntries = hasTrailingInteractionEntries
+		? appendTranscriptEntriesBeforeTrailingInteractions(
+				previous.conversation.entries,
+				transcriptSceneEntryCount,
+				appendedSceneEntries
+			)
+		: previous.conversation.entries.concat(appendedSceneEntries);
+	const sceneEntryRowIndex = hasTrailingInteractionEntries
+		? buildSceneEntryRowIndex(nextEntries)
+		: appendSceneEntryRowIndex(
+				previous.sceneEntryRowIndex,
+				appendedSceneEntries,
+				transcriptSceneEntryCount
+			);
 
 	return {
-		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		transcriptEntries,
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
-		transcriptEntryById: appendTranscriptEntryIndex(
-			previous.transcriptEntryById,
-			appendedTranscriptEntries
-		),
+		transcriptEntryById: previous.transcriptEntryById,
 		conversation: {
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex,
 	};
+}
+
+function appendTranscriptEntriesBeforeTrailingInteractions(
+	previousEntries: readonly AgentPanelSceneEntryModel[],
+	transcriptSceneEntryCount: number,
+	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	const appendedIds = new Set<string>();
+	for (const entry of appendedSceneEntries) {
+		appendedIds.add(entry.id);
+	}
+
+	const nextEntries = previousEntries.slice(0, transcriptSceneEntryCount);
+	nextEntries.push(...appendedSceneEntries);
+	for (let index = transcriptSceneEntryCount; index < previousEntries.length; index += 1) {
+		const entry = previousEntries[index];
+		if (entry !== undefined && !appendedIds.has(entry.id)) {
+			nextEntries.push(entry);
+		}
+	}
+	return nextEntries;
 }
 
 function isStableTranscriptAppend(
@@ -867,10 +889,7 @@ function materializeOperationPatchedConversation(
 	}
 
 	const operationIndex = buildOperationIndex(input.graph.operations);
-	const changedOperationIds = collectChangedOperationIds(
-		previous.operationIndex,
-		operationIndex
-	);
+	const changedOperationIds = collectChangedOperationIds(previous.operationIndex, operationIndex);
 	if (changedOperationIds.size === 0) {
 		return {
 			...previous,
@@ -964,7 +983,7 @@ function collectAffectedTranscriptEntryIds(
 
 function buildTranscriptEntryIndex(
 	entries: readonly TranscriptEntry[]
-): ReadonlyMap<string, TranscriptEntry> {
+): Map<string, TranscriptEntry> {
 	const byEntryId = new Map<string, TranscriptEntry>();
 	for (const entry of entries) {
 		byEntryId.set(entry.entryId, entry);
@@ -972,17 +991,16 @@ function buildTranscriptEntryIndex(
 	return byEntryId;
 }
 
-function appendTranscriptEntryIndex(
-	previous: ReadonlyMap<string, TranscriptEntry>,
-	appendedEntries: readonly TranscriptEntry[]
-): ReadonlyMap<string, TranscriptEntry> {
-	if (appendedEntries.length === 0) {
-		return previous;
-	}
-
-	const byEntryId = new Map(previous);
-	for (const entry of appendedEntries) {
-		byEntryId.set(entry.entryId, entry);
+function appendTranscriptEntryIndexFromRange(
+	byEntryId: Map<string, TranscriptEntry>,
+	entries: readonly TranscriptEntry[],
+	startIndex: number
+): Map<string, TranscriptEntry> {
+	for (let index = startIndex; index < entries.length; index += 1) {
+		const entry = entries[index];
+		if (entry !== undefined) {
+			byEntryId.set(entry.entryId, entry);
+		}
 	}
 	return byEntryId;
 }
@@ -1008,7 +1026,7 @@ function collectAffectedTranscriptEntryIdsFromIndex(
 
 function buildSceneEntryRowIndex(
 	entries: readonly AgentPanelSceneEntryModel[]
-): ReadonlyMap<string, number> {
+): Map<string, number> {
 	const byEntryId = new Map<string, number>();
 	entries.forEach((entry, index) => {
 		byEntryId.set(entry.id, index);
@@ -1017,15 +1035,10 @@ function buildSceneEntryRowIndex(
 }
 
 function appendSceneEntryRowIndex(
-	previous: ReadonlyMap<string, number>,
+	byEntryId: Map<string, number>,
 	appendedEntries: readonly AgentPanelSceneEntryModel[],
 	startIndex: number
-): ReadonlyMap<string, number> {
-	if (appendedEntries.length === 0) {
-		return previous;
-	}
-
-	const byEntryId = new Map(previous);
+): Map<string, number> {
 	appendedEntries.forEach((entry, index) => {
 		byEntryId.set(entry.id, startIndex + index);
 	});
