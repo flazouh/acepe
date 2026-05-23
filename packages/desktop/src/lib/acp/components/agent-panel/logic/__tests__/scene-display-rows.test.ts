@@ -360,7 +360,7 @@ describe("scene-display-rows", () => {
 				return;
 			}
 			expect(patchedRows[0]).toBe(baseRows[0]);
-			expect(patchedRows[1]).not.toBe(baseRows[1]);
+			expect(patchedRows[1]).toBe(baseRows[1]);
 			expect(patchedRows[2]).toBe(baseRows[2]);
 			expect(patchedRows[1]).toMatchObject({
 				id: "tool-1",
@@ -492,6 +492,42 @@ describe("scene-display-rows", () => {
 		} finally {
 			firstRows.slice = originalSlice;
 		}
+	});
+
+	it("skips marked row rewrites when a patched scene entry renders the same row", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 1,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [userEntry, assistantEntry];
+		const firstRows = readModel.applySnapshot(baseEntries);
+		const nextAssistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const patchedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextAssistantEntry],
+			entriesByIndex: new Map([[1, nextAssistantEntry]]),
+		});
+
+		const nextRows = readModel.applyPatch(patchedEntries);
+
+		expect(nextRows).toBe(firstRows);
+		expect(nextRows?.[0]).toBe(firstRows[0]);
+		expect(nextRows?.[1]).toBe(firstRows[1]);
 	});
 
 	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
