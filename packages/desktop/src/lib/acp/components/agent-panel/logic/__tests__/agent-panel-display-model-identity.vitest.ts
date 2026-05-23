@@ -294,10 +294,7 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 			viewport: { hasLiveTail: false, requiresStableTailMount: false },
 		};
 
-		const firstResult = applyAgentPanelDisplayMemory(
-			createAgentPanelDisplayMemory(),
-			baseModel
-		);
+		const firstResult = applyAgentPanelDisplayMemory(createAgentPanelDisplayMemory(), baseModel);
 		const secondResult = applyAgentPanelDisplayMemory(firstResult.memory, {
 			...baseModel,
 			status: "running",
@@ -329,10 +326,7 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 			rows: [firstAssistantRow],
 			viewport: { hasLiveTail: false, requiresStableTailMount: false },
 		};
-		const firstResult = applyAgentPanelDisplayMemory(
-			createAgentPanelDisplayMemory(),
-			firstModel
-		);
+		const firstResult = applyAgentPanelDisplayMemory(createAgentPanelDisplayMemory(), firstModel);
 		const nextAssistantRow = {
 			id: "assistant-2",
 			type: "assistant" as const,
@@ -428,5 +422,35 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 			type: "assistant",
 			canonicalTextRevision: "2:assistant-1",
 		});
+	});
+
+	it("memoizes the next read after an append advances transcript revision", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+		const nextSceneEntries = [userEntry, assistantEntry];
+
+		const appendedProjection = readModel.applySnapshot({
+			sceneEntries: nextSceneEntries,
+			transcriptRevision: 2,
+		});
+		const repeatedProjection = readModel.applySnapshot({
+			sceneEntries: nextSceneEntries,
+			transcriptRevision: 2,
+		});
+
+		expect(repeatedProjection).toBe(appendedProjection);
 	});
 });

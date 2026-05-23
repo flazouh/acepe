@@ -6,10 +6,7 @@ import type {
 	AssistantMessageChunk,
 	ContentBlock,
 } from "@acepe/ui/agent-panel";
-import type {
-	SessionGraphActivity,
-	SessionTurnState,
-} from "$lib/services/acp-types.js";
+import type { SessionGraphActivity, SessionTurnState } from "$lib/services/acp-types.js";
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
@@ -163,15 +160,17 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				previousSceneEntries !== null &&
 				isStableDisplaySceneAppend(previousSceneEntries, sceneEntries)
 			) {
-				const appendedProjection = createRowsFromScene(
-					sceneEntries.slice(previousSceneEntries.length),
-					transcriptRevision
+				const appendedProjection = createRowsFromSceneRange(
+					sceneEntries,
+					transcriptRevision,
+					previousSceneEntries.length
 				);
 				previousProjection = {
 					rows: previousProjection.rows.concat(appendedProjection.rows),
 					hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
 				};
 				previousSceneEntries = sceneEntries;
+				previousTranscriptRevision = transcriptRevision;
 				return previousProjection;
 			}
 
@@ -190,9 +189,21 @@ export function createRowsFromScene(
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	transcriptRevision: number
 ): AgentPanelDisplayRowsProjection {
+	return createRowsFromSceneRange(sceneEntries, transcriptRevision, 0);
+}
+
+function createRowsFromSceneRange(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	transcriptRevision: number,
+	startIndex: number
+): AgentPanelDisplayRowsProjection {
 	const rows: AgentPanelDisplayRow[] = [];
 	let hasLiveTail = false;
-	for (const entry of sceneEntries) {
+	for (let index = startIndex; index < sceneEntries.length; index += 1) {
+		const entry = sceneEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
 		if (entry.type === "user") {
 			rows.push({
 				id: entry.id,
@@ -242,17 +253,19 @@ function isDisplaySceneEntryStable(
 	if (previous === next) {
 		return true;
 	}
-	if (previous === undefined || next === undefined || previous.id !== next.id || previous.type !== next.type) {
+	if (
+		previous === undefined ||
+		next === undefined ||
+		previous.id !== next.id ||
+		previous.type !== next.type
+	) {
 		return false;
 	}
 	if (previous.type === "user" && next.type === "user") {
 		return previous.text === next.text && previous.isOptimistic === next.isOptimistic;
 	}
 	if (previous.type === "assistant" && next.type === "assistant") {
-		return (
-			previous.markdown === next.markdown &&
-			previous.isStreaming === next.isStreaming
-		);
+		return previous.markdown === next.markdown && previous.isStreaming === next.isStreaming;
 	}
 	return false;
 }
@@ -587,7 +600,7 @@ function applyDisplayRowToAssistantEntry(
 }
 
 function selectAssistantRowsForScenePatch(
-	model: AgentPanelDisplayModel,
+	model: AgentPanelDisplayModel
 ): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
 	const assistantRowsById = new Map<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>();
 	for (const row of model.rows) {
@@ -682,7 +695,8 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				) {
 					appendSceneEntryIndexes(
 						sceneEntryIndexesById,
-						sceneEntries.slice(previousSceneEntries.length),
+						sceneEntries,
+						previousSceneEntries.length,
 						previousSceneEntries.length
 					);
 				} else {
@@ -716,10 +730,15 @@ function buildSceneEntryIndexes(
 function appendSceneEntryIndexes(
 	indexesById: Map<string, number>,
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
-	startIndex: number
+	startIndex: number,
+	entryIndexStart: number = 0
 ): void {
 	let index = startIndex;
-	for (const entry of sceneEntries) {
+	for (let entryIndex = entryIndexStart; entryIndex < sceneEntries.length; entryIndex += 1) {
+		const entry = sceneEntries[entryIndex];
+		if (entry === undefined) {
+			continue;
+		}
 		indexesById.set(entry.id, index);
 		index += 1;
 	}
