@@ -2411,6 +2411,10 @@ export class PanelStore {
 		return this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId) ?? [];
 	}
 
+	hasAttachedFilePanels(ownerPanelId: string): boolean {
+		return (this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.length ?? 0) > 0;
+	}
+
 	getActiveFilePanelId(ownerPanelId: string): string | null {
 		return this.activeFilePanelIdByOwnerPanelId.get(ownerPanelId) ?? null;
 	}

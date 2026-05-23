@@ -101,9 +101,7 @@ const projectPath = $derived(hostModel?.projectPath ?? null);
 const project = $derived(hostModel?.project ?? null);
 const selectedAgentId = $derived(hostModel?.selectedAgentId ?? null);
 const isWaitingForSession = $derived(hostModel?.isWaitingForSession ?? false);
-const hasAttachedFilePane = $derived(
-	panel ? panelStore.getAttachedFilePanels(panel.id).length > 0 : false
-);
+const hasAttachedFilePane = $derived(panel ? panelStore.hasAttachedFilePanels(panel.id) : false);
 const reviewMode = $derived(hostModel?.reviewMode ?? false);
 const reviewFilesState = $derived(hostModel?.reviewFilesState ?? null);
 const reviewFileIndex = $derived(hostModel?.reviewFileIndex ?? 0);

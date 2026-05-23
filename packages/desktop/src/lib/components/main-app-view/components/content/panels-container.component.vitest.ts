@@ -262,6 +262,38 @@ describe("PanelsContainer", () => {
 		expect(getAgentPanelDestroyCount(fullscreenPanel.id)).toBe(0);
 	});
 
+	it("keeps the agent panel stable when another attached file opens in the same pane", async () => {
+		const panelStore = createPanelStore();
+
+		const panel = panelStore.spawnPanel({
+			projectPath: "/projects/alpha",
+			selectedAgentId: "claude-code",
+		});
+
+		panelStore.openFilePanel("src/first.ts", "/projects/alpha", { ownerPanelId: panel.id });
+
+		render(PanelsContainer, {
+			projectManager: createProjectManager(),
+			state: createMainAppState(),
+		});
+
+		await waitFor(() => {
+			expect(getAgentPanelMountCount(panel.id)).toBe(1);
+		});
+
+		resetAgentPanelStubState();
+
+		panelStore.openFilePanel("src/second.ts", "/projects/alpha", { ownerPanelId: panel.id });
+
+		await waitFor(() => {
+			expect(panelStore.getAttachedFilePanels(panel.id)).toHaveLength(2);
+		});
+
+		expect(getAgentPanelRenderCount(panel.id)).toBe(0);
+		expect(getAgentPanelMountCount(panel.id)).toBe(0);
+		expect(getAgentPanelDestroyCount(panel.id)).toBe(0);
+	});
+
 	it("keeps the focused agent panel mounted when entering fullscreen", async () => {
 		const panelStore = createPanelStore();
 
