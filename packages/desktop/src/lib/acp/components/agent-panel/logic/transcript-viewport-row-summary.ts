@@ -39,6 +39,9 @@ export type TranscriptViewportRowSummary = {
 	hasLiveAssistantDisplayEntry?: boolean;
 	hasTokenRevealAssistantEntry?: boolean;
 	hasToolCallEntry?: boolean;
+	lastLiveAssistantDisplayEntryIndex?: number | null;
+	lastTokenRevealAssistantEntryIndex?: number | null;
+	lastToolCallEntryIndex?: number | null;
 	changedRange?: TranscriptViewportChangedRange;
 	reason?: TranscriptViewportRowsReason;
 };
@@ -61,6 +64,9 @@ export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummar
 		hasLiveAssistantDisplayEntry: false,
 		hasTokenRevealAssistantEntry: false,
 		hasToolCallEntry: false,
+		lastLiveAssistantDisplayEntryIndex: null,
+		lastTokenRevealAssistantEntryIndex: null,
+		lastToolCallEntryIndex: null,
 	};
 }
 
@@ -508,23 +514,30 @@ function truncateTranscriptViewportRowsSummary(
 		rowKeys,
 		rowIndexByKey,
 		anchorEligibleKeys,
-		hasLiveAssistantDisplayEntry: truncateBooleanFact(
-			previousSummary.hasLiveAssistantDisplayEntry === true,
-			removedRows,
-			rows,
-			isLiveAssistantDisplayRow
+		hasLiveAssistantDisplayEntry:
+			keepTruncatedLastMatchingIndex(
+				previousSummary.lastLiveAssistantDisplayEntryIndex ?? null,
+				rows.length
+			) !== null,
+		hasTokenRevealAssistantEntry:
+			keepTruncatedLastMatchingIndex(
+				previousSummary.lastTokenRevealAssistantEntryIndex ?? null,
+				rows.length
+			) !== null,
+		hasToolCallEntry:
+			keepTruncatedLastMatchingIndex(previousSummary.lastToolCallEntryIndex ?? null, rows.length) !==
+			null,
+		lastLiveAssistantDisplayEntryIndex: keepTruncatedLastMatchingIndex(
+			previousSummary.lastLiveAssistantDisplayEntryIndex ?? null,
+			rows.length
 		),
-		hasTokenRevealAssistantEntry: truncateBooleanFact(
-			previousSummary.hasTokenRevealAssistantEntry === true,
-			removedRows,
-			rows,
-			isTokenRevealAssistantDisplayRow
+		lastTokenRevealAssistantEntryIndex: keepTruncatedLastMatchingIndex(
+			previousSummary.lastTokenRevealAssistantEntryIndex ?? null,
+			rows.length
 		),
-		hasToolCallEntry: truncateBooleanFact(
-			previousSummary.hasToolCallEntry === true,
-			removedRows,
-			rows,
-			(row) => row.type === "tool_call"
+		lastToolCallEntryIndex: keepTruncatedLastMatchingIndex(
+			previousSummary.lastToolCallEntryIndex ?? null,
+			rows.length
 		),
 		reason,
 	};
@@ -596,7 +609,14 @@ export function buildTranscriptViewportRowsSummary(
 	let hasLiveAssistantDisplayEntry = false;
 	let hasTokenRevealAssistantEntry = false;
 	let hasToolCallEntry = false;
-	for (const row of rows) {
+	let lastLiveAssistantDisplayEntryIndex: number | null = null;
+	let lastTokenRevealAssistantEntryIndex: number | null = null;
+	let lastToolCallEntryIndex: number | null = null;
+	for (let index = 0; index < rows.length; index += 1) {
+		const row = rows[index];
+		if (row === undefined) {
+			continue;
+		}
 		const key = getSceneDisplayRowKey(row);
 		rowIndexByKey.set(key, rowKeys.length);
 		rowKeys.push(key);
@@ -608,12 +628,15 @@ export function buildTranscriptViewportRowsSummary(
 		}
 		if (isLiveAssistantDisplayRow(row)) {
 			hasLiveAssistantDisplayEntry = true;
+			lastLiveAssistantDisplayEntryIndex = index;
 		}
 		if (isTokenRevealAssistantDisplayRow(row)) {
 			hasTokenRevealAssistantEntry = true;
+			lastTokenRevealAssistantEntryIndex = index;
 		}
 		if (row.type === "tool_call") {
 			hasToolCallEntry = true;
+			lastToolCallEntryIndex = index;
 		}
 	}
 
@@ -630,6 +653,9 @@ export function buildTranscriptViewportRowsSummary(
 		hasLiveAssistantDisplayEntry,
 		hasTokenRevealAssistantEntry,
 		hasToolCallEntry,
+		lastLiveAssistantDisplayEntryIndex,
+		lastTokenRevealAssistantEntryIndex,
+		lastToolCallEntryIndex,
 		reason,
 	};
 }
@@ -649,6 +675,11 @@ function appendTranscriptViewportRowsSummary(
 	let hasLiveAssistantDisplayEntry = previousSummary.hasLiveAssistantDisplayEntry === true;
 	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
 	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
+	let lastLiveAssistantDisplayEntryIndex =
+		previousSummary.lastLiveAssistantDisplayEntryIndex ?? null;
+	let lastTokenRevealAssistantEntryIndex =
+		previousSummary.lastTokenRevealAssistantEntryIndex ?? null;
+	let lastToolCallEntryIndex = previousSummary.lastToolCallEntryIndex ?? null;
 	const previousRowKeys = previousSummary.rowKeys ?? [];
 	let appendedRowIndexByKey: Map<string, number> | null = null;
 	for (let index = previousSummary.count; index < rows.length; index += 1) {
@@ -669,9 +700,18 @@ function appendTranscriptViewportRowsSummary(
 			appendedAnchorEligibleKeys ??= [];
 			appendedAnchorEligibleKeys.push(key);
 		}
-		hasLiveAssistantDisplayEntry ||= isLiveAssistantDisplayRow(row);
-		hasTokenRevealAssistantEntry ||= isTokenRevealAssistantDisplayRow(row);
-		hasToolCallEntry ||= row.type === "tool_call";
+		if (isLiveAssistantDisplayRow(row)) {
+			hasLiveAssistantDisplayEntry = true;
+			lastLiveAssistantDisplayEntryIndex = index;
+		}
+		if (isTokenRevealAssistantDisplayRow(row)) {
+			hasTokenRevealAssistantEntry = true;
+			lastTokenRevealAssistantEntryIndex = index;
+		}
+		if (row.type === "tool_call") {
+			hasToolCallEntry = true;
+			lastToolCallEntryIndex = index;
+		}
 	}
 
 	const lastRow = rows.at(-1);
@@ -697,6 +737,9 @@ function appendTranscriptViewportRowsSummary(
 		hasLiveAssistantDisplayEntry,
 		hasTokenRevealAssistantEntry,
 		hasToolCallEntry,
+		lastLiveAssistantDisplayEntryIndex,
+		lastTokenRevealAssistantEntryIndex,
+		lastToolCallEntryIndex,
 		reason,
 	};
 }
@@ -735,6 +778,9 @@ function insertTranscriptViewportRowsSummary(
 	let hasLiveAssistantDisplayEntry = previousSummary.hasLiveAssistantDisplayEntry === true;
 	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
 	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
+	let lastInsertedLiveAssistantDisplayEntryIndex: number | null = null;
+	let lastInsertedTokenRevealAssistantEntryIndex: number | null = null;
+	let lastInsertedToolCallEntryIndex: number | null = null;
 	const insertedRowKeys: string[] = [];
 	const insertedAnchorEligibleKeys: string[] = [];
 	const insertedRowIndexByKey = new Map<string, number>();
@@ -752,9 +798,18 @@ function insertTranscriptViewportRowsSummary(
 		if (row.type !== "thinking") {
 			insertedAnchorEligibleKeys.push(key);
 		}
-		hasLiveAssistantDisplayEntry ||= isLiveAssistantDisplayRow(row);
-		hasTokenRevealAssistantEntry ||= isTokenRevealAssistantDisplayRow(row);
-		hasToolCallEntry ||= row.type === "tool_call";
+		if (isLiveAssistantDisplayRow(row)) {
+			hasLiveAssistantDisplayEntry = true;
+			lastInsertedLiveAssistantDisplayEntryIndex = insertIndex + index;
+		}
+		if (isTokenRevealAssistantDisplayRow(row)) {
+			hasTokenRevealAssistantEntry = true;
+			lastInsertedTokenRevealAssistantEntryIndex = insertIndex + index;
+		}
+		if (row.type === "tool_call") {
+			hasToolCallEntry = true;
+			lastInsertedToolCallEntryIndex = insertIndex + index;
+		}
 	}
 
 	const previousRowKeys = previousSummary.rowKeys ?? [];
@@ -789,6 +844,24 @@ function insertTranscriptViewportRowsSummary(
 		hasLiveAssistantDisplayEntry,
 		hasTokenRevealAssistantEntry,
 		hasToolCallEntry,
+		lastLiveAssistantDisplayEntryIndex: resolveInsertedLastMatchingIndex(
+			previousSummary.lastLiveAssistantDisplayEntryIndex ?? null,
+			lastInsertedLiveAssistantDisplayEntryIndex,
+			insertIndex,
+			insertedRows.length
+		),
+		lastTokenRevealAssistantEntryIndex: resolveInsertedLastMatchingIndex(
+			previousSummary.lastTokenRevealAssistantEntryIndex ?? null,
+			lastInsertedTokenRevealAssistantEntryIndex,
+			insertIndex,
+			insertedRows.length
+		),
+		lastToolCallEntryIndex: resolveInsertedLastMatchingIndex(
+			previousSummary.lastToolCallEntryIndex ?? null,
+			lastInsertedToolCallEntryIndex,
+			insertIndex,
+			insertedRows.length
+		),
 		changedRange: {
 			startIndex: insertIndex,
 			endIndex: insertIndex + insertedRows.length,
@@ -1333,8 +1406,54 @@ function replaceTranscriptViewportRowsTailSummary(
 			tailRow,
 			(row) => row.type === "tool_call"
 		),
+		lastLiveAssistantDisplayEntryIndex: replaceTailLastMatchingIndex(
+			previousSummary.lastLiveAssistantDisplayEntryIndex ?? null,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			isLiveAssistantDisplayRow
+		),
+		lastTokenRevealAssistantEntryIndex: replaceTailLastMatchingIndex(
+			previousSummary.lastTokenRevealAssistantEntryIndex ?? null,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			isTokenRevealAssistantDisplayRow
+		),
+		lastToolCallEntryIndex: replaceTailLastMatchingIndex(
+			previousSummary.lastToolCallEntryIndex ?? null,
+			previousRows,
+			previousTailRow,
+			tailRow,
+			(row) => row.type === "tool_call"
+		),
 		reason,
 	};
+}
+
+function keepTruncatedLastMatchingIndex(index: number | null, nextLength: number): number | null {
+	return index !== null && index < nextLength ? index : null;
+}
+
+function resolveInsertedLastMatchingIndex(
+	previousIndex: number | null,
+	insertedIndex: number | null,
+	insertIndex: number,
+	insertedCount: number
+): number | null {
+	const shiftedPreviousIndex =
+		previousIndex === null
+			? null
+			: previousIndex >= insertIndex
+				? previousIndex + insertedCount
+				: previousIndex;
+	if (insertedIndex === null) {
+		return shiftedPreviousIndex;
+	}
+	if (shiftedPreviousIndex === null) {
+		return insertedIndex;
+	}
+	return Math.max(shiftedPreviousIndex, insertedIndex);
 }
 
 function replaceTailBooleanFact(
@@ -1359,6 +1478,36 @@ function replaceTailBooleanFact(
 	}
 
 	return previousValue;
+}
+
+function replaceTailLastMatchingIndex(
+	previousIndex: number | null,
+	previousRows: readonly SceneDisplayRow[],
+	previousTailRow: SceneDisplayRow | undefined,
+	nextTailRow: SceneDisplayRow,
+	predicate: (row: SceneDisplayRow) => boolean
+): number | null {
+	const tailIndex = previousRows.length - 1;
+	if (predicate(nextTailRow)) {
+		return tailIndex;
+	}
+	if (previousIndex === null) {
+		return null;
+	}
+	if (
+		previousTailRow === undefined ||
+		previousIndex !== tailIndex ||
+		!predicate(previousTailRow)
+	) {
+		return previousIndex;
+	}
+	for (let index = tailIndex - 1; index >= 0; index -= 1) {
+		const row = previousRows[index];
+		if (row !== undefined && predicate(row)) {
+			return index;
+		}
+	}
+	return null;
 }
 
 function isLiveAssistantDisplayRow(row: SceneDisplayRow): boolean {

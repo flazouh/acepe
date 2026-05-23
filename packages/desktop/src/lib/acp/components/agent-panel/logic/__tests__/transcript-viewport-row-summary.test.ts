@@ -96,7 +96,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(readModel.selectSummary()).toBe(summary);
 	});
 
-	it("advances row revisions for same-length patches", () => {
+	it("keeps the summary stable for same-length patches that do not change viewport facts", () => {
 		const displayRows = createSceneDisplayRowsReadModel();
 		const readModel = createTranscriptViewportRowsReadModel();
 		const userEntry = {
@@ -126,9 +126,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 			reason: "rows-updated",
 		});
 
-		expect(patchedSummary.count).toBe(firstSummary.count);
-		expect(patchedSummary.version).toBe(firstSummary.version + 1);
-		expect(patchedSummary.changedRange).toEqual({ startIndex: 1, endIndex: 2 });
+		expect(patchedSummary).toBe(firstSummary);
 	});
 
 	it("updates append-only rows without rebuilding existing anchor keys", () => {
@@ -495,12 +493,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 				reason: "rows-updated",
 			});
 
-			expect(nextSummary.count).toBe(3);
-			expect(nextSummary.rowKeys).toBe(firstSummary.rowKeys);
-			expect(nextSummary.rowIndexByKey).toBe(firstSummary.rowIndexByKey);
-			expect(nextSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
-			expect(nextSummary.changedRange).toEqual({ startIndex: 2, endIndex: 3 });
-			expect(nextSummary.hasToolCallEntry).toBe(true);
+			expect(nextSummary).toBe(firstSummary);
 		} finally {
 			Object.defineProperty(firstRows, "0", {
 				configurable: true,
@@ -698,6 +691,37 @@ describe("createTranscriptViewportRowsReadModel", () => {
 			if (rowIndexByKey !== undefined && originalIterator !== undefined) {
 				rowIndexByKey[Symbol.iterator] = originalIterator;
 			}
+		}
+	});
+
+	it("truncates boolean facts without rescanning kept rows", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [
+			userRow("user-1"),
+			assistantRow("assistant-1", { isStreaming: true }),
+			toolRow("tool-1"),
+		];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = firstRows.slice(0, 2);
+		const originalSome = nextRows.some;
+		nextRows.some = () => {
+			throw new Error("must not rescan kept rows to recompute truncation boolean facts");
+		};
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.hasToolCallEntry).toBe(false);
+			expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
+			expect(nextSummary.hasTokenRevealAssistantEntry).toBe(false);
+		} finally {
+			nextRows.some = originalSome;
 		}
 	});
 
@@ -907,6 +931,9 @@ describe("buildTranscriptViewportRowsSummary", () => {
 			hasLiveAssistantDisplayEntry: false,
 			hasTokenRevealAssistantEntry: false,
 			hasToolCallEntry: false,
+			lastLiveAssistantDisplayEntryIndex: null,
+			lastTokenRevealAssistantEntryIndex: null,
+			lastToolCallEntryIndex: null,
 			reason: "waiting-row-appended",
 		});
 	});
