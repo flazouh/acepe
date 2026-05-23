@@ -1194,11 +1194,9 @@ export class PanelStore {
 	getPersistableWorkspacePanels(): WorkspacePanel[] {
 		const persistableTopLevelPanelIds = new Set<string>();
 		const persistablePanels: WorkspacePanel[] = [];
-		for (const panel of this.topLevelWorkspacePanelList) {
-			if (isPersistableWorkspacePanel(panel)) {
-				persistableTopLevelPanelIds.add(panel.id);
-				persistablePanels.push(panel);
-			}
+		for (const panel of this.getPersistableTopLevelWorkspacePanels()) {
+			persistableTopLevelPanelIds.add(panel.id);
+			persistablePanels.push(panel);
 		}
 
 		for (const ownerPanelId of persistableTopLevelPanelIds) {
@@ -1214,6 +1212,33 @@ export class PanelStore {
 		}
 
 		return persistablePanels;
+	}
+
+	getPersistableTopLevelWorkspacePanels(): WorkspacePanel[] {
+		const persistablePanels: WorkspacePanel[] = [];
+		for (const panel of this.topLevelWorkspacePanelList) {
+			if (isPersistableWorkspacePanel(panel)) {
+				persistablePanels.push(panel);
+			}
+		}
+		return persistablePanels;
+	}
+
+	getPersistableTopLevelWorkspacePanelIndex(panelId: string | null): number | null {
+		if (panelId === null) {
+			return null;
+		}
+		let persistableIndex = 0;
+		for (const panel of this.topLevelWorkspacePanelList) {
+			if (!isPersistableWorkspacePanel(panel)) {
+				continue;
+			}
+			if (panel.id === panelId) {
+				return persistableIndex;
+			}
+			persistableIndex += 1;
+		}
+		return -1;
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {

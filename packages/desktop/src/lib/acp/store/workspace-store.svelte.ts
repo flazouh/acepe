@@ -506,9 +506,6 @@ export class WorkspaceStore {
 			const persistableFilePanels = this.panelStore.filePanels.filter(
 				(panel) => panel.ownerPanelId === null || persistableAgentPanelIds.has(panel.ownerPanelId)
 			);
-			const topLevelWorkspacePanels = persistableWorkspacePanels.filter(
-				(panel) => panel.kind === "agent" || panel.ownerPanelId === null
-			);
 			const state: PersistedWorkspaceState = {
 				version: 12,
 				workspacePanels: serializeWorkspacePanels(persistableWorkspacePanels),
@@ -566,7 +563,7 @@ export class WorkspaceStore {
 				filePanels: serializeFilePanels(persistableFilePanels),
 				activeFilePanelIdByOwnerPanelId: this.panelStore.getActiveFilePanelIdByOwnerPanelIdRecord(),
 				focusedPanelIndex: this.panelStore.focusedPanelId
-					? topLevelWorkspacePanels.findIndex((p) => p.id === this.panelStore.focusedPanelId)
+					? this.panelStore.getPersistableTopLevelWorkspacePanelIndex(this.panelStore.focusedPanelId)
 					: null,
 				panelContainerScrollX: this.panelStore.scrollX,
 				savedAt: new Date().toISOString(),
@@ -577,7 +574,7 @@ export class WorkspaceStore {
 				projectFileViewModes: this.providers.getProjectFileViewModes?.() ?? {},
 				// Fullscreen state
 				fullscreenPanelIndex: this.panelStore.fullscreenPanelId
-					? topLevelWorkspacePanels.findIndex((p) => p.id === this.panelStore.fullscreenPanelId)
+					? this.panelStore.getPersistableTopLevelWorkspacePanelIndex(this.panelStore.fullscreenPanelId)
 					: null,
 				// SQL Studio state
 				sqlStudio: this.providers.getSqlStudioState?.(),

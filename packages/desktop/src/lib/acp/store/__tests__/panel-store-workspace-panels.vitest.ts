@@ -392,6 +392,30 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("selects persistable top-level workspace panel indexes without scanning workspace panels", () => {
+		const store = createStore();
+		const firstPanel = store.spawnPanel({ projectPath: "/tmp/project" });
+		const secondPanel = store.openFilePanel("src/second.ts", "/tmp/project");
+		const workspaceIterator = store.workspacePanels[Symbol.iterator];
+		const workspaceFindIndex = store.workspacePanels.findIndex;
+		store.workspacePanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate workspace panels for top-level panel index lookup");
+		};
+		store.workspacePanels.findIndex = () => {
+			throw new Error("must not scan workspace panels for top-level panel index lookup");
+		};
+
+		try {
+			expect(store.getPersistableTopLevelWorkspacePanelIndex(secondPanel.id)).toBe(0);
+			expect(store.getPersistableTopLevelWorkspacePanelIndex(firstPanel.id)).toBe(1);
+			expect(store.getPersistableTopLevelWorkspacePanelIndex("missing")).toBe(-1);
+			expect(store.getPersistableTopLevelWorkspacePanelIndex(null)).toBeNull();
+		} finally {
+			store.workspacePanels[Symbol.iterator] = workspaceIterator;
+			store.workspacePanels.findIndex = workspaceFindIndex;
+		}
+	});
+
 	it("falls back to attached file panel groups without scanning all file panels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
