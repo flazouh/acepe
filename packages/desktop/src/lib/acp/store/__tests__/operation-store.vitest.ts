@@ -180,6 +180,57 @@ describe("OperationStore", () => {
 		}
 	});
 
+	it("appends cached session operation indexes without cloning the previous index", () => {
+		const operationStore = new OperationStore();
+		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const secondOperationId = buildCanonicalOperationId("session-1", "tool-2");
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+		]);
+		operationStore.getSessionOperations("session-1");
+		const sessionOperationsCache = (operationStore as unknown as {
+			sessionOperationsBySession: Map<
+				string,
+				{ readonly operationIndexById: ReadonlyMap<string, number> & Record<symbol, unknown> }
+			>;
+		}).sessionOperationsBySession;
+		const cachedIndex = sessionOperationsCache.get("session-1")?.operationIndexById;
+		const originalIterator = cachedIndex?.[Symbol.iterator];
+		if (cachedIndex !== undefined) {
+			cachedIndex[Symbol.iterator] = () => {
+				throw new Error("must not clone cached operation index for append");
+			};
+		}
+
+		try {
+			operationStore.applySessionOperationPatches("session-1", [
+				createOperationSnapshot({
+					id: secondOperationId,
+					tool_call_id: "tool-2",
+					provider_status: "in_progress",
+					operation_state: "running",
+				}),
+			]);
+		} finally {
+			if (cachedIndex !== undefined && originalIterator !== undefined) {
+				cachedIndex[Symbol.iterator] = originalIterator;
+			}
+		}
+
+		const nextCachedIndex = sessionOperationsCache.get("session-1")?.operationIndexById;
+		expect(nextCachedIndex?.get(firstOperationId)).toBe(0);
+		expect(nextCachedIndex?.get(secondOperationId)).toBe(1);
+		expect(operationStore.getSessionOperations("session-1").map((operation) => operation.id)).toEqual([
+			firstOperationId,
+			secondOperationId,
+		]);
+	});
+
 	it("keeps cached operations stable for semantically duplicate patches", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");

@@ -987,14 +987,99 @@ function patchCachedItemIndex<T extends { readonly id: string }>(
 		return baseIndexById;
 	}
 
-	const nextIndexById = new Map(baseIndexById);
-	for (let index = 0; index < appendedItems.length; index += 1) {
-		const item = appendedItems[index];
-		if (item !== undefined) {
-			nextIndexById.set(item.id, baseLength + index);
+	return new AppendedItemIndexMap(baseIndexById, appendedItems, baseLength);
+}
+
+class AppendedItemIndexMap<T extends { readonly id: string }> implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "AppendedItemIndexMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly appendedItems: readonly T[],
+		private readonly baseLength: number
+	) {}
+
+	get size(): number {
+		let appendedCount = 0;
+		for (const item of this.appendedItems) {
+			if (item !== undefined && !this.base.has(item.id)) {
+				appendedCount += 1;
+			}
+		}
+		return this.base.size + appendedCount;
+	}
+
+	get(key: string): number | undefined {
+		for (let index = 0; index < this.appendedItems.length; index += 1) {
+			const item = this.appendedItems[index];
+			if (item?.id === key) {
+				return this.baseLength + index;
+			}
+		}
+		return this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
 		}
 	}
-	return nextIndexById;
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		const appendedKeys = new Set<string>();
+		for (let index = 0; index < this.appendedItems.length; index += 1) {
+			const item = this.appendedItems[index];
+			if (item !== undefined) {
+				appendedKeys.add(item.id);
+			}
+		}
+		for (const [key, value] of this.base.entries()) {
+			if (!appendedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+		for (let index = 0; index < this.appendedItems.length; index += 1) {
+			const item = this.appendedItems[index];
+			if (item !== undefined) {
+				yield [item.id, this.baseLength + index];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function selectPatchedOperation(
