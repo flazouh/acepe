@@ -188,6 +188,21 @@ describe("AgentAttachedFilePane", () => {
 
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenLastCalledWith("/repo", "src/b.ts");
+
+		getActiveFilePanelIdMock.mockImplementation(() => "file-a");
+		getActiveAttachedFilePanelMock.mockImplementation(() => nextFilePanels[0]);
+		await view.rerender({
+			ownerPanelId: "panel-1",
+			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
+		});
+
+		await waitFor(() => {
+			expect(view.getByTestId("attached-file-panel").textContent).toBe(
+				"file-a:src/a.ts:/repo:repo:420:3:1"
+			);
+		});
+
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("uses the active file project metadata from the project lookup", () => {

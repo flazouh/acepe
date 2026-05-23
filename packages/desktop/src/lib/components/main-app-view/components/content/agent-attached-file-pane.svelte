@@ -31,6 +31,8 @@ const filePanels = $derived(panelStore.getAttachedFilePanels(ownerPanelId));
 
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 let retainedGitStatusFilePanels: readonly FilePanelType[] | null = null;
+let loadedGitStatusKeys = $state(new Set<string>());
+let retainedLoadedGitStatusFilePanels: readonly FilePanelType[] | null = null;
 
 function createRetainedGitStatusMap(
 	filePanels: readonly FilePanelType[],
@@ -42,6 +44,20 @@ function createRetainedGitStatusMap(
 		nextStatuses.set(key, currentStatuses.get(key) ?? null);
 	}
 	return nextStatuses;
+}
+
+function createRetainedLoadedGitStatusKeySet(
+	filePanels: readonly FilePanelType[],
+	currentKeys: ReadonlySet<string>
+): Set<string> {
+	const nextKeys = new Set<string>();
+	for (const filePanel of filePanels) {
+		const key = getFilePanelStatusKey(filePanel);
+		if (currentKeys.has(key)) {
+			nextKeys.add(key);
+		}
+	}
+	return nextKeys;
 }
 
 const activeFilePanel = $derived.by(() => {
@@ -80,6 +96,7 @@ $effect(() => {
 	const currentFilePanels = filePanels;
 	const currentActiveFilePanel = activeFilePanel;
 	const currentGitStatuses = untrack(() => gitStatusByFilePanelKey);
+	const currentLoadedGitStatusKeys = untrack(() => loadedGitStatusKeys);
 	let cancelled = false;
 
 	// Reset cache to currently relevant tabs only, but keep git metadata lazy.
@@ -98,6 +115,13 @@ $effect(() => {
 		gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 		retainedGitStatusFilePanels = currentFilePanels;
 	}
+	if (retainedLoadedGitStatusFilePanels !== currentFilePanels) {
+		loadedGitStatusKeys = createRetainedLoadedGitStatusKeySet(
+			currentFilePanels,
+			currentLoadedGitStatusKeys
+		);
+		retainedLoadedGitStatusFilePanels = currentFilePanels;
+	}
 
 	if (currentActiveFilePanel === null) {
 		return () => {
@@ -109,6 +133,9 @@ $effect(() => {
 		if (cancelled) return;
 
 		const filePanelStatusKey = getFilePanelStatusKey(currentActiveFilePanel);
+		if (loadedGitStatusKeys.has(filePanelStatusKey)) {
+			return;
+		}
 		gitStatusCache
 			.getProjectFileGitStatusSummary(
 				currentActiveFilePanel.projectPath,
@@ -120,12 +147,14 @@ $effect(() => {
 					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
 					nextGitStatusByFilePanelKey.set(filePanelStatusKey, fileStatus);
 					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+					loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
 				},
 				() => {
 					if (cancelled) return;
 					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
 					nextGitStatusByFilePanelKey.set(filePanelStatusKey, null);
 					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+					loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
 				}
 			);
 	});
