@@ -257,6 +257,27 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return splicedIndex;
 			}
 
+			const previousEntries = previousSceneEntries;
+			if (previousEntries !== null) {
+				const patchedPrefixAppendIndex = patchStablePrefixAppendGraphSceneEntries(
+					entriesById,
+					previousEntries,
+					sceneEntries
+				);
+				if (patchedPrefixAppendIndex !== null) {
+					appendGraphSceneEntriesToIndexes(
+						patchedPrefixAppendIndex,
+						entryIndexesById,
+						sceneEntries,
+						previousEntries.length,
+						previousEntries.length
+					);
+					entriesById = patchedPrefixAppendIndex;
+					previousSceneEntries = sceneEntries;
+					return entriesById;
+				}
+			}
+
 			if (
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
@@ -408,6 +429,41 @@ function patchSameLengthGraphSceneEntries(
 ): Map<string, AgentPanelSceneEntryModel> | null {
 	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
 	for (let index = 0; index < sceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (previousEntry === nextEntry) {
+			continue;
+		}
+		if (
+			previousEntry === undefined ||
+			nextEntry === undefined ||
+			previousEntry.id !== nextEntry.id ||
+			!entriesById.has(nextEntry.id)
+		) {
+			return null;
+		}
+		const currentIndexedEntry = entriesById.get(nextEntry.id);
+		if (currentIndexedEntry !== undefined && areJsonLikeValuesEquivalent(currentIndexedEntry, nextEntry)) {
+			continue;
+		}
+		mutableEntriesById ??= ensureMutableSceneEntryMap(entriesById);
+		mutableEntriesById.set(nextEntry.id, nextEntry);
+	}
+
+	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
+}
+
+function patchStablePrefixAppendGraphSceneEntries(
+	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): Map<string, AgentPanelSceneEntryModel> | null {
+	if (sceneEntries.length <= previousSceneEntries.length) {
+		return null;
+	}
+
+	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
+	for (let index = 0; index < previousSceneEntries.length; index += 1) {
 		const previousEntry = previousSceneEntries[index];
 		const nextEntry = sceneEntries[index];
 		if (previousEntry === nextEntry) {

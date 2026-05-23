@@ -274,6 +274,37 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(nextIndex.get("tool-1")).toBe(changedEntry);
 	});
 
+	it("patches changed prefix entries and appended tail entries without rebuilding the graph entry index", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run first command",
+			status: "pending",
+		};
+		const firstIndex = readModel.applySnapshot([firstEntry]);
+		const changedFirstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run changed command",
+			status: "done",
+		};
+		const appendedEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Run second command",
+			status: "running",
+		};
+
+		const nextIndex = readModel.applySnapshot([changedFirstEntry, appendedEntry]);
+
+		expect(nextIndex).toBe(firstIndex);
+		expect(nextIndex.get("tool-1")).toBe(changedFirstEntry);
+		expect(nextIndex.get("tool-2")).toBe(appendedEntry);
+		expect(readModel.selectEntryIndexById("tool-1")).toBe(0);
+		expect(readModel.selectEntryIndexById("tool-2")).toBe(1);
+	});
+
 	it("skips same-length index writes for content-equivalent scene entries", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const firstEntry: AgentPanelSceneEntryModel = {
