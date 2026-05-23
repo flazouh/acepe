@@ -348,18 +348,7 @@ function reportMissingVirtualizedEntry(index: number | undefined): void {
 	}
 	warnedMissingEntryKeys.add(warningKey);
 
-	const nearbyEntries = displayEntries
-		.slice(Math.max(0, (index ?? 0) - 2), Math.min(displayEntries.length, (index ?? 0) + 3))
-		.map((entry) => {
-			if (!entry) {
-				return { type: "missing" };
-			}
-
-			return {
-				type: entry.type,
-				key: getSceneDisplayRowKey(entry),
-			};
-		});
+	const nearbyEntries = viewportRowsReadModel.selectNearbyRowDiagnostics(index, 2);
 
 	console.warn("[AGENT_PANEL_MISSING_ENTRY]", {
 		panelId,

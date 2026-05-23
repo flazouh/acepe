@@ -35,6 +35,11 @@ export type TranscriptViewportRowSummary = {
 	reason?: TranscriptViewportRowsReason;
 };
 
+export type TranscriptViewportNearbyRowDiagnostic = {
+	readonly type: string;
+	readonly key?: string;
+};
+
 export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummary {
 	return {
 		version: 0,
@@ -57,6 +62,10 @@ export interface TranscriptViewportRowsReadModel {
 	}): TranscriptViewportRowSummary;
 	selectSummary(): TranscriptViewportRowSummary;
 	selectNativeFallbackWindow(limit: number): readonly IndexedViewportEntry<SceneDisplayRow>[];
+	selectNearbyRowDiagnostics(
+		index: number | undefined,
+		radius: number
+	): readonly TranscriptViewportNearbyRowDiagnostic[];
 	selectThinkingDurationMs(index: number, nowMs?: number): number | null;
 }
 
@@ -143,6 +152,9 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			};
 			return window;
 		},
+		selectNearbyRowDiagnostics(index, radius) {
+			return selectNearbyRowDiagnostics(previousRows ?? [], index, radius);
+		},
 		selectThinkingDurationMs(index, nowMs = Date.now()) {
 			const source = thinkingDurationSources[index];
 			if (source === undefined || source.type === "none") {
@@ -154,6 +166,31 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			return Math.max(0, nowMs - source.startedAtMs);
 		},
 	};
+}
+
+function selectNearbyRowDiagnostics(
+	rows: readonly SceneDisplayRow[],
+	index: number | undefined,
+	radius: number
+): readonly TranscriptViewportNearbyRowDiagnostic[] {
+	const safeIndex = index ?? 0;
+	const safeRadius = Math.max(0, radius);
+	const startIndex = Math.max(0, safeIndex - safeRadius);
+	const endIndex = Math.min(rows.length, safeIndex + safeRadius + 1);
+	const diagnostics: TranscriptViewportNearbyRowDiagnostic[] = [];
+	for (let rowIndex = startIndex; rowIndex < endIndex; rowIndex += 1) {
+		const row = rows[rowIndex];
+		if (row === undefined) {
+			diagnostics.push({ type: "missing" });
+			continue;
+		}
+
+		diagnostics.push({
+			type: row.type,
+			key: getSceneDisplayRowKey(row),
+		});
+	}
+	return diagnostics;
 }
 
 export function buildTranscriptViewportRowsSummary(

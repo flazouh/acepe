@@ -156,6 +156,29 @@ describe("createTranscriptViewportRowsReadModel", () => {
 			{ entry: nextRows[3], index: 3 },
 		]);
 	});
+
+	it("selects nearby row diagnostics without exposing row slicing to callers", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		readModel.applyRows({
+			rows: [
+				userRow("user-1"),
+				assistantRow("assistant-1"),
+				toolRow("tool-1"),
+				userRow("user-2"),
+			],
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectNearbyRowDiagnostics(2, 1)).toEqual([
+			{ type: "assistant_merged", key: "assistant-1" },
+			{ type: "tool_call", key: "tool-1" },
+			{ type: "user", key: "user-2" },
+		]);
+		expect(readModel.selectNearbyRowDiagnostics(undefined, 1)).toEqual([
+			{ type: "user", key: "user-1" },
+			{ type: "assistant_merged", key: "assistant-1" },
+		]);
+	});
 });
 
 describe("buildTranscriptViewportRowsSummary", () => {
