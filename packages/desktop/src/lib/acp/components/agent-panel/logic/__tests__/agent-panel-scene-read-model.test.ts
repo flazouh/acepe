@@ -192,4 +192,47 @@ describe("createAgentPanelSceneReadModel", () => {
 			interactionEntry
 		);
 	});
+
+	it("patches stable transcript insertion without copying existing display rows", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Check",
+			status: "done",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, nextToolEntry]);
+		const originalSlice = firstSnapshot.rows.slice;
+
+		firstSnapshot.rows.slice = () => {
+			throw new Error("must not copy existing display rows for stable insertion");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applySnapshot([userEntry, toolEntry, nextToolEntry]);
+
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows[1]).toMatchObject({ id: "tool-1" });
+			expect(patchedSnapshot.rows[2]).toBe(firstSnapshot.rows[1]);
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"tool-1",
+				"tool-2",
+			]);
+		} finally {
+			firstSnapshot.rows.slice = originalSlice;
+		}
+	});
 });
