@@ -3008,6 +3008,45 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("updates existing graph revision from lifecycle payload revision without reusing stale transcript revision", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			revision: {
+				graphRevision: 7,
+				transcriptRevision: 6,
+				lastEventSeq: 7,
+			},
+			transcriptSnapshot: {
+				revision: 6,
+				entries: [],
+			},
+			lifecycle: createGraphLifecycle("ready"),
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
+			graphRevision: 8,
+			transcriptRevision: 7,
+			lastEventSeq: 8,
+		});
+		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot.revision).toBe(6);
+	});
+
 	it("hydrates graph-backed activity from snapshot envelopes", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({

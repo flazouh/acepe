@@ -4627,11 +4627,12 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				if (previousGraph !== null) {
 					this.sessionStateGraphs.set(
 						sessionId,
-						graphWithLifecycle(previousGraph, command.lifecycle, reconciledActivity, {
-							graphRevision: lifecycleRevision.graphRevision,
-							transcriptRevision: previousGraph.revision.transcriptRevision,
-							lastEventSeq: lifecycleRevision.lastEventSeq,
-						})
+						graphWithLifecycle(
+							previousGraph,
+							command.lifecycle,
+							reconciledActivity,
+							lifecycleRevision
+						)
 					);
 				} else {
 					const sessionIdentity = this.getSessionIdentity(sessionId);
