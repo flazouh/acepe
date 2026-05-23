@@ -4899,13 +4899,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	applyTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
 		const currentTranscriptRevision = this.getGraphTranscriptRevision(sessionId);
+		let nextSnapshot: TranscriptSnapshot | null = null;
 		if (
 			currentTranscriptRevision === undefined ||
 			delta.snapshotRevision > currentTranscriptRevision
 		) {
 			const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
 			if (previousGraph !== null) {
-				const nextSnapshot = applyTranscriptDeltaToSnapshot(
+				nextSnapshot = applyTranscriptDeltaToSnapshot(
 					previousGraph.transcriptSnapshot,
 					delta
 				);
@@ -4916,6 +4917,17 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 		}
 		this.entryStore.applyTranscriptDelta(sessionId, delta, new Date());
+		const pendingSendIntent =
+			this.getTransientProjection(sessionId).pendingSendIntent ?? null;
+		if (
+			nextSnapshot !== null &&
+			pendingSendIntent !== null &&
+			transcriptSnapshotAcknowledgesPendingSend(nextSnapshot, pendingSendIntent)
+		) {
+			this.transientProjectionStore.updateTransientProjection(sessionId, {
+				pendingSendIntent: null,
+			});
+		}
 	}
 
 	private applyAssistantTextDelta(sessionId: string, delta: AssistantTextDeltaPayload): void {

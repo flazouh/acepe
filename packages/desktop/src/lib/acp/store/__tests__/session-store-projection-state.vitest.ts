@@ -4728,6 +4728,106 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
+	it("clears pending send intent when a canonical transcript delta accepts the send", async () => {
+		const store = new SessionStore();
+		store.addSession({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "cursor",
+			title: "New Thread",
+			updatedAt: new Date("2026-04-19T00:00:00.000Z"),
+			createdAt: new Date("2026-04-19T00:00:00.000Z"),
+			sessionLifecycleState: "created",
+			parentId: null,
+		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("reserved"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+				})
+			)
+		);
+
+		const result = await store.sendMessage("session-1", "cursor delta acceptance test");
+		expect(result.isOk()).toBe(true);
+
+		const pending = store.getSessionPendingSendIntent("session-1");
+		expect(pending).not.toBeNull();
+		expect(pending).not.toBeUndefined();
+		const attemptId = pending?.attemptId;
+		expect(typeof attemptId).toBe("string");
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 1,
+			lastEventSeq: 1,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 0,
+						transcriptRevision: 0,
+						lastEventSeq: 0,
+					},
+					toRevision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-canonical-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-canonical-1:block:0",
+										text: "cursor delta acceptance test",
+									},
+								],
+								attemptId,
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot", "activity", "turnState"],
+				},
+			},
+		});
+
+		expect(store.getSessionPendingSendIntent("session-1")).toBeNull();
+	});
+
 	it("clears pending send intent when the canonical turn completes without a user attempt id", async () => {
 		const store = new SessionStore();
 		store.addSession({
