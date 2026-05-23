@@ -261,6 +261,143 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		]);
 	});
 
+	it("appends a single transcript delta without iterating the whole stored entry list", () => {
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 5,
+				entries: [
+					{
+						entryId: "user-1",
+						role: "user",
+						segments: [{ kind: "text", segmentId: "user-1:block:0", text: "hello" }],
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:00.000Z")
+		);
+		const entries = readStoredEntries(store, "session-1");
+		const originalIterator = entries[Symbol.iterator];
+
+		entries[Symbol.iterator] = function* () {
+			throw new Error("must not iterate whole stored entry list");
+		};
+
+		try {
+			store.applyTranscriptDelta(
+				"session-1",
+				{
+					eventSeq: 6,
+					sessionId: "session-1",
+					snapshotRevision: 6,
+					operations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:segment:0",
+										text: "hi",
+									},
+								],
+							},
+						},
+					],
+				},
+				new Date("2026-04-16T00:00:01.000Z")
+			);
+
+			const nextEntries = readStoredEntries(store, "session-1");
+			expect(Array.isArray(nextEntries)).toBe(true);
+			expect(nextEntries).toHaveLength(2);
+			expect(nextEntries[0]).toBe(entries[0]);
+			expect(nextEntries[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+			});
+			expect(nextEntries.map((entry) => entry.id)).toEqual(["user-1", "assistant-1"]);
+		} finally {
+			entries[Symbol.iterator] = originalIterator;
+		}
+	});
+
+	it("patches a single transcript segment without iterating the whole stored entry list", () => {
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 5,
+				entries: [
+					{
+						entryId: "user-1",
+						role: "user",
+						segments: [{ kind: "text", segmentId: "user-1:block:0", text: "hello" }],
+					},
+					{
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:segment:0",
+								text: "hi",
+							},
+						],
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:00.000Z")
+		);
+		const entries = readStoredEntries(store, "session-1");
+		const originalIterator = entries[Symbol.iterator];
+
+		entries[Symbol.iterator] = function* () {
+			throw new Error("must not iterate whole stored entry list");
+		};
+
+		try {
+			store.applyTranscriptDelta(
+				"session-1",
+				{
+					eventSeq: 6,
+					sessionId: "session-1",
+					snapshotRevision: 6,
+					operations: [
+						{
+							kind: "appendSegment",
+							entryId: "assistant-1",
+							role: "assistant",
+							segment: {
+								kind: "text",
+								segmentId: "assistant-1:segment:1",
+								text: " there",
+							},
+						},
+					],
+				},
+				new Date("2026-04-16T00:00:01.000Z")
+			);
+
+			const nextEntries = readStoredEntries(store, "session-1");
+			expect(Array.isArray(nextEntries)).toBe(true);
+			expect(nextEntries).toHaveLength(2);
+			expect(nextEntries[0]).toBe(entries[0]);
+			expect(nextEntries[1]).not.toBe(entries[1]);
+			expect(nextEntries[1]?.type).toBe("assistant");
+			if (nextEntries[1]?.type !== "assistant") {
+				throw new Error("expected assistant entry");
+			}
+			expect(nextEntries[1].message.chunks).toEqual([
+				{ type: "message", block: { type: "text", text: "hi" } },
+				{ type: "message", block: { type: "text", text: " there" } },
+			]);
+		} finally {
+			entries[Symbol.iterator] = originalIterator;
+		}
+	});
+
 	it("applies user and tool transcript deltas with runtime side effects", () => {
 		const operationStore = new OperationStore();
 		store = new SessionEntryStore(operationStore);

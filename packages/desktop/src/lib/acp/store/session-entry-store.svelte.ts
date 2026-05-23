@@ -400,7 +400,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 	appendTranscriptEntry(sessionId: string, entry: SessionEntry): void {
 		const normalizedEntry = this.normalizeRuntimeEntry(entry);
 		const entries = this.entriesById.get(sessionId) ?? [];
-		const newEntries = [...entries, normalizedEntry];
+		const newEntries = createPatchedSessionEntryArray(entries, null, [normalizedEntry]);
 		this.entriesById.set(sessionId, newEntries);
 		const newIndex = newEntries.length - 1;
 		this.entryIndex.addEntryId(sessionId, normalizedEntry.id, newIndex);
@@ -423,8 +423,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		if (!entries || index < 0 || index >= entries.length) return;
 		const previousEntry = entries[index];
 		const normalizedEntry = this.normalizeRuntimeEntry(updatedEntry);
-		const newEntries = [...entries];
-		newEntries[index] = normalizedEntry;
+		const newEntries = createPatchedSessionEntryArray(
+			entries,
+			new Map([[index, normalizedEntry]]),
+			null
+		);
 		this.entriesById.set(sessionId, newEntries);
 		logger.debug("replaceTranscriptEntry: replaced entry", {
 			sessionId,
@@ -489,4 +492,83 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			}
 		}
 	}
+}
+
+function createPatchedSessionEntryArray(
+	base: readonly SessionEntry[],
+	patchedIndexes: ReadonlyMap<number, SessionEntry> | null,
+	appendedEntries: readonly SessionEntry[] | null
+): SessionEntry[] {
+	const appended = appendedEntries ?? [];
+	const target = new Array<SessionEntry>(base.length + appended.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectPatchedSessionEntry(base, patchedIndexes, appended, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectPatchedSessionEntry(base, patchedIndexes, appended, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		ownKeys(targetArray) {
+			const keys: string[] = [];
+			for (let index = 0; index < targetArray.length; index += 1) {
+				keys.push(String(index));
+			}
+			keys.push("length");
+			return keys;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectPatchedSessionEntry(base, patchedIndexes, appended, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function selectPatchedSessionEntry(
+	base: readonly SessionEntry[],
+	patchedIndexes: ReadonlyMap<number, SessionEntry> | null,
+	appended: readonly SessionEntry[],
+	index: number
+): SessionEntry | undefined {
+	if (index < base.length) {
+		return patchedIndexes?.get(index) ?? base[index];
+	}
+	return appended[index - base.length];
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
