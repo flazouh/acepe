@@ -295,6 +295,10 @@ export function appendVirtualizedDisplayEntriesFromSceneRange(
 			pushSceneEntryIntoDisplayRows(appendedRows, entry);
 			continue;
 		}
+		const replacedTailRows = createMergedTailVirtualizedDisplayEntryArray(currentRows, entry);
+		if (replacedTailRows !== null && index === sceneEntries.length - 1) {
+			return replacedTailRows;
+		}
 		copiedRows = currentRows.slice();
 		pushSceneEntryIntoDisplayRows(copiedRows, entry);
 	}
@@ -320,6 +324,84 @@ function canAppendSceneEntryWithoutMutatingTail(
 		!isMergedAssistantDisplayEntry(previous) ||
 		!shouldMergeSceneAssistantEntry(previous, entry)
 	);
+}
+
+function createMergedTailVirtualizedDisplayEntryArray(
+	baseRows: readonly VirtualizedDisplayEntry[],
+	entry: AgentPanelSceneEntryModel
+): readonly VirtualizedDisplayEntry[] | null {
+	if (entry.type !== "assistant") {
+		return null;
+	}
+	const previous = baseRows.at(-1);
+	if (
+		previous === undefined ||
+		!isMergedAssistantDisplayEntry(previous) ||
+		!shouldMergeSceneAssistantEntry(previous, entry)
+	) {
+		return null;
+	}
+	return createReplacedTailVirtualizedDisplayEntryArray(
+		baseRows,
+		mergeSceneAssistantEntry(previous, entry)
+	);
+}
+
+function createReplacedTailVirtualizedDisplayEntryArray(
+	baseRows: readonly VirtualizedDisplayEntry[],
+	tailRow: VirtualizedDisplayEntry
+): readonly VirtualizedDisplayEntry[] {
+	const target = new Array<VirtualizedDisplayEntry>(baseRows.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectReplacedTailVirtualizedDisplayEntry(baseRows, tailRow, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectReplacedTailVirtualizedDisplayEntry(baseRows, tailRow, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectReplacedTailVirtualizedDisplayEntry(baseRows, tailRow, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			const keys: string[] = [];
+			for (let index = 0; index < targetArray.length; index += 1) {
+				keys.push(String(index));
+			}
+			keys.push("length");
+			return keys;
+		},
+	}) as VirtualizedDisplayEntry[];
 }
 
 function createAppendedVirtualizedDisplayEntryArray(
@@ -388,6 +470,14 @@ function selectAppendedVirtualizedDisplayEntry(
 		return baseRows[index];
 	}
 	return appendedRows[index - baseRows.length];
+}
+
+function selectReplacedTailVirtualizedDisplayEntry(
+	baseRows: readonly VirtualizedDisplayEntry[],
+	tailRow: VirtualizedDisplayEntry,
+	index: number
+): VirtualizedDisplayEntry | undefined {
+	return index === baseRows.length - 1 ? tailRow : baseRows[index];
 }
 
 function toArrayIndex(property: string): number | null {

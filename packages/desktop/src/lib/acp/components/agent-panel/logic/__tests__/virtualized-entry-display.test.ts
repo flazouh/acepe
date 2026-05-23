@@ -484,6 +484,34 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 		}
 	});
 
+	it("merges a scene assistant tail without copying current rows", () => {
+		const currentRows = buildVirtualizedDisplayEntriesFromScene([
+			{ type: "assistant", id: "a1", markdown: "first ", isStreaming: false },
+		]);
+		const originalSlice = currentRows.slice;
+
+		currentRows.slice = () => {
+			throw new Error("must not copy current virtualized rows for a tail merge");
+		};
+
+		try {
+			const nextRows = appendVirtualizedDisplayEntriesFromScene(currentRows, [
+				{ type: "assistant", id: "a2", markdown: "second", isStreaming: false },
+			]);
+
+			expect(nextRows).toHaveLength(1);
+			expect(nextRows[0]).not.toBe(currentRows[0]);
+			expect(getVirtualizedDisplayEntryKey(nextRows[0]!)).toBe("a1");
+			expect(nextRows[0]).toMatchObject({
+				type: "assistant_merged",
+				memberIds: ["a1", "a2"],
+				markdown: "first second",
+			});
+		} finally {
+			currentRows.slice = originalSlice;
+		}
+	});
+
 	it("characterizes destructive scene-row shape changes by ordered display keys", () => {
 		const initial: AgentPanelSceneEntryModel[] = [
 			{ type: "user", id: "u1", text: "prompt", isOptimistic: false },
