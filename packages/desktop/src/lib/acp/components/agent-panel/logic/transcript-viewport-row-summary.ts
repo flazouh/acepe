@@ -856,13 +856,77 @@ function createTruncatedRowIndexByKey(
 	baseIndexByKey: ReadonlyMap<string, number> | undefined,
 	length: number
 ): ReadonlyMap<string, number> {
-	const nextIndexByKey = new Map<string, number>();
-	for (const [key, index] of baseIndexByKey ?? []) {
-		if (index < length) {
-			nextIndexByKey.set(key, index);
+	if (baseIndexByKey === undefined) {
+		return new Map();
+	}
+	return new TruncatedRowIndexByKeyMap(baseIndexByKey, length);
+}
+
+class TruncatedRowIndexByKeyMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "TruncatedRowIndexByKeyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly length: number
+	) {}
+
+	get size(): number {
+		return Math.min(this.base.size, this.length);
+	}
+
+	get(key: string): number | undefined {
+		const index = this.base.get(key);
+		return index !== undefined && index < this.length ? index : undefined;
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
 		}
 	}
-	return nextIndexByKey;
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		for (const [key, index] of this.base.entries()) {
+			if (index < this.length) {
+				yield [key, index];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function createReplacedTailArrayView<T>(baseItems: readonly T[], tailItem: T): readonly T[] {

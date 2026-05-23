@@ -462,12 +462,10 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.lastKey).toBe("assistant-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
 		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1"]);
-		expect(nextSummary.rowIndexByKey).toEqual(
-			new Map([
-				["user-1", 0],
-				["assistant-1", 1],
-			])
-		);
+		expect(Array.from(nextSummary.rowIndexByKey?.entries() ?? [])).toEqual([
+			["user-1", 0],
+			["assistant-1", 1],
+		]);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1"]);
 		expect(nextSummary.hasToolCallEntry).toBe(false);
 		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(true);
@@ -518,6 +516,43 @@ describe("createTranscriptViewportRowsReadModel", () => {
 				firstSummary.rowKeys.slice = rowKeysSlice;
 			}
 			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
+		}
+	});
+
+	it("truncates same-prefix row indexes without cloning the previous index", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [
+			userRow("user-1"),
+			assistantRow("assistant-1"),
+			toolRow("tool-1"),
+		];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const rowIndexByKey = firstSummary.rowIndexByKey as
+			| (ReadonlyMap<string, number> & Record<symbol, unknown>)
+			| undefined;
+		const originalIterator = rowIndexByKey?.[Symbol.iterator];
+		if (rowIndexByKey !== undefined) {
+			rowIndexByKey[Symbol.iterator] = () => {
+				throw new Error("must not clone previous row index for truncation");
+			};
+		}
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: firstRows.slice(0, 2),
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBe(1);
+			expect(nextSummary.rowIndexByKey?.get("tool-1")).toBeUndefined();
+		} finally {
+			if (rowIndexByKey !== undefined && originalIterator !== undefined) {
+				rowIndexByKey[Symbol.iterator] = originalIterator;
+			}
 		}
 	});
 
