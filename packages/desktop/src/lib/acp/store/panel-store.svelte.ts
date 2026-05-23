@@ -476,6 +476,7 @@ export class PanelStore {
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
+	private browserPanelById = new SvelteMap<string, BrowserPanel>();
 	private terminalPanelGroupById = new SvelteMap<string, TerminalPanelGroup>();
 	private terminalPanelGroupsByProject = new SvelteMap<string, TerminalPanelGroup[]>();
 	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
@@ -1003,8 +1004,10 @@ export class PanelStore {
 	}
 
 	private syncBrowserPanelIndexes(nextPanels: readonly BrowserPanel[]): void {
+		this.browserPanelById.clear();
 		const groupedPanels = new Map<string, BrowserPanel[]>();
 		for (const panel of nextPanels) {
+			this.browserPanelById.set(panel.id, panel);
 			const existing = groupedPanels.get(panel.projectPath);
 			if (existing) {
 				existing.push(panel);
@@ -1218,7 +1221,7 @@ export class PanelStore {
 	readonly gitPanelCount = $derived(this.gitPanels.length);
 	gitDialog = $state<GitDialogState | null>(null);
 
-	readonly browserPanelCount = $derived(this.browserPanels.length);
+	readonly browserPanelCount = $derived(this.browserPanelById.size);
 
 	// ============================================
 	// HOT STATE MANAGEMENT
@@ -3033,7 +3036,7 @@ export class PanelStore {
 		if (!projectPath) {
 			logger.warn("openBrowserPanel called without projectPath", { url });
 		}
-		const existing = this.browserPanels.find((p) => p.projectPath === projectPath && p.url === url);
+		const existing = this.getBrowserPanelsForProject(projectPath).find((p) => p.url === url);
 		if (existing) {
 			this.focusOpenedTopLevelPanel(existing.id);
 			logger.debug("Browser panel already open for URL, focusing", { url, projectPath });
@@ -3088,7 +3091,7 @@ export class PanelStore {
 	 * Get a browser panel by ID.
 	 */
 	getBrowserPanel(panelId: string): BrowserPanel | undefined {
-		return this.browserPanels.find((p) => p.id === panelId);
+		return this.browserPanelById.get(panelId);
 	}
 
 	getBrowserPanelsForProject(projectPath: string): BrowserPanel[] {

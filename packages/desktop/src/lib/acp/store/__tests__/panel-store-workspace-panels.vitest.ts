@@ -614,6 +614,24 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.getBrowserPanelsForProject("/tmp/missing")).toEqual([]);
 	});
 
+	it("selects browser panels and count without filtering workspace panels", () => {
+		const store = createStore();
+		const browserPanel = store.openBrowserPanel("/tmp/project", "https://example.com", "Example");
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels for browser-panel selectors");
+		};
+
+		try {
+			expect(store.browserPanelCount).toBe(1);
+			expect(store.getBrowserPanel(browserPanel.id)).toBe(browserPanel);
+			expect(store.getBrowserPanelsForProject("/tmp/project")).toEqual([browserPanel]);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("keeps terminal group indexes current across open, move, and close", () => {
 		const store = createStore();
 		const firstGroup = store.openTerminalPanel("/tmp/project");
