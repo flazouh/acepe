@@ -1318,4 +1318,41 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		});
 	});
+
+	it("refreshes when an assistant text delta envelope frontier disagrees with the delta revision", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "assistantTextDelta",
+				delta: {
+					turnId: "turn-1",
+					rowId: "assistant-1",
+					charOffset: 0,
+					deltaText: "hello",
+					producedAtMonotonicMs: 12,
+					revision: 9,
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 7,
+					lastEventSeq: 7,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 9,
+				toRevision: 8,
+			},
+		]);
+	});
 });

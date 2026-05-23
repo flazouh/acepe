@@ -127,6 +127,13 @@ function envelopeFrontierMatchesRevision(
 	);
 }
 
+function envelopeFrontierMatchesAssistantTextDelta(
+	envelope: Pick<SessionStateEnvelope, "graphRevision" | "lastEventSeq">,
+	delta: AssistantTextDeltaPayload
+): boolean {
+	return envelope.graphRevision === delta.revision && envelope.lastEventSeq === delta.revision;
+}
+
 function commandFromDeltaResolution(
 	resolution: SessionStateDeltaResolution
 ): SessionStateCommand[] {
@@ -457,6 +464,15 @@ export function routeSessionStateEnvelope(
 			return commands;
 		}
 		case "assistantTextDelta":
+			if (!envelopeFrontierMatchesAssistantTextDelta(envelope, envelope.payload.delta)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.revision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyAssistantTextDelta",
