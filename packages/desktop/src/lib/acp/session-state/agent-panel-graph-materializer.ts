@@ -87,7 +87,29 @@ function assistantMarkdownText(entry: TranscriptEntry): string {
 			text += segment.text;
 		}
 	}
+
 	return text;
+}
+
+interface CachedConversationInput {
+	readonly graph: AgentPanelCanonicalSource;
+}
+
+interface CachedConversationState {
+	readonly transcriptEntries: AgentPanelCanonicalSource["transcriptSnapshot"]["entries"];
+	readonly operations: AgentPanelCanonicalSource["operations"];
+	readonly interactions: AgentPanelCanonicalSource["interactions"];
+	readonly turnState: AgentPanelCanonicalSource["turnState"];
+	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
+	readonly activity: AgentPanelCanonicalSource["activity"];
+	readonly conversation: {
+		entries: readonly AgentPanelSceneEntryModel[];
+		isStreaming: boolean;
+	};
+}
+
+export interface AgentPanelGraphMaterializerReadModel {
+	apply(input: AgentPanelGraphMaterializerInput): AgentPanelSceneModel;
 }
 
 function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry) {
@@ -645,6 +667,110 @@ function materializeConversation(graph: AgentPanelCanonicalSource): {
 	return {
 		entries,
 		isStreaming: isRunning,
+	};
+}
+
+function canReuseConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): previous is CachedConversationState {
+	const graph = input.graph;
+	return (
+		previous !== null &&
+		previous.transcriptEntries === graph.transcriptSnapshot.entries &&
+		previous.operations === graph.operations &&
+		previous.interactions === graph.interactions &&
+		previous.turnState === graph.turnState &&
+		previous.activeStreamingTail === graph.activeStreamingTail &&
+		previous.activity === graph.activity
+	);
+}
+
+function materializeCachedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState {
+	if (canReuseConversation(previous, input)) {
+		return previous;
+	}
+
+	const conversation = materializeConversation(input.graph);
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		conversation,
+	};
+}
+
+function materializeAgentPanelSceneFromConversation(
+	input: AgentPanelGraphMaterializerInput,
+	conversation: {
+		entries: readonly AgentPanelSceneEntryModel[];
+		isStreaming: boolean;
+	}
+): AgentPanelSceneModel {
+	if (input.graph === null) {
+		return materializeAgentPanelSceneFromGraph(input);
+	}
+
+	const status = mapGraphStatus(input.graph);
+	let conversationEntries: readonly AgentPanelSceneEntryModel[] = conversation.entries;
+	if (input.optimistic?.pendingUserEntry != null) {
+		const mapped = mapSessionEntryToConversationEntry(
+			input.optimistic.pendingUserEntry,
+			undefined,
+			{ isOptimistic: true }
+		);
+		conversationEntries = insertOptimisticUserEntryAtTurnBoundary(conversationEntries, mapped);
+	}
+
+	return {
+		panelId: input.panelId,
+		status,
+		lifecycle: materializeLifecycle(input.graph),
+		header: {
+			title: input.header.title,
+			subtitle: input.header.subtitle ?? null,
+			status,
+			agentIconSrc: input.header.agentIconSrc ?? null,
+			agentLabel: input.header.agentLabel ?? null,
+			projectLabel: input.header.projectLabel ?? null,
+			projectColor: input.header.projectColor ?? null,
+			sequenceId: input.header.sequenceId ?? null,
+			branchLabel: input.header.branchLabel ?? null,
+			actions: input.header.actions ?? buildLifecycleActions(input.graph),
+		},
+		conversation: {
+			entries: conversationEntries,
+			isStreaming: conversation.isStreaming,
+		},
+		composer: input.composer ?? null,
+		strips: input.strips ?? [],
+		cards: input.cards ?? [],
+		sidebars: input.sidebars ?? null,
+		chrome: input.chrome ?? null,
+	};
+}
+
+export function createAgentPanelGraphMaterializerReadModel(): AgentPanelGraphMaterializerReadModel {
+	let previousConversation: CachedConversationState | null = null;
+
+	return {
+		apply(input) {
+			if (input.graph === null) {
+				previousConversation = null;
+				return materializeAgentPanelSceneFromGraph(input);
+			}
+
+			previousConversation = materializeCachedConversation(previousConversation, {
+				graph: input.graph,
+			});
+			return materializeAgentPanelSceneFromConversation(input, previousConversation.conversation);
+		},
 	};
 }
 

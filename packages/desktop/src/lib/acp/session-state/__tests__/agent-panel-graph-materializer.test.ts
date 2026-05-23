@@ -15,6 +15,7 @@ import type { SessionEntry } from "../../application/dto/session-entry.js";
 import {
 	AGENT_PANEL_SCENE_TEXT_LIMITS,
 	applySceneTextLimits,
+	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
 
@@ -227,6 +228,41 @@ function createGraph(input: {
 }
 
 describe("agent panel graph materializer", () => {
+	it("reuses conversation rows when only lifecycle changes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "hello"),
+			createTranscriptEntry("assistant-1", "assistant", "hi"),
+		]);
+		const graph = createGraph({ transcriptSnapshot });
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextGraph = {
+			...graph,
+			revision: {
+				graphRevision: 10,
+				transcriptRevision: graph.revision.transcriptRevision,
+				lastEventSeq: 43,
+			},
+			lifecycle: {
+				...graph.lifecycle,
+				status: "reconnecting" as const,
+			},
+		};
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: nextGraph,
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.status).toBe("warming");
+		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
 	it("projects canonical transcript timestamps directly into message scene entries", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			{

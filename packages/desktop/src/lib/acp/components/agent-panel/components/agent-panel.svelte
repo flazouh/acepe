@@ -79,7 +79,7 @@ import {
 	resolveEffectiveProjectPath,
 	shouldConfirmWorktreeClose,
 } from "../logic";
-import { materializeAgentPanelSceneFromGraph } from "../../../session-state/agent-panel-graph-materializer.js";
+import { createAgentPanelGraphMaterializerReadModel } from "../../../session-state/agent-panel-graph-materializer.js";
 import { resolveAgentPanelWorktreePending } from "../logic/worktree-pending.js";
 import { getWorktreeDefaultStore } from "../../worktree/worktree-default-store.svelte.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
@@ -843,6 +843,7 @@ const sessionDiffStats = $derived.by(() => {
 });
 const sessionCreatedAt = $derived(sessionMetadata?.createdAt ?? null);
 const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
+const graphSceneMaterializer = createAgentPanelGraphMaterializerReadModel();
 
 const effectivePanelProviderBrand = $derived.by(() => {
 	if (!effectivePanelAgentId) {
@@ -859,7 +860,7 @@ const effectivePanelProviderBrand = $derived.by(() => {
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
 const graphMaterializedScene = $derived(
-	materializeAgentPanelSceneFromGraph({
+	graphSceneMaterializer.apply({
 		panelId: effectivePanelId,
 		graph: agentPanelCanonicalSource,
 		header: {
