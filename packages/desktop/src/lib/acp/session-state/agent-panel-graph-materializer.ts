@@ -1844,6 +1844,14 @@ function materializeStableInteractionAppendedConversation(
 		previousVisibleEntries[0] ?? null;
 	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
 	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
+	const appendedInteractions = collectAppendedInteractions(
+		input.graph.interactions,
+		previous.interactions.length
+	);
+	const interactionById = createAppendedInteractionIndex(
+		previous.interactionById,
+		appendedInteractions
+	);
 	if (nextBlockingInteractionId === previousBlockingInteractionId) {
 		return {
 			...previous,
@@ -1855,15 +1863,6 @@ function materializeStableInteractionAppendedConversation(
 	if (nextBlockingInteractionId === null) {
 		return null;
 	}
-
-	const appendedInteractions = collectAppendedInteractions(
-		input.graph.interactions,
-		previous.interactions.length
-	);
-	const interactionById = createAppendedInteractionIndex(
-		previous.interactionById,
-		appendedInteractions
-	);
 	let nextVisibleEntry: AgentPanelSceneEntryModel | null = null;
 	for (const interaction of appendedInteractions) {
 		if (interaction.id !== nextBlockingInteractionId) {

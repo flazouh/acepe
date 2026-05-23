@@ -2598,6 +2598,14 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not scan unchanged interactions for an interaction removal patch");
 			},
 		});
+		Object.defineProperty(nextInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error(
+					"must not scan unchanged next interactions for an interaction removal patch"
+				);
+			},
+		});
 
 		try {
 			const nextScene = readModel.apply({
@@ -2625,6 +2633,10 @@ describe("agent panel graph materializer", () => {
 			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
 		} finally {
 			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: hiddenInteraction,
+			});
+			Object.defineProperty(nextInteractions, "0", {
 				configurable: true,
 				value: hiddenInteraction,
 			});
