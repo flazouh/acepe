@@ -407,6 +407,34 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
 	});
 
+	it("reuses the projection when scene entries change without visible row changes", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const firstSceneEntries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true },
+		];
+		const equivalentSceneEntries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "Answer", isStreaming: true },
+		];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: firstSceneEntries,
+			transcriptRevision: 1,
+		});
+
+		const nextProjection = readModel.applySnapshot({
+			sceneEntries: equivalentSceneEntries,
+			transcriptRevision: 1,
+		});
+		const repeatedProjection = readModel.applySnapshot({
+			sceneEntries: equivalentSceneEntries,
+			transcriptRevision: 1,
+		});
+
+		expect(nextProjection).toBe(firstProjection);
+		expect(repeatedProjection).toBe(firstProjection);
+	});
+
 	it("keeps existing display rows stable when an append advances transcript revision", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
