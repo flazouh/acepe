@@ -35,7 +35,8 @@ if (forbiddenDeps.length > 0) {
 
 const sourceRoot = join(process.cwd(), "src", "lib", "acp");
 const sourceExtensions = new Set([".ts", ".svelte"]);
-const forbiddenImportPattern = /from\s+["'](?:virtua|@virtua\/[^"']+)["']/;
+const forbiddenImportPattern =
+	/(?:from\s+|import\s*)["'](?:virtua|@virtua\/[^"']+)["']|import\s*\(\s*["'](?:virtua|@virtua\/[^"']+)["']\s*\)/;
 
 function collectSourceFiles(root: string): string[] {
 	const stats = statSync(root);
