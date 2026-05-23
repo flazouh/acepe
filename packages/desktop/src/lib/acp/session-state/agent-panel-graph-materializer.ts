@@ -68,7 +68,7 @@ export interface AgentPanelGraphMaterializerInput {
 interface OperationIndex {
 	readonly byOperationId: Map<string, OperationSnapshot>;
 	readonly byTranscriptSourceEntryId: Map<string, OperationSnapshot>;
-	readonly parentsByChildOperationId: Map<string, readonly OperationSnapshot[]>;
+	readonly parentsByChildOperationId: Map<string, OperationSnapshot[]>;
 }
 
 function segmentText(entry: TranscriptEntry): string {
@@ -899,8 +899,15 @@ function materializeOperationPatchedConversation(
 		return null;
 	}
 
-	const operationIndex = buildOperationIndex(input.graph.operations);
-	const changedOperationIds = collectChangedOperationIds(previous.operationIndex, operationIndex);
+	const operationPatch = applyOperationIndexPatch(
+		previous.operations,
+		input.graph.operations,
+		previous.operationIndex
+	);
+	if (operationPatch === null) {
+		return null;
+	}
+	const { operationIndex, changedOperationIds } = operationPatch;
 	if (changedOperationIds.size === 0) {
 		return {
 			...previous,
@@ -959,22 +966,116 @@ function materializeOperationPatchedConversation(
 	};
 }
 
-function collectChangedOperationIds(
-	previousOperationIndex: OperationIndex,
-	operationIndex: OperationIndex
-): Set<string> {
-	const changed = new Set<string>();
-	for (const [operationId, nextOperation] of operationIndex.byOperationId) {
-		if (previousOperationIndex.byOperationId.get(operationId) !== nextOperation) {
-			changed.add(operationId);
+function applyOperationIndexPatch(
+	previousOperations: readonly OperationSnapshot[],
+	nextOperations: readonly OperationSnapshot[],
+	previousIndex: OperationIndex
+): { operationIndex: OperationIndex; changedOperationIds: Set<string> } | null {
+	if (nextOperations.length < previousOperations.length) {
+		return null;
+	}
+
+	let operationIndex: OperationIndex | null = null;
+	const changedOperationIds = new Set<string>();
+
+	for (let index = 0; index < previousOperations.length; index += 1) {
+		const previousOperation = previousOperations[index];
+		const nextOperation = nextOperations[index];
+		if (previousOperation === undefined || nextOperation === undefined) {
+			return null;
+		}
+		if (previousOperation.id !== nextOperation.id) {
+			return null;
+		}
+		if (previousOperation === nextOperation) {
+			continue;
+		}
+
+		operationIndex ??= cloneOperationIndex(previousIndex);
+		replaceOperationInIndex(operationIndex, previousOperation, nextOperation);
+		changedOperationIds.add(nextOperation.id);
+	}
+
+	if (nextOperations.length > previousOperations.length) {
+		operationIndex ??= cloneOperationIndex(previousIndex);
+		for (let index = previousOperations.length; index < nextOperations.length; index += 1) {
+			const operation = nextOperations[index];
+			if (operation === undefined) {
+				return null;
+			}
+			addOperationToIndex(operationIndex, operation);
+			changedOperationIds.add(operation.id);
 		}
 	}
-	for (const operationId of previousOperationIndex.byOperationId.keys()) {
-		if (!operationIndex.byOperationId.has(operationId)) {
-			changed.add(operationId);
+
+	return {
+		operationIndex: operationIndex ?? previousIndex,
+		changedOperationIds,
+	};
+}
+
+function cloneOperationIndex(index: OperationIndex): OperationIndex {
+	return {
+		byOperationId: new Map(index.byOperationId),
+		byTranscriptSourceEntryId: new Map(index.byTranscriptSourceEntryId),
+		parentsByChildOperationId: cloneParentOperationIndex(index.parentsByChildOperationId),
+	};
+}
+
+function cloneParentOperationIndex(
+	index: ReadonlyMap<string, readonly OperationSnapshot[]>
+): Map<string, OperationSnapshot[]> {
+	const cloned = new Map<string, OperationSnapshot[]>();
+	for (const [childOperationId, parents] of index) {
+		cloned.set(childOperationId, parents.slice());
+	}
+	return cloned;
+}
+
+function replaceOperationInIndex(
+	index: OperationIndex,
+	previousOperation: OperationSnapshot,
+	nextOperation: OperationSnapshot
+): void {
+	removeOperationFromIndex(index, previousOperation);
+	addOperationToIndex(index, nextOperation);
+}
+
+function addOperationToIndex(index: OperationIndex, operation: OperationSnapshot): void {
+	index.byOperationId.set(operation.id, operation);
+	if (operation.source_link.kind === "transcript_linked") {
+		index.byTranscriptSourceEntryId.set(operation.source_link.entry_id, operation);
+	}
+	for (const childOperationId of operation.child_operation_ids) {
+		const parents = index.parentsByChildOperationId.get(childOperationId);
+		if (parents === undefined) {
+			index.parentsByChildOperationId.set(childOperationId, [operation]);
+			continue;
+		}
+		parents.push(operation);
+	}
+}
+
+function removeOperationFromIndex(index: OperationIndex, operation: OperationSnapshot): void {
+	index.byOperationId.delete(operation.id);
+	if (operation.source_link.kind === "transcript_linked") {
+		const linkedOperation = index.byTranscriptSourceEntryId.get(operation.source_link.entry_id);
+		if (linkedOperation?.id === operation.id) {
+			index.byTranscriptSourceEntryId.delete(operation.source_link.entry_id);
 		}
 	}
-	return changed;
+	for (const childOperationId of operation.child_operation_ids) {
+		const parents = index.parentsByChildOperationId.get(childOperationId);
+		if (parents === undefined) {
+			continue;
+		}
+		const nextParents = parents.filter((parent) => parent.id !== operation.id);
+		if (nextParents.length === 0) {
+			index.parentsByChildOperationId.delete(childOperationId);
+			continue;
+		}
+		index.parentsByChildOperationId.set(childOperationId, nextParents);
+	}
 }
 
 function collectAffectedTranscriptEntryIds(
