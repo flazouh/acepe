@@ -741,6 +741,11 @@ function materializeCachedConversation(
 		return operationPatched;
 	}
 
+	const transcriptPatched = materializeTranscriptPatchedConversation(previous, input);
+	if (transcriptPatched !== null) {
+		return transcriptPatched;
+	}
+
 	const transcriptAppended = materializeTranscriptAppendedConversation(previous, input);
 	if (transcriptAppended !== null) {
 		return transcriptAppended;
@@ -764,6 +769,89 @@ function materializeCachedConversation(
 		transcriptEntryById: buildTranscriptEntryIndex(input.graph.transcriptSnapshot.entries),
 		conversation,
 		sceneEntryRowIndex: buildSceneEntryRowIndex(conversation.entries),
+	};
+}
+
+function materializeTranscriptPatchedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.operations !== input.graph.operations ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
+		previous.activity !== input.graph.activity ||
+		previous.transcriptEntries.length !== input.graph.transcriptSnapshot.entries.length
+	) {
+		return null;
+	}
+
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let transcriptEntryById: Map<string, TranscriptEntry> | null = null;
+	const isRunning = input.graph.turnState === "Running";
+	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+
+	for (let index = 0; index < transcriptEntries.length; index += 1) {
+		const previousTranscriptEntry = previous.transcriptEntries[index];
+		const nextTranscriptEntry = transcriptEntries[index];
+		if (previousTranscriptEntry === undefined || nextTranscriptEntry === undefined) {
+			return null;
+		}
+		if (previousTranscriptEntry.entryId !== nextTranscriptEntry.entryId) {
+			return null;
+		}
+		if (previousTranscriptEntry === nextTranscriptEntry) {
+			continue;
+		}
+
+		transcriptEntryById ??= new Map(previous.transcriptEntryById);
+		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		const rowIndex = previous.sceneEntryRowIndex.get(nextTranscriptEntry.entryId);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousSceneEntry = previous.conversation.entries[rowIndex];
+		if (previousSceneEntry === undefined) {
+			return null;
+		}
+		const nextSceneEntry = materializeTranscriptEntry(
+			nextTranscriptEntry,
+			input.graph,
+			previous.operationIndex,
+			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
+		);
+		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
+			continue;
+		}
+		nextEntries ??= previous.conversation.entries.slice();
+		nextEntries[rowIndex] = nextSceneEntry;
+	}
+
+	if (nextEntries === null) {
+		return {
+			...previous,
+			transcriptEntries,
+			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		};
+	}
+
+	return {
+		transcriptEntries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
 

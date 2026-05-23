@@ -577,6 +577,68 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("patches one transcript row without rebuilding unaffected conversation rows", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
+		const streamingAssistantEntry = createTranscriptEntry(
+			"assistant-2",
+			"assistant",
+			"stream"
+		);
+		const patchedStreamingAssistantEntry = createTranscriptEntry(
+			"assistant-2",
+			"assistant",
+			"streaming update"
+		);
+		const transcriptSnapshot = createTranscriptSnapshot([
+			userEntry,
+			firstAssistantEntry,
+			streamingAssistantEntry,
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activeStreamingTail: {
+				rowId: "assistant-2",
+				contentKind: "message",
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				transcriptSnapshot: {
+					revision: transcriptSnapshot.revision + 1,
+					entries: [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry],
+				},
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: transcriptSnapshot.revision + 1,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).not.toBe(firstScene.conversation.entries[2]);
+		expect(nextScene.conversation.entries[2]).toMatchObject({
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "streaming update",
+			isStreaming: true,
+		});
+	});
+
 	it("projects canonical transcript timestamps directly into message scene entries", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			{
