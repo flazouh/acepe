@@ -240,6 +240,11 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			}
 
 			baseEntriesByIdBeforeTokenReveal = null;
+			const truncatedIndex = applyGraphSceneTruncation(sceneEntries);
+			if (truncatedIndex !== null) {
+				return truncatedIndex;
+			}
+
 			const splicedIndex = applyGraphSceneSplice(sceneEntries);
 			if (splicedIndex !== null) {
 				return splicedIndex;
