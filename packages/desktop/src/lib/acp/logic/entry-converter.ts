@@ -202,7 +202,11 @@ export function convertRustEntryToStoredEntry(entry: RustStoredEntry): StoredEnt
  * @returns Array of StoredEntry for frontend storage
  */
 export function convertRustEntriesToStoredEntries(entries: RustStoredEntry[]): StoredEntry[] {
-	return entries.map(convertRustEntryToStoredEntry);
+	const storedEntries: StoredEntry[] = [];
+	for (const entry of entries) {
+		storedEntries.push(convertRustEntryToStoredEntry(entry));
+	}
+	return storedEntries;
 }
 
 /**

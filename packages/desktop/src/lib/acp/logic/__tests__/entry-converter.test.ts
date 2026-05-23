@@ -441,6 +441,37 @@ describe("entry-converter", () => {
 			expect(result.map((e) => e.id)).toEqual(["1", "2", "3"]);
 		});
 
+		it("should convert entries without using the array map helper", () => {
+			const rustEntries: RustStoredEntry[] = [
+				{
+					type: "user",
+					id: "1",
+					message: {},
+					timestamp: "2024-01-01T00:00:00Z",
+				},
+				{
+					type: "assistant",
+					id: "2",
+					message: {},
+					timestamp: "2024-01-01T00:01:00Z",
+				},
+			];
+			const originalMap = rustEntries.map;
+			rustEntries.map = () => {
+				throw new Error("must not use map while converting Rust entries");
+			};
+
+			try {
+				const result = convertRustEntriesToStoredEntries(rustEntries);
+
+				expect(result).toHaveLength(2);
+				expect(result[0].id).toBe("1");
+				expect(result[1].id).toBe("2");
+			} finally {
+				rustEntries.map = originalMap;
+			}
+		});
+
 		it("should handle large arrays efficiently", () => {
 			const rustEntries: RustStoredEntry[] = Array.from({ length: 1000 }, (_, i) => ({
 				type: "tool_call" as const,
