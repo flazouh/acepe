@@ -126,7 +126,6 @@ function createEntryManager(preloadedSessionIds: Set<string>): IEntryManager {
 	];
 	return {
 		isPreloaded: (sessionId: string) => preloadedSessionIds.has(sessionId),
-		markPreloaded: () => {},
 		clearEntries: () => {},
 		finalizeStreamingEntries: () => {},
 	};

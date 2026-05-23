@@ -114,20 +114,6 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		return this.transcriptRevisionBySession.get(sessionId);
 	}
 
-	/**
-	 * Mark session as preloaded.
-	 */
-	markPreloaded(sessionId: string): void {
-		this.preloadedIds.add(sessionId);
-	}
-
-	/**
-	 * Unmark session as preloaded.
-	 */
-	unmarkPreloaded(sessionId: string): void {
-		this.preloadedIds.delete(sessionId);
-	}
-
 	// ============================================
 	// ENTRY MUTATIONS
 	// ============================================

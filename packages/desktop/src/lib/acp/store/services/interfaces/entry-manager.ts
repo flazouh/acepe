@@ -16,11 +16,6 @@ export interface IEntryManager {
 	isPreloaded(sessionId: string): boolean;
 
 	/**
-	 * Mark session as preloaded.
-	 */
-	markPreloaded(sessionId: string): void;
-
-	/**
 	 * Clear entries for a session.
 	 */
 	clearEntries(sessionId: string): void;

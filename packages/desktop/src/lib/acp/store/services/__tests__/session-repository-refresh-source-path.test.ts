@@ -114,7 +114,6 @@ function createStateWriter(state: SessionStoreState): ISessionStateWriter {
 
 const entryManager: IEntryManager = {
 	isPreloaded: () => false,
-	markPreloaded: () => {},
 	clearEntries: () => {},
 	finalizeStreamingEntries: () => {},
 };

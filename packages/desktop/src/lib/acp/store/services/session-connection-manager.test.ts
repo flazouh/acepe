@@ -280,7 +280,6 @@ describe("SessionConnectionManager.connectSession", () => {
 
 	const entryManager: IEntryManager = {
 		isPreloaded: vi.fn(() => false),
-		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
@@ -1169,7 +1168,6 @@ describe("SessionConnectionManager.createSession", () => {
 
 	const entryManager: IEntryManager = {
 		isPreloaded: vi.fn(() => false),
-		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
@@ -1564,7 +1562,6 @@ describe("SessionConnectionManager.createSession", () => {
 		});
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
 		expect(transientProjection.initializeTransientProjection).toHaveBeenCalledWith("provider-requested-id");
-		expect(entryManager.markPreloaded).not.toHaveBeenCalled();
 	});
 
 	it("surfaces typed backend creation failures without adding a local session", async () => {
@@ -1906,7 +1903,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 
 	const entryManager: IEntryManager = {
 		isPreloaded: vi.fn(() => false),
-		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
@@ -2394,7 +2390,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 
 	const entryManager: IEntryManager = {
 		isPreloaded: vi.fn(() => false),
-		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
 	};
@@ -2551,7 +2546,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 
 		const entryManager: IEntryManager = {
 			isPreloaded: vi.fn(() => false),
-		markPreloaded: vi.fn(),
 			clearEntries: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
 		};
