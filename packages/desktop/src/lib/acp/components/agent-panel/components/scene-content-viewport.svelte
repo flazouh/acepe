@@ -24,7 +24,6 @@ import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
 import {
 	getSceneDisplayRowKey,
-	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
 import {
@@ -416,25 +415,17 @@ const mergedEntries = $derived(agentPanelSceneSnapshot.rows);
 const thinkingIndicatorStartedAtMs = $derived(
 	isWaitingForResponse ? agentPanelSceneSnapshot.latestRowTimestampMs : null
 );
-// Avoid spread-based allocation on every streaming update — reuse the merged
-// reference directly when no thinking indicator is needed. When waiting, pre-allocate
-// the result array to the known size rather than using concat/spread.
 const displayEntriesRaw = $derived.by((): readonly SceneDisplayRow[] => {
-	if (!isWaitingForResponse) return mergedEntries;
-	const result: SceneDisplayRow[] = [];
-	result.length = mergedEntries.length + 1;
-	let writeIndex = 0;
-	for (const entry of mergedEntries) {
-		result[writeIndex] = entry;
-		writeIndex += 1;
-	}
-	result[writeIndex] = {
-		type: THINKING_DISPLAY_ENTRY.type,
-		id: THINKING_DISPLAY_ENTRY.id,
-		startedAtMs: thinkingIndicatorStartedAtMs,
-		label: waitingLabel,
-	};
-	return result;
+	return viewportRowsReadModel.selectRows({
+		rows: mergedEntries,
+		waiting: isWaitingForResponse
+			? {
+					show: true,
+					startedAtMs: thinkingIndicatorStartedAtMs,
+					label: waitingLabel,
+				}
+			: { show: false },
+	});
 });
 
 // Restored historical sessions can mount while the panel is still settling into the

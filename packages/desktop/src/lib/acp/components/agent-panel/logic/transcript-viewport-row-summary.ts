@@ -1,6 +1,7 @@
 import {
 	getSceneDisplayRowKey,
 	getSceneDisplayRowTimestampMs,
+	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
 import {
@@ -56,6 +57,16 @@ export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummar
 }
 
 export interface TranscriptViewportRowsReadModel {
+	selectRows(input: {
+		readonly rows: readonly SceneDisplayRow[];
+		readonly waiting:
+			| {
+					readonly show: true;
+					readonly startedAtMs: number | null;
+					readonly label: string | null;
+			  }
+			| { readonly show: false };
+	}): readonly SceneDisplayRow[];
 	applyRows(input: {
 		rows: readonly SceneDisplayRow[];
 		reason: TranscriptViewportRowsReason;
@@ -85,8 +96,51 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				readonly window: readonly IndexedViewportEntry<SceneDisplayRow>[];
 		  }
 		| null = null;
+	let selectedRowsCache:
+		| {
+				readonly rows: readonly SceneDisplayRow[];
+				readonly startedAtMs: number | null;
+				readonly label: string | null;
+				readonly selectedRows: readonly SceneDisplayRow[];
+		  }
+		| null = null;
 
 	return {
+		selectRows({ rows, waiting }) {
+			if (!waiting.show) {
+				return rows;
+			}
+
+			if (
+				selectedRowsCache !== null &&
+				selectedRowsCache.rows === rows &&
+				selectedRowsCache.startedAtMs === waiting.startedAtMs &&
+				selectedRowsCache.label === waiting.label
+			) {
+				return selectedRowsCache.selectedRows;
+			}
+
+			const selectedRows: SceneDisplayRow[] = [];
+			selectedRows.length = rows.length + 1;
+			let writeIndex = 0;
+			for (const row of rows) {
+				selectedRows[writeIndex] = row;
+				writeIndex += 1;
+			}
+			selectedRows[writeIndex] = {
+				type: THINKING_DISPLAY_ENTRY.type,
+				id: THINKING_DISPLAY_ENTRY.id,
+				startedAtMs: waiting.startedAtMs,
+				label: waiting.label,
+			};
+			selectedRowsCache = {
+				rows,
+				startedAtMs: waiting.startedAtMs,
+				label: waiting.label,
+				selectedRows,
+			};
+			return selectedRows;
+		},
 		applyRows({ rows, reason }) {
 			if (rows === previousRows) {
 				return previousSummary;

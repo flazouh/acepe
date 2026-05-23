@@ -7,6 +7,51 @@ import {
 import type { SceneDisplayRow } from "../scene-display-rows.js";
 
 describe("createTranscriptViewportRowsReadModel", () => {
+	it("selects base rows directly when no waiting row is needed", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const rows = [userRow("user-1"), assistantRow("assistant-1")];
+
+		const selectedRows = readModel.selectRows({
+			rows,
+			waiting: { show: false },
+		});
+
+		expect(selectedRows).toBe(rows);
+	});
+
+	it("selects and caches rows with one waiting row appended", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const rows = [userRow("user-1"), assistantRow("assistant-1")];
+
+		const selectedRows = readModel.selectRows({
+			rows,
+			waiting: {
+				show: true,
+				startedAtMs: 1_000,
+				label: "Planning next moves...",
+			},
+		});
+
+		expect(selectedRows).not.toBe(rows);
+		expect(selectedRows.slice(0, 2)).toEqual(rows);
+		expect(selectedRows[2]).toEqual({
+			type: "thinking",
+			id: "thinking-indicator",
+			startedAtMs: 1_000,
+			label: "Planning next moves...",
+		});
+		expect(
+			readModel.selectRows({
+				rows,
+				waiting: {
+					show: true,
+					startedAtMs: 1_000,
+					label: "Planning next moves...",
+				},
+			})
+		).toBe(selectedRows);
+	});
+
 	it("keeps the selected summary stable for the same rows reference", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const rows = [userRow("user-1"), assistantRow("assistant-1")];
