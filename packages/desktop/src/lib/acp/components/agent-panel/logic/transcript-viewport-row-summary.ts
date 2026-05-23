@@ -5,6 +5,7 @@ import {
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
 import {
+	getSceneDisplayRowArrayAppend,
 	getSceneDisplayRowArrayPatch,
 	getSceneDisplayRowArrayInsertion,
 	getSceneDisplayRowArrayTruncation,
@@ -179,6 +180,18 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 
 			const singleAppendRows = singleAppendRowsMetadata.get(rows);
 			if (previousRows !== null && singleAppendRows?.baseRows === previousRows) {
+				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, previousRows.length - 1)
+				);
+				previousRows = rows;
+				return previousSummary;
+			}
+
+			const appendedRows = getSceneDisplayRowArrayAppend(rows);
+			if (previousRows !== null && appendedRows?.baseRows === previousRows) {
 				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
 				thinkingDurationSources = updateThinkingDurationSources(
 					thinkingDurationSources,

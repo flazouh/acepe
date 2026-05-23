@@ -37,6 +37,11 @@ export type SceneDisplayRowArrayPatch = {
 	readonly patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>;
 };
 
+export type SceneDisplayRowArrayAppend = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly appendedRows: readonly SceneDisplayRow[];
+};
+
 export type SceneDisplayRowArrayTruncation = {
 	readonly baseRows: readonly SceneDisplayRow[];
 	readonly length: number;
@@ -52,6 +57,10 @@ const sceneDisplayRowArrayPatches = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayPatch
 >();
+const sceneDisplayRowArrayAppends = new WeakMap<
+	readonly SceneDisplayRow[],
+	SceneDisplayRowArrayAppend
+>();
 const sceneDisplayRowArrayTruncations = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayTruncation
@@ -65,6 +74,12 @@ export function getSceneDisplayRowArrayPatch(
 	rows: readonly SceneDisplayRow[]
 ): SceneDisplayRowArrayPatch | undefined {
 	return sceneDisplayRowArrayPatches.get(rows);
+}
+
+export function getSceneDisplayRowArrayAppend(
+	rows: readonly SceneDisplayRow[]
+): SceneDisplayRowArrayAppend | undefined {
+	return sceneDisplayRowArrayAppends.get(rows);
 }
 
 export function getSceneDisplayRowArrayTruncation(
@@ -130,8 +145,10 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return previousRows;
 		}
 
-		const firstChangedRowIndex = Math.max(0, previousRows.length - 1);
-		previousRows = appendSceneDisplayRows(previousRows, appendPatch.appendedEntries);
+		const baseRows = previousRows;
+		const firstChangedRowIndex = Math.max(0, baseRows.length - 1);
+		previousRows = appendSceneDisplayRows(baseRows, appendPatch.appendedEntries);
+		markSceneDisplayRowAppend(previousRows, baseRows);
 		latestTimestampMs = selectLatestTimestampMsFrom(
 			previousRows,
 			firstChangedRowIndex,
@@ -324,12 +341,14 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 			) {
-				const firstChangedRowIndex = Math.max(0, previousRows.length - 1);
+				const baseRows = previousRows;
+				const firstChangedRowIndex = Math.max(0, baseRows.length - 1);
 				previousRows = appendSceneDisplayRowsFromIndex(
-					previousRows,
+					baseRows,
 					sceneEntries,
 					previousSceneEntries.length
 				);
+				markSceneDisplayRowAppend(previousRows, baseRows);
 				latestTimestampMs = selectLatestTimestampMsFrom(
 					previousRows,
 					firstChangedRowIndex,
@@ -414,8 +433,10 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				return previousRows;
 			}
 
-			const firstChangedRowIndex = Math.max(0, previousRows.length - 1);
-			previousRows = appendSceneDisplayRows(previousRows, appendedSceneEntries);
+			const baseRows = previousRows;
+			const firstChangedRowIndex = Math.max(0, baseRows.length - 1);
+			previousRows = appendSceneDisplayRows(baseRows, appendedSceneEntries);
+			markSceneDisplayRowAppend(previousRows, baseRows);
 			latestTimestampMs = selectLatestTimestampMsFrom(
 				previousRows,
 				firstChangedRowIndex,
@@ -529,6 +550,42 @@ function createPatchedSceneDisplayRowsArray(
 	});
 	sceneDisplayRowArrayPatches.set(rows, { baseRows, patchedRowsByIndex });
 	return rows;
+}
+
+function markSceneDisplayRowAppend(
+	rows: readonly SceneDisplayRow[],
+	baseRows: readonly SceneDisplayRow[]
+): void {
+	if (rows.length <= baseRows.length) {
+		return;
+	}
+	const appendedRows = createAppendedSceneDisplayRowsPatchRows(rows, baseRows.length);
+	sceneDisplayRowArrayAppends.set(rows, { baseRows, appendedRows });
+}
+
+function createAppendedSceneDisplayRowsPatchRows(
+	rows: readonly SceneDisplayRow[],
+	startIndex: number
+): readonly SceneDisplayRow[] {
+	return new Proxy(new Array<SceneDisplayRow>(rows.length - startIndex), {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield rows[startIndex + index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return rows[startIndex + index];
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+	});
 }
 
 function toArrayIndex(property: string): number | null {

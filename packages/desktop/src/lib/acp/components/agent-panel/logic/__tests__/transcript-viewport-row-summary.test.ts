@@ -123,6 +123,60 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.hasToolCallEntry).toBe(true);
 	});
 
+	it("uses scene display append metadata without comparing the row prefix", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const userEntry = {
+			type: "user",
+			id: "user-1",
+			text: "Prompt",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			type: "assistant",
+			id: "assistant-1",
+			markdown: "Answer",
+			isStreaming: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const toolEntry = {
+			type: "tool_call",
+			id: "tool-1",
+			title: "Run",
+			status: "done",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = displayRows.applySnapshot([userEntry, assistantEntry]);
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = displayRows.applySnapshot([userEntry, assistantEntry, toolEntry]);
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not compare previous row prefixes for display row appends");
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(3);
+			expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+			expect(nextSummary.rowIndexByKey?.get("tool-1")).toBe(2);
+			expect(nextSummary.changedRange).toBeUndefined();
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
+	});
+
 	it("updates append-only row keys without copying previous key arrays", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
