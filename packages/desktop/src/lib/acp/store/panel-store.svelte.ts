@@ -88,6 +88,7 @@ export class PanelStore {
 	// Hot state (transient, frequently changing)
 	private hotState = new SvelteMap<string, PanelHotState>();
 	private topLevelAgentPanelsById = new SvelteMap<string, Panel>();
+	private topLevelAgentPanelBySessionId = new SvelteMap<string, Panel>();
 	private topLevelAgentPanelRefs = new Map<string, ReactiveValue<Panel | null>>();
 
 	// Track in-flight opens
@@ -290,7 +291,11 @@ export class PanelStore {
 	}
 
 	private syncTopLevelAgentPanelIndex(nextPanels: readonly Panel[]): void {
+		this.topLevelAgentPanelBySessionId.clear();
 		for (const panel of nextPanels) {
+			if (panel.sessionId !== null) {
+				this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
+			}
 			const current = this.topLevelAgentPanelsById.get(panel.id);
 			const isSame =
 				current !== undefined &&
@@ -662,7 +667,7 @@ export class PanelStore {
 		this.clearAutoSessionSuppression(sessionId);
 
 		// Check if already open
-		let existing = this.panelBySessionId.get(sessionId);
+		let existing = this.topLevelAgentPanelBySessionId.get(sessionId);
 		if (existing) {
 			if (existing.autoCreated === true) {
 				const promoted = this.setPanelAutoCreated(existing.id, false);
@@ -713,7 +718,7 @@ export class PanelStore {
 	 * If already open, returns the existing panel.
 	 */
 	materializeSessionPanel(sessionId: string, width: number): Panel | null {
-		const existing = this.panelBySessionId.get(sessionId);
+		const existing = this.topLevelAgentPanelBySessionId.get(sessionId);
 		if (existing) {
 			return existing;
 		}
@@ -870,7 +875,7 @@ export class PanelStore {
 	 * Close a panel by session ID.
 	 */
 	closePanelBySessionId(sessionId: string): void {
-		const panel = this.panelBySessionId.get(sessionId);
+		const panel = this.topLevelAgentPanelBySessionId.get(sessionId);
 		if (panel) {
 			this.closePanel(panel.id);
 		}
@@ -1103,14 +1108,14 @@ export class PanelStore {
 	 * Get panel by session ID (O(1) lookup).
 	 */
 	getPanelBySessionId(sessionId: string): Panel | undefined {
-		return this.panelBySessionId.get(sessionId);
+		return this.topLevelAgentPanelBySessionId.get(sessionId);
 	}
 
 	/**
 	 * Check if a session is open in a panel.
 	 */
 	isSessionOpen(sessionId: string): boolean {
-		return this.panelBySessionId.has(sessionId);
+		return this.topLevelAgentPanelBySessionId.has(sessionId);
 	}
 
 	// ============================================
