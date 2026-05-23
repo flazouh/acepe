@@ -475,6 +475,8 @@ export class PanelStore {
 	private topLevelNonAgentPanelProjectRefList = $state<TopLevelPanelProjectRef[]>([]);
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
+	private reviewPanelByIdIndex = new SvelteMap<string, ReviewPanel>();
+	private reviewPanelByProjectPath = new SvelteMap<string, ReviewPanel>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
 	private browserPanelById = new SvelteMap<string, BrowserPanel>();
 	private terminalPanelGroupById = new SvelteMap<string, TerminalPanelGroup>();
@@ -1033,7 +1035,17 @@ export class PanelStore {
 	}
 
 	set reviewPanels(nextPanels: ReviewPanel[]) {
+		this.syncReviewPanelIndexes(nextPanels);
 		this.replaceWorkspacePanels("review", nextPanels);
+	}
+
+	private syncReviewPanelIndexes(nextPanels: readonly ReviewPanel[]): void {
+		this.reviewPanelByIdIndex.clear();
+		this.reviewPanelByProjectPath.clear();
+		for (const panel of nextPanels) {
+			this.reviewPanelByIdIndex.set(panel.id, panel);
+			this.reviewPanelByProjectPath.set(panel.projectPath, panel);
+		}
 	}
 
 	get gitPanels(): GitPanel[] {
@@ -1204,10 +1216,10 @@ export class PanelStore {
 	readonly filePanelCount = $derived(this.filePanelById.size);
 
 	readonly reviewPanelById = $derived.by(
-		() => new SvelteMap(this.reviewPanels.map((p) => [p.id, p]))
+		() => this.reviewPanelByIdIndex
 	);
 
-	readonly reviewPanelCount = $derived(this.reviewPanels.length);
+	readonly reviewPanelCount = $derived(this.reviewPanelByIdIndex.size);
 
 	terminalPanelGroups = $state<TerminalPanelGroup[]>([]);
 	terminalTabs = $state<TerminalTab[]>([]);
@@ -2356,7 +2368,7 @@ export class PanelStore {
 		width?: number
 	): ReviewPanel {
 		// Check if a review panel for this project already exists
-		const existing = this.reviewPanels.find((p) => p.projectPath === projectPath);
+		const existing = this.reviewPanelByProjectPath.get(projectPath);
 		if (existing) {
 			this.focusOpenedTopLevelPanel(existing.id);
 			logger.debug("Review panel already open, returning existing", { projectPath });
@@ -2433,7 +2445,7 @@ export class PanelStore {
 	 * Get a review panel by project path.
 	 */
 	getReviewPanelByProjectPath(projectPath: string): ReviewPanel | undefined {
-		return this.reviewPanels.find((p) => p.projectPath === projectPath);
+		return this.reviewPanelByProjectPath.get(projectPath);
 	}
 
 	// ============================================

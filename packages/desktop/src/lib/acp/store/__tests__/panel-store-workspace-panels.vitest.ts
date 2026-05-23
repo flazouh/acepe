@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import type { AgentStore } from "../agent-store.svelte.js";
 import { createFilePanelCacheKey } from "../file-panel-ownership.js";
 import { PanelStore } from "../panel-store.svelte.js";
@@ -37,6 +38,15 @@ function createStore(): PanelStore {
 	const persist = vi.fn();
 
 	return new PanelStore(sessionStore, agentStore, persist);
+}
+
+function createModifiedFilesState(): ModifiedFilesState {
+	return {
+		files: [],
+		byPath: new Map(),
+		fileCount: 0,
+		totalEditCount: 0,
+	};
 }
 
 beforeEach(() => {
@@ -627,6 +637,24 @@ describe("PanelStore workspacePanels", () => {
 			expect(store.browserPanelCount).toBe(1);
 			expect(store.getBrowserPanel(browserPanel.id)).toBe(browserPanel);
 			expect(store.getBrowserPanelsForProject("/tmp/project")).toEqual([browserPanel]);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
+	it("selects review panels and count without filtering workspace panels", () => {
+		const store = createStore();
+		const reviewPanel = store.openReviewPanel("/tmp/project", createModifiedFilesState());
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels for review-panel selectors");
+		};
+
+		try {
+			expect(store.reviewPanelCount).toBe(1);
+			expect(store.getReviewPanel(reviewPanel.id)).toBe(reviewPanel);
+			expect(store.getReviewPanelByProjectPath("/tmp/project")).toBe(reviewPanel);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
 		}
