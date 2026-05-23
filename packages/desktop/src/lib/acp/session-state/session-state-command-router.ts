@@ -139,6 +139,28 @@ function commandFromDeltaResolution(
 	}
 }
 
+function graphDeltaIsMissingRequiredPatches(
+	changedFields: readonly string[] | null,
+	operationPatches: readonly OperationSnapshot[],
+	interactionPatches: readonly InteractionSnapshot[]
+): boolean {
+	if (changedFields === null) {
+		return false;
+	}
+
+	const operationsChanged = changedFields.includes("operations");
+	if (operationsChanged && operationPatches.length === 0) {
+		return true;
+	}
+
+	const interactionsChanged = changedFields.includes("interactions");
+	if (interactionsChanged && interactionPatches.length === 0) {
+		return true;
+	}
+
+	return false;
+}
+
 export function routeSessionStateEnvelope(
 	sessionId: string,
 	currentRevision: CurrentSessionStateRevision,
@@ -220,6 +242,11 @@ export function routeSessionStateEnvelope(
 			const operationPatches = envelope.payload.delta.operationPatches ?? [];
 			const interactionPatches = envelope.payload.delta.interactionPatches ?? [];
 			const changedFields = envelope.payload.delta.changedFields ?? null;
+			const graphDeltaMissingRequiredPatches = graphDeltaIsMissingRequiredPatches(
+				changedFields,
+				operationPatches,
+				interactionPatches
+			);
 			const includesActivity = changedFields?.includes("activity") ?? false;
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
@@ -235,6 +262,15 @@ export function routeSessionStateEnvelope(
 				includesActiveStreamingTail;
 			const includesGraphPatch =
 				operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState;
+			if (graphDeltaMissingRequiredPatches) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.payload.delta.toRevision.graphRevision,
+					},
+				];
+			}
 			if (!hasCurrentGraphRevision(currentRevision)) {
 				return [
 					{

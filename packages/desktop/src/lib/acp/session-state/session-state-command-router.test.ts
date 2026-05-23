@@ -546,6 +546,121 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("refreshes when operations are marked changed without operation patches", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["operations"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 6,
+				toRevision: 7,
+			},
+		]);
+	});
+
+	it("refreshes mixed deltas when operations are marked changed without operation patches", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 8,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:block:0",
+										text: "hello",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot", "operations"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 7,
+					lastEventSeq: 7,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 7,
+				toRevision: 8,
+			},
+		]);
+	});
+
 	it("refreshes transcript-only deltas when no canonical graph frontier exists", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
