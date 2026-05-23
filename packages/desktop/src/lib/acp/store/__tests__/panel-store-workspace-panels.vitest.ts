@@ -63,6 +63,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.clearAllTimers();
+	vi.useRealTimers();
 	if (originalLocalStorageDescriptor === undefined) {
 		Reflect.deleteProperty(globalThis, "localStorage");
 		return;
@@ -450,6 +452,7 @@ describe("PanelStore workspacePanels", () => {
 	});
 
 	it("widens attached file owners without rebuilding panel lists", () => {
+		vi.useFakeTimers();
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
 		const originalFilter = store.workspacePanels.filter;
@@ -464,6 +467,8 @@ describe("PanelStore workspacePanels", () => {
 				width: owner.width + 120,
 			});
 
+			expect(store.getTopLevelAgentPanel(owner.id)?.width).toBe(owner.width);
+			vi.runOnlyPendingTimers();
 			expect(store.getTopLevelAgentPanel(owner.id)?.width).toBe(owner.width + 120);
 		} finally {
 			store.workspacePanels.filter = originalFilter;
@@ -488,6 +493,33 @@ describe("PanelStore workspacePanels", () => {
 		} finally {
 			store.workspacePanels[Symbol.iterator] = originalIterator;
 		}
+	});
+
+	it("opens attached file panels before widening the owner panel", () => {
+		vi.useFakeTimers();
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const originalFirstPanel = store.workspacePanels[0];
+		store.workspacePanels[0] = {
+			...owner,
+			get id(): string {
+				throw new Error("must not patch every workspace panel before opening an attached file");
+			},
+		};
+
+		try {
+			const filePanel = store.openFilePanel("src/instant.ts", "/tmp/project", {
+				ownerPanelId: owner.id,
+			});
+
+			expect(store.getActiveAttachedFilePanel(owner.id)).toBe(filePanel);
+			expect(store.getTopLevelAgentPanel(owner.id)?.width).toBe(owner.width);
+		} finally {
+			store.workspacePanels[0] = originalFirstPanel;
+		}
+
+		vi.clearAllTimers();
+		vi.useRealTimers();
 	});
 
 	it("selects file panel count and path index without filtering workspace panels", () => {

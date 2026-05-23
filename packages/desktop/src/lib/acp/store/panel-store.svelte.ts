@@ -170,7 +170,10 @@ function areWorkspacePanelListsEqual(
 			panel.kind === right[index]?.kind &&
 			panel.projectPath === right[index]?.projectPath &&
 			panel.ownerPanelId === right[index]?.ownerPanelId &&
-			panel.width === right[index]?.width
+			panel.width === right[index]?.width &&
+			(panel.kind !== "agent" ||
+				right[index]?.kind !== "agent" ||
+				panel.autoCreated === right[index]?.autoCreated)
 	);
 }
 
@@ -488,6 +491,7 @@ export class PanelStore {
 	private filePanelById = new SvelteMap<string, FilePanel>();
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
 	private activeTopLevelFilePanelIdByProject = new SvelteMap<string, string>();
+	private pendingOwnerPanelWidthEnsures = new Map<string, number>();
 	private nextTerminalTabCreatedAt = 1;
 
 	private isTopLevelFullscreenTarget(panelId: string | null): boolean {
@@ -619,16 +623,36 @@ export class PanelStore {
 		return null;
 	}
 
-	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): void {
+	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): boolean {
 		const requiredWidth = Math.max(MIN_PANEL_WIDTH, attachedWidth);
 		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
 		if (ownerPanel === undefined || ownerPanel.width >= requiredWidth) {
-			return;
+			return false;
 		}
 		this.patchTopLevelAgentPanel({
 			...ownerPanel,
 			width: requiredWidth,
 		});
+		return true;
+	}
+
+	private scheduleOwnerPanelWidthEnsure(ownerPanelId: string, attachedWidth: number): void {
+		const previousWidth = this.pendingOwnerPanelWidthEnsures.get(ownerPanelId) ?? 0;
+		this.pendingOwnerPanelWidthEnsures.set(ownerPanelId, Math.max(previousWidth, attachedWidth));
+		if (previousWidth > 0) {
+			return;
+		}
+
+		setTimeout(() => {
+			const pendingWidth = this.pendingOwnerPanelWidthEnsures.get(ownerPanelId);
+			this.pendingOwnerPanelWidthEnsures.delete(ownerPanelId);
+			if (pendingWidth === undefined) {
+				return;
+			}
+			if (this.ensureOwnerPanelWidth(ownerPanelId, pendingWidth)) {
+				this.onPersist();
+			}
+		}, 0);
 	}
 
 	private resetOwnerPanelWidthIfNoAttached(ownerPanelId: string): void {
@@ -2230,8 +2254,8 @@ export class PanelStore {
 		const existing = this.filePanelByCacheKey.get(cacheKey);
 		if (existing) {
 			if (ownerPanelId !== null) {
-				this.ensureOwnerPanelWidth(ownerPanelId, existing.width);
 				this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, existing.id);
+				this.scheduleOwnerPanelWidthEnsure(ownerPanelId, existing.width);
 			} else {
 				this.activeTopLevelFilePanelIdByProject.set(projectPath, existing.id);
 				this.focusOpenedTopLevelPanel(existing.id);
@@ -2254,13 +2278,13 @@ export class PanelStore {
 				: {}),
 			width:
 				normalizedOptions?.width ??
-				(ownerPanelId !== null ? DEFAULT_ATTACHED_FILE_PANEL_WIDTH : DEFAULT_FILE_PANEL_WIDTH),
+					(ownerPanelId !== null ? DEFAULT_ATTACHED_FILE_PANEL_WIDTH : DEFAULT_FILE_PANEL_WIDTH),
 		};
 
 		this.prependFilePanel(panel);
 		if (ownerPanelId !== null) {
-			this.ensureOwnerPanelWidth(ownerPanelId, panel.width);
 			this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, panel.id);
+			this.scheduleOwnerPanelWidthEnsure(ownerPanelId, panel.width);
 		} else {
 			this.activeTopLevelFilePanelIdByProject.set(projectPath, panel.id);
 			this.focusOpenedTopLevelPanel(panel.id);
