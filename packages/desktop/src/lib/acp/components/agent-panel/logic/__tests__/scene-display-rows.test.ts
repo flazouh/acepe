@@ -8,7 +8,10 @@ import {
 	resolveSceneDisplayRowThinkingDurationMs,
 	THINKING_DISPLAY_ENTRY,
 } from "../scene-display-rows.js";
-import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
+import {
+	createSceneDisplayRowsReadModel,
+	getSceneDisplayRowArraySplice,
+} from "../scene-display-row-read-model.js";
 import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
@@ -605,6 +608,32 @@ describe("scene-display-rows", () => {
 			"user-1",
 			"assistant-2",
 		]);
+	});
+
+	it("patches changed prefix rows and appended tail rows without rebuilding the whole row list", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "tool-1", type: "tool_call", title: "First tool", status: "running" },
+		]);
+
+		const nextRows = readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "tool-1", type: "tool_call", title: "Updated tool", status: "done" },
+			{ id: "user-2", type: "user", text: "Next prompt" },
+		]);
+
+		expect(nextRows[0]).toBe(firstRows[0]);
+		expect(nextRows[1]).not.toBe(firstRows[1]);
+		expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+			"user-1",
+			"tool-1",
+			"user-2",
+		]);
+		expect(getSceneDisplayRowArraySplice(nextRows)).toMatchObject({
+			baseRows: firstRows,
+			startIndex: 1,
+		});
 	});
 
 	it("patches only the token reveal assistant row", () => {

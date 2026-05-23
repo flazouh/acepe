@@ -354,6 +354,26 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				return spliceRows;
 			}
 
+			const patchedPrefixAppendRows =
+				previousSceneEntries === null
+					? null
+					: patchStablePrefixAppendSceneDisplayRows(
+							previousSceneEntries,
+							sceneEntries,
+							previousRows,
+							rowIndexBySceneEntryId
+						);
+			if (patchedPrefixAppendRows !== null) {
+				previousRows = patchedPrefixAppendRows.rows;
+				latestTimestampMs = selectLatestTimestampMsFrom(
+					previousRows,
+					patchedPrefixAppendRows.firstChangedRowIndex,
+					latestTimestampMs
+				);
+				previousSceneEntries = sceneEntries;
+				return previousRows;
+			}
+
 			if (
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
@@ -805,6 +825,89 @@ function patchSameLengthSceneDisplayRows(
 	return {
 		rows: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex),
 		firstChangedRowIndex,
+	};
+}
+
+function patchStablePrefixAppendSceneDisplayRows(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: Map<string, number>
+): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
+	if (sceneEntries.length <= previousSceneEntries.length) {
+		return null;
+	}
+
+	const patchedRowsByIndex = new Map<number, SceneDisplayRow>();
+	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
+	for (let index = 0; index < previousSceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (previousEntry === nextEntry) {
+			continue;
+		}
+		if (previousEntry === undefined || nextEntry === undefined || previousEntry.id !== nextEntry.id) {
+			return null;
+		}
+		const rowIndex = rowIndexBySceneEntryId.get(nextEntry.id);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousRow = previousRows[rowIndex];
+		if (previousRow === undefined || !canPatchSceneDisplayRow(previousRow, nextEntry.id)) {
+			return null;
+		}
+		const patchedRow = buildSceneDisplayRows([nextEntry])[0];
+		if (
+			patchedRow === undefined ||
+			getSceneDisplayRowKey(patchedRow) !== getSceneDisplayRowKey(previousRow)
+		) {
+			return null;
+		}
+		if (areJsonLikeValuesEquivalent(previousRow, patchedRow)) {
+			continue;
+		}
+		patchedRowsByIndex.set(rowIndex, patchedRow);
+		firstChangedRowIndex = Math.min(firstChangedRowIndex, rowIndex);
+	}
+
+	const baseRows =
+		patchedRowsByIndex.size === 0
+			? previousRows
+			: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex);
+	const appendedStartIndex = previousSceneEntries.length;
+	const nextRows = appendSceneDisplayRowsFromIndex(baseRows, sceneEntries, appendedStartIndex);
+	const canMergeWithPreviousAssistant =
+		previousSceneEntries.at(-1)?.type === "assistant" &&
+		sceneEntries[appendedStartIndex]?.type === "assistant";
+	const appendChangedRowIndex = canMergeWithPreviousAssistant
+		? Math.max(0, previousRows.length - 1)
+		: previousRows.length;
+	const effectiveFirstChangedRowIndex = Number.isFinite(firstChangedRowIndex)
+		? Math.min(firstChangedRowIndex, appendChangedRowIndex)
+		: appendChangedRowIndex;
+
+	if (effectiveFirstChangedRowIndex >= previousRows.length) {
+		markSceneDisplayRowAppend(nextRows, previousRows);
+		indexRowsBySceneEntryId(rowIndexBySceneEntryId, nextRows, effectiveFirstChangedRowIndex);
+		return {
+			rows: nextRows,
+			firstChangedRowIndex: effectiveFirstChangedRowIndex,
+		};
+	}
+
+	sceneDisplayRowArraySplices.set(nextRows, {
+		baseRows: previousRows,
+		startIndex: effectiveFirstChangedRowIndex,
+		replacementRows: createAppendedSceneDisplayRowsPatchRows(
+			nextRows,
+			effectiveFirstChangedRowIndex
+		),
+	});
+	indexRowsBySceneEntryId(rowIndexBySceneEntryId, nextRows, effectiveFirstChangedRowIndex);
+	return {
+		rows: nextRows,
+		firstChangedRowIndex: effectiveFirstChangedRowIndex,
 	};
 }
 
