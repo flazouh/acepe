@@ -1239,6 +1239,71 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
+	it("chains repeated display row appends without copying prior append layout chunks", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const secondAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		};
+		const thirdAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-3",
+			type: "assistant",
+			markdown: "Third",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+		readModel.applySnapshot({
+			sceneEntries: [userEntry, firstAssistantEntry],
+			transcriptRevision: 2,
+		});
+		const secondProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, firstAssistantEntry, secondAssistantEntry],
+			transcriptRevision: 3,
+		});
+		const originalArrayIterator = Array.prototype[Symbol.iterator];
+		Array.prototype[Symbol.iterator] = function patchedArrayIterator<T>(this: T[]) {
+			if (this[0] === firstProjection.rows) {
+				throw new Error("must not copy prior display row append layout chunks");
+			}
+			return originalArrayIterator.call(this);
+		};
+
+		try {
+			const thirdProjection = readModel.applySnapshot({
+				sceneEntries: [
+					userEntry,
+					firstAssistantEntry,
+					secondAssistantEntry,
+					thirdAssistantEntry,
+				],
+				transcriptRevision: 4,
+			});
+
+			expect(thirdProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(thirdProjection.rows[1]).toBe(secondProjection.rows[1]);
+			expect(thirdProjection.rows[2]).toBe(secondProjection.rows[2]);
+			expect(thirdProjection.rows[3]).toMatchObject({
+				id: "assistant-3",
+				type: "assistant",
+			});
+		} finally {
+			Array.prototype[Symbol.iterator] = originalArrayIterator;
+		}
+	});
+
 	it("applies marked append patches without scanning unchanged scene entries", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

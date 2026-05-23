@@ -143,8 +143,10 @@ export interface AgentPanelDisplayResult {
 const WAITING_LABEL = "Planning next moves...";
 
 type AppendedDisplayRowLayout = {
-	readonly chunks: readonly (readonly AgentPanelDisplayRow[])[];
-	readonly starts: readonly number[];
+	readonly baseRows: readonly AgentPanelDisplayRow[] | null;
+	readonly baseLayout: AppendedDisplayRowLayout | null;
+	readonly appendedRows: readonly AgentPanelDisplayRow[];
+	readonly appendedStart: number;
 	readonly length: number;
 };
 
@@ -423,11 +425,7 @@ function createAppendedDisplayRowArray(
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
-					for (const chunk of layout.chunks) {
-						for (const row of chunk) {
-							yield row;
-						}
-					}
+					yield* iterateAppendedDisplayRows(layout);
 				};
 			}
 			if (typeof property === "string") {
@@ -468,18 +466,12 @@ function createAppendedDisplayRowLayout(
 	appendedRows: readonly AgentPanelDisplayRow[]
 ): AppendedDisplayRowLayout {
 	const baseLayout = appendedDisplayRowLayouts.get(baseRows);
-	const chunks =
-		baseLayout === undefined ? [baseRows, appendedRows] : [...baseLayout.chunks, appendedRows];
-	const starts: number[] = [];
-	let length = 0;
-	for (const chunk of chunks) {
-		starts.push(length);
-		length += chunk.length;
-	}
 	return {
-		chunks,
-		starts,
-		length,
+		baseRows: baseLayout === undefined ? baseRows : null,
+		baseLayout: baseLayout ?? null,
+		appendedRows,
+		appendedStart: baseRows.length,
+		length: baseRows.length + appendedRows.length,
 	};
 }
 
@@ -490,21 +482,28 @@ function selectAppendedDisplayRow(
 	if (index < 0 || index >= layout.length) {
 		return undefined;
 	}
-	let low = 0;
-	let high = layout.starts.length - 1;
-	while (low <= high) {
-		const mid = Math.floor((low + high) / 2);
-		const start = layout.starts[mid] ?? 0;
-		const nextStart = layout.starts[mid + 1] ?? layout.length;
-		if (index < start) {
-			high = mid - 1;
-		} else if (index >= nextStart) {
-			low = mid + 1;
-		} else {
-			return layout.chunks[mid]?.[index - start];
+	if (index >= layout.appendedStart) {
+		return layout.appendedRows[index - layout.appendedStart];
+	}
+	if (layout.baseLayout !== null) {
+		return selectAppendedDisplayRow(layout.baseLayout, index);
+	}
+	return layout.baseRows?.[index];
+}
+
+function* iterateAppendedDisplayRows(
+	layout: AppendedDisplayRowLayout
+): IterableIterator<AgentPanelDisplayRow> {
+	if (layout.baseLayout !== null) {
+		yield* iterateAppendedDisplayRows(layout.baseLayout);
+	} else if (layout.baseRows !== null) {
+		for (const row of layout.baseRows) {
+			yield row;
 		}
 	}
-	return undefined;
+	for (const row of layout.appendedRows) {
+		yield row;
+	}
 }
 
 function createTruncatedDisplayRowArray(
