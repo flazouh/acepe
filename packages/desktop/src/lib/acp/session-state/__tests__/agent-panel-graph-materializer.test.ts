@@ -319,6 +319,44 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("appends transcript rows without rebuilding existing conversation rows", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "hi");
+		const transcriptSnapshot = createTranscriptSnapshot([userEntry]);
+		const graph = createGraph({ transcriptSnapshot });
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				transcriptSnapshot: {
+					revision: transcriptSnapshot.revision + 1,
+					entries: [userEntry, assistantEntry],
+				},
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: transcriptSnapshot.revision + 1,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "hi",
+		});
+	});
+
 	it("projects canonical transcript timestamps directly into message scene entries", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			{

@@ -700,6 +700,11 @@ function materializeCachedConversation(
 		return operationPatched;
 	}
 
+	const transcriptAppended = materializeTranscriptAppendedConversation(previous, input);
+	if (transcriptAppended !== null) {
+		return transcriptAppended;
+	}
+
 	const operationIndex = buildOperationIndex(input.graph.operations);
 	const conversation = materializeConversation(input.graph);
 	return {
@@ -712,6 +717,89 @@ function materializeCachedConversation(
 		activity: input.graph.activity,
 		conversation,
 	};
+}
+
+function materializeTranscriptAppendedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.operations !== input.graph.operations ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
+		previous.activity !== input.graph.activity ||
+		!isStableTranscriptAppend(
+			previous.transcriptEntries,
+			input.graph.transcriptSnapshot.entries
+		)
+	) {
+		return null;
+	}
+
+	const appendedTranscriptEntries = input.graph.transcriptSnapshot.entries.slice(
+		previous.transcriptEntries.length
+	);
+	if (appendedTranscriptEntries.length === 0) {
+		return {
+			...previous,
+			transcriptEntries: input.graph.transcriptSnapshot.entries,
+		};
+	}
+
+	const isRunning = input.graph.turnState === "Running";
+	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+	const appendedSceneEntries = appendedTranscriptEntries.map((entry) =>
+		materializeTranscriptEntry(
+			entry,
+			input.graph,
+			previous.operationIndex,
+			isRunning && entry.entryId === liveAssistantEntryId
+		)
+	);
+	const appendedIds = new Set(appendedSceneEntries.map((entry) => entry.id));
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const existingTranscriptEntries = previous.conversation.entries.slice(
+		0,
+		transcriptSceneEntryCount
+	);
+	const trailingInteractionEntries = previous.conversation.entries
+		.slice(transcriptSceneEntryCount)
+		.filter((entry) => !appendedIds.has(entry.id));
+
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		conversation: {
+			entries: existingTranscriptEntries
+				.concat(appendedSceneEntries)
+				.concat(trailingInteractionEntries),
+			isStreaming: previous.conversation.isStreaming,
+		},
+	};
+}
+
+function isStableTranscriptAppend(
+	previousEntries: readonly TranscriptEntry[],
+	nextEntries: readonly TranscriptEntry[]
+): boolean {
+	if (nextEntries.length < previousEntries.length) {
+		return false;
+	}
+
+	for (let index = 0; index < previousEntries.length; index += 1) {
+		if (nextEntries[index] !== previousEntries[index]) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 function materializeOperationPatchedConversation(
