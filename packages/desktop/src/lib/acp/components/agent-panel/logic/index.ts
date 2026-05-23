@@ -46,7 +46,6 @@ export {
 } from "./optimistic-user-entry.js";
 export {
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
 	createAgentPanelDisplaySceneEntriesReadModel,

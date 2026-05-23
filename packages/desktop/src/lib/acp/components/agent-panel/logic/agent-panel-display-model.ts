@@ -2069,13 +2069,14 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 
 export function applyAgentPanelDisplayModelToSceneEntries(
 	model: AgentPanelDisplayModel,
-	_memory: AgentPanelDisplayMemory,
+	memory: AgentPanelDisplayMemory,
 	sceneEntries: readonly AgentPanelSceneEntryModel[]
 ): readonly AgentPanelSceneEntryModel[] {
-	return applyAssistantDisplayRowsToSceneEntriesByScan(
-		selectAssistantRowsForScenePatch(model),
-		sceneEntries
-	);
+	return createAgentPanelDisplaySceneEntriesReadModel().apply({
+		model,
+		memory,
+		sceneEntries,
+	});
 }
 
 export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDisplaySceneEntriesReadModel {
