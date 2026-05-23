@@ -2,6 +2,11 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 
 import { createAgentPanelSceneReadModel } from "../agent-panel-scene-read-model.js";
+import {
+	applyAgentPanelDisplayModelToSceneEntries,
+	createAgentPanelDisplayMemory,
+	type AgentPanelDisplayModel,
+} from "../agent-panel-display-model.js";
 import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
 import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import {
@@ -625,5 +630,65 @@ describe("createAgentPanelSceneReadModel", () => {
 		expect(restoredSnapshot.rows).toBe(baseSnapshot.rows);
 		expect(restoredSnapshot.entriesById).toBe(baseSnapshot.entriesById);
 		expect(restoredSnapshot.latestRowTimestampMs).toBe(baseSnapshot.latestRowTimestampMs);
+	});
+
+	it("applies display scene overlays through the patch path", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+			timestampMs: 20,
+		};
+		const baseEntries = [userEntry, assistantEntry];
+		const baseSnapshot = readModel.applySnapshot(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Display text",
+					displayText: "Display text",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+
+		const displayedEntries = applyAgentPanelDisplayModelToSceneEntries(
+			model,
+			createAgentPanelDisplayMemory(),
+			baseEntries
+		);
+		const patchedSnapshot = readModel.applyPatch(displayedEntries);
+
+		expect(patchedSnapshot).not.toBeNull();
+		if (patchedSnapshot === null) {
+			return;
+		}
+		expect(patchedSnapshot.rows[0]).toBe(baseSnapshot.rows[0]);
+		expect(patchedSnapshot.rows[1]).toMatchObject({
+			type: "assistant_merged",
+			markdown: "Display text",
+		});
+		expect(patchedSnapshot.entriesById.get("assistant-1")).toMatchObject({
+			id: "assistant-1",
+			markdown: "Display text",
+		});
 	});
 });

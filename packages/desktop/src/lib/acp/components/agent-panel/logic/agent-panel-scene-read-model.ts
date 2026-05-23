@@ -14,6 +14,7 @@ import {
 	type SceneDisplayRowsReadModel,
 } from "./scene-display-row-read-model.js";
 import type { SceneDisplayRow } from "./scene-display-rows.js";
+import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export type AgentPanelSceneReadModelSnapshot = {
@@ -65,6 +66,7 @@ export function createAgentPanelSceneReadModel(input?: {
 			if (
 				getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined &&
 				getAgentPanelSceneEntryArrayAppendPatch(sceneEntries) === undefined &&
+				getAgentPanelDisplayScenePatch(sceneEntries) === undefined &&
 				getTokenRevealScenePatch(sceneEntries) === undefined
 			) {
 				return null;

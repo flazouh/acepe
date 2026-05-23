@@ -124,6 +124,35 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		return previousRows;
 	}
 
+	function applyDisplayScenePatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
+		if (
+			displayScenePatch === undefined ||
+			displayScenePatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		baseRowsBeforeTokenReveal = null;
+		const patchedRows = patchDisplaySceneDisplayRows(
+			previousRows,
+			rowIndexBySceneEntryId,
+			displayScenePatch.entriesByIndex.values()
+		);
+		if (patchedRows === null) {
+			return null;
+		}
+		previousRows = patchedRows.rows;
+		latestTimestampMs = selectLatestTimestampMsFrom(
+			previousRows,
+			patchedRows.firstChangedRowIndex,
+			latestTimestampMs
+		);
+		previousSceneEntries = sceneEntries;
+		return previousRows;
+	}
+
 	function applyTokenRevealPatch(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): readonly SceneDisplayRow[] | null {
@@ -179,26 +208,9 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				return graphPatchRows;
 			}
 
-			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
-			if (
-				displayScenePatch !== undefined &&
-				displayScenePatch.baseSceneEntries === previousSceneEntries
-			) {
-				const patchedRows = patchDisplaySceneDisplayRows(
-					previousRows,
-					rowIndexBySceneEntryId,
-					displayScenePatch.entriesByIndex.values()
-				);
-				if (patchedRows !== null) {
-					previousRows = patchedRows.rows;
-					latestTimestampMs = selectLatestTimestampMsFrom(
-						previousRows,
-						patchedRows.firstChangedRowIndex,
-						latestTimestampMs
-					);
-					previousSceneEntries = sceneEntries;
-					return previousRows;
-				}
+			const displayPatchRows = applyDisplayScenePatch(sceneEntries);
+			if (displayPatchRows !== null) {
+				return displayPatchRows;
 			}
 
 			if (
@@ -313,6 +325,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return (
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
+				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);
 		},

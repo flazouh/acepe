@@ -116,6 +116,24 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		return entriesById;
 	}
 
+	function applyDisplayScenePatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
+		const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
+		if (
+			displayScenePatch === undefined ||
+			displayScenePatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		baseEntriesByIdBeforeTokenReveal ??= entriesById;
+		entriesById = new PatchedSceneEntryMap(
+			baseEntriesByIdBeforeTokenReveal,
+			displayScenePatch.entriesByIndex.values()
+		);
+		return entriesById;
+	}
+
 	function applyTokenRevealPatch(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
@@ -141,17 +159,9 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return patchedIndex;
 			}
 
-			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
-			if (
-				displayScenePatch !== undefined &&
-				displayScenePatch.baseSceneEntries === previousSceneEntries
-			) {
-				baseEntriesByIdBeforeTokenReveal ??= entriesById;
-				entriesById = new PatchedSceneEntryMap(
-					baseEntriesByIdBeforeTokenReveal,
-					displayScenePatch.entriesByIndex.values()
-				);
-				return entriesById;
+			const displaySceneIndex = applyDisplayScenePatch(sceneEntries);
+			if (displaySceneIndex !== null) {
+				return displaySceneIndex;
 			}
 
 			const tokenRevealIndex = applyTokenRevealPatch(sceneEntries);
@@ -264,6 +274,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return (
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
+				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);
 		},
