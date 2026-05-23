@@ -146,7 +146,6 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 
 			if (
 				previousSceneEntries !== null &&
-				transcriptRevision === previousTranscriptRevision &&
 				isStableDisplaySceneAppend(previousSceneEntries, sceneEntries)
 			) {
 				const appendedProjection = createRowsFromScene(

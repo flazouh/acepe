@@ -156,4 +156,34 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
 		expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
 	});
+
+	it("keeps existing display rows stable when an append advances transcript revision", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+
+		const nextProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry],
+			transcriptRevision: 2,
+		});
+
+		expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(nextProjection.rows[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			canonicalTextRevision: "2:assistant-1",
+		});
+	});
 });
