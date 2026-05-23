@@ -561,6 +561,38 @@ export class PanelStore {
 		}
 	}
 
+	private prependFilePanel(panel: FilePanel): void {
+		this.filePanelById.set(panel.id, panel);
+		this.filePanelByCacheKey.set(
+			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
+			panel
+		);
+		this.filePanelsByProject.set(panel.projectPath, [
+			panel,
+			...(this.filePanelsByProject.get(panel.projectPath) ?? []),
+		]);
+
+		if (panel.ownerPanelId === null) {
+			this.topLevelFilePanelsList = [panel, ...this.topLevelFilePanelsList];
+			this.topLevelFilePanelsByProject.set(panel.projectPath, [
+				panel,
+				...(this.topLevelFilePanelsByProject.get(panel.projectPath) ?? []),
+			]);
+			this.topLevelWorkspacePanelList = [panel, ...this.topLevelWorkspacePanelList];
+			this.topLevelNonAgentPanelProjectRefList = [
+				{ id: panel.id, projectPath: panel.projectPath },
+				...this.topLevelNonAgentPanelProjectRefList,
+			];
+		} else {
+			this.attachedFilePanelsByOwnerPanelId.set(panel.ownerPanelId, [
+				panel,
+				...(this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId) ?? []),
+			]);
+		}
+
+		this.workspacePanels = [panel, ...this.workspacePanels];
+	}
+
 	get terminalPanels(): TerminalWorkspacePanel[] {
 		return this.workspacePanels.filter(
 			(panel): panel is TerminalWorkspacePanel => panel.kind === "terminal"
@@ -1772,7 +1804,7 @@ export class PanelStore {
 				(ownerPanelId !== null ? DEFAULT_ATTACHED_FILE_PANEL_WIDTH : DEFAULT_FILE_PANEL_WIDTH),
 		};
 
-		this.filePanels = [panel, ...this.filePanels];
+		this.prependFilePanel(panel);
 		if (ownerPanelId !== null) {
 			this.ensureOwnerPanelWidth(ownerPanelId, panel.width);
 			this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, panel.id);

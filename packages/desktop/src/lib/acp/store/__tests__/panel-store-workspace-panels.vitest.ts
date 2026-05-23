@@ -320,6 +320,29 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.getActiveAttachedFilePanel(owner.id)).toBe(attachedPanel);
 	});
 
+	it("opens attached file panels without filtering the whole workspace panel list", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not scan workspace panels while opening a file");
+		};
+
+		try {
+			const attachedPanel = store.openFilePanel("src/attached.ts", "/tmp/project", {
+				ownerPanelId: owner.id,
+			});
+
+			expect(store.getFilePanel(attachedPanel.id)).toBe(attachedPanel);
+			expect(store.getFilePanelByPath("src/attached.ts", "/tmp/project")).toBeUndefined();
+			expect(store.getAttachedFilePanels(owner.id)).toEqual([attachedPanel]);
+			expect(store.getActiveAttachedFilePanel(owner.id)).toBe(attachedPanel);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 
