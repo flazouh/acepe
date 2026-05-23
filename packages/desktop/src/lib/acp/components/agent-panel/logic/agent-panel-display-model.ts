@@ -11,6 +11,7 @@ import type { AgentPanelCanonicalSource } from "../../../session-state/agent-pan
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArrayAppendPatch,
 	type AgentPanelSceneEntryArrayAppendPatch,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import type { TurnState } from "../../../store/types.js";
@@ -1397,6 +1398,10 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			previousDisplayedSceneEntries,
 			displayedAppendedEntries
 		);
+		markAgentPanelSceneEntryArrayAppendPatch(displayedEntries, {
+			baseSceneEntries: previousDisplayedSceneEntries,
+			appendedEntries: displayedAppendedEntries,
+		});
 		previousPatchedSceneEntries = previousSceneEntries;
 		previousPatchedAssistantRowsById = assistantRowsById;
 		previousDisplayedSceneEntries = displayedEntries;

@@ -2,6 +2,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-panel-canonical-source.js";
 import {
+	getAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
@@ -370,6 +371,14 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			expect(nextEntries[0]).toBe(userEntry);
 			expect(nextEntries[1]).toBe(firstAssistantEntry);
 			expect(nextEntries[2]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "Second",
+			});
+			const displayedAppendPatch = getAgentPanelSceneEntryArrayAppendPatch(nextEntries);
+			expect(displayedAppendPatch?.baseSceneEntries).toBe(baseEntries);
+			expect(displayedAppendPatch?.appendedEntries).toHaveLength(1);
+			expect(displayedAppendPatch?.appendedEntries[0]).toMatchObject({
 				id: "assistant-2",
 				type: "assistant",
 				markdown: "Second",
