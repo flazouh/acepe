@@ -360,10 +360,16 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 			entriesById: {
 				set(sessionId: string, entries: unknown[]): unknown;
 			};
+			entryIndex: {
+				rebuildEntryIdIndex(sessionId: string, entries: unknown[]): void;
+				rebuildToolCallIdIndex(sessionId: string, entries: unknown[]): void;
+			};
 		};
 		const originalSet = storage.entriesById.set.bind(storage.entriesById);
 		const setSpy = vi.fn(originalSet);
 		storage.entriesById.set = setSpy;
+		const rebuildEntryIdIndexSpy = vi.spyOn(storage.entryIndex, "rebuildEntryIdIndex");
+		const rebuildToolCallIdIndexSpy = vi.spyOn(storage.entryIndex, "rebuildToolCallIdIndex");
 
 		store.applyTranscriptDelta(
 			"session-1",
@@ -403,6 +409,8 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 
 		const entries = readStoredEntries(store, "session-1");
 		expect(setSpy).toHaveBeenCalledTimes(1);
+		expect(rebuildEntryIdIndexSpy).not.toHaveBeenCalled();
+		expect(rebuildToolCallIdIndexSpy).not.toHaveBeenCalled();
 		expect(entries[0]).toBe(firstEntry);
 		expect(entries[1]).toMatchObject({
 			id: "assistant-1",
@@ -416,6 +424,8 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		});
 
 		storage.entriesById.set = originalSet;
+		rebuildEntryIdIndexSpy.mockRestore();
+		rebuildToolCallIdIndexSpy.mockRestore();
 	});
 
 	it("does not reconcile canonical user append entries by matching optimistic text", () => {

@@ -227,16 +227,28 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 		let entries = this.entriesById.get(sessionId) ?? [];
 		let nextEntries: SessionEntry[] | null = null;
 		const appendedEntryIndexes = new Map<string, number>();
+		let replacedSnapshot = false;
+		const changedEntryIndexes = new Map<
+			number,
+			{ previous: SessionEntry | undefined; next: SessionEntry }
+		>();
 
 		const resolveEntryIndex = (entryId: string): number | undefined => {
 			return (
 				appendedEntryIndexes.get(entryId) ??
-				this.entryIndex.getEntryIdIndex(sessionId, entryId)
+				(replacedSnapshot ? undefined : this.entryIndex.getEntryIdIndex(sessionId, entryId))
 			);
 		};
 		const ensureMutableEntries = (): SessionEntry[] => {
 			nextEntries ??= entries.slice();
 			return nextEntries;
+		};
+		const recordChangedEntry = (
+			index: number,
+			previous: SessionEntry | undefined,
+			next: SessionEntry
+		): void => {
+			changedEntryIndexes.set(index, { previous, next });
 		};
 
 		for (const operation of delta.operations) {
@@ -246,6 +258,9 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				);
 				nextEntries = entries;
 				appendedEntryIndexes.clear();
+				entries.forEach((entry, index) => appendedEntryIndexes.set(entry.id, index));
+				replacedSnapshot = true;
+				changedEntryIndexes.clear();
 				continue;
 			}
 
@@ -258,8 +273,12 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 					const mutableEntries = ensureMutableEntries();
 					appendedEntryIndexes.set(operation.entry.entryId, mutableEntries.length);
 					mutableEntries.push(convertedEntry);
+					recordChangedEntry(mutableEntries.length - 1, undefined, convertedEntry);
 				} else {
-					ensureMutableEntries()[existingIndex] = convertedEntry;
+					const mutableEntries = ensureMutableEntries();
+					const previousEntry = mutableEntries[existingIndex];
+					mutableEntries[existingIndex] = convertedEntry;
+					recordChangedEntry(existingIndex, previousEntry, convertedEntry);
 				}
 				continue;
 			}
@@ -279,6 +298,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 				const mutableEntries = ensureMutableEntries();
 				appendedEntryIndexes.set(operation.entryId, mutableEntries.length);
 				mutableEntries.push(nextEntry);
+				recordChangedEntry(mutableEntries.length - 1, undefined, nextEntry);
 				continue;
 			}
 
@@ -293,13 +313,48 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			if (updatedEntry === null) {
 				continue;
 			}
-			ensureMutableEntries()[existingIndex] = this.normalizeRuntimeEntry(updatedEntry);
+			const mutableEntries = ensureMutableEntries();
+			const normalizedEntry = this.normalizeRuntimeEntry(updatedEntry);
+			mutableEntries[existingIndex] = normalizedEntry;
+			recordChangedEntry(existingIndex, existingEntry, normalizedEntry);
 		}
 
 		if (nextEntries !== null) {
-			this.setEntriesAndBuildIndices(sessionId, nextEntries);
+			this.entriesById.set(sessionId, nextEntries);
+			if (replacedSnapshot) {
+				this.entryIndex.rebuildEntryIdIndex(sessionId, nextEntries);
+				this.entryIndex.rebuildToolCallIdIndex(sessionId, nextEntries);
+			} else {
+				for (const [index, change] of changedEntryIndexes) {
+					this.updateEntryIndexesForReplacement(sessionId, index, change.previous, change.next);
+				}
+			}
 		}
 		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
+	}
+
+	private updateEntryIndexesForReplacement(
+		sessionId: string,
+		index: number,
+		previousEntry: SessionEntry | undefined,
+		nextEntry: SessionEntry
+	): void {
+		if (previousEntry !== undefined && previousEntry.id !== nextEntry.id) {
+			this.entryIndex.deleteEntryId(sessionId, previousEntry.id);
+		}
+		this.entryIndex.addEntryId(sessionId, nextEntry.id, index);
+
+		const previousToolCallId =
+			previousEntry !== undefined && isToolCallEntry(previousEntry)
+				? toolCallIdFromEntry(previousEntry)
+				: null;
+		const nextToolCallId = isToolCallEntry(nextEntry) ? toolCallIdFromEntry(nextEntry) : null;
+		if (previousToolCallId !== null && previousToolCallId !== nextToolCallId) {
+			this.entryIndex.deleteToolCallId(sessionId, previousToolCallId);
+		}
+		if (nextToolCallId !== null) {
+			this.entryIndex.addToolCallId(sessionId, nextToolCallId, index);
+		}
 	}
 
 	private normalizeRuntimeEntry(entry: SessionEntry): SessionEntry {
