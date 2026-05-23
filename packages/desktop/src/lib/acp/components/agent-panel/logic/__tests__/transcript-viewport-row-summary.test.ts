@@ -116,13 +116,9 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.lastKey).toBe("tool-1");
 		expect(nextSummary.latestUserKey).toBe("user-1");
 		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
-		expect(nextSummary.rowIndexByKey).toEqual(
-			new Map([
-				["user-1", 0],
-				["assistant-1", 1],
-				["tool-1", 2],
-			])
-		);
+		expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+		expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBe(1);
+		expect(nextSummary.rowIndexByKey?.get("tool-1")).toBe(2);
 		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
 		expect(nextSummary.hasToolCallEntry).toBe(true);
 	});
@@ -160,6 +156,39 @@ describe("createTranscriptViewportRowsReadModel", () => {
 				firstSummary.rowKeys.slice = rowKeysSlice;
 			}
 			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
+		}
+	});
+
+	it("updates append-only row indexes without cloning the previous index", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const rowIndexByKey = firstSummary.rowIndexByKey as
+			| (ReadonlyMap<string, number> & Record<symbol, unknown>)
+			| undefined;
+		const originalIterator = rowIndexByKey?.[Symbol.iterator];
+		if (rowIndexByKey !== undefined) {
+			rowIndexByKey[Symbol.iterator] = () => {
+				throw new Error("must not clone previous row index");
+			};
+		}
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: firstRows.concat(toolRow("tool-1")),
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBe(1);
+			expect(nextSummary.rowIndexByKey?.get("tool-1")).toBe(2);
+		} finally {
+			if (rowIndexByKey !== undefined && originalIterator !== undefined) {
+				rowIndexByKey[Symbol.iterator] = originalIterator;
+			}
 		}
 	});
 

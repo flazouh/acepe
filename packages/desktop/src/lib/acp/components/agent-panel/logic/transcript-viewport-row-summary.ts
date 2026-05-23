@@ -594,7 +594,7 @@ function appendTranscriptViewportRowsSummary(
 
 		const key = getSceneDisplayRowKey(row);
 		appendedRowKeys ??= [];
-		appendedRowIndexByKey ??= new Map(previousSummary.rowIndexByKey ?? []);
+		appendedRowIndexByKey ??= new Map();
 		appendedRowIndexByKey.set(key, index);
 		appendedRowKeys.push(key);
 		if (row.type === "user") {
@@ -621,7 +621,10 @@ function appendTranscriptViewportRowsSummary(
 			appendedRowKeys === null
 				? previousSummary.rowKeys
 				: createAppendedArrayView(previousRowKeys, appendedRowKeys),
-		rowIndexByKey: appendedRowIndexByKey ?? previousSummary.rowIndexByKey,
+		rowIndexByKey:
+			appendedRowIndexByKey === null
+				? previousSummary.rowIndexByKey
+				: createAppendedRowIndexByKey(previousSummary.rowIndexByKey, appendedRowIndexByKey),
 		anchorEligibleKeys:
 			appendedAnchorEligibleKeys === null
 				? previousSummary.anchorEligibleKeys
@@ -640,6 +643,98 @@ function createAppendedArrayView<T>(
 	return createArrayView(baseItems.length + appendedItems.length, (index) => {
 		return index < baseItems.length ? baseItems[index] : appendedItems[index - baseItems.length];
 	});
+}
+
+function createAppendedRowIndexByKey(
+	baseIndexByKey: ReadonlyMap<string, number> | undefined,
+	appendedIndexByKey: ReadonlyMap<string, number>
+): ReadonlyMap<string, number> {
+	if (baseIndexByKey === undefined) {
+		return appendedIndexByKey;
+	}
+	return new AppendedRowIndexByKeyMap(baseIndexByKey, appendedIndexByKey);
+}
+
+class AppendedRowIndexByKeyMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "AppendedRowIndexByKeyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly appended: ReadonlyMap<string, number>
+	) {}
+
+	get size(): number {
+		let size = this.base.size;
+		for (const key of this.appended.keys()) {
+			if (!this.base.has(key)) {
+				size += 1;
+			}
+		}
+		return size;
+	}
+
+	get(key: string): number | undefined {
+		return this.appended.get(key) ?? this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.appended.has(key) || this.base.has(key);
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		const yieldedAppendedKeys = new Set<string>();
+		for (const [key, value] of this.base.entries()) {
+			const appendedValue = this.appended.get(key);
+			if (appendedValue !== undefined) {
+				yield [key, appendedValue];
+				yieldedAppendedKeys.add(key);
+				continue;
+			}
+			yield [key, value];
+		}
+		for (const [key, value] of this.appended.entries()) {
+			if (!yieldedAppendedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function replaceTailRowIndexByKey(
