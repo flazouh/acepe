@@ -259,6 +259,31 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "delta": {
+			const deltaEventSeqDidNotAdvance =
+				envelope.payload.delta.toRevision.lastEventSeq <=
+				envelope.payload.delta.fromRevision.lastEventSeq;
+			if (deltaEventSeqDidNotAdvance) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.payload.delta.toRevision.graphRevision,
+					},
+				];
+			}
+			if (
+				currentRevision !== null &&
+				currentRevision !== undefined &&
+				envelope.payload.delta.fromRevision.lastEventSeq !== currentRevision.lastEventSeq
+			) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.payload.delta.toRevision.graphRevision,
+					},
+				];
+			}
 			const currentTranscriptRevision = currentTranscriptRevisionFrom(currentRevision);
 			const resolution = resolveSessionStateDelta(
 				sessionId,

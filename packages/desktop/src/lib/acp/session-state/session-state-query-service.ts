@@ -123,6 +123,14 @@ export function resolveSessionStateDelta(
 		};
 	}
 
+	if (isTranscriptBearing && delta.toRevision.lastEventSeq <= delta.fromRevision.lastEventSeq) {
+		return {
+			kind: "refreshSnapshot",
+			fromRevision,
+			toRevision,
+		};
+	}
+
 	if (isTranscriptBearing && currentRevision === undefined) {
 		if (fromRevision > 0) {
 			return {
