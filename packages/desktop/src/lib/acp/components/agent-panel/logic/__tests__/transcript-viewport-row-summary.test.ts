@@ -101,11 +101,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 
 		expect(waitingSummary.lastKey).toBe("thinking-indicator");
 		expect(waitingSummary.latestUserKey).toBe("user-1");
-		expect(waitingSummary.rowKeys).toEqual([
-			"user-1",
-			"assistant-1",
-			"thinking-indicator",
-		]);
+		expect(waitingSummary.rowKeys).toEqual(["user-1", "assistant-1", "thinking-indicator"]);
 		expect(waitingSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
 	});
 
@@ -165,6 +161,25 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(readModel.selectThinkingDurationMs(1, startedAtMs + 30_000)).toBeNull();
 	});
 
+	it("updates thinking duration sources incrementally after an append", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
+		const firstRows = [assistantRow("assistant-1", { thought: true, timestampMs: startedAtMs })];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 10_000)).toBeNull();
+
+		readModel.applyRows({
+			rows: firstRows.concat(userRow("user-2", { timestampMs: startedAtMs + 4_000 })),
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 10_000)).toBe(4_000);
+	});
+
 	it("selects elapsed thinking durations for waiting rows", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
@@ -178,11 +193,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 
 	it("selects and caches the native fallback tail window", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
-		const rows = [
-			userRow("user-1"),
-			assistantRow("assistant-1"),
-			toolRow("tool-1"),
-		];
+		const rows = [userRow("user-1"), assistantRow("assistant-1"), toolRow("tool-1")];
 		readModel.applyRows({ rows, reason: "rows-updated" });
 
 		const window = readModel.selectNativeFallbackWindow(2);
@@ -205,12 +216,7 @@ describe("createTranscriptViewportRowsReadModel", () => {
 	it("selects nearby row diagnostics without exposing row slicing to callers", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		readModel.applyRows({
-			rows: [
-				userRow("user-1"),
-				assistantRow("assistant-1"),
-				toolRow("tool-1"),
-				userRow("user-2"),
-			],
+			rows: [userRow("user-1"), assistantRow("assistant-1"), toolRow("tool-1"), userRow("user-2")],
 			reason: "rows-updated",
 		});
 
@@ -249,10 +255,7 @@ describe("buildTranscriptViewportRowsSummary", () => {
 	});
 });
 
-function userRow(
-	id: string,
-	options: { readonly timestampMs?: number } = {}
-): SceneDisplayRow {
+function userRow(id: string, options: { readonly timestampMs?: number } = {}): SceneDisplayRow {
 	return {
 		id,
 		type: "user",

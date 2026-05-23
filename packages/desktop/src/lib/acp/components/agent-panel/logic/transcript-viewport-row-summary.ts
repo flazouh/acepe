@@ -88,22 +88,18 @@ type ThinkingDurationSource =
 export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsReadModel {
 	let previousRows: readonly SceneDisplayRow[] | null = null;
 	let previousSummary: TranscriptViewportRowSummary = createEmptyTranscriptViewportRows();
-	let thinkingDurationSources: readonly ThinkingDurationSource[] = [];
-	let nativeFallbackWindowCache:
-		| {
-				readonly rows: readonly SceneDisplayRow[];
-				readonly limit: number;
-				readonly window: readonly IndexedViewportEntry<SceneDisplayRow>[];
-		  }
-		| null = null;
-	let selectedRowsCache:
-		| {
-				readonly rows: readonly SceneDisplayRow[];
-				readonly startedAtMs: number | null;
-				readonly label: string | null;
-				readonly selectedRows: readonly SceneDisplayRow[];
-		  }
-		| null = null;
+	let thinkingDurationSources: ThinkingDurationSource[] = [];
+	let nativeFallbackWindowCache: {
+		readonly rows: readonly SceneDisplayRow[];
+		readonly limit: number;
+		readonly window: readonly IndexedViewportEntry<SceneDisplayRow>[];
+	} | null = null;
+	let selectedRowsCache: {
+		readonly rows: readonly SceneDisplayRow[];
+		readonly startedAtMs: number | null;
+		readonly label: string | null;
+		readonly selectedRows: readonly SceneDisplayRow[];
+	} | null = null;
 
 	return {
 		selectRows({ rows, waiting }) {
@@ -365,18 +361,12 @@ function replaceTranscriptViewportRowsTailSummary(
 	let anchorEligibleKeys = previousSummary.anchorEligibleKeys;
 	if (tailRow.type === "thinking") {
 		anchorEligibleKeys =
-			previousTailKey !== null &&
-			previousSummary.anchorEligibleKeys.at(-1) === previousTailKey
+			previousTailKey !== null && previousSummary.anchorEligibleKeys.at(-1) === previousTailKey
 				? previousSummary.anchorEligibleKeys.slice(0, -1)
 				: previousSummary.anchorEligibleKeys;
 	} else if (previousTailKey !== nextTailKey) {
-		if (
-			previousTailKey !== null &&
-			previousSummary.anchorEligibleKeys.at(-1) === previousTailKey
-		) {
-			anchorEligibleKeys = previousSummary.anchorEligibleKeys
-				.slice(0, -1)
-				.concat(nextTailKey);
+		if (previousTailKey !== null && previousSummary.anchorEligibleKeys.at(-1) === previousTailKey) {
+			anchorEligibleKeys = previousSummary.anchorEligibleKeys.slice(0, -1).concat(nextTailKey);
 		} else {
 			anchorEligibleKeys = previousSummary.anchorEligibleKeys.concat(nextTailKey);
 		}
@@ -456,20 +446,18 @@ function isTokenRevealAssistantDisplayRow(row: SceneDisplayRow): boolean {
 }
 
 function updateThinkingDurationSources(
-	previousSources: readonly ThinkingDurationSource[],
+	previousSources: ThinkingDurationSource[],
 	rows: readonly SceneDisplayRow[],
 	startIndex: number
-): readonly ThinkingDurationSource[] {
-	const nextSources = previousSources.slice(0, startIndex);
+): ThinkingDurationSource[] {
+	previousSources.length = startIndex;
 	for (let index = startIndex; index < rows.length; index += 1) {
-		nextSources[index] = buildThinkingDurationSource(rows, index);
+		previousSources[index] = buildThinkingDurationSource(rows, index);
 	}
-	return nextSources;
+	return previousSources;
 }
 
-function buildThinkingDurationSources(
-	rows: readonly SceneDisplayRow[]
-): readonly ThinkingDurationSource[] {
+function buildThinkingDurationSources(rows: readonly SceneDisplayRow[]): ThinkingDurationSource[] {
 	const sources: ThinkingDurationSource[] = [];
 	for (let index = 0; index < rows.length; index += 1) {
 		sources[index] = buildThinkingDurationSource(rows, index);
@@ -537,8 +525,7 @@ function buildThinkingDurationSource(
 
 function hasThoughtChunks(row: SceneDisplayRow): boolean {
 	return (
-		row.type === "assistant_merged" &&
-		row.message.chunks.some((chunk) => chunk.type === "thought")
+		row.type === "assistant_merged" && row.message.chunks.some((chunk) => chunk.type === "thought")
 	);
 }
 
