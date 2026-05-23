@@ -445,6 +445,51 @@ describe("SessionStore.createSession", () => {
 		expect(store.hasPendingCreationSession("provider-requested-id")).toBe(false);
 	});
 
+	it("treats a materialized created session as enough authority for detail lookup", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync({
+					kind: "pending" as const,
+					sessionId: "provider-requested-id",
+					creationAttemptId: "attempt-1",
+					projectPath: "/repo",
+					agentId: "claude-code",
+					title: "Build stable panels",
+					worktreePath: null,
+				})
+			),
+		};
+
+		await store.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "provider-requested-id",
+				canonicalSessionId: "provider-requested-id",
+				agentId: "claude-code",
+				projectPath: "/repo",
+			})
+		);
+
+		expect(store.hasSessionCanonicalProjection("provider-requested-id")).toBe(false);
+		expect(store.getSessionDetail("provider-requested-id")).toMatchObject({
+			id: "provider-requested-id",
+			projectPath: "/repo",
+			agentId: "claude-code",
+			title: "Build stable panels",
+			sessionLifecycleState: "created",
+		});
+	});
+
 	it("materializes an aliased pending creation from the requested id into the canonical id", async () => {
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {

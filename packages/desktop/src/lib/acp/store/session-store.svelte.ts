@@ -3060,7 +3060,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	/**
 	 * Check if a session exists and has enough canonical/session history materialized
 	 * to expose detail state. Canonical graph/open-snapshot materialization counts,
-	 * as does legacy preloaded provider history during the migration.
+	 * locally created sessions count, and legacy preloaded provider history still
+	 * counts during the migration.
 	 */
 	getSessionDetail(sessionId: string): SessionCold | null {
 		const sessionIdentity = this.getSessionIdentity(sessionId);
@@ -3069,6 +3070,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return null;
 		}
 		if (
+			sessionMetadata.sessionLifecycleState !== "created" &&
 			!this.hasSessionCanonicalProjection(sessionId) &&
 			!this.entryStore.isPreloaded(sessionId)
 		) {
