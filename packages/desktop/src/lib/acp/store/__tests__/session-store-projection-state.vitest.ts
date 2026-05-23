@@ -3292,6 +3292,87 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("ignores stale plan envelopes instead of notifying plan callbacks", () => {
+		const store = new SessionStore();
+		const onPlanUpdate = vi.fn();
+		store.setCallbacks({ onPlanUpdate });
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 7,
+						lastEventSeq: 10,
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 9,
+			payload: {
+				kind: "plan",
+				plan: {
+					steps: [],
+					streaming: true,
+					content: "# Old plan",
+					title: "Old plan",
+				},
+				revision: {
+					graphRevision: 9,
+					transcriptRevision: 7,
+					lastEventSeq: 9,
+				},
+			},
+		});
+
+		expect(onPlanUpdate).not.toHaveBeenCalled();
+	});
+
+	it("notifies plan callbacks for newer plan envelopes", () => {
+		const store = new SessionStore();
+		const onPlanUpdate = vi.fn();
+		store.setCallbacks({ onPlanUpdate });
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 7,
+						lastEventSeq: 10,
+					},
+				})
+			)
+		);
+		const plan = {
+			steps: [],
+			streaming: true,
+			content: "# New plan",
+			title: "New plan",
+		};
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 11,
+			lastEventSeq: 11,
+			payload: {
+				kind: "plan",
+				plan,
+				revision: {
+					graphRevision: 11,
+					transcriptRevision: 7,
+					lastEventSeq: 11,
+				},
+			},
+		});
+
+		expect(onPlanUpdate).toHaveBeenCalledWith("session-1", plan);
+	});
+
 	it("refreshes from the canonical provider-open snapshot when a delta frontier mismatches the loaded transcript", async () => {
 		const store = new SessionStore();
 		const initialGraph = createSessionStateGraph();

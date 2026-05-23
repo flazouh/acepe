@@ -53,6 +53,7 @@ export type SessionStateCommand =
 	| {
 			kind: "applyPlan";
 			plan: PlanData;
+			revision: SessionGraphRevision;
 	  }
 	| {
 			kind: "refreshSnapshot";
@@ -156,6 +157,7 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyPlan",
 					plan: envelope.payload.plan,
+					revision: envelope.payload.revision,
 				},
 			];
 		case "delta": {

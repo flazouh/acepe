@@ -3602,6 +3602,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			}
 
 			if (command.kind === "applyPlan") {
+				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				if (!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+					logger.debug("Ignoring stale session-state plan envelope", {
+						sessionId,
+						currentRevision: previousProjection?.revision ?? null,
+						incomingRevision: command.revision,
+					});
+					continue;
+				}
 				this.callbacks.onPlanUpdate?.(sessionId, command.plan);
 				continue;
 			}
