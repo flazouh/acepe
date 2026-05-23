@@ -385,7 +385,7 @@ impl SessionGraphRuntimeRegistry {
                     if is_transcript_bearing {
                         changed_fields.push("transcriptSnapshot".to_string());
                     }
-                    Some(build_delta_envelope(DeltaEnvelopeParts {
+                    let envelope = build_delta_envelope(DeltaEnvelopeParts {
                         session_id: request.session_id,
                         from_revision,
                         to_revision,
@@ -394,7 +394,8 @@ impl SessionGraphRuntimeRegistry {
                         operation_patches: vec![operation],
                         interaction_patches: Vec::new(),
                         changed_fields,
-                    }))
+                    });
+                    self.delta_or_snapshot_repair(&request, envelope).await
                 }
             };
         }
@@ -422,16 +423,19 @@ impl SessionGraphRuntimeRegistry {
             SessionFrontierDecision::AcceptDelta {
                 from_revision,
                 to_revision,
-            } if is_transcript_bearing => Some(build_live_session_state_delta_envelope(
-                delta,
-                from_revision,
-                to_revision,
-                self.delta_projection_for_session(
-                    request.session_id,
-                    request.projection_registry,
-                    request.transcript_projection_registry,
-                ),
-            )),
+            } if is_transcript_bearing => {
+                let envelope = build_live_session_state_delta_envelope(
+                    delta,
+                    from_revision,
+                    to_revision,
+                    self.delta_projection_for_session(
+                        request.session_id,
+                        request.projection_registry,
+                        request.transcript_projection_registry,
+                    ),
+                );
+                self.delta_or_snapshot_repair(&request, envelope).await
+            }
             SessionFrontierDecision::AcceptDelta { .. } => None,
         }
     }
@@ -540,7 +544,7 @@ impl SessionGraphRuntimeRegistry {
                     changed_fields.push("operations".to_string());
                 }
 
-                Some(build_delta_envelope(DeltaEnvelopeParts {
+                let envelope = build_delta_envelope(DeltaEnvelopeParts {
                     session_id: request.session_id,
                     from_revision,
                     to_revision,
@@ -553,7 +557,8 @@ impl SessionGraphRuntimeRegistry {
                     operation_patches,
                     interaction_patches: Vec::new(),
                     changed_fields,
-                }))
+                });
+                self.delta_or_snapshot_repair(request, envelope).await
             }
         }
     }
@@ -610,7 +615,7 @@ impl SessionGraphRuntimeRegistry {
                     changed_fields.push("operations".to_string());
                 }
 
-                Some(build_delta_envelope(DeltaEnvelopeParts {
+                let envelope = build_delta_envelope(DeltaEnvelopeParts {
                     session_id: request.session_id,
                     from_revision,
                     to_revision,
@@ -623,9 +628,55 @@ impl SessionGraphRuntimeRegistry {
                     operation_patches,
                     interaction_patches: vec![interaction],
                     changed_fields,
-                }))
+                });
+                self.delta_or_snapshot_repair(request, envelope).await
             }
         }
+    }
+
+    async fn delta_or_snapshot_repair(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+        envelope: SessionStateEnvelope,
+    ) -> Option<SessionStateEnvelope> {
+        let delta_status = match session_state_envelope_byte_budget_status(&envelope) {
+            Ok(_) => return Some(envelope),
+            Err(status) => status,
+        };
+        tracing::warn!(
+            session_id = %envelope.session_id,
+            graph_revision = envelope.graph_revision,
+            last_event_seq = envelope.last_event_seq,
+            kind = ?delta_status.kind,
+            byte_len = delta_status.byte_len,
+            max_bytes = delta_status.max_bytes,
+            "Delta session-state envelope exceeded byte budget; trying snapshot repair"
+        );
+
+        let snapshot = self
+            .build_snapshot_envelope(
+                request.db,
+                request.session_id,
+                request.revision,
+                request.projection_registry,
+                request.transcript_projection_registry,
+            )
+            .await?;
+
+        if let Err(snapshot_status) = session_state_envelope_byte_budget_status(&snapshot) {
+            tracing::warn!(
+                session_id = %snapshot.session_id,
+                graph_revision = snapshot.graph_revision,
+                last_event_seq = snapshot.last_event_seq,
+                kind = ?snapshot_status.kind,
+                byte_len = snapshot_status.byte_len,
+                max_bytes = snapshot_status.max_bytes,
+                "Snapshot repair session-state envelope also exceeded byte budget; skipping"
+            );
+            return None;
+        }
+
+        Some(snapshot)
     }
 
     async fn build_snapshot_envelope(
@@ -1315,6 +1366,18 @@ mod tests {
         }
     }
 
+    fn create_oversized_active_tool_completion_update() -> SessionUpdate {
+        SessionUpdate::ToolCallUpdate {
+            update: ToolCallUpdateData {
+                tool_call_id: "active-tool".to_string(),
+                status: Some(ToolCallStatus::Completed),
+                result: Some(serde_json::json!({ "stdout": "x".repeat(70_000) })),
+                ..ToolCallUpdateData::default()
+            },
+            session_id: Some("session-1".to_string()),
+        }
+    }
+
     fn create_agent_message_chunk_update(
         session_id: &str,
         message_id: Option<&str>,
@@ -1524,7 +1587,7 @@ mod tests {
     }
 
     #[test]
-    fn assistant_text_delta_envelope_sanitizes_row_id_and_keeps_empty_delta() {
+    fn assistant_text_delta_envelope_keeps_empty_delta_for_live_event_row_id() {
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_registry = SessionGraphRuntimeRegistry::new();
         let first =
@@ -1546,8 +1609,8 @@ mod tests {
 
         match second_envelope.payload {
             SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(delta.row_id, "assistant-1");
-                assert_eq!(delta.turn_id, "assistant-1");
+                assert_eq!(delta.row_id, "assistant-event-1");
+                assert_eq!(delta.turn_id, "assistant-event-1");
                 assert_eq!(delta.char_offset, 5);
                 assert_eq!(delta.delta_text, "");
                 assert_eq!(delta.produced_at_monotonic_ms, 6);
@@ -2522,6 +2585,33 @@ mod tests {
         }
         assert_history_independent_payload_size(&short_envelope, &long_envelope);
         assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
+    }
+
+    #[tokio::test]
+    async fn oversized_hot_tool_delta_falls_back_to_bounded_snapshot_repair() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        let envelope = build_delta_for_history_depth(
+            &db,
+            4,
+            create_oversized_active_tool_completion_update(),
+            true,
+        )
+        .await;
+
+        match &envelope.payload {
+            SessionStatePayload::Snapshot { graph } => {
+                assert_eq!(graph.revision, SessionGraphRevision::new(11, 10, 11));
+                assert!(graph
+                    .operations
+                    .iter()
+                    .any(|operation| operation.tool_call_id == "active-tool"
+                        && operation.provider_status == ToolCallStatus::Completed));
+                assert!(serialized_envelope_len(&envelope) <= 2_000_000);
+            }
+            other => panic!("expected snapshot repair payload, got {:?}", other),
+        }
     }
 
     #[tokio::test]
