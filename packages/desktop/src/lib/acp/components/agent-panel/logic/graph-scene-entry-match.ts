@@ -257,7 +257,7 @@ function patchSameLengthGraphSceneEntrySet(
 	if (entriesById instanceof Map) {
 		return mutableEntriesById ?? entriesById;
 	}
-	return new PatchedSceneEntryMap(entriesById, Array.from(patchedEntriesByIndex.values()));
+	return new PatchedSceneEntryMap(entriesById, patchedEntriesByIndex.values());
 }
 
 function patchSameLengthGraphSceneEntries(
@@ -334,7 +334,7 @@ class PatchedSceneEntryMap implements ReadonlyMap<string, AgentPanelSceneEntryMo
 
 	constructor(
 		private readonly base: ReadonlyMap<string, AgentPanelSceneEntryModel>,
-		patchedEntries: readonly AgentPanelSceneEntryModel[]
+		patchedEntries: Iterable<AgentPanelSceneEntryModel>
 	) {
 		const patchedEntriesById = new Map<string, AgentPanelSceneEntryModel>();
 		for (const entry of patchedEntries) {
