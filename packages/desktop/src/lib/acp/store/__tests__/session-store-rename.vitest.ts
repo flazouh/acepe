@@ -16,6 +16,7 @@ import type { SessionCold } from "../types.js";
 
 type StoreWithPrivateSessions = {
 	sessions: SessionCold[];
+	sessionsByProject: Map<string, SessionCold[]>;
 };
 
 type MockReturnValue = {
@@ -177,6 +178,32 @@ describe("SessionStore renameSession", () => {
 			expect(store.getSessionIdsForProject("/project-b")).toEqual(["session-project-b"]);
 		} finally {
 			sessions[Symbol.iterator] = originalIterator;
+		}
+	});
+
+	it("looks up project session ids without mapping project sessions", () => {
+		store.addSession({
+			id: "session-project-a",
+			projectPath: "/project-a",
+			agentId: "claude-code",
+			title: "Project A",
+			updatedAt: new Date("2026-04-06T10:00:00.000Z"),
+			createdAt: new Date("2026-04-06T09:00:00.000Z"),
+			parentId: null,
+		});
+		const projectSessions = (store as unknown as StoreWithPrivateSessions).sessionsByProject.get(
+			"/project-a"
+		);
+		expect(projectSessions).toBeDefined();
+		const originalMap = projectSessions!.map;
+		projectSessions!.map = () => {
+			throw new Error("must not map project sessions for project id lookup");
+		};
+
+		try {
+			expect(store.getSessionIdsForProject("/project-a")).toEqual(["session-project-a"]);
+		} finally {
+			projectSessions!.map = originalMap;
 		}
 	});
 

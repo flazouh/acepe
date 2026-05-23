@@ -927,6 +927,21 @@ function rebuildSessionsByProjectIndex(
 	}
 }
 
+function rebuildSessionIdsByProjectIndex(
+	index: SvelteMap<string, string[]>,
+	sessions: readonly SessionCold[]
+): void {
+	index.clear();
+	for (const session of sessions) {
+		const projectSessionIds = index.get(session.projectPath);
+		if (projectSessionIds === undefined) {
+			index.set(session.projectPath, [session.id]);
+			continue;
+		}
+		projectSessionIds.push(session.id);
+	}
+}
+
 function patchSessionsByProjectIndex(
 	index: SvelteMap<string, SessionCold[]>,
 	previousSession: SessionCold | undefined,
@@ -968,6 +983,42 @@ function patchSessionsByProjectIndex(
 	);
 }
 
+function patchSessionIdsByProjectIndex(
+	index: SvelteMap<string, string[]>,
+	previousSession: SessionCold | undefined,
+	nextSession: SessionCold
+): void {
+	if (previousSession !== undefined && previousSession.projectPath !== nextSession.projectPath) {
+		const previousProjectSessionIds = index.get(previousSession.projectPath);
+		if (previousProjectSessionIds !== undefined) {
+			const nextPreviousProjectSessionIds = removeSessionIdFromArray(
+				previousProjectSessionIds,
+				previousSession.id
+			);
+			if (nextPreviousProjectSessionIds.length === 0) {
+				index.delete(previousSession.projectPath);
+			} else {
+				index.set(previousSession.projectPath, nextPreviousProjectSessionIds);
+			}
+		}
+	}
+
+	const currentProjectSessionIds = index.get(nextSession.projectPath);
+	if (currentProjectSessionIds === undefined) {
+		index.set(nextSession.projectPath, [nextSession.id]);
+		return;
+	}
+
+	if (currentProjectSessionIds.includes(nextSession.id)) {
+		return;
+	}
+
+	index.set(
+		nextSession.projectPath,
+		createPrependedReferenceArray(nextSession.id, currentProjectSessionIds)
+	);
+}
+
 function removeSessionColdFromArray(
 	sessions: readonly SessionCold[],
 	sessionId: string
@@ -986,6 +1037,23 @@ function removeSessionColdFromArray(
 		}
 	}
 	return nextSessions;
+}
+
+function removeSessionIdFromArray(sessionIds: readonly string[], sessionId: string): string[] {
+	const removedIndex = sessionIds.indexOf(sessionId);
+	if (removedIndex === -1) {
+		return sessionIds as string[];
+	}
+	const nextSessionIds: string[] = [];
+	for (let index = 0; index < sessionIds.length; index += 1) {
+		if (index !== removedIndex) {
+			const existingSessionId = sessionIds[index];
+			if (existingSessionId !== undefined) {
+				nextSessionIds.push(existingSessionId);
+			}
+		}
+	}
+	return nextSessionIds;
 }
 
 function sessionLiveSyncReferenceFromSession(session: SessionCold): SessionLiveSyncReference {
@@ -1922,6 +1990,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private sessions = $state<SessionCold[]>([]);
 	private readonly sessionById = new SvelteMap<string, SessionCold>();
 	private readonly sessionsByProject = new SvelteMap<string, SessionCold[]>();
+	private readonly sessionIdsByProject = new SvelteMap<string, string[]>();
 	private liveSessionSyncReferences = $state<SessionLiveSyncReference[]>([]);
 	private sessionPaletteReferences = $state<SessionPaletteReference[]>([]);
 	loading = $state(false);
@@ -2017,6 +2086,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = sessions;
 		rebuildSessionByIdIndex(this.sessionById, sessions);
 		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
+		rebuildSessionIdsByProjectIndex(this.sessionIdsByProject, sessions);
 		this.liveSessionSyncReferences = rebuildLiveSessionSyncReferences(sessions);
 		this.sessionPaletteReferences = rebuildSessionPaletteReferences(sessions);
 	}
@@ -2525,8 +2595,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionIdsForProject(projectPath: string): string[] {
-		const sessions = this.sessionsByProject.get(projectPath) ?? [];
-		return sessions.map((session) => session.id);
+		return this.sessionIdsByProject.get(projectPath) ?? [];
 	}
 
 	getLiveSessionSyncReferences(): SessionLiveSyncReference[] {
@@ -2864,6 +2933,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = createPrependedSessionColdArray(session, this.sessions);
 		this.sessionById.set(session.id, session);
 		patchSessionsByProjectIndex(this.sessionsByProject, undefined, session);
+		patchSessionIdsByProjectIndex(this.sessionIdsByProject, undefined, session);
 		this.liveSessionSyncReferences = createPrependedReferenceArray(
 			sessionLiveSyncReferenceFromSession(session),
 			this.liveSessionSyncReferences
@@ -2959,6 +3029,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
 			this.sessionById.set(canonicalSessionId, snapshotSession);
 			patchSessionsByProjectIndex(this.sessionsByProject, canonicalSession, snapshotSession);
+			patchSessionIdsByProjectIndex(
+				this.sessionIdsByProject,
+				canonicalSession,
+				snapshotSession
+			);
 			this.liveSessionSyncReferences = createPatchedReferenceArray(
 				this.liveSessionSyncReferences,
 				sessionLiveSyncReferenceFromSession(snapshotSession)
@@ -3093,6 +3168,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
 		this.sessionById.set(id, updatedSession);
 		patchSessionsByProjectIndex(this.sessionsByProject, session, updatedSession);
+		patchSessionIdsByProjectIndex(this.sessionIdsByProject, session, updatedSession);
 		this.liveSessionSyncReferences = createPatchedReferenceArray(
 			this.liveSessionSyncReferences,
 			sessionLiveSyncReferenceFromSession(updatedSession)
