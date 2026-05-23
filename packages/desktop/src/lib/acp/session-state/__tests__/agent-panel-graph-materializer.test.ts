@@ -319,6 +319,45 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("keeps conversation rows stable when only the operations array identity changes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "hello"),
+			createTranscriptEntry("tool-1", "tool", "Run tests"),
+			createTranscriptEntry("assistant-1", "assistant", "done"),
+		]);
+		const operation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [operation],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: [operation],
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
 	it("appends transcript rows without rebuilding existing conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "hi");

@@ -828,16 +828,19 @@ function materializeOperationPatchedConversation(
 		return null;
 	}
 
-	const changedOperationIds = collectChangedOperationIds(previous.operations, input.graph.operations);
+	const operationIndex = buildOperationIndex(input.graph.operations);
+	const changedOperationIds = collectChangedOperationIds(
+		previous.operationIndex,
+		operationIndex
+	);
 	if (changedOperationIds.size === 0) {
 		return {
 			...previous,
 			operations: input.graph.operations,
-			operationIndex: buildOperationIndex(input.graph.operations),
+			operationIndex,
 		};
 	}
 
-	const operationIndex = buildOperationIndex(input.graph.operations);
 	const affectedEntryIds = collectAffectedTranscriptEntryIds(
 		previous.operationIndex,
 		operationIndex,
@@ -889,26 +892,17 @@ function materializeOperationPatchedConversation(
 }
 
 function collectChangedOperationIds(
-	previousOperations: readonly OperationSnapshot[],
-	nextOperations: readonly OperationSnapshot[]
+	previousOperationIndex: OperationIndex,
+	operationIndex: OperationIndex
 ): Set<string> {
-	const previousById = new Map<string, OperationSnapshot>();
-	const nextById = new Map<string, OperationSnapshot>();
-	for (const operation of previousOperations) {
-		previousById.set(operation.id, operation);
-	}
-	for (const operation of nextOperations) {
-		nextById.set(operation.id, operation);
-	}
-
 	const changed = new Set<string>();
-	for (const [operationId, nextOperation] of nextById) {
-		if (previousById.get(operationId) !== nextOperation) {
+	for (const [operationId, nextOperation] of operationIndex.byOperationId) {
+		if (previousOperationIndex.byOperationId.get(operationId) !== nextOperation) {
 			changed.add(operationId);
 		}
 	}
-	for (const operationId of previousById.keys()) {
-		if (!nextById.has(operationId)) {
+	for (const operationId of previousOperationIndex.byOperationId.keys()) {
+		if (!operationIndex.byOperationId.has(operationId)) {
 			changed.add(operationId);
 		}
 	}
