@@ -168,6 +168,11 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			return;
 		}
 
+		if (delta.operations.length > 1) {
+			this.applyTranscriptDeltaBatch(sessionId, delta, timestamp);
+			return;
+		}
+
 		for (const operation of delta.operations) {
 			if (operation.kind === "replaceSnapshot") {
 				this.replaceTranscriptSnapshot(sessionId, operation.snapshot, timestamp);
@@ -211,6 +216,89 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			this.replaceTranscriptEntry(sessionId, existingIndex, updatedEntry);
 		}
 
+		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
+	}
+
+	private applyTranscriptDeltaBatch(
+		sessionId: string,
+		delta: TranscriptDelta,
+		timestamp: Date
+	): void {
+		let entries = this.entriesById.get(sessionId) ?? [];
+		let nextEntries: SessionEntry[] | null = null;
+		const appendedEntryIndexes = new Map<string, number>();
+
+		const resolveEntryIndex = (entryId: string): number | undefined => {
+			return (
+				appendedEntryIndexes.get(entryId) ??
+				this.entryIndex.getEntryIdIndex(sessionId, entryId)
+			);
+		};
+		const ensureMutableEntries = (): SessionEntry[] => {
+			nextEntries ??= entries.slice();
+			return nextEntries;
+		};
+
+		for (const operation of delta.operations) {
+			if (operation.kind === "replaceSnapshot") {
+				entries = convertTranscriptSnapshotToSessionEntries(operation.snapshot, timestamp).map(
+					(entry) => this.normalizeRuntimeEntry(entry)
+				);
+				nextEntries = entries;
+				appendedEntryIndexes.clear();
+				continue;
+			}
+
+			if (operation.kind === "appendEntry") {
+				const convertedEntry = this.normalizeRuntimeEntry(
+					convertTranscriptEntryToSessionEntry(operation.entry, timestamp)
+				);
+				const existingIndex = resolveEntryIndex(operation.entry.entryId);
+				if (existingIndex === undefined) {
+					const mutableEntries = ensureMutableEntries();
+					appendedEntryIndexes.set(operation.entry.entryId, mutableEntries.length);
+					mutableEntries.push(convertedEntry);
+				} else {
+					ensureMutableEntries()[existingIndex] = convertedEntry;
+				}
+				continue;
+			}
+
+			const existingIndex = resolveEntryIndex(operation.entryId);
+			if (existingIndex === undefined) {
+				const nextEntry = this.normalizeRuntimeEntry(
+					convertTranscriptEntryToSessionEntry(
+						{
+							entryId: operation.entryId,
+							role: operation.role,
+							segments: [operation.segment],
+						},
+						timestamp
+					)
+				);
+				const mutableEntries = ensureMutableEntries();
+				appendedEntryIndexes.set(operation.entryId, mutableEntries.length);
+				mutableEntries.push(nextEntry);
+				continue;
+			}
+
+			const existingEntry = (nextEntries ?? entries)[existingIndex];
+			if (existingEntry === undefined) {
+				continue;
+			}
+			const updatedEntry = appendTranscriptSegmentToSessionEntry(
+				existingEntry,
+				operation.segment
+			);
+			if (updatedEntry === null) {
+				continue;
+			}
+			ensureMutableEntries()[existingIndex] = this.normalizeRuntimeEntry(updatedEntry);
+		}
+
+		if (nextEntries !== null) {
+			this.setEntriesAndBuildIndices(sessionId, nextEntries);
+		}
 		this.transcriptRevisionBySession.set(sessionId, delta.snapshotRevision);
 	}
 

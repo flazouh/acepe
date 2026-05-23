@@ -340,6 +340,84 @@ describe("SessionEntryStore - Transcript Deltas", () => {
 		expect(operationStore.getSessionOperations("session-1")).toHaveLength(0);
 	});
 
+	it("commits multi-operation transcript deltas once while preserving unchanged entries", () => {
+		store.replaceTranscriptSnapshot(
+			"session-1",
+			{
+				revision: 5,
+				entries: [
+					{
+						entryId: "user-1",
+						role: "user",
+						segments: [{ kind: "text", segmentId: "user-1:block:0", text: "hello" }],
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:00.000Z")
+		);
+		const firstEntry = readStoredEntries(store, "session-1")[0];
+		const storage = store as unknown as {
+			entriesById: {
+				set(sessionId: string, entries: unknown[]): unknown;
+			};
+		};
+		const originalSet = storage.entriesById.set.bind(storage.entriesById);
+		const setSpy = vi.fn(originalSet);
+		storage.entriesById.set = setSpy;
+
+		store.applyTranscriptDelta(
+			"session-1",
+			{
+				eventSeq: 6,
+				sessionId: "session-1",
+				snapshotRevision: 6,
+				operations: [
+					{
+						kind: "appendEntry",
+						entry: {
+							entryId: "assistant-1",
+							role: "assistant",
+							segments: [
+								{
+									kind: "text",
+									segmentId: "assistant-1:segment:0",
+									text: "hi",
+								},
+							],
+						},
+					},
+					{
+						kind: "appendSegment",
+						entryId: "assistant-1",
+						role: "assistant",
+						segment: {
+							kind: "text",
+							segmentId: "assistant-1:segment:1",
+							text: " there",
+						},
+					},
+				],
+			},
+			new Date("2026-04-16T00:00:01.000Z")
+		);
+
+		const entries = readStoredEntries(store, "session-1");
+		expect(setSpy).toHaveBeenCalledTimes(1);
+		expect(entries[0]).toBe(firstEntry);
+		expect(entries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			message: {
+				chunks: [
+					{ type: "message", block: { type: "text", text: "hi" } },
+					{ type: "message", block: { type: "text", text: " there" } },
+				],
+			},
+		});
+
+		storage.entriesById.set = originalSet;
+	});
+
 	it("does not reconcile canonical user append entries by matching optimistic text", () => {
 		store.appendTranscriptEntry("session-1", {
 			id: "optimistic-user-local",
