@@ -495,6 +495,30 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("makes opened file panels visible before workspace persistence runs", () => {
+		vi.useFakeTimers();
+		const sessionStore = {
+			getSessionCold: vi.fn(() => null),
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+		} as unknown as SessionStore;
+		const agentStore = {
+			getDefaultAgentId: vi.fn(() => "claude-code"),
+		} as unknown as AgentStore;
+		const persist = vi.fn();
+		const store = new PanelStore(sessionStore, agentStore, persist);
+
+		const filePanel = store.openFilePanel("src/instant.ts", "/tmp/project");
+
+		expect(store.getFilePanel(filePanel.id)).toBe(filePanel);
+		expect(store.workspacePanels[0]).toBe(filePanel);
+		expect(persist).not.toHaveBeenCalled();
+
+		vi.runOnlyPendingTimers();
+		expect(persist).toHaveBeenCalledTimes(1);
+		vi.useRealTimers();
+	});
+
 	it("opens attached file panels before widening the owner panel", () => {
 		vi.useFakeTimers();
 		const store = createStore();

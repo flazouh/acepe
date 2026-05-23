@@ -492,6 +492,7 @@ export class PanelStore {
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
 	private activeTopLevelFilePanelIdByProject = new SvelteMap<string, string>();
 	private pendingOwnerPanelWidthEnsures = new Map<string, number>();
+	private pendingFilePanelPersist: ReturnType<typeof setTimeout> | null = null;
 	private nextTerminalTabCreatedAt = 1;
 
 	private isTopLevelFullscreenTarget(panelId: string | null): boolean {
@@ -982,6 +983,16 @@ export class PanelStore {
 		}
 
 		this.workspacePanels = createPrependedItemArray(panel, this.workspacePanels);
+	}
+
+	private scheduleFilePanelPersist(): void {
+		if (this.pendingFilePanelPersist !== null) {
+			return;
+		}
+		this.pendingFilePanelPersist = setTimeout(() => {
+			this.pendingFilePanelPersist = null;
+			this.onPersist();
+		}, 0);
 	}
 
 	private insertTopLevelAgentPanel(panel: Panel, placement: "prepend" | "append"): void {
@@ -2289,7 +2300,7 @@ export class PanelStore {
 			this.activeTopLevelFilePanelIdByProject.set(projectPath, panel.id);
 			this.focusOpenedTopLevelPanel(panel.id);
 		}
-		this.onPersist();
+		this.scheduleFilePanelPersist();
 
 		logger.debug("Opened file in panel", { filePath, projectPath, panelId: panel.id });
 		return panel;
