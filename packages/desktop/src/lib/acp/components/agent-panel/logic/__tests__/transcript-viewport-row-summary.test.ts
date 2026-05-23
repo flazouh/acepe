@@ -118,6 +118,42 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.hasToolCallEntry).toBe(true);
 	});
 
+	it("updates append-only row keys without copying previous key arrays", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const rowKeysSlice = firstSummary.rowKeys?.slice;
+		const anchorKeysSlice = firstSummary.anchorEligibleKeys.slice;
+		if (firstSummary.rowKeys !== undefined) {
+			firstSummary.rowKeys.slice = () => {
+				throw new Error("must not copy previous row keys");
+			};
+		}
+		firstSummary.anchorEligibleKeys.slice = () => {
+			throw new Error("must not copy previous anchor keys");
+		};
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: firstRows.concat(toolRow("tool-1")),
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+			expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+			expect(nextSummary.rowKeys?.[0]).toBe("user-1");
+			expect(nextSummary.rowKeys?.[2]).toBe("tool-1");
+		} finally {
+			if (firstSummary.rowKeys !== undefined && rowKeysSlice !== undefined) {
+				firstSummary.rowKeys.slice = rowKeysSlice;
+			}
+			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
+		}
+	});
+
 	it("handles a waiting row append without changing anchor keys", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];

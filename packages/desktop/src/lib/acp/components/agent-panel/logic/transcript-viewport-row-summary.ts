@@ -301,6 +301,9 @@ function createSingleAppendRows(
 			}
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
 	});
 	singleAppendRowsMetadata.set(rows, { baseRows, appendedRow });
 	return rows;
@@ -476,8 +479,8 @@ function appendTranscriptViewportRowsSummary(
 	}
 
 	let latestUserKey = previousSummary.latestUserKey;
-	let nextRowKeys: string[] | null = null;
-	let nextAnchorEligibleKeys: string[] | null = null;
+	let appendedRowKeys: string[] | null = null;
+	let appendedAnchorEligibleKeys: string[] | null = null;
 	let hasLiveAssistantDisplayEntry = previousSummary.hasLiveAssistantDisplayEntry === true;
 	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
 	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
@@ -489,14 +492,14 @@ function appendTranscriptViewportRowsSummary(
 		}
 
 		const key = getSceneDisplayRowKey(row);
-		nextRowKeys ??= previousRowKeys.slice();
-		nextRowKeys.push(key);
+		appendedRowKeys ??= [];
+		appendedRowKeys.push(key);
 		if (row.type === "user") {
 			latestUserKey = key;
 		}
 		if (row.type !== "thinking") {
-			nextAnchorEligibleKeys ??= previousSummary.anchorEligibleKeys.slice();
-			nextAnchorEligibleKeys.push(key);
+			appendedAnchorEligibleKeys ??= [];
+			appendedAnchorEligibleKeys.push(key);
 		}
 		hasLiveAssistantDisplayEntry ||= isLiveAssistantDisplayRow(row);
 		hasTokenRevealAssistantEntry ||= isTokenRevealAssistantDisplayRow(row);
@@ -511,13 +514,88 @@ function appendTranscriptViewportRowsSummary(
 			previousSummary.firstKey ?? (rows[0] === undefined ? null : getSceneDisplayRowKey(rows[0])),
 		lastKey: lastRow === undefined ? null : getSceneDisplayRowKey(lastRow),
 		latestUserKey,
-		rowKeys: nextRowKeys ?? previousSummary.rowKeys,
-		anchorEligibleKeys: nextAnchorEligibleKeys ?? previousSummary.anchorEligibleKeys,
+		rowKeys:
+			appendedRowKeys === null
+				? previousSummary.rowKeys
+				: createAppendedArrayView(previousRowKeys, appendedRowKeys),
+		anchorEligibleKeys:
+			appendedAnchorEligibleKeys === null
+				? previousSummary.anchorEligibleKeys
+				: createAppendedArrayView(previousSummary.anchorEligibleKeys, appendedAnchorEligibleKeys),
 		hasLiveAssistantDisplayEntry,
 		hasTokenRevealAssistantEntry,
 		hasToolCallEntry,
 		reason,
 	};
+}
+
+function createAppendedArrayView<T>(
+	baseItems: readonly T[],
+	appendedItems: readonly T[]
+): readonly T[] {
+	const target = new Array<T>(baseItems.length + appendedItems.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < baseItems.length; index += 1) {
+						yield baseItems[index];
+					}
+					for (const item of appendedItems) {
+						yield item;
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index < baseItems.length
+						? baseItems[index]
+						: appendedItems[index - baseItems.length];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value:
+						index < baseItems.length
+							? baseItems[index]
+							: appendedItems[index - baseItems.length],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	});
+}
+
+function createArrayLikeOwnKeys(length: number): string[] {
+	const keys: string[] = [];
+	for (let index = 0; index < length; index += 1) {
+		keys.push(String(index));
+	}
+	keys.push("length");
+	return keys;
 }
 
 function replaceTranscriptViewportRowsTailSummary(
