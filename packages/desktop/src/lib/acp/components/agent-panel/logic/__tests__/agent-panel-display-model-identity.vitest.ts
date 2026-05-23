@@ -461,15 +461,29 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 			canonicalTextRevision: "2:assistant-2",
 			isLiveTail: false,
 		};
+		const originalConcat = firstResult.model.rows.concat;
 
-		const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
-			...firstModel,
-			rows: [firstResult.model.rows[0]!, nextAssistantRow],
-		});
+		firstResult.model.rows.concat = () => {
+			throw new Error("must not copy existing display rows");
+		};
 
-		expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
-		expect(nextResult.model.rows[1]).toBe(nextAssistantRow);
-		expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
+		try {
+			const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+				...firstModel,
+				rows: [firstResult.model.rows[0]!, nextAssistantRow],
+			});
+
+			expect(Array.isArray(nextResult.model.rows)).toBe(true);
+			expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
+			expect(nextResult.model.rows[1]).toBe(nextAssistantRow);
+			expect([...nextResult.model.rows].map((row) => row.id)).toEqual([
+				"assistant-1",
+				"assistant-2",
+			]);
+			expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
+		} finally {
+			firstResult.model.rows.concat = originalConcat;
+		}
 	});
 
 	it("updates only changed same-length rows without rebuilding display text memory", () => {

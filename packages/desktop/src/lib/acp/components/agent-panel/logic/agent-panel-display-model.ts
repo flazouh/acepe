@@ -753,7 +753,7 @@ export function applyAgentPanelDisplayMemory(
 				appendedRows.push(applyDisplayTextToRow(row, baseModel, previousTexts, previousTexts));
 			}
 		}
-		const rows = previousMemory.displayRows.concat(appendedRows);
+		const rows = createAppendedDisplayRowArray(previousMemory.displayRows, appendedRows);
 		return {
 			model: {
 				panelId: baseModel.panelId,
