@@ -22,7 +22,9 @@ use crate::acp::session_open_snapshot::{
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{redact_session_id, SessionRegistry};
 use crate::acp::session_state_engine::bridge::build_snapshot_envelope;
-use crate::acp::session_state_engine::envelope::SessionStateEnvelope;
+use crate::acp::session_state_engine::envelope::{
+    session_state_envelope_byte_budget_status, SessionStateEnvelope,
+};
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::runtime_registry::{
@@ -1849,6 +1851,18 @@ fn replay_buffered_session_state_events(
                 return None;
             }
 
+            if let Err(status) = session_state_envelope_byte_budget_status(&envelope) {
+                tracing::warn!(
+                    session_id = %envelope.session_id,
+                    graph_revision = envelope.graph_revision,
+                    last_event_seq = envelope.last_event_seq,
+                    byte_len = status.byte_len,
+                    max_bytes = status.max_bytes,
+                    "Skipping oversized buffered session-state delta during open replay"
+                );
+                return None;
+            }
+
             let payload = serde_json::to_value(&envelope).ok()?;
 
             Some(crate::acp::event_hub::AcpEventEnvelope { payload, ..event })
@@ -2294,6 +2308,52 @@ mod transcript_buffer_tests {
         assert!(
             receiver.try_recv().is_err(),
             "historical open replay must not repair or replay full snapshot payloads"
+        );
+    }
+
+    #[test]
+    fn replay_buffered_session_state_events_ignores_oversized_delta_payloads() {
+        let hub = AcpEventHubState::new();
+        let mut receiver = hub.subscribe();
+
+        replay_buffered_session_state_events(
+            &hub,
+            "session-1",
+            12,
+            vec![AcpEventEnvelope {
+                seq: 13,
+                event_name: "acp-session-state".to_string(),
+                session_id: Some("session-1".to_string()),
+                payload: to_value(SessionStateEnvelope {
+                    session_id: "session-1".to_string(),
+                    graph_revision: 13,
+                    last_event_seq: 13,
+                    payload: SessionStatePayload::Delta {
+                        delta: SessionStateDelta {
+                            from_revision: SessionGraphRevision::new(12, 12, 12),
+                            to_revision: SessionGraphRevision::new(13, 13, 13),
+                            activity: SessionGraphActivity::idle(),
+                            turn_state: crate::acp::projections::SessionTurnState::Idle,
+                            active_turn_failure: None,
+                            last_terminal_turn_id: None,
+                            active_streaming_tail: None,
+                            transcript_operations: vec![],
+                            operation_patches: vec![],
+                            interaction_patches: vec![],
+                            changed_fields: vec!["x".repeat(70_000)],
+                        },
+                    },
+                })
+                .expect("serialize envelope"),
+                priority: "normal".to_string(),
+                droppable: false,
+                emitted_at_ms: 3,
+            }],
+        );
+
+        assert!(
+            receiver.try_recv().is_err(),
+            "historical open replay must not replay oversized buffered deltas"
         );
     }
 }
