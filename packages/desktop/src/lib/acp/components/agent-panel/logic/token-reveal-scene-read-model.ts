@@ -29,6 +29,7 @@ export interface TokenRevealSceneReadModel {
 export type TokenRevealScenePatch = {
 	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly entries: readonly AgentPanelSceneEntryModel[];
+	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
 const tokenRevealScenePatches = new WeakMap<
@@ -160,6 +161,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			tokenRevealScenePatches.set(nextEntries, {
 				baseSceneEntries: snapshot.sceneEntries,
 				entries: Array.from(patchedEntriesByIndex.values()),
+				entriesByIndex: patchedEntriesByIndex,
 			});
 
 			previousSnapshot = snapshot;

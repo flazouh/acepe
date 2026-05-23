@@ -16,7 +16,10 @@ import {
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
 } from "../graph-scene-entry-match.js";
-import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
+import {
+	createTokenRevealSceneReadModel,
+	getTokenRevealScenePatch,
+} from "../token-reveal-scene-read-model.js";
 import { buildVirtualizedDisplayEntries } from "../virtualized-entry-display.js";
 
 function createAssistantDisplayEntry(id: string, text: string): SessionEntry {
@@ -738,6 +741,57 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
 				Symbol.iterator
 			] = originalIterator;
+		}
+	});
+
+	it("applies token reveal patches from indexed entries without iterating patch arrays", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		const baseIndex = readModel.applySnapshot(baseEntries);
+		const tokenRevealEntries = tokenRevealReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss: {
+				revealCount: 1,
+				revealedCharCount: 6,
+				baselineMs: 0,
+				tokStepMs: 20,
+				tokFadeDurMs: 80,
+				mode: "smooth",
+			},
+		});
+		const patch = getTokenRevealScenePatch(tokenRevealEntries);
+		expect(patch).toBeDefined();
+		const originalIterator = patch?.entries[Symbol.iterator];
+		if (patch !== undefined) {
+			patch.entries[Symbol.iterator] = () => {
+				throw new Error("must use indexed token reveal entry patches");
+			};
+		}
+
+		try {
+			const patchedIndex = readModel.applyPatch(tokenRevealEntries);
+			expect(patchedIndex).not.toBeNull();
+			expect(patchedIndex).not.toBe(baseIndex);
+			expect(patchedIndex?.get("assistant-1")).toMatchObject({
+				id: "assistant-1",
+				tokenRevealCss: {
+					revealCount: 1,
+				},
+			});
+		} finally {
+			if (patch !== undefined && originalIterator !== undefined) {
+				patch.entries[Symbol.iterator] = originalIterator;
+			}
 		}
 	});
 });

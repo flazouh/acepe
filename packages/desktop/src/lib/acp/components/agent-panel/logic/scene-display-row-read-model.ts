@@ -278,13 +278,12 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return null;
 		}
 		baseRowsBeforeTokenReveal ??= previousRows;
-		const effectivePatchedEntries = tokenRevealPatch.entries.filter((entry) => {
-			const rowIndex = rowIndexBySceneEntryId.get(entry.id);
-			if (rowIndex === undefined) {
-				return true;
+		const effectivePatchedEntries: AgentPanelSceneEntryModel[] = [];
+		for (const [sceneEntryIndex, entry] of tokenRevealPatch.entriesByIndex) {
+			if (tokenRevealPatch.baseSceneEntries[sceneEntryIndex] !== entry) {
+				effectivePatchedEntries.push(entry);
 			}
-			return tokenRevealPatch.baseSceneEntries[rowIndex] !== entry;
-		});
+		}
 		const patchedRows = patchDisplaySceneDisplayRows(
 			baseRowsBeforeTokenReveal,
 			rowIndexBySceneEntryId,

@@ -9,7 +9,10 @@ import {
 	THINKING_DISPLAY_ENTRY,
 } from "../scene-display-rows.js";
 import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
-import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
+import {
+	createTokenRevealSceneReadModel,
+	getTokenRevealScenePatch,
+} from "../token-reveal-scene-read-model.js";
 import {
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
@@ -724,6 +727,57 @@ describe("scene-display-rows", () => {
 			});
 		} finally {
 			baseRows.slice = originalSlice;
+		}
+	});
+
+	it("applies token reveal patches from indexed entries instead of filtering patch lists", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [userEntry, assistantEntry];
+		const baseRows = readModel.applySnapshot(baseEntries);
+		const tokenRevealEntries = tokenRevealReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 1,
+			tokenRevealCss: {
+				revealCount: 1,
+				revealedCharCount: 6,
+				baselineMs: 0,
+				tokStepMs: 20,
+				tokFadeDurMs: 80,
+				mode: "smooth",
+			},
+		});
+		const patch = getTokenRevealScenePatch(tokenRevealEntries);
+		expect(patch).toBeDefined();
+		const originalFilter = patch?.entries.filter;
+		if (patch !== undefined) {
+			patch.entries.filter = () => {
+				throw new Error("must use indexed token reveal scene patches");
+			};
+		}
+
+		try {
+			const patchedRows = readModel.applyPatch(tokenRevealEntries);
+			expect(patchedRows).not.toBeNull();
+			expect(patchedRows?.[0]).toBe(baseRows[0]);
+			expect(patchedRows?.[1]).not.toBe(baseRows[1]);
+		} finally {
+			if (patch !== undefined && originalFilter !== undefined) {
+				patch.entries.filter = originalFilter;
+			}
 		}
 	});
 });
