@@ -275,40 +275,48 @@ export function appendVirtualizedDisplayEntriesFromSceneRange(
 		return currentRows;
 	}
 
-	let copiedRows: VirtualizedDisplayEntry[] | null = null;
+	let baseRows: readonly VirtualizedDisplayEntry[] = currentRows;
 	let appendedRows: VirtualizedDisplayEntry[] | null = null;
 	for (let index = startIndex; index < sceneEntries.length; index += 1) {
 		const entry = sceneEntries[index];
 		if (entry === undefined) {
 			continue;
 		}
-		if (copiedRows !== null) {
-			pushSceneEntryIntoDisplayRows(copiedRows, entry);
-			continue;
-		}
 		if (appendedRows !== null) {
+			if (appendedRows.length === 0) {
+				const replacedTailRows = createMergedTailVirtualizedDisplayEntryArray(baseRows, entry);
+				if (replacedTailRows !== null) {
+					baseRows = replacedTailRows;
+					continue;
+				}
+			}
 			pushSceneEntryIntoDisplayRows(appendedRows, entry);
 			continue;
 		}
-		if (canAppendSceneEntryWithoutMutatingTail(currentRows, entry)) {
+		if (canAppendSceneEntryWithoutMutatingTail(baseRows, entry)) {
 			appendedRows = [];
 			pushSceneEntryIntoDisplayRows(appendedRows, entry);
 			continue;
 		}
-		const replacedTailRows = createMergedTailVirtualizedDisplayEntryArray(currentRows, entry);
+		const replacedTailRows = createMergedTailVirtualizedDisplayEntryArray(baseRows, entry);
 		if (replacedTailRows !== null && index === sceneEntries.length - 1) {
 			return replacedTailRows;
 		}
-		copiedRows = currentRows.slice();
-		pushSceneEntryIntoDisplayRows(copiedRows, entry);
-	}
-	if (copiedRows !== null) {
-		return copiedRows;
+		if (replacedTailRows !== null) {
+			baseRows = replacedTailRows;
+			appendedRows = [];
+			continue;
+		}
+		appendedRows = [];
+		pushSceneEntryIntoDisplayRows(appendedRows, entry);
 	}
 	if (appendedRows !== null) {
-		return createAppendedVirtualizedDisplayEntryArray(currentRows, appendedRows);
+		if (appendedRows.length === 0) {
+			return baseRows;
+		}
+		return createAppendedVirtualizedDisplayEntryArray(baseRows, appendedRows);
 	}
-	return currentRows;
+	return baseRows;
 }
 
 function canAppendSceneEntryWithoutMutatingTail(
