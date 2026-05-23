@@ -2248,6 +2248,86 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
 	});
 
+	it("keeps invisible marked interaction appends incremental without scanning the next prefix", () => {
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const operations: OperationSnapshot[] = [];
+		const hiddenInteraction = createQuestionInteraction({
+			id: "hidden-question",
+			jsonRpcRequestId: 1,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "1",
+			},
+		});
+		const appendedHiddenInteraction = createQuestionInteraction({
+			id: "hidden-question-2",
+			jsonRpcRequestId: 2,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "2",
+			},
+		});
+		const baseInteractions = [hiddenInteraction];
+		const nextInteractions = [hiddenInteraction, appendedHiddenInteraction];
+		markInteractionSnapshotArrayPatch(nextInteractions, {
+			baseInteractions,
+			patchedInteractionsByIndex: null,
+			appendedInteractions: [appendedHiddenInteraction],
+		});
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "other-question",
+			},
+			interactions: baseInteractions,
+		});
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+		Object.defineProperty(nextInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error(
+					"must not scan unchanged next interactions for an invisible interaction append"
+				);
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...baseGraph,
+					interactions: nextInteractions,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: baseGraph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Question session" },
+			});
+
+			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+		} finally {
+			Object.defineProperty(nextInteractions, "0", {
+				configurable: true,
+				value: hiddenInteraction,
+			});
+		}
+	});
+
 	it("retargets the blocking interaction without scanning unchanged interactions", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("tool-1", "tool", "Run first"),

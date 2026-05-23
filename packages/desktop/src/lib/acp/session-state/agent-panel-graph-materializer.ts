@@ -1111,6 +1111,7 @@ function materializeTranscriptPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1664,11 +1665,16 @@ function materializeInteractionPatchedConversation(
 		previous.conversation.entries,
 		transcriptSceneEntryCount
 	);
+	const interactionById = resolveUpdatedInteractionIndex(
+		previous.interactionById,
+		previous.interactions,
+		input.graph.interactions
+	);
 	if (areSceneEntryListsEquivalent(previousInteractionEntries, nextInteractionEntries)) {
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -1690,7 +1696,7 @@ function materializeInteractionPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
-		interactionById: buildInteractionIndex(input.graph.interactions),
+		interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -3476,6 +3482,43 @@ function createPatchedInteractionIndex(
 		}
 	}
 	return createPatchedReadonlyMap(byInteractionId, patches);
+}
+
+function resolveUpdatedInteractionIndex(
+	previousInteractionById: ReadonlyMap<string, InteractionSnapshot>,
+	previousInteractions: readonly InteractionSnapshot[],
+	nextInteractions: readonly InteractionSnapshot[]
+): ReadonlyMap<string, InteractionSnapshot> {
+	if (nextInteractions === previousInteractions) {
+		return previousInteractionById;
+	}
+
+	const interactionPatch = getInteractionSnapshotArrayPatch(nextInteractions);
+	if (interactionPatch?.baseInteractions === previousInteractions) {
+		if (
+			interactionPatch.patchedInteractionsByIndex === null &&
+			interactionPatch.appendedInteractions !== null
+		) {
+			return createAppendedInteractionIndex(
+				previousInteractionById,
+				interactionPatch.appendedInteractions
+			);
+		}
+		return createPatchedInteractionIndex(
+			previousInteractionById,
+			interactionPatch.patchedInteractionsByIndex,
+			interactionPatch.appendedInteractions
+		);
+	}
+
+	if (previousInteractions.length === 0 && nextInteractions.length > 0) {
+		return createAppendedInteractionIndex(previousInteractionById, nextInteractions);
+	}
+	if (nextInteractions.length === 0 && previousInteractions.length > 0) {
+		return createTruncatedInteractionIndex(previousInteractionById, previousInteractions, 0);
+	}
+
+	return buildInteractionIndex(nextInteractions);
 }
 
 function appendTranscriptEntryIndexFromRange(
