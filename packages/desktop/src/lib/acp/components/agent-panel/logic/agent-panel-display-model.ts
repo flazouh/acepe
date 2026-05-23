@@ -188,6 +188,16 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				return previousProjection;
 			}
 
+			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+			if (
+				graphScenePatch?.baseSceneEntries === previousSceneEntries &&
+				areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entries)
+			) {
+				previousSceneEntries = sceneEntries;
+				previousTranscriptRevision = transcriptRevision;
+				return previousProjection;
+			}
+
 			if (
 				previousSceneEntries !== null &&
 				isStableDisplaySceneAppend(previousSceneEntries, sceneEntries)
@@ -240,6 +250,17 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			return previousProjection;
 		},
 	};
+}
+
+function areDisplayRowsUnaffectedByGraphPatch(
+	patchedEntries: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	for (const entry of patchedEntries) {
+		if (entry.type === "user" || entry.type === "assistant") {
+			return false;
+		}
+	}
+	return true;
 }
 
 function createAppendedDisplayRowArray(
