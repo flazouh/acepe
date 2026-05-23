@@ -18,6 +18,7 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
+import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
 
 function createActionability(): SessionGraphActionability {
 	return {
@@ -727,6 +728,24 @@ describe("agent panel graph materializer", () => {
 		firstEntries.slice = () => {
 			throw new Error("must not copy whole materialized scene entries");
 		};
+		const nextTranscriptEntries = [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry];
+		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+			baseEntries: transcriptSnapshot.entries,
+			patchedEntriesByIndex: new Map([[2, patchedStreamingAssistantEntry]]),
+			appendedEntries: null,
+		});
+		Object.defineProperty(nextTranscriptEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged transcript rows for a transcript patch");
+			},
+		});
+		Object.defineProperty(nextTranscriptEntries, "1", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged transcript rows for a transcript patch");
+			},
+		});
 
 		try {
 			const nextScene = readModel.apply({
@@ -735,7 +754,7 @@ describe("agent panel graph materializer", () => {
 					...graph,
 					transcriptSnapshot: {
 						revision: transcriptSnapshot.revision + 1,
-						entries: [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry],
+						entries: nextTranscriptEntries,
 					},
 					revision: {
 						graphRevision: 10,
@@ -764,6 +783,14 @@ describe("agent panel graph materializer", () => {
 			});
 		} finally {
 			firstEntries.slice = originalSlice;
+			Object.defineProperty(nextTranscriptEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(nextTranscriptEntries, "1", {
+				configurable: true,
+				value: firstAssistantEntry,
+			});
 		}
 	});
 

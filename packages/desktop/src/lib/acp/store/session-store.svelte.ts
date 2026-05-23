@@ -53,6 +53,7 @@ import {
 	agentPanelCanonicalSourceFromGraph,
 	type AgentPanelCanonicalSource,
 } from "../session-state/agent-panel-canonical-source.js";
+import { markTranscriptEntryArrayPatch } from "../session-state/transcript-entry-array-patch.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import { canonicalAgentIdToString, isBuiltInCanonicalAgentId } from "../types/agent-id.js";
@@ -737,7 +738,7 @@ function createPatchedTranscriptEntryArray(
 ): TranscriptEntry[] {
 	const appended = appendedEntries ?? [];
 	const target = new Array<TranscriptEntry>(base.length + appended.length);
-	return new Proxy(target, {
+	const entries = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -779,6 +780,12 @@ function createPatchedTranscriptEntryArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	markTranscriptEntryArrayPatch(entries, {
+		baseEntries: base,
+		patchedEntriesByIndex: patchedIndexes,
+		appendedEntries,
+	});
+	return entries;
 }
 
 function selectPatchedTranscriptEntry(

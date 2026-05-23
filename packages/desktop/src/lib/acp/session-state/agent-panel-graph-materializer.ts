@@ -29,6 +29,7 @@ import { normalizeToolResult } from "../store/services/tool-result-normalizer.js
 import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
+import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
 const UNRESOLVED_TOOL_DIAGNOSTIC_SAMPLE_LIMIT = 40;
@@ -749,6 +750,11 @@ function materializeCachedConversation(
 		return operationPatched;
 	}
 
+	const transcriptArrayPatched = materializeTranscriptArrayPatchedConversation(previous, input);
+	if (transcriptArrayPatched !== null) {
+		return transcriptArrayPatched;
+	}
+
 	const transcriptPatched = materializeTranscriptPatchedConversation(previous, input);
 	if (transcriptPatched !== null) {
 		return transcriptPatched;
@@ -777,6 +783,96 @@ function materializeCachedConversation(
 		transcriptEntryById: buildTranscriptEntryIndex(input.graph.transcriptSnapshot.entries),
 		conversation,
 		sceneEntryRowIndex: buildSceneEntryRowIndex(conversation.entries),
+	};
+}
+
+function materializeTranscriptArrayPatchedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.operations !== input.graph.operations ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesEquivalent(previous.activity, input.graph.activity)
+	) {
+		return null;
+	}
+
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	const transcriptPatch = getTranscriptEntryArrayPatch(transcriptEntries);
+	if (
+		transcriptPatch === undefined ||
+		transcriptPatch.baseEntries !== previous.transcriptEntries ||
+		transcriptPatch.appendedEntries !== null ||
+		transcriptPatch.patchedEntriesByIndex === null
+	) {
+		return null;
+	}
+
+	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
+	let transcriptEntryById: Map<string, TranscriptEntry> | null = null;
+	const isRunning = input.graph.turnState === "Running";
+	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
+
+	for (const [index, nextTranscriptEntry] of transcriptPatch.patchedEntriesByIndex) {
+		const previousTranscriptEntry = previous.transcriptEntries[index];
+		if (
+			previousTranscriptEntry === undefined ||
+			previousTranscriptEntry.entryId !== nextTranscriptEntry.entryId
+		) {
+			return null;
+		}
+
+		transcriptEntryById ??= new Map(previous.transcriptEntryById);
+		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		const rowIndex = previous.sceneEntryRowIndex.get(nextTranscriptEntry.entryId);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousSceneEntry = previous.conversation.entries[rowIndex];
+		if (previousSceneEntry === undefined) {
+			return null;
+		}
+		const nextSceneEntry = materializeTranscriptEntry(
+			nextTranscriptEntry,
+			input.graph,
+			previous.operationIndex,
+			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
+		);
+		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
+			continue;
+		}
+		entryPatches = addSceneEntryPatch(entryPatches, rowIndex, nextSceneEntry);
+	}
+
+	if (entryPatches === null) {
+		return {
+			...previous,
+			transcriptEntries,
+			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		};
+	}
+
+	return {
+		transcriptEntries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		conversation: {
+			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
 
