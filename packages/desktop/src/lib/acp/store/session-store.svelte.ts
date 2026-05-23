@@ -3205,14 +3205,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	private getSessionPrLinkRefs(projectPath: string, prNumber: number): SessionPrLinkRef[] {
+		const sessions = this.sessionsByProject.get(projectPath) ?? [];
 		const refs: SessionPrLinkRef[] = [];
-		for (const session of this.sessions) {
+		for (const session of sessions) {
 			const sessionIdentity = this.getSessionIdentity(session.id);
 			const sessionMetadata = this.getSessionMetadata(session.id);
 			if (!sessionIdentity || !sessionMetadata) {
 				continue;
 			}
-			if (sessionIdentity.projectPath !== projectPath || sessionMetadata.prNumber !== prNumber) {
+			if (sessionMetadata.prNumber !== prNumber) {
 				continue;
 			}
 			refs.push({
