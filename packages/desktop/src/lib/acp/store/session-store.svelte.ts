@@ -3058,8 +3058,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	/**
-	 * Check if a session exists and has been preloaded from persisted provider history.
-	 * Returns the cold session data if preloaded, null otherwise.
+	 * Check if a session exists and has enough canonical/session history materialized
+	 * to expose detail state. Canonical graph/open-snapshot materialization counts,
+	 * as does legacy preloaded provider history during the migration.
 	 */
 	getSessionDetail(sessionId: string): SessionCold | null {
 		const sessionIdentity = this.getSessionIdentity(sessionId);
@@ -3067,7 +3068,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (!sessionIdentity || !sessionMetadata) {
 			return null;
 		}
-		if (!this.entryStore.isPreloaded(sessionId)) {
+		if (
+			!this.hasSessionCanonicalProjection(sessionId) &&
+			!this.entryStore.isPreloaded(sessionId)
+		) {
 			return null;
 		}
 		return sessionColdFromSlices(sessionIdentity, sessionMetadata);

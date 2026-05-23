@@ -692,6 +692,27 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(store.getSessionGraphRevision("session-1")).toEqual(graph.revision);
 	});
 
+	it("treats backend-authored open snapshots as enough authority for session detail lookup", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			lifecycle: createGraphLifecycle("ready"),
+			activity: createIdleActivity(),
+		});
+
+		store.replaceSessionOpenSnapshot(createSessionOpenFoundFromGraph(graph));
+
+		expect(store.getSessionDetail("session-1")).toMatchObject({
+			id: "session-1",
+			projectPath: "/repo",
+			agentId: "codex",
+		});
+		expect(store.hasSessionCanonicalProjection("session-1")).toBe(true);
+	});
+
 	it("keeps open snapshot transcript entries spine-only while operations hold rich tool data before connect", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({
