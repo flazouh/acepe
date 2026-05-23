@@ -51,6 +51,7 @@ export class PermissionStore {
 	private sessionBatchCompleted = new SvelteMap<string, number>();
 	private repliesInFlight = new SvelteMap<string, PermissionReplyChoice>();
 	private answeredByPermissionId = new SvelteMap<string, AnsweredPermission>();
+	private directPendingBySession = new Map<string, Map<string, PermissionRequest>>();
 
 	constructor(interactions?: InteractionStore) {
 		if (interactions !== undefined) {
@@ -63,13 +64,9 @@ export class PermissionStore {
 	}
 
 	private countPendingForSession(sessionId: string): number {
-		let count = 0;
-		for (const permission of this.pending.values()) {
-			if (permission.sessionId === sessionId) {
-				count += 1;
-			}
-		}
-		return count;
+		const canonicalCount = this.interactions.getPendingPermissionsForSession(sessionId).length;
+		const directCount = this.directPendingBySession.get(sessionId)?.size ?? 0;
+		return Math.max(canonicalCount, directCount);
 	}
 
 	private clearSessionProgress(sessionId: string): void {
@@ -140,7 +137,7 @@ export class PermissionStore {
 		totalBeforeReply: number | undefined,
 		completedBeforeReply: number | undefined
 	): void {
-		this.pending.set(permission.id, permission);
+		this.setDirectPending(permission.id, permission);
 
 		if (totalBeforeReply !== undefined) {
 			this.sessionBatchTotals.set(permission.sessionId, totalBeforeReply);
@@ -205,10 +202,10 @@ export class PermissionStore {
 				: mergePermissionRequests(existingGroupedPermission.permission, permission);
 		if (existingGroupedPermission === null) {
 			const hadPendingBeforeAdd = this.countPendingForSession(permission.sessionId) > 0;
-			this.pending.set(permission.id, storedPermission);
+			this.setDirectPending(permission.id, storedPermission);
 			this.notePermissionAdded(permission.sessionId, hadPendingBeforeAdd);
 		} else {
-			this.pending.set(existingGroupedPermission.key, storedPermission);
+			this.setDirectPending(existingGroupedPermission.key, storedPermission);
 		}
 
 		logger.debug("Permission request added", {
@@ -231,11 +228,8 @@ export class PermissionStore {
 
 		const toolCallId = typeof toolCallOrId === "string" ? toolCallOrId : toolCallOrId.id;
 		let latest: PermissionRequest | undefined;
-		for (const permission of this.pending.values()) {
+		for (const permission of this.getForSession(sessionId)) {
 			const permissionToolCallId = this.getToolCallId(permission);
-			if (permission.sessionId !== sessionId) {
-				continue;
-			}
 			const isDirectMatch = permissionToolCallId === toolCallId;
 			const isSemanticMatch =
 				!isDirectMatch &&
@@ -252,13 +246,23 @@ export class PermissionStore {
 	}
 
 	getForSession(sessionId: string): PermissionRequest[] {
-		const permissions: PermissionRequest[] = [];
-		for (const permission of this.pending.values()) {
-			if (permission.sessionId === sessionId) {
-				permissions.push(permission);
-			}
+		const canonicalPermissions = this.interactions.getPendingPermissionsForSession(sessionId);
+		const directPermissions = this.directPendingBySession.get(sessionId);
+		if (directPermissions === undefined || directPermissions.size === 0) {
+			return [...canonicalPermissions];
 		}
-		return permissions;
+		if (canonicalPermissions.length === 0) {
+			return Array.from(directPermissions.values());
+		}
+
+		const merged = new Map<string, PermissionRequest>();
+		for (const permission of canonicalPermissions) {
+			merged.set(permission.id, permission);
+		}
+		for (const permission of directPermissions.values()) {
+			merged.set(permission.id, permission);
+		}
+		return Array.from(merged.values());
 	}
 
 	getForOperation(
@@ -266,11 +270,7 @@ export class PermissionStore {
 		operationStore: OperationStore
 	): PermissionRequest | undefined {
 		let latest: PermissionRequest | undefined;
-		for (const permission of this.pending.values()) {
-			if (permission.sessionId !== operation.sessionId) {
-				continue;
-			}
-
+		for (const permission of this.getForSession(operation.sessionId)) {
 			if (!permissionMatchesOperation(permission, operation)) {
 				continue;
 			}
@@ -290,6 +290,36 @@ export class PermissionStore {
 		}
 
 		return latest;
+	}
+
+	private setDirectPending(permissionId: string, permission: PermissionRequest): void {
+		const previous = this.pending.get(permissionId);
+		if (previous !== undefined && previous.sessionId !== permission.sessionId) {
+			this.deleteDirectPending(permissionId, previous);
+		}
+		this.interactions.setPendingPermissionRequest(permissionId, permission);
+		getOrCreateSessionPermissionIndex(
+			this.directPendingBySession,
+			permission.sessionId
+		).set(permissionId, permission);
+	}
+
+	private deleteDirectPending(
+		permissionId: string,
+		permission: PermissionRequest | undefined
+	): void {
+		this.interactions.deletePendingPermissionRequest(permissionId);
+		if (permission === undefined) {
+			return;
+		}
+		const sessionIndex = this.directPendingBySession.get(permission.sessionId);
+		if (sessionIndex === undefined) {
+			return;
+		}
+		sessionIndex.delete(permissionId);
+		if (sessionIndex.size === 0) {
+			this.directPendingBySession.delete(permission.sessionId);
+		}
 	}
 
 	getSessionProgress(sessionId: string): { total: number; completed: number } | null {
@@ -312,7 +342,7 @@ export class PermissionStore {
 	 */
 	remove(permissionId: string): void {
 		const permission = this.pending.get(permissionId);
-		this.pending.delete(permissionId);
+		this.deleteDirectPending(permissionId, permission);
 		this.repliesInFlight.delete(permissionId);
 		this.answeredByPermissionId.delete(permissionId);
 		if (permission && this.countPendingForSession(permission.sessionId) === 0) {
@@ -325,12 +355,10 @@ export class PermissionStore {
 	 * Remove all permissions for a session.
 	 */
 	removeForSession(sessionId: string): void {
-		for (const [id, p] of this.pending) {
-			if (p.sessionId === sessionId) {
-				this.pending.delete(id);
-				this.repliesInFlight.delete(id);
-				this.answeredByPermissionId.delete(id);
-			}
+		for (const permission of this.getForSession(sessionId)) {
+			this.deleteDirectPending(permission.id, permission);
+			this.repliesInFlight.delete(permission.id);
+			this.answeredByPermissionId.delete(permission.id);
 		}
 		for (const [id, answered] of this.answeredByPermissionId) {
 			if (answered.permission.sessionId === sessionId) {
@@ -442,7 +470,7 @@ export class PermissionStore {
 			}
 		)
 			.map(() => {
-				this.pending.delete(permissionId);
+				this.deleteDirectPending(permissionId, permission);
 				this.repliesInFlight.delete(permissionId);
 				this.answeredByPermissionId.set(permissionId, {
 					permission,
@@ -528,6 +556,20 @@ export class PermissionStore {
 			})
 		).map(() => undefined);
 	}
+}
+
+function getOrCreateSessionPermissionIndex(
+	index: Map<string, Map<string, PermissionRequest>>,
+	sessionId: string
+): Map<string, PermissionRequest> {
+	const existing = index.get(sessionId);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const created = new Map<string, PermissionRequest>();
+	index.set(sessionId, created);
+	return created;
 }
 
 /**

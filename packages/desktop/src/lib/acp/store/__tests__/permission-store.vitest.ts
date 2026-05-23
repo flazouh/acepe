@@ -152,6 +152,39 @@ describe("PermissionStore", () => {
 			expect(store.getForToolCall("session-2", "tool-1")?.id).toBe(sessionTwoPermission.id);
 		});
 
+		it("uses session-scoped indexes for permission selectors", () => {
+			const operationStore = new OperationStore();
+			operationStore.replaceSessionOperations("session-1", [
+				createExecuteOperation("tool-1", "git status"),
+			]);
+			const permission = createExecutePermissionWithCommand(
+				"session-1",
+				"tool-1",
+				100,
+				"git status"
+			);
+			store.add(permission);
+			store.add(createExecutePermissionWithCommand("session-2", "tool-2", 101, "pwd"));
+			const values = store.pending.values.bind(store.pending);
+			(store.pending as unknown as { values: () => IterableIterator<PermissionRequest> }).values =
+				() => {
+					throw new Error("permission selectors must not scan all pending permissions");
+				};
+
+			try {
+				expect(store.getForSession("session-1").map((candidate) => candidate.id)).toEqual([
+					permission.id,
+				]);
+				expect(store.getForToolCall("session-1", "tool-1")?.id).toBe(permission.id);
+				const operation = operationStore.getByToolCallId("session-1", "tool-1");
+				expect(operation ? store.getForOperation(operation, operationStore)?.id : null).toBe(
+					permission.id
+				);
+			} finally {
+				(store.pending as unknown as { values: typeof values }).values = values;
+			}
+		});
+
 		it("keeps the first grouped permission id stable for the tool call", () => {
 			const newerPermission = createAcpPermission("session-1", "tool-1", 101);
 			const olderPermission = createAcpPermission("session-1", "tool-1", 100);
