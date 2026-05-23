@@ -34,10 +34,6 @@ import {
 	getUnseenStore,
 } from "$lib/acp/store/index.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
-import {
-	deriveLiveSessionState,
-	deriveLiveSessionWorkProjection,
-} from "$lib/acp/store/live-session-work.js";
 import { formatSessionTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { extractTodoProgressFromToolCall } from "$lib/acp/components/session-list/session-list-logic.js";
@@ -232,43 +228,29 @@ function handleRenameKeydown(event: KeyboardEvent) {
 const basePadding = 1;
 const paddingLeft = $derived(`${basePadding + depth * 16}px`);
 
-const sessionConnectionError = $derived(sessionStore.getSessionConnectionError(session.id));
-const currentModeId = $derived(sessionStore.getSessionCurrentModeId(session.id));
-const currentStreamingToolCall = $derived(
-	sessionStore.getSessionCurrentStreamingToolCall(session.id)
-);
-const lastToolCall = $derived(sessionStore.getSessionLastToolCall(session.id));
-const lastTodoToolCall = $derived(sessionStore.getSessionLastTodoToolCall(session.id));
-const currentToolKind = $derived(sessionStore.getSessionCurrentToolKind(session.id));
-const lastToolKind = $derived(lastToolCall ? (lastToolCall.kind ?? "other") : null);
 const activePanel = $derived(panelStore.getPanelBySessionId(session.id));
-const interactionSnapshot = $derived.by(() =>
-	sessionStore.getSessionOperationInteractionSnapshot(session.id, interactionStore)
-);
 const hasUnseenCompletion = $derived(activePanel ? unseenStore.isUnseen(activePanel.id) : false);
-const liveSessionSource = $derived(
-	sessionStore.getSessionLiveWorkSource(session.id, isOpen)
-);
-const liveSessionState = $derived.by(() =>
-	deriveLiveSessionState({
-		source: liveSessionSource,
-		currentModeId,
-		interactionSnapshot,
+const sessionListPresentation = $derived.by(() =>
+	sessionStore.getSessionListItemPresentation({
+		sessionId: session.id,
+		interactionStore,
 		hasUnseenCompletion,
+		active: isOpen,
 	})
 );
-const sessionWorkProjection = $derived.by(() =>
-	deriveLiveSessionWorkProjection({
-		source: liveSessionSource,
-		currentModeId,
-		interactionSnapshot,
-		hasUnseenCompletion,
-	})
-);
-const previewActivityKind = $derived(sessionWorkProjection.compactActivityKind);
-const pendingQuestion = $derived(interactionSnapshot.pendingQuestion);
-const pendingPermission = $derived(interactionSnapshot.pendingPermission);
-const pendingPlanApproval = $derived(interactionSnapshot.pendingPlanApproval);
+const sessionConnectionError = $derived(sessionListPresentation.connectionError);
+const currentModeId = $derived(sessionListPresentation.currentModeId);
+const currentStreamingToolCall = $derived(sessionListPresentation.currentStreamingToolCall);
+const lastToolCall = $derived(sessionListPresentation.lastToolCall);
+const lastTodoToolCall = $derived(sessionListPresentation.lastTodoToolCall);
+const currentToolKind = $derived(sessionListPresentation.currentToolKind);
+const lastToolKind = $derived(sessionListPresentation.lastToolKind);
+const liveSessionState = $derived(sessionListPresentation.liveSessionState);
+const sessionWorkProjection = $derived(sessionListPresentation.sessionWorkProjection);
+const previewActivityKind = $derived(sessionListPresentation.previewActivityKind);
+const pendingQuestion = $derived(sessionListPresentation.pendingQuestion);
+const pendingPermission = $derived(sessionListPresentation.pendingPermission);
+const pendingPlanApproval = $derived(sessionListPresentation.pendingPlanApproval);
 const questionId = $derived(pendingQuestion?.tool?.callID ?? pendingQuestion?.id ?? "");
 let currentQuestionIndex = $state(0);
 let lastQuestionId = "";

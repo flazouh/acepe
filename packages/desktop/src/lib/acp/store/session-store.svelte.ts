@@ -78,6 +78,8 @@ import { getPrimaryQuestionText } from "./question-selectors.js";
 import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./queue/utils.js";
 import {
 	deriveLiveSessionLifecyclePresentation,
+	deriveLiveSessionState,
+	deriveLiveSessionWorkProjection,
 	inactiveSessionWorkSourceFromCanonicalProjection,
 	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionLifecyclePresentation,
@@ -163,6 +165,13 @@ type SessionQueueSnapshotInput = {
 	readonly interactionStore: InteractionStore;
 	readonly hasUnseenCompletion: boolean;
 	readonly active?: boolean;
+};
+
+type SessionListItemPresentationInput = {
+	readonly sessionId: string;
+	readonly interactionStore: InteractionStore;
+	readonly hasUnseenCompletion: boolean;
+	readonly active: boolean;
 };
 
 type SessionTransientProjectionUpdates = {
@@ -2665,6 +2674,48 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
 		});
+	}
+
+	getSessionListItemPresentation(input: SessionListItemPresentationInput) {
+		const sessionId = input.sessionId;
+		const currentModeId = this.getSessionCurrentModeId(sessionId);
+		const currentStreamingToolCall = this.getSessionCurrentStreamingToolCall(sessionId);
+		const lastToolCall = this.getSessionLastToolCall(sessionId);
+		const lastTodoToolCall = this.getSessionLastTodoToolCall(sessionId);
+		const currentToolKind = this.getSessionCurrentToolKind(sessionId);
+		const interactionSnapshot = this.getSessionOperationInteractionSnapshot(
+			sessionId,
+			input.interactionStore
+		);
+		const liveSessionSource = this.getSessionLiveWorkSource(sessionId, input.active);
+		const liveSessionState = deriveLiveSessionState({
+			source: liveSessionSource,
+			currentModeId,
+			interactionSnapshot,
+			hasUnseenCompletion: input.hasUnseenCompletion,
+		});
+		const sessionWorkProjection = deriveLiveSessionWorkProjection({
+			source: liveSessionSource,
+			currentModeId,
+			interactionSnapshot,
+			hasUnseenCompletion: input.hasUnseenCompletion,
+		});
+
+		return {
+			connectionError: this.getSessionConnectionError(sessionId),
+			currentModeId,
+			currentStreamingToolCall,
+			lastToolCall,
+			lastTodoToolCall,
+			currentToolKind,
+			lastToolKind: lastToolCall ? (lastToolCall.kind ?? "other") : null,
+			liveSessionState,
+			sessionWorkProjection,
+			previewActivityKind: sessionWorkProjection.compactActivityKind,
+			pendingQuestion: interactionSnapshot.pendingQuestion,
+			pendingPermission: interactionSnapshot.pendingPermission,
+			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
+		};
 	}
 
 	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {

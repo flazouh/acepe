@@ -392,6 +392,35 @@ describe("SessionStore canonical projection accessors", () => {
 			pendingPlanApprovalId: null,
 			pendingPermissionId: null,
 		});
+		expect(
+			store.getSessionListItemPresentation({
+				sessionId: "session-1",
+				interactionStore: new InteractionStore(),
+				hasUnseenCompletion: false,
+				active: true,
+			})
+		).toMatchObject({
+			connectionError: null,
+			currentModeId: "build",
+			currentStreamingToolCall: null,
+			currentToolKind: null,
+			lastToolCall: null,
+			lastToolKind: null,
+			lastTodoToolCall: null,
+			pendingQuestion: null,
+			pendingPermission: null,
+			pendingPlanApproval: null,
+			previewActivityKind: "idle",
+			liveSessionState: {
+				connection: "connected",
+				activity: {
+					kind: "idle",
+				},
+			},
+			sessionWorkProjection: {
+				compactActivityKind: "idle",
+			},
+		});
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();
 		expect(store.getSessionLastTerminalTurnId("session-1")).toBeNull();
