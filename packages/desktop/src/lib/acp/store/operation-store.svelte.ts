@@ -41,6 +41,8 @@ export class OperationStore {
 	private readonly sessionOperationIdSets = new Map<string, Set<string>>();
 	private readonly sessionOperationVersions = new SvelteMap<string, number>();
 	private readonly currentStreamingOperationIdBySession = new SvelteMap<string, string>();
+	private readonly lastRootOperationIdBySession = new SvelteMap<string, string>();
+	private readonly lastTodoOperationIdBySession = new SvelteMap<string, string>();
 	private readonly modifiedFilesStateBySession = new Map<
 		string,
 		{ readonly version: number; readonly state: ModifiedFilesState | null }
@@ -212,13 +214,13 @@ export class OperationStore {
 			return cached.toolCall;
 		}
 
-		const operations = this.getSessionOperations(sessionId);
-		for (let index = operations.length - 1; index >= 0; index -= 1) {
-			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
-			if (toolCall !== null) {
-				this.lastToolCallBySession.set(sessionId, { version, toolCall });
-				return toolCall;
-			}
+		const operationId =
+			this.lastRootOperationIdBySession.get(sessionId) ??
+			this.recomputeLastRootOperationId(sessionId);
+		if (operationId !== null) {
+			const toolCall = this.materializeToolCall(operationId, new Set<string>());
+			this.lastToolCallBySession.set(sessionId, { version, toolCall });
+			return toolCall;
 		}
 
 		this.lastToolCallBySession.set(sessionId, { version, toolCall: null });
@@ -232,13 +234,13 @@ export class OperationStore {
 			return cached.toolCall;
 		}
 
-		const operations = this.getSessionOperations(sessionId);
-		for (let index = operations.length - 1; index >= 0; index -= 1) {
-			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
-			if (toolCall?.normalizedTodos && toolCall.normalizedTodos.length > 0) {
-				this.lastTodoToolCallBySession.set(sessionId, { version, toolCall });
-				return toolCall;
-			}
+		const operationId =
+			this.lastTodoOperationIdBySession.get(sessionId) ??
+			this.recomputeLastTodoOperationId(sessionId);
+		if (operationId !== null) {
+			const toolCall = this.materializeToolCall(operationId, new Set<string>());
+			this.lastTodoToolCallBySession.set(sessionId, { version, toolCall });
+			return toolCall;
 		}
 
 		this.lastTodoToolCallBySession.set(sessionId, { version, toolCall: null });
@@ -269,6 +271,8 @@ export class OperationStore {
 		this.sessionOperationIds.delete(sessionId);
 		this.sessionOperationIdSets.delete(sessionId);
 		this.currentStreamingOperationIdBySession.delete(sessionId);
+		this.lastRootOperationIdBySession.delete(sessionId);
+		this.lastTodoOperationIdBySession.delete(sessionId);
 		this.modifiedFilesStateBySession.delete(sessionId);
 		this.bumpSessionOperationVersion(sessionId);
 	}
@@ -278,12 +282,20 @@ export class OperationStore {
 		const nextSessionOperationIds: Array<string> = [];
 		const nextSessionOperationIdSet = new Set<string>();
 		let currentStreamingOperationId: string | null = null;
+		let lastRootOperationId: string | null = null;
+		let lastTodoOperationId: string | null = null;
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
 			nextSessionOperationIds.push(operation.id);
 			nextSessionOperationIdSet.add(operation.id);
+			if (operation.parentOperationId === null) {
+				lastRootOperationId = operation.id;
+			}
+			if (operationHasTodos(operation)) {
+				lastTodoOperationId = operation.id;
+			}
 			if (isStreamingOperationState(operation.operationState)) {
 				currentStreamingOperationId = operation.id;
 			}
@@ -294,6 +306,16 @@ export class OperationStore {
 			this.currentStreamingOperationIdBySession.delete(sessionId);
 		} else {
 			this.currentStreamingOperationIdBySession.set(sessionId, currentStreamingOperationId);
+		}
+		if (lastRootOperationId === null) {
+			this.lastRootOperationIdBySession.delete(sessionId);
+		} else {
+			this.lastRootOperationIdBySession.set(sessionId, lastRootOperationId);
+		}
+		if (lastTodoOperationId === null) {
+			this.lastTodoOperationIdBySession.delete(sessionId);
+		} else {
+			this.lastTodoOperationIdBySession.set(sessionId, lastTodoOperationId);
 		}
 		this.bumpSessionOperationVersion(sessionId);
 	}
@@ -343,12 +365,16 @@ export class OperationStore {
 			cachedLastTodoToolCall.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
+		let shouldRecomputeLastRootOperation = false;
+		let shouldRecomputeLastTodoOperation = false;
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			const existingOperation = this.operationsById.get(operation.id);
 			if (existingOperation !== undefined && areOperationsEquivalent(existingOperation, operation)) {
 				continue;
 			}
+			const existingIsRootOperation = existingOperation?.parentOperationId === null;
+			const nextIsRootOperation = operation.parentOperationId === null;
 			if (existingOperation !== undefined) {
 				this.unindexOperation(existingOperation);
 			}
@@ -387,10 +413,25 @@ export class OperationStore {
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
 			changed = true;
-			const isRootOperation =
-				operation.parentOperationId === null &&
+			if (existingOperation !== undefined) {
+				if (
+					existingIsRootOperation !== nextIsRootOperation ||
+					(this.lastRootOperationIdBySession.get(sessionId) === operation.id &&
+						!nextIsRootOperation)
+				) {
+					shouldRecomputeLastRootOperation = true;
+				}
+				if (
+					operationHasTodos(existingOperation) ||
+					operationHasTodos(operation)
+				) {
+					shouldRecomputeLastTodoOperation = true;
+				}
+			}
+			const canPatchRootToolCall =
+				nextIsRootOperation &&
 				(existingOperation === undefined || existingOperation.parentOperationId === null);
-			if (cachedSessionToolCalls?.version === previousVersion && !isRootOperation) {
+			if (cachedSessionToolCalls?.version === previousVersion && !canPatchRootToolCall) {
 				canPatchCachedToolCalls = false;
 			}
 			let wasAppendedOperation = false;
@@ -403,7 +444,13 @@ export class OperationStore {
 					cachedOperationAppends ??= [];
 					cachedOperationAppends.push(operation);
 				}
-				if (cachedSessionToolCalls?.version === previousVersion && isRootOperation) {
+				if (nextIsRootOperation) {
+					this.lastRootOperationIdBySession.set(sessionId, operation.id);
+				}
+				if (operationHasTodos(operation)) {
+					this.lastTodoOperationIdBySession.set(sessionId, operation.id);
+				}
+				if (cachedSessionToolCalls?.version === previousVersion && canPatchRootToolCall) {
 					const toolCall = this.materializeToolCall(operation.id, new Set<string>());
 					if (toolCall !== null) {
 						cachedToolCallAppends ??= [];
@@ -424,7 +471,7 @@ export class OperationStore {
 				sessionOperationIdSet.has(operation.id) &&
 				!wasAppendedOperation &&
 				cachedSessionToolCalls?.version === previousVersion &&
-				isRootOperation
+				canPatchRootToolCall
 			) {
 				const cachedToolCallIndex = findCachedToolCallIndex(
 					cachedSessionToolCalls.toolCalls,
@@ -442,6 +489,12 @@ export class OperationStore {
 			this.sessionOperationIds.set(sessionId, sessionOperationIds);
 		}
 		if (changed) {
+			if (shouldRecomputeLastRootOperation) {
+				this.recomputeLastRootOperationId(sessionId);
+			}
+			if (shouldRecomputeLastTodoOperation) {
+				this.recomputeLastTodoOperationId(sessionId);
+			}
 			const nextVersion = this.bumpSessionOperationVersion(sessionId);
 			if (cachedSessionOperations?.version === previousVersion) {
 				this.sessionOperationsBySession.set(sessionId, {
@@ -601,6 +654,36 @@ export class OperationStore {
 		}
 
 		this.currentStreamingOperationIdBySession.delete(sessionId);
+		return null;
+	}
+
+	private recomputeLastRootOperationId(sessionId: string): string | null {
+		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		for (let index = operationIds.length - 1; index >= 0; index -= 1) {
+			const operationId = operationIds[index];
+			const operation = this.operationsById.get(operationId);
+			if (operation !== undefined && operation.parentOperationId === null) {
+				this.lastRootOperationIdBySession.set(sessionId, operation.id);
+				return operation.id;
+			}
+		}
+
+		this.lastRootOperationIdBySession.delete(sessionId);
+		return null;
+	}
+
+	private recomputeLastTodoOperationId(sessionId: string): string | null {
+		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		for (let index = operationIds.length - 1; index >= 0; index -= 1) {
+			const operationId = operationIds[index];
+			const operation = this.operationsById.get(operationId);
+			if (operation !== undefined && operationHasTodos(operation)) {
+				this.lastTodoOperationIdBySession.set(sessionId, operation.id);
+				return operation.id;
+			}
+		}
+
+		this.lastTodoOperationIdBySession.delete(sessionId);
 		return null;
 	}
 

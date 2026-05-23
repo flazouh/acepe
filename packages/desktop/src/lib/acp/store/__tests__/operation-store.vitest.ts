@@ -1025,6 +1025,63 @@ describe("OperationStore", () => {
 		expect(operationStore.getCurrentStreamingToolCall("session-1")?.id).toBe("tool-2");
 	});
 
+	it("resolves the last tool without materializing the full session operation list", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: "op-1",
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+			createOperationSnapshot({
+				id: "op-2",
+				tool_call_id: "tool-2",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "latest",
+			}),
+		]);
+		operationStore.getSessionOperations = () => {
+			throw new Error("last tool lookup must not materialize every operation");
+		};
+
+		expect(operationStore.getLastToolCall("session-1")?.id).toBe("tool-2");
+		expect(operationStore.getLastToolCall("session-1")?.result).toBe("latest");
+	});
+
+	it("resolves the last todo tool without materializing the full session operation list", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: "op-1",
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+			createOperationSnapshot({
+				id: "op-todo",
+				tool_call_id: "todo-1",
+				kind: null,
+				normalized_todos: [
+					{
+						content: "Keep selectors indexed",
+						status: "in_progress",
+						activeForm: "Keeping selectors indexed",
+					},
+				],
+			}),
+		]);
+		operationStore.getSessionOperations = () => {
+			throw new Error("last todo lookup must not materialize every operation");
+		};
+
+		expect(operationStore.getLastTodoToolCall("session-1")?.id).toBe("todo-1");
+		expect(operationStore.getLastTodoToolCall("session-1")?.normalizedTodos?.[0]?.content).toBe(
+			"Keep selectors indexed"
+		);
+	});
+
 	it("feeds long-session fixture operations into current-streaming lookup without materialization", () => {
 		const fixture = createLongSessionFixture({
 			scale: "long",
