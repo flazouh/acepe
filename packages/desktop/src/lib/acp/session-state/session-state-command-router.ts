@@ -296,7 +296,20 @@ export function routeSessionStateEnvelope(
 				includesActiveStreamingTail;
 			const includesGraphPatch =
 				operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState;
+			const graphRevisionDidNotAdvance =
+				includesGraphPatch &&
+				envelope.payload.delta.toRevision.graphRevision <=
+					envelope.payload.delta.fromRevision.graphRevision;
 			if (graphDeltaMissingRequiredPatches || graphDeltaMissingRequiredScalars) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.payload.delta.toRevision.graphRevision,
+					},
+				];
+			}
+			if (graphRevisionDidNotAdvance) {
 				return [
 					{
 						kind: "refreshSnapshot",

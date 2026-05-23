@@ -703,6 +703,56 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("refreshes when a graph patch delta does not advance the graph frontier", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 7,
+				toRevision: 7,
+			},
+		]);
+	});
+
 	it("refreshes mixed deltas when operations are marked changed without operation patches", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
