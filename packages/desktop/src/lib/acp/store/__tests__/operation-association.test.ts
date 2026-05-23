@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { OperationSnapshot } from "../../../services/acp-types.js";
+import type { InteractionSnapshot, OperationSnapshot } from "../../../services/acp-types.js";
 import type { PlanApprovalInteraction } from "../../types/interaction.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
@@ -60,6 +60,49 @@ function createExecutePermission(
 		},
 		always: [],
 		tool: { messageID: "", callID: toolCallId },
+	};
+}
+
+function createPendingPermissionInteraction(
+	sessionId: string,
+	toolCallId: string
+): InteractionSnapshot {
+	const id = buildAcpPermissionId(sessionId, toolCallId, 101);
+	return {
+		id,
+		session_id: sessionId,
+		kind: "Permission",
+		state: "Pending",
+		json_rpc_request_id: 101,
+		reply_handler: null,
+		tool_reference: {
+			messageId: toolCallId,
+			callId: toolCallId,
+		},
+		responded_at_event_seq: null,
+		response: null,
+		canonical_operation_id: `op-${toolCallId}`,
+		payload: {
+			Permission: {
+				id,
+				sessionId,
+				jsonRpcRequestId: 101,
+				replyHandler: null,
+				permission: "Execute",
+				patterns: [],
+				metadata: {
+					diagnosticRawInput: { command: "git status" },
+					parsedArguments: { kind: "execute", command: "git status" },
+					options: [],
+				},
+				always: [],
+				autoAccepted: false,
+				tool: {
+					messageId: toolCallId,
+					callId: toolCallId,
+				},
+			},
+		},
 	};
 }
 
@@ -202,6 +245,36 @@ describe("operation association", () => {
 
 		expect(snapshot.pendingPermission).toBeNull();
 		expect(snapshot.pendingPermissionOperation).toBeNull();
+	});
+
+	it("uses session-scoped pending permission indexes for operation snapshots", () => {
+		const operationStore = new OperationStore();
+		operationStore.replaceSessionOperations("session-1", [
+			createExecuteOperation("tool-1", "git status"),
+		]);
+		const interactions = new InteractionStore();
+		interactions.applySessionInteractionPatches([
+			createPendingPermissionInteraction("other-session", "other-tool"),
+			createPendingPermissionInteraction("session-1", "tool-1"),
+		]);
+		const values = interactions.permissionsPending.values.bind(interactions.permissionsPending);
+		(interactions.permissionsPending as unknown as { values: () => IterableIterator<PermissionRequest> }).values =
+			() => {
+				throw new Error("snapshot selector must not scan all pending permissions");
+			};
+
+		try {
+			const snapshot = buildSessionOperationInteractionSnapshot(
+				"session-1",
+				operationStore,
+				interactions
+			);
+
+			expect(snapshot.pendingPermission?.sessionId).toBe("session-1");
+			expect(snapshot.pendingPermissionOperation?.toolCallId).toBe("tool-1");
+		} finally {
+			(interactions.permissionsPending as unknown as { values: typeof values }).values = values;
+		}
 	});
 
 	it("does not choose the first pending plan approval when no operation match exists", () => {

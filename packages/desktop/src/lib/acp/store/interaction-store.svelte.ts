@@ -31,6 +31,15 @@ export class InteractionStore {
 	readonly answeredQuestions = new SvelteMap<string, AnsweredQuestion>();
 	readonly planApprovalsPending = new SvelteMap<string, PlanApprovalInteraction>();
 	private readonly answeredQuestionSessionIds = new SvelteMap<string, string>();
+	private readonly pendingPermissionsBySession = new Map<
+		string,
+		Map<string, PermissionRequest>
+	>();
+	private readonly pendingQuestionsBySession = new Map<string, Map<string, QuestionRequest>>();
+	private readonly pendingPlanApprovalsBySession = new Map<
+		string,
+		Map<string, PlanApprovalInteraction>
+	>();
 
 	setPlanApprovalStatus(interactionId: string, status: PlanApprovalInteraction["status"]): void {
 		const approval = this.planApprovalsPending.get(interactionId);
@@ -38,7 +47,7 @@ export class InteractionStore {
 			return;
 		}
 
-		this.planApprovalsPending.set(interactionId, {
+		this.setPendingPlanApproval(interactionId, {
 			id: approval.id,
 			kind: approval.kind,
 			source: approval.source,
@@ -53,16 +62,49 @@ export class InteractionStore {
 		});
 	}
 
+	getPendingQuestionsForSession(sessionId: string): readonly QuestionRequest[] {
+		const indexed = this.pendingQuestionsBySession.get(sessionId);
+		if (indexed !== undefined) {
+			return Array.from(indexed.values());
+		}
+
+		return Array.from(this.questionsPending.values()).filter(
+			(question) => question.sessionId === sessionId
+		);
+	}
+
+	getPendingPermissionsForSession(sessionId: string): readonly PermissionRequest[] {
+		const indexed = this.pendingPermissionsBySession.get(sessionId);
+		if (indexed !== undefined) {
+			return Array.from(indexed.values());
+		}
+
+		return Array.from(this.permissionsPending.values()).filter(
+			(permission) => permission.sessionId === sessionId
+		);
+	}
+
+	getPendingPlanApprovalsForSession(sessionId: string): readonly PlanApprovalInteraction[] {
+		const indexed = this.pendingPlanApprovalsBySession.get(sessionId);
+		if (indexed !== undefined) {
+			return Array.from(indexed.values());
+		}
+
+		return Array.from(this.planApprovalsPending.values()).filter(
+			(approval) => approval.sessionId === sessionId
+		);
+	}
+
 	clearSession(sessionId: string): void {
 		for (const [interactionId, permission] of this.permissionsPending) {
 			if (permission.sessionId === sessionId) {
-				this.permissionsPending.delete(interactionId);
+				this.deletePendingPermission(interactionId);
 			}
 		}
 
 		for (const [interactionId, question] of this.questionsPending) {
 			if (question.sessionId === sessionId) {
-				this.questionsPending.delete(interactionId);
+				this.deletePendingQuestion(interactionId);
 			}
 		}
 
@@ -75,7 +117,7 @@ export class InteractionStore {
 
 		for (const [interactionId, approval] of this.planApprovalsPending) {
 			if (approval.sessionId === sessionId) {
-				this.planApprovalsPending.delete(interactionId);
+				this.deletePendingPlanApproval(interactionId);
 			}
 		}
 	}
@@ -114,7 +156,7 @@ export class InteractionStore {
 		payload: PermissionData
 	): void {
 		if (interaction.state !== "Pending") {
-			this.permissionsPending.delete(interaction.id);
+			this.deletePendingPermission(interaction.id);
 			return;
 		}
 		this.upsertPendingPermission(
@@ -142,20 +184,20 @@ export class InteractionStore {
 				continue;
 			}
 
-			this.permissionsPending.set(
+			this.setPendingPermission(
 				interactionId,
 				mergePermissionRequests(existingPermission, permission)
 			);
 			return;
 		}
 
-		this.permissionsPending.set(permission.id, permission);
+		this.setPendingPermission(permission.id, permission);
 	}
 
 	private applyQuestionInteraction(interaction: InteractionSnapshot, payload: QuestionData): void {
 		const request = this.buildQuestionRequest(interaction, payload);
 		if (interaction.state === "Pending") {
-			this.questionsPending.set(request.id, request);
+			this.setPendingQuestion(request.id, request);
 			return;
 		}
 
@@ -163,7 +205,7 @@ export class InteractionStore {
 			return;
 		}
 
-		this.questionsPending.delete(request.id);
+		this.deletePendingQuestion(request.id);
 		const toolCallId = request.tool?.callID ?? request.id;
 		const answeredQuestion: AnsweredQuestion = {
 			questions: request.questions,
@@ -186,16 +228,16 @@ export class InteractionStore {
 			createLegacyInteractionReplyHandler(interaction.id, jsonRpcRequestId);
 		const status = mapPlanApprovalStatus(interaction.state);
 		if (tool === undefined || status === null) {
-			this.planApprovalsPending.delete(interaction.id);
+			this.deletePendingPlanApproval(interaction.id);
 			return;
 		}
 
 		if (status !== "pending") {
-			this.planApprovalsPending.delete(interaction.id);
+			this.deletePendingPlanApproval(interaction.id);
 			return;
 		}
 
-		this.planApprovalsPending.set(interaction.id, {
+		this.setPendingPlanApproval(interaction.id, {
 			id: interaction.id,
 			kind: "plan_approval",
 			source: source === "CreatePlan" ? "create_plan" : "exit_plan_mode",
@@ -205,6 +247,71 @@ export class InteractionStore {
 			replyHandler,
 			status,
 		});
+	}
+
+	private setPendingPermission(interactionId: string, permission: PermissionRequest): void {
+		this.deletePendingPermission(interactionId);
+		this.permissionsPending.set(interactionId, permission);
+		getOrCreateSessionIndex(this.pendingPermissionsBySession, permission.sessionId).set(
+			interactionId,
+			permission
+		);
+	}
+
+	private deletePendingPermission(interactionId: string): void {
+		const existing = this.permissionsPending.get(interactionId);
+		if (existing === undefined) {
+			return;
+		}
+		this.permissionsPending.delete(interactionId);
+		deleteSessionIndexEntry(
+			this.pendingPermissionsBySession,
+			existing.sessionId,
+			interactionId
+		);
+	}
+
+	private setPendingQuestion(interactionId: string, question: QuestionRequest): void {
+		this.deletePendingQuestion(interactionId);
+		this.questionsPending.set(interactionId, question);
+		getOrCreateSessionIndex(this.pendingQuestionsBySession, question.sessionId).set(
+			interactionId,
+			question
+		);
+	}
+
+	private deletePendingQuestion(interactionId: string): void {
+		const existing = this.questionsPending.get(interactionId);
+		if (existing === undefined) {
+			return;
+		}
+		this.questionsPending.delete(interactionId);
+		deleteSessionIndexEntry(this.pendingQuestionsBySession, existing.sessionId, interactionId);
+	}
+
+	private setPendingPlanApproval(
+		interactionId: string,
+		approval: PlanApprovalInteraction
+	): void {
+		this.deletePendingPlanApproval(interactionId);
+		this.planApprovalsPending.set(interactionId, approval);
+		getOrCreateSessionIndex(this.pendingPlanApprovalsBySession, approval.sessionId).set(
+			interactionId,
+			approval
+		);
+	}
+
+	private deletePendingPlanApproval(interactionId: string): void {
+		const existing = this.planApprovalsPending.get(interactionId);
+		if (existing === undefined) {
+			return;
+		}
+		this.planApprovalsPending.delete(interactionId);
+		deleteSessionIndexEntry(
+			this.pendingPlanApprovalsBySession,
+			existing.sessionId,
+			interactionId
+		);
 	}
 
 	private buildQuestionRequest(
@@ -256,6 +363,36 @@ function toInteractionToolReference(
 		messageID: tool.messageId ?? null,
 		callID: tool.callId,
 	};
+}
+
+function getOrCreateSessionIndex<T>(
+	index: Map<string, Map<string, T>>,
+	sessionId: string
+): Map<string, T> {
+	const existing = index.get(sessionId);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const created = new Map<string, T>();
+	index.set(sessionId, created);
+	return created;
+}
+
+function deleteSessionIndexEntry<T>(
+	index: Map<string, Map<string, T>>,
+	sessionId: string,
+	entryId: string
+): void {
+	const sessionIndex = index.get(sessionId);
+	if (sessionIndex === undefined) {
+		return;
+	}
+
+	sessionIndex.delete(entryId);
+	if (sessionIndex.size === 0) {
+		index.delete(sessionId);
+	}
 }
 
 function extractQuestionAnswersFromArray(

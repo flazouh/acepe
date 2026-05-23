@@ -104,11 +104,7 @@ export function buildSessionOperationInteractionSnapshot(
 ): SessionOperationInteractionSnapshot {
 	let pendingQuestion: QuestionRequest | null = null;
 	let pendingQuestionOperation: Operation | null = null;
-	for (const question of interactions.questionsPending.values()) {
-		if (question.sessionId !== sessionId) {
-			continue;
-		}
-
+	for (const question of interactions.getPendingQuestionsForSession(sessionId)) {
 		const operation = findOperationForQuestion(operationStore, question);
 		if (operation != null) {
 			pendingQuestion = question;
@@ -119,11 +115,7 @@ export function buildSessionOperationInteractionSnapshot(
 
 	let pendingPermission: PermissionRequest | null = null;
 	let pendingPermissionOperation: Operation | null = null;
-	for (const permission of interactions.permissionsPending.values()) {
-		if (permission.sessionId !== sessionId) {
-			continue;
-		}
-
+	for (const permission of interactions.getPendingPermissionsForSession(sessionId)) {
 		const operation = findOperationForPermission(operationStore, permission);
 		if (operation != null) {
 			pendingPermission = permission;
@@ -134,8 +126,8 @@ export function buildSessionOperationInteractionSnapshot(
 
 	let pendingPlanApproval: PlanApprovalInteraction | null = null;
 	let pendingPlanApprovalOperation: Operation | null = null;
-	for (const approval of interactions.planApprovalsPending.values()) {
-		if (approval.sessionId !== sessionId || approval.status !== "pending") {
+	for (const approval of interactions.getPendingPlanApprovalsForSession(sessionId)) {
+		if (approval.status !== "pending") {
 			continue;
 		}
 
