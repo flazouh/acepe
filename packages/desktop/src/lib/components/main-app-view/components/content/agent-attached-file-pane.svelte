@@ -13,6 +13,7 @@ interface Props {
 	ownerPanelId: string;
 	filePanels: readonly FilePanelType[];
 	activeFilePanelId: string | null;
+	activeFilePanel?: FilePanelType | null;
 	projects: readonly Project[];
 	columnWidth?: number;
 	isFullscreenEmbedded?: boolean;
@@ -25,6 +26,7 @@ let {
 	ownerPanelId,
 	filePanels,
 	activeFilePanelId,
+	activeFilePanel: selectedActiveFilePanel = null,
 	projects,
 	columnWidth = 450,
 	isFullscreenEmbedded: _isFullscreenEmbedded = false,
@@ -36,6 +38,9 @@ let {
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 
 const activeFilePanel = $derived.by(() => {
+	if (selectedActiveFilePanel?.ownerPanelId === ownerPanelId) {
+		return selectedActiveFilePanel;
+	}
 	const active =
 		activeFilePanelId !== null
 			? filePanels.find((panel) => panel.id === activeFilePanelId)

@@ -201,6 +201,7 @@ let {
 	onReviewFileIndexChange,
 	attachedFilePanels = [],
 	activeAttachedFilePanelId = null,
+	activeAttachedFilePanel = null,
 	onSelectAttachedFilePanel,
 	onCloseAttachedFilePanel,
 	onResizeAttachedFilePanel,
@@ -2341,6 +2342,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				ownerPanelId={panelId}
 				filePanels={attachedFilePanels}
 				activeFilePanelId={activeAttachedFilePanelId}
+				activeFilePanel={activeAttachedFilePanel}
 				projects={allProjects}
 				columnWidth={ATTACHED_COLUMN_WIDTH}
 				isFullscreenEmbedded={isFullscreen}

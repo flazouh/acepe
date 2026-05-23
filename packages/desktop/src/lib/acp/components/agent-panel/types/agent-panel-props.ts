@@ -189,6 +189,11 @@ export interface AgentPanelProps {
 	readonly activeAttachedFilePanelId?: string | null;
 
 	/**
+	 * Active attached file panel selected by the panel store.
+	 */
+	readonly activeAttachedFilePanel?: FilePanel | null;
+
+	/**
 	 * Callback to select active attached file tab.
 	 */
 	readonly onSelectAttachedFilePanel?: (ownerPanelId: string, filePanelId: string) => void;

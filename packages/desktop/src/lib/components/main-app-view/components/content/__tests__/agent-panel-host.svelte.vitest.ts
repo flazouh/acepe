@@ -22,6 +22,7 @@ const hoisted = vi.hoisted(() => ({
 		getHotState: vi.fn(() => null),
 		getAttachedFilePanels: vi.fn(() => []),
 		getActiveFilePanelId: vi.fn(() => null),
+		getActiveAttachedFilePanel: vi.fn(() => null),
 		updatePanelSession: vi.fn(),
 		enterReviewMode: vi.fn(),
 		exitReviewMode: vi.fn(),

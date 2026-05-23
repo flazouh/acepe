@@ -112,10 +112,15 @@ describe("AgentAttachedFilePane", () => {
 			},
 		}));
 
+		const initialFilePanels = [
+			createFilePanel("file-a", "src/a.ts"),
+			createFilePanel("file-b", "src/b.ts"),
+		];
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
-			filePanels: [createFilePanel("file-a", "src/a.ts"), createFilePanel("file-b", "src/b.ts")],
+			filePanels: initialFilePanels,
 			activeFilePanelId: "file-a",
+			activeFilePanel: initialFilePanels[0],
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
 			onSelectFilePanel: vi.fn(),
 			onCloseFilePanel: vi.fn(),
@@ -135,10 +140,15 @@ describe("AgentAttachedFilePane", () => {
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(1);
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "src/a.ts");
 
+		const nextFilePanels = [
+			createFilePanel("file-a", "src/a.ts"),
+			createFilePanel("file-b", "src/b.ts"),
+		];
 		await view.rerender({
 			ownerPanelId: "panel-1",
-			filePanels: [createFilePanel("file-a", "src/a.ts"), createFilePanel("file-b", "src/b.ts")],
+			filePanels: nextFilePanels,
 			activeFilePanelId: "file-b",
+			activeFilePanel: nextFilePanels[1],
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
 			onSelectFilePanel: vi.fn(),
 			onCloseFilePanel: vi.fn(),
@@ -159,13 +169,15 @@ describe("AgentAttachedFilePane", () => {
 			match: () => Promise.resolve(),
 		});
 
+		const filePanels = [
+			createFilePanel("file-a", "src/a.ts", "/repo-a"),
+			createFilePanel("file-b", "src/b.ts", "/repo-b"),
+		];
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
-			filePanels: [
-				createFilePanel("file-a", "src/a.ts", "/repo-a"),
-				createFilePanel("file-b", "src/b.ts", "/repo-b"),
-			],
+			filePanels,
 			activeFilePanelId: "file-b",
+			activeFilePanel: filePanels[1],
 			projects: [
 				{ path: "/repo-a", name: "Repo A", createdAt: new Date(0), color: "#123456" },
 				{ path: "/repo-b", name: "Repo B", createdAt: new Date(0), color: "#abcdef" },
