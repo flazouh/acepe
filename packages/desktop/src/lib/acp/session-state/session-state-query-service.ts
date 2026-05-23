@@ -115,6 +115,14 @@ export function resolveSessionStateDelta(
 		};
 	}
 
+	if (isTranscriptBearing && toRevision <= fromRevision) {
+		return {
+			kind: "refreshSnapshot",
+			fromRevision,
+			toRevision,
+		};
+	}
+
 	if (isTranscriptBearing && currentRevision === undefined) {
 		if (fromRevision > 0) {
 			return {

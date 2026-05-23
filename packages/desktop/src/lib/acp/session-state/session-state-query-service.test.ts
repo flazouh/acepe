@@ -145,6 +145,51 @@ describe("resolveSessionStateDelta", () => {
 		});
 	});
 
+	it("refreshes when a transcript-bearing delta does not advance the transcript frontier", () => {
+		const delta: SessionStateDelta = {
+			fromRevision: {
+				graphRevision: 6,
+				transcriptRevision: 5,
+				lastEventSeq: 6,
+			},
+			toRevision: {
+				graphRevision: 7,
+				transcriptRevision: 5,
+				lastEventSeq: 7,
+			},
+			activity: idleActivity,
+			turnState: "Running",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			transcriptOperations: [
+				{
+					kind: "appendEntry",
+					entry: {
+						entryId: "assistant-1",
+						role: "assistant",
+						segments: [
+							{
+								kind: "text",
+								segmentId: "assistant-1:block:0",
+								text: "hello",
+							},
+						],
+					},
+				},
+			],
+			operationPatches: [],
+			interactionPatches: [],
+			changedFields: ["transcriptSnapshot"],
+		};
+
+		expect(resolveSessionStateDelta("session-1", 5, delta)).toEqual({
+			kind: "refreshSnapshot",
+			fromRevision: 5,
+			toRevision: 5,
+		});
+	});
+
 	it("refreshes instead of applying replacement snapshots from delta envelopes", () => {
 		const delta: SessionStateDelta = {
 			fromRevision: {

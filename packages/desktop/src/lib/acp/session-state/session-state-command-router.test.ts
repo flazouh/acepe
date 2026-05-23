@@ -251,6 +251,71 @@ describe("routeSessionStateEnvelope", () => {
 		expect(second?.kind).toBe("applyGraphPatches");
 	});
 
+	it("refreshes when transcript operations do not advance the transcript frontier", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 7,
+						lastEventSeq: 8,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:block:0",
+										text: "hello",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot", "activity"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 7,
+					lastEventSeq: 7,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 7,
+				toRevision: 7,
+			},
+		]);
+	});
+
 	it("does not guess graph patches when transcript deltas omit changedFields", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
