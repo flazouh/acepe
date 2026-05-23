@@ -590,6 +590,86 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("applies marked operation patches without copying unaffected parent lists", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("parent-tool", "tool", "Task completed"),
+		]);
+		const parentOperation = createOperationSnapshot({
+			id: "parent-operation",
+			tool_call_id: "parent-tool",
+			kind: "task",
+			child_operation_ids: ["child-operation"],
+			source_link: { kind: "transcript_linked", entry_id: "parent-tool" },
+		});
+		const childOperation = createOperationSnapshot({
+			id: "child-operation",
+			tool_call_id: "child-tool",
+			parent_operation_id: "parent-operation",
+			source_link: { kind: "synthetic", reason: "task_child_operation" },
+			result: null,
+			operation_state: "running",
+		});
+		const operations = [parentOperation, childOperation];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const patchedChildOperation = {
+			...childOperation,
+			result: { stdout: "done", stderr: null, exitCode: 0 },
+			operation_state: "completed" as const,
+		};
+		const nextOperations = [parentOperation, patchedChildOperation];
+		markOperationSnapshotArrayPatch(nextOperations, {
+			baseOperations: operations,
+			patchedOperationsByIndex: new Map([[1, patchedChildOperation]]),
+			appendedOperations: null,
+		});
+		const originalSlice = Array.prototype.slice;
+		Array.prototype.slice = function patchedSlice<T>(this: T[], start?: number, end?: number) {
+			if (this[0] === parentOperation) {
+				throw new Error("must not copy unaffected parent operation lists");
+			}
+			return originalSlice.call(this, start, end);
+		};
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					operations: nextOperations,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[0]).toMatchObject({
+				id: "parent-tool",
+				type: "tool_call",
+				taskChildren: [
+					expect.objectContaining({
+						operationId: "child-operation",
+						status: "done",
+					}),
+				],
+			});
+		} finally {
+			Array.prototype.slice = originalSlice;
+		}
+	});
+
 	it("appends transcript rows without rebuilding existing conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");

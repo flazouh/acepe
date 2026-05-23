@@ -1784,18 +1784,8 @@ function cloneOperationIndex(index: OperationIndex): OperationIndex {
 	return {
 		byOperationId: new Map(index.byOperationId),
 		byTranscriptSourceEntryId: new Map(index.byTranscriptSourceEntryId),
-		parentsByChildOperationId: cloneParentOperationIndex(index.parentsByChildOperationId),
+		parentsByChildOperationId: new Map(index.parentsByChildOperationId),
 	};
-}
-
-function cloneParentOperationIndex(
-	index: ReadonlyMap<string, readonly OperationSnapshot[]>
-): Map<string, OperationSnapshot[]> {
-	const cloned = new Map<string, OperationSnapshot[]>();
-	for (const [childOperationId, parents] of index) {
-		cloned.set(childOperationId, parents.slice());
-	}
-	return cloned;
 }
 
 function replaceOperationInIndex(
@@ -1818,7 +1808,7 @@ function addOperationToIndex(index: OperationIndex, operation: OperationSnapshot
 			index.parentsByChildOperationId.set(childOperationId, [operation]);
 			continue;
 		}
-		parents.push(operation);
+		index.parentsByChildOperationId.set(childOperationId, [...parents, operation]);
 	}
 }
 
