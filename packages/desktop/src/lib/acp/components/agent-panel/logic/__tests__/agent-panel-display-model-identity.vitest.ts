@@ -7,6 +7,7 @@ import {
 	applyAgentPanelDisplayMemory,
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
+	createAgentPanelDisplaySceneEntriesReadModel,
 	createAgentPanelDisplayRowsReadModel,
 } from "../agent-panel-display-model.js";
 
@@ -96,6 +97,121 @@ describe("applyAgentPanelDisplayModelToSceneEntries identity", () => {
 				sceneEntries
 			)
 		).toBe(sceneEntries);
+	});
+});
+
+describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
+	it("patches an assistant entry through the cached scene entry index", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const sceneEntries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "" },
+		];
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{ id: "user-1", type: "user", text: "Prompt" },
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+
+		const displayedEntries = readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries,
+		});
+
+		expect(displayedEntries[0]).toBe(sceneEntries[0]);
+		expect(displayedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		});
+	});
+
+	it("keeps the cached scene entry index valid after append-only scene updates", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "",
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "First",
+					displayText: "First",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		readModel.apply({
+			model: firstModel,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, firstAssistantEntry],
+		});
+
+		const nextEntries = readModel.apply({
+			model: {
+				...firstModel,
+				rows: [
+					...firstModel.rows,
+					{
+						id: "assistant-2",
+						type: "assistant",
+						canonicalText: "Second",
+						displayText: "Second",
+						canonicalTextRevision: "2:assistant-2",
+						isLiveTail: false,
+					},
+				],
+			},
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, firstAssistantEntry, nextAssistantEntry],
+		});
+
+		expect(nextEntries[0]).toBe(userEntry);
+		expect(nextEntries[1]).toBe(firstAssistantEntry);
+		expect(nextEntries[2]).toMatchObject({
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		});
 	});
 });
 

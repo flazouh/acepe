@@ -13,6 +13,7 @@ import type {
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
+import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
 
 export type AgentPanelDisplayRow =
@@ -67,6 +68,14 @@ export interface AgentPanelBaseModel {
 }
 
 export type AgentPanelDisplayModel = AgentPanelBaseModel;
+
+export interface AgentPanelDisplaySceneEntriesReadModel {
+	apply(input: {
+		readonly model: AgentPanelDisplayModel;
+		readonly memory: AgentPanelDisplayMemory;
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+	}): readonly AgentPanelSceneEntryModel[];
+}
 
 export interface AgentPanelDisplayMemory {
 	readonly sessionId: string | null;
@@ -577,11 +586,9 @@ function applyDisplayRowToAssistantEntry(
 	};
 }
 
-export function applyAgentPanelDisplayModelToSceneEntries(
+function selectAssistantRowsForScenePatch(
 	model: AgentPanelDisplayModel,
-	_memory: AgentPanelDisplayMemory,
-	sceneEntries: readonly AgentPanelSceneEntryModel[]
-): readonly AgentPanelSceneEntryModel[] {
+): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
 	const assistantRowsById = new Map<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>();
 	for (const row of model.rows) {
 		if (row.type === "assistant") {
@@ -591,6 +598,42 @@ export function applyAgentPanelDisplayModelToSceneEntries(
 			assistantRowsById.set(row.id, row);
 		}
 	}
+	return assistantRowsById;
+}
+
+function applyAssistantDisplayRowsToSceneEntriesByIndex(
+	assistantRowsById: ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>,
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntryIndexesById: ReadonlyMap<string, number>
+): readonly AgentPanelSceneEntryModel[] | null {
+	if (assistantRowsById.size === 0) {
+		return sceneEntries;
+	}
+
+	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	for (const [entryId, row] of assistantRowsById) {
+		const index = sceneEntryIndexesById.get(entryId);
+		if (index === undefined) {
+			return null;
+		}
+		const entry = sceneEntries[index];
+		if (entry?.type !== "assistant") {
+			return null;
+		}
+		if (entry.markdown === row.displayText) {
+			continue;
+		}
+
+		nextEntries ??= sceneEntries.slice();
+		nextEntries[index] = applyDisplayRowToAssistantEntry(entry, row);
+	}
+	return nextEntries ?? sceneEntries;
+}
+
+function applyAssistantDisplayRowsToSceneEntriesByScan(
+	assistantRowsById: ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>,
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
 	if (assistantRowsById.size === 0) {
 		return sceneEntries;
 	}
@@ -613,4 +656,71 @@ export function applyAgentPanelDisplayModelToSceneEntries(
 		nextEntries[index] = applyDisplayRowToAssistantEntry(entry, row);
 	});
 	return nextEntries ?? sceneEntries;
+}
+
+export function applyAgentPanelDisplayModelToSceneEntries(
+	model: AgentPanelDisplayModel,
+	_memory: AgentPanelDisplayMemory,
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	return applyAssistantDisplayRowsToSceneEntriesByScan(
+		selectAssistantRowsForScenePatch(model),
+		sceneEntries
+	);
+}
+
+export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDisplaySceneEntriesReadModel {
+	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
+	let sceneEntryIndexesById: Map<string, number> = new Map();
+
+	return {
+		apply({ model, sceneEntries }) {
+			if (sceneEntries !== previousSceneEntries) {
+				if (
+					previousSceneEntries !== null &&
+					isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
+				) {
+					appendSceneEntryIndexes(
+						sceneEntryIndexesById,
+						sceneEntries.slice(previousSceneEntries.length),
+						previousSceneEntries.length
+					);
+				} else {
+					sceneEntryIndexesById = buildSceneEntryIndexes(sceneEntries);
+				}
+				previousSceneEntries = sceneEntries;
+			}
+
+			const assistantRowsById = selectAssistantRowsForScenePatch(model);
+			const indexedEntries = applyAssistantDisplayRowsToSceneEntriesByIndex(
+				assistantRowsById,
+				sceneEntries,
+				sceneEntryIndexesById
+			);
+			if (indexedEntries !== null) {
+				return indexedEntries;
+			}
+			return applyAssistantDisplayRowsToSceneEntriesByScan(assistantRowsById, sceneEntries);
+		},
+	};
+}
+
+function buildSceneEntryIndexes(
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): Map<string, number> {
+	const indexesById = new Map<string, number>();
+	appendSceneEntryIndexes(indexesById, sceneEntries, 0);
+	return indexesById;
+}
+
+function appendSceneEntryIndexes(
+	indexesById: Map<string, number>,
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): void {
+	let index = startIndex;
+	for (const entry of sceneEntries) {
+		indexesById.set(entry.id, index);
+		index += 1;
+	}
 }

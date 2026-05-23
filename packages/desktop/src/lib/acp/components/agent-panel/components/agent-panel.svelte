@@ -62,9 +62,9 @@ import {
 	createWorktreeCreationState,
 	copyTextToClipboard,
 	applyAgentPanelDisplayMemory,
-	applyAgentPanelDisplayModelToSceneEntries,
 	buildAgentPanelBaseModel,
 	createAgentPanelDisplayMemory,
+	createAgentPanelDisplaySceneEntriesReadModel,
 	createAgentPanelDisplayRowsReadModel,
 	deriveCanonicalUserEntryPresence,
 	deriveCanonicalAgentPanelSessionState,
@@ -231,6 +231,7 @@ const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelR
 let lastPanelTraceSignature = $state<string | null>(null);
 let agentPanelDisplayMemory = createAgentPanelDisplayMemory();
 const agentPanelDisplayRowsReadModel = createAgentPanelDisplayRowsReadModel();
+const agentPanelDisplaySceneEntriesReadModel = createAgentPanelDisplaySceneEntriesReadModel();
 const tokenRevealSourceIndexReadModel = createGraphSceneEntryIndexReadModel();
 const tokenRevealSceneReadModel = createTokenRevealSceneReadModel();
 let prefersReducedMotion = $state(false);
@@ -902,11 +903,11 @@ const agentPanelDisplayResult = $derived.by(() => {
 });
 const agentPanelDisplayModel = $derived(agentPanelDisplayResult.model);
 const graphSceneEntries = $derived.by(() => {
-	return applyAgentPanelDisplayModelToSceneEntries(
-		agentPanelDisplayModel,
-		agentPanelDisplayResult.memory,
-		graphMaterializedScene.conversation.entries
-	);
+	return agentPanelDisplaySceneEntriesReadModel.apply({
+		model: agentPanelDisplayModel,
+		memory: agentPanelDisplayResult.memory,
+		sceneEntries: graphMaterializedScene.conversation.entries,
+	});
 });
 const tokenRevealSceneEntries = $derived.by(() => {
 	tokenRevealSettleRevision;
