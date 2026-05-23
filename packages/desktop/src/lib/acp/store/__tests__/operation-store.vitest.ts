@@ -160,6 +160,89 @@ describe("OperationStore", () => {
 		});
 	});
 
+	it("caches current and last tool selectors until canonical operations change", () => {
+		const operationStore = new OperationStore();
+		const operationId = buildCanonicalOperationId("session-1", "tool-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+		]);
+
+		const firstCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
+		const firstLastTool = operationStore.getLastToolCall("session-1");
+
+		expect(operationStore.getCurrentStreamingToolCall("session-1")).toBe(firstCurrentTool);
+		expect(operationStore.getLastToolCall("session-1")).toBe(firstLastTool);
+
+		operationStore.applySessionOperationPatches("session-1", []);
+		expect(operationStore.getCurrentStreamingToolCall("session-1")).toBe(firstCurrentTool);
+		expect(operationStore.getLastToolCall("session-1")).toBe(firstLastTool);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "ok",
+			}),
+		]);
+
+		expect(operationStore.getCurrentStreamingToolCall("session-1")).toBeNull();
+		expect(operationStore.getLastToolCall("session-1")).not.toBe(firstLastTool);
+		expect(operationStore.getLastToolCall("session-1")?.result).toBe("ok");
+	});
+
+	it("caches the last todo selector until canonical operations change", () => {
+		const operationStore = new OperationStore();
+		const operationId = buildCanonicalOperationId("session-1", "todo-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "todo-1",
+				kind: null,
+				normalized_todos: [
+					{
+						content: "Keep selectors small",
+						status: "in_progress",
+						activeForm: "Keeping selectors small",
+					},
+				],
+			}),
+		]);
+
+		const firstTodoTool = operationStore.getLastTodoToolCall("session-1");
+
+		expect(operationStore.getLastTodoToolCall("session-1")).toBe(firstTodoTool);
+		operationStore.applySessionOperationPatches("session-1", []);
+		expect(operationStore.getLastTodoToolCall("session-1")).toBe(firstTodoTool);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "todo-1",
+				kind: null,
+				normalized_todos: [
+					{
+						content: "Keep selectors small",
+						status: "completed",
+						activeForm: "Keeping selectors small",
+					},
+				],
+			}),
+		]);
+
+		const patchedTodoTool = operationStore.getLastTodoToolCall("session-1");
+		expect(patchedTodoTool).not.toBe(firstTodoTool);
+		expect(patchedTodoTool?.normalizedTodos?.[0]?.status).toBe("completed");
+	});
+
 	it("caches modified files read-model state until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");

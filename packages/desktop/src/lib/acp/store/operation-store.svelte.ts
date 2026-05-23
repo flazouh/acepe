@@ -53,6 +53,18 @@ export class OperationStore {
 		string,
 		{ readonly version: number; readonly toolCalls: Array<ToolCall> }
 	>();
+	private readonly currentStreamingToolCallBySession = new Map<
+		string,
+		{ readonly version: number; readonly toolCall: ToolCall | null }
+	>();
+	private readonly lastToolCallBySession = new Map<
+		string,
+		{ readonly version: number; readonly toolCall: ToolCall | null }
+	>();
+	private readonly lastTodoToolCallBySession = new Map<
+		string,
+		{ readonly version: number; readonly toolCall: ToolCall | null }
+	>();
 
 	getById(operationId: string): Operation | undefined {
 		return this.operationsById.get(operationId);
@@ -160,14 +172,22 @@ export class OperationStore {
 	}
 
 	getCurrentStreamingToolCall(sessionId: string): ToolCall | null {
+		const version = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cached = this.currentStreamingToolCallBySession.get(sessionId);
+		if (cached !== undefined && cached.version === version) {
+			return cached.toolCall;
+		}
+
 		const operation = this.getCurrentStreamingOperation(sessionId);
 		if (operation !== null) {
 			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
 			if (toolCall !== null) {
+				this.currentStreamingToolCallBySession.set(sessionId, { version, toolCall });
 				return toolCall;
 			}
 		}
 
+		this.currentStreamingToolCallBySession.set(sessionId, { version, toolCall: null });
 		return null;
 	}
 
@@ -186,26 +206,42 @@ export class OperationStore {
 	}
 
 	getLastToolCall(sessionId: string): ToolCall | null {
+		const version = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cached = this.lastToolCallBySession.get(sessionId);
+		if (cached !== undefined && cached.version === version) {
+			return cached.toolCall;
+		}
+
 		const operations = this.getSessionOperations(sessionId);
 		for (let index = operations.length - 1; index >= 0; index -= 1) {
 			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
 			if (toolCall !== null) {
+				this.lastToolCallBySession.set(sessionId, { version, toolCall });
 				return toolCall;
 			}
 		}
 
+		this.lastToolCallBySession.set(sessionId, { version, toolCall: null });
 		return null;
 	}
 
 	getLastTodoToolCall(sessionId: string): ToolCall | null {
+		const version = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cached = this.lastTodoToolCallBySession.get(sessionId);
+		if (cached !== undefined && cached.version === version) {
+			return cached.toolCall;
+		}
+
 		const operations = this.getSessionOperations(sessionId);
 		for (let index = operations.length - 1; index >= 0; index -= 1) {
 			const toolCall = this.materializeToolCall(operations[index].id, new Set<string>());
 			if (toolCall?.normalizedTodos && toolCall.normalizedTodos.length > 0) {
+				this.lastTodoToolCallBySession.set(sessionId, { version, toolCall });
 				return toolCall;
 			}
 		}
 
+		this.lastTodoToolCallBySession.set(sessionId, { version, toolCall: null });
 		return null;
 	}
 
@@ -311,6 +347,9 @@ export class OperationStore {
 		this.sessionOperationsBySession.delete(sessionId);
 		this.modifiedFilesStateBySession.delete(sessionId);
 		this.sessionToolCallsBySession.delete(sessionId);
+		this.currentStreamingToolCallBySession.delete(sessionId);
+		this.lastToolCallBySession.delete(sessionId);
+		this.lastTodoToolCallBySession.delete(sessionId);
 	}
 
 	private operationFromSnapshot(snapshot: OperationSnapshot): Operation {
