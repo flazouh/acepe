@@ -4921,7 +4921,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 		const rowKey = buildRowTokenStreamKey(delta.turnId, delta.rowId);
 		const previousRow = projection.tokenStream.get(rowKey) ?? null;
-		if (previousRow !== null && delta.revision <= previousRow.revision) {
+		if (previousRow !== null && delta.revision < previousRow.revision) {
 			return;
 		}
 		if (delta.revision <= projection.revision.graphRevision) {

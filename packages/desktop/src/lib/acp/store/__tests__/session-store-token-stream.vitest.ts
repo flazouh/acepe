@@ -350,6 +350,40 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		expect(store.getActiveStreamingTailRowId("missing-session")).toBeNull();
 	});
 
+	it("accepts split assistant text deltas that share the same source revision", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope());
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: 0,
+				deltaText: "first ",
+				producedAtMonotonicMs: 1_000,
+				revision: 2,
+			})
+		);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: "first ".length,
+				deltaText: "second",
+				producedAtMonotonicMs: 1_000,
+				revision: 2,
+			})
+		);
+
+		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+			accumulatedText: "first second",
+			revision: 2,
+		});
+	});
+
 	it("selects token streams by row id without depending on stream insertion order", () => {
 		const store = new SessionStore();
 		addColdSession(store);
