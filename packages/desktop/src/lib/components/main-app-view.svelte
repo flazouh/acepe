@@ -475,11 +475,11 @@ projectManager.setSessionStore(sessionStore);
 // Set up project color lookup for urgency tabs store and tab bar
 // This ensures tabs use actual project colors instead of hash-based fallbacks
 const projectColorLookup = (projectPath: string) => {
-	const project = projectManager.projects.find((p) => p.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.color ?? null;
 };
 const projectIconSrcLookup = (projectPath: string) => {
-	const project = projectManager.projects.find((p) => p.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.iconPath ?? null;
 };
 urgencyTabsStore.setProjectColorLookup(projectColorLookup);
@@ -488,14 +488,14 @@ tabBarStore.setProjectIconSrcLookup(projectIconSrcLookup);
 
 // Set up project creation date lookup for tab bar group ordering
 const projectCreatedAtLookup = (projectPath: string) => {
-	const project = projectManager.projects.find((p) => p.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.createdAt ?? null;
 };
 tabBarStore.setProjectCreatedAtLookup(projectCreatedAtLookup);
 
 // Set up project sort order lookup for flat tab ordering (smallest first)
 const projectSortOrderLookup = (projectPath: string) => {
-	const project = projectManager.projects.find((p) => p.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.sortOrder ?? null;
 };
 tabBarStore.setProjectSortOrderLookup(projectSortOrderLookup);
