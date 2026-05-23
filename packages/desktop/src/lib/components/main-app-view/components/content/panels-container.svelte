@@ -61,6 +61,7 @@ onMount(() => {
 });
 
 const agentPanelProjectRefs = $derived(panelStore.getTopLevelAgentPanelProjectRefs());
+const nonAgentPanelProjectRefs = $derived(panelStore.getTopLevelNonAgentPanelProjectRefs());
 
 // Session hydration is handled imperatively by the initialization manager:
 // - earlyPreloadPanelSessions() loads & connects sessions (Phase 2.5)
@@ -101,10 +102,7 @@ const topLevelPanelsWithProject = $derived.by(() => {
 	for (const panel of agentPanelProjectRefs) {
 		topLevelPanels.push({ id: panel.id, projectPath: panel.sessionProjectPath });
 	}
-	for (const panel of panelStore.workspacePanels) {
-		if (panel.kind === "agent" || panel.kind === "git" || panel.ownerPanelId !== null) {
-			continue;
-		}
+	for (const panel of nonAgentPanelProjectRefs) {
 		topLevelPanels.push({ id: panel.id, projectPath: panel.projectPath });
 	}
 	// Terminal and browser panels are stored outside workspacePanels but are

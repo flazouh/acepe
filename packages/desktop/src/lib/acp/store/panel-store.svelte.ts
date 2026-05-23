@@ -63,6 +63,11 @@ type ReactiveValue<T> = {
 	current: T;
 };
 
+export interface TopLevelPanelProjectRef {
+	readonly id: string;
+	readonly projectPath: string | null;
+}
+
 class ReactiveValueBox<T> implements ReactiveValue<T> {
 	current = $state<T>(undefined as T);
 
@@ -170,6 +175,19 @@ function areWorkspacePanelListsEqual(
 	);
 }
 
+function arePanelProjectRefListsEqual(
+	left: readonly TopLevelPanelProjectRef[],
+	right: readonly TopLevelPanelProjectRef[]
+): boolean {
+	return (
+		left.length === right.length &&
+		left.every(
+			(ref, index) =>
+				ref.id === right[index]?.id && ref.projectPath === right[index]?.projectPath
+		)
+	);
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -195,6 +213,7 @@ export class PanelStore {
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
 	private filePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private topLevelWorkspacePanelList = $state<WorkspacePanel[]>([]);
+	private topLevelNonAgentPanelProjectRefList = $state<TopLevelPanelProjectRef[]>([]);
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
@@ -612,6 +631,17 @@ export class PanelStore {
 		if (!areWorkspacePanelListsEqual(this.topLevelWorkspacePanelList, topLevelPanels)) {
 			this.topLevelWorkspacePanelList = topLevelPanels;
 		}
+		const topLevelNonAgentProjectRefs = topLevelPanels
+			.filter((panel) => panel.kind !== "agent" && panel.kind !== "git")
+			.map((panel) => ({ id: panel.id, projectPath: panel.projectPath }));
+		if (
+			!arePanelProjectRefListsEqual(
+				this.topLevelNonAgentPanelProjectRefList,
+				topLevelNonAgentProjectRefs
+			)
+		) {
+			this.topLevelNonAgentPanelProjectRefList = topLevelNonAgentProjectRefs;
+		}
 	}
 
 	removeWorkspacePanelsForProject(projectPath: string): void {
@@ -684,6 +714,10 @@ export class PanelStore {
 
 	getFirstTopLevelPanel(): WorkspacePanel | undefined {
 		return this.topLevelWorkspacePanelList[0];
+	}
+
+	getTopLevelNonAgentPanelProjectRefs(): readonly TopLevelPanelProjectRef[] {
+		return this.topLevelNonAgentPanelProjectRefList;
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {

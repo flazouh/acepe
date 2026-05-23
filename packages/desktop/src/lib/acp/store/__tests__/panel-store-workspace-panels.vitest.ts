@@ -268,6 +268,23 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.getFilePanelsForProject("/tmp/other")).toEqual([]);
 	});
 
+	it("selects top-level non-agent project refs without exposing attached panels", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const filePanel = store.openFilePanel("src/main.ts", "/tmp/project");
+		store.openFilePanel("src/attached.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const terminalPanel = store.openTerminalPanel("/tmp/project");
+		const browserPanel = store.openBrowserPanel("/tmp/project", "https://example.com");
+
+		expect(store.getTopLevelNonAgentPanelProjectRefs()).toEqual([
+			{ id: browserPanel.id, projectPath: "/tmp/project" },
+			{ id: filePanel.id, projectPath: "/tmp/project" },
+			{ id: terminalPanel.id, projectPath: "/tmp/project" },
+		]);
+	});
+
 	it("falls back to attached file panel groups without scanning all file panels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
