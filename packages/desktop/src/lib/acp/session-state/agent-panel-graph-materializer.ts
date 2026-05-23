@@ -1618,6 +1618,13 @@ function materializeInteractionPatchedConversation(
 			return patched;
 		}
 	}
+	const stableInteractionAppend = materializeStableInteractionAppendedConversation(
+		previous,
+		input
+	);
+	if (stableInteractionAppend !== null) {
+		return stableInteractionAppend;
+	}
 
 	const transcriptSceneEntryCount = previous.transcriptEntries.length;
 	const nextInteractionEntries = materializeVisibleInteractionEntries(
@@ -1648,6 +1655,107 @@ function materializeInteractionPatchedConversation(
 		nextInteractionEntries,
 		transcriptSceneEntryCount
 	);
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex,
+	};
+}
+
+function materializeStableInteractionAppendedConversation(
+	previous: CachedConversationState,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (input.graph.interactions.length <= previous.interactions.length) {
+		return null;
+	}
+
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const previousVisibleEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		transcriptSceneEntryCount
+	);
+	if (previousVisibleEntries.length > 1) {
+		return null;
+	}
+
+	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
+		previousVisibleEntries[0] ?? null;
+	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
+	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
+	if (nextBlockingInteractionId === previousBlockingInteractionId) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+	if (nextBlockingInteractionId === null) {
+		return null;
+	}
+
+	const appendedInteractions = collectAppendedInteractions(
+		input.graph.interactions,
+		previous.interactions.length
+	);
+	let nextVisibleEntry: AgentPanelSceneEntryModel | null = null;
+	for (const interaction of appendedInteractions) {
+		if (interaction.id !== nextBlockingInteractionId) {
+			continue;
+		}
+		nextVisibleEntry = questionInteractionToSceneEntry(interaction, input.graph);
+		break;
+	}
+	if (nextVisibleEntry === null) {
+		return null;
+	}
+
+	if (
+		previousVisibleEntry !== null &&
+		previousVisibleEntry.id === nextVisibleEntry.id &&
+		areSceneEntriesEquivalent(previousVisibleEntry, nextVisibleEntry)
+	) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+
+	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let sceneEntryRowIndex: ReadonlyMap<string, number>;
+	if (previousVisibleEntry === null) {
+		nextEntries = createAppendedSceneEntryArray(previous.conversation.entries, [nextVisibleEntry]);
+		sceneEntryRowIndex = createAppendedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[nextVisibleEntry],
+			previous.conversation.entries.length
+		);
+	} else {
+		nextEntries = createInsertedSceneEntryArray(
+			previous.conversation.entries,
+			transcriptSceneEntryCount,
+			[nextVisibleEntry],
+			[]
+		);
+		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[previousVisibleEntry],
+			[nextVisibleEntry],
+			transcriptSceneEntryCount
+		);
+	}
+
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,
@@ -1971,6 +2079,20 @@ function collectAppendedTranscriptEntries(
 		}
 	}
 	return appendedEntries;
+}
+
+function collectAppendedInteractions(
+	interactions: readonly InteractionSnapshot[],
+	startIndex: number
+): readonly InteractionSnapshot[] {
+	const appendedInteractions: InteractionSnapshot[] = [];
+	for (let index = startIndex; index < interactions.length; index += 1) {
+		const interaction = interactions[index];
+		if (interaction !== undefined) {
+			appendedInteractions.push(interaction);
+		}
+	}
+	return appendedInteractions;
 }
 
 function materializeOperationPatchedConversation(
