@@ -94,7 +94,8 @@ export function resolveSessionStateDelta(
 	delta: SessionStateDelta
 ): SessionStateDeltaResolution {
 	const operations = transcriptOperationsFromDelta(delta);
-	const isTranscriptBearing = operations.length > 0;
+	const transcriptSnapshotChanged = delta.changedFields?.includes("transcriptSnapshot") ?? false;
+	const isTranscriptBearing = operations.length > 0 || transcriptSnapshotChanged;
 	const fromRevision = delta.fromRevision.transcriptRevision;
 	const toRevision = delta.toRevision.transcriptRevision;
 
@@ -115,6 +116,13 @@ export function resolveSessionStateDelta(
 			};
 		}
 	} else if (isTranscriptBearing && fromRevision !== currentRevision) {
+		return {
+			kind: "refreshSnapshot",
+			fromRevision,
+			toRevision,
+		};
+	}
+	if (transcriptSnapshotChanged && operations.length === 0) {
 		return {
 			kind: "refreshSnapshot",
 			fromRevision,

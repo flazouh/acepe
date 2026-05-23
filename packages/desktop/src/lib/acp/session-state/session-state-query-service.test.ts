@@ -60,11 +60,41 @@ describe("resolveSessionStateDelta", () => {
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["transcriptSnapshot"],
+			changedFields: ["activity"],
 		};
 
 		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
 			kind: "noop",
+		});
+	});
+
+	it("refreshes when transcriptSnapshot is marked changed without transcript operations", () => {
+		const delta: SessionStateDelta = {
+			fromRevision: {
+				graphRevision: 6,
+				transcriptRevision: 4,
+				lastEventSeq: 6,
+			},
+			toRevision: {
+				graphRevision: 7,
+				transcriptRevision: 5,
+				lastEventSeq: 7,
+			},
+			activity: idleActivity,
+			turnState: "Idle",
+			activeTurnFailure: null,
+			lastTerminalTurnId: null,
+			activeStreamingTail: null,
+			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [],
+			changedFields: ["transcriptSnapshot"],
+		};
+
+		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
+			kind: "refreshSnapshot",
+			fromRevision: 4,
+			toRevision: 5,
 		});
 	});
 
