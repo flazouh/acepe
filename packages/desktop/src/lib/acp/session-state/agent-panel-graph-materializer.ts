@@ -1634,6 +1634,13 @@ function materializeInteractionPatchedConversation(
 			return patched;
 		}
 	}
+	const stableInteractionPatch = materializeStableInteractionPatchedConversation(
+		previous,
+		input
+	);
+	if (stableInteractionPatch !== null) {
+		return stableInteractionPatch;
+	}
 	const blockingInteractionRetarget = materializeBlockingInteractionRetargetConversation(
 		previous,
 		input
@@ -1691,6 +1698,142 @@ function materializeInteractionPatchedConversation(
 		nextInteractionEntries,
 		transcriptSceneEntryCount
 	);
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		interactionById,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex,
+	};
+}
+
+function materializeStableInteractionPatchedConversation(
+	previous: CachedConversationState,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (input.graph.interactions.length !== previous.interactions.length) {
+		return null;
+	}
+
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const previousVisibleEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		transcriptSceneEntryCount
+	);
+	if (previousVisibleEntries.length > 1) {
+		return null;
+	}
+	const previousVisibleEntry = previousVisibleEntries[0] ?? null;
+	const patchedInteractionsByIndex = new Map<number, InteractionSnapshot>();
+	for (let index = 0; index < input.graph.interactions.length; index += 1) {
+		const previousInteraction = previous.interactions[index];
+		const nextInteraction = input.graph.interactions[index];
+		if (previousInteraction === undefined || nextInteraction === undefined) {
+			return null;
+		}
+		if (previousInteraction.id !== nextInteraction.id) {
+			return null;
+		}
+		if (previousInteraction !== nextInteraction) {
+			patchedInteractionsByIndex.set(index, nextInteraction);
+		}
+	}
+	if (patchedInteractionsByIndex.size === 0) {
+		return null;
+	}
+
+	const interactionById = createPatchedInteractionIndex(
+		previous.interactionById,
+		patchedInteractionsByIndex,
+		null
+	);
+	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
+	const nextVisibleInteraction =
+		nextBlockingInteractionId === null ? null : interactionById.get(nextBlockingInteractionId) ?? null;
+	const nextVisibleEntry =
+		nextVisibleInteraction === null
+			? null
+			: questionInteractionToSceneEntry(nextVisibleInteraction, input.graph);
+
+	if (
+		previousVisibleEntry !== null &&
+		nextVisibleEntry !== null &&
+		previousVisibleEntry.id === nextVisibleEntry.id &&
+		areSceneEntriesEquivalent(previousVisibleEntry, nextVisibleEntry)
+	) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			interactionById,
+			activity: input.graph.activity,
+		};
+	}
+
+	if (previousVisibleEntry === null && nextVisibleEntry === null) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			interactionById,
+			activity: input.graph.activity,
+		};
+	}
+
+	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let sceneEntryRowIndex: ReadonlyMap<string, number>;
+	if (previousVisibleEntry === null && nextVisibleEntry !== null) {
+		nextEntries = createAppendedSceneEntryArray(previous.conversation.entries, [nextVisibleEntry]);
+		sceneEntryRowIndex = createAppendedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[nextVisibleEntry],
+			previous.conversation.entries.length
+		);
+	} else if (previousVisibleEntry !== null && nextVisibleEntry === null) {
+		nextEntries = createInsertedSceneEntryArray(
+			previous.conversation.entries,
+			transcriptSceneEntryCount,
+			[],
+			[]
+		);
+		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[previousVisibleEntry],
+			[],
+			transcriptSceneEntryCount
+		);
+	} else if (
+		previousVisibleEntry !== null &&
+		nextVisibleEntry !== null &&
+		previousVisibleEntry.id === nextVisibleEntry.id
+	) {
+		nextEntries = createPatchedSceneEntryArray(
+			previous.conversation.entries,
+			new Map([[transcriptSceneEntryCount, nextVisibleEntry]])
+		);
+		sceneEntryRowIndex = previous.sceneEntryRowIndex;
+	} else {
+		nextEntries = createInsertedSceneEntryArray(
+			previous.conversation.entries,
+			transcriptSceneEntryCount,
+			nextVisibleEntry === null ? [] : [nextVisibleEntry],
+			[]
+		);
+		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			previousVisibleEntry === null ? [] : [previousVisibleEntry],
+			nextVisibleEntry === null ? [] : [nextVisibleEntry],
+			transcriptSceneEntryCount
+		);
+	}
+
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,

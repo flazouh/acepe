@@ -2416,6 +2416,83 @@ describe("agent panel graph materializer", () => {
 		]);
 	});
 
+	it("patches same-length visible interaction updates without rebuilding transcript rows", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const hiddenInteraction = createQuestionInteraction({
+			id: "hidden-question",
+			jsonRpcRequestId: 1,
+			replyHandler: { kind: "json_rpc", requestId: "1" },
+		});
+		const visibleInteraction = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 2,
+			replyHandler: { kind: "json_rpc", requestId: "2" },
+		});
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations: [],
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: [hiddenInteraction, visibleInteraction],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+		const patchedVisibleInteraction: InteractionSnapshot = {
+			...visibleInteraction,
+			payload: {
+				Question: {
+					id: visibleInteraction.id,
+					sessionId: "session-1",
+					jsonRpcRequestId: visibleInteraction.json_rpc_request_id,
+					replyHandler: visibleInteraction.reply_handler,
+					questions: [
+						{
+							question: "Which surface should get the confirm step now?",
+							header: "Confirmation",
+							options: [{ label: "Sidebar", description: "Thread list" }],
+							multiSelect: false,
+						},
+					],
+					tool: visibleInteraction.tool_reference,
+				},
+			},
+		};
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...baseGraph,
+				interactions: [hiddenInteraction, patchedVisibleInteraction],
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: baseGraph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Question session" },
+		});
+
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			id: "interaction:question-1",
+			type: "tool_call",
+			subtitle: "Which surface should get the confirm step now?",
+		});
+	});
+
 	it("applies marked interaction appends without scanning unchanged interactions", () => {
 		const readModel = createAgentPanelGraphMaterializerReadModel();
 		const transcriptSnapshot = createTranscriptSnapshot([
