@@ -282,6 +282,110 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		});
 	});
 
+	it("applies marked append patches without scanning existing display scene entries", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "",
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "First",
+					displayText: "First",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries = [userEntry, firstAssistantEntry];
+		readModel.apply({
+			model: firstModel,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const nextSceneEntries = [userEntry, firstAssistantEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(nextSceneEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [nextAssistantEntry],
+		});
+		Object.defineProperty(nextSceneEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for display scene append patch");
+			},
+		});
+		Object.defineProperty(nextSceneEntries, "1", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for display scene append patch");
+			},
+		});
+
+		try {
+			const nextEntries = readModel.applyPatch({
+				model: {
+					...firstModel,
+					rows: [
+						...firstModel.rows,
+						{
+							id: "assistant-2",
+							type: "assistant",
+							canonicalText: "Second",
+							displayText: "Second",
+							canonicalTextRevision: "2:assistant-2",
+							isLiveTail: false,
+						},
+					],
+				},
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: nextSceneEntries,
+			});
+
+			expect(nextEntries).not.toBeNull();
+			if (nextEntries === null) {
+				return;
+			}
+			expect(nextEntries[0]).toBe(userEntry);
+			expect(nextEntries[1]).toBe(firstAssistantEntry);
+			expect(nextEntries[2]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "Second",
+			});
+		} finally {
+			Object.defineProperty(nextSceneEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(nextSceneEntries, "1", {
+				configurable: true,
+				value: firstAssistantEntry,
+			});
+		}
+	});
+
 	it("keeps the cached scene entry index valid after stable scene truncation", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

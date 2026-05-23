@@ -11,10 +11,14 @@ import type { AgentPanelCanonicalSource } from "../../../session-state/agent-pan
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	type AgentPanelSceneEntryArrayAppendPatch,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
-import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
+import {
+	createAppendedSceneEntriesArray,
+	createPatchedSceneEntriesArray,
+} from "./scene-entry-array-view.js";
 import {
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
@@ -1310,6 +1314,26 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return true;
 	}
 
+	function applyGraphSceneAppendPatchIndexes(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): AgentPanelSceneEntryArrayAppendPatch | null {
+		const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(sceneEntries);
+		if (
+			appendPatch === undefined ||
+			appendPatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		appendSceneEntryIndexes(
+			sceneEntryIndexesById,
+			appendPatch.appendedEntries,
+			0,
+			appendPatch.baseSceneEntries.length
+		);
+		previousSceneEntries = sceneEntries;
+		return appendPatch;
+	}
+
 	function selectAssistantRows(
 		model: AgentPanelDisplayModel
 	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
@@ -1354,11 +1378,40 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return displayedEntries;
 	}
 
+	function applyDisplaySceneAppendEntries(
+		model: AgentPanelDisplayModel,
+		appendPatch: AgentPanelSceneEntryArrayAppendPatch
+	): readonly AgentPanelSceneEntryModel[] | null {
+		if (previousDisplayedSceneEntries === null) {
+			return null;
+		}
+		const assistantRowsById = selectAssistantRows(model);
+		const displayedAppendedEntries = applyAssistantDisplayRowsToSceneEntriesByScan(
+			assistantRowsById,
+			appendPatch.appendedEntries
+		);
+		const displayedEntries = createAppendedSceneEntriesArray(
+			previousDisplayedSceneEntries,
+			displayedAppendedEntries
+		);
+		previousPatchedSceneEntries = previousSceneEntries;
+		previousPatchedAssistantRowsById = assistantRowsById;
+		previousDisplayedSceneEntries = displayedEntries;
+		return displayedEntries;
+	}
+
 	return {
 		apply({ model, sceneEntries }) {
 			if (sceneEntries !== previousSceneEntries) {
 				if (applyGraphScenePatchIndexes(sceneEntries)) {
 					return applyDisplaySceneEntries(model, sceneEntries);
+				}
+				const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
+				if (appendPatch !== null) {
+					return (
+						applyDisplaySceneAppendEntries(model, appendPatch) ??
+						applyDisplaySceneEntries(model, sceneEntries)
+					);
 				}
 				if (
 					previousSceneEntries !== null &&
@@ -1393,10 +1446,14 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			return applyDisplaySceneEntries(model, sceneEntries);
 		},
 		applyPatch({ model, sceneEntries }) {
-			if (!applyGraphScenePatchIndexes(sceneEntries)) {
+			if (applyGraphScenePatchIndexes(sceneEntries)) {
+				return applyDisplaySceneEntries(model, sceneEntries);
+			}
+			const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
+			if (appendPatch === null) {
 				return null;
 			}
-			return applyDisplaySceneEntries(model, sceneEntries);
+			return applyDisplaySceneAppendEntries(model, appendPatch);
 		},
 	};
 }
