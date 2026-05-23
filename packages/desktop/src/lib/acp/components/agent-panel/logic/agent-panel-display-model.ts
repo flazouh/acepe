@@ -98,15 +98,30 @@ export type AgentPanelDisplayScenePatch = {
 	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
+type AgentPanelDisplayRowArrayPatch = {
+	readonly baseRows: readonly AgentPanelDisplayRow[];
+	readonly rowPatches: ReadonlyMap<number, AgentPanelDisplayRow>;
+};
+
 const agentPanelDisplayScenePatches = new WeakMap<
 	readonly AgentPanelSceneEntryModel[],
 	AgentPanelDisplayScenePatch
+>();
+const agentPanelDisplayRowArrayPatches = new WeakMap<
+	readonly AgentPanelDisplayRow[],
+	AgentPanelDisplayRowArrayPatch
 >();
 
 export function getAgentPanelDisplayScenePatch(
 	sceneEntries: readonly AgentPanelSceneEntryModel[]
 ): AgentPanelDisplayScenePatch | undefined {
 	return agentPanelDisplayScenePatches.get(sceneEntries);
+}
+
+function getAgentPanelDisplayRowArrayPatch(
+	rows: readonly AgentPanelDisplayRow[]
+): AgentPanelDisplayRowArrayPatch | undefined {
+	return agentPanelDisplayRowArrayPatches.get(rows);
 }
 
 export interface AgentPanelDisplayMemory {
@@ -887,22 +902,39 @@ export function applyAgentPanelDisplayMemory(
 	) {
 		const previousTexts = previousMemory.displayTextByRowKey;
 		const rowPatches = new Map<number, AgentPanelDisplayRow>();
-		for (let index = 0; index < baseModel.rows.length; index += 1) {
-			const previousSourceRow = previousMemory.sourceRows[index];
-			const nextSourceRow = baseModel.rows[index];
-			if (previousSourceRow === nextSourceRow || nextSourceRow === undefined) {
-				continue;
+		const sourceRowsPatch = getAgentPanelDisplayRowArrayPatch(baseModel.rows);
+		if (sourceRowsPatch?.baseRows === previousMemory.sourceRows) {
+			for (const [index, nextSourceRow] of sourceRowsPatch.rowPatches) {
+				const previousSourceRow = previousMemory.sourceRows[index];
+				if (
+					previousSourceRow?.type === "assistant" &&
+					(previousSourceRow.id !== nextSourceRow.id || nextSourceRow.type !== "assistant")
+				) {
+					previousTexts.delete(previousSourceRow.id);
+				}
+				rowPatches.set(
+					index,
+					applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
+				);
 			}
-			if (
-				previousSourceRow?.type === "assistant" &&
-				(previousSourceRow.id !== nextSourceRow.id || nextSourceRow.type !== "assistant")
-			) {
-				previousTexts.delete(previousSourceRow.id);
+		} else {
+			for (let index = 0; index < baseModel.rows.length; index += 1) {
+				const previousSourceRow = previousMemory.sourceRows[index];
+				const nextSourceRow = baseModel.rows[index];
+				if (previousSourceRow === nextSourceRow || nextSourceRow === undefined) {
+					continue;
+				}
+				if (
+					previousSourceRow?.type === "assistant" &&
+					(previousSourceRow.id !== nextSourceRow.id || nextSourceRow.type !== "assistant")
+				) {
+					previousTexts.delete(previousSourceRow.id);
+				}
+				rowPatches.set(
+					index,
+					applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
+				);
 			}
-			rowPatches.set(
-				index,
-				applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
-			);
 		}
 		if (rowPatches.size === 0) {
 			return {
@@ -1049,7 +1081,7 @@ function createPatchedDisplayRowArray(
 	rowPatches: ReadonlyMap<number, AgentPanelDisplayRow>
 ): readonly AgentPanelDisplayRow[] {
 	const target = new Array<AgentPanelDisplayRow>(baseRows.length);
-	return new Proxy(target, {
+	const rows = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -1091,6 +1123,11 @@ function createPatchedDisplayRowArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	agentPanelDisplayRowArrayPatches.set(rows, {
+		baseRows,
+		rowPatches,
+	});
+	return rows;
 }
 
 function isStableDisplayRowAppend(

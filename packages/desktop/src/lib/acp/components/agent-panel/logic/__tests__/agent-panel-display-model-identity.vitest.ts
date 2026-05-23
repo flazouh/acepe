@@ -831,6 +831,87 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 		}
 	});
 
+	it("uses display row patch metadata when applying display memory", () => {
+		const rowsReadModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft",
+			isStreaming: true,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		const firstProjection = rowsReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: firstProjection.rows,
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(
+			createAgentPanelDisplayMemory(),
+			firstModel
+		);
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			...assistantEntry,
+			markdown: "Patched answer",
+		};
+		const patchedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextAssistantEntry],
+			entriesByIndex: new Map([[1, nextAssistantEntry]]),
+		});
+		const nextProjection = rowsReadModel.applyPatch({
+			sceneEntries: patchedEntries,
+			transcriptRevision: 2,
+		});
+		expect(nextProjection).not.toBeNull();
+		if (nextProjection === null) {
+			return;
+		}
+		Object.defineProperty(firstProjection.rows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged source rows for display memory patch");
+			},
+		});
+
+		try {
+			const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+				...firstModel,
+				rows: nextProjection.rows,
+			});
+
+			expect(nextResult.model.rows[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				canonicalText: "Patched answer",
+				displayText: "Patched answer",
+			});
+			expect(nextResult.memory.displayTextByRowKey.get("assistant-1")).toBe(
+				"Patched answer"
+			);
+		} finally {
+			Object.defineProperty(firstProjection.rows, "0", {
+				configurable: true,
+				value: firstResult.model.rows[0],
+			});
+		}
+	});
+
 	it("patches only rows whose display text changes when streaming completes", () => {
 		const stableAssistantRow = {
 			id: "assistant-1",
