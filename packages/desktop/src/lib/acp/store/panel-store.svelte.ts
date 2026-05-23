@@ -2424,7 +2424,7 @@ export class PanelStore {
 		const target = this.filePanelById.get(filePanelId);
 		if (target?.ownerPanelId !== ownerPanelId) return;
 		this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, filePanelId);
-		this.onPersist();
+		this.scheduleFilePanelPersist();
 	}
 
 	getActiveTopLevelFilePanelId(projectPath: string): string | null {
@@ -2439,7 +2439,7 @@ export class PanelStore {
 		const target = this.filePanelById.get(filePanelId);
 		if (!target || target.ownerPanelId !== null || target.projectPath !== projectPath) return;
 		this.activeTopLevelFilePanelIdByProject.set(projectPath, filePanelId);
-		this.onPersist();
+		this.scheduleFilePanelPersist();
 	}
 
 	getTopLevelFilePanelsForProject(projectPath: string): FilePanel[] {
