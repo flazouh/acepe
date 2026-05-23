@@ -119,7 +119,7 @@ interface CachedConversationState {
 	readonly turnState: AgentPanelCanonicalSource["turnState"];
 	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
 	readonly activity: AgentPanelCanonicalSource["activity"];
-	readonly transcriptEntryById: Map<string, TranscriptEntry>;
+	readonly transcriptEntryById: ReadonlyMap<string, TranscriptEntry>;
 	readonly conversation: {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
@@ -829,7 +829,7 @@ function materializeTranscriptArrayPatchedConversation(
 	}
 
 	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
-	let transcriptEntryById: Map<string, TranscriptEntry> | null = null;
+	let transcriptEntryPatches: Map<string, TranscriptEntry> | null = null;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 
@@ -856,8 +856,8 @@ function materializeTranscriptArrayPatchedConversation(
 			previous.operationIndex,
 			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
 		);
-		transcriptEntryById ??= previous.transcriptEntryById;
-		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		transcriptEntryPatches ??= new Map<string, TranscriptEntry>();
+		transcriptEntryPatches.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
 			continue;
 		}
@@ -868,7 +868,10 @@ function materializeTranscriptArrayPatchedConversation(
 		return {
 			...previous,
 			transcriptEntries,
-			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+			transcriptEntryById:
+				transcriptEntryPatches === null
+					? previous.transcriptEntryById
+					: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
 			activity: input.graph.activity,
 		};
 	}
@@ -881,7 +884,10 @@ function materializeTranscriptArrayPatchedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
-		transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		transcriptEntryById:
+			transcriptEntryPatches === null
+				? previous.transcriptEntryById
+				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
 		conversation: {
 			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
 			isStreaming: previous.conversation.isStreaming,
@@ -911,7 +917,7 @@ function materializeTranscriptPatchedConversation(
 
 	const transcriptEntries = input.graph.transcriptSnapshot.entries;
 	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
-	let transcriptEntryById: Map<string, TranscriptEntry> | null = null;
+	let transcriptEntryPatches: Map<string, TranscriptEntry> | null = null;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 
@@ -942,8 +948,8 @@ function materializeTranscriptPatchedConversation(
 			previous.operationIndex,
 			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
 		);
-		transcriptEntryById ??= previous.transcriptEntryById;
-		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
+		transcriptEntryPatches ??= new Map<string, TranscriptEntry>();
+		transcriptEntryPatches.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
 			continue;
 		}
@@ -954,7 +960,10 @@ function materializeTranscriptPatchedConversation(
 		return {
 			...previous,
 			transcriptEntries,
-			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+			transcriptEntryById:
+				transcriptEntryPatches === null
+					? previous.transcriptEntryById
+					: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
 			activity: input.graph.activity,
 		};
 	}
@@ -967,7 +976,10 @@ function materializeTranscriptPatchedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
-		transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+		transcriptEntryById:
+			transcriptEntryPatches === null
+				? previous.transcriptEntryById
+				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
 		conversation: {
 			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
 			isStreaming: previous.conversation.isStreaming,
@@ -1029,7 +1041,7 @@ function materializeTranscriptAppendedConversation(
 			)
 		);
 	}
-	appendTranscriptEntryIndexFromRange(
+	const transcriptEntryById = createAppendedTranscriptEntryIndex(
 		previous.transcriptEntryById,
 		transcriptEntries,
 		appendStartIndex
@@ -1072,7 +1084,7 @@ function materializeTranscriptAppendedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
-		transcriptEntryById: previous.transcriptEntryById,
+		transcriptEntryById,
 		conversation: {
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
@@ -2236,17 +2248,95 @@ function buildTranscriptEntryIndex(
 }
 
 function appendTranscriptEntryIndexFromRange(
-	byEntryId: Map<string, TranscriptEntry>,
+	byEntryId: ReadonlyMap<string, TranscriptEntry>,
 	entries: readonly TranscriptEntry[],
 	startIndex: number
-): Map<string, TranscriptEntry> {
+): ReadonlyMap<string, TranscriptEntry> {
+	const appendedEntries = new Map<string, TranscriptEntry>();
 	for (let index = startIndex; index < entries.length; index += 1) {
 		const entry = entries[index];
 		if (entry !== undefined) {
-			byEntryId.set(entry.entryId, entry);
+			appendedEntries.set(entry.entryId, entry);
 		}
 	}
-	return byEntryId;
+	return createPatchedReadonlyMap(byEntryId, appendedEntries);
+}
+
+function createAppendedTranscriptEntryIndex(
+	byEntryId: ReadonlyMap<string, TranscriptEntry>,
+	entries: readonly TranscriptEntry[],
+	startIndex: number
+): ReadonlyMap<string, TranscriptEntry> {
+	return appendTranscriptEntryIndexFromRange(byEntryId, entries, startIndex);
+}
+
+class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {
+	readonly [Symbol.toStringTag] = "PatchedReadonlyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<K, V>,
+		private readonly patches: ReadonlyMap<K, V>
+	) {}
+
+	get size(): number {
+		let size = this.base.size;
+		for (const key of this.patches.keys()) {
+			if (!this.base.has(key)) {
+				size += 1;
+			}
+		}
+		return size;
+	}
+
+	get(key: K): V | undefined {
+		return this.patches.has(key) ? this.patches.get(key) : this.base.get(key);
+	}
+
+	has(key: K): boolean {
+		return this.patches.has(key) || this.base.has(key);
+	}
+
+	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	*entries(): MapIterator<[K, V]> {
+		const patchedKeys = new Set<K>();
+		for (const [key, value] of this.patches.entries()) {
+			patchedKeys.add(key);
+			yield [key, value];
+		}
+		for (const [key, value] of this.base.entries()) {
+			if (!patchedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	*keys(): MapIterator<K> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	*values(): MapIterator<V> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	[Symbol.iterator](): MapIterator<[K, V]> {
+		return this.entries();
+	}
+}
+
+function createPatchedReadonlyMap<K, V>(
+	base: ReadonlyMap<K, V>,
+	patches: ReadonlyMap<K, V>
+): ReadonlyMap<K, V> {
+	return patches.size === 0 ? base : new PatchedReadonlyMap(base, patches);
 }
 
 function collectAffectedTranscriptEntryIdsFromIndex(

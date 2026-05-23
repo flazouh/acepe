@@ -1130,6 +1130,16 @@ describe("agent panel graph materializer", () => {
 			key: K,
 			value: V
 		): Map<K, V> {
+			if (
+				typeof key === "string" &&
+				key === "assistant-2" &&
+				typeof value === "object" &&
+				value !== null &&
+				"entryId" in value &&
+				this.has("user-1" as K)
+			) {
+				throw new Error("must not mutate the previous transcript entry index for an append");
+			}
 			if (typeof key === "string" && countedKeys.has(key)) {
 				relevantMapSetCount += 1;
 			}
@@ -1313,6 +1323,7 @@ describe("agent panel graph materializer", () => {
 			},
 		});
 		const originalMapIterator = Map.prototype[Symbol.iterator];
+		const originalMapSet = Map.prototype.set;
 		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
 			if (
 				this.has("assistant-2" as K) &&
@@ -1321,6 +1332,23 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not clone the transcript entry index for a transcript patch");
 			}
 			return originalMapIterator.call(this);
+		};
+		Map.prototype.set = function patchedMapSet<K, V>(
+			this: Map<K, V>,
+			key: K,
+			value: V
+		): Map<K, V> {
+			if (
+				typeof key === "string" &&
+				key === "assistant-2" &&
+				typeof value === "object" &&
+				value !== null &&
+				"entryId" in value &&
+				this.has("assistant-1" as K)
+			) {
+				throw new Error("must not mutate the previous transcript entry index for a patch");
+			}
+			return originalMapSet.call(this, key, value);
 		};
 
 		try {
@@ -1371,6 +1399,7 @@ describe("agent panel graph materializer", () => {
 			expect(Array.from(scenePatch?.entriesByIndex.keys() ?? [])).toEqual([2]);
 		} finally {
 			Map.prototype[Symbol.iterator] = originalMapIterator;
+			Map.prototype.set = originalMapSet;
 			firstEntries.slice = originalSlice;
 			Object.defineProperty(nextTranscriptEntries, "0", {
 				configurable: true,
