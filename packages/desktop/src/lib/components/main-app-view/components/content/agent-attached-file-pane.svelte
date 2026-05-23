@@ -5,6 +5,7 @@ import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
+import { toFilePanelGitStatus } from "$lib/acp/components/file-panel/file-panel-git-status.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { getPanelStore } from "$lib/acp/store/index.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
@@ -71,6 +72,13 @@ const projectsByPath = $derived.by(() => {
 
 const activeFileProject = $derived(
 	activeFilePanel === null ? undefined : projectsByPath.get(activeFilePanel.projectPath)
+);
+const activeFilePanelGitStatus = $derived.by(() =>
+	activeFilePanel === null
+		? null
+		: toFilePanelGitStatus(
+				gitStatusByFilePanelKey.get(getFilePanelStatusKey(activeFilePanel)) ?? null
+			)
 );
 
 $effect(() => {
@@ -188,6 +196,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				projectColor={activeFileProject?.color}
 				projectIconSrc={activeFileProject?.iconPath ?? null}
 				width={activeFilePanel.width}
+				initialGitStatus={activeFilePanelGitStatus}
 				isFullscreenEmbedded={true}
 				hideProjectBadge={true}
 				compactHeader={true}

@@ -150,6 +150,9 @@ describe("AgentAttachedFilePane", () => {
 			expect(badges[0]?.textContent).toBe("src/a.ts:3:1");
 			expect(badges[1]?.textContent).toBe("src/b.ts:0:0");
 		});
+		expect(view.getByTestId("attached-file-panel").textContent).toBe(
+			"file-a:src/a.ts:/repo:repo:420:3:1"
+		);
 
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(1);
@@ -175,6 +178,9 @@ describe("AgentAttachedFilePane", () => {
 			expect(badges[0]?.textContent).toBe("src/a.ts:3:1");
 			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
 		});
+		expect(view.getByTestId("attached-file-panel").textContent).toBe(
+			"file-b:src/b.ts:/repo:repo:420:8:2"
+		);
 
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
 		expect(getProjectFileGitStatusSummaryMock).toHaveBeenLastCalledWith("/repo", "src/b.ts");
@@ -204,7 +210,7 @@ describe("AgentAttachedFilePane", () => {
 		});
 
 		expect(view.getByTestId("attached-file-panel").textContent).toBe(
-			"file-b:src/b.ts:/repo-b:Repo B:420"
+			"file-b:src/b.ts:/repo-b:Repo B:420:0:0"
 		);
 	});
 });

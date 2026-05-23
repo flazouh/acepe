@@ -39,6 +39,7 @@ interface Props {
 	projectColor: string | undefined;
 	projectIconSrc?: string | null;
 	width: number;
+	initialGitStatus?: FilePanelGitStatus | null;
 	isFullscreenEmbedded?: boolean;
 	hideProjectBadge?: boolean;
 	hideHeader?: boolean;
@@ -57,6 +58,7 @@ let {
 	projectColor,
 	projectIconSrc = null,
 	width,
+	initialGitStatus = null,
 	isFullscreenEmbedded = false,
 	hideProjectBadge = false,
 	hideHeader = false,
@@ -173,10 +175,17 @@ $effect(() => {
 $effect(() => {
 	const currentFilePath = filePath;
 	const currentProjectPath = projectPath;
+	const currentInitialGitStatus = initialGitStatus;
 	let cancelled = false;
 
 	// Reset git status when file changes
-	gitStatus = null;
+	gitStatus = currentInitialGitStatus;
+	if (currentInitialGitStatus !== null) {
+		return () => {
+			cancelled = true;
+		};
+	}
+
 	logger.info("Loading git status for file panel", {
 		currentFilePath,
 		currentProjectPath,

@@ -388,4 +388,27 @@ describe("FilePanel", () => {
 		expect(getFileContentMock).not.toHaveBeenCalled();
 		expect(view.getByTestId("code-editor-stub").textContent).toContain("cached file body");
 	});
+
+	it("reuses an initial git status summary instead of fetching the same file summary again", () => {
+		const view = render(FilePanel, {
+			panelId: "panel-1",
+			filePath: "/repo/src/file.ts",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#123456",
+			width: 420,
+			initialGitStatus: {
+				status: "M",
+				insertions: 8,
+				deletions: 2,
+			},
+			onClose: vi.fn(),
+			onResize: vi.fn(),
+		});
+
+		expect(getProjectFileGitStatusSummaryMock).not.toHaveBeenCalled();
+		expect(view.getByTestId("insertions").textContent).toBe("8");
+		expect(view.getByTestId("deletions").textContent).toBe("2");
+		expect(view.getByTestId("status").textContent).toBe("M");
+	});
 });
