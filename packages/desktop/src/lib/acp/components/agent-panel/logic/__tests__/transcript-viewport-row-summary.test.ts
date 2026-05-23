@@ -725,6 +725,29 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		}
 	});
 
+	it("keeps earlier matching truncation facts when a later matching suffix row is removed", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [
+			assistantRow("assistant-1", { isStreaming: true }),
+			userRow("user-1"),
+			assistantRow("assistant-2", { isStreaming: true }),
+			toolRow("tool-1"),
+		];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+
+		const nextSummary = readModel.applyRows({
+			rows: firstRows.slice(0, 2),
+			reason: "rows-updated",
+		});
+
+		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
+		expect(nextSummary.lastLiveAssistantDisplayEntryIndex).toBe(0);
+		expect(nextSummary.hasToolCallEntry).toBe(false);
+	});
+
 	it("applies scene display row truncation metadata without checking the whole row prefix", () => {
 		const displayRows = createSceneDisplayRowsReadModel();
 		const readModel = createTranscriptViewportRowsReadModel();
@@ -921,6 +944,8 @@ describe("buildTranscriptViewportRowsSummary", () => {
 			firstKey: "user-1",
 			lastKey: "thinking-indicator",
 			latestUserKey: "user-1",
+			lastUserRowIndex: 0,
+			userRowIndexes: [0],
 			rowKeys: ["user-1", "assistant-1", "thinking-indicator"],
 			rowIndexByKey: new Map([
 				["user-1", 0],
@@ -934,6 +959,9 @@ describe("buildTranscriptViewportRowsSummary", () => {
 			lastLiveAssistantDisplayEntryIndex: null,
 			lastTokenRevealAssistantEntryIndex: null,
 			lastToolCallEntryIndex: null,
+			liveAssistantDisplayEntryIndexes: [],
+			tokenRevealAssistantEntryIndexes: [],
+			toolCallEntryIndexes: [],
 			reason: "waiting-row-appended",
 		});
 	});
