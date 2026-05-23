@@ -361,21 +361,34 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				previousSceneEntries !== null &&
 				isStableDisplaySceneTruncation(previousSceneEntries, sceneEntries)
 			) {
-				const nextRowCount = countDisplayRows(sceneEntries);
+				const nextRowCount = previousProjection.rows.length - countDisplayRowsInRange(
+					previousSceneEntries,
+					sceneEntries.length,
+					previousSceneEntries.length
+				);
 				if (nextRowCount === previousProjection.rows.length) {
 					previousSceneEntries = sceneEntries;
 					previousTranscriptRevision = transcriptRevision;
 					return previousProjection;
 				}
+				for (
+					let removedRowIndex = nextRowCount;
+					removedRowIndex < previousProjection.rows.length;
+					removedRowIndex += 1
+				) {
+					const removedRow = previousProjection.rows[removedRowIndex];
+					if (removedRow !== undefined) {
+						rowIndexById.delete(removedRow.id);
+						liveTailRowIds.delete(removedRow.id);
+					}
+				}
 				const rows = createTruncatedDisplayRowArray(previousProjection.rows, nextRowCount);
 				previousProjection = {
 					rows,
-					hasLiveTail: rows.some((row) => row.type === "assistant" && row.isLiveTail),
+					hasLiveTail: liveTailRowIds.size > 0,
 				};
 				previousSceneEntries = sceneEntries;
 				previousTranscriptRevision = transcriptRevision;
-				rowIndexById = indexDisplayRowsById(rows);
-				liveTailRowIds = collectLiveTailRowIds(rows);
 				return previousProjection;
 			}
 
@@ -665,8 +678,20 @@ function isStableDisplaySceneTruncation(
 }
 
 function countDisplayRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): number {
+	return countDisplayRowsInRange(sceneEntries, 0, sceneEntries.length);
+}
+
+function countDisplayRowsInRange(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number,
+	endIndex: number
+): number {
 	let count = 0;
-	for (const entry of sceneEntries) {
+	for (let index = startIndex; index < endIndex; index += 1) {
+		const entry = sceneEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
 		if (entry.type === "user" || entry.type === "assistant") {
 			count += 1;
 		}

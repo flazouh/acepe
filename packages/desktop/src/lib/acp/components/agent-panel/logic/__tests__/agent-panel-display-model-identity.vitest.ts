@@ -1294,6 +1294,53 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
+	it("truncates display rows without scanning preserved rows for live-tail state", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Live answer",
+			isStreaming: true,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry, removedAssistantEntry],
+			transcriptRevision: 1,
+		});
+		const preservedUserRow = firstProjection.rows[0];
+		Object.defineProperty(firstProjection.rows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan preserved display rows for truncation metadata");
+			},
+		});
+
+		try {
+			const truncatedProjection = readModel.applySnapshot({
+				sceneEntries: [userEntry, assistantEntry],
+				transcriptRevision: 1,
+			});
+
+			expect(truncatedProjection.rows).toHaveLength(2);
+			expect(truncatedProjection.rows[1]).toBe(firstProjection.rows[1]);
+			expect(truncatedProjection.hasLiveTail).toBe(true);
+		} finally {
+			Object.defineProperty(firstProjection.rows, "0", {
+				configurable: true,
+				value: preservedUserRow,
+			});
+		}
+	});
+
 	it("reuses display row projection when only non-display tail entries are removed", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
