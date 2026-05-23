@@ -8,7 +8,7 @@ import {
 describe("empty-state panel context", () => {
 	it("pre-spawns a panel with stable id, project, and agent before first send", () => {
 		const panelStore = {
-			panels: [],
+			getTopLevelAgentPanel: mock(() => undefined),
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
@@ -38,7 +38,7 @@ describe("empty-state panel context", () => {
 
 	it("reuses existing panel context instead of spawning another panel", () => {
 		const panelStore = {
-			panels: [{ id: "empty-state-panel" }],
+			getTopLevelAgentPanel: mock(() => ({ id: "empty-state-panel" })),
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),
@@ -62,7 +62,7 @@ describe("empty-state panel context", () => {
 
 	it("attaches created session to the pre-spawned panel", () => {
 		const panelStore = {
-			panels: [{ id: "empty-state-panel" }],
+			getTopLevelAgentPanel: mock(() => ({ id: "empty-state-panel" })),
 			spawnPanel: mock(() => ({ id: "empty-state-panel" })),
 			setPanelAgent: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),

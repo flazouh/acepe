@@ -80,6 +80,9 @@ describe("SessionHandler", () => {
 		mockPanelStore = {
 			openSession: mock(() => panel),
 			getPanelBySessionId: mock(() => panel),
+			getTopLevelAgentPanel: mock((panelId: string) =>
+				(mockPanelStore as any).panels.find((candidate: any) => candidate.id === panelId)
+			),
 			updatePanelSession: mock(() => {}),
 			closePanelBySessionId: mock(() => {}),
 			setPanelProjectPath: mock(() => {}),

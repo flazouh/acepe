@@ -22,6 +22,9 @@ describe("PanelHandler", () => {
 			workspacePanels: [
 				{ id: "panel-1", sessionId: "session-1", kind: "agent", ownerPanelId: null },
 			],
+			getTopLevelPanel: mock((panelId: string) =>
+				(mockPanelStore as any).workspacePanels.find((panel: any) => panel.id === panelId)
+			),
 			closePanel: mock(() => {}),
 			resizePanel: mock(() => {}),
 			toggleFullscreen: mock(() => {}),

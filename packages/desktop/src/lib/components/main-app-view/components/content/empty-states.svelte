@@ -338,7 +338,7 @@ function handleWillSend() {
 		activeWorktreePath,
 		worktreePending,
 		effectiveWorktreePending,
-		panelExists: panelStore.panels.some((panel) => panel.id === EMPTY_STATE_PANEL_ID),
+		panelExists: panelStore.getTopLevelAgentPanel(EMPTY_STATE_PANEL_ID) !== undefined,
 	});
 
 	ensureEmptyStatePanelContext({
@@ -352,9 +352,7 @@ function handleWillSend() {
 		panelId: EMPTY_STATE_PANEL_ID,
 		projectPath,
 		effectiveAgentId,
-		panelProjectPath:
-			panelStore.panels.find((panel) => panel.id === EMPTY_STATE_PANEL_ID && "projectPath" in panel)
-				?.projectPath ?? null,
+		panelProjectPath: panelStore.getTopLevelAgentPanel(EMPTY_STATE_PANEL_ID)?.projectPath ?? null,
 	});
 	panelStore.focusPanel(EMPTY_STATE_PANEL_ID);
 	return EMPTY_STATE_PANEL_ID;

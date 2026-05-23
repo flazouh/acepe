@@ -67,7 +67,7 @@ const panelSnapshot = $derived.by(() => {
 	const panel =
 		panelId === null
 			? null
-			: (panelStore.panels.find((candidate) => candidate.id === panelId) ?? null);
+			: (panelStore.getTopLevelAgentPanel(panelId) ?? null);
 	const hotState = panel ? panelStore.getHotState(panel.id) : null;
 	const identity =
 		panel && panel.sessionId !== null ? sessionStore.getSessionIdentity(panel.sessionId) : undefined;

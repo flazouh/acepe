@@ -41,7 +41,7 @@ export class PanelHandler {
 	 * @param panelId - The panel ID to close
 	 */
 	closePanel(panelId: string): void {
-		const panel = this.panelStore.workspacePanels.find((candidate) => candidate.id === panelId);
+		const panel = this.panelStore.getTopLevelPanel(panelId);
 
 		// Disconnect session if panel has one
 		if (panel?.kind === "agent" && panel.sessionId && panel.autoCreated !== true) {

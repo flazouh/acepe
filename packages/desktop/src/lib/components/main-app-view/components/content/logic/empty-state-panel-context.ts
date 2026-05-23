@@ -3,7 +3,7 @@ interface EmptyStatePanel {
 }
 
 interface EmptyStatePanelStore {
-	readonly panels: ReadonlyArray<EmptyStatePanel>;
+	getTopLevelAgentPanel(panelId: string): EmptyStatePanel | undefined;
 	spawnPanel(options: {
 		requireProjectSelection?: boolean;
 		projectPath?: string;
@@ -24,7 +24,7 @@ export function ensureEmptyStatePanelContext(options: {
 	selectedAgentId: string;
 	pendingWorktreeEnabled: boolean;
 }): void {
-	const existingPanel = options.panelStore.panels.find((panel) => panel.id === options.panelId);
+	const existingPanel = options.panelStore.getTopLevelAgentPanel(options.panelId);
 
 	if (!existingPanel) {
 		options.panelStore.spawnPanel({
@@ -47,7 +47,7 @@ export function attachSessionToEmptyStatePanel(options: {
 	panelId: string;
 	sessionId: string;
 }): boolean {
-	const existingPanel = options.panelStore.panels.find((panel) => panel.id === options.panelId);
+	const existingPanel = options.panelStore.getTopLevelAgentPanel(options.panelId);
 	if (!existingPanel) {
 		return false;
 	}

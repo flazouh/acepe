@@ -81,7 +81,7 @@ onDestroy(() => {
 
 const agentId = $derived.by(() => {
 	if (panelId) {
-		const panel = panelStore.panels.find((candidatePanel) => candidatePanel.id === panelId);
+		const panel = panelStore.getTopLevelAgentPanel(panelId);
 		if (panel?.sessionId) {
 			const identity = sessionStore.getSessionIdentity(panel.sessionId);
 			return identity?.agentId ?? null;
