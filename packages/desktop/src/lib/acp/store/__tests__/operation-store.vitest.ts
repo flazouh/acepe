@@ -1328,6 +1328,85 @@ describe("OperationStore", () => {
 		expect(state?.byPath.get("src/app.ts")?.fileName).toBe("app.ts");
 	});
 
+	it("builds modified files state from root operation trees without rematerializing child edits", () => {
+		const operationStore = new OperationStore();
+		const taskOperationId = buildCanonicalOperationId("session-1", "task-1");
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+		const executeOperationId = buildCanonicalOperationId("session-1", "execute-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: taskOperationId,
+				tool_call_id: "task-1",
+				kind: "task",
+				child_tool_call_ids: ["edit-1", "execute-1"],
+				child_operation_ids: [editOperationId, executeOperationId],
+			}),
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				parent_tool_call_id: "task-1",
+				parent_operation_id: taskOperationId,
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "execute-1",
+				kind: "execute",
+				parent_tool_call_id: "task-1",
+				parent_operation_id: taskOperationId,
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				result: "done",
+			}),
+		]);
+
+		const originalMaterializeToolCall = (
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall;
+		(
+			operationStore as unknown as {
+				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+			}
+		).materializeToolCall = (operationId: string, visited: Set<string>) => {
+			if (
+				visited.size === 0 &&
+				(operationId === editOperationId || operationId === executeOperationId)
+			) {
+				throw new Error("modified files state should materialize only the root task tree");
+			}
+			return originalMaterializeToolCall.call(operationStore, operationId, visited);
+		};
+
+		try {
+			const state = operationStore.getSessionModifiedFilesState("session-1");
+
+			expect(state?.fileCount).toBe(1);
+			expect(state?.byPath.get("src/app.ts")?.fileName).toBe("app.ts");
+		} finally {
+			(
+				operationStore as unknown as {
+					materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
+				}
+			).materializeToolCall = originalMaterializeToolCall;
+		}
+	});
+
 	it("materializes session tool calls from the root operation index only", () => {
 		const operationStore = new OperationStore();
 		const rootOperationId = buildCanonicalOperationId("session-1", "root-tool");

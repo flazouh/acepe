@@ -885,14 +885,25 @@ export class OperationStore {
 
 	private getSessionModifiedFileToolCalls(sessionId: string): Array<ToolCall> {
 		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		const materializedRootOperationIds = new Set<string>();
 		const toolCalls: Array<ToolCall> = [];
 		for (const operationId of operationIds) {
-			const operation = this.operationsById.get(operationId);
-			if (operation === undefined || !operationCanAffectModifiedFiles(operation)) {
+			const rootOperationId = this.findRootOperationId(operationId) ?? operationId;
+			if (materializedRootOperationIds.has(rootOperationId)) {
 				continue;
 			}
-			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
+			if (
+				!operationTreeCanAffectModifiedFiles(
+					rootOperationId,
+					this.operationsById,
+					new Set<string>()
+				)
+			) {
+				continue;
+			}
+			const toolCall = this.materializeToolCall(rootOperationId, new Set<string>());
 			if (toolCall !== null) {
+				materializedRootOperationIds.add(rootOperationId);
 				toolCalls.push(toolCall);
 			}
 		}
@@ -1324,6 +1335,30 @@ function areModifiedFileInputsEquivalent(
 
 function operationCanAffectModifiedFiles(operation: Operation): boolean {
 	return operation.kind === "edit" || operation.childOperationIds.length > 0;
+}
+
+function operationTreeCanAffectModifiedFiles(
+	operationId: string,
+	operationsById: ReadonlyMap<string, Operation>,
+	visited: Set<string>
+): boolean {
+	if (visited.has(operationId)) {
+		return false;
+	}
+	visited.add(operationId);
+	const operation = operationsById.get(operationId);
+	if (operation === undefined) {
+		return false;
+	}
+	if (operation.kind === "edit") {
+		return true;
+	}
+	for (const childOperationId of operation.childOperationIds) {
+		if (operationTreeCanAffectModifiedFiles(childOperationId, operationsById, visited)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function childOperationChangesCannotAffectModifiedFiles(
