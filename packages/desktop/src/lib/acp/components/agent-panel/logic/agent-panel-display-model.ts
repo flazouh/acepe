@@ -77,7 +77,7 @@ export interface AgentPanelDisplaySceneEntriesReadModel {
 export interface AgentPanelDisplayMemory {
 	readonly sessionId: string | null;
 	readonly turnId: string | null;
-	readonly displayTextByRowKey: ReadonlyMap<string, string>;
+	readonly displayTextByRowKey: Map<string, string>;
 	readonly sourceRows: readonly AgentPanelDisplayRow[] | null;
 	readonly displayRows: readonly AgentPanelDisplayRow[] | null;
 	readonly turnState: TurnState | null;
@@ -407,6 +407,69 @@ export function applyAgentPanelDisplayMemory(
 		};
 	}
 
+	if (
+		!shouldReset &&
+		previousMemory.sourceRows !== null &&
+		previousMemory.displayRows !== null &&
+		previousMemory.turnState === baseModel.turnState &&
+		isStableDisplayRowAppend(previousMemory.sourceRows, baseModel.rows)
+	) {
+		const previousTexts = previousMemory.displayTextByRowKey;
+		if (previousMemory.sourceRows.length === baseModel.rows.length) {
+			return {
+				model: {
+					panelId: baseModel.panelId,
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					status: baseModel.status,
+					turnState: baseModel.turnState,
+					waiting: baseModel.waiting,
+					composer: baseModel.composer,
+					rows: previousMemory.displayRows,
+					viewport: baseModel.viewport,
+				},
+				memory: {
+					sessionId: baseModel.sessionId,
+					turnId: baseModel.turnId,
+					displayTextByRowKey: previousTexts,
+					sourceRows: baseModel.rows,
+					displayRows: previousMemory.displayRows,
+					turnState: baseModel.turnState,
+				},
+			};
+		}
+
+		const appendedRows: AgentPanelDisplayRow[] = [];
+		for (let index = previousMemory.sourceRows.length; index < baseModel.rows.length; index += 1) {
+			const row = baseModel.rows[index];
+			if (row !== undefined) {
+				appendedRows.push(applyDisplayTextToRow(row, baseModel, previousTexts, previousTexts));
+			}
+		}
+		const rows = previousMemory.displayRows.concat(appendedRows);
+		return {
+			model: {
+				panelId: baseModel.panelId,
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				status: baseModel.status,
+				turnState: baseModel.turnState,
+				waiting: baseModel.waiting,
+				composer: baseModel.composer,
+				rows,
+				viewport: baseModel.viewport,
+			},
+			memory: {
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				displayTextByRowKey: previousTexts,
+				sourceRows: baseModel.rows,
+				displayRows: rows,
+				turnState: baseModel.turnState,
+			},
+		};
+	}
+
 	const previousTexts = shouldReset
 		? new Map<string, string>()
 		: previousMemory.displayTextByRowKey;
@@ -435,6 +498,22 @@ export function applyAgentPanelDisplayMemory(
 			turnState: baseModel.turnState,
 		},
 	};
+}
+
+function isStableDisplayRowAppend(
+	previousRows: readonly AgentPanelDisplayRow[],
+	nextRows: readonly AgentPanelDisplayRow[]
+): boolean {
+	if (nextRows.length < previousRows.length) {
+		return false;
+	}
+
+	for (let index = 0; index < previousRows.length; index += 1) {
+		if (nextRows[index] !== previousRows[index]) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function cloneContentBlock(block: ContentBlock): ContentBlock {

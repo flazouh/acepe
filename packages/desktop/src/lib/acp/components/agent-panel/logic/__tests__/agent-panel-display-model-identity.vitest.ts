@@ -343,6 +343,7 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 
 		expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
 		expect(nextResult.model.rows[1]).toBe(nextAssistantRow);
+		expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
 	});
 });
 
