@@ -206,7 +206,7 @@ const interactionSnapshotIndexes = new WeakMap<
 	readonly InteractionSnapshot[],
 	ReadonlyMap<string, number>
 >();
-const transcriptEntryIndexes = new WeakMap<
+export const transcriptEntryIndexes = new WeakMap<
 	readonly TranscriptEntry[],
 	ReadonlyMap<string, number>
 >();
@@ -795,7 +795,7 @@ function replaceTranscriptEntry(
 		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
 		transcriptEntryIndexes.set(
 			nextEntries,
-			new Map(currentIndex).set(nextEntry.entryId, entries.length)
+			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
 		);
 		return nextEntries;
 	}
@@ -830,7 +830,7 @@ function appendTranscriptSegment(
 		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
 		transcriptEntryIndexes.set(
 			nextEntries,
-			new Map(currentIndex).set(entryId, entries.length)
+			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
 		);
 		return nextEntries;
 	}
@@ -844,7 +844,7 @@ function appendTranscriptSegment(
 		const nextEntries = createPatchedTranscriptEntryArray(entries, null, [nextEntry]);
 		transcriptEntryIndexes.set(
 			nextEntries,
-			new Map(currentIndex).set(entryId, entries.length)
+			new AppendedTranscriptEntryIndexMap(currentIndex, [nextEntry], entries.length)
 		);
 		return nextEntries;
 	}
@@ -869,6 +869,98 @@ function appendTranscriptSegment(
 	);
 	transcriptEntryIndexes.set(nextEntries, currentIndex);
 	return nextEntries;
+}
+
+class AppendedTranscriptEntryIndexMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "AppendedTranscriptEntryIndexMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly appendedEntries: readonly TranscriptEntry[],
+		private readonly baseLength: number
+	) {}
+
+	get size(): number {
+		let appendedCount = 0;
+		for (const entry of this.appendedEntries) {
+			if (entry !== undefined && !this.base.has(entry.entryId)) {
+				appendedCount += 1;
+			}
+		}
+		return this.base.size + appendedCount;
+	}
+
+	get(key: string): number | undefined {
+		for (let index = 0; index < this.appendedEntries.length; index += 1) {
+			const entry = this.appendedEntries[index];
+			if (entry?.entryId === key) {
+				return this.baseLength + index;
+			}
+		}
+		return this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		const appendedKeys = new Set<string>();
+		for (let index = 0; index < this.appendedEntries.length; index += 1) {
+			const entry = this.appendedEntries[index];
+			if (entry !== undefined) {
+				appendedKeys.add(entry.entryId);
+			}
+		}
+		for (const [key, value] of this.base.entries()) {
+			if (!appendedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+		for (let index = 0; index < this.appendedEntries.length; index += 1) {
+			const entry = this.appendedEntries[index];
+			if (entry !== undefined) {
+				yield [entry.entryId, this.baseLength + index];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function createPatchedTranscriptEntryArray(

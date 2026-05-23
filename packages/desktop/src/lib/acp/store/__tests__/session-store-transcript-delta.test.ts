@@ -5,7 +5,10 @@ import type {
 	TranscriptEntry,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
-import { applyTranscriptDeltaToSnapshot } from "../session-store.svelte.js";
+import {
+	applyTranscriptDeltaToSnapshot,
+	transcriptEntryIndexes,
+} from "../session-store.svelte.js";
 
 function textEntry(
 	entryId: string,
@@ -103,6 +106,65 @@ describe("applyTranscriptDeltaToSnapshot", () => {
 		} finally {
 			currentEntries.slice = originalSlice;
 			currentEntries.concat = originalConcat;
+		}
+	});
+
+	it("appends transcript entry indexes without cloning the current index", () => {
+		const userEntry = textEntry("user-1", "user", "Prompt");
+		const assistantEntry = textEntry("assistant-1", "assistant", "Answer");
+		const nextEntry = textEntry("tool-1", "tool", "Run");
+		const currentEntries = [userEntry, assistantEntry];
+		applyTranscriptDeltaToSnapshot(snapshot(currentEntries), {
+			eventSeq: 1,
+			sessionId: "session-1",
+			snapshotRevision: 1,
+			operations: [
+				{
+					kind: "appendSegment",
+					entryId: "assistant-1",
+					role: "assistant",
+					segment: {
+						kind: "text",
+						segmentId: "assistant-1:seed",
+						text: "",
+					},
+				},
+			],
+		});
+		const currentIndex = transcriptEntryIndexes.get(currentEntries) as
+			| (ReadonlyMap<string, number> & Record<symbol, unknown>)
+			| undefined;
+		expect(currentIndex).not.toBeUndefined();
+		const originalIterator = currentIndex?.[Symbol.iterator];
+		const delta: TranscriptDelta = {
+			eventSeq: 2,
+			sessionId: "session-1",
+			snapshotRevision: 2,
+			operations: [
+				{
+					kind: "appendEntry",
+					entry: nextEntry,
+				},
+			],
+		};
+		if (currentIndex !== undefined) {
+			currentIndex[Symbol.iterator] = () => {
+				throw new Error("must not clone current transcript entry index for append");
+			};
+		}
+
+		try {
+			const nextSnapshot = applyTranscriptDeltaToSnapshot(snapshot(currentEntries), delta);
+			const nextIndex = transcriptEntryIndexes.get(nextSnapshot.entries);
+
+			expect(nextSnapshot.entries[2]).toBe(nextEntry);
+			expect(nextIndex?.get("user-1")).toBe(0);
+			expect(nextIndex?.get("assistant-1")).toBe(1);
+			expect(nextIndex?.get("tool-1")).toBe(2);
+		} finally {
+			if (currentIndex !== undefined && originalIterator !== undefined) {
+				currentIndex[Symbol.iterator] = originalIterator;
+			}
 		}
 	});
 
