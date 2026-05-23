@@ -119,6 +119,48 @@ describe("createAgentPanelSceneReadModel", () => {
 		);
 	});
 
+	it("applies stable tail truncation without copying preserved rows", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const pendingEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:question-1",
+			type: "tool_call",
+			interactionId: "question-1",
+			title: "Question",
+			status: "running",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, toolEntry, pendingEntry]);
+		const originalSlice = firstSnapshot.rows.slice;
+
+		firstSnapshot.rows.slice = () => {
+			throw new Error("must not copy preserved rows for stable truncation");
+		};
+
+		try {
+			const truncatedSnapshot = readModel.applySnapshot([userEntry, toolEntry]);
+
+			expect(truncatedSnapshot.rows).toHaveLength(2);
+			expect(truncatedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(truncatedSnapshot.rows[1]).toBe(firstSnapshot.rows[1]);
+			expect(truncatedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"tool-1",
+			]);
+		} finally {
+			firstSnapshot.rows.slice = originalSlice;
+		}
+	});
+
 	it("patches one graph entry without rebuilding the graph entry index", () => {
 		const readModel = createAgentPanelSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
