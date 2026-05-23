@@ -637,6 +637,52 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
 	});
 
+	it("appends display rows without copying the existing row array", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+		const originalConcat = firstProjection.rows.concat;
+
+		firstProjection.rows.concat = () => {
+			throw new Error("must not copy existing display rows");
+		};
+
+		try {
+			const nextProjection = readModel.applySnapshot({
+				sceneEntries: [userEntry, assistantEntry],
+				transcriptRevision: 2,
+			});
+
+			expect(Array.isArray(nextProjection.rows)).toBe(true);
+			expect(nextProjection.rows).toHaveLength(2);
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				canonicalTextRevision: "2:assistant-1",
+			});
+			expect([...nextProjection.rows].map((row) => row.id)).toEqual([
+				"user-1",
+				"assistant-1",
+			]);
+			expect(nextProjection.rows.map((row) => row.id)).toEqual(["user-1", "assistant-1"]);
+		} finally {
+			firstProjection.rows.concat = originalConcat;
+		}
+	});
+
 	it("reuses the projection when scene entries change without visible row changes", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const firstSceneEntries: readonly AgentPanelSceneEntryModel[] = [

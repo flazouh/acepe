@@ -109,6 +109,17 @@ export interface AgentPanelDisplayResult {
 
 const WAITING_LABEL = "Planning next moves...";
 
+type AppendedDisplayRowLayout = {
+	readonly chunks: readonly (readonly AgentPanelDisplayRow[])[];
+	readonly starts: readonly number[];
+	readonly length: number;
+};
+
+const appendedDisplayRowLayouts = new WeakMap<
+	readonly AgentPanelDisplayRow[],
+	AppendedDisplayRowLayout
+>();
+
 export function createAgentPanelDisplayMemory(): AgentPanelDisplayMemory {
 	return {
 		sessionId: null,
@@ -190,7 +201,7 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 					previousSceneEntries.length
 				);
 				previousProjection = {
-					rows: previousProjection.rows.concat(appendedProjection.rows),
+					rows: createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows),
 					hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
 				};
 				previousSceneEntries = sceneEntries;
@@ -227,6 +238,104 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			return previousProjection;
 		},
 	};
+}
+
+function createAppendedDisplayRowArray(
+	baseRows: readonly AgentPanelDisplayRow[],
+	appendedRows: readonly AgentPanelDisplayRow[]
+): readonly AgentPanelDisplayRow[] {
+	if (appendedRows.length === 0) {
+		return baseRows;
+	}
+
+	const layout = createAppendedDisplayRowLayout(baseRows, appendedRows);
+	const target = new Array<AgentPanelDisplayRow>(layout.length);
+	const rows = new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (const chunk of layout.chunks) {
+						for (const row of chunk) {
+							yield row;
+						}
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectAppendedDisplayRow(layout, index);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectAppendedDisplayRow(layout, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+	appendedDisplayRowLayouts.set(rows, layout);
+	return rows;
+}
+
+function createAppendedDisplayRowLayout(
+	baseRows: readonly AgentPanelDisplayRow[],
+	appendedRows: readonly AgentPanelDisplayRow[]
+): AppendedDisplayRowLayout {
+	const baseLayout = appendedDisplayRowLayouts.get(baseRows);
+	const chunks =
+		baseLayout === undefined ? [baseRows, appendedRows] : [...baseLayout.chunks, appendedRows];
+	const starts: number[] = [];
+	let length = 0;
+	for (const chunk of chunks) {
+		starts.push(length);
+		length += chunk.length;
+	}
+	return {
+		chunks,
+		starts,
+		length,
+	};
+}
+
+function selectAppendedDisplayRow(
+	layout: AppendedDisplayRowLayout,
+	index: number
+): AgentPanelDisplayRow | undefined {
+	if (index < 0 || index >= layout.length) {
+		return undefined;
+	}
+	let low = 0;
+	let high = layout.starts.length - 1;
+	while (low <= high) {
+		const mid = Math.floor((low + high) / 2);
+		const start = layout.starts[mid] ?? 0;
+		const nextStart = layout.starts[mid + 1] ?? layout.length;
+		if (index < start) {
+			high = mid - 1;
+		} else if (index >= nextStart) {
+			low = mid + 1;
+		} else {
+			return layout.chunks[mid]?.[index - start];
+		}
+	}
+	return undefined;
 }
 
 export function createRowsFromScene(
@@ -315,6 +424,14 @@ function countDisplayRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): n
 		}
 	}
 	return count;
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 function isDisplaySceneEntryStable(
