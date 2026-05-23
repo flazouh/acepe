@@ -920,13 +920,20 @@ function materializeTranscriptAppendedConversation(
 				appendedSceneEntries
 			)
 		: previous.conversation.entries.concat(appendedSceneEntries);
-	const sceneEntryRowIndex = hasTrailingInteractionEntries
-		? buildSceneEntryRowIndex(nextEntries)
-		: appendSceneEntryRowIndex(
-				previous.sceneEntryRowIndex,
-				appendedSceneEntries,
-				transcriptSceneEntryCount
-			);
+	if (hasTrailingInteractionEntries) {
+		patchTrailingSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			previous.conversation.entries.slice(transcriptSceneEntryCount),
+			nextEntries.slice(transcriptSceneEntryCount),
+			transcriptSceneEntryCount
+		);
+	} else {
+		appendSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			appendedSceneEntries,
+			transcriptSceneEntryCount
+		);
+	}
 
 	return {
 		transcriptEntries,
@@ -941,7 +948,7 @@ function materializeTranscriptAppendedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
-		sceneEntryRowIndex,
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
 

@@ -577,6 +577,94 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("patches row indexes when appending transcript rows before pending interactions", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
+		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "thanks");
+		const transcriptSnapshot = createTranscriptSnapshot([
+			userEntry,
+			assistantEntry,
+			secondUserEntry,
+		]);
+		const questionInteraction = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 1,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "1",
+			},
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: [questionInteraction],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Question session" },
+		});
+		const appendedTranscriptSnapshot = {
+			revision: transcriptSnapshot.revision + 1,
+			entries: [userEntry, assistantEntry, secondUserEntry, appendedEntry],
+		};
+		const countedKeys = new Set(["assistant-2", "interaction:question-1"]);
+		const originalMapSet = Map.prototype.set;
+		let relevantMapSetCount = 0;
+
+		Map.prototype.set = function patchedMapSet<K, V>(
+			this: Map<K, V>,
+			key: K,
+			value: V
+		): Map<K, V> {
+			if (typeof key === "string" && countedKeys.has(key)) {
+				relevantMapSetCount += 1;
+			}
+			return originalMapSet.call(this, key, value);
+		};
+
+		let nextScene: typeof firstScene;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: appendedTranscriptSnapshot,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: appendedTranscriptSnapshot.revision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Question session" },
+			});
+		} finally {
+			Map.prototype.set = originalMapSet;
+		}
+
+		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"user-1",
+			"assistant-1",
+			"user-2",
+			"assistant-2",
+			"interaction:question-1",
+		]);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+		expect(nextScene.conversation.entries[4]).toBe(firstScene.conversation.entries[3]);
+		expect(relevantMapSetCount).toBe(3);
+	});
+
 	it("patches one transcript row without rebuilding unaffected conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");
