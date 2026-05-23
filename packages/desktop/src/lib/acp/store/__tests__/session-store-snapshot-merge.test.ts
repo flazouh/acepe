@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { InteractionSnapshot, OperationSnapshot } from "../../../services/acp-types.js";
+import { getInteractionSnapshotArrayPatch } from "../../session-state/interaction-snapshot-array-patch.js";
 import { getOperationSnapshotArrayPatch } from "../../session-state/operation-snapshot-array-patch.js";
 import {
 	mergeInteractionSnapshots,
@@ -176,5 +177,23 @@ describe("session-state snapshot merges", () => {
 		const current = [interaction];
 
 		expect(mergeInteractionSnapshots(current, [interaction])).toBe(current);
+	});
+
+	it("carries interaction patch metadata for downstream read models", () => {
+		const firstInteraction = createInteractionSnapshot({ id: "interaction-1" });
+		const secondInteraction = createInteractionSnapshot({ id: "interaction-2" });
+		const patchedInteraction = createInteractionSnapshot({
+			id: "interaction-2",
+			state: "Answered",
+		});
+		const appendedInteraction = createInteractionSnapshot({ id: "interaction-3" });
+		const current = [firstInteraction, secondInteraction];
+
+		const next = mergeInteractionSnapshots(current, [patchedInteraction, appendedInteraction]);
+		const patch = getInteractionSnapshotArrayPatch(next);
+
+		expect(patch?.baseInteractions).toBe(current);
+		expect(patch?.patchedInteractionsByIndex?.get(1)).toBe(patchedInteraction);
+		expect(patch?.appendedInteractions).toEqual([appendedInteraction]);
 	});
 });

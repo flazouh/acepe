@@ -18,6 +18,7 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
+import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
 
@@ -1231,6 +1232,98 @@ describe("agent panel graph materializer", () => {
 		});
 
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
+	it("applies marked interaction appends without scanning unchanged interactions", () => {
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const operations: OperationSnapshot[] = [];
+		const firstInteraction = createQuestionInteraction({
+			id: "hidden-question",
+			jsonRpcRequestId: 1,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "1",
+			},
+		});
+		const baseInteractions = [firstInteraction];
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "other-question",
+			},
+			interactions: baseInteractions,
+		});
+		const appendedInteraction = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 2,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "2",
+			},
+		});
+		const nextInteractions = [firstInteraction, appendedInteraction];
+		markInteractionSnapshotArrayPatch(nextInteractions, {
+			baseInteractions,
+			patchedInteractionsByIndex: null,
+			appendedInteractions: [appendedInteraction],
+		});
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+		Object.defineProperty(baseInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged interactions for an interaction patch");
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...baseGraph,
+					interactions: nextInteractions,
+					activity: {
+						kind: "waiting_for_user",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: "question-1",
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: baseGraph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Question session" },
+			});
+
+			expect(nextScene.conversation.entries).toHaveLength(2);
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).toMatchObject({
+				id: "interaction:question-1",
+				type: "tool_call",
+				interactionId: "question-1",
+			});
+		} finally {
+			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: firstInteraction,
+			});
+		}
 	});
 
 	it("materializes rich tool entries from canonical operations instead of transcript placeholders", () => {

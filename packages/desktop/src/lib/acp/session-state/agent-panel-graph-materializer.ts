@@ -30,6 +30,7 @@ import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import { markAgentPanelSceneEntryArrayPatch } from "./agent-panel-scene-entry-array-patch.js";
+import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
 import { getOperationSnapshotArrayPatch } from "./operation-snapshot-array-patch.js";
 import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
 
@@ -652,7 +653,7 @@ function questionInteractionToSceneEntry(
 	}
 
 	return {
-		id: `interaction:${interaction.id}`,
+		id: interactionSceneEntryId(interaction.id),
 		type: "tool_call",
 		interactionId: interaction.id,
 		kind: "other",
@@ -1147,6 +1148,19 @@ function materializeInteractionPatchedConversation(
 		return null;
 	}
 
+	const interactionArrayPatch = getInteractionSnapshotArrayPatch(input.graph.interactions);
+	if (interactionArrayPatch?.baseInteractions === previous.interactions) {
+		const patched = materializeMarkedInteractionPatchedConversation(
+			previous,
+			input,
+			interactionArrayPatch.patchedInteractionsByIndex,
+			interactionArrayPatch.appendedInteractions
+		);
+		if (patched !== null) {
+			return patched;
+		}
+	}
+
 	const transcriptSceneEntryCount = previous.transcriptEntries.length;
 	const nextInteractionEntries = materializeVisibleInteractionEntries(
 		input.graph,
@@ -1191,6 +1205,100 @@ function materializeInteractionPatchedConversation(
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
+}
+
+function materializeMarkedInteractionPatchedConversation(
+	previous: CachedConversationState,
+	input: CachedConversationInput,
+	patchedInteractionsByIndex: ReadonlyMap<number, InteractionSnapshot> | null,
+	appendedInteractions: readonly InteractionSnapshot[] | null
+): CachedConversationState | null {
+	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
+	let appendedEntries: AgentPanelSceneEntryModel[] | null = null;
+
+	if (patchedInteractionsByIndex !== null) {
+		for (const [index, interaction] of patchedInteractionsByIndex) {
+			const previousInteraction = previous.interactions[index];
+			if (previousInteraction === undefined || previousInteraction.id !== interaction.id) {
+				return null;
+			}
+			const rowId = interactionSceneEntryId(interaction.id);
+			const rowIndex = previous.sceneEntryRowIndex.get(rowId);
+			const nextEntry = questionInteractionToSceneEntry(interaction, input.graph);
+			if (nextEntry === null) {
+				if (rowIndex === undefined) {
+					continue;
+				}
+				return null;
+			}
+			if (rowIndex === undefined) {
+				appendedEntries ??= [];
+				appendedEntries.push(nextEntry);
+				continue;
+			}
+
+			const previousEntry = previous.conversation.entries[rowIndex];
+			if (previousEntry !== undefined && areSceneEntriesEquivalent(previousEntry, nextEntry)) {
+				continue;
+			}
+			entryPatches = addSceneEntryPatch(entryPatches, rowIndex, nextEntry);
+		}
+	}
+
+	if (appendedInteractions !== null) {
+		for (const interaction of appendedInteractions) {
+			const nextEntry = questionInteractionToSceneEntry(interaction, input.graph);
+			if (nextEntry === null || previous.sceneEntryRowIndex.has(nextEntry.id)) {
+				continue;
+			}
+			appendedEntries ??= [];
+			appendedEntries.push(nextEntry);
+		}
+	}
+
+	if (entryPatches === null && appendedEntries === null) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+
+	const patchedEntries =
+		entryPatches === null
+			? previous.conversation.entries
+			: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches);
+	const nextEntries =
+		appendedEntries === null
+			? patchedEntries
+			: createAppendedSceneEntryArray(patchedEntries, appendedEntries);
+	if (appendedEntries !== null) {
+		appendSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			appendedEntries,
+			previous.conversation.entries.length
+		);
+	}
+
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+	};
+}
+
+function interactionSceneEntryId(interactionId: string): string {
+	return `interaction:${interactionId}`;
 }
 
 function materializeVisibleInteractionEntries(

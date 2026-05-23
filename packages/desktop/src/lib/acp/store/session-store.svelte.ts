@@ -53,6 +53,7 @@ import {
 	agentPanelCanonicalSourceFromGraph,
 	type AgentPanelCanonicalSource,
 } from "../session-state/agent-panel-canonical-source.js";
+import { markInteractionSnapshotArrayPatch } from "../session-state/interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../session-state/operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../session-state/transcript-entry-array-patch.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
@@ -605,7 +606,18 @@ export function mergeInteractionSnapshots(
 	current: readonly InteractionSnapshot[],
 	patches: readonly InteractionSnapshot[]
 ): InteractionSnapshot[] {
-	return mergeSnapshotsById(current, patches, interactionSnapshotIndexes);
+	const next = mergeSnapshotsById(current, patches, interactionSnapshotIndexes);
+	if (next !== current) {
+		const patch = getMergedSnapshotArrayPatch(next);
+		if (patch !== undefined) {
+			markInteractionSnapshotArrayPatch(next, {
+				baseInteractions: current,
+				patchedInteractionsByIndex: patch.patchedIndexes,
+				appendedInteractions: patch.appendedSnapshots,
+			});
+		}
+	}
+	return next;
 }
 
 function graphWithPatches(input: {
