@@ -321,6 +321,7 @@ export class OperationStore {
 		const cachedSessionOperations = this.sessionOperationsBySession.get(sessionId);
 		const cachedSessionToolCalls = this.sessionToolCallsBySession.get(sessionId);
 		const cachedModifiedFilesState = this.modifiedFilesStateBySession.get(sessionId);
+		const cachedLastToolCall = this.lastToolCallBySession.get(sessionId);
 		let cachedOperationPatches: Map<number, Operation> | null = null;
 		let cachedOperationAppends: Operation[] | null = null;
 		let cachedToolCallPatches: Map<number, ToolCall> | null = null;
@@ -330,6 +331,8 @@ export class OperationStore {
 		let canPreserveModifiedFilesState =
 			cachedModifiedFilesState === undefined ||
 			cachedModifiedFilesState.version === previousVersion;
+		let canPreserveLastToolCall =
+			cachedLastToolCall === undefined || cachedLastToolCall.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
@@ -348,6 +351,14 @@ export class OperationStore {
 					: !areModifiedFileInputsEquivalent(existingOperation, operation))
 			) {
 				canPreserveModifiedFilesState = false;
+			}
+			if (
+				cachedLastToolCall?.version === previousVersion &&
+				(existingOperation === undefined ||
+					cachedLastToolCall.toolCall === null ||
+					operation.toolCallId === cachedLastToolCall.toolCall.id)
+			) {
+				canPreserveLastToolCall = false;
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
@@ -432,6 +443,12 @@ export class OperationStore {
 				this.modifiedFilesStateBySession.set(sessionId, {
 					version: nextVersion,
 					state: cachedModifiedFilesState.state,
+				});
+			}
+			if (cachedLastToolCall?.version === previousVersion && canPreserveLastToolCall) {
+				this.lastToolCallBySession.set(sessionId, {
+					version: nextVersion,
+					toolCall: cachedLastToolCall.toolCall,
 				});
 			}
 		}

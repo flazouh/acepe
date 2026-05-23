@@ -341,6 +341,49 @@ describe("OperationStore", () => {
 		expect(operationStore.getLastToolCall("session-1")?.result).toBe("ok");
 	});
 
+	it("preserves last tool selector when an earlier operation changes", () => {
+		const operationStore = new OperationStore();
+		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const secondOperationId = buildCanonicalOperationId("session-1", "tool-2");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "latest",
+			}),
+		]);
+
+		const firstLastTool = operationStore.getLastToolCall("session-1");
+		expect(firstLastTool?.id).toBe("tool-2");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "earlier",
+			}),
+		]);
+
+		const originalGetSessionOperations = operationStore.getSessionOperations;
+		operationStore.getSessionOperations = () => {
+			throw new Error("last tool selector should not scan operations when the last tool is unchanged");
+		};
+
+		expect(operationStore.getLastToolCall("session-1")).toBe(firstLastTool);
+		operationStore.getSessionOperations = originalGetSessionOperations;
+	});
+
 	it("caches the last todo selector until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "todo-1");
