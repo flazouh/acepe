@@ -2018,6 +2018,43 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(repeatedProjection).toBe(appendedProjection);
 	});
 
+	it("keeps stable display append on the patch lane", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+
+		const appendedProjection = readModel.applyPatch({
+			sceneEntries: [userEntry, assistantEntry],
+			transcriptRevision: 2,
+		});
+
+		expect(appendedProjection).not.toBeNull();
+		if (appendedProjection === null) {
+			return;
+		}
+		expect(appendedProjection.rows).toHaveLength(2);
+		expect(appendedProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(appendedProjection.rows[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			canonicalText: "Answer",
+			displayText: "Answer",
+			canonicalTextRevision: "2:assistant-1",
+		});
+	});
+
 	it("truncates display rows without rebuilding preserved rows", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
@@ -2046,6 +2083,44 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 			transcriptRevision: 1,
 		});
 
+		expect(truncatedProjection.rows).toHaveLength(2);
+		expect(truncatedProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(truncatedProjection.rows[1]).toBe(firstProjection.rows[1]);
+		expect(truncatedProjection.hasLiveTail).toBe(true);
+	});
+
+	it("keeps stable display truncation on the patch lane", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry, removedAssistantEntry],
+			transcriptRevision: 1,
+		});
+
+		const truncatedProjection = readModel.applyPatch({
+			sceneEntries: [userEntry, assistantEntry],
+			transcriptRevision: 1,
+		});
+
+		expect(truncatedProjection).not.toBeNull();
+		if (truncatedProjection === null) {
+			return;
+		}
 		expect(truncatedProjection.rows).toHaveLength(2);
 		expect(truncatedProjection.rows[0]).toBe(firstProjection.rows[0]);
 		expect(truncatedProjection.rows[1]).toBe(firstProjection.rows[1]);
@@ -2505,14 +2580,14 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
-	it("does not treat unmarked scene entries as display row patches", () => {
+	it("treats unchanged unmarked scene entries as a no-op display row patch", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
 			id: "user-1",
 			type: "user",
 			text: "Prompt",
 		};
-		readModel.applySnapshot({
+		const firstProjection = readModel.applySnapshot({
 			sceneEntries: [userEntry],
 			transcriptRevision: 1,
 		});
@@ -2522,6 +2597,6 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 				sceneEntries: [userEntry],
 				transcriptRevision: 2,
 			})
-		).toBeNull();
+		).toBe(firstProjection);
 	});
 });

@@ -571,13 +571,95 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				applyGraphScenePatch(input) ??
 				applyGraphSceneAppendPatch(input) ??
 				applyGraphSceneTruncationPatch(input) ??
-				applyGraphSceneSplicePatch(input)
+				applyGraphSceneSplicePatch(input) ??
+				applyStableIncrementalPatch(input)
 			);
 		},
 		selectProjection() {
 			return previousProjection;
 		},
 	};
+
+	function applyStableIncrementalPatch(input: {
+		readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
+		readonly transcriptRevision: number;
+	}): AgentPanelDisplayRowsProjection | null {
+		const previousEntries = previousSceneEntries;
+		if (previousEntries === null) {
+			return null;
+		}
+
+		if (input.sceneEntries === previousEntries) {
+			if (input.transcriptRevision === previousTranscriptRevision) {
+				return previousProjection;
+			}
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			return previousProjection;
+		}
+
+		if (isStableDisplaySceneAppend(previousEntries, input.sceneEntries)) {
+			if (input.sceneEntries.length === previousEntries.length) {
+				previousSceneEntries = input.sceneEntries;
+				previousTranscriptRevision = input.transcriptRevision;
+				return previousProjection;
+			}
+			const appendedProjection = createRowsFromSceneRange(
+				input.sceneEntries,
+				input.transcriptRevision,
+				previousEntries.length
+			);
+			const baseRowCount = previousProjection.rows.length;
+			const rows = createAppendedDisplayRowArray(previousProjection.rows, appendedProjection.rows);
+			previousProjection = {
+				rows,
+				hasLiveTail: previousProjection.hasLiveTail || appendedProjection.hasLiveTail,
+			};
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			indexDisplayRowsByIdFrom(rowIndexById, rows, baseRowCount);
+			for (const row of appendedProjection.rows) {
+				if (row.type === "assistant" && row.isLiveTail) {
+					liveTailRowIds.add(row.id);
+				}
+			}
+			return previousProjection;
+		}
+
+		if (isStableDisplaySceneTruncation(previousEntries, input.sceneEntries)) {
+			const nextRowCount = previousProjection.rows.length - countDisplayRowsInRange(
+				previousEntries,
+				input.sceneEntries.length,
+				previousEntries.length
+			);
+			if (nextRowCount === previousProjection.rows.length) {
+				previousSceneEntries = input.sceneEntries;
+				previousTranscriptRevision = input.transcriptRevision;
+				return previousProjection;
+			}
+			for (
+				let removedRowIndex = nextRowCount;
+				removedRowIndex < previousProjection.rows.length;
+				removedRowIndex += 1
+			) {
+				const removedRow = previousProjection.rows[removedRowIndex];
+				if (removedRow !== undefined) {
+					rowIndexById.delete(removedRow.id);
+					liveTailRowIds.delete(removedRow.id);
+				}
+			}
+			const rows = createTruncatedDisplayRowArray(previousProjection.rows, nextRowCount);
+			previousProjection = {
+				rows,
+				hasLiveTail: liveTailRowIds.size > 0,
+			};
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			return previousProjection;
+		}
+
+		return null;
+	}
 }
 
 function createAppendedDisplayRowArray(
