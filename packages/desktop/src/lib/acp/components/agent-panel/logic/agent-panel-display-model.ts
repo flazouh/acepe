@@ -2406,6 +2406,45 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return displayedEntries;
 	}
 
+	function applyDisplaySceneSameOrderEntries(
+		model: AgentPanelDisplayModel,
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly AgentPanelSceneEntryModel[] | null {
+		if (previousDisplayedSceneEntries === null || previousSceneEntries === null) {
+			return null;
+		}
+		const assistantRowsById = selectAssistantRows(model);
+		const firstDisplayChangeIndex = findFirstDisplaySceneChangeIndex(
+			assistantRowsById,
+			sceneEntries,
+			sceneEntryIndexesById,
+			previousDisplayedSceneEntries
+		);
+		const firstCanonicalChangeIndex = findFirstSceneEntryDifferenceIndex(
+			previousSceneEntries,
+			sceneEntries,
+			sceneEntries.length
+		);
+		const effectiveStartIndex = Math.min(
+			firstCanonicalChangeIndex,
+			firstDisplayChangeIndex ?? sceneEntries.length
+		);
+		if (effectiveStartIndex >= sceneEntries.length) {
+			previousPatchedSceneEntries = sceneEntries;
+			previousPatchedAssistantRowsById = assistantRowsById;
+			return previousDisplayedSceneEntries;
+		}
+		const displayedEntries = createSplicedDisplayedSceneEntriesArray(
+			previousDisplayedSceneEntries,
+			effectiveStartIndex,
+			buildDisplayedSceneSuffixEntries(assistantRowsById, sceneEntries, effectiveStartIndex)
+		);
+		previousPatchedSceneEntries = sceneEntries;
+		previousPatchedAssistantRowsById = assistantRowsById;
+		previousDisplayedSceneEntries = displayedEntries;
+		return displayedEntries;
+	}
+
 	return {
 		apply({ model, sceneEntries }) {
 			if (sceneEntries !== previousSceneEntries) {
@@ -2460,7 +2499,9 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 					previousSceneEntries !== null &&
 					hasSameSceneEntryIdOrder(previousSceneEntries, sceneEntries)
 				) {
-					// Same ids in the same slots means the existing id -> index map is still valid.
+					const displayedEntries = applyDisplaySceneSameOrderEntries(model, sceneEntries);
+					previousSceneEntries = sceneEntries;
+					return displayedEntries ?? applyDisplaySceneEntries(model, sceneEntries);
 				} else {
 					sceneEntryIndexesById = buildSceneEntryIndexes(sceneEntries);
 				}
@@ -2504,7 +2545,7 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				previousSceneEntries !== null &&
 				hasSameSceneEntryIdOrder(previousSceneEntries, sceneEntries)
 			) {
-				return applyDisplaySceneEntries(model, sceneEntries);
+				return applyDisplaySceneSameOrderEntries(model, sceneEntries);
 			}
 			return null;
 		},

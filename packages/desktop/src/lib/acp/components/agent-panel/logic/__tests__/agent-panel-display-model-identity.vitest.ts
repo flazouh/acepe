@@ -905,6 +905,76 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		});
 	});
 
+	it("keeps same-order scene updates on the display-scene patch lane", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Display answer",
+					displayText: "Display answer",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		const firstDisplayedEntries = readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const patchedAssistantEntry: AgentPanelSceneEntryModel = {
+			...assistantEntry,
+			markdown: "Backend changed",
+		};
+
+		const displayedEntries = readModel.applyPatch({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, patchedAssistantEntry],
+		});
+
+		expect(displayedEntries).not.toBeNull();
+		if (displayedEntries === null) {
+			return;
+		}
+		expect(displayedEntries[0]).toBe(firstDisplayedEntries[0]);
+		expect(displayedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Display answer",
+		});
+		const splice = getAgentPanelSceneEntryArraySplicePatch(displayedEntries);
+		expect(splice?.baseSceneEntries).toBe(firstDisplayedEntries);
+		expect(splice?.startIndex).toBe(1);
+		expect(splice?.insertedEntries).toHaveLength(1);
+		expect(splice?.insertedEntries[0]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Display answer",
+		});
+	});
+
 	it("applies marked graph patches without scanning unchanged scene entries", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
