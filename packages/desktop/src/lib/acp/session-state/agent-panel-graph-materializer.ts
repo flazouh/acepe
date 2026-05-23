@@ -1046,7 +1046,10 @@ function materializeInteractionPatchedConversation(
 		input.graph,
 		previous.sceneEntryRowIndex
 	);
-	const previousInteractionEntries = previous.conversation.entries.slice(transcriptSceneEntryCount);
+	const previousInteractionEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		transcriptSceneEntryCount
+	);
 	if (areSceneEntryListsEquivalent(previousInteractionEntries, nextInteractionEntries)) {
 		return {
 			...previous,
@@ -1055,9 +1058,12 @@ function materializeInteractionPatchedConversation(
 		};
 	}
 
-	const nextEntries = previous.conversation.entries
-		.slice(0, transcriptSceneEntryCount)
-		.concat(nextInteractionEntries);
+	const nextEntries = createInsertedSceneEntryArray(
+		previous.conversation.entries,
+		transcriptSceneEntryCount,
+		nextInteractionEntries,
+		[]
+	);
 	patchTrailingSceneEntryRowIndex(
 		previous.sceneEntryRowIndex,
 		previousInteractionEntries,

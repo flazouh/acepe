@@ -1049,12 +1049,24 @@ describe("agent panel graph materializer", () => {
 			graph: baseGraph,
 			header: { title: "Question session" },
 		});
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			slice: typeof Array.prototype.slice;
+		};
+		const originalSlice = firstEntries.slice;
+		firstEntries.slice = () => {
+			throw new Error("must not slice whole materialized scene entries for interaction patch");
+		};
 
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: questionGraph,
-			header: { title: "Question session" },
-		});
+		let nextScene: typeof firstScene;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: questionGraph,
+				header: { title: "Question session" },
+			});
+		} finally {
+			firstEntries.slice = originalSlice;
+		}
 
 		expect(nextScene.conversation.entries).toHaveLength(2);
 		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
