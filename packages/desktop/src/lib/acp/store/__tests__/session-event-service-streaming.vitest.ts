@@ -871,6 +871,56 @@ describe("SessionEventService streaming delta handling", () => {
 		service.handleSessionUpdate(update, missingSessionHandler);
 	});
 
+	it("does not buffer raw assistant chunks for unknown sessions", () => {
+		const missingSessionHandler = createMockHandler();
+		(missingSessionHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(missingSessionHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+		const update: SessionUpdate = {
+			type: "agentMessageChunk",
+			session_id: "session-missing-buffer",
+			chunk: {
+				content: { type: "text", text: "hello" },
+			},
+			part_id: "part-1",
+			message_id: "msg-1",
+		};
+
+		service.handleSessionUpdate(update, missingSessionHandler);
+
+		const pendingEvents = (
+			service as unknown as {
+				pendingEvents: Map<string, unknown[]>;
+			}
+		).pendingEvents;
+		expect(pendingEvents.get("session-missing-buffer")).toBeUndefined();
+	});
+
+	it("does not buffer raw tool updates for unknown sessions", () => {
+		const missingSessionHandler = createMockHandler();
+		(missingSessionHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(missingSessionHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+		const update: SessionUpdate = {
+			type: "toolCallUpdate",
+			session_id: "session-missing-tool",
+			update: {
+				toolCallId: "tool-1",
+				status: "completed",
+				title: "Done",
+			},
+		};
+
+		service.handleSessionUpdate(update, missingSessionHandler);
+
+		const pendingEvents = (
+			service as unknown as {
+				pendingEvents: Map<string, unknown[]>;
+			}
+		).pendingEvents;
+		expect(pendingEvents.get("session-missing-tool")).toBeUndefined();
+	});
+
 	it("ignores raw assistant chunks even when message_id and part_id are both present", () => {
 		const update: SessionUpdate = {
 			type: "agentMessageChunk",

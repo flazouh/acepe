@@ -439,7 +439,10 @@ export class SessionEventService {
 				this.pendingEventTimestamps.delete(sessionId);
 				return;
 			}
-			this.bufferPendingEvent(sessionId, update, envelopeSeq);
+			logger.debug("Dropping non-authoritative raw update for unknown session", {
+				sessionId,
+				type: update.type,
+			});
 			return;
 		}
 
@@ -800,17 +803,6 @@ export class SessionEventService {
 		}
 
 		this.takeConnectionMaterializationWaiter(envelope.sessionId)?.resolve(materialized);
-	}
-
-	/**
-	 * Buffer event for session that may still be creating (race condition).
-	 */
-	private bufferPendingEvent(sessionId: string, update: SessionUpdate, envelopeSeq?: number): void {
-		this.bufferPending(sessionId, {
-			kind: "sessionUpdate",
-			update,
-			envelopeSeq: envelopeSeq ?? null,
-		});
 	}
 
 	private bufferPendingSessionState(sessionId: string, envelope: SessionStateEnvelope): void {
