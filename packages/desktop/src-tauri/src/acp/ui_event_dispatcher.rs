@@ -367,14 +367,16 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
     )
     .await;
 
-    if let Err(error) = event.publish_direct(&hub) {
-        tracing::error!(
-            error = %error,
-            session_id = ?event.session_id,
-            event_name = event.event_name,
-            "Failed to publish direct ACP session update"
-        );
-        return false;
+    if should_publish_raw_event(&event, &dispatch_effects) {
+        if let Err(error) = event.publish_direct(&hub) {
+            tracing::error!(
+                error = %error,
+                session_id = ?event.session_id,
+                event_name = event.event_name,
+                "Failed to publish direct ACP session update"
+            );
+            return false;
+        }
     }
 
     if let Some(envelope) = dispatch_effects.session_state_envelope {
@@ -1117,13 +1119,15 @@ impl DispatcherState {
                 )
                 .await;
 
-                if let Err(error) = event.publish(hub) {
-                    tracing::error!(
-                        error = %error,
-                        event_name = event.event_name,
-                        session_id = ?event.session_id,
-                        "Failed to emit ACP UI event"
-                    );
+                if should_publish_raw_event(&event, &dispatch_effects) {
+                    if let Err(error) = event.publish(hub) {
+                        tracing::error!(
+                            error = %error,
+                            event_name = event.event_name,
+                            session_id = ?event.session_id,
+                            "Failed to emit ACP UI event"
+                        );
+                    }
                 }
                 if let Some(envelope) = dispatch_effects.session_state_envelope {
                     let mut envelopes = vec![envelope];
@@ -1295,6 +1299,27 @@ impl DispatcherState {
 struct DispatchPersistenceEffects {
     session_state_envelope: Option<SessionStateEnvelope>,
     additional_session_state_envelopes: Vec<SessionStateEnvelope>,
+}
+
+impl DispatchPersistenceEffects {
+    fn has_session_state_envelope(&self) -> bool {
+        self.session_state_envelope.is_some() || !self.additional_session_state_envelopes.is_empty()
+    }
+}
+
+fn should_publish_raw_event(event: &AcpUiEvent, effects: &DispatchPersistenceEffects) -> bool {
+    if !effects.has_session_state_envelope() {
+        return true;
+    }
+
+    !matches!(
+        &event.payload,
+        AcpUiEventPayload::SessionUpdate(update)
+            if matches!(
+                update.as_ref(),
+                SessionUpdate::AgentMessageChunk { .. } | SessionUpdate::AgentThoughtChunk { .. }
+            )
+    )
 }
 
 async fn persist_dispatch_event(
@@ -2757,7 +2782,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn drain_emits_session_state_delta_after_transcript_delta() {
+    async fn drain_skips_raw_streaming_chunk_when_canonical_state_is_available() {
         let db = setup_test_db().await;
         SessionMetadataRepository::ensure_exists(
             &db,
@@ -2818,14 +2843,23 @@ mod tests {
             )
             .await;
 
-        let first = receiver.recv().await.expect("raw event");
-        let second = receiver.recv().await.expect("session state event");
+        let first = receiver.recv().await.expect("session state event");
+        assert_eq!(first.event_name, "acp-session-state");
 
-        assert_eq!(first.event_name, "acp-session-update");
-        assert_eq!(second.event_name, "acp-session-state");
+        let mut published_event_names = vec![first.event_name.clone()];
+        while let Ok(event) = receiver.try_recv() {
+            published_event_names.push(event.event_name);
+        }
+
+        assert!(
+            !published_event_names
+                .iter()
+                .any(|event_name| event_name == "acp-session-update"),
+            "canonical streaming chunks should not also wake the frontend on the raw lane"
+        );
 
         let envelope: SessionStateEnvelope =
-            serde_json::from_value(second.payload).expect("session state payload");
+            serde_json::from_value(first.payload).expect("session state payload");
         assert_eq!(envelope.session_id, "session-1");
         assert_eq!(envelope.graph_revision, 1);
         assert_eq!(envelope.last_event_seq, 1);
