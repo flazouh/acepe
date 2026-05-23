@@ -2581,21 +2581,28 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			return applyDisplaySceneEntries(model, sceneEntries);
 		},
 		applyPatch({ model, sceneEntries }) {
-			if (applyGraphScenePatchIndexes(sceneEntries)) {
-				return applyDisplaySceneEntries(model, sceneEntries);
+			if (getAgentPanelSceneEntryArrayPatch(sceneEntries) !== undefined) {
+				return applyGraphScenePatchIndexes(sceneEntries)
+					? applyDisplaySceneEntries(model, sceneEntries)
+					: null;
 			}
-			const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
-			if (appendPatch !== null) {
-				return applyDisplaySceneAppendEntries(model, sceneEntries, appendPatch);
+			const explicitAppendPatch = getAgentPanelSceneEntryArrayAppendPatch(sceneEntries);
+			if (explicitAppendPatch !== undefined) {
+				const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
+				return appendPatch === null
+					? null
+					: applyDisplaySceneAppendEntries(model, sceneEntries, appendPatch);
 			}
-			if (applyGraphSceneTruncationIndexes(sceneEntries)) {
-				return applyDisplaySceneTruncationEntries(model, sceneEntries);
+			if (getAgentPanelSceneEntryArrayTruncation(sceneEntries) !== undefined) {
+				return applyGraphSceneTruncationIndexes(sceneEntries)
+					? applyDisplaySceneTruncationEntries(model, sceneEntries)
+					: null;
 			}
 			const splicePatch = getAgentPanelSceneEntryArraySplicePatch(sceneEntries);
-			if (applyGraphSceneSpliceIndexes(sceneEntries)) {
-				return splicePatch === undefined
-							? null
-							: applyDisplaySceneSpliceEntries(model, sceneEntries, splicePatch.startIndex);
+			if (splicePatch !== undefined) {
+				return applyGraphSceneSpliceIndexes(sceneEntries)
+					? applyDisplaySceneSpliceEntries(model, sceneEntries, splicePatch.startIndex)
+					: null;
 			}
 			const stablePrefixAppendStartIndex = applyStablePrefixAppendSceneIndexes(sceneEntries);
 			if (stablePrefixAppendStartIndex !== null) {

@@ -1146,6 +1146,82 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		}
 	});
 
+	it("fails closed on malformed marked graph patches instead of guessing a display patch shape", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const memory = createAgentPanelDisplayMemory();
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		};
+		const secondAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: true,
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+				{
+					id: "assistant-2",
+					type: "assistant",
+					canonicalText: "Second",
+					displayText: "Second",
+					canonicalTextRevision: "1:assistant-2",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		const displayedBaseEntries = readModel.apply({
+			model,
+			memory,
+			sceneEntries: baseEntries,
+		});
+		const mismatchedPatchedEntry: AgentPanelSceneEntryModel = {
+			...secondAssistantEntry,
+			markdown: "Patched second",
+		};
+		const invalidPatchedEntries = [firstAssistantEntry, secondAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(invalidPatchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [mismatchedPatchedEntry],
+			entriesByIndex: new Map([[0, mismatchedPatchedEntry]]),
+		});
+
+		const nextProjection = readModel.applyPatch({
+			model,
+			memory,
+			sceneEntries: invalidPatchedEntries,
+		});
+
+		expect(nextProjection).toBeNull();
+
+		const restoredProjection = readModel.apply({
+			model,
+			memory,
+			sceneEntries: baseEntries,
+		});
+		expect(restoredProjection).toBe(displayedBaseEntries);
+	});
+
 	it("patches only changed assistant display rows without scanning unchanged row slots", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const firstAssistantEntry: AgentPanelSceneEntryModel = {
