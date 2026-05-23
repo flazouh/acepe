@@ -128,8 +128,6 @@ describe("TranscriptViewportScheduler", () => {
 
 		expect(order).toEqual([
 			"read:measureViewport",
-			"read:measureAnchor:row-1",
-			"read:measureViewport",
 			"write:revealTail:public-scroll-bottom",
 			"outcome:applied",
 		]);
@@ -366,6 +364,77 @@ describe("TranscriptViewportScheduler", () => {
 			"read:measureAnchor:row-2",
 			"read:measureViewport",
 			"write:applyScrollOffset:-8",
+			"outcome:applied",
+		]);
+	});
+
+	it("drops preserve-anchor work when a later same-frame scroll write supersedes it", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: createRecordingAdapter(order),
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "PreserveAnchor",
+				sessionId: "session-1",
+				generation: 0,
+				anchorKey: "row-1",
+				offsetPx: 12,
+			},
+			{
+				type: "RevealTail",
+				sessionId: "session-1",
+				generation: 0,
+				force: false,
+				reason: "rows-changed-following",
+			},
+		]);
+		frame.flush();
+
+		expect(order).toEqual([
+			"write:revealTail:rows-changed-following",
+			"outcome:applied",
+		]);
+	});
+
+	it("does not enqueue preserve-anchor after a same-frame scroll write already exists", () => {
+		const order: string[] = [];
+		const frame = createManualFrame();
+		const scheduler = createTranscriptViewportScheduler({
+			adapter: createRecordingAdapter(order),
+			requestFrame: frame.request,
+			cancelFrame: frame.cancel,
+			getGeneration: () => 0,
+			getSessionId: () => "session-1",
+		});
+
+		scheduler.schedule([
+			{
+				type: "RevealRow",
+				sessionId: "session-1",
+				generation: 0,
+				targetKey: "user-2",
+				align: "end",
+				reason: "send-started",
+			},
+			{
+				type: "PreserveAnchor",
+				sessionId: "session-1",
+				generation: 0,
+				anchorKey: "row-1",
+				offsetPx: 12,
+			},
+		]);
+		frame.flush();
+
+		expect(order).toEqual([
+			"write:revealRow:user-2",
 			"outcome:applied",
 		]);
 	});

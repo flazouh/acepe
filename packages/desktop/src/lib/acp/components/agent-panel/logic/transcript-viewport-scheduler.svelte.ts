@@ -60,13 +60,22 @@ function appendPendingEffect(
 ): void {
 	if (isScrollWriteEffect(effect)) {
 		removePendingEffects(pendingEffects, (pendingEffect) => {
-			return isScrollWriteEffect(pendingEffect) && haveSameViewportRevision(pendingEffect, effect);
+			return (
+				haveSameViewportRevision(pendingEffect, effect) &&
+				(isScrollWriteEffect(pendingEffect) || pendingEffect.type === "PreserveAnchor")
+			);
 		});
 		pendingEffects.push(effect);
 		return;
 	}
 
 	if (effect.type === "PreserveAnchor") {
+		const hasPendingScrollWrite = pendingEffects.some((pendingEffect) => {
+			return isScrollWriteEffect(pendingEffect) && haveSameViewportRevision(pendingEffect, effect);
+		});
+		if (hasPendingScrollWrite) {
+			return;
+		}
 		removePendingEffects(pendingEffects, (pendingEffect) => {
 			return pendingEffect.type === "PreserveAnchor" && haveSameViewportRevision(pendingEffect, effect);
 		});
