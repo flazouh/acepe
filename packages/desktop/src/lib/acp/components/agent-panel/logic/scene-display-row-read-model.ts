@@ -12,6 +12,7 @@ import {
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
+import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export interface SceneDisplayRowsReadModel {
@@ -170,7 +171,10 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				firstChangedRowIndex,
 				latestTimestampMs
 			);
-			previousSceneEntries = (previousSceneEntries ?? []).concat(appendedSceneEntries);
+			previousSceneEntries = createAppendedSceneEntriesArray(
+				previousSceneEntries ?? [],
+				appendedSceneEntries
+			);
 			indexRowsBySceneEntryId(rowIndexBySceneEntryId, previousRows, firstChangedRowIndex);
 			return previousRows;
 		},

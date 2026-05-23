@@ -7,6 +7,7 @@ import {
 } from "./scene-entry-stability.js";
 import type { SceneDisplayRow } from "./scene-display-rows.js";
 import { getSceneDisplayRowKey } from "./scene-display-rows.js";
+import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
@@ -183,7 +184,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				appendedSceneEntries,
 				previousSceneEntries?.length ?? entriesById.size
 			);
-			previousSceneEntries = (previousSceneEntries ?? []).concat(appendedSceneEntries);
+			previousSceneEntries = createAppendedSceneEntriesArray(
+				previousSceneEntries ?? [],
+				appendedSceneEntries
+			);
 			return entriesById;
 		},
 		selectIndex() {

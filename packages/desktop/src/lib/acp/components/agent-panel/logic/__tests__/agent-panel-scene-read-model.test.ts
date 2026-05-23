@@ -82,6 +82,46 @@ describe("createAgentPanelSceneReadModel", () => {
 		expect(readModel.applyAppendPatch([])).toBe(patchedSnapshot);
 	});
 
+	it("applies append patches without copying the previous scene entry list", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const entries = [userEntry, assistantEntry];
+		readModel.applySnapshot(entries);
+		const originalConcat = entries.concat;
+
+		entries.concat = () => {
+			throw new Error("must not copy previous scene entries for append patches");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applyAppendPatch([nextToolEntry]);
+
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"assistant-1",
+				"tool-1",
+			]);
+			expect(patchedSnapshot.entriesById.get("tool-1")).toBe(nextToolEntry);
+		} finally {
+			entries.concat = originalConcat;
+		}
+	});
+
 	it("applies stable tail truncation without rebuilding preserved rows or index maps", () => {
 		const readModel = createAgentPanelSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
