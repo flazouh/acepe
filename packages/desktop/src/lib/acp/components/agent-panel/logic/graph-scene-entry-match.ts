@@ -10,6 +10,7 @@ import { getSceneDisplayRowKey } from "./scene-display-rows.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
+import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 export function findGraphSceneEntryForDisplayEntry(
 	entry: SceneDisplayRow | undefined,
@@ -63,6 +64,23 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 
 	return {
 		applySnapshot(sceneEntries) {
+			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+			if (
+				graphScenePatch !== undefined &&
+				graphScenePatch.baseSceneEntries === previousSceneEntries
+			) {
+				baseEntriesByIdBeforeTokenReveal = null;
+				const mutableEntriesById = patchSameLengthGraphSceneEntrySet(
+					entriesById,
+					graphScenePatch.entries
+				);
+				if (mutableEntriesById !== null) {
+					entriesById = mutableEntriesById;
+					previousSceneEntries = sceneEntries;
+					return entriesById;
+				}
+			}
+
 			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
 			if (
 				displayScenePatch !== undefined &&
@@ -203,6 +221,21 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return this.applySnapshot(sceneEntries);
 		},
 	};
+}
+
+function patchSameLengthGraphSceneEntrySet(
+	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
+	patchedEntries: readonly AgentPanelSceneEntryModel[]
+): Map<string, AgentPanelSceneEntryModel> | null {
+	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
+	for (const patchedEntry of patchedEntries) {
+		if (!entriesById.has(patchedEntry.id)) {
+			return null;
+		}
+		mutableEntriesById ??= ensureMutableSceneEntryMap(entriesById);
+		mutableEntriesById.set(patchedEntry.id, patchedEntry);
+	}
+	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
 }
 
 function patchSameLengthGraphSceneEntries(

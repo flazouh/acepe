@@ -12,6 +12,7 @@ import {
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
+import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
@@ -71,6 +72,28 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			}
 
 			baseRowsBeforeTokenReveal = null;
+			const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
+			if (
+				graphScenePatch !== undefined &&
+				graphScenePatch.baseSceneEntries === previousSceneEntries
+			) {
+				const patchedRows = patchDisplaySceneDisplayRows(
+					previousRows,
+					rowIndexBySceneEntryId,
+					graphScenePatch.entries
+				);
+				if (patchedRows !== null) {
+					previousRows = patchedRows.rows;
+					latestTimestampMs = selectLatestTimestampMsFrom(
+						previousRows,
+						patchedRows.firstChangedRowIndex,
+						latestTimestampMs
+					);
+					previousSceneEntries = sceneEntries;
+					return previousRows;
+				}
+			}
+
 			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
 			if (
 				displayScenePatch !== undefined &&

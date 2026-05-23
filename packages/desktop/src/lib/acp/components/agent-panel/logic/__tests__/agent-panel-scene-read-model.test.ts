@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { createAgentPanelSceneReadModel } from "../agent-panel-scene-read-model.js";
 import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
+import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 describe("createAgentPanelSceneReadModel", () => {
 	it("exposes rows and graph entries from one scene snapshot", () => {
@@ -229,6 +230,75 @@ describe("createAgentPanelSceneReadModel", () => {
 		expect(readModel.selectGraphEntryForDisplayEntry(patchedSnapshot.rows[1])).toBe(
 			nextToolEntry
 		);
+	});
+
+	it("applies graph scene patches without scanning unchanged scene entries", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "running",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const baseEntries = [userEntry, toolEntry, assistantEntry];
+		const firstSnapshot = readModel.applySnapshot(baseEntries);
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			...toolEntry,
+			status: "done",
+		};
+		const patchedEntries = [userEntry, nextToolEntry, assistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextToolEntry],
+		});
+		Object.defineProperty(patchedEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for graph scene patch");
+			},
+		});
+		Object.defineProperty(patchedEntries, "2", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for graph scene patch");
+			},
+		});
+
+		try {
+			const patchedSnapshot = readModel.applySnapshot(patchedEntries);
+
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows[1]).not.toBe(firstSnapshot.rows[1]);
+			expect(patchedSnapshot.rows[2]).toBe(firstSnapshot.rows[2]);
+			expect(patchedSnapshot.rows[1]).toMatchObject({
+				id: "tool-1",
+				type: "tool_call",
+			});
+			expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+			expect(patchedSnapshot.entriesById.get("tool-1")).toBe(nextToolEntry);
+			expect(readModel.selectGraphEntryForDisplayEntry(patchedSnapshot.rows[1])).toBe(
+				nextToolEntry
+			);
+		} finally {
+			Object.defineProperty(patchedEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(patchedEntries, "2", {
+				configurable: true,
+				value: assistantEntry,
+			});
+		}
 	});
 
 	it("patches stable transcript insertion before a pending interaction", () => {

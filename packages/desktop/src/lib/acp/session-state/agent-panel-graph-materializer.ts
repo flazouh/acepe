@@ -29,6 +29,7 @@ import { normalizeToolResult } from "../store/services/tool-result-normalizer.js
 import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
+import { markAgentPanelSceneEntryArrayPatch } from "./agent-panel-scene-entry-array-patch.js";
 import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
@@ -1358,7 +1359,7 @@ function createPatchedSceneEntryArray(
 	entryPatches: ReadonlyMap<number, AgentPanelSceneEntryModel>
 ): readonly AgentPanelSceneEntryModel[] {
 	const target = new Array<AgentPanelSceneEntryModel>(baseEntries.length);
-	return new Proxy(target, {
+	const entries = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -1400,6 +1401,11 @@ function createPatchedSceneEntryArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	markAgentPanelSceneEntryArrayPatch(entries, {
+		baseSceneEntries: baseEntries,
+		entries: Array.from(entryPatches.values()),
+	});
+	return entries;
 }
 
 function createAppendedSceneEntryArray(
