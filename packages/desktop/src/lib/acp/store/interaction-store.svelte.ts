@@ -201,6 +201,10 @@ export class InteractionStore {
 				continue;
 			}
 
+			if (arePermissionRequestsEquivalent(existingPermission, permission)) {
+				return;
+			}
+
 			this.setPendingPermission(
 				interactionId,
 				mergePermissionRequests(existingPermission, permission)
@@ -267,6 +271,10 @@ export class InteractionStore {
 	}
 
 	private setPendingPermission(interactionId: string, permission: PermissionRequest): void {
+		const existing = this.permissionsPending.get(interactionId);
+		if (existing !== undefined && arePermissionRequestsEquivalent(existing, permission)) {
+			return;
+		}
 		this.deletePendingPermission(interactionId);
 		this.permissionsPending.set(interactionId, permission);
 		getOrCreateSessionIndex(this.pendingPermissionsBySession, permission.sessionId).set(
@@ -291,6 +299,10 @@ export class InteractionStore {
 	}
 
 	private setPendingQuestion(interactionId: string, question: QuestionRequest): void {
+		const existing = this.questionsPending.get(interactionId);
+		if (existing !== undefined && areQuestionRequestsEquivalent(existing, question)) {
+			return;
+		}
 		this.deletePendingQuestion(interactionId);
 		this.questionsPending.set(interactionId, question);
 		getOrCreateSessionIndex(this.pendingQuestionsBySession, question.sessionId).set(
@@ -314,6 +326,10 @@ export class InteractionStore {
 		interactionId: string,
 		approval: PlanApprovalInteraction
 	): void {
+		const existing = this.planApprovalsPending.get(interactionId);
+		if (existing !== undefined && arePlanApprovalsEquivalent(existing, approval)) {
+			return;
+		}
 		this.deletePendingPlanApproval(interactionId);
 		this.planApprovalsPending.set(interactionId, approval);
 		getOrCreateSessionIndex(this.pendingPlanApprovalsBySession, approval.sessionId).set(
@@ -393,6 +409,90 @@ function readSessionIndexValues<T>(
 	const values = Array.from(sessionIndex.values());
 	valuesBySession.set(sessionId, values);
 	return values;
+}
+
+function arePermissionRequestsEquivalent(
+	left: PermissionRequest,
+	right: PermissionRequest
+): boolean {
+	return (
+		left.id === right.id &&
+		left.sessionId === right.sessionId &&
+		left.jsonRpcRequestId === right.jsonRpcRequestId &&
+		areJsonLikeValuesEquivalent(left.replyHandler, right.replyHandler) &&
+		left.permission === right.permission &&
+		areJsonLikeValuesEquivalent(left.patterns, right.patterns) &&
+		areJsonLikeValuesEquivalent(left.metadata, right.metadata) &&
+		areJsonLikeValuesEquivalent(left.always, right.always) &&
+		areJsonLikeValuesEquivalent(left.tool, right.tool) &&
+		areJsonLikeValuesEquivalent(left.members, right.members)
+	);
+}
+
+function areQuestionRequestsEquivalent(left: QuestionRequest, right: QuestionRequest): boolean {
+	return (
+		left.id === right.id &&
+		left.sessionId === right.sessionId &&
+		left.jsonRpcRequestId === right.jsonRpcRequestId &&
+		areJsonLikeValuesEquivalent(left.replyHandler, right.replyHandler) &&
+		areJsonLikeValuesEquivalent(left.questions, right.questions) &&
+		areJsonLikeValuesEquivalent(left.tool, right.tool)
+	);
+}
+
+function arePlanApprovalsEquivalent(
+	left: PlanApprovalInteraction,
+	right: PlanApprovalInteraction
+): boolean {
+	return (
+		left.id === right.id &&
+		left.kind === right.kind &&
+		left.source === right.source &&
+		left.sessionId === right.sessionId &&
+		areJsonLikeValuesEquivalent(left.tool, right.tool) &&
+		left.jsonRpcRequestId === right.jsonRpcRequestId &&
+		areJsonLikeValuesEquivalent(left.replyHandler, right.replyHandler) &&
+		left.status === right.status &&
+		left.canonicalOperationId === right.canonicalOperationId
+	);
+}
+
+function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (Object.is(left, right)) {
+		return true;
+	}
+	if (typeof left !== typeof right) {
+		return false;
+	}
+	if (left === null || right === null || left === undefined || right === undefined) {
+		return false;
+	}
+	if (typeof left !== "object" || typeof right !== "object") {
+		return false;
+	}
+	if (Array.isArray(left) || Array.isArray(right)) {
+		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+			return false;
+		}
+		for (let index = 0; index < left.length; index += 1) {
+			if (!areJsonLikeValuesEquivalent(left[index], right[index])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	const leftEntries = Object.entries(left);
+	const rightRecord = right as Record<string, unknown>;
+	if (leftEntries.length !== Object.keys(rightRecord).length) {
+		return false;
+	}
+	for (const [key, value] of leftEntries) {
+		if (!areJsonLikeValuesEquivalent(value, rightRecord[key])) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function toInteractionToolReference(
