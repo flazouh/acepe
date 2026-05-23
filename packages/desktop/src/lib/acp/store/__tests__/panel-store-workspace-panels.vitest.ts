@@ -129,6 +129,21 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.focusedPanelId).toBe(filePanel.id);
 	});
 
+	it("stores file panel target location metadata", () => {
+		const store = createStore();
+
+		const filePanel = store.openFilePanel("src/main.ts", "/tmp/project", {
+			targetLine: 12,
+			targetColumn: 4,
+		});
+
+		expect(filePanel).toMatchObject({
+			filePath: "src/main.ts",
+			targetLine: 12,
+			targetColumn: 4,
+		});
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 

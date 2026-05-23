@@ -13,9 +13,18 @@ describe("file panel ownership helpers", () => {
 	});
 
 	it("normalizes object options", () => {
-		expect(normalizeOpenFilePanelOptions({ ownerPanelId: "panel-1", width: 700 })).toEqual({
+		expect(
+			normalizeOpenFilePanelOptions({
+				ownerPanelId: "panel-1",
+				width: 700,
+				targetLine: 12,
+				targetColumn: 4,
+			})
+		).toEqual({
 			ownerPanelId: "panel-1",
 			width: 700,
+			targetLine: 12,
+			targetColumn: 4,
 		});
 	});
 

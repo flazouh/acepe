@@ -164,7 +164,7 @@ import {
 	scheduleCheckpointReloadAfterRevert,
 	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
-import { normalizeToProjectRelativePath } from "../../messages/logic/file-chip-diff-enhancer.js";
+import { resolveProjectFileReference } from "../../messages/logic/file-chip-diff-enhancer.js";
 
 // Canonical-to-presentation turn state mapping is provided by the shared logic module
 // (mapCanonicalTurnStateToPresentationStatus) imported above.
@@ -2199,8 +2199,14 @@ function handleToolFileSelect(event: AgentToolFileSelectEvent): void {
 		return;
 	}
 
-	const relativePath = normalizeToProjectRelativePath(event.filePath, projectPath);
-	panelStore.openFilePanel(relativePath, projectPath, { ownerPanelId: effectivePanelId });
+	const fileReference = resolveProjectFileReference(event.filePath, projectPath);
+	panelStore.openFilePanel(fileReference.filePath, projectPath, {
+		ownerPanelId: effectivePanelId,
+		...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
+		...(fileReference.targetColumn !== undefined
+			? { targetColumn: fileReference.targetColumn }
+			: {}),
+	});
 }
 
 function findPermissionForPlanAction(event: AgentPanelPlanActionEvent) {

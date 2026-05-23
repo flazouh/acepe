@@ -1429,6 +1429,12 @@ export class PanelStore {
 			filePath,
 			projectPath,
 			ownerPanelId,
+			...(normalizedOptions?.targetLine !== undefined
+				? { targetLine: normalizedOptions.targetLine }
+				: {}),
+			...(normalizedOptions?.targetColumn !== undefined
+				? { targetColumn: normalizedOptions.targetColumn }
+				: {}),
 			width:
 				normalizedOptions?.width ??
 				(ownerPanelId !== null ? DEFAULT_ATTACHED_FILE_PANEL_WIDTH : DEFAULT_FILE_PANEL_WIDTH),

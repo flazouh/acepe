@@ -10,7 +10,7 @@
 		DEFAULT_STREAMING_ANIMATION_MODE,
 		type StreamingAnimationMode,
 	} from "../../types/streaming-animation-mode.js";
-	import { normalizeToProjectRelativePath } from "./logic/file-chip-diff-enhancer.js";
+	import { resolveProjectFileReference } from "./logic/file-chip-diff-enhancer.js";
 
 	interface Props {
 		text: string;
@@ -50,8 +50,14 @@
 			return;
 		}
 
-		const relativePath = normalizeToProjectRelativePath(filePath, projectPath);
-		panelStore.openFilePanel(relativePath, projectPath, { ownerPanelId });
+		const fileReference = resolveProjectFileReference(filePath, projectPath);
+		panelStore.openFilePanel(fileReference.filePath, projectPath, {
+			ownerPanelId,
+			...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
+			...(fileReference.targetColumn !== undefined
+				? { targetColumn: fileReference.targetColumn }
+				: {}),
+		});
 	}
 </script>
 

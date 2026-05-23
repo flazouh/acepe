@@ -4,6 +4,7 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 import {
 	normalizeToProjectRelativePath,
+	resolveProjectFileReference,
 	resolveDiffStatsForFilePath,
 } from "../file-chip-diff-enhancer.js";
 
@@ -47,6 +48,19 @@ describe("normalizeToProjectRelativePath", () => {
 				"/Users/example/Documents/acepe/packages/desktop"
 			)
 		).toBe("src/lib/file.ts");
+	});
+
+	it("splits line and column references before opening a project file", () => {
+		expect(
+			resolveProjectFileReference(
+				"/Users/example/Documents/acepe/packages/desktop/src/lib/file.ts:12:4",
+				"/Users/example/Documents/acepe/packages/desktop"
+			)
+		).toEqual({
+			filePath: "src/lib/file.ts",
+			targetLine: 12,
+			targetColumn: 4,
+		});
 	});
 });
 
@@ -142,5 +156,13 @@ describe("resolveDiffStatsForFilePath", () => {
 		});
 
 		expect(stats).toEqual({ insertions: 4, deletions: 1 });
+	});
+
+	it("matches diff stats for file references with line numbers", () => {
+		const stats = resolveDiffStatsForFilePath("src/lib/file.ts:12", {
+			sessionState: createSessionState("src/lib/file.ts", 2, 1),
+		});
+
+		expect(stats).toEqual({ insertions: 2, deletions: 1 });
 	});
 });

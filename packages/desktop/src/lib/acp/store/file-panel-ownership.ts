@@ -3,6 +3,8 @@ import type { FilePanel } from "./file-panel-type.js";
 export type OpenFilePanelOptions = {
 	ownerPanelId?: string;
 	width?: number;
+	targetLine?: number;
+	targetColumn?: number;
 };
 
 export function normalizeOpenFilePanelOptions(

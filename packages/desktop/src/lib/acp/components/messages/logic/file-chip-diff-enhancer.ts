@@ -12,6 +12,14 @@ export type DiffStats = {
 	deletions: number;
 };
 
+export type ProjectFileReference = {
+	filePath: string;
+	targetLine?: number;
+	targetColumn?: number;
+};
+
+const FILE_REFERENCE_LOCATION_PATTERN = /^(?<path>.+?):(?<line>\d+)(?::(?<column>\d+))?$/u;
+
 /**
  * Resolves a file path to a project-relative path.
  */
@@ -33,14 +41,51 @@ export function normalizeToProjectRelativePath(filePath: string, projectPath: st
 	return pathWithoutLeadingSlash;
 }
 
-function collectCandidatePaths(filePath: string, projectPath?: string): ReadonlyArray<string> {
-	const candidates = new Set<string>([filePath]);
+export function parseProjectFileReference(fileReference: string): ProjectFileReference {
+	const match = FILE_REFERENCE_LOCATION_PATTERN.exec(fileReference);
+	if (!match?.groups?.path || !match.groups.line) {
+		return { filePath: fileReference };
+	}
 
-	const trimmed = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+	const targetLine = Number.parseInt(match.groups.line, 10);
+	const targetColumn =
+		match.groups.column === undefined ? undefined : Number.parseInt(match.groups.column, 10);
+
+	if (targetLine < 1 || (targetColumn !== undefined && targetColumn < 1)) {
+		return { filePath: fileReference };
+	}
+
+	return {
+		filePath: match.groups.path,
+		targetLine,
+		targetColumn,
+	};
+}
+
+export function resolveProjectFileReference(
+	fileReference: string,
+	projectPath: string
+): ProjectFileReference {
+	const parsed = parseProjectFileReference(fileReference);
+	return {
+		filePath: normalizeToProjectRelativePath(parsed.filePath, projectPath),
+		targetLine: parsed.targetLine,
+		targetColumn: parsed.targetColumn,
+	};
+}
+
+function collectCandidatePaths(filePath: string, projectPath?: string): ReadonlyArray<string> {
+	const parsed = parseProjectFileReference(filePath);
+	const normalizedFilePath = parsed.filePath;
+	const candidates = new Set<string>([normalizedFilePath]);
+
+	const trimmed = normalizedFilePath.startsWith("/")
+		? normalizedFilePath.slice(1)
+		: normalizedFilePath;
 	candidates.add(trimmed);
 
 	if (projectPath) {
-		const relativePath = normalizeToProjectRelativePath(filePath, projectPath);
+		const relativePath = normalizeToProjectRelativePath(normalizedFilePath, projectPath);
 		candidates.add(relativePath);
 		candidates.add(relativePath.startsWith("/") ? relativePath.slice(1) : relativePath);
 		candidates.add(`${projectPath}/${relativePath}`);

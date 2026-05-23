@@ -6,7 +6,7 @@ import type { UserMessage } from "../../types/user-message.js";
 import MessageInputContainer from "../message-input-container.svelte";
 import CommandOutputCard from "./command-output-card.svelte";
 import ContentBlockRouter from "./content-block-router.svelte";
-import { normalizeToProjectRelativePath } from "./logic/file-chip-diff-enhancer.js";
+import { resolveProjectFileReference } from "./logic/file-chip-diff-enhancer.js";
 import { buildUserMessageDisplayState } from "./user-message-state.js";
 
 let {
@@ -25,8 +25,14 @@ const messageState = $derived(buildUserMessageDisplayState(message));
 
 function handleTokenClick(tokenType: string, value: string) {
 	if ((tokenType === "file" || tokenType === "image") && projectPath) {
-		const relativePath = normalizeToProjectRelativePath(value, projectPath);
-		panelStore.openFilePanel(relativePath, projectPath, { ownerPanelId });
+		const fileReference = resolveProjectFileReference(value, projectPath);
+		panelStore.openFilePanel(fileReference.filePath, projectPath, {
+			ownerPanelId,
+			...(fileReference.targetLine !== undefined ? { targetLine: fileReference.targetLine } : {}),
+			...(fileReference.targetColumn !== undefined
+				? { targetColumn: fileReference.targetColumn }
+				: {}),
+		});
 	}
 }
 </script>
