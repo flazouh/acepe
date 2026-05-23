@@ -777,6 +777,74 @@ describe("OperationStore", () => {
 		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
 	});
 
+	it("preserves modified files state when a parent gains a non-edit child", () => {
+		const operationStore = new OperationStore();
+		const taskOperationId = buildCanonicalOperationId("session-1", "task-1");
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+		const executeOperationId = buildCanonicalOperationId("session-1", "execute-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: taskOperationId,
+				tool_call_id: "task-1",
+				kind: "task",
+				child_tool_call_ids: ["edit-1"],
+				child_operation_ids: [editOperationId],
+			}),
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				parent_tool_call_id: "task-1",
+				parent_operation_id: taskOperationId,
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+
+		const firstState = operationStore.getSessionModifiedFilesState("session-1");
+		expect(firstState?.fileCount).toBe(1);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: taskOperationId,
+				tool_call_id: "task-1",
+				kind: "task",
+				child_tool_call_ids: ["edit-1", "execute-1"],
+				child_operation_ids: [editOperationId, executeOperationId],
+			}),
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "execute-1",
+				kind: "execute",
+				parent_tool_call_id: "task-1",
+				parent_operation_id: taskOperationId,
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				result: "done",
+			}),
+		]);
+
+		const originalGetSessionToolCalls = operationStore.getSessionToolCalls;
+		operationStore.getSessionToolCalls = () => {
+			throw new Error("modified files state should ignore non-edit child appends");
+		};
+
+		expect(operationStore.getSessionModifiedFilesState("session-1")).toBe(firstState);
+		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
+	});
+
 	it("builds modified files state without materializing every session tool call", () => {
 		const operationStore = new OperationStore();
 		const executeOperationId = buildCanonicalOperationId("session-1", "execute-1");

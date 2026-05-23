@@ -385,8 +385,11 @@ export class OperationStore {
 		let shouldRecomputeRootOperationIds = false;
 		let shouldRecomputeLastRootOperation = false;
 		let shouldRecomputeLastTodoOperation = false;
-		for (const snapshot of snapshots) {
-			const operation = this.operationFromSnapshot(snapshot);
+		const incomingOperations = snapshots.map((snapshot) => this.operationFromSnapshot(snapshot));
+		const incomingOperationsById = new Map(
+			incomingOperations.map((operation) => [operation.id, operation])
+		);
+		for (const operation of incomingOperations) {
 			const existingOperation = this.operationsById.get(operation.id);
 			if (existingOperation !== undefined && areOperationsEquivalent(existingOperation, operation)) {
 				continue;
@@ -400,7 +403,12 @@ export class OperationStore {
 				cachedModifiedFilesState?.version === previousVersion &&
 				(existingOperation === undefined
 					? operationCanAffectModifiedFiles(operation)
-					: !areModifiedFileInputsEquivalent(existingOperation, operation))
+					: !areModifiedFileInputsEquivalent(
+							existingOperation,
+							operation,
+							this.operationsById,
+							incomingOperationsById
+						))
 			) {
 				canPreserveModifiedFilesState = false;
 			}
@@ -1156,18 +1164,70 @@ function areOperationsEquivalent(left: Operation, right: Operation): boolean {
 	);
 }
 
-function areModifiedFileInputsEquivalent(left: Operation, right: Operation): boolean {
+function areModifiedFileInputsEquivalent(
+	left: Operation,
+	right: Operation,
+	operationsById: ReadonlyMap<string, Operation>,
+	incomingOperationsById: ReadonlyMap<string, Operation>
+): boolean {
 	return (
 		left.toolCallId === right.toolCallId &&
 		left.kind === right.kind &&
 		areJsonLikeValuesEquivalent(left.arguments, right.arguments) &&
 		left.parentOperationId === right.parentOperationId &&
-		areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds)
+		(areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds) ||
+			childOperationChangesCannotAffectModifiedFiles(
+				left.childOperationIds,
+				right.childOperationIds,
+				operationsById,
+				incomingOperationsById
+			))
 	);
 }
 
 function operationCanAffectModifiedFiles(operation: Operation): boolean {
 	return operation.kind === "edit" || operation.childOperationIds.length > 0;
+}
+
+function childOperationChangesCannotAffectModifiedFiles(
+	leftChildOperationIds: readonly string[],
+	rightChildOperationIds: readonly string[],
+	operationsById: ReadonlyMap<string, Operation>,
+	incomingOperationsById: ReadonlyMap<string, Operation>
+): boolean {
+	const leftChildOperationIdSet = new Set(leftChildOperationIds);
+	const rightChildOperationIdSet = new Set(rightChildOperationIds);
+	let changedChildMembership = false;
+	for (const childOperationId of leftChildOperationIdSet) {
+		if (!rightChildOperationIdSet.has(childOperationId)) {
+			changedChildMembership = true;
+			if (
+				operationIdCanAffectModifiedFiles(childOperationId, operationsById, incomingOperationsById)
+			) {
+				return false;
+			}
+		}
+	}
+	for (const childOperationId of rightChildOperationIdSet) {
+		if (!leftChildOperationIdSet.has(childOperationId)) {
+			changedChildMembership = true;
+			if (
+				operationIdCanAffectModifiedFiles(childOperationId, operationsById, incomingOperationsById)
+			) {
+				return false;
+			}
+		}
+	}
+	return changedChildMembership;
+}
+
+function operationIdCanAffectModifiedFiles(
+	operationId: string,
+	operationsById: ReadonlyMap<string, Operation>,
+	incomingOperationsById: ReadonlyMap<string, Operation>
+): boolean {
+	const operation = incomingOperationsById.get(operationId) ?? operationsById.get(operationId);
+	return operation === undefined || operationCanAffectModifiedFiles(operation);
 }
 
 function operationHasTodos(operation: Operation): boolean {
