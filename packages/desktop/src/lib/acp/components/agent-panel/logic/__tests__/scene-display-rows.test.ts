@@ -140,6 +140,22 @@ describe("scene-display-rows", () => {
 		expect(secondRows).toBe(firstRows);
 	});
 
+	it("selects the latest row timestamp from snapshots and append patches", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		readModel.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 10 },
+			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 20 },
+		]);
+
+		expect(readModel.selectLatestTimestampMs()).toBe(20);
+
+		readModel.applyAppendPatch([
+			{ id: "assistant-2", type: "assistant", markdown: "Second", timestampMs: 30 },
+		]);
+
+		expect(readModel.selectLatestTimestampMs()).toBe(30);
+	});
+
 	it("uses append-only updates when prior scene entries keep their identity", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstUser = {

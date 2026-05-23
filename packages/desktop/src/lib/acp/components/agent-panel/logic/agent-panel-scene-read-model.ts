@@ -14,6 +14,7 @@ import type { SceneDisplayRow } from "./scene-display-rows.js";
 export type AgentPanelSceneReadModelSnapshot = {
 	readonly rows: readonly SceneDisplayRow[];
 	readonly entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>;
+	readonly latestRowTimestampMs: number | null;
 };
 
 export interface AgentPanelSceneReadModel {
@@ -38,6 +39,7 @@ export function createAgentPanelSceneReadModel(input?: {
 	let previousSnapshot: AgentPanelSceneReadModelSnapshot = {
 		rows: rows.selectRows(),
 		entriesById: entryIndex.selectIndex(),
+		latestRowTimestampMs: rows.selectLatestTimestampMs(),
 	};
 
 	return {
@@ -54,9 +56,11 @@ export function createAgentPanelSceneReadModel(input?: {
 		selectSnapshot() {
 			const nextRows = rows.selectRows();
 			const nextEntriesById = entryIndex.selectIndex();
+			const nextLatestRowTimestampMs = rows.selectLatestTimestampMs();
 			if (
 				previousSnapshot.rows === nextRows &&
-				previousSnapshot.entriesById === nextEntriesById
+				previousSnapshot.entriesById === nextEntriesById &&
+				previousSnapshot.latestRowTimestampMs === nextLatestRowTimestampMs
 			) {
 				return previousSnapshot;
 			}
@@ -64,6 +68,7 @@ export function createAgentPanelSceneReadModel(input?: {
 			previousSnapshot = {
 				rows: nextRows,
 				entriesById: nextEntriesById,
+				latestRowTimestampMs: nextLatestRowTimestampMs,
 			};
 			return previousSnapshot;
 		},

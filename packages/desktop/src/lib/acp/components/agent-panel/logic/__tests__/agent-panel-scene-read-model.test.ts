@@ -11,13 +11,14 @@ describe("createAgentPanelSceneReadModel", () => {
 			id: "user-1",
 			type: "user",
 			text: "Prompt",
+			timestampMs: 10,
 		};
 		const assistantEntry: AgentPanelSceneEntryModel = {
 			id: "assistant-1",
 			type: "assistant",
 			markdown: "Answer",
+			timestampMs: 20,
 		};
-
 		const entries = [userEntry, assistantEntry];
 
 		const snapshot = readModel.applySnapshot(entries);
@@ -26,6 +27,7 @@ describe("createAgentPanelSceneReadModel", () => {
 			"user-1",
 			"assistant-1",
 		]);
+		expect(snapshot.latestRowTimestampMs).toBe(20);
 		expect(snapshot.entriesById.get("user-1")).toBe(userEntry);
 		expect(snapshot.entriesById.get("assistant-1")).toBe(assistantEntry);
 		expect(readModel.selectGraphEntryForDisplayEntry(snapshot.rows[0])).toBe(userEntry);
@@ -51,6 +53,7 @@ describe("createAgentPanelSceneReadModel", () => {
 			id: "assistant-2",
 			type: "assistant",
 			markdown: "Second",
+			timestampMs: 30,
 		};
 		const toolEntry: AgentPanelSceneEntryModel = {
 			id: "tool-1",
@@ -63,6 +66,7 @@ describe("createAgentPanelSceneReadModel", () => {
 		const patchedSnapshot = readModel.applyAppendPatch([nextAssistantEntry, toolEntry]);
 
 		expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+		expect(patchedSnapshot.latestRowTimestampMs).toBe(30);
 		expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
 			"user-1",
 			"assistant-1",

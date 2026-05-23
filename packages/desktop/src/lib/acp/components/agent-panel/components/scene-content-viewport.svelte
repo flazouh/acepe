@@ -24,7 +24,6 @@ import { getSessionStore } from "../../../store/session-store.svelte.js";
 import { createAgentPanelSceneReadModel } from "../logic/agent-panel-scene-read-model.js";
 import {
 	getSceneDisplayRowKey,
-	getSceneDisplayRowTimestampMs,
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
@@ -426,24 +425,9 @@ function getAttachedPermissionForEntry(
 // ===== DISPLAY ENTRIES =====
 const mergedEntries = $derived(agentPanelSceneSnapshot.rows);
 
-const thinkingIndicatorStartedAtMs = $derived.by(() => {
-	if (!isWaitingForResponse) {
-		return null;
-	}
-
-	for (let index = mergedEntries.length - 1; index >= 0; index -= 1) {
-		const entry = mergedEntries[index];
-		if (!entry) {
-			continue;
-		}
-		const timestampMs = getSceneDisplayRowTimestampMs(entry);
-		if (timestampMs !== null) {
-			return timestampMs;
-		}
-	}
-
-	return null;
-});
+const thinkingIndicatorStartedAtMs = $derived(
+	isWaitingForResponse ? agentPanelSceneSnapshot.latestRowTimestampMs : null
+);
 // Avoid spread-based allocation on every streaming update — reuse the merged
 // reference directly when no thinking indicator is needed. When waiting, pre-allocate
 // the result array to the known size rather than using concat/spread.
