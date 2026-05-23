@@ -15,6 +15,7 @@ import {
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
 	getAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
@@ -152,6 +153,58 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		return previousRows;
 	}
 
+	function applyGraphSceneSplice(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const splicePatch = getAgentPanelSceneEntryArraySplicePatch(sceneEntries);
+		if (
+			splicePatch === undefined ||
+			splicePatch.baseSceneEntries !== previousSceneEntries ||
+			splicePatch.startIndex < 0 ||
+			splicePatch.startIndex > splicePatch.baseSceneEntries.length ||
+			sceneEntries.length !==
+				splicePatch.startIndex +
+					splicePatch.insertedEntries.length +
+					splicePatch.trailingEntries.length
+		) {
+			return null;
+		}
+		baseRowsBeforeTokenReveal = null;
+		const firstChangedRowIndex = findFirstSpliceRowIndex(
+			splicePatch.baseSceneEntries,
+			previousRows,
+			rowIndexBySceneEntryId,
+			splicePatch.startIndex
+		);
+		if (firstChangedRowIndex === null) {
+			return null;
+		}
+		for (
+			let index = splicePatch.startIndex;
+			index < splicePatch.baseSceneEntries.length;
+			index += 1
+		) {
+			const entry = splicePatch.baseSceneEntries[index];
+			if (entry !== undefined) {
+				rowIndexBySceneEntryId.delete(entry.id);
+			}
+		}
+		const rows = appendSceneDisplayRowsFromIndex(
+			createTruncatedSceneDisplayRowsArray(previousRows, firstChangedRowIndex),
+			sceneEntries,
+			splicePatch.startIndex
+		);
+		previousRows = rows;
+		latestTimestampMs = selectLatestTimestampMsFrom(
+			previousRows,
+			firstChangedRowIndex,
+			latestTimestampMs
+		);
+		previousSceneEntries = sceneEntries;
+		indexRowsBySceneEntryId(rowIndexBySceneEntryId, previousRows, firstChangedRowIndex);
+		return previousRows;
+	}
+
 	function applyDisplayScenePatch(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): readonly SceneDisplayRow[] | null {
@@ -244,6 +297,11 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			const truncationRows = applyGraphSceneTruncation(sceneEntries);
 			if (truncationRows !== null) {
 				return truncationRows;
+			}
+
+			const spliceRows = applyGraphSceneSplice(sceneEntries);
+			if (spliceRows !== null) {
+				return spliceRows;
 			}
 
 			if (
@@ -359,6 +417,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
 				applyGraphSceneTruncation(sceneEntries) ??
+				applyGraphSceneSplice(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);
@@ -370,6 +429,31 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return latestTimestampMs;
 		},
 	};
+}
+
+function findFirstSpliceRowIndex(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: ReadonlyMap<string, number>,
+	startIndex: number
+): number | null {
+	if (startIndex === 0) {
+		return 0;
+	}
+	if (startIndex >= previousSceneEntries.length) {
+		return previousRows.length;
+	}
+	for (let index = startIndex; index < previousSceneEntries.length; index += 1) {
+		const entry = previousSceneEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
+		const rowIndex = rowIndexBySceneEntryId.get(entry.id);
+		if (rowIndex !== undefined) {
+			return rowIndex;
+		}
+	}
+	return previousRows.length;
 }
 
 function createPatchedSceneDisplayRowArray(

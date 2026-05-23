@@ -12,6 +12,7 @@ import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-mode
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArraySplicePatch,
 	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
@@ -324,6 +325,69 @@ describe("createAgentPanelSceneReadModel", () => {
 			expect(truncatedSnapshot.rows[1]).toBe(firstSnapshot.rows[1]);
 			expect(truncatedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
 			expect(truncatedSnapshot.entriesById.has("interaction:question-1")).toBe(false);
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
+	});
+
+	it("applies marked scene splice patches without checking the preserved scene prefix", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const oldInteractionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:old-question",
+			type: "tool_call",
+			interactionId: "old-question",
+			title: "Old question",
+			status: "running",
+		};
+		const nextInteractionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:next-question",
+			type: "tool_call",
+			interactionId: "next-question",
+			title: "Next question",
+			status: "running",
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, oldInteractionEntry];
+		const firstSnapshot = readModel.applySnapshot(baseEntries);
+		const nextEntries = [userEntry, nextInteractionEntry];
+		markAgentPanelSceneEntryArraySplicePatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			startIndex: 1,
+			insertedEntries: [nextInteractionEntry],
+			trailingEntries: [],
+		});
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan preserved scene entries for splice patch");
+			},
+		});
+
+		try {
+			const patchedSnapshot = readModel.applyPatch(nextEntries);
+
+			expect(patchedSnapshot).not.toBeNull();
+			if (patchedSnapshot === null) {
+				return;
+			}
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"interaction:next-question",
+			]);
+			expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+			expect(patchedSnapshot.entriesById.has("interaction:old-question")).toBe(false);
+			expect(patchedSnapshot.entriesById.get("interaction:next-question")).toBe(
+				nextInteractionEntry
+			);
 		} finally {
 			Object.defineProperty(baseEntries, "0", {
 				configurable: true,

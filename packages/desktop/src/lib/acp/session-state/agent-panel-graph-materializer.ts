@@ -32,6 +32,7 @@ import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.j
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArraySplicePatch,
 } from "./agent-panel-scene-entry-array-patch.js";
 import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
 import { getOperationSnapshotArrayPatch } from "./operation-snapshot-array-patch.js";
@@ -1557,16 +1558,26 @@ function createInsertedSceneEntryArray(
 	insertedEntries: readonly AgentPanelSceneEntryModel[],
 	trailingEntries: readonly AgentPanelSceneEntryModel[]
 ): readonly AgentPanelSceneEntryModel[] {
-	return createSceneEntryArrayView(insertIndex + insertedEntries.length + trailingEntries.length, (index) => {
-		if (index < insertIndex) {
-			return baseEntries[index];
+	const entries = createSceneEntryArrayView(
+		insertIndex + insertedEntries.length + trailingEntries.length,
+		(index) => {
+			if (index < insertIndex) {
+				return baseEntries[index];
+			}
+			const insertedIndex = index - insertIndex;
+			if (insertedIndex < insertedEntries.length) {
+				return insertedEntries[insertedIndex];
+			}
+			return trailingEntries[insertedIndex - insertedEntries.length];
 		}
-		const insertedIndex = index - insertIndex;
-		if (insertedIndex < insertedEntries.length) {
-			return insertedEntries[insertedIndex];
-		}
-		return trailingEntries[insertedIndex - insertedEntries.length];
+	);
+	markAgentPanelSceneEntryArraySplicePatch(entries, {
+		baseSceneEntries: baseEntries,
+		startIndex: insertIndex,
+		insertedEntries,
+		trailingEntries,
 	});
+	return entries;
 }
 
 function createSceneEntryArrayView(

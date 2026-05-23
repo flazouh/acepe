@@ -13,6 +13,7 @@ import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
 	getAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 
@@ -136,6 +137,42 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			entryIndexesById,
 			truncation.baseSceneEntries,
 			truncation.length
+		);
+		previousSceneEntries = sceneEntries;
+		return entriesById;
+	}
+
+	function applyGraphSceneSplice(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
+		const splicePatch = getAgentPanelSceneEntryArraySplicePatch(sceneEntries);
+		if (
+			splicePatch === undefined ||
+			splicePatch.baseSceneEntries !== previousSceneEntries ||
+			splicePatch.startIndex < 0 ||
+			splicePatch.startIndex > splicePatch.baseSceneEntries.length ||
+			sceneEntries.length !==
+				splicePatch.startIndex +
+					splicePatch.insertedEntries.length +
+					splicePatch.trailingEntries.length
+		) {
+			return null;
+		}
+		baseEntriesByIdBeforeTokenReveal = null;
+		const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+		entriesById = mutableEntriesById;
+		removeTruncatedGraphSceneEntries(
+			mutableEntriesById,
+			entryIndexesById,
+			splicePatch.baseSceneEntries,
+			splicePatch.startIndex
+		);
+		appendGraphSceneEntriesToIndexes(
+			mutableEntriesById,
+			entryIndexesById,
+			sceneEntries,
+			splicePatch.startIndex,
+			splicePatch.startIndex
 		);
 		previousSceneEntries = sceneEntries;
 		return entriesById;
@@ -300,6 +337,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
 				applyGraphSceneTruncation(sceneEntries) ??
+				applyGraphSceneSplice(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);

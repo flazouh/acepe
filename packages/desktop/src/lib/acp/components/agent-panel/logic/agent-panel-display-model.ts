@@ -11,6 +11,7 @@ import type { AgentPanelCanonicalSource } from "../../../session-state/agent-pan
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
 	getAgentPanelSceneEntryArrayTruncation,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	type AgentPanelSceneEntryArrayAppendPatch,
@@ -1516,6 +1517,37 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return true;
 	}
 
+	function applyGraphSceneSpliceIndexes(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): boolean {
+		const splicePatch = getAgentPanelSceneEntryArraySplicePatch(sceneEntries);
+		if (
+			splicePatch === undefined ||
+			splicePatch.baseSceneEntries !== previousSceneEntries ||
+			splicePatch.startIndex < 0 ||
+			splicePatch.startIndex > splicePatch.baseSceneEntries.length ||
+			sceneEntries.length !==
+				splicePatch.startIndex +
+					splicePatch.insertedEntries.length +
+					splicePatch.trailingEntries.length
+		) {
+			return false;
+		}
+		removeTruncatedSceneEntryIndexes(
+			sceneEntryIndexesById,
+			splicePatch.baseSceneEntries,
+			splicePatch.startIndex
+		);
+		appendSceneEntryIndexes(
+			sceneEntryIndexesById,
+			sceneEntries,
+			splicePatch.startIndex,
+			splicePatch.startIndex
+		);
+		previousSceneEntries = sceneEntries;
+		return true;
+	}
+
 	function selectAssistantRows(
 		model: AgentPanelDisplayModel
 	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
@@ -1600,6 +1632,9 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 					);
 				}
 				if (applyGraphSceneTruncationIndexes(sceneEntries)) {
+					return applyDisplaySceneEntries(model, sceneEntries);
+				}
+				if (applyGraphSceneSpliceIndexes(sceneEntries)) {
 					return applyDisplaySceneEntries(model, sceneEntries);
 				}
 				if (

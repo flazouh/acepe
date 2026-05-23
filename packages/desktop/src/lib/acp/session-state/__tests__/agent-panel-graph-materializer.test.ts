@@ -21,6 +21,7 @@ import {
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
 } from "../agent-panel-scene-entry-array-patch.js";
 import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
@@ -859,6 +860,14 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
 		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
 		expect(nextScene.conversation.entries[4]).toBe(firstScene.conversation.entries[3]);
+		expect(
+			getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries)
+		).toMatchObject({
+			baseSceneEntries: firstScene.conversation.entries,
+			startIndex: 3,
+			insertedEntries: [nextScene.conversation.entries[3]],
+			trailingEntries: [firstScene.conversation.entries[3]],
+		});
 		expect(relevantMapSetCount).toBe(3);
 	});
 
