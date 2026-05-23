@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 import type {
 	InteractionSnapshot,
 	SessionGraphActivity,
@@ -9,10 +10,9 @@ import type {
 	SessionStateGraph,
 	TranscriptEntry,
 } from "$lib/services/acp-types.js";
-import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 
-import { SessionStore } from "../session-store.svelte.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
+import { SessionStore } from "../session-store.svelte.js";
 
 function createRevision(graphRevision: number): SessionGraphRevision {
 	return {
@@ -345,6 +345,34 @@ describe("SessionStore canonical projection accessors", () => {
 			currentModeId: "build",
 			connectionError: null,
 			activeTurnFailure: null,
+		});
+		expect(
+			store.getSessionQueuePresentation({
+				sessionId: "session-1",
+				agentId: "codex",
+				projectPath: "/repo",
+				title: "Session",
+				updatedAt: new Date("2026-04-28T00:00:00.000Z"),
+				interactionStore: new InteractionStore(),
+				hasUnseenCompletion: true,
+			})
+		).toMatchObject({
+			session: {
+				id: "session-1",
+				currentModeId: "build",
+				state: {
+					attention: {
+						hasUnseenCompletion: true,
+					},
+				},
+			},
+			hasPendingQuestion: false,
+			hasPendingPermission: false,
+			hasUnseenCompletion: true,
+			pendingQuestionText: null,
+			pendingQuestion: null,
+			pendingPlanApproval: null,
+			pendingPermission: null,
 		});
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();

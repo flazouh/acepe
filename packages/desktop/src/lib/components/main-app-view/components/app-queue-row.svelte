@@ -9,7 +9,6 @@ import {
 	getSessionStore,
 	getUnseenStore,
 } from "$lib/acp/store/index.js";
-import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { SvelteMap } from "svelte/reactivity";
@@ -52,36 +51,17 @@ const queueInputs = $derived.by(() => {
 		const metadata = sessionStore.getSessionMetadata(sessionId);
 		if (!identity || !metadata) continue;
 
-		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
-			identity.id,
-			interactionStore
+		inputs.push(
+			sessionStore.getSessionQueuePresentation({
+				sessionId: identity.id,
+				agentId: identity.agentId,
+				projectPath: identity.projectPath,
+				title: metadata.title,
+				updatedAt: metadata.updatedAt,
+				interactionStore,
+				hasUnseenCompletion: unseenStore.isUnseen(panelId),
+			})
 		);
-		const session = sessionStore.getSessionQueueSnapshot({
-			sessionId: identity.id,
-			agentId: identity.agentId,
-			projectPath: identity.projectPath,
-			title: metadata.title,
-			updatedAt: metadata.updatedAt,
-			interactionStore,
-			hasUnseenCompletion: unseenStore.isUnseen(panelId),
-		});
-		const pendingQuestion = interactionSnapshot.pendingQuestion;
-		const hasPendingQuestion = pendingQuestion !== null;
-		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
-		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
-		const pendingPermission = interactionSnapshot.pendingPermission;
-		const hasPendingPermission = pendingPermission !== null;
-
-		inputs.push({
-			session,
-			hasPendingQuestion,
-			hasPendingPermission,
-			hasUnseenCompletion: session.state.attention.hasUnseenCompletion,
-			pendingQuestionText,
-			pendingQuestion,
-			pendingPlanApproval,
-			pendingPermission,
-		});
 	}
 	return inputs;
 });

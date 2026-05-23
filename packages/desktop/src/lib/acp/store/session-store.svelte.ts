@@ -74,10 +74,8 @@ import {
 	buildSessionOperationInteractionSnapshot,
 	type SessionOperationInteractionSnapshot,
 } from "./operation-association.js";
-import {
-	buildQueueSessionSnapshot,
-	type QueueSessionSnapshot,
-} from "./queue/utils.js";
+import { getPrimaryQuestionText } from "./question-selectors.js";
+import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./queue/utils.js";
 import {
 	deriveLiveSessionLifecyclePresentation,
 	inactiveSessionWorkSourceFromCanonicalProjection,
@@ -154,6 +152,17 @@ type ProjectionTurnFailure = {
 	readonly code?: TurnFailureSnapshot["code"];
 	readonly kind: TurnFailureSnapshot["kind"];
 	readonly source?: TurnFailureSnapshot["source"] | null;
+};
+
+type SessionQueueSnapshotInput = {
+	readonly sessionId: string;
+	readonly agentId: string;
+	readonly projectPath: string;
+	readonly title: string | null;
+	readonly updatedAt: Date;
+	readonly interactionStore: InteractionStore;
+	readonly hasUnseenCompletion: boolean;
+	readonly active?: boolean;
 };
 
 type SessionTransientProjectionUpdates = {
@@ -2601,16 +2610,43 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return inactiveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
 	}
 
-	getSessionQueueSnapshot(input: {
-		readonly sessionId: string;
-		readonly agentId: string;
-		readonly projectPath: string;
-		readonly title: string | null;
-		readonly updatedAt: Date;
-		readonly interactionStore: InteractionStore;
-		readonly hasUnseenCompletion: boolean;
-		readonly active?: boolean;
-	}): QueueSessionSnapshot {
+	getSessionQueueSnapshot(input: SessionQueueSnapshotInput): QueueSessionSnapshot {
+		const interactionSnapshot = this.getSessionOperationInteractionSnapshot(
+			input.sessionId,
+			input.interactionStore
+		);
+		return this.buildSessionQueueSnapshot(input, interactionSnapshot);
+	}
+
+	getSessionQueuePresentation(input: SessionQueueSnapshotInput) {
+		const interactionSnapshot = this.getSessionOperationInteractionSnapshot(
+			input.sessionId,
+			input.interactionStore
+		);
+		const session = this.buildSessionQueueSnapshot(input, interactionSnapshot);
+		const pendingQuestion = interactionSnapshot.pendingQuestion;
+		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
+		const pendingPermission = interactionSnapshot.pendingPermission;
+
+		return {
+			session,
+			hasPendingQuestion: pendingQuestion !== null,
+			hasPendingPermission: pendingPermission !== null,
+			hasUnseenCompletion: session.state.attention.hasUnseenCompletion,
+			pendingQuestionText: getPrimaryQuestionText(pendingQuestion),
+			pendingQuestion,
+			pendingPlanApproval,
+			pendingPermission,
+		};
+	}
+
+	private buildSessionQueueSnapshot(
+		input: SessionQueueSnapshotInput,
+		interactionSnapshot: Pick<
+			SessionOperationInteractionSnapshot,
+			"pendingPlanApproval" | "pendingPermission" | "pendingQuestion"
+		>
+	): QueueSessionSnapshot {
 		const sessionId = input.sessionId;
 		return buildQueueSessionSnapshot({
 			id: sessionId,
@@ -2626,10 +2662,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			connectionError: this.getSessionConnectionError(sessionId),
 			activeTurnFailure: this.getSessionActiveTurnFailure(sessionId),
 			liveSessionSource: this.getSessionLiveWorkSource(sessionId, input.active ?? true),
-			interactionSnapshot: this.getSessionOperationInteractionSnapshot(
-				sessionId,
-				input.interactionStore
-			),
+			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
 		});
 	}

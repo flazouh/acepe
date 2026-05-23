@@ -44,12 +44,8 @@ import {
 import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
 import type { SessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
-import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
-import {
-	buildQueueItem,
-	calculateSessionUrgency,
-} from "$lib/acp/store/queue/utils.js";
+import { buildQueueItem, calculateSessionUrgency } from "$lib/acp/store/queue/utils.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
 	ThreadBoardItem,
@@ -226,13 +222,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 
 		const identity = sessionStore.getSessionIdentity(sessionId);
 		const metadata = sessionStore.getSessionMetadata(sessionId);
-		const interactionSnapshot = sessionStore.getSessionOperationInteractionSnapshot(
-			sessionId,
-			interactionStore
-		);
-		const pendingQuestion = interactionSnapshot.pendingQuestion;
-		const pendingPlanApproval = interactionSnapshot.pendingPlanApproval;
-		const pendingPermission = interactionSnapshot.pendingPermission;
 		const sessionProjectPath = identity ? identity.projectPath : panel.projectPath;
 		const sessionAgentId = identity ? identity.agentId : panel.agentId;
 
@@ -240,10 +229,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			continue;
 		}
 
-		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
-		const hasPendingQuestion = pendingQuestion !== null;
-		const hasPendingPermission = pendingPermission !== null;
-		const snapshot = sessionStore.getSessionQueueSnapshot({
+		const presentation = sessionStore.getSessionQueuePresentation({
 			sessionId,
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
@@ -252,17 +238,22 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			interactionStore,
 			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
 		});
+		const snapshot = presentation.session;
 		const queueItem = buildQueueItem(
 			snapshot,
 			panel.id,
-			calculateSessionUrgency(snapshot, hasPendingQuestion, pendingQuestionText),
-			hasPendingQuestion,
-			hasPendingPermission,
+			calculateSessionUrgency(
+				snapshot,
+				presentation.hasPendingQuestion,
+				presentation.pendingQuestionText
+			),
+			presentation.hasPendingQuestion,
+			presentation.hasPendingPermission,
 			snapshot.state.attention.hasUnseenCompletion,
-			pendingQuestionText,
-			pendingQuestion,
-			pendingPlanApproval,
-			pendingPermission,
+			presentation.pendingQuestionText,
+			presentation.pendingQuestion,
+			presentation.pendingPlanApproval,
+			presentation.pendingPermission,
 			(projectPath) => {
 				const projectColor = projectColorsByPath.get(projectPath);
 				return projectColor ? projectColor : null;
