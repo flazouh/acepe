@@ -63,8 +63,11 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				snapshot.sourceEntry,
 				snapshot.tokenRevealCss
 			);
-			const nextEntries = snapshot.sceneEntries.slice();
-			nextEntries[tokenRevealEntryIndex] = tokenRevealEntry;
+			const nextEntries = createPatchedSceneEntryArray(
+				snapshot.sceneEntries,
+				tokenRevealEntryIndex,
+				tokenRevealEntry
+			);
 			tokenRevealScenePatches.set(nextEntries, {
 				baseSceneEntries: snapshot.sceneEntries,
 				entry: tokenRevealEntry,
@@ -83,6 +86,82 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			return previousTimings;
 		},
 	};
+}
+
+function createPatchedSceneEntryArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	patchedIndex: number,
+	patchedEntry: AgentPanelSceneEntryModel
+): readonly AgentPanelSceneEntryModel[] {
+	const target = new Array<AgentPanelSceneEntryModel>(baseEntries.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < baseEntries.length; index += 1) {
+						yield index === patchedIndex ? patchedEntry : baseEntries[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === patchedIndex ? patchedEntry : baseEntries[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+				if (property === "at") {
+					return (index: number) => {
+						const resolvedIndex = index < 0 ? baseEntries.length + index : index;
+						if (resolvedIndex < 0 || resolvedIndex >= baseEntries.length) {
+							return undefined;
+						}
+						return resolvedIndex === patchedIndex ? patchedEntry : baseEntries[resolvedIndex];
+					};
+				}
+			}
+			if (property === "length") {
+				return baseEntries.length;
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < baseEntries.length;
+			}
+			return property in targetArray;
+		},
+		ownKeys() {
+			return Reflect.ownKeys(baseEntries);
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < baseEntries.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === patchedIndex ? patchedEntry : baseEntries[index],
+					writable: false,
+				};
+			}
+			return (
+				Reflect.getOwnPropertyDescriptor(baseEntries, property) ??
+				Reflect.getOwnPropertyDescriptor(targetArray, property)
+			);
+		},
+	});
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 function isSameTokenRevealSnapshot(

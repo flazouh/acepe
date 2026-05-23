@@ -80,6 +80,61 @@ describe("createTokenRevealSceneReadModel", () => {
 		]);
 	});
 
+	it("overlays the reveal row without slicing the whole scene array", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const sceneEntries = [userEntry, assistantEntry];
+		const originalSlice = sceneEntries.slice;
+		const tokenRevealCss = createTokenRevealCss();
+
+		sceneEntries.slice = () => {
+			throw new Error("must not slice whole scene entries");
+		};
+
+		try {
+			const selectedEntries = readModel.applySnapshot({
+				sceneEntries,
+				sourceEntry: assistantEntry,
+				tailRowId: "assistant-1",
+				tokenRevealCss,
+			});
+
+			expect(Array.isArray(selectedEntries)).toBe(true);
+			expect(selectedEntries.length).toBe(2);
+			expect(selectedEntries[0]).toBe(userEntry);
+			expect(selectedEntries[1]).not.toBe(assistantEntry);
+			expect(selectedEntries[1]).toMatchObject({
+				id: "assistant-1",
+				tokenRevealCss,
+			});
+			expect([...selectedEntries][0]).toBe(userEntry);
+			expect([...selectedEntries][1]).toMatchObject({
+				id: "assistant-1",
+				tokenRevealCss,
+			});
+			expect(selectedEntries.slice()[1]).toMatchObject({
+				id: "assistant-1",
+				tokenRevealCss,
+			});
+			expect(selectedEntries.at(1)).toMatchObject({
+				id: "assistant-1",
+				tokenRevealCss,
+			});
+		} finally {
+			sceneEntries.slice = originalSlice;
+		}
+	});
+
 	it("memoizes identical snapshots", () => {
 		const readModel = createTokenRevealSceneReadModel();
 		const assistantEntry: AgentPanelSceneEntryModel = {
