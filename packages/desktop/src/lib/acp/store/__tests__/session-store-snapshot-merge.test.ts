@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { InteractionSnapshot, OperationSnapshot } from "../../../services/acp-types.js";
+import { getOperationSnapshotArrayPatch } from "../../session-state/operation-snapshot-array-patch.js";
 import {
 	mergeInteractionSnapshots,
 	mergeOperationSnapshots,
@@ -89,6 +90,29 @@ describe("session-state snapshot merges", () => {
 		expect(next).not.toBe(current);
 		expect(next[0]).toBe(firstOperation);
 		expect(next[1]).toBe(patchedOperation);
+	});
+
+	it("carries operation patch metadata for downstream read models", () => {
+		const firstOperation = createOperationSnapshot({ id: "op-1" });
+		const secondOperation = createOperationSnapshot({ id: "op-2", tool_call_id: "tool-2" });
+		const patchedOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+			provider_status: "completed",
+			operation_state: "completed",
+		});
+		const appendedOperation = createOperationSnapshot({
+			id: "op-3",
+			tool_call_id: "tool-3",
+		});
+		const current = [firstOperation, secondOperation];
+
+		const next = mergeOperationSnapshots(current, [patchedOperation, appendedOperation]);
+		const patch = getOperationSnapshotArrayPatch(next);
+
+		expect(patch?.baseOperations).toBe(current);
+		expect(patch?.patchedOperationsByIndex?.get(1)).toBe(patchedOperation);
+		expect(patch?.appendedOperations).toEqual([appendedOperation]);
 	});
 
 	it("patches operation arrays without slicing the whole snapshot list", () => {

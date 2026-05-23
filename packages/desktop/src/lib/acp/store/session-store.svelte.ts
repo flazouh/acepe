@@ -53,6 +53,7 @@ import {
 	agentPanelCanonicalSourceFromGraph,
 	type AgentPanelCanonicalSource,
 } from "../session-state/agent-panel-canonical-source.js";
+import { markOperationSnapshotArrayPatch } from "../session-state/operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../session-state/transcript-entry-array-patch.js";
 import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import type { AvailableCommand } from "../types/available-command.js";
@@ -207,6 +208,16 @@ const interactionSnapshotIndexes = new WeakMap<
 const transcriptEntryIndexes = new WeakMap<
 	readonly TranscriptEntry[],
 	ReadonlyMap<string, number>
+>();
+
+type MergedSnapshotArrayPatch<TSnapshot extends SnapshotWithId> = {
+	readonly patchedIndexes: ReadonlyMap<number, TSnapshot> | null;
+	readonly appendedSnapshots: readonly TSnapshot[] | null;
+};
+
+const mergedSnapshotArrayPatches = new WeakMap<
+	readonly SnapshotWithId[],
+	MergedSnapshotArrayPatch<SnapshotWithId>
 >();
 
 function resolveContextBudget(
@@ -498,7 +509,7 @@ function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
 ): TSnapshot[] {
 	const appended = appendedSnapshots ?? [];
 	const target = new Array<TSnapshot>(base.length + appended.length);
-	return new Proxy(target, {
+	const snapshots = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -540,6 +551,16 @@ function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	mergedSnapshotArrayPatches.set(snapshots, { patchedIndexes, appendedSnapshots });
+	return snapshots;
+}
+
+function getMergedSnapshotArrayPatch<TSnapshot extends SnapshotWithId>(
+	snapshots: readonly TSnapshot[]
+): MergedSnapshotArrayPatch<TSnapshot> | undefined {
+	return mergedSnapshotArrayPatches.get(snapshots) as
+		| MergedSnapshotArrayPatch<TSnapshot>
+		| undefined;
 }
 
 function selectMergedSnapshot<TSnapshot extends SnapshotWithId>(
@@ -566,7 +587,18 @@ export function mergeOperationSnapshots(
 	current: readonly OperationSnapshot[],
 	patches: readonly OperationSnapshot[]
 ): OperationSnapshot[] {
-	return mergeSnapshotsById(current, patches, operationSnapshotIndexes);
+	const next = mergeSnapshotsById(current, patches, operationSnapshotIndexes);
+	if (next !== current) {
+		const patch = getMergedSnapshotArrayPatch(next);
+		if (patch !== undefined) {
+			markOperationSnapshotArrayPatch(next, {
+				baseOperations: current,
+				patchedOperationsByIndex: patch.patchedIndexes,
+				appendedOperations: patch.appendedSnapshots,
+			});
+		}
+	}
+	return next;
 }
 
 export function mergeInteractionSnapshots(

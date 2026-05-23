@@ -18,6 +18,7 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
+import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
 
 function createActionability(): SessionGraphActionability {
@@ -508,6 +509,84 @@ describe("agent panel graph materializer", () => {
 		});
 
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
+	it("applies marked operation patches without scanning unchanged operations", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run first"),
+			createTranscriptEntry("tool-2", "tool", "Run second"),
+		]);
+		const firstOperation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+		});
+		const secondOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+			source_link: { kind: "transcript_linked", entry_id: "tool-2" },
+			result: null,
+			operation_state: "running",
+		});
+		const operations = [firstOperation, secondOperation];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const patchedSecondOperation = {
+			...secondOperation,
+			result: { stdout: "done", stderr: null, exitCode: 0 },
+			operation_state: "completed" as const,
+		};
+		const nextOperations = [firstOperation, patchedSecondOperation];
+		markOperationSnapshotArrayPatch(nextOperations, {
+			baseOperations: operations,
+			patchedOperationsByIndex: new Map([[1, patchedSecondOperation]]),
+			appendedOperations: null,
+		});
+		Object.defineProperty(operations, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged operation rows for an operation patch");
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					operations: nextOperations,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+			expect(nextScene.conversation.entries[1]).toMatchObject({
+				id: "tool-2",
+				type: "tool_call",
+				stdout: "done",
+			});
+		} finally {
+			Object.defineProperty(operations, "0", {
+				configurable: true,
+				value: firstOperation,
+			});
+		}
 	});
 
 	it("appends transcript rows without rebuilding existing conversation rows", () => {

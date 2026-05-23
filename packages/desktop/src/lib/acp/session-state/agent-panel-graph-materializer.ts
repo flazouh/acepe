@@ -30,6 +30,7 @@ import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import { markAgentPanelSceneEntryArrayPatch } from "./agent-panel-scene-entry-array-patch.js";
+import { getOperationSnapshotArrayPatch } from "./operation-snapshot-array-patch.js";
 import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
 
 const TRUNCATION_SUFFIX = "\n[truncated]";
@@ -1577,6 +1578,16 @@ function applyOperationIndexPatch(
 		return null;
 	}
 
+	const operationArrayPatch = getOperationSnapshotArrayPatch(nextOperations);
+	if (operationArrayPatch?.baseOperations === previousOperations) {
+		return applyMarkedOperationIndexPatch(
+			previousOperations,
+			previousIndex,
+			operationArrayPatch.patchedOperationsByIndex,
+			operationArrayPatch.appendedOperations
+		);
+	}
+
 	let operationIndex: OperationIndex | null = null;
 	const changedOperationIds = new Set<string>();
 
@@ -1605,6 +1616,45 @@ function applyOperationIndexPatch(
 			if (operation === undefined) {
 				return null;
 			}
+			addOperationToIndex(operationIndex, operation);
+			changedOperationIds.add(operation.id);
+		}
+	}
+
+	return {
+		operationIndex: operationIndex ?? previousIndex,
+		changedOperationIds,
+	};
+}
+
+function applyMarkedOperationIndexPatch(
+	previousOperations: readonly OperationSnapshot[],
+	previousIndex: OperationIndex,
+	patchedOperationsByIndex: ReadonlyMap<number, OperationSnapshot> | null,
+	appendedOperations: readonly OperationSnapshot[] | null
+): { operationIndex: OperationIndex; changedOperationIds: Set<string> } | null {
+	let operationIndex: OperationIndex | null = null;
+	const changedOperationIds = new Set<string>();
+
+	if (patchedOperationsByIndex !== null) {
+		for (const [index, nextOperation] of patchedOperationsByIndex) {
+			const previousOperation = previousOperations[index];
+			if (previousOperation === undefined || previousOperation.id !== nextOperation.id) {
+				return null;
+			}
+			if (previousOperation === nextOperation) {
+				continue;
+			}
+
+			operationIndex ??= cloneOperationIndex(previousIndex);
+			replaceOperationInIndex(operationIndex, previousOperation, nextOperation);
+			changedOperationIds.add(nextOperation.id);
+		}
+	}
+
+	if (appendedOperations !== null && appendedOperations.length > 0) {
+		operationIndex ??= cloneOperationIndex(previousIndex);
+		for (const operation of appendedOperations) {
 			addOperationToIndex(operationIndex, operation);
 			changedOperationIds.add(operation.id);
 		}
