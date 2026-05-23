@@ -256,6 +256,9 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			) {
 				return null;
 			}
+			if (areDisplayRowsEquivalent(previousRow, nextRow)) {
+				continue;
+			}
 			rowPatches.set(rowIndex, nextRow);
 			if (nextRow.type === "assistant" && nextRow.isLiveTail) {
 				nextLiveTailRowIds.add(nextRow.id);
@@ -728,6 +731,27 @@ function isDisplaySceneEntryStable(
 	}
 	if (previous.type === "assistant" && next.type === "assistant") {
 		return previous.markdown === next.markdown && previous.isStreaming === next.isStreaming;
+	}
+	return false;
+}
+
+function areDisplayRowsEquivalent(
+	left: AgentPanelDisplayRow,
+	right: AgentPanelDisplayRow
+): boolean {
+	if (left.type !== right.type || left.id !== right.id) {
+		return false;
+	}
+	if (left.type === "user" && right.type === "user") {
+		return left.text === right.text && left.isOptimistic === right.isOptimistic;
+	}
+	if (left.type === "assistant" && right.type === "assistant") {
+		return (
+			left.canonicalText === right.canonicalText &&
+			left.displayText === right.displayText &&
+			left.canonicalTextRevision === right.canonicalTextRevision &&
+			left.isLiveTail === right.isLiveTail
+		);
 	}
 	return false;
 }

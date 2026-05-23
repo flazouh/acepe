@@ -1653,6 +1653,51 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
+	it("skips marked display row rewrites when a graph patch keeps the same display row", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: false,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 2,
+		});
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: false,
+		};
+		const patchedEntries = [userEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextAssistantEntry],
+			entriesByIndex: new Map([[1, nextAssistantEntry]]),
+		});
+
+		const nextProjection = readModel.applyPatch({
+			sceneEntries: patchedEntries,
+			transcriptRevision: 2,
+		});
+
+		expect(nextProjection).not.toBeNull();
+		if (nextProjection === null) {
+			return;
+		}
+		expect(nextProjection).toBe(firstProjection);
+		expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(nextProjection.rows[1]).toBe(firstProjection.rows[1]);
+	});
+
 	it("applies marked assistant graph patches without rebuilding display rows", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
