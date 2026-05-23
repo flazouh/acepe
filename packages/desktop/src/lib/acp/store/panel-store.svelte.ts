@@ -153,6 +153,23 @@ function areTerminalPanelGroupListsEqual(
 	);
 }
 
+function areWorkspacePanelListsEqual(
+	left: readonly WorkspacePanel[],
+	right: readonly WorkspacePanel[]
+): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		(panel, index) =>
+			panel.id === right[index]?.id &&
+			panel.kind === right[index]?.kind &&
+			panel.projectPath === right[index]?.projectPath &&
+			panel.ownerPanelId === right[index]?.ownerPanelId &&
+			panel.width === right[index]?.width
+	);
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -177,6 +194,7 @@ export class PanelStore {
 	private latestLiveSessionSignals = new SvelteMap<string, string>();
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
 	private filePanelsByProject = new SvelteMap<string, FilePanel[]>();
+	private topLevelWorkspacePanelList = $state<WorkspacePanel[]>([]);
 	private topLevelFilePanelsList = $state<FilePanel[]>([]);
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
@@ -234,7 +252,7 @@ export class PanelStore {
 			return this.focusedPanelId;
 		}
 
-		const firstTopLevelPanel = this.getTopLevelWorkspacePanels()[0];
+		const firstTopLevelPanel = this.getFirstTopLevelPanel();
 		return firstTopLevelPanel ? firstTopLevelPanel.id : null;
 	}
 
@@ -585,7 +603,15 @@ export class PanelStore {
 		nextPanels: readonly WorkspacePanel[]
 	): void {
 		const remainingPanels = this.workspacePanels.filter((panel) => panel.kind !== kind);
-		this.workspacePanels = Array.from(nextPanels).concat(remainingPanels);
+		this.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
+	}
+
+	private setWorkspacePanels(nextPanels: readonly WorkspacePanel[]): void {
+		this.workspacePanels = Array.from(nextPanels);
+		const topLevelPanels = this.workspacePanels.filter((panel) => this.isTopLevelWorkspacePanel(panel));
+		if (!areWorkspacePanelListsEqual(this.topLevelWorkspacePanelList, topLevelPanels)) {
+			this.topLevelWorkspacePanelList = topLevelPanels;
+		}
 	}
 
 	removeWorkspacePanelsForProject(projectPath: string): void {
@@ -610,7 +636,7 @@ export class PanelStore {
 		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
 		this.syncFilePanelIndexes(nextFilePanels);
 		this.syncBrowserPanelIndexes(nextBrowserPanels);
-		this.workspacePanels = nextWorkspacePanels;
+		this.setWorkspacePanels(nextWorkspacePanels);
 	}
 
 	private isTopLevelWorkspacePanel(panel: WorkspacePanel): boolean {
@@ -635,7 +661,11 @@ export class PanelStore {
 	}
 
 	private getTopLevelWorkspacePanels(): WorkspacePanel[] {
-		return this.workspacePanels.filter((panel) => this.isTopLevelWorkspacePanel(panel));
+		return this.topLevelWorkspacePanelList;
+	}
+
+	getFirstTopLevelPanel(): WorkspacePanel | undefined {
+		return this.topLevelWorkspacePanelList[0];
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {
@@ -1976,7 +2006,7 @@ export class PanelStore {
 			nextWorkspacePanels.push(this.createTerminalWorkspacePanel(group));
 		}
 
-		this.workspacePanels = nextWorkspacePanels;
+		this.setWorkspacePanels(nextWorkspacePanels);
 	}
 
 	private getAllTerminalPanelGroups(): TerminalPanelGroup[] {

@@ -157,6 +157,7 @@ describe("PanelStore workspacePanels", () => {
 			"file",
 			"terminal",
 		]);
+		expect(store.getFirstTopLevelPanel()?.kind).toBe("browser");
 	});
 
 	it("removes project workspace panels through indexed store state", () => {

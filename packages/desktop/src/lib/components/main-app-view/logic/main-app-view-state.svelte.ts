@@ -194,9 +194,7 @@ export class MainAppViewState {
 			return focusedPanelId;
 		}
 
-		const firstTopLevelPanel = this.panelStore.workspacePanels.find(
-			(panel) => panel.kind === "agent" || panel.ownerPanelId === null
-		);
+		const firstTopLevelPanel = this.panelStore.getFirstTopLevelPanel();
 		return firstTopLevelPanel ? firstTopLevelPanel.id : null;
 	}
 

@@ -120,6 +120,7 @@ function createState(options?: {
 					? terminalPanel
 					: undefined
 		),
+		getFirstTopLevelPanel: vi.fn(() => agentPanel),
 		getPanel: vi.fn((panelId: string) =>
 			panelId === "panel-1" ? { id: "panel-1", reviewMode: false } : undefined
 		),

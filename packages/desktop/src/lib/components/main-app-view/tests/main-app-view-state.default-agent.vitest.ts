@@ -74,6 +74,7 @@ function createState(options: {
 		switchFullscreen: vi.fn(),
 		focusPanel: vi.fn(),
 		getTopLevelPanel: vi.fn(),
+		getFirstTopLevelPanel: vi.fn(() => undefined),
 		getPanel: vi.fn(),
 		panels: [],
 	} as unknown as PanelStore;
