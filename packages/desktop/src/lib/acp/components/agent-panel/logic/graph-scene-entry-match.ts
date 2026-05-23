@@ -382,11 +382,12 @@ function patchSameLengthGraphSceneEntrySet(
 ): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
 	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
 	for (const [entryIndex, patchedEntry] of patchedEntriesByIndex) {
-		if (
-			!entriesById.has(patchedEntry.id) ||
-			entryIndexesById.get(patchedEntry.id) !== entryIndex
-		) {
+		const currentIndexedEntry = entriesById.get(patchedEntry.id);
+		if (currentIndexedEntry === undefined || entryIndexesById.get(patchedEntry.id) !== entryIndex) {
 			return null;
+		}
+		if (areJsonLikeValuesEquivalent(currentIndexedEntry, patchedEntry)) {
+			continue;
 		}
 		if (!(entriesById instanceof Map)) {
 			continue;
@@ -419,6 +420,10 @@ function patchSameLengthGraphSceneEntries(
 			!entriesById.has(nextEntry.id)
 		) {
 			return null;
+		}
+		const currentIndexedEntry = entriesById.get(nextEntry.id);
+		if (currentIndexedEntry !== undefined && areJsonLikeValuesEquivalent(currentIndexedEntry, nextEntry)) {
+			continue;
 		}
 		mutableEntriesById ??= ensureMutableSceneEntryMap(entriesById);
 		mutableEntriesById.set(nextEntry.id, nextEntry);
@@ -694,4 +699,34 @@ function appendGraphSceneEntryIndexes(
 			entryIndexesById.set(sceneEntry.id, startIndex + sceneEntryIndex);
 		}
 	}
+}
+
+function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (Object.is(left, right)) {
+		return true;
+	}
+	if (typeof left !== typeof right) {
+		return false;
+	}
+	if (left === null || right === null) {
+		return false;
+	}
+	if (typeof left !== "object" || typeof right !== "object") {
+		return false;
+	}
+	if (Array.isArray(left) || Array.isArray(right)) {
+		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+			return false;
+		}
+		return left.every((item, index) => areJsonLikeValuesEquivalent(item, right[index]));
+	}
+
+	const leftEntries = Object.entries(left);
+	const rightRecord = right as Record<string, unknown>;
+	if (leftEntries.length !== Object.keys(rightRecord).length) {
+		return false;
+	}
+	return leftEntries.every(([key, value]) =>
+		areJsonLikeValuesEquivalent(value, rightRecord[key])
+	);
 }

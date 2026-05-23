@@ -271,6 +271,48 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(nextIndex.get("tool-1")).toBe(changedEntry);
 	});
 
+	it("skips same-length index writes for content-equivalent scene entries", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const firstEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run first command",
+			status: "pending",
+		};
+		const firstIndex = readModel.applySnapshot([firstEntry]);
+		const originalMapSet = Map.prototype.set;
+
+		Map.prototype.set = function patchedMapSet<K, V>(this: Map<K, V>, key: K, value: V): Map<K, V> {
+			if (
+				typeof key === "string" &&
+				key === "tool-1" &&
+				typeof value === "object" &&
+				value !== null &&
+				"id" in value &&
+				this.has("tool-1" as K)
+			) {
+				throw new Error("must not rewrite content-equivalent scene entries");
+			}
+			return originalMapSet.call(this, key, value);
+		};
+
+		try {
+			const nextIndex = readModel.applySnapshot([
+				{
+					id: "tool-1",
+					type: "tool_call",
+					title: "Run first command",
+					status: "pending",
+				},
+			]);
+
+			expect(nextIndex).toBe(firstIndex);
+			expect(nextIndex.get("tool-1")).toBe(firstEntry);
+		} finally {
+			Map.prototype.set = originalMapSet;
+		}
+	});
+
 	it("patches stable middle insertions without rebuilding the graph entry index", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
