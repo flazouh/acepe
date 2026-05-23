@@ -17,6 +17,23 @@ export function isStableSceneEntryAppend(
 	return true;
 }
 
+export function isStableSceneEntryTruncation(
+	previous: readonly AgentPanelSceneEntryModel[],
+	next: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (next.length >= previous.length) {
+		return false;
+	}
+
+	for (let index = 0; index < next.length; index += 1) {
+		if (!isSceneEntryStable(previous[index], next[index])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 export function isSceneEntryStable(
 	previous: AgentPanelSceneEntryModel | undefined,
 	next: AgentPanelSceneEntryModel | undefined

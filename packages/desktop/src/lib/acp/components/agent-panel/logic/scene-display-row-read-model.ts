@@ -7,7 +7,10 @@ import {
 	getSceneDisplayRowTimestampMs,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
-import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
+import {
+	isStableSceneEntryAppend,
+	isStableSceneEntryTruncation,
+} from "./scene-entry-stability.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export interface SceneDisplayRowsReadModel {
@@ -82,6 +85,24 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				return previousRows;
 			}
 
+			if (
+				previousSceneEntries !== null &&
+				isStableSceneEntryTruncation(previousSceneEntries, sceneEntries)
+			) {
+				const truncatedRows = truncateStableSceneDisplayRows(
+					previousSceneEntries,
+					sceneEntries,
+					previousRows,
+					rowIndexBySceneEntryId
+				);
+				if (truncatedRows !== null) {
+					previousRows = truncatedRows;
+					latestTimestampMs = selectLatestTimestampMsFrom(previousRows, 0);
+					previousSceneEntries = sceneEntries;
+					return previousRows;
+				}
+			}
+
 			const patchedRows =
 				previousSceneEntries !== null
 					? patchSameLengthSceneDisplayRows(
@@ -134,6 +155,50 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return this.applySnapshot(sceneEntries);
 		},
 	};
+}
+
+function truncateStableSceneDisplayRows(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: Map<string, number>
+): readonly SceneDisplayRow[] | null {
+	const removedEntryIds = new Set<string>();
+	let firstRemovedRowIndex = Number.POSITIVE_INFINITY;
+	for (let index = sceneEntries.length; index < previousSceneEntries.length; index += 1) {
+		const entry = previousSceneEntries[index];
+		if (entry === undefined) {
+			return null;
+		}
+		const rowIndex = rowIndexBySceneEntryId.get(entry.id);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		removedEntryIds.add(entry.id);
+		firstRemovedRowIndex = Math.min(firstRemovedRowIndex, rowIndex);
+	}
+
+	if (!Number.isFinite(firstRemovedRowIndex)) {
+		return previousRows;
+	}
+
+	for (let rowIndex = firstRemovedRowIndex; rowIndex < previousRows.length; rowIndex += 1) {
+		const row = previousRows[rowIndex];
+		if (
+			row === undefined ||
+			row.type === "assistant_merged" ||
+			row.type === "thinking" ||
+			row.type === "missing" ||
+			!removedEntryIds.has(getSceneDisplayRowKey(row))
+		) {
+			return null;
+		}
+	}
+
+	for (const entryId of removedEntryIds) {
+		rowIndexBySceneEntryId.delete(entryId);
+	}
+	return previousRows.slice(0, firstRemovedRowIndex);
 }
 
 function patchSameLengthSceneDisplayRows(

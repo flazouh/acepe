@@ -81,4 +81,41 @@ describe("createAgentPanelSceneReadModel", () => {
 		expect(readModel.selectSnapshot()).toBe(patchedSnapshot);
 		expect(readModel.applyAppendPatch([])).toBe(patchedSnapshot);
 	});
+
+	it("applies stable tail truncation without rebuilding preserved rows or index maps", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const interactionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:question-1",
+			type: "tool_call",
+			interactionId: "question-1",
+			title: "Question",
+			status: "running",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, toolEntry, interactionEntry]);
+
+		const truncatedSnapshot = readModel.applySnapshot([userEntry, toolEntry]);
+
+		expect(truncatedSnapshot.rows).toHaveLength(2);
+		expect(truncatedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+		expect(truncatedSnapshot.rows[1]).toBe(firstSnapshot.rows[1]);
+		expect(truncatedSnapshot.latestRowTimestampMs).toBe(10);
+		expect(truncatedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+		expect(truncatedSnapshot.entriesById.has("interaction:question-1")).toBe(false);
+		expect(truncatedSnapshot.entriesById.get("tool-1")).toBe(toolEntry);
+		expect(readModel.selectGraphEntryForDisplayEntry(truncatedSnapshot.rows[1])).toBe(
+			toolEntry
+		);
+	});
 });
