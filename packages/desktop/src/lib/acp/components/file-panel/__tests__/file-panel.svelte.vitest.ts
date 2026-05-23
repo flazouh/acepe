@@ -280,4 +280,89 @@ describe("FilePanel", () => {
 			});
 		}
 	});
+
+	it("does not load modified-file gutter diffs while a markdown file stays in rendered mode", async () => {
+		const idleCallbacks: Array<() => void> = [];
+		const originalRequestIdleCallback = globalThis.requestIdleCallback;
+		const originalCancelIdleCallback = globalThis.cancelIdleCallback;
+		const requestIdleCallbackMock = vi.fn((callback: IdleRequestCallback) => {
+			idleCallbacks.push(() =>
+				callback({
+					didTimeout: false,
+					timeRemaining: () => 50,
+				})
+			);
+			return idleCallbacks.length;
+		}) as unknown as typeof globalThis.requestIdleCallback;
+		const cancelIdleCallbackMock = vi.fn();
+		Object.defineProperty(globalThis, "requestIdleCallback", {
+			configurable: true,
+			writable: true,
+			value: requestIdleCallbackMock,
+		});
+		Object.defineProperty(globalThis, "cancelIdleCallback", {
+			configurable: true,
+			writable: true,
+			value: cancelIdleCallbackMock,
+		});
+
+		getProjectFileGitStatusSummaryMock.mockReturnValue({
+			match: (
+				onOk: (fileStatus: {
+					path: string;
+					status: string;
+					insertions: number;
+					deletions: number;
+				}) => void
+			) => {
+				onOk({
+					path: "docs/readme.md",
+					status: "M",
+					insertions: 5,
+					deletions: 1,
+				});
+				return Promise.resolve();
+			},
+		});
+
+		try {
+			render(FilePanel, {
+				panelId: "panel-1",
+				filePath: "/repo/docs/readme.md",
+				projectPath: "/repo",
+				projectName: "repo",
+				projectColor: "#123456",
+				width: 420,
+				onClose: vi.fn(),
+				onResize: vi.fn(),
+			});
+
+			await waitFor(() => {
+				expect(idleCallbacks.length).toBeGreaterThanOrEqual(1);
+				expect(getFileContentMock).toHaveBeenCalledWith("/repo/docs/readme.md", "/repo");
+			});
+
+			idleCallbacks.shift()?.();
+			await waitFor(() => {
+				expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith(
+					"/repo",
+					"/repo/docs/readme.md"
+				);
+			});
+
+			expect(getFileDiffMock).not.toHaveBeenCalled();
+			expect(idleCallbacks).toHaveLength(0);
+		} finally {
+			Object.defineProperty(globalThis, "requestIdleCallback", {
+				configurable: true,
+				writable: true,
+				value: originalRequestIdleCallback,
+			});
+			Object.defineProperty(globalThis, "cancelIdleCallback", {
+				configurable: true,
+				writable: true,
+				value: originalCancelIdleCallback,
+			});
+		}
+	});
 });

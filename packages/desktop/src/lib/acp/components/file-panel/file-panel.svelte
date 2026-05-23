@@ -219,6 +219,12 @@ $effect(() => {
 	const currentProjectPath = projectPath;
 	const currentGitStatus = gitStatus;
 	const currentContent = content;
+	const currentDisplayMode = displayMode;
+
+	if (currentDisplayMode !== "raw") {
+		gitGutterInput = null;
+		return;
+	}
 
 	const gutterAction = resolveFilePanelGutterAction({
 		content: currentContent,
