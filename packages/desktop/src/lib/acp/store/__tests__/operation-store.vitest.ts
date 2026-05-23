@@ -696,6 +696,49 @@ describe("OperationStore", () => {
 		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
 	});
 
+	it("builds modified files state without materializing every session tool call", () => {
+		const operationStore = new OperationStore();
+		const executeOperationId = buildCanonicalOperationId("session-1", "execute-1");
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "execute-1",
+				kind: "execute",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				result: "done",
+			}),
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+		operationStore.getSessionToolCalls = () => {
+			throw new Error("modified files state must not materialize every session tool call");
+		};
+
+		const state = operationStore.getSessionModifiedFilesState("session-1");
+
+		expect(state?.fileCount).toBe(1);
+		expect(state?.byPath.get("src/app.ts")?.fileName).toBe("app.ts");
+	});
+
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
 

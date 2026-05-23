@@ -161,7 +161,7 @@ export class OperationStore {
 			return cached.state;
 		}
 
-		const toolCalls = this.getSessionToolCalls(sessionId);
+		const toolCalls = this.getSessionModifiedFileToolCalls(sessionId);
 		if (toolCalls.length === 0) {
 			this.modifiedFilesStateBySession.set(sessionId, { version, state: null });
 			return null;
@@ -685,6 +685,22 @@ export class OperationStore {
 
 		this.lastTodoOperationIdBySession.delete(sessionId);
 		return null;
+	}
+
+	private getSessionModifiedFileToolCalls(sessionId: string): Array<ToolCall> {
+		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
+		const toolCalls: Array<ToolCall> = [];
+		for (const operationId of operationIds) {
+			const operation = this.operationsById.get(operationId);
+			if (operation === undefined || !operationCanAffectModifiedFiles(operation)) {
+				continue;
+			}
+			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
+			if (toolCall !== null) {
+				toolCalls.push(toolCall);
+			}
+		}
+		return toolCalls;
 	}
 
 	private materializeToolCall(operationId: string, visited: Set<string>): ToolCall | null {
