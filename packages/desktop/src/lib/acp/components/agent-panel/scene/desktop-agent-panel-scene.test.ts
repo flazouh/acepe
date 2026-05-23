@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { SessionPlanResponse } from "../../../../services/claude-history.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
-import type { FilePanel } from "../../../store/file-panel-type.js";
 import {
 	buildDesktopAgentPanelScene,
 	buildDesktopComposerModel,
@@ -1157,17 +1156,6 @@ describe("desktop agent panel scene adapter", () => {
 			filePath: "/tmp/jwt-migration.md",
 		};
 
-		const filePanels: FilePanel[] = [
-			{
-				id: "panel-1",
-				kind: "file",
-				filePath: "src/lib/auth/jwt.ts",
-				projectPath: "/repo",
-				ownerPanelId: "agent-panel-1",
-				width: 480,
-			},
-		];
-
 		const composer = buildDesktopComposerModel({
 			draftText: "Continue with refresh token rotation",
 			placeholder: "Ask the agent to continue…",
@@ -1207,8 +1195,6 @@ describe("desktop agent panel scene adapter", () => {
 			},
 			plan,
 			showPlanSidebar: false,
-			attachedFilePanels: filePanels,
-			activeAttachedFilePanelId: "panel-1",
 			prCard: {
 				description: "Ready for review",
 				filesChanged: 3,
@@ -1220,10 +1206,6 @@ describe("desktop agent panel scene adapter", () => {
 		expect(scene.status).toBe("connected");
 		expect(scene.composer?.selectedModel?.label).toBe("Claude Sonnet 4.5");
 		expect(scene.sidebars?.plan).toBeNull();
-		expect(scene.sidebars?.attachedFiles?.tabs[0]?.title).toBe("jwt.ts");
-		expect(scene.sidebars?.attachedFiles?.tabs[0]?.selectActionId).toBe(
-			"attachment.selectTab:panel-1"
-		);
 		expect(scene.strips?.some((strip) => strip.kind === "plan_header")).toBe(true);
 		expect(scene.strips?.some((strip) => strip.kind === "modified_files")).toBe(true);
 		expect(scene.cards?.some((card) => card.kind === "pr_status")).toBe(true);

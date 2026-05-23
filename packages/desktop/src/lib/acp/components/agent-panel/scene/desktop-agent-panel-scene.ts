@@ -21,7 +21,6 @@ import type { JsonValue } from "../../../../services/converted-session-types.js"
 import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import { formatOtherToolName } from "../../../registry/index.js";
-import type { FilePanel } from "../../../store/file-panel-type.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type {
@@ -111,8 +110,6 @@ export interface BuildDesktopAgentPanelSceneOptions {
 	modifiedFilesState?: ModifiedFilesState | null;
 	plan?: SessionPlanResponse | null;
 	showPlanSidebar?: boolean;
-	attachedFilePanels?: readonly FilePanel[];
-	activeAttachedFilePanelId?: string | null;
 	prCard?: DesktopPrCardInput | null;
 	worktreeCard?: DesktopWorktreeCardInput | null;
 	installCard?: DesktopInstallCardInput | null;
@@ -1406,41 +1403,6 @@ export function buildDesktopPlanSidebar(
 	};
 }
 
-export function buildDesktopAttachedFilesSidebar(
-	panels: readonly FilePanel[] | undefined,
-	activeFilePanelId: string | null | undefined
-) {
-	if (!panels || panels.length === 0) {
-		return null;
-	}
-
-	const actions: AgentPanelActionDescriptor[] = [];
-
-	return {
-		tabs: panels.map((panel) => {
-			const segments = panel.filePath.split("/");
-			const title = segments[segments.length - 1] ?? panel.filePath;
-			return {
-				id: panel.id,
-				title,
-				path: panel.filePath,
-				language: null,
-				contentPreview: null,
-				isActive: panel.id === activeFilePanelId,
-				selectActionId: createAttachmentScopedActionId(
-					AGENT_PANEL_ACTION_IDS.attachment.selectTab,
-					panel.id
-				),
-				closeActionId: createAttachmentScopedActionId(
-					AGENT_PANEL_ACTION_IDS.attachment.closeTab,
-					panel.id
-				),
-			};
-		}),
-		actions,
-	};
-}
-
 export function buildDesktopComposerModel(input: DesktopComposerInput): AgentPanelComposerModel {
 	const attachments = input.attachments
 		? input.attachments.map((attachment) => {
@@ -1731,10 +1693,6 @@ export function buildDesktopAgentPanelScene(
 
 	const sidebars: AgentPanelSidebarModel = {
 		plan: options.showPlanSidebar ? buildDesktopPlanSidebar(options.plan) : null,
-		attachedFiles: buildDesktopAttachedFilesSidebar(
-			options.attachedFilePanels,
-			options.activeAttachedFilePanelId
-		),
 	};
 
 	return {
