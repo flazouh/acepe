@@ -275,13 +275,29 @@ export class InteractionStore {
 		if (existing !== undefined && arePermissionRequestsEquivalent(existing, permission)) {
 			return;
 		}
-		this.deletePendingPermission(interactionId);
+		if (existing !== undefined) {
+			deleteSessionIndexEntry(
+				this.pendingPermissionsBySession,
+				existing.sessionId,
+				interactionId
+			);
+			removeCachedSessionIndexValue(
+				this.pendingPermissionValuesBySession,
+				existing.sessionId,
+				(candidate) => candidate.id === interactionId
+			);
+		}
 		this.permissionsPending.set(interactionId, permission);
 		getOrCreateSessionIndex(this.pendingPermissionsBySession, permission.sessionId).set(
 			interactionId,
 			permission
 		);
-		this.pendingPermissionValuesBySession.delete(permission.sessionId);
+		upsertCachedSessionIndexValue(
+			this.pendingPermissionValuesBySession,
+			permission.sessionId,
+			permission,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private deletePendingPermission(interactionId: string): void {
@@ -295,7 +311,11 @@ export class InteractionStore {
 			existing.sessionId,
 			interactionId
 		);
-		this.pendingPermissionValuesBySession.delete(existing.sessionId);
+		removeCachedSessionIndexValue(
+			this.pendingPermissionValuesBySession,
+			existing.sessionId,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private setPendingQuestion(interactionId: string, question: QuestionRequest): void {
@@ -303,13 +323,25 @@ export class InteractionStore {
 		if (existing !== undefined && areQuestionRequestsEquivalent(existing, question)) {
 			return;
 		}
-		this.deletePendingQuestion(interactionId);
+		if (existing !== undefined) {
+			deleteSessionIndexEntry(this.pendingQuestionsBySession, existing.sessionId, interactionId);
+			removeCachedSessionIndexValue(
+				this.pendingQuestionValuesBySession,
+				existing.sessionId,
+				(candidate) => candidate.id === interactionId
+			);
+		}
 		this.questionsPending.set(interactionId, question);
 		getOrCreateSessionIndex(this.pendingQuestionsBySession, question.sessionId).set(
 			interactionId,
 			question
 		);
-		this.pendingQuestionValuesBySession.delete(question.sessionId);
+		upsertCachedSessionIndexValue(
+			this.pendingQuestionValuesBySession,
+			question.sessionId,
+			question,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private deletePendingQuestion(interactionId: string): void {
@@ -319,7 +351,11 @@ export class InteractionStore {
 		}
 		this.questionsPending.delete(interactionId);
 		deleteSessionIndexEntry(this.pendingQuestionsBySession, existing.sessionId, interactionId);
-		this.pendingQuestionValuesBySession.delete(existing.sessionId);
+		removeCachedSessionIndexValue(
+			this.pendingQuestionValuesBySession,
+			existing.sessionId,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private setPendingPlanApproval(
@@ -330,13 +366,29 @@ export class InteractionStore {
 		if (existing !== undefined && arePlanApprovalsEquivalent(existing, approval)) {
 			return;
 		}
-		this.deletePendingPlanApproval(interactionId);
+		if (existing !== undefined) {
+			deleteSessionIndexEntry(
+				this.pendingPlanApprovalsBySession,
+				existing.sessionId,
+				interactionId
+			);
+			removeCachedSessionIndexValue(
+				this.pendingPlanApprovalValuesBySession,
+				existing.sessionId,
+				(candidate) => candidate.id === interactionId
+			);
+		}
 		this.planApprovalsPending.set(interactionId, approval);
 		getOrCreateSessionIndex(this.pendingPlanApprovalsBySession, approval.sessionId).set(
 			interactionId,
 			approval
 		);
-		this.pendingPlanApprovalValuesBySession.delete(approval.sessionId);
+		upsertCachedSessionIndexValue(
+			this.pendingPlanApprovalValuesBySession,
+			approval.sessionId,
+			approval,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private deletePendingPlanApproval(interactionId: string): void {
@@ -350,7 +402,11 @@ export class InteractionStore {
 			existing.sessionId,
 			interactionId
 		);
-		this.pendingPlanApprovalValuesBySession.delete(existing.sessionId);
+		removeCachedSessionIndexValue(
+			this.pendingPlanApprovalValuesBySession,
+			existing.sessionId,
+			(candidate) => candidate.id === interactionId
+		);
 	}
 
 	private buildQuestionRequest(
@@ -409,6 +465,152 @@ function readSessionIndexValues<T>(
 	const values = Array.from(sessionIndex.values());
 	valuesBySession.set(sessionId, values);
 	return values;
+}
+
+function upsertCachedSessionIndexValue<T>(
+	valuesBySession: Map<string, readonly T[]>,
+	sessionId: string,
+	value: T,
+	matches: (candidate: T) => boolean
+): void {
+	const cached = valuesBySession.get(sessionId);
+	if (cached === undefined) {
+		return;
+	}
+
+	for (let index = 0; index < cached.length; index += 1) {
+		const candidate = cached[index];
+		if (candidate !== undefined && matches(candidate)) {
+			valuesBySession.set(sessionId, createPatchedSessionIndexValues(cached, index, value));
+			return;
+		}
+	}
+
+	valuesBySession.set(sessionId, createAppendedSessionIndexValues(cached, value));
+}
+
+function removeCachedSessionIndexValue<T>(
+	valuesBySession: Map<string, readonly T[]>,
+	sessionId: string,
+	matches: (candidate: T) => boolean
+): void {
+	const cached = valuesBySession.get(sessionId);
+	if (cached === undefined) {
+		return;
+	}
+
+	let removedIndex: number | null = null;
+	for (let index = 0; index < cached.length; index += 1) {
+		const candidate = cached[index];
+		if (candidate !== undefined && matches(candidate)) {
+			removedIndex = index;
+			break;
+		}
+	}
+
+	if (removedIndex === null) {
+		return;
+	}
+	if (cached.length === 1) {
+		valuesBySession.delete(sessionId);
+		return;
+	}
+
+	valuesBySession.set(sessionId, createRemovedSessionIndexValues(cached, removedIndex));
+}
+
+function createPatchedSessionIndexValues<T>(
+	base: readonly T[],
+	patchedIndex: number,
+	value: T
+): readonly T[] {
+	return createSessionIndexValuesView(base.length, (index) =>
+		index === patchedIndex ? value : base[index]
+	);
+}
+
+function createAppendedSessionIndexValues<T>(base: readonly T[], value: T): readonly T[] {
+	return createSessionIndexValuesView(base.length + 1, (index) =>
+		index === base.length ? value : base[index]
+	);
+}
+
+function createRemovedSessionIndexValues<T>(
+	base: readonly T[],
+	removedIndex: number
+): readonly T[] {
+	return createSessionIndexValuesView(base.length - 1, (index) =>
+		base[index < removedIndex ? index : index + 1]
+	);
+}
+
+function createSessionIndexValuesView<T>(
+	length: number,
+	selectValue: (index: number) => T | undefined
+): readonly T[] {
+	const target = new Array<T>(length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectValue(index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectValue(index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectValue(index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	});
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
+}
+
+function createArrayLikeOwnKeys(length: number): string[] {
+	const keys: string[] = [];
+	for (let index = 0; index < length; index += 1) {
+		keys.push(String(index));
+	}
+	keys.push("length");
+	return keys;
 }
 
 function arePermissionRequestsEquivalent(

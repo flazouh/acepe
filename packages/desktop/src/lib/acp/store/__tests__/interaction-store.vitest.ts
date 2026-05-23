@@ -102,4 +102,51 @@ describe("InteractionStore", () => {
 		expect(store.questionsPending.get("question-1")).toBe(firstQuestion);
 		expect(store.getPendingQuestionsForSession("session-1")).toBe(firstSessionQuestions);
 	});
+
+	it("appends cached pending questions without rebuilding the session list", () => {
+		const store = new InteractionStore();
+		store.applySessionInteractionPatches([createPendingQuestionInteraction()]);
+		const firstSessionQuestions = store.getPendingQuestionsForSession("session-1");
+		const originalMapValues = Map.prototype.values;
+
+		Map.prototype.values = function patchedValues() {
+			throw new Error("must not rebuild pending interaction values");
+		};
+
+		try {
+			store.applySessionInteractionPatches([
+				createPendingQuestionInteraction({
+					id: "question-2",
+					json_rpc_request_id: 43,
+					payload: {
+						Question: {
+							id: "question-2",
+							sessionId: "session-1",
+							jsonRpcRequestId: 43,
+							replyHandler: { kind: "json_rpc", requestId: "43" },
+							questions: [
+								{
+									question: "Pick another target",
+									header: "Target",
+									options: [{ label: "Docs", description: "Use docs" }],
+									multiSelect: false,
+								},
+							],
+							tool: { messageId: "message-3", callId: "tool-3" },
+						},
+					},
+				}),
+			]);
+
+			const nextSessionQuestions = store.getPendingQuestionsForSession("session-1");
+			expect(nextSessionQuestions).not.toBe(firstSessionQuestions);
+			expect(nextSessionQuestions.map((question) => question.id)).toEqual([
+				"question-1",
+				"question-2",
+			]);
+			expect(nextSessionQuestions[0]).toBe(firstSessionQuestions[0]);
+		} finally {
+			Map.prototype.values = originalMapValues;
+		}
+	});
 });
