@@ -9,9 +9,9 @@ use crate::acp::pre_reservation_event_buffer::{
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
-    build_delta_envelope, select_session_graph_activity, DeltaEnvelopeParts,
-    DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest, SessionGraphRevision,
-    SessionGraphRuntimeRegistry, SessionStateEnvelope,
+    build_delta_envelope, select_session_graph_activity, session_state_envelope_byte_budget_status,
+    DeltaEnvelopeParts, DeltaSessionProjectionFields, LiveSessionStateEnvelopeRequest,
+    SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
@@ -139,6 +139,39 @@ impl AcpUiEvent {
             droppable,
             created_at: Instant::now(),
         }
+    }
+
+    pub(crate) fn session_state_envelope(envelope: &SessionStateEnvelope) -> Option<Self> {
+        if let Err(status) = session_state_envelope_byte_budget_status(envelope) {
+            tracing::warn!(
+                session_id = %envelope.session_id,
+                graph_revision = envelope.graph_revision,
+                last_event_seq = envelope.last_event_seq,
+                kind = ?status.kind,
+                byte_len = status.byte_len,
+                max_bytes = status.max_bytes,
+                "Skipping oversized ACP session state envelope"
+            );
+            return None;
+        }
+
+        let payload = serde_json::to_value(envelope).unwrap_or_else(|error| {
+            tracing::error!(
+                %error,
+                session_id = %envelope.session_id,
+                graph_revision = envelope.graph_revision,
+                last_event_seq = envelope.last_event_seq,
+                "Failed to serialize ACP session state envelope"
+            );
+            Value::Null
+        });
+        Some(AcpUiEvent::json_event(
+            "acp-session-state",
+            payload,
+            Some(envelope.session_id.clone()),
+            AcpUiEventPriority::Normal,
+            false,
+        ))
     }
 
     fn to_json_payload(&self) -> Result<Value, serde_json::Error> {
@@ -348,23 +381,9 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
         let mut envelopes = vec![envelope];
         envelopes.extend(dispatch_effects.additional_session_state_envelopes);
         for envelope in envelopes {
-            let session_state_payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
-                tracing::error!(
-                    %error,
-                    session_id = %envelope.session_id,
-                    graph_revision = envelope.graph_revision,
-                    last_event_seq = envelope.last_event_seq,
-                    "Failed to serialize direct ACP session state envelope"
-                );
-                Value::Null
-            });
-            let session_state_event = AcpUiEvent::json_event(
-                "acp-session-state",
-                session_state_payload,
-                Some(envelope.session_id.clone()),
-                AcpUiEventPriority::Normal,
-                false,
-            );
+            let Some(session_state_event) = AcpUiEvent::session_state_envelope(&envelope) else {
+                continue;
+            };
             if let Err(error) = session_state_event.publish_direct(&hub) {
                 tracing::error!(
                     error = %error,
@@ -886,23 +905,9 @@ impl AcpUiEventDispatcher {
     }
 
     fn enqueue_session_state_envelope(&self, envelope: SessionStateEnvelope) {
-        let payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
-            tracing::error!(
-                %error,
-                session_id = %envelope.session_id,
-                graph_revision = envelope.graph_revision,
-                last_event_seq = envelope.last_event_seq,
-                "Failed to serialize ACP session state envelope"
-            );
-            Value::Null
-        });
-        self.enqueue(AcpUiEvent::json_event(
-            "acp-session-state",
-            payload,
-            Some(envelope.session_id.clone()),
-            AcpUiEventPriority::Normal,
-            false,
-        ));
+        if let Some(event) = AcpUiEvent::session_state_envelope(&envelope) {
+            self.enqueue(event);
+        }
     }
 
     fn create_session_domain_event(
@@ -1124,24 +1129,11 @@ impl DispatcherState {
                     let mut envelopes = vec![envelope];
                     envelopes.extend(dispatch_effects.additional_session_state_envelopes);
                     for envelope in envelopes {
-                        let session_state_payload =
-                            serde_json::to_value(&envelope).unwrap_or_else(|error| {
-                                tracing::error!(
-                                    %error,
-                                    session_id = %envelope.session_id,
-                                    graph_revision = envelope.graph_revision,
-                                    last_event_seq = envelope.last_event_seq,
-                                    "Failed to serialize ACP session state envelope"
-                                );
-                                Value::Null
-                            });
-                        let session_state_event = AcpUiEvent::json_event(
-                            "acp-session-state",
-                            session_state_payload,
-                            Some(envelope.session_id.clone()),
-                            AcpUiEventPriority::Normal,
-                            false,
-                        );
+                        let Some(session_state_event) =
+                            AcpUiEvent::session_state_envelope(&envelope)
+                        else {
+                            continue;
+                        };
                         if let Err(error) = session_state_event.publish(hub) {
                             tracing::error!(
                                 error = %error,
@@ -1512,6 +1504,27 @@ mod tests {
     use sea_orm_migration::MigratorTrait;
     use serde_json::json;
     use std::sync::Arc;
+
+    #[test]
+    fn session_state_ui_event_rejects_oversized_envelopes() {
+        let envelope = SessionStateEnvelope {
+            session_id: "session-budget-1".to_string(),
+            graph_revision: 1,
+            last_event_seq: 1,
+            payload: crate::acp::session_state_engine::SessionStatePayload::AssistantTextDelta {
+                delta: crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload {
+                    turn_id: "turn-1".to_string(),
+                    row_id: "assistant-1".to_string(),
+                    char_offset: 0,
+                    delta_text: "x".repeat(8_000),
+                    produced_at_monotonic_ms: 5,
+                    revision: 1,
+                },
+            },
+        };
+
+        assert!(AcpUiEvent::session_state_envelope(&envelope).is_none());
+    }
 
     fn chunk_update(session_id: &str, text: &str) -> SessionUpdate {
         SessionUpdate::AgentMessageChunk {

@@ -1794,23 +1794,11 @@ pub(crate) fn publish_session_state_envelope(
     hub: &Arc<AcpEventHubState>,
     envelope: SessionStateEnvelope,
 ) {
-    let session_state_payload = serde_json::to_value(&envelope).unwrap_or_else(|error| {
-        tracing::error!(
-            %error,
-            session_id = %envelope.session_id,
-            graph_revision = envelope.graph_revision,
-            last_event_seq = envelope.last_event_seq,
-            "Failed to serialize ACP session state envelope"
-        );
-        Value::Null
-    });
-    let session_state_event = crate::acp::ui_event_dispatcher::AcpUiEvent::json_event(
-        "acp-session-state",
-        session_state_payload,
-        Some(envelope.session_id.clone()),
-        crate::acp::ui_event_dispatcher::AcpUiEventPriority::Normal,
-        false,
-    );
+    let Some(session_state_event) =
+        crate::acp::ui_event_dispatcher::AcpUiEvent::session_state_envelope(&envelope)
+    else {
+        return;
+    };
     if let Err(error) = session_state_event.publish_direct(hub) {
         tracing::error!(
             error = %error,
