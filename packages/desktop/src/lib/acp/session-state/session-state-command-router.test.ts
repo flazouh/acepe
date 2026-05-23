@@ -106,7 +106,15 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		const commands = routeSessionStateEnvelope("session-1", 7, envelope);
+		const commands = routeSessionStateEnvelope(
+			"session-1",
+			{
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			envelope
+		);
 
 		expect(commands.map((command) => command.kind)).toEqual([
 			"applyGraphPatches",
@@ -114,7 +122,7 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("routes graph patch deltas with canonical activity", () => {
+	it("refreshes graph patch deltas when only a legacy transcript frontier is available", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 7,
@@ -147,19 +155,49 @@ describe("routeSessionStateEnvelope", () => {
 
 		expect(routeSessionStateEnvelope("session-1", 4, envelope)).toEqual([
 			{
-				kind: "applyGraphPatches",
-				revision: {
-					graphRevision: 7,
-					transcriptRevision: 4,
-					lastEventSeq: 9,
+				kind: "refreshSnapshot",
+				fromRevision: 6,
+				toRevision: 7,
+			},
+		]);
+	});
+
+	it("refreshes graph patch deltas when no graph frontier exists yet", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity"],
 				},
-				activity: runningOperationActivity,
-				turnState: "Running",
-				activeTurnFailure: null,
-				lastTerminalTurnId: null,
-				activeStreamingTail: undefined,
-				operationPatches: [],
-				interactionPatches: [],
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 6,
+				toRevision: 7,
 			},
 		]);
 	});
@@ -289,7 +327,17 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		expect(routeSessionStateEnvelope("session-1", 4, envelope)).toEqual([
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
 			{
 				kind: "applyGraphPatches",
 				revision: {
@@ -306,6 +354,57 @@ describe("routeSessionStateEnvelope", () => {
 				interactionPatches: [],
 			},
 		]);
+	});
+
+	it("still routes transcript-only deltas with a legacy transcript frontier", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 5,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:block:0",
+										text: "hello",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope("session-1", 4, envelope).map((command) => command.kind)
+		).toEqual(["applyTranscriptDelta"]);
 	});
 
 	it("does not apply graph patches from a transcript delta with a stale frontier", () => {
