@@ -103,6 +103,7 @@ interface CachedConversationState {
 	readonly turnState: AgentPanelCanonicalSource["turnState"];
 	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
 	readonly activity: AgentPanelCanonicalSource["activity"];
+	readonly transcriptEntryById: ReadonlyMap<string, TranscriptEntry>;
 	readonly conversation: {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
@@ -716,6 +717,7 @@ function materializeCachedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
+		transcriptEntryById: buildTranscriptEntryIndex(input.graph.transcriptSnapshot.entries),
 		conversation,
 		sceneEntryRowIndex: buildSceneEntryRowIndex(conversation.entries),
 	};
@@ -747,6 +749,7 @@ function materializeTranscriptAppendedConversation(
 		return {
 			...previous,
 			transcriptEntries: input.graph.transcriptSnapshot.entries,
+			transcriptEntryById: buildTranscriptEntryIndex(input.graph.transcriptSnapshot.entries),
 		};
 	}
 
@@ -781,6 +784,10 @@ function materializeTranscriptAppendedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
+		transcriptEntryById: appendTranscriptEntryIndex(
+			previous.transcriptEntryById,
+			appendedTranscriptEntries
+		),
 		conversation: {
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
@@ -847,11 +854,12 @@ function materializeOperationPatchedConversation(
 	const nextEntries = previous.conversation.entries.slice();
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
-	for (const transcriptEntry of input.graph.transcriptSnapshot.entries) {
-		if (!affectedEntryIds.has(transcriptEntry.entryId)) {
-			continue;
+	for (const affectedEntryId of affectedEntryIds) {
+		const transcriptEntry = previous.transcriptEntryById.get(affectedEntryId);
+		if (transcriptEntry === undefined) {
+			return null;
 		}
-		const rowIndex = previous.sceneEntryRowIndex.get(transcriptEntry.entryId);
+		const rowIndex = previous.sceneEntryRowIndex.get(affectedEntryId);
 		if (rowIndex === undefined) {
 			return null;
 		}
@@ -871,6 +879,7 @@ function materializeOperationPatchedConversation(
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
 		conversation: {
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
@@ -919,6 +928,31 @@ function collectAffectedTranscriptEntryIds(
 	);
 	collectAffectedTranscriptEntryIdsFromIndex(operationIndex, changedOperationIds, affectedEntryIds);
 	return affectedEntryIds;
+}
+
+function buildTranscriptEntryIndex(
+	entries: readonly TranscriptEntry[]
+): ReadonlyMap<string, TranscriptEntry> {
+	const byEntryId = new Map<string, TranscriptEntry>();
+	for (const entry of entries) {
+		byEntryId.set(entry.entryId, entry);
+	}
+	return byEntryId;
+}
+
+function appendTranscriptEntryIndex(
+	previous: ReadonlyMap<string, TranscriptEntry>,
+	appendedEntries: readonly TranscriptEntry[]
+): ReadonlyMap<string, TranscriptEntry> {
+	if (appendedEntries.length === 0) {
+		return previous;
+	}
+
+	const byEntryId = new Map(previous);
+	for (const entry of appendedEntries) {
+		byEntryId.set(entry.entryId, entry);
+	}
+	return byEntryId;
 }
 
 function collectAffectedTranscriptEntryIdsFromIndex(
