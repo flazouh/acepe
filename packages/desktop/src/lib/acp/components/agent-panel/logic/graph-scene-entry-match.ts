@@ -75,7 +75,8 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		baseEntriesByIdBeforeTokenReveal = null;
 		const patchedEntriesById = patchSameLengthGraphSceneEntrySet(
 			entriesById,
-			graphScenePatch.entries
+			entryIndexesById,
+			graphScenePatch.entriesByIndex
 		);
 		if (patchedEntriesById === null) {
 			return null;
@@ -236,11 +237,15 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 
 function patchSameLengthGraphSceneEntrySet(
 	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
-	patchedEntries: readonly AgentPanelSceneEntryModel[]
+	entryIndexesById: ReadonlyMap<string, number>,
+	patchedEntriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>
 ): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
 	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
-	for (const patchedEntry of patchedEntries) {
-		if (!entriesById.has(patchedEntry.id)) {
+	for (const [entryIndex, patchedEntry] of patchedEntriesByIndex) {
+		if (
+			!entriesById.has(patchedEntry.id) ||
+			entryIndexesById.get(patchedEntry.id) !== entryIndex
+		) {
 			return null;
 		}
 		if (!(entriesById instanceof Map)) {
@@ -252,7 +257,7 @@ function patchSameLengthGraphSceneEntrySet(
 	if (entriesById instanceof Map) {
 		return mutableEntriesById ?? entriesById;
 	}
-	return new PatchedSceneEntryMap(entriesById, patchedEntries);
+	return new PatchedSceneEntryMap(entriesById, Array.from(patchedEntriesByIndex.values()));
 }
 
 function patchSameLengthGraphSceneEntries(

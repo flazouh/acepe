@@ -195,7 +195,7 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(input.sceneEntries);
 		if (
 			graphScenePatch?.baseSceneEntries !== previousSceneEntries ||
-			!areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entries)
+			!areDisplayRowsUnaffectedByGraphPatch(graphScenePatch.entriesByIndex.values())
 		) {
 			return null;
 		}
@@ -276,7 +276,7 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 }
 
 function areDisplayRowsUnaffectedByGraphPatch(
-	patchedEntries: readonly AgentPanelSceneEntryModel[]
+	patchedEntries: Iterable<AgentPanelSceneEntryModel>
 ): boolean {
 	for (const entry of patchedEntries) {
 		if (entry.type === "user" || entry.type === "assistant") {
@@ -1266,7 +1266,10 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		const graphScenePatch = getAgentPanelSceneEntryArrayPatch(sceneEntries);
 		if (
 			graphScenePatch?.baseSceneEntries !== previousSceneEntries ||
-			!canKeepSceneEntryIndexesForGraphPatch(graphScenePatch.entries, sceneEntryIndexesById)
+			!canKeepSceneEntryIndexesForGraphPatch(
+				graphScenePatch.entriesByIndex,
+				sceneEntryIndexesById
+			)
 		) {
 			return false;
 		}
@@ -1366,11 +1369,11 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 }
 
 function canKeepSceneEntryIndexesForGraphPatch(
-	patchedEntries: readonly AgentPanelSceneEntryModel[],
+	patchedEntriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>,
 	indexesById: ReadonlyMap<string, number>
 ): boolean {
-	for (const entry of patchedEntries) {
-		if (!indexesById.has(entry.id)) {
+	for (const [entryIndex, entry] of patchedEntriesByIndex) {
+		if (indexesById.get(entry.id) !== entryIndex) {
 			return false;
 		}
 	}

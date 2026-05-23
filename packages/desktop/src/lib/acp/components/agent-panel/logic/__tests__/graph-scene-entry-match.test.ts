@@ -497,10 +497,15 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			...assistantEntry,
 			markdown: "Canonical answer",
 		} satisfies AgentPanelSceneEntryModel;
+		const patchedEntryList = [patchedEntry];
+		const originalPatchedEntryListIterator = patchedEntryList[Symbol.iterator];
+		patchedEntryList[Symbol.iterator] = () => {
+			throw new Error("must use indexed scene entry patches");
+		};
 		const patchedEntries = [patchedEntry];
 		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
 			baseSceneEntries: baseEntries,
-			entries: [patchedEntry],
+			entries: patchedEntryList,
 			entriesByIndex: new Map([[0, patchedEntry]]),
 		});
 
@@ -518,6 +523,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
 				Symbol.iterator
 			] = originalIterator;
+			patchedEntryList[Symbol.iterator] = originalPatchedEntryListIterator;
 		}
 	});
 

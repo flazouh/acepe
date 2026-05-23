@@ -306,10 +306,15 @@ describe("scene-display-rows", () => {
 			...toolEntry,
 			status: "done",
 		} satisfies AgentPanelSceneEntryModel;
+		const patchedEntryList = [nextToolEntry];
+		const originalPatchedEntryListIterator = patchedEntryList[Symbol.iterator];
+		patchedEntryList[Symbol.iterator] = () => {
+			throw new Error("must use indexed scene entry patches");
+		};
 		const patchedEntries = [userEntry, nextToolEntry, assistantEntry];
 		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
 			baseSceneEntries: baseEntries,
-			entries: [nextToolEntry],
+			entries: patchedEntryList,
 			entriesByIndex: new Map([[1, nextToolEntry]]),
 		});
 		Object.defineProperty(patchedEntries, "0", {
@@ -348,6 +353,7 @@ describe("scene-display-rows", () => {
 				configurable: true,
 				value: assistantEntry,
 			});
+			patchedEntryList[Symbol.iterator] = originalPatchedEntryListIterator;
 		}
 	});
 

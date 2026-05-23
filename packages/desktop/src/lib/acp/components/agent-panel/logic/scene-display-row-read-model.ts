@@ -79,7 +79,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		const patchedRows = patchDisplaySceneDisplayRows(
 			previousRows,
 			rowIndexBySceneEntryId,
-			graphScenePatch.entries
+			graphScenePatch.entriesByIndex.values()
 		);
 		if (patchedRows === null) {
 			return null;
@@ -530,7 +530,7 @@ function patchSameLengthSceneDisplayRows(
 function patchDisplaySceneDisplayRows(
 	previousRows: readonly SceneDisplayRow[],
 	rowIndexBySceneEntryId: ReadonlyMap<string, number>,
-	patchedEntries: readonly AgentPanelSceneEntryModel[]
+	patchedEntries: Iterable<AgentPanelSceneEntryModel>
 ): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
 	const patchedRowsByIndex = new Map<number, SceneDisplayRow>();
 	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
