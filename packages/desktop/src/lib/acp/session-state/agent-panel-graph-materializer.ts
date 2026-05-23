@@ -912,18 +912,22 @@ function materializeTranscriptAppendedConversation(
 	const transcriptSceneEntryCount = previous.transcriptEntries.length;
 	const hasTrailingInteractionEntries =
 		previous.conversation.entries.length > transcriptSceneEntryCount;
+	const previousTrailingEntries = hasTrailingInteractionEntries
+		? collectTrailingSceneEntries(previous.conversation.entries, transcriptSceneEntryCount)
+		: [];
 	const nextEntries = hasTrailingInteractionEntries
 		? appendTranscriptEntriesBeforeTrailingInteractions(
 				previous.conversation.entries,
 				transcriptSceneEntryCount,
-				appendedSceneEntries
+				appendedSceneEntries,
+				previousTrailingEntries
 			)
-		: previous.conversation.entries.concat(appendedSceneEntries);
+		: createAppendedSceneEntryArray(previous.conversation.entries, appendedSceneEntries);
 	if (hasTrailingInteractionEntries) {
 		patchTrailingSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
-			previous.conversation.entries.slice(transcriptSceneEntryCount),
-			nextEntries.slice(transcriptSceneEntryCount),
+			previousTrailingEntries,
+			createAppendedInteractionTail(previousTrailingEntries, appendedSceneEntries),
 			transcriptSceneEntryCount
 		);
 	} else {
@@ -954,22 +958,70 @@ function materializeTranscriptAppendedConversation(
 function appendTranscriptEntriesBeforeTrailingInteractions(
 	previousEntries: readonly AgentPanelSceneEntryModel[],
 	transcriptSceneEntryCount: number,
+	appendedSceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousTrailingEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	const nextTrailingEntries = filterTrailingEntriesAfterAppends(
+		previousTrailingEntries,
+		appendedSceneEntries
+	);
+	return createInsertedSceneEntryArray(
+		previousEntries,
+		transcriptSceneEntryCount,
+		appendedSceneEntries,
+		nextTrailingEntries
+	);
+}
+
+function collectTrailingSceneEntries(
+	entries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): readonly AgentPanelSceneEntryModel[] {
+	const trailingEntries: AgentPanelSceneEntryModel[] = [];
+	for (let index = startIndex; index < entries.length; index += 1) {
+		const entry = entries[index];
+		if (entry !== undefined) {
+			trailingEntries.push(entry);
+		}
+	}
+	return trailingEntries;
+}
+
+function createAppendedInteractionTail(
+	previousTrailingEntries: readonly AgentPanelSceneEntryModel[],
 	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
 ): readonly AgentPanelSceneEntryModel[] {
+	const nextTrailingEntries = filterTrailingEntriesAfterAppends(
+		previousTrailingEntries,
+		appendedSceneEntries
+	);
+	return createAppendedSceneEntryArray(appendedSceneEntries, nextTrailingEntries);
+}
+
+function filterTrailingEntriesAfterAppends(
+	previousTrailingEntries: readonly AgentPanelSceneEntryModel[],
+	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	if (previousTrailingEntries.length === 0) {
+		return previousTrailingEntries;
+	}
+
 	const appendedIds = new Set<string>();
 	for (const entry of appendedSceneEntries) {
 		appendedIds.add(entry.id);
 	}
 
-	const nextEntries = previousEntries.slice(0, transcriptSceneEntryCount);
-	nextEntries.push(...appendedSceneEntries);
-	for (let index = transcriptSceneEntryCount; index < previousEntries.length; index += 1) {
-		const entry = previousEntries[index];
-		if (entry !== undefined && !appendedIds.has(entry.id)) {
-			nextEntries.push(entry);
+	if (appendedIds.size === 0) {
+		return previousTrailingEntries;
+	}
+
+	const trailingEntries: AgentPanelSceneEntryModel[] = [];
+	for (const entry of previousTrailingEntries) {
+		if (!appendedIds.has(entry.id)) {
+			trailingEntries.push(entry);
 		}
 	}
-	return nextEntries;
+	return trailingEntries;
 }
 
 function materializeInteractionPatchedConversation(
@@ -1238,6 +1290,94 @@ function createPatchedSceneEntryArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+}
+
+function createAppendedSceneEntryArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	appendedEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	return createSceneEntryArrayView(baseEntries.length + appendedEntries.length, (index) =>
+		index < baseEntries.length ? baseEntries[index] : appendedEntries[index - baseEntries.length]
+	);
+}
+
+function createInsertedSceneEntryArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	insertIndex: number,
+	insertedEntries: readonly AgentPanelSceneEntryModel[],
+	trailingEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	return createSceneEntryArrayView(insertIndex + insertedEntries.length + trailingEntries.length, (index) => {
+		if (index < insertIndex) {
+			return baseEntries[index];
+		}
+		const insertedIndex = index - insertIndex;
+		if (insertedIndex < insertedEntries.length) {
+			return insertedEntries[insertedIndex];
+		}
+		return trailingEntries[insertedIndex - insertedEntries.length];
+	});
+}
+
+function createSceneEntryArrayView(
+	length: number,
+	selectEntry: (index: number) => AgentPanelSceneEntryModel | undefined
+): readonly AgentPanelSceneEntryModel[] {
+	const target = new Array<AgentPanelSceneEntryModel>(length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectEntry(index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectEntry(index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectEntry(index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	});
+}
+
+function createArrayLikeOwnKeys(length: number): string[] {
+	const keys: string[] = [];
+	for (let index = 0; index < length; index += 1) {
+		keys.push(String(index));
+	}
+	keys.push("length");
+	return keys;
 }
 
 function toArrayIndex(property: string): number | null {

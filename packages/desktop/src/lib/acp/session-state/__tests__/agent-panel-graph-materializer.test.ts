@@ -525,19 +525,32 @@ describe("agent panel graph materializer", () => {
 			graph,
 			header: { title: "Session" },
 		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				transcriptSnapshot: appendedTranscriptSnapshot,
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: transcriptSnapshot.revision + 1,
-					lastEventSeq: 43,
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			concat: typeof Array.prototype.concat;
+		};
+		const originalConcat = firstEntries.concat;
+		firstEntries.concat = () => {
+			throw new Error("must not copy whole materialized scene entries on append");
+		};
+
+		let nextScene: typeof firstScene;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: appendedTranscriptSnapshot,
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: transcriptSnapshot.revision + 1,
+						lastEventSeq: 43,
+					},
 				},
-			},
-			header: { title: "Session" },
-		});
+				header: { title: "Session" },
+			});
+		} finally {
+			firstEntries.concat = originalConcat;
+		}
 
 		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
 		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
@@ -613,6 +626,13 @@ describe("agent panel graph materializer", () => {
 			graph,
 			header: { title: "Question session" },
 		});
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			slice: typeof Array.prototype.slice;
+		};
+		const originalSlice = firstEntries.slice;
+		firstEntries.slice = () => {
+			throw new Error("must not slice whole materialized scene entries around interactions");
+		};
 		const appendedTranscriptSnapshot = {
 			revision: transcriptSnapshot.revision + 1,
 			entries: [userEntry, assistantEntry, secondUserEntry, appendedEntry],
@@ -648,6 +668,7 @@ describe("agent panel graph materializer", () => {
 				header: { title: "Question session" },
 			});
 		} finally {
+			firstEntries.slice = originalSlice;
 			Map.prototype.set = originalMapSet;
 		}
 
