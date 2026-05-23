@@ -378,6 +378,64 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	it("prunes stale buffered session-state envelopes before replay", async () => {
+		const pendingHandler = createMockHandler();
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		const staleEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-ordered-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 7,
+				},
+			},
+		};
+		const freshEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-ordered-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("ready"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(staleEnvelope, pendingHandler);
+		service.handleSessionStateEnvelope(freshEnvelope, pendingHandler);
+
+		expect(pendingHandler.applySessionStateEnvelope).not.toHaveBeenCalled();
+
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-ordered-1",
+		} as unknown as SessionCold);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-ordered-1",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		});
+		service.flushPendingEvents("session-pending-ordered-1", pendingHandler);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-pending-ordered-1",
+			freshEnvelope
+		);
+	});
+
 	it("materializes pending creation sessions before applying canonical delta envelopes", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);

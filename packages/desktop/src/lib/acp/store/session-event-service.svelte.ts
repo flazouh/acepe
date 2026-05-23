@@ -775,10 +775,29 @@ export class SessionEventService {
 	}
 
 	private bufferPendingSessionState(sessionId: string, envelope: SessionStateEnvelope): void {
+		this.dropStaleBufferedSessionState(sessionId, envelope.graphRevision);
 		this.bufferPending(sessionId, {
 			kind: "sessionState",
 			envelope,
 		});
+	}
+
+	private dropStaleBufferedSessionState(sessionId: string, graphRevision: number): void {
+		const pending = this.pendingEvents.get(sessionId);
+		if (pending === undefined || pending.length === 0) {
+			return;
+		}
+
+		const retained = pending.filter((pendingEvent) => {
+			return (
+				pendingEvent.kind !== "sessionState" ||
+				pendingEvent.envelope.graphRevision >= graphRevision
+			);
+		});
+		if (retained.length === pending.length) {
+			return;
+		}
+		this.pendingEvents.set(sessionId, retained);
 	}
 
 	private bufferPending(sessionId: string, pendingEvent: PendingSessionEvent): void {
