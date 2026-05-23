@@ -127,10 +127,18 @@ $effect(() => {
 	// Capture current values for stale closure prevention
 	const currentFilePath = filePath;
 	const currentProjectPath = projectPath;
+	const cachedContent = fileContentCache.peekFileContent(currentFilePath, currentProjectPath);
 	let cancelled = false;
 
-	loading = true;
 	error = null;
+	if (cachedContent !== null) {
+		content = cachedContent;
+		loading = false;
+		return;
+	}
+
+	loading = true;
+	content = null;
 
 	const deferredWork = scheduleLazyPanelWork(() => {
 		if (cancelled) {

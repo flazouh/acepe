@@ -176,6 +176,11 @@ class FileContentCache {
 		return request;
 	}
 
+	peekFileContent(filePath: string, projectPath: string): string | null {
+		const cacheKey = `${projectPath}:${filePath}`;
+		return this.contentCache.get(cacheKey);
+	}
+
 	/**
 	 * Get file diff, using cache if available.
 	 */

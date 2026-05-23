@@ -57,6 +57,7 @@ vi.mock("../file-panel-structured-view.svelte", async () => ({
 
 const getFileContentMock = vi.fn();
 const getFileDiffMock = vi.fn();
+const peekFileContentMock = vi.fn();
 const getProjectGitStatusSummaryMapMock = vi.fn();
 const getProjectFileGitStatusSummaryMock = vi.fn();
 const getProjectGitStatusMock = vi.fn((_projectPath: string) => ({
@@ -65,6 +66,8 @@ const getProjectGitStatusMock = vi.fn((_projectPath: string) => ({
 
 vi.mock("../../../services/file-content-cache.svelte.js", () => ({
 	fileContentCache: {
+		peekFileContent: (filePath: string, projectPath: string) =>
+			peekFileContentMock(filePath, projectPath),
 		getFileContent: (filePath: string, projectPath: string) =>
 			getFileContentMock(filePath, projectPath),
 		getFileDiff: (filePath: string, projectPath: string) => getFileDiffMock(filePath, projectPath),
@@ -103,6 +106,8 @@ const { default: FilePanel } = await import("../file-panel.svelte");
 
 describe("FilePanel", () => {
 	beforeEach(() => {
+		peekFileContentMock.mockReset();
+		peekFileContentMock.mockReturnValue(null);
 		getFileContentMock.mockReset();
 		getFileContentMock.mockReturnValue(okAsync("const answer = 42;\n"));
 		getFileDiffMock.mockReset();
@@ -364,5 +369,23 @@ describe("FilePanel", () => {
 				value: originalCancelIdleCallback,
 			});
 		}
+	});
+
+	it("renders cached file content immediately without entering the loading skeleton", () => {
+		peekFileContentMock.mockReturnValue("cached file body\n");
+
+		const view = render(FilePanel, {
+			panelId: "panel-1",
+			filePath: "/repo/src/file.ts",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#123456",
+			width: 420,
+			onClose: vi.fn(),
+			onResize: vi.fn(),
+		});
+
+		expect(getFileContentMock).not.toHaveBeenCalled();
+		expect(view.getByTestId("code-editor-stub").textContent).toContain("cached file body");
 	});
 });
