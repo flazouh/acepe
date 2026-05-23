@@ -10,6 +10,7 @@ import type { SessionGraphActivity, SessionTurnState } from "$lib/services/acp-t
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
+import { createPatchedSceneEntriesArray } from "./scene-entry-array-view.js";
 import {
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
@@ -1111,7 +1112,7 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 		return sceneEntries;
 	}
 
-	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let patchedEntriesByIndex: Map<number, AgentPanelSceneEntryModel> | null = null;
 	let patchedEntries: AgentPanelSceneEntryModel[] | null = null;
 	for (const [entryId, row] of assistantRowsById) {
 		const index = sceneEntryIndexesById.get(entryId);
@@ -1126,19 +1127,21 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 			continue;
 		}
 
-		nextEntries ??= sceneEntries.slice();
 		const patchedEntry = applyDisplayRowToAssistantEntry(entry, row);
-		nextEntries[index] = patchedEntry;
+		patchedEntriesByIndex ??= new Map<number, AgentPanelSceneEntryModel>();
+		patchedEntriesByIndex.set(index, patchedEntry);
 		patchedEntries ??= [];
 		patchedEntries.push(patchedEntry);
 	}
-	if (nextEntries !== null && patchedEntries !== null) {
+	if (patchedEntriesByIndex !== null && patchedEntries !== null) {
+		const nextEntries = createPatchedSceneEntriesArray(sceneEntries, patchedEntriesByIndex);
 		agentPanelDisplayScenePatches.set(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
 		});
+		return nextEntries;
 	}
-	return nextEntries ?? sceneEntries;
+	return sceneEntries;
 }
 
 function applyAssistantDisplayRowsToSceneEntriesByScan(
@@ -1149,7 +1152,7 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 		return sceneEntries;
 	}
 
-	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let patchedEntriesByIndex: Map<number, AgentPanelSceneEntryModel> | null = null;
 	let patchedEntries: AgentPanelSceneEntryModel[] | null = null;
 	sceneEntries.forEach((entry, index) => {
 		if (entry.type !== "assistant") {
@@ -1164,19 +1167,21 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 			return;
 		}
 
-		nextEntries ??= sceneEntries.slice();
 		const patchedEntry = applyDisplayRowToAssistantEntry(entry, row);
-		nextEntries[index] = patchedEntry;
+		patchedEntriesByIndex ??= new Map<number, AgentPanelSceneEntryModel>();
+		patchedEntriesByIndex.set(index, patchedEntry);
 		patchedEntries ??= [];
 		patchedEntries.push(patchedEntry);
 	});
-	if (nextEntries !== null && patchedEntries !== null) {
+	if (patchedEntriesByIndex !== null && patchedEntries !== null) {
+		const nextEntries = createPatchedSceneEntriesArray(sceneEntries, patchedEntriesByIndex);
 		agentPanelDisplayScenePatches.set(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
 		});
+		return nextEntries;
 	}
-	return nextEntries ?? sceneEntries;
+	return sceneEntries;
 }
 
 export function applyAgentPanelDisplayModelToSceneEntries(

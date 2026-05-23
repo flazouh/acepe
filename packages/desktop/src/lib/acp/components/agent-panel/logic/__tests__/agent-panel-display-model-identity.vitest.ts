@@ -155,6 +155,58 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		).toBe(displayedEntries);
 	});
 
+	it("patches assistant entries without copying the whole scene entry list", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const sceneEntries: AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "assistant-1", type: "assistant", markdown: "" },
+		];
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{ id: "user-1", type: "user", text: "Prompt" },
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const originalSlice = sceneEntries.slice;
+
+		sceneEntries.slice = () => {
+			throw new Error("must not copy scene entries for assistant display patch");
+		};
+
+		try {
+			const displayedEntries = readModel.apply({
+				model,
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries,
+			});
+
+			expect(displayedEntries[0]).toBe(sceneEntries[0]);
+			expect(displayedEntries[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "Answer",
+			});
+			expect(displayedEntries.map((entry) => entry.id)).toEqual(["user-1", "assistant-1"]);
+		} finally {
+			sceneEntries.slice = originalSlice;
+		}
+	});
+
 	it("keeps the cached scene entry index valid after append-only scene updates", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
