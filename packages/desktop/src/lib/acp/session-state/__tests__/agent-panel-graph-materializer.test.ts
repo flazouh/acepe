@@ -1439,6 +1439,69 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("patches only affected assistant rows when the active streaming tail moves", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("u1", "user", "First question"),
+			createTranscriptEntry("a1", "assistant", "First answer"),
+			createTranscriptEntry("u2", "user", "Second question"),
+			createTranscriptEntry("a2", "assistant", "Second answer still coming in"),
+		]);
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activeStreamingTail: { rowId: "a1", contentKind: "message" },
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				activeStreamingTail: { rowId: "a2", contentKind: "message" },
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).not.toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[2]);
+		expect(nextScene.conversation.entries[3]).not.toBe(firstScene.conversation.entries[3]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			id: "a1",
+			type: "assistant",
+			isStreaming: false,
+		});
+		expect(nextScene.conversation.entries[3]).toMatchObject({
+			id: "a2",
+			type: "assistant",
+			isStreaming: true,
+		});
+		const scenePatch = getAgentPanelSceneEntryArrayPatch(nextScene.conversation.entries);
+		expect(scenePatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
+		expect(scenePatch?.entriesByIndex.get(1)).toBe(nextScene.conversation.entries[1]);
+		expect(scenePatch?.entriesByIndex.get(3)).toBe(nextScene.conversation.entries[3]);
+		expect(Array.from(scenePatch?.entriesByIndex.keys() ?? [])).toEqual([1, 3]);
+	});
+
 	it("keeps transcript row patches incremental when equivalent control objects are recreated", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const streamingAssistantEntry = createTranscriptEntry(
