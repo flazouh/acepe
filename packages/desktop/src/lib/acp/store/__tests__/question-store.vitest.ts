@@ -166,6 +166,24 @@ describe("QuestionStore", () => {
 				(store.pending as unknown as { values: typeof values }).values = values;
 			}
 		});
+
+		it("keeps the session question selector stable when nothing changes", () => {
+			store.add({
+				id: "q-tool",
+				sessionId: "session-1",
+				questions: [],
+				tool: {
+					messageID: "",
+					callID: "tool-question",
+				},
+			});
+
+			const first = store.getForSession("session-1");
+			const second = store.getForSession("session-1");
+
+			expect(second).toBe(first);
+			expect(second.map((candidate) => candidate.id)).toEqual(["q-tool"]);
+		});
 	});
 
 	describe("remove", () => {

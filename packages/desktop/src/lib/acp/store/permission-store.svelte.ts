@@ -245,24 +245,8 @@ export class PermissionStore {
 		return latest;
 	}
 
-	getForSession(sessionId: string): PermissionRequest[] {
-		const canonicalPermissions = this.interactions.getPendingPermissionsForSession(sessionId);
-		const directPermissions = this.directPendingBySession.get(sessionId);
-		if (directPermissions === undefined || directPermissions.size === 0) {
-			return [...canonicalPermissions];
-		}
-		if (canonicalPermissions.length === 0) {
-			return Array.from(directPermissions.values());
-		}
-
-		const merged = new Map<string, PermissionRequest>();
-		for (const permission of canonicalPermissions) {
-			merged.set(permission.id, permission);
-		}
-		for (const permission of directPermissions.values()) {
-			merged.set(permission.id, permission);
-		}
-		return Array.from(merged.values());
+	getForSession(sessionId: string): readonly PermissionRequest[] {
+		return this.interactions.getPendingPermissionsForSession(sessionId);
 	}
 
 	getForOperation(

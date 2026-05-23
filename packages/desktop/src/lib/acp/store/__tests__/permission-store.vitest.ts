@@ -185,6 +185,17 @@ describe("PermissionStore", () => {
 			}
 		});
 
+		it("keeps the session permission selector stable when nothing changes", () => {
+			const permission = createAcpPermission("session-1", "tool-1", 100);
+			store.add(permission);
+
+			const first = store.getForSession("session-1");
+			const second = store.getForSession("session-1");
+
+			expect(second).toBe(first);
+			expect(second.map((candidate) => candidate.id)).toEqual([permission.id]);
+		});
+
 		it("keeps the first grouped permission id stable for the tool call", () => {
 			const newerPermission = createAcpPermission("session-1", "tool-1", 101);
 			const olderPermission = createAcpPermission("session-1", "tool-1", 100);

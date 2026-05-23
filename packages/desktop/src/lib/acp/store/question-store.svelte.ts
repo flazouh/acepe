@@ -78,24 +78,8 @@ export class QuestionStore {
 		return undefined;
 	}
 
-	getForSession(sessionId: string): QuestionRequest[] {
-		const canonicalQuestions = this.interactions.getPendingQuestionsForSession(sessionId);
-		const directQuestions = this.directPendingBySession.get(sessionId);
-		if (directQuestions === undefined || directQuestions.size === 0) {
-			return [...canonicalQuestions];
-		}
-		if (canonicalQuestions.length === 0) {
-			return Array.from(directQuestions.values());
-		}
-
-		const merged = new Map<string, QuestionRequest>();
-		for (const question of canonicalQuestions) {
-			merged.set(question.id, question);
-		}
-		for (const question of directQuestions.values()) {
-			merged.set(question.id, question);
-		}
-		return Array.from(merged.values());
+	getForSession(sessionId: string): readonly QuestionRequest[] {
+		return this.interactions.getPendingQuestionsForSession(sessionId);
 	}
 
 	/**
