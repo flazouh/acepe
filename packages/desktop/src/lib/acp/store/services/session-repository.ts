@@ -141,6 +141,13 @@ export class SessionRepository {
 		private readonly connectionManager: IConnectionManager
 	) {}
 
+	private isSessionLoaded(sessionId: string): boolean {
+		return (
+			this.stateReader.hasSessionCanonicalProjection(sessionId) ||
+			this.entryManager.isPreloaded(sessionId)
+		);
+	}
+
 	// ============================================
 	// SESSION CRUD
 	// ============================================
@@ -325,8 +332,8 @@ export class SessionRepository {
 		for (const existingSession of existingSessionsMap.values()) {
 			const rescannedProject = rescannedProjects.has(existingSession.projectPath);
 			const preserveTransientSession = existingSession.sessionLifecycleState === "created";
-			const preservePreloadedSession = this.entryManager.isPreloaded(existingSession.id);
-			if (!rescannedProject || preserveTransientSession || preservePreloadedSession) {
+			const preserveLoadedSession = this.isSessionLoaded(existingSession.id);
+			if (!rescannedProject || preserveTransientSession || preserveLoadedSession) {
 				mergedSessions.push(existingSession);
 			}
 		}
@@ -531,7 +538,7 @@ export class SessionRepository {
 			const historySession = this.historyEntryToSession(entry);
 			const existingSession = existingSessionsMap.get(historySession.id);
 
-			if (existingSession && this.entryManager.isPreloaded(existingSession.id)) {
+			if (existingSession && this.isSessionLoaded(existingSession.id)) {
 				const title = resolveSessionTitle(historySession.title, existingSession.title);
 				mergedSessions.push({
 					...existingSession,

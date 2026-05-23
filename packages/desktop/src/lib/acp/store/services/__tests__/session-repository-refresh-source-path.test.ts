@@ -12,6 +12,7 @@ import { SessionRepository } from "../session-repository.js";
 
 type SessionStoreState = {
 	sessions: SessionCold[];
+	canonicalProjectionSessionIds?: Set<string>;
 };
 
 function createSession(overrides: Partial<SessionCold> = {}): SessionCold {
@@ -60,6 +61,8 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 		getSessionToolCalls: () => [],
 		getSessionModifiedFilesState: () => null,
 		isPreloaded: () => false,
+		hasSessionCanonicalProjection: (sessionId: string) =>
+			state.canonicalProjectionSessionIds?.has(sessionId) ?? false,
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
 		getSessionIdentity: (id: string) => {
 			const session = state.sessions.find((candidate) => candidate.id === id);
@@ -202,5 +205,38 @@ describe("SessionRepository.refreshSessionsFromScan", () => {
 		repository.refreshSessionsFromScan(state.sessions, [createHistoryEntry({ prNumber: null })]);
 
 		expect(state.sessions[0]?.prNumber).toBe(456);
+	});
+
+	it("preserves canonically loaded sessions when a project rescan omits them", () => {
+		const state: SessionStoreState = {
+			sessions: [
+				createSession({
+					id: "session-loaded",
+					projectPath: "/projects/acepe",
+					title: "Loaded Session",
+				}),
+			],
+			canonicalProjectionSessionIds: new Set(["session-loaded"]),
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+
+		repository.refreshSessionsFromScan(state.sessions, [
+			createHistoryEntry({
+				id: "history-other",
+				sessionId: "session-other",
+				project: "/projects/acepe",
+				display: "Other Session",
+			}),
+		]);
+
+		expect(state.sessions.map((session) => session.id)).toEqual([
+			"session-loaded",
+			"session-other",
+		]);
 	});
 });

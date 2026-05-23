@@ -96,6 +96,11 @@ export interface ISessionStateReader {
 	isPreloaded(sessionId: string): boolean;
 
 	/**
+	 * Check if a canonical session graph has materialized for this session.
+	 */
+	hasSessionCanonicalProjection(sessionId: string): boolean;
+
+	/**
 	 * Get session cold data by ID from the lookup map (O(1)).
 	 */
 	getSessionCold(id: string): SessionCold | undefined;

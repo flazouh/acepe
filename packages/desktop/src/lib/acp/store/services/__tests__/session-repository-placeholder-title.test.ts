@@ -13,6 +13,7 @@ import { SessionRepository } from "../session-repository.js";
 type SessionStoreState = {
 	sessions: SessionCold[];
 	preloadedSessionIds: Set<string>;
+	canonicalProjectionSessionIds?: Set<string>;
 };
 
 function createSession(overrides: Partial<SessionCold> = {}): SessionCold {
@@ -61,6 +62,8 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 		getSessionToolCalls: () => [],
 		getSessionModifiedFilesState: () => null,
 		isPreloaded: (sessionId: string) => state.preloadedSessionIds.has(sessionId),
+		hasSessionCanonicalProjection: (sessionId: string) =>
+			state.canonicalProjectionSessionIds?.has(sessionId) ?? false,
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
 		getSessionIdentity: (id: string) => {
 			const session = state.sessions.find((candidate) => candidate.id === id);
