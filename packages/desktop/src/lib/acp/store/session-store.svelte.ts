@@ -3379,6 +3379,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			if (command.kind === "replaceGraph") {
 				const graph = command.graph;
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
+				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				const currentRevision = previousProjection?.revision ?? previousGraph?.revision ?? null;
+				if (!isNewerGraphRevision(currentRevision, graph.revision)) {
+					logger.debug("Ignoring stale session-state graph snapshot", {
+						sessionId,
+						currentRevision,
+						incomingRevision: graph.revision,
+					});
+					continue;
+				}
 				const currentTranscriptRevision = previousGraph?.transcriptSnapshot.revision;
 				const incomingTranscriptRevision = graph.transcriptSnapshot.revision;
 				const shouldReplaceTranscriptSnapshot =

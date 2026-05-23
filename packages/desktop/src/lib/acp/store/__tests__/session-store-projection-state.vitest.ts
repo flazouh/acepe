@@ -2292,6 +2292,61 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		]);
 	});
 
+	it("ignores stale graph snapshots instead of rolling canonical graph state backward", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		const currentActivity: SessionGraphActivity = {
+			kind: "running_operation",
+			activeOperationCount: 1,
+			activeSubagentCount: 0,
+			dominantOperationId: "op-current",
+			blockingInteractionId: null,
+		};
+		const staleActivity: SessionGraphActivity = {
+			kind: "idle",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+		const currentGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Running",
+			lifecycle: createGraphLifecycle("ready"),
+			activity: currentActivity,
+			revision: {
+				graphRevision: 10,
+				transcriptRevision: 7,
+				lastEventSeq: 10,
+			},
+			operations: [createOperationSnapshot({ id: "op-current" })],
+		});
+		const staleGraph = createSessionStateGraph({
+			activeTurnFailure: null,
+			turnState: "Idle",
+			lifecycle: createGraphLifecycle("ready"),
+			activity: staleActivity,
+			revision: {
+				graphRevision: 9,
+				transcriptRevision: 7,
+				lastEventSeq: 9,
+			},
+			operations: [],
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(currentGraph));
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(staleGraph));
+
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 10,
+			transcriptRevision: 7,
+			lastEventSeq: 10,
+		});
+		expect(store.getSessionActivity("session-1")).toEqual(currentActivity);
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionStateGraphForTest("session-1")?.operations).toHaveLength(1);
+	});
+
 	it("applies canonical operation and interaction patches from delta envelopes", () => {
 		const store = new SessionStore();
 		const interactions = new InteractionStore();
