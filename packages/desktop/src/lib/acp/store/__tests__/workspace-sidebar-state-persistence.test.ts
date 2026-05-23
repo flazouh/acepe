@@ -74,6 +74,32 @@ function createPanelStoreStub() {
 		getTerminalTabsForGroup: mock(() => []),
 		getActiveFilePanelIdByOwnerPanelIdRecord: mock(() => ({})),
 		setActiveFilePanelMap: mock(() => {}),
+		restoreWorkspacePanels: mock((workspacePanels: WorkspacePanel[]) => {
+			store.workspacePanels = workspacePanels;
+			store.panels = workspacePanels.filter((panel): panel is Panel => panel.kind === "agent");
+			store.filePanels = workspacePanels.filter((panel) => panel.kind === "file") as never[];
+			store.terminalPanels = workspacePanels.filter((panel) => panel.kind === "terminal") as never[];
+			store.browserPanels = workspacePanels.filter((panel) => panel.kind === "browser") as never[];
+			store.reviewPanels = workspacePanels.filter((panel) => panel.kind === "review") as never[];
+			store.gitPanels = workspacePanels.filter((panel) => panel.kind === "git") as never[];
+		}),
+		restoreTerminalPanelState: mock(
+			(groups: TerminalPanelGroupStub[], tabs: TerminalTabStub[]) => {
+				store.terminalPanelGroups = groups;
+				store.terminalTabs = tabs;
+				store.terminalPanels = groups.map((group) => ({
+					id: group.id,
+					kind: "terminal" as const,
+					projectPath: group.projectPath,
+					width: group.width,
+					ownerPanelId: null,
+					groupId: group.id,
+				})) as never[];
+				store.workspacePanels = store.workspacePanels
+					.filter((panel) => panel.kind !== "terminal")
+					.concat(store.terminalPanels);
+			}
+		),
 		hotState: new SvelteMap(),
 		setPlanSidebarExpanded: mock(() => {}),
 		setMessageDraft: mock(() => {}),

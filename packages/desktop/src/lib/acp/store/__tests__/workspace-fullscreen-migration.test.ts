@@ -62,6 +62,50 @@ function createPanelStoreStub() {
 			reviewFileIndex: 0,
 			embeddedTerminalDrawerOpen: false,
 		})),
+		restoreWorkspacePanels: mock((workspacePanels: WorkspacePanel[]) => {
+			panelStore.workspacePanels = workspacePanels;
+			panelStore.panels = workspacePanels.filter((panel) => panel.kind === "agent") as never[];
+			panelStore.filePanels = workspacePanels.filter((panel) => panel.kind === "file") as never[];
+			panelStore.terminalPanels = workspacePanels.filter(
+				(panel) => panel.kind === "terminal"
+			) as never[];
+			panelStore.browserPanels = workspacePanels.filter((panel) => panel.kind === "browser") as never[];
+			panelStore.reviewPanels = workspacePanels.filter((panel) => panel.kind === "review") as never[];
+			panelStore.gitPanels = workspacePanels.filter((panel) => panel.kind === "git") as never[];
+		}),
+		restoreTerminalPanelState: mock(
+			(
+				groups: Array<{
+					id: string;
+					projectPath: string;
+					width: number;
+					selectedTabId: string | null;
+					order: number;
+				}>,
+				tabs: Array<{
+					id: string;
+					groupId: string;
+					projectPath: string;
+					createdAt: number;
+					ptyId: number | null;
+					shell: string | null;
+				}>
+			) => {
+				panelStore.terminalPanelGroups = groups;
+				panelStore.terminalTabs = tabs;
+				panelStore.terminalPanels = groups.map((group) => ({
+					id: group.id,
+					kind: "terminal" as const,
+					projectPath: group.projectPath,
+					width: group.width,
+					ownerPanelId: null,
+					groupId: group.id,
+				})) as never[];
+				panelStore.workspacePanels = panelStore.workspacePanels
+					.filter((panel) => panel.kind !== "terminal")
+					.concat(panelStore.terminalPanels);
+			}
+		),
 	};
 
 	return panelStore;

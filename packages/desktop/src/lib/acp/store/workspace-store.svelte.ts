@@ -680,12 +680,12 @@ export class WorkspaceStore {
 				state.workspacePanels
 			);
 			const restoredWorkspacePanels = hydratePersistedWorkspacePanels(persistedWorkspacePanels);
-			this.panelStore.workspacePanels = restoredWorkspacePanels;
+			this.panelStore.restoreWorkspacePanels(restoredWorkspacePanels);
 			if (state.terminalPanelGroups && state.terminalTabs) {
-				this.panelStore.terminalPanelGroups = hydratePersistedTerminalPanelGroups(
-					state.terminalPanelGroups
+				this.panelStore.restoreTerminalPanelState(
+					hydratePersistedTerminalPanelGroups(state.terminalPanelGroups),
+					hydratePersistedTerminalTabs(state.terminalTabs)
 				);
-				this.panelStore.terminalTabs = hydratePersistedTerminalTabs(state.terminalTabs);
 			}
 
 			const restoredAgentPanels = restoredWorkspacePanels.filter(
@@ -879,14 +879,12 @@ export class WorkspaceStore {
 		}
 
 		if (state.terminalPanelGroups && state.terminalTabs) {
-			this.panelStore.terminalPanelGroups = hydratePersistedTerminalPanelGroups(
-				state.terminalPanelGroups
+			this.panelStore.restoreTerminalPanelState(
+				hydratePersistedTerminalPanelGroups(state.terminalPanelGroups),
+				hydratePersistedTerminalTabs(state.terminalTabs)
 			);
-			this.panelStore.terminalTabs = hydratePersistedTerminalTabs(state.terminalTabs);
 		} else if (state.terminalPanels && state.terminalPanels.length > 0) {
 			const hydratedTerminals = hydratePersistedTerminalPanels(state.terminalPanels);
-			this.panelStore.terminalPanelGroups = hydratedTerminals.terminalPanelGroups;
-			this.panelStore.terminalTabs = hydratedTerminals.terminalTabs;
 			const migratedTerminalPanels: TerminalWorkspacePanel[] =
 				hydratedTerminals.terminalPanelGroups.map((group) => ({
 					id: group.id,
@@ -896,8 +894,10 @@ export class WorkspaceStore {
 					ownerPanelId: null,
 					groupId: group.id,
 				}));
-			this.panelStore.terminalPanels = migratedTerminalPanels;
-			this.panelStore.workspacePanels = migratedTerminalPanels;
+			this.panelStore.restoreTerminalPanelState(
+				hydratedTerminals.terminalPanelGroups,
+				hydratedTerminals.terminalTabs
+			);
 			if (
 				state.focusedPanelIndex !== null &&
 				state.focusedPanelIndex >= 0 &&

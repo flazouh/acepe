@@ -639,6 +639,24 @@ export class PanelStore {
 		this.setWorkspacePanels(nextWorkspacePanels);
 	}
 
+	restoreWorkspacePanels(nextWorkspacePanels: readonly WorkspacePanel[]): void {
+		const nextAgentPanels = nextWorkspacePanels.filter(
+			(panel): panel is Panel => panel.kind === "agent"
+		);
+		const nextFilePanels = nextWorkspacePanels.filter(
+			(panel): panel is FileWorkspacePanel => panel.kind === "file"
+		);
+		const nextBrowserPanels = nextWorkspacePanels.filter(
+			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
+		);
+
+		this.syncTopLevelAgentPanelIndex(nextAgentPanels);
+		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
+		this.syncFilePanelIndexes(nextFilePanels);
+		this.syncBrowserPanelIndexes(nextBrowserPanels);
+		this.setWorkspacePanels(nextWorkspacePanels);
+	}
+
 	private isTopLevelWorkspacePanel(panel: WorkspacePanel): boolean {
 		if (panel.kind === "agent") {
 			return true;
@@ -2034,6 +2052,14 @@ export class PanelStore {
 		}));
 		this.rebuildTerminalPanelGroupIndexes();
 		this.syncTerminalWorkspacePanels();
+	}
+
+	restoreTerminalPanelState(
+		groups: readonly TerminalPanelGroup[],
+		tabs: readonly TerminalTab[]
+	): void {
+		this.terminalTabs = Array.from(tabs);
+		this.setTerminalPanelGroupsInDisplayOrder(groups);
 	}
 
 	private rebuildTerminalPanelGroupIndexes(): void {
