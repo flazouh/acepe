@@ -80,6 +80,32 @@ describe("PanelStore materializeSessionPanel", () => {
 		expect(store.panels.find((panel) => panel.id === owner.id)).toBe(ownerAfterOpen);
 	});
 
+	it("does not schedule owner-width persistence when refocusing an attached file and the owner is already wide enough", () => {
+		vi.useFakeTimers();
+		const sessionStore = {
+			getSessionCold: vi.fn(() => null),
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+		} as unknown as SessionStore;
+		const agentStore = {
+			getDefaultAgentId: vi.fn(() => "claude-code"),
+		} as unknown as AgentStore;
+		const persist = vi.fn();
+		const store = new PanelStore(sessionStore, agentStore, persist);
+
+		const owner = store.spawnPanel({ projectPath: "/tmp/project-a" });
+		store.resizePanel(owner.id, 250);
+		persist.mockClear();
+		store.openFilePanel("src/main.ts", "/tmp/project-a", { ownerPanelId: owner.id });
+		vi.runOnlyPendingTimers();
+		persist.mockClear();
+
+		store.openFilePanel("src/main.ts", "/tmp/project-a", { ownerPanelId: owner.id });
+		vi.runOnlyPendingTimers();
+
+		expect(persist).not.toHaveBeenCalled();
+	});
+
 	it("creates a hidden session panel without changing focusedPanelId, viewMode, or fullscreen selection", () => {
 		const store = createStore([
 			{
