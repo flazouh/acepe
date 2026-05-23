@@ -40,7 +40,7 @@ describe("resolveSessionStateDelta", () => {
 		});
 	});
 
-	it("does not refresh graph-only deltas when transcript revisions diverge", () => {
+	it("refreshes graph-only deltas when transcript revisions diverge", () => {
 		const delta: SessionStateDelta = {
 			fromRevision: {
 				graphRevision: 6,
@@ -64,7 +64,9 @@ describe("resolveSessionStateDelta", () => {
 		};
 
 		expect(resolveSessionStateDelta("session-1", 4, delta)).toEqual({
-			kind: "noop",
+			kind: "refreshSnapshot",
+			fromRevision: 5,
+			toRevision: 7,
 		});
 	});
 

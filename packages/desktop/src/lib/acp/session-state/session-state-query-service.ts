@@ -107,6 +107,14 @@ export function resolveSessionStateDelta(
 		};
 	}
 
+	if (!isTranscriptBearing && fromRevision !== toRevision) {
+		return {
+			kind: "refreshSnapshot",
+			fromRevision,
+			toRevision,
+		};
+	}
+
 	if (isTranscriptBearing && currentRevision === undefined) {
 		if (fromRevision > 0) {
 			return {
