@@ -741,6 +741,118 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("patches visible interaction rows without rematerializing transcript rows", () => {
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const operations: OperationSnapshot[] = [];
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			interactions: [],
+		});
+		const questionGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: [
+				createQuestionInteraction({
+					id: "question-1",
+					jsonRpcRequestId: 1,
+					replyHandler: {
+						kind: "json_rpc",
+						requestId: "1",
+					},
+				}),
+			],
+		});
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: questionGraph,
+			header: { title: "Question session" },
+		});
+
+		expect(nextScene.conversation.entries).toHaveLength(2);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toMatchObject({
+			id: "interaction:question-1",
+			type: "tool_call",
+			interactionId: "question-1",
+			title: "Question",
+		});
+	});
+
+	it("keeps conversation entries stable when interaction changes are not visible", () => {
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const operations: OperationSnapshot[] = [];
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			interactions: [],
+		});
+		const hiddenInteractionGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "other-question",
+			},
+			interactions: [
+				createQuestionInteraction({
+					id: "question-1",
+					jsonRpcRequestId: 1,
+					replyHandler: {
+						kind: "json_rpc",
+						requestId: "1",
+					},
+				}),
+			],
+		});
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: hiddenInteractionGraph,
+			header: { title: "Question session" },
+		});
+
+		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
 	it("materializes rich tool entries from canonical operations instead of transcript placeholders", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "Run the checks"),

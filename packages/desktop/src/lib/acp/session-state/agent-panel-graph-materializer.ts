@@ -746,6 +746,11 @@ function materializeCachedConversation(
 		return transcriptAppended;
 	}
 
+	const interactionPatched = materializeInteractionPatchedConversation(previous, input);
+	if (interactionPatched !== null) {
+		return interactionPatched;
+	}
+
 	const operationIndex = buildOperationIndex(input.graph.operations);
 	const conversation = materializeConversationWithOperationIndex(input.graph, operationIndex);
 	return {
@@ -865,6 +870,97 @@ function appendTranscriptEntriesBeforeTrailingInteractions(
 		}
 	}
 	return nextEntries;
+}
+
+function materializeInteractionPatchedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.transcriptEntries !== input.graph.transcriptSnapshot.entries ||
+		previous.operations !== input.graph.operations ||
+		previous.turnState !== input.graph.turnState ||
+		previous.activeStreamingTail !== input.graph.activeStreamingTail
+	) {
+		return null;
+	}
+
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const nextInteractionEntries = materializeVisibleInteractionEntries(
+		input.graph,
+		previous.sceneEntryRowIndex
+	);
+	const previousInteractionEntries = previous.conversation.entries.slice(transcriptSceneEntryCount);
+	if (areSceneEntryListsEquivalent(previousInteractionEntries, nextInteractionEntries)) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+
+	const nextEntries = previous.conversation.entries
+		.slice(0, transcriptSceneEntryCount)
+		.concat(nextInteractionEntries);
+	patchTrailingSceneEntryRowIndex(
+		previous.sceneEntryRowIndex,
+		previousInteractionEntries,
+		nextInteractionEntries,
+		transcriptSceneEntryCount
+	);
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+	};
+}
+
+function materializeVisibleInteractionEntries(
+	graph: AgentPanelCanonicalSource,
+	sceneEntryRowIndex: ReadonlyMap<string, number>
+): AgentPanelSceneEntryModel[] {
+	const entries: AgentPanelSceneEntryModel[] = [];
+	for (const interaction of graph.interactions) {
+		const entry = questionInteractionToSceneEntry(interaction, graph);
+		if (entry === null || sceneEntryRowIndex.has(entry.id)) {
+			continue;
+		}
+		entries.push(entry);
+	}
+	return entries;
+}
+
+function areSceneEntryListsEquivalent(
+	left: readonly AgentPanelSceneEntryModel[],
+	right: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+	return left.every((entry, index) => areSceneEntriesEquivalent(entry, right[index]));
+}
+
+function patchTrailingSceneEntryRowIndex(
+	rowIndex: Map<string, number>,
+	previousEntries: readonly AgentPanelSceneEntryModel[],
+	nextEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): void {
+	for (const entry of previousEntries) {
+		rowIndex.delete(entry.id);
+	}
+	appendSceneEntryRowIndex(rowIndex, nextEntries, startIndex);
 }
 
 function isStableTranscriptAppend(
