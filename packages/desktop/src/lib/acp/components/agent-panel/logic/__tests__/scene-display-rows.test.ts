@@ -282,6 +282,46 @@ describe("scene-display-rows", () => {
 		expect(readModel.selectLatestTimestampMs()).toBe(3);
 	});
 
+	it("patches same-length scene entry changes without slicing the whole row array", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 1,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = readModel.getRows([userEntry, assistantEntry]);
+		const originalSlice = firstRows.slice;
+
+		firstRows.slice = () => {
+			throw new Error("must not slice whole display rows");
+		};
+
+		try {
+			const nextRows = readModel.getRows([
+				userEntry,
+				{ ...assistantEntry, markdown: "Answer changed", timestampMs: 3 },
+			]);
+
+			expect(nextRows).toHaveLength(2);
+			expect(nextRows[0]).toBe(firstRows[0]);
+			expect(nextRows[1]).not.toBe(firstRows[1]);
+			expect(nextRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"assistant-1",
+			]);
+			expect(readModel.selectLatestTimestampMs()).toBe(3);
+		} finally {
+			firstRows.slice = originalSlice;
+		}
+	});
+
 	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.getRows([

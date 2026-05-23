@@ -191,20 +191,27 @@ function createPatchedSceneDisplayRowArray(
 	patchedIndex: number,
 	patchedRow: SceneDisplayRow
 ): readonly SceneDisplayRow[] {
+	return createPatchedSceneDisplayRowsArray(baseRows, new Map([[patchedIndex, patchedRow]]));
+}
+
+function createPatchedSceneDisplayRowsArray(
+	baseRows: readonly SceneDisplayRow[],
+	patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>
+): readonly SceneDisplayRow[] {
 	const target = new Array<SceneDisplayRow>(baseRows.length);
 	return new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
 					for (let index = 0; index < baseRows.length; index += 1) {
-						yield index === patchedIndex ? patchedRow : baseRows[index];
+						yield patchedRowsByIndex.get(index) ?? baseRows[index];
 					}
 				};
 			}
 			if (typeof property === "string") {
 				const index = toArrayIndex(property);
 				if (index !== null) {
-					return index === patchedIndex ? patchedRow : baseRows[index];
+					return patchedRowsByIndex.get(index) ?? baseRows[index];
 				}
 				if (property === "slice") {
 					return (start?: number, end?: number) =>
@@ -227,7 +234,7 @@ function createPatchedSceneDisplayRowArray(
 				return {
 					configurable: true,
 					enumerable: true,
-					value: index === patchedIndex ? patchedRow : baseRows[index],
+					value: patchedRowsByIndex.get(index) ?? baseRows[index],
 					writable: false,
 				};
 			}
@@ -363,7 +370,7 @@ function patchSameLengthSceneDisplayRows(
 		return null;
 	}
 
-	let rows: SceneDisplayRow[] | null = null;
+	const patchedRowsByIndex = new Map<number, SceneDisplayRow>();
 	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
 	for (let index = 0; index < sceneEntries.length; index += 1) {
 		const previousEntry = previousSceneEntries[index];
@@ -393,15 +400,17 @@ function patchSameLengthSceneDisplayRows(
 		) {
 			return null;
 		}
-		rows ??= previousRows.slice();
-		rows[rowIndex] = patchedRow;
+		patchedRowsByIndex.set(rowIndex, patchedRow);
 		firstChangedRowIndex = Math.min(firstChangedRowIndex, rowIndex);
 	}
 
-	if (rows === null) {
+	if (patchedRowsByIndex.size === 0) {
 		return { rows: previousRows, firstChangedRowIndex: previousRows.length };
 	}
-	return { rows, firstChangedRowIndex };
+	return {
+		rows: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex),
+		firstChangedRowIndex,
+	};
 }
 
 function canPatchSceneDisplayRow(row: SceneDisplayRow, entryId: string): boolean {
