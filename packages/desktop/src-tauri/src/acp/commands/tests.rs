@@ -487,7 +487,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
 }
 
 #[tokio::test]
-async fn connection_complete_builds_graph_native_snapshot_envelope() {
+async fn connection_complete_builds_graph_native_capability_and_lifecycle_envelopes() {
     let db = setup_test_db().await;
     SessionMetadataRepository::upsert(
         &db,
@@ -554,19 +554,17 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
             transcript_delta: None,
         })
         .await
-        .expect("snapshot envelope");
+        .expect("capabilities envelope");
 
     match envelope.payload {
-        SessionStatePayload::Snapshot { graph } => {
-            assert_eq!(graph.revision, SessionGraphRevision::new(7, 5, 7));
+        SessionStatePayload::Capabilities {
+            capabilities,
+            revision,
+            ..
+        } => {
+            assert_eq!(revision, SessionGraphRevision::new(7, 5, 7));
             assert_eq!(
-                graph.lifecycle.status,
-                crate::acp::lifecycle::LifecycleStatus::Ready
-            );
-            assert_eq!(graph.lifecycle.error_message, None);
-            assert_eq!(
-                graph
-                    .capabilities
+                capabilities
                     .models
                     .as_ref()
                     .expect("models")
@@ -575,8 +573,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 Some("gpt-5")
             );
             assert_eq!(
-                graph
-                    .capabilities
+                capabilities
                     .available_commands
                     .as_ref()
                     .expect("available commands")
@@ -584,8 +581,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 1
             );
             assert_eq!(
-                graph
-                    .capabilities
+                capabilities
                     .config_options
                     .as_ref()
                     .expect("config options")
@@ -593,7 +589,35 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
                 1
             );
         }
-        payload => panic!("expected snapshot payload, got {payload:?}"),
+        payload => panic!("expected capabilities payload, got {payload:?}"),
+    }
+
+    let additional = runtime_registry.build_additional_session_state_envelopes(
+        LiveSessionStateEnvelopeRequest {
+            db: &db,
+            session_id: "session-1",
+            update: &update,
+            previous_revision: SessionGraphRevision::new(6, 5, 6),
+            revision: SessionGraphRevision::new(7, 5, 7),
+            projection_registry: &projection_registry,
+            transcript_projection_registry: &transcript_projection_registry,
+            transcript_delta: None,
+        },
+    );
+    assert_eq!(additional.len(), 1);
+    match &additional[0].payload {
+        SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        } => {
+            assert_eq!(*revision, SessionGraphRevision::new(7, 5, 7));
+            assert_eq!(
+                lifecycle.status,
+                crate::acp::lifecycle::LifecycleStatus::Ready
+            );
+            assert_eq!(lifecycle.error_message, None);
+        }
+        payload => panic!("expected lifecycle payload, got {payload:?}"),
     }
 }
 

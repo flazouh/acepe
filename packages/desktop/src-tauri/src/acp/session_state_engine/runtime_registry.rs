@@ -260,6 +260,16 @@ impl SessionGraphRuntimeRegistry {
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
     ) -> Option<SessionStateEnvelope> {
+        if should_emit_connection_complete(request.update) {
+            return Some(build_live_session_state_capabilities_envelope(
+                request.session_id,
+                self.snapshot_for_session(request.session_id).capabilities,
+                request.revision,
+                None,
+                CapabilityPreviewState::Canonical,
+            ));
+        }
+
         if should_emit_session_state_capabilities(request.update) {
             return Some(build_live_session_state_capabilities_envelope(
                 request.session_id,
@@ -441,6 +451,25 @@ impl SessionGraphRuntimeRegistry {
             &snapshot,
             request.revision,
         )
+    }
+
+    #[must_use]
+    pub fn build_additional_session_state_envelopes(
+        &self,
+        request: LiveSessionStateEnvelopeRequest<'_>,
+    ) -> Vec<SessionStateEnvelope> {
+        let mut envelopes = Vec::new();
+        if should_emit_connection_complete(request.update) {
+            envelopes.push(build_live_session_state_lifecycle_envelope(
+                request.session_id,
+                self.snapshot_for_session(request.session_id).lifecycle,
+                request.revision,
+            ));
+        }
+        if let Some(envelope) = self.build_assistant_text_delta_envelope(request) {
+            envelopes.push(envelope);
+        }
+        envelopes
     }
 
     pub async fn build_snapshot_envelope_for_session(
@@ -1110,8 +1139,12 @@ fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
     )
 }
 
-fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
+fn should_emit_connection_complete(update: &SessionUpdate) -> bool {
     matches!(update, SessionUpdate::ConnectionComplete { .. })
+}
+
+fn should_emit_session_state_snapshot(_update: &SessionUpdate) -> bool {
+    false
 }
 
 fn should_emit_session_state_lifecycle(update: &SessionUpdate) -> bool {
@@ -1588,27 +1621,6 @@ mod tests {
         assert!(payload.get("transcriptSnapshot").is_none());
     }
 
-    fn assert_snapshot_payload_contract(
-        surface: &str,
-        envelope: &SessionStateEnvelope,
-        expected_history_count: usize,
-    ) {
-        match &envelope.payload {
-            SessionStatePayload::Snapshot { graph } => {
-                assert_eq!(
-                    graph.operations.len(),
-                    expected_history_count,
-                    "{surface} should carry the full operation history while it remains a snapshot surface"
-                );
-                assert!(
-                    graph.transcript_snapshot.entries.len() >= expected_history_count,
-                    "{surface} should carry the transcript history while it remains a snapshot surface"
-                );
-            }
-            other => panic!("expected snapshot payload for {surface}, got {:?}", other),
-        }
-    }
-
     fn assert_interaction_delta_contract(
         surface: &str,
         envelope: &SessionStateEnvelope,
@@ -1689,24 +1701,6 @@ mod tests {
         }
     }
 
-    async fn assert_snapshot_surface_scales_with_history(
-        db: &DbConn,
-        surface: &str,
-        update_under_test: SessionUpdate,
-    ) {
-        let short_envelope =
-            build_snapshot_for_history_depth(db, 4, update_under_test.clone()).await;
-        let long_envelope = build_snapshot_for_history_depth(db, 300, update_under_test).await;
-        assert_snapshot_payload_contract(surface, &short_envelope, 4);
-        assert_snapshot_payload_contract(surface, &long_envelope, 300);
-        let short_len = serialized_envelope_len(&short_envelope);
-        let long_len = serialized_envelope_len(&long_envelope);
-        assert!(
-            long_len > short_len + 1024,
-            "{surface} did not show measurable history scaling: short={short_len}, long={long_len}"
-        );
-    }
-
     async fn assert_lifecycle_surface_stays_history_independent(
         db: &DbConn,
         surface: &str,
@@ -1731,6 +1725,38 @@ mod tests {
                     );
                 }
                 other => panic!("expected lifecycle payload for {surface}, got {:?}", other),
+            }
+        }
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
+    }
+
+    async fn assert_capabilities_surface_stays_history_independent(
+        db: &DbConn,
+        surface: &str,
+        update_under_test: SessionUpdate,
+    ) {
+        let short_envelope =
+            build_snapshot_for_history_depth(db, 4, update_under_test.clone()).await;
+        let long_envelope =
+            build_snapshot_for_history_depth(db, 300, update_under_test.clone()).await;
+        let doubled_envelope = build_snapshot_for_history_depth(db, 600, update_under_test).await;
+        for envelope in [&short_envelope, &long_envelope, &doubled_envelope] {
+            match &envelope.payload {
+                SessionStatePayload::Capabilities { capabilities, .. } => {
+                    assert!(
+                        capabilities.models.is_some(),
+                        "{surface} should carry canonical model capabilities"
+                    );
+                    assert!(
+                        capabilities.modes.is_some(),
+                        "{surface} should carry canonical mode capabilities"
+                    );
+                }
+                other => panic!(
+                    "expected capabilities payload for {surface}, got {:?}",
+                    other
+                ),
             }
         }
         assert_history_independent_payload_size(&short_envelope, &long_envelope);
@@ -2520,11 +2546,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connection_complete_payloads_are_measurable_history_scaling_surfaces() {
+    async fn connection_complete_emits_history_independent_capabilities() {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
 
-        assert_snapshot_surface_scales_with_history(
+        assert_capabilities_surface_stays_history_independent(
             &db,
             "connection_complete",
             create_connection_complete_update(),

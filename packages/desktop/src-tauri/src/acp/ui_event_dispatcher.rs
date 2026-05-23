@@ -1395,10 +1395,8 @@ async fn persist_dispatch_event(
             let session_state_envelope = runtime_graph_registry
                 .build_live_session_state_envelope(request)
                 .await;
-            let additional_session_state_envelopes = runtime_graph_registry
-                .build_assistant_text_delta_envelope(request)
-                .into_iter()
-                .collect();
+            let additional_session_state_envelopes =
+                runtime_graph_registry.build_additional_session_state_envelopes(request);
             DispatchPersistenceEffects {
                 session_state_envelope,
                 additional_session_state_envelopes,
@@ -1465,10 +1463,8 @@ async fn persist_dispatch_event(
             let session_state_envelope = runtime_graph_registry
                 .build_live_session_state_envelope(request)
                 .await;
-            let additional_session_state_envelopes = runtime_graph_registry
-                .build_assistant_text_delta_envelope(request)
-                .into_iter()
-                .collect();
+            let additional_session_state_envelopes =
+                runtime_graph_registry.build_additional_session_state_envelopes(request);
             DispatchPersistenceEffects {
                 session_state_envelope,
                 additional_session_state_envelopes,
@@ -2047,6 +2043,83 @@ mod tests {
                 assert_eq!(delta.revision, 1);
             }
             other => panic!("expected assistant text delta payload, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn persist_dispatch_event_splits_connection_complete_into_capabilities_and_lifecycle() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "session-1",
+            "/test/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("session metadata");
+        let event = AcpUiEvent::session_update(SessionUpdate::ConnectionComplete {
+            session_id: "session-1".to_string(),
+            attempt_id: 1,
+            models: crate::acp::client_session::default_session_model_state(),
+            modes: crate::acp::client_session::default_modes(),
+            available_commands: Some(vec![AvailableCommand {
+                name: "compact".to_string(),
+                description: "Compact".to_string(),
+                input: None,
+            }]),
+            config_options: Some(Vec::new()),
+            autonomous_enabled: Some(true),
+        });
+
+        let projection_registry = ProjectionRegistry::new();
+        if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
+            projection_registry.apply_session_update("session-1", update.as_ref());
+        }
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_graph_registry, "session-1");
+        let effects = persist_dispatch_event(
+            Some(&db),
+            &event,
+            &projection_registry,
+            &runtime_graph_registry,
+            &transcript_projection_registry,
+        )
+        .await;
+
+        match effects
+            .session_state_envelope
+            .expect("session state envelope")
+            .payload
+        {
+            crate::acp::session_state_engine::SessionStatePayload::Capabilities {
+                capabilities,
+                ..
+            } => {
+                assert_eq!(
+                    capabilities
+                        .available_commands
+                        .as_ref()
+                        .expect("available commands")
+                        .len(),
+                    1
+                );
+                assert_eq!(capabilities.autonomous_enabled, Some(true));
+            }
+            other => panic!("expected capabilities payload, got {:?}", other),
+        }
+        assert_eq!(effects.additional_session_state_envelopes.len(), 1);
+        match &effects.additional_session_state_envelopes[0].payload {
+            crate::acp::session_state_engine::SessionStatePayload::Lifecycle {
+                lifecycle, ..
+            } => {
+                assert_eq!(
+                    lifecycle.status,
+                    crate::acp::lifecycle::LifecycleStatus::Ready
+                );
+            }
+            other => panic!("expected lifecycle payload, got {:?}", other),
         }
     }
 

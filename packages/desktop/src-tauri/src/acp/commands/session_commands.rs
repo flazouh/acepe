@@ -1560,6 +1560,21 @@ pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
         {
             publish_session_state_envelope(hub, envelope);
         }
+        for envelope in runtime_registry
+            .inner()
+            .build_additional_session_state_envelopes(LiveSessionStateEnvelopeRequest {
+                db: app.state::<DbConn>().inner(),
+                session_id,
+                update: &update,
+                previous_revision: base_revision,
+                revision,
+                projection_registry: projection_registry.inner(),
+                transcript_projection_registry: transcript_projection_registry.inner(),
+                transcript_delta: None,
+            })
+        {
+            publish_session_state_envelope(hub, envelope);
+        }
     }
 }
 
