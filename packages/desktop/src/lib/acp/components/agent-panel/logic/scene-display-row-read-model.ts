@@ -728,7 +728,7 @@ function patchSameLengthSceneDisplayRows(
 	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	previousRows: readonly SceneDisplayRow[],
-	rowIndexBySceneEntryId: ReadonlyMap<string, number>
+	rowIndexBySceneEntryId: Map<string, number>
 ): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
 	if (previousSceneEntries.length !== sceneEntries.length) {
 		return null;
@@ -742,12 +742,23 @@ function patchSameLengthSceneDisplayRows(
 		if (previousEntry === nextEntry) {
 			continue;
 		}
-		if (
-			previousEntry === undefined ||
-			nextEntry === undefined ||
-			previousEntry.id !== nextEntry.id
-		) {
+		if (previousEntry === undefined || nextEntry === undefined) {
 			return null;
+		}
+		if (previousEntry.id !== nextEntry.id) {
+			const tailReplacement = patchTailReplacementSceneDisplayRow(
+				previousSceneEntries,
+				sceneEntries,
+				previousRows,
+				rowIndexBySceneEntryId,
+				index,
+				previousEntry,
+				nextEntry
+			);
+			if (tailReplacement === null) {
+				return null;
+			}
+			return tailReplacement;
 		}
 		const rowIndex = rowIndexBySceneEntryId.get(nextEntry.id);
 		if (rowIndex === undefined) {
@@ -777,6 +788,49 @@ function patchSameLengthSceneDisplayRows(
 	return {
 		rows: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex),
 		firstChangedRowIndex,
+	};
+}
+
+function patchTailReplacementSceneDisplayRow(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: Map<string, number>,
+	entryIndex: number,
+	previousEntry: AgentPanelSceneEntryModel,
+	nextEntry: AgentPanelSceneEntryModel
+): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
+	if (entryIndex !== sceneEntries.length - 1 || previousSceneEntries.length !== sceneEntries.length) {
+		return null;
+	}
+	const previousRowIndex = rowIndexBySceneEntryId.get(previousEntry.id);
+	if (
+		previousRowIndex === undefined ||
+		previousRowIndex !== previousRows.length - 1 ||
+		previousRows.length === 0
+	) {
+		return null;
+	}
+	const patchedRow = buildSceneDisplayRows([nextEntry])[0];
+	if (patchedRow === undefined) {
+		return null;
+	}
+	if (areJsonLikeValuesEquivalent(previousRows[previousRowIndex], patchedRow)) {
+		rowIndexBySceneEntryId.delete(previousEntry.id);
+		rowIndexBySceneEntryId.set(nextEntry.id, previousRowIndex);
+		return {
+			rows: previousRows,
+			firstChangedRowIndex: previousRows.length,
+		};
+	}
+	rowIndexBySceneEntryId.delete(previousEntry.id);
+	rowIndexBySceneEntryId.set(nextEntry.id, previousRowIndex);
+	return {
+		rows: createPatchedSceneDisplayRowsArray(
+			previousRows,
+			new Map([[previousRowIndex, patchedRow]])
+		),
+		firstChangedRowIndex: previousRowIndex,
 	};
 }
 

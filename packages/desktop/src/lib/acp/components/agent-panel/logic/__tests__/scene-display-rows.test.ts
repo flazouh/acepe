@@ -497,6 +497,44 @@ describe("scene-display-rows", () => {
 		}
 	});
 
+	it("patches same-length tail entry replacements without scanning unchanged rows", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstUserEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt 1",
+			timestampMs: 1,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondUserEntry = {
+			id: "user-2",
+			type: "user",
+			text: "Prompt 2",
+			timestampMs: 2,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 3,
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = readModel.applySnapshot([firstUserEntry, secondUserEntry]);
+		const originalSlice = firstRows.slice;
+		firstRows.slice = () => {
+			throw new Error("must not slice whole rows for same-length tail replacement");
+		};
+
+		try {
+			const nextRows = readModel.applySnapshot([firstUserEntry, assistantEntry]);
+
+			expect(nextRows).not.toBe(firstRows);
+			expect(nextRows[0]).toBe(firstRows[0]);
+			expect(getSceneDisplayRowKey(nextRows[1]!)).toBe("assistant-1");
+			expect(readModel.selectLatestTimestampMs()).toBe(3);
+		} finally {
+			firstRows.slice = originalSlice;
+		}
+	});
+
 	it("skips marked row rewrites when a patched scene entry renders the same row", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const userEntry = {

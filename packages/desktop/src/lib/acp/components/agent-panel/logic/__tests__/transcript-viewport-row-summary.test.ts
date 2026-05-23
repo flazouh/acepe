@@ -343,13 +343,32 @@ describe("createTranscriptViewportRowsReadModel", () => {
 	});
 
 	it("updates a replaced tail row from the previous summary", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
 		const readModel = createTranscriptViewportRowsReadModel();
-		const firstRows = [userRow("user-1"), thinkingRow("Working")];
+		const firstUserEntry = {
+			type: "user",
+			id: "user-1",
+			text: "Prompt 1",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondUserEntry = {
+			type: "user",
+			id: "user-2",
+			text: "Prompt 2",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			type: "assistant",
+			id: "assistant-1",
+			markdown: "Answer",
+			isStreaming: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = displayRows.applySnapshot([firstUserEntry, secondUserEntry]);
 		const firstSummary = readModel.applyRows({
 			rows: firstRows,
-			reason: "waiting-row-appended",
+			reason: "rows-updated",
 		});
-		const nextRows = [firstRows[0]!, assistantRow("assistant-1")];
+		const nextRows = displayRows.applySnapshot([firstUserEntry, assistantEntry]);
 
 		const nextSummary = readModel.applyRows({
 			rows: nextRows,
