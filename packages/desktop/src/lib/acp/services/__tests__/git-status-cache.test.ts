@@ -139,8 +139,37 @@ describe("git status cache", () => {
 		expect(summary._unsafeUnwrap().get("src/summary.ts")?.insertions).toBe(0);
 	});
 
-	it("selects one file summary status from the cached project summary map", async () => {
+	it("fetches one file summary status without fetching the project summary map", async () => {
 		let summaryFetchCount = 0;
+		let fileSummaryFetchCount = 0;
+
+		const cache = createGitStatusCache({
+			ttlMs: 2000,
+			now: () => 1000,
+			fetchGitStatusSummary: () => {
+				summaryFetchCount += 1;
+				return okAsync([createStatus("src/project.ts", 1, 0)]);
+			},
+			fetchFileGitStatusSummary: (_projectPath, filePath) => {
+				fileSummaryFetchCount += 1;
+				return okAsync(filePath.endsWith("two.ts") ? createStatus("src/two.ts", 4, 2) : null);
+			},
+		});
+
+		const first = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
+		const second = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
+
+		expect(first.isOk()).toBe(true);
+		expect(second.isOk()).toBe(true);
+		expect(first._unsafeUnwrap()?.path).toBe("src/two.ts");
+		expect(second._unsafeUnwrap()?.path).toBe("src/two.ts");
+		expect(summaryFetchCount).toBe(0);
+		expect(fileSummaryFetchCount).toBe(1);
+	});
+
+	it("selects one file from an already cached project summary map", async () => {
+		let summaryFetchCount = 0;
+		let fileSummaryFetchCount = 0;
 
 		const cache = createGitStatusCache({
 			ttlMs: 2000,
@@ -152,16 +181,19 @@ describe("git status cache", () => {
 					createStatus("src/two.ts", 4, 2),
 				]);
 			},
+			fetchFileGitStatusSummary: () => {
+				fileSummaryFetchCount += 1;
+				return okAsync(null);
+			},
 		});
 
-		const first = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
-		const second = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/one.ts");
+		await cache.getProjectGitStatusSummaryMap("/repo");
+		const result = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
 
-		expect(first.isOk()).toBe(true);
-		expect(second.isOk()).toBe(true);
-		expect(first._unsafeUnwrap()?.path).toBe("src/two.ts");
-		expect(second._unsafeUnwrap()?.path).toBe("src/one.ts");
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap()?.path).toBe("src/two.ts");
 		expect(summaryFetchCount).toBe(1);
+		expect(fileSummaryFetchCount).toBe(0);
 	});
 
 	it("invalidates full and summary status maps together", async () => {

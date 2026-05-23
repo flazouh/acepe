@@ -22,6 +22,16 @@ export const fileIndex = {
 		});
 	},
 
+	getFileGitStatusSummary: (
+		projectPath: string,
+		filePath: string
+	): ResultAsync<FileGitStatus | null, AppError> => {
+		return fileIndexCommands.get_file_git_status_summary.invoke<FileGitStatus | null>({
+			projectPath,
+			filePath,
+		});
+	},
+
 	getProjectGitOverviewSummary: (
 		projectPath: string
 	): ResultAsync<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> => {

@@ -75,10 +75,10 @@ use cursor_history::commands::{has_cursor_history, is_cursor_installed};
 use db::repository::{AppSettingsRepository, ProjectRepository, SessionMetadataRepository};
 use file_index::{
     copy_file, create_directory, create_file, delete_path, get_file_diff,
-    get_file_explorer_preview, get_project_files, get_project_git_overview_summary,
-    get_project_git_status, get_project_git_status_summary, invalidate_project_files,
-    read_file_content, read_image_as_base64, rename_path, resolve_file_path, revert_file_content,
-    search_project_files_for_explorer, FileIndexService,
+    get_file_explorer_preview, get_file_git_status_summary, get_project_files,
+    get_project_git_overview_summary, get_project_git_status, get_project_git_status_summary,
+    invalidate_project_files, read_file_content, read_image_as_base64, rename_path,
+    resolve_file_path, revert_file_content, search_project_files_for_explorer, FileIndexService,
 };
 use git::commands::{browse_clone_destination, git_clone, git_collect_ship_context};
 use git::gh_pr::{get_open_pr_for_branch, git_merge_pr, git_pr_checks, git_pr_details};

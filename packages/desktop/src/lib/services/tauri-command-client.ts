@@ -60,6 +60,7 @@ export const TAURI_COMMAND_CLIENT = {
     delete_path: createGeneratedCommand(COMMANDS.file_index.delete_path),
     get_file_diff: createGeneratedCommand(COMMANDS.file_index.get_file_diff),
     get_file_explorer_preview: createGeneratedCommand(COMMANDS.file_index.get_file_explorer_preview),
+    get_file_git_status_summary: createGeneratedCommand(COMMANDS.file_index.get_file_git_status_summary),
     get_project_files: createGeneratedCommand(COMMANDS.file_index.get_project_files),
     get_project_git_overview_summary: createGeneratedCommand(COMMANDS.file_index.get_project_git_overview_summary),
     get_project_git_status: createGeneratedCommand(COMMANDS.file_index.get_project_git_status),

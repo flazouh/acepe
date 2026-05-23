@@ -93,6 +93,7 @@ export const COMMANDS = {
     "get_project_files": "get_project_files",
     "get_project_git_status": "get_project_git_status",
     "get_project_git_status_summary": "get_project_git_status_summary",
+    "get_file_git_status_summary": "get_file_git_status_summary",
     "get_project_git_overview_summary": "get_project_git_overview_summary",
     "invalidate_project_files": "invalidate_project_files",
     "read_file_content": "read_file_content",

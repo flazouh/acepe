@@ -219,6 +219,27 @@ pub async fn get_project_git_status_summary(
     )
 }
 
+/// Get git status summary for one file only.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_file_git_status_summary(
+    service: State<'_, FileIndexService>,
+    project_path: String,
+    file_path: String,
+) -> CommandResult<Option<FileGitStatus>> {
+    unexpected_command_result(
+        "get_file_git_status_summary",
+        "Failed to get file git status summary",
+        async {
+            let validated_path = validate_project_path_for_indexing(&project_path)?;
+            service
+                .get_file_git_status_summary(&validated_path, &file_path)
+                .await
+        }
+        .await,
+    )
+}
+
 /// Get branch + TCC-safe git status summary for a project.
 #[tauri::command]
 #[specta::specta]

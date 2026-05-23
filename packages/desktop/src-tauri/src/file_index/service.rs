@@ -9,7 +9,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 
 use super::explorer::{load_explorer_preview, search_explorer};
-use super::git::{get_git_overview_summary, get_git_status, get_git_status_summary};
+use super::git::{
+    get_file_git_status_summary, get_git_overview_summary, get_git_status, get_git_status_summary,
+};
 use super::scanner::scan_project;
 use super::types::{
     FileExplorerPreviewResponse, FileExplorerSearchResponse, FileGitStatus, IndexedFile,
@@ -194,6 +196,23 @@ impl FileIndexService {
 
         tokio::task::spawn_blocking(move || {
             get_git_status_summary(&path).map_err(|e| format!("Failed to get git status: {}", e))
+        })
+        .await
+        .map_err(|e| format!("Task join error: {}", e))?
+    }
+
+    /// Get git status summary for one file only.
+    pub async fn get_file_git_status_summary(
+        &self,
+        project_path: &str,
+        file_path: &str,
+    ) -> Result<Option<FileGitStatus>, String> {
+        let path = Path::new(project_path).to_path_buf();
+        let file_path = file_path.to_string();
+
+        tokio::task::spawn_blocking(move || {
+            get_file_git_status_summary(&path, &file_path)
+                .map_err(|e| format!("Failed to get file git status: {}", e))
         })
         .await
         .map_err(|e| format!("Task join error: {}", e))?

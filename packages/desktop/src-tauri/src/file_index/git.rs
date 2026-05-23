@@ -26,6 +26,70 @@ pub fn get_git_status_summary(project_path: &Path) -> Result<Vec<FileGitStatus>>
     get_git_status_with_mode(project_path, DiffStatsMode::None, false)
 }
 
+/// Get git status summary for one file.
+///
+/// This keeps file-panel metadata loading scoped to the clicked file instead of
+/// asking git for every changed file in the project.
+pub fn get_file_git_status_summary(
+    project_path: &Path,
+    file_path: &str,
+) -> Result<Option<FileGitStatus>> {
+    let repo = match open_repository(project_path) {
+        Ok(repo) => repo,
+        Err(error) if is_missing_repository_error(&error) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    for candidate in build_git_status_lookup_candidates(&repo, project_path, file_path) {
+        let Some(pathspec) = path_to_git_pathspec(&candidate) else {
+            continue;
+        };
+        let statuses = get_git_status_for_pathspec(&repo, &pathspec, DiffStatsMode::None, false)?;
+        if let Some(status) = statuses.into_iter().next() {
+            return Ok(Some(status));
+        }
+    }
+
+    Ok(None)
+}
+
+fn build_git_status_lookup_candidates(
+    repo: &Repository,
+    project_path: &Path,
+    file_path: &str,
+) -> Vec<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let input_path = Path::new(file_path);
+
+    if let Some(workdir) = repo.workdir() {
+        if input_path.is_absolute() {
+            if let Some(relative) = strip_path_prefix_with_canonical_fallback(input_path, workdir) {
+                candidates.push(relative.to_path_buf());
+            }
+        } else {
+            let from_project = project_path.join(input_path);
+            if let Some(relative) =
+                strip_path_prefix_with_canonical_fallback(from_project.as_path(), workdir)
+            {
+                candidates.push(relative.to_path_buf());
+            }
+        }
+    }
+
+    if input_path.is_relative() {
+        candidates.push(input_path.to_path_buf());
+    }
+
+    let mut deduped: Vec<PathBuf> = Vec::new();
+    for candidate in candidates {
+        if !candidate.as_os_str().is_empty() && !deduped.contains(&candidate) {
+            deduped.push(candidate);
+        }
+    }
+
+    deduped
+}
+
 #[derive(Clone, Copy)]
 enum DiffStatsMode {
     PerFile,
@@ -43,6 +107,22 @@ fn get_git_status_with_mode(
         Err(error) => return Err(error),
     };
     get_git_status_with_repo(&repo, project_path, diff_stats_mode, include_untracked)
+}
+
+fn get_git_status_for_pathspec(
+    repo: &Repository,
+    pathspec: &str,
+    diff_stats_mode: DiffStatsMode,
+    include_untracked: bool,
+) -> Result<Vec<FileGitStatus>> {
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(include_untracked)
+        .recurse_untracked_dirs(false)
+        .include_ignored(false)
+        .exclude_submodules(true)
+        .pathspec(pathspec);
+
+    collect_git_statuses(repo, &mut opts, diff_stats_mode)
 }
 
 fn is_missing_repository_error(error: &anyhow::Error) -> bool {
@@ -70,8 +150,16 @@ fn get_git_status_with_repo(
         opts.pathspec(pathspec);
     }
 
+    collect_git_statuses(repo, &mut opts, diff_stats_mode)
+}
+
+fn collect_git_statuses(
+    repo: &Repository,
+    opts: &mut StatusOptions,
+    diff_stats_mode: DiffStatsMode,
+) -> Result<Vec<FileGitStatus>> {
     let statuses = repo
-        .statuses(Some(&mut opts))
+        .statuses(Some(opts))
         .context("Failed to get repository status")?;
 
     let mut results = Vec::new();
@@ -472,6 +560,100 @@ mod tests {
         assert_eq!(status[0].status, "M");
         assert_eq!(status[0].insertions, 0);
         assert_eq!(status[0].deletions, 0);
+    }
+
+    #[test]
+    fn test_get_file_git_status_summary_scopes_to_one_file() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+
+        fs::write(dir.path().join("one.txt"), "one\n").unwrap();
+        fs::write(dir.path().join("two.txt"), "two\n").unwrap();
+
+        real_git_command()
+            .args(["add", "one.txt", "two.txt"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to add files");
+
+        real_git_command()
+            .args(["commit", "-m", "initial"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to commit");
+
+        fs::write(dir.path().join("one.txt"), "one changed\n").unwrap();
+        fs::write(dir.path().join("two.txt"), "two changed\n").unwrap();
+
+        let status = get_file_git_status_summary(dir.path(), "two.txt").unwrap();
+
+        let status = status.expect("two.txt should have git status");
+        assert_eq!(status.path, "two.txt");
+        assert_eq!(status.status, "M");
+        assert_eq!(status.insertions, 0);
+        assert_eq!(status.deletions, 0);
+    }
+
+    #[test]
+    fn test_get_file_git_status_summary_supports_nested_project_path() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+
+        let nested_dir = dir.path().join("nested");
+        fs::create_dir_all(&nested_dir).unwrap();
+        fs::write(nested_dir.join("file.txt"), "hello\n").unwrap();
+
+        real_git_command()
+            .args(["add", "nested/file.txt"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to add file");
+
+        real_git_command()
+            .args(["commit", "-m", "initial"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to commit");
+
+        fs::write(nested_dir.join("file.txt"), "hello\nworld\n").unwrap();
+
+        let status = get_file_git_status_summary(&nested_dir, "file.txt").unwrap();
+
+        let status = status.expect("nested file should have git status");
+        assert_eq!(status.path, "nested/file.txt");
+        assert_eq!(status.status, "M");
+    }
+
+    #[test]
+    fn test_get_file_git_status_summary_prefers_nested_project_match() {
+        let dir = TempDir::new().unwrap();
+        init_git_repo(dir.path());
+
+        let nested_dir = dir.path().join("nested");
+        fs::create_dir_all(&nested_dir).unwrap();
+        fs::write(dir.path().join("file.txt"), "root\n").unwrap();
+        fs::write(nested_dir.join("file.txt"), "nested\n").unwrap();
+
+        real_git_command()
+            .args(["add", "file.txt", "nested/file.txt"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to add files");
+
+        real_git_command()
+            .args(["commit", "-m", "initial"])
+            .current_dir(dir.path())
+            .output()
+            .expect("Failed to commit");
+
+        fs::write(dir.path().join("file.txt"), "root changed\n").unwrap();
+        fs::write(nested_dir.join("file.txt"), "nested changed\n").unwrap();
+
+        let status = get_file_git_status_summary(&nested_dir, "file.txt").unwrap();
+
+        let status = status.expect("nested file should have git status");
+        assert_eq!(status.path, "nested/file.txt");
+        assert_eq!(status.status, "M");
     }
 
     #[test]

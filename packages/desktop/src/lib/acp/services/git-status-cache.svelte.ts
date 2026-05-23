@@ -5,10 +5,14 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 type FetchGitStatus = (projectPath: string) => ResultAsync<ReadonlyArray<FileGitStatus>, AppError>;
+type FetchFileGitStatus = (
+	projectPath: string,
+	filePath: string
+) => ResultAsync<FileGitStatus | null, AppError>;
 
-type GitStatusCacheEntry = {
+type GitStatusCacheEntry<T = ReadonlyMap<string, FileGitStatus>> = {
 	expiresAt: number;
-	statusMap: ReadonlyMap<string, FileGitStatus>;
+	statusMap: T;
 };
 
 type CreateGitStatusCacheOptions = {
@@ -16,6 +20,7 @@ type CreateGitStatusCacheOptions = {
 	now?: () => number;
 	fetchGitStatus?: FetchGitStatus;
 	fetchGitStatusSummary?: FetchGitStatus;
+	fetchFileGitStatusSummary?: FetchFileGitStatus;
 };
 
 type GitStatusCacheApi = {
@@ -34,6 +39,10 @@ type GitStatusCacheApi = {
 
 const DEFAULT_TTL_MS = 2000;
 
+function createFileSummaryCacheKey(projectPath: string, filePath: string): string {
+	return `${projectPath}\0${filePath}`;
+}
+
 function buildStatusMap(
 	statuses: ReadonlyArray<FileGitStatus>
 ): ReadonlyMap<string, FileGitStatus> {
@@ -42,6 +51,21 @@ function buildStatusMap(
 		map.set(status.path, status);
 	}
 	return map;
+}
+
+function selectFileStatusFromSummaryMap(
+	statusMap: ReadonlyMap<string, FileGitStatus>,
+	projectPath: string,
+	filePath: string
+): FileGitStatus | null {
+	const relativeFilePath = getRelativeFilePath(filePath, projectPath);
+	if (relativeFilePath === null) {
+		return null;
+	}
+	return (
+		statusMap.get(relativeFilePath) ??
+		findGitStatusForFile(Array.from(statusMap.values()), filePath, projectPath)
+	);
 }
 
 export function createGitStatusCache(options?: CreateGitStatusCacheOptions): GitStatusCacheApi {
@@ -55,9 +79,17 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		options?.fetchGitStatusSummary ??
 		((projectPath: string): ResultAsync<ReadonlyArray<FileGitStatus>, AppError> =>
 			tauriClient.fileIndex.getProjectGitStatusSummary(projectPath));
+	const fetchFileGitStatusSummary =
+		options?.fetchFileGitStatusSummary ??
+		((projectPath: string, filePath: string): ResultAsync<FileGitStatus | null, AppError> =>
+			tauriClient.fileIndex.getFileGitStatusSummary(projectPath, filePath));
 
 	const cacheByProject = new Map<string, GitStatusCacheEntry>();
 	const summaryCacheByProject = new Map<string, GitStatusCacheEntry>();
+	const fileSummaryCacheByProjectAndPath = new Map<
+		string,
+		GitStatusCacheEntry<FileGitStatus | null>
+	>();
 	const inflightByProject = new Map<
 		string,
 		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
@@ -65,6 +97,10 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	const summaryInflightByProject = new Map<
 		string,
 		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
+	>();
+	const fileSummaryInflightByProjectAndPath = new Map<
+		string,
+		ResultAsync<FileGitStatus | null, AppError>
 	>();
 
 	function getCachedProjectStatusMap(
@@ -128,16 +164,38 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		projectPath: string,
 		filePath: string
 	): ResultAsync<FileGitStatus | null, AppError> {
-		return getProjectGitStatusSummaryMap(projectPath).map((statusMap) => {
-			const relativeFilePath = getRelativeFilePath(filePath, projectPath);
-			if (relativeFilePath === null) {
-				return null;
-			}
-			return (
-				statusMap.get(relativeFilePath) ??
-				findGitStatusForFile(Array.from(statusMap.values()), filePath, projectPath)
-			);
-		});
+		const cachedSummary = summaryCacheByProject.get(projectPath);
+		if (cachedSummary && cachedSummary.expiresAt > now()) {
+			return okAsync(selectFileStatusFromSummaryMap(cachedSummary.statusMap, projectPath, filePath));
+		}
+
+		const cacheKey = createFileSummaryCacheKey(projectPath, filePath);
+		const cached = fileSummaryCacheByProjectAndPath.get(cacheKey);
+		if (cached && cached.expiresAt > now()) {
+			return okAsync(cached.statusMap);
+		}
+
+		const existingRequest = fileSummaryInflightByProjectAndPath.get(cacheKey);
+		if (existingRequest) {
+			return existingRequest;
+		}
+
+		const request = fetchFileGitStatusSummary(projectPath, filePath)
+			.map((status) => {
+				fileSummaryCacheByProjectAndPath.set(cacheKey, {
+					expiresAt: now() + ttlMs,
+					statusMap: status,
+				});
+				fileSummaryInflightByProjectAndPath.delete(cacheKey);
+				return status;
+			})
+			.mapErr((error) => {
+				fileSummaryInflightByProjectAndPath.delete(cacheKey);
+				return error;
+			});
+
+		fileSummaryInflightByProjectAndPath.set(cacheKey, request);
+		return request;
 	}
 
 	function invalidateProjectGitStatus(projectPath: string): void {
@@ -145,6 +203,16 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		summaryCacheByProject.delete(projectPath);
 		inflightByProject.delete(projectPath);
 		summaryInflightByProject.delete(projectPath);
+		for (const cacheKey of fileSummaryCacheByProjectAndPath.keys()) {
+			if (cacheKey.startsWith(`${projectPath}\0`)) {
+				fileSummaryCacheByProjectAndPath.delete(cacheKey);
+			}
+		}
+		for (const cacheKey of fileSummaryInflightByProjectAndPath.keys()) {
+			if (cacheKey.startsWith(`${projectPath}\0`)) {
+				fileSummaryInflightByProjectAndPath.delete(cacheKey);
+			}
+		}
 	}
 
 	return {
