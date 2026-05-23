@@ -598,6 +598,49 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 			return previousProjection;
 		}
 
+		if (input.sceneEntries.length === previousEntries.length) {
+			const rowPatches = new Map<number, AgentPanelDisplayRow>();
+			const nextLiveTailRowIds = new Set(liveTailRowIds);
+			let nextDisplayRowIndex = 0;
+			for (const nextEntry of input.sceneEntries) {
+				const nextRow = createDisplayRowFromSceneEntry(nextEntry, input.transcriptRevision);
+				if (nextRow === null) {
+					continue;
+				}
+				const previousRow = previousProjection.rows[nextDisplayRowIndex];
+				if (
+					previousRow === undefined ||
+					previousRow.id !== nextRow.id ||
+					previousRow.type !== nextRow.type
+				) {
+					return null;
+				}
+				if (!areDisplayRowsEquivalent(previousRow, nextRow)) {
+					rowPatches.set(nextDisplayRowIndex, nextRow);
+				}
+				if (nextRow.type === "assistant" && nextRow.isLiveTail) {
+					nextLiveTailRowIds.add(nextRow.id);
+				} else {
+					nextLiveTailRowIds.delete(nextRow.id);
+				}
+				nextDisplayRowIndex += 1;
+			}
+			if (nextDisplayRowIndex !== previousProjection.rows.length) {
+				return null;
+			}
+			previousSceneEntries = input.sceneEntries;
+			previousTranscriptRevision = input.transcriptRevision;
+			if (rowPatches.size === 0) {
+				return previousProjection;
+			}
+			previousProjection = {
+				rows: createPatchedDisplayRowArray(previousProjection.rows, rowPatches),
+				hasLiveTail: nextLiveTailRowIds.size > 0,
+			};
+			liveTailRowIds = nextLiveTailRowIds;
+			return previousProjection;
+		}
+
 		if (isStableDisplaySceneAppend(previousEntries, input.sceneEntries)) {
 			if (input.sceneEntries.length === previousEntries.length) {
 				previousSceneEntries = input.sceneEntries;

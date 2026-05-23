@@ -2667,4 +2667,65 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 			})
 		).toBe(firstProjection);
 	});
+
+	it("patches same-order assistant scene updates without rebuilding unchanged display rows", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft answer",
+			isStreaming: true,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry, assistantEntry];
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const patchedEntries: AgentPanelSceneEntryModel[] = [
+			userEntry,
+			{
+				...assistantEntry,
+				markdown: "Final answer",
+				isStreaming: false,
+			},
+		];
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for same-order display patch");
+			},
+		});
+
+		try {
+			const nextProjection = readModel.applyPatch({
+				sceneEntries: patchedEntries,
+				transcriptRevision: 2,
+			});
+
+			expect(nextProjection).not.toBeNull();
+			if (nextProjection === null) {
+				return;
+			}
+			expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
+			expect(nextProjection.rows[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				canonicalText: "Final answer",
+				displayText: "Final answer",
+				canonicalTextRevision: "2:assistant-1",
+				isLiveTail: false,
+			});
+			expect(nextProjection.hasLiveTail).toBe(false);
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
+	});
 });
