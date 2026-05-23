@@ -275,15 +275,127 @@ export function appendVirtualizedDisplayEntriesFromSceneRange(
 		return currentRows;
 	}
 
-	const merged = currentRows.slice();
+	let copiedRows: VirtualizedDisplayEntry[] | null = null;
+	let appendedRows: VirtualizedDisplayEntry[] | null = null;
 	for (let index = startIndex; index < sceneEntries.length; index += 1) {
 		const entry = sceneEntries[index];
 		if (entry === undefined) {
 			continue;
 		}
-		pushSceneEntryIntoDisplayRows(merged, entry);
+		if (copiedRows !== null) {
+			pushSceneEntryIntoDisplayRows(copiedRows, entry);
+			continue;
+		}
+		if (appendedRows !== null) {
+			pushSceneEntryIntoDisplayRows(appendedRows, entry);
+			continue;
+		}
+		if (canAppendSceneEntryWithoutMutatingTail(currentRows, entry)) {
+			appendedRows = [];
+			pushSceneEntryIntoDisplayRows(appendedRows, entry);
+			continue;
+		}
+		copiedRows = currentRows.slice();
+		pushSceneEntryIntoDisplayRows(copiedRows, entry);
 	}
-	return merged;
+	if (copiedRows !== null) {
+		return copiedRows;
+	}
+	if (appendedRows !== null) {
+		return createAppendedVirtualizedDisplayEntryArray(currentRows, appendedRows);
+	}
+	return currentRows;
+}
+
+function canAppendSceneEntryWithoutMutatingTail(
+	currentRows: readonly VirtualizedDisplayEntry[],
+	entry: AgentPanelSceneEntryModel
+): boolean {
+	if (entry.type !== "assistant") {
+		return true;
+	}
+	const previous = currentRows.at(-1);
+	return (
+		previous === undefined ||
+		!isMergedAssistantDisplayEntry(previous) ||
+		!shouldMergeSceneAssistantEntry(previous, entry)
+	);
+}
+
+function createAppendedVirtualizedDisplayEntryArray(
+	baseRows: readonly VirtualizedDisplayEntry[],
+	appendedRows: readonly VirtualizedDisplayEntry[]
+): VirtualizedDisplayEntry[] {
+	const target = new Array<VirtualizedDisplayEntry>(baseRows.length + appendedRows.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectAppendedVirtualizedDisplayEntry(baseRows, appendedRows, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectAppendedVirtualizedDisplayEntry(baseRows, appendedRows, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectAppendedVirtualizedDisplayEntry(baseRows, appendedRows, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			const keys: string[] = [];
+			for (let index = 0; index < targetArray.length; index += 1) {
+				keys.push(String(index));
+			}
+			keys.push("length");
+			return keys;
+		},
+	}) as VirtualizedDisplayEntry[];
+}
+
+function selectAppendedVirtualizedDisplayEntry(
+	baseRows: readonly VirtualizedDisplayEntry[],
+	appendedRows: readonly VirtualizedDisplayEntry[],
+	index: number
+): VirtualizedDisplayEntry | undefined {
+	if (index < baseRows.length) {
+		return baseRows[index];
+	}
+	return appendedRows[index - baseRows.length];
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 function pushSceneEntryIntoDisplayRows(

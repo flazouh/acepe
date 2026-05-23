@@ -5,6 +5,7 @@ import type { SessionEntry } from "../../../../application/dto/session-entry.js"
 import { createLongSessionFixture } from "../../../../testing/long-session-fixture.js";
 
 import {
+	appendVirtualizedDisplayEntriesFromScene,
 	buildVirtualizedDisplayEntries,
 	buildVirtualizedDisplayEntriesFromScene,
 	findLastAssistantSceneIndex,
@@ -455,6 +456,32 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 
 		expect(result[0]?.type).toBe("assistant_merged");
 		expect(getLatestRevealTargetKey(result)).toBe("a1");
+	});
+
+	it("appends scene display rows without copying current rows when the tail is not merged", () => {
+		const currentRows = buildVirtualizedDisplayEntriesFromScene([
+			{ type: "user", id: "u1", text: "prompt", isOptimistic: false },
+		]);
+		const originalSlice = currentRows.slice;
+
+		currentRows.slice = () => {
+			throw new Error("must not copy current virtualized rows for append");
+		};
+
+		try {
+			const nextRows = appendVirtualizedDisplayEntriesFromScene(currentRows, [
+				{ type: "assistant", id: "a1", markdown: "answer", isStreaming: false },
+			]);
+
+			expect(nextRows[0]).toBe(currentRows[0]);
+			expect(getVirtualizedDisplayEntryKey(nextRows[1]!)).toBe("a1");
+			expect(nextRows.map((entry) => getVirtualizedDisplayEntryKey(entry))).toEqual([
+				"u1",
+				"a1",
+			]);
+		} finally {
+			currentRows.slice = originalSlice;
+		}
 	});
 
 	it("characterizes destructive scene-row shape changes by ordered display keys", () => {
