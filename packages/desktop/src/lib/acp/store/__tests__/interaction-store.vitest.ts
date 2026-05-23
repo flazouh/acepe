@@ -76,6 +76,31 @@ function createPendingQuestionInteraction(overrides?: Partial<InteractionSnapsho
 	};
 }
 
+function createPendingPlanApprovalInteraction(
+	overrides?: Partial<InteractionSnapshot>
+): InteractionSnapshot {
+	const id = overrides?.id ?? "plan-approval-1";
+	const sessionId = overrides?.session_id ?? "session-1";
+	return {
+		id,
+		session_id: sessionId,
+		kind: "PlanApproval",
+		state: "Pending",
+		json_rpc_request_id: 43,
+		reply_handler: { kind: "json_rpc", requestId: "43" },
+		tool_reference: { messageId: "message-3", callId: "tool-3" },
+		responded_at_event_seq: null,
+		response: null,
+		payload: {
+			PlanApproval: {
+				source: "CreatePlan",
+			},
+		},
+		canonical_operation_id: "operation-3",
+		...overrides,
+	};
+}
+
 describe("InteractionStore", () => {
 	it("preserves pending permission identity for duplicate patches", () => {
 		const store = new InteractionStore();
@@ -148,5 +173,14 @@ describe("InteractionStore", () => {
 		} finally {
 			Map.prototype.values = originalMapValues;
 		}
+	});
+
+	it("preserves the canonical operation id on pending plan approvals", () => {
+		const store = new InteractionStore();
+
+		store.applySessionInteractionPatches([createPendingPlanApprovalInteraction()]);
+
+		const approval = store.getPendingPlanApprovalsForSession("session-1")[0];
+		expect(approval?.canonicalOperationId).toBe("operation-3");
 	});
 });

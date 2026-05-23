@@ -267,6 +267,7 @@ export class InteractionStore {
 			jsonRpcRequestId: jsonRpcRequestId ?? undefined,
 			replyHandler,
 			status,
+			canonicalOperationId: interaction.canonical_operation_id ?? null,
 		});
 	}
 
