@@ -343,8 +343,9 @@ export class OperationStore {
 			}
 			if (
 				cachedModifiedFilesState?.version === previousVersion &&
-				(existingOperation === undefined ||
-					!areModifiedFileInputsEquivalent(existingOperation, operation))
+				(existingOperation === undefined
+					? operationCanAffectModifiedFiles(operation)
+					: !areModifiedFileInputsEquivalent(existingOperation, operation))
 			) {
 				canPreserveModifiedFilesState = false;
 			}
@@ -812,6 +813,10 @@ function areModifiedFileInputsEquivalent(left: Operation, right: Operation): boo
 		left.parentOperationId === right.parentOperationId &&
 		areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds)
 	);
+}
+
+function operationCanAffectModifiedFiles(operation: Operation): boolean {
+	return operation.kind === "edit" || operation.childOperationIds.length > 0;
 }
 
 function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {

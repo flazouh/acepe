@@ -513,6 +513,55 @@ describe("OperationStore", () => {
 		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
 	});
 
+	it("preserves modified files state when appending standalone non-edit operations", () => {
+		const operationStore = new OperationStore();
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+		const executeOperationId = buildCanonicalOperationId("session-1", "execute-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+
+		const firstState = operationStore.getSessionModifiedFilesState("session-1");
+		expect(firstState?.fileCount).toBe(1);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "execute-1",
+				kind: "execute",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				result: "done",
+			}),
+		]);
+
+		const originalGetSessionToolCalls = operationStore.getSessionToolCalls;
+		operationStore.getSessionToolCalls = () => {
+			throw new Error("modified files state should ignore standalone non-edit appends");
+		};
+
+		expect(operationStore.getSessionModifiedFilesState("session-1")).toBe(firstState);
+		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
+	});
+
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
 
