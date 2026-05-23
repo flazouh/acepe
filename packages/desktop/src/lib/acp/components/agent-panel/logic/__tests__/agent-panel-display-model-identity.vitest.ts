@@ -1358,6 +1358,51 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		}
 	});
 
+	it("reuses the graph append array when display append adds no overlay changes", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "completed",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: true, showStop: false },
+			rows: [{ id: "user-1", type: "user", text: "Prompt" }],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [userEntry];
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const appendedEntries = [userEntry, toolEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(appendedEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [toolEntry],
+		});
+
+		const displayedEntries = readModel.applyPatch({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: appendedEntries,
+		});
+
+		expect(displayedEntries).toBe(appendedEntries);
+	});
+
 	it("reuses the projection when scene entries change without visible row changes", () => {
 		const readModel = createAgentPanelDisplayRowsReadModel();
 		const firstSceneEntries: readonly AgentPanelSceneEntryModel[] = [

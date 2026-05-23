@@ -1642,6 +1642,7 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 
 	function applyDisplaySceneAppendEntries(
 		model: AgentPanelDisplayModel,
+		sceneEntries: readonly AgentPanelSceneEntryModel[],
 		appendPatch: AgentPanelSceneEntryArrayAppendPatch
 	): readonly AgentPanelSceneEntryModel[] | null {
 		if (previousDisplayedSceneEntries === null) {
@@ -1652,6 +1653,15 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			assistantRowsById,
 			appendPatch.appendedEntries
 		);
+		if (
+			displayedAppendedEntries === appendPatch.appendedEntries &&
+			previousDisplayedSceneEntries === appendPatch.baseSceneEntries
+		) {
+			previousPatchedSceneEntries = previousSceneEntries;
+			previousPatchedAssistantRowsById = assistantRowsById;
+			previousDisplayedSceneEntries = sceneEntries;
+			return sceneEntries;
+		}
 		const displayedEntries = createAppendedSceneEntriesArray(
 			previousDisplayedSceneEntries,
 			displayedAppendedEntries
@@ -1675,7 +1685,7 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
 				if (appendPatch !== null) {
 					return (
-						applyDisplaySceneAppendEntries(model, appendPatch) ??
+						applyDisplaySceneAppendEntries(model, sceneEntries, appendPatch) ??
 						applyDisplaySceneEntries(model, sceneEntries)
 					);
 				}
@@ -1723,7 +1733,7 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			}
 			const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
 			if (appendPatch !== null) {
-				return applyDisplaySceneAppendEntries(model, appendPatch);
+				return applyDisplaySceneAppendEntries(model, sceneEntries, appendPatch);
 			}
 			if (applyGraphSceneTruncationIndexes(sceneEntries)) {
 				return applyDisplaySceneEntries(model, sceneEntries);
