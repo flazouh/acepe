@@ -1455,59 +1455,66 @@ describe("agent panel graph materializer", () => {
 	});
 
 	it("preserves canonical thought segments as assistant thought chunks", () => {
-		const graph = createGraph({
-			transcriptSnapshot: createTranscriptSnapshot([
+		const transcriptEntry: TranscriptEntry = {
+			entryId: "assistant-1",
+			role: "assistant",
+			segments: [
 				{
-					entryId: "assistant-1",
-					role: "assistant",
-					segments: [
+					kind: "thought",
+					segmentId: "assistant-1:thought:1",
+					text: "checking the readme",
+				},
+				{
+					kind: "text",
+					segmentId: "assistant-1:text:1",
+					text: "Done.",
+				},
+			],
+			attemptId: null,
+		};
+		const originalSegmentsMap = transcriptEntry.segments.map;
+		transcriptEntry.segments.map = () => {
+			throw new Error("must not map every assistant transcript segment");
+		};
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([transcriptEntry]),
+		});
+
+		try {
+			const scene = materializeAgentPanelSceneFromGraph({
+				panelId: "panel-1",
+				graph,
+				header: {
+					title: "Restored session",
+				},
+			});
+
+			expect(scene.conversation.entries[0]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "Done.",
+				message: {
+					chunks: [
 						{
-							kind: "thought",
-							segmentId: "assistant-1:thought:1",
-							text: "checking the readme",
+							type: "thought",
+							block: {
+								type: "text",
+								text: "checking the readme",
+							},
 						},
 						{
-							kind: "text",
-							segmentId: "assistant-1:text:1",
-							text: "Done.",
+							type: "message",
+							block: {
+								type: "text",
+								text: "Done.",
+							},
 						},
 					],
-					attemptId: null,
 				},
-			]),
-		});
-
-		const scene = materializeAgentPanelSceneFromGraph({
-			panelId: "panel-1",
-			graph,
-			header: {
-				title: "Restored session",
-			},
-		});
-
-		expect(scene.conversation.entries[0]).toMatchObject({
-			id: "assistant-1",
-			type: "assistant",
-			markdown: "Done.",
-			message: {
-				chunks: [
-					{
-						type: "thought",
-						block: {
-							type: "text",
-							text: "checking the readme",
-						},
-					},
-					{
-						type: "message",
-						block: {
-							type: "text",
-							text: "Done.",
-						},
-					},
-				],
-			},
-		});
+			});
+		} finally {
+			transcriptEntry.segments.map = originalSegmentsMap;
+		}
 	});
 
 	it("renders committed missing-operation tool rows as explicit degraded presentation", () => {

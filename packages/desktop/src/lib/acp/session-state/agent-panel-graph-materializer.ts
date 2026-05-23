@@ -118,16 +118,24 @@ export interface AgentPanelGraphMaterializerReadModel {
 }
 
 function buildAssistantMessageFromTranscriptEntry(entry: TranscriptEntry) {
+	const chunks: Array<{
+		readonly type: "thought" | "message";
+		readonly block: {
+			readonly type: "text";
+			readonly text: string;
+		};
+	}> = [];
+	for (const segment of entry.segments) {
+		chunks.push({
+			type: segment.kind === "thought" ? "thought" : "message",
+			block: {
+				type: "text",
+				text: segment.text,
+			},
+		});
+	}
 	return {
-		chunks: entry.segments.map((segment) => {
-			return {
-				type: segment.kind === "thought" ? ("thought" as const) : ("message" as const),
-				block: {
-					type: "text" as const,
-					text: segment.text,
-				},
-			};
-		}),
+		chunks,
 	};
 }
 
