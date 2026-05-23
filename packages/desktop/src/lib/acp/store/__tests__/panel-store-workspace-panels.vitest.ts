@@ -343,6 +343,26 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("opens file panels without copying the whole workspace panel list", () => {
+		const store = createStore();
+		store.spawnPanel({ projectPath: "/tmp/project" });
+		const originalIterator = store.workspacePanels[Symbol.iterator];
+
+		store.workspacePanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate every workspace panel while opening a file");
+		};
+
+		try {
+			const filePanel = store.openFilePanel("src/instant.ts", "/tmp/project");
+
+			expect(store.workspacePanels[0]).toBe(filePanel);
+			expect(store.getFilePanel(filePanel.id)).toBe(filePanel);
+			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
+		} finally {
+			store.workspacePanels[Symbol.iterator] = originalIterator;
+		}
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 
