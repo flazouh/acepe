@@ -4602,14 +4602,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					dominantOperationId: null,
 					blockingInteractionId: null,
 				};
-				const lifecycleRevision = {
-					graphRevision: envelope.graphRevision,
-					transcriptRevision:
-						previousProjection?.revision.transcriptRevision ??
-						previousGraph?.transcriptSnapshot.revision ??
-						0,
-					lastEventSeq: envelope.lastEventSeq,
-				};
+				const lifecycleRevision = command.revision;
 				if (isOlderGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
 					logger.debug("Ignoring stale session-state lifecycle envelope", {
 						sessionId,

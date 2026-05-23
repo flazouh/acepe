@@ -3001,6 +3001,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			canSubmit: false,
 			showStop: false,
 		});
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
+			graphRevision: 8,
+			transcriptRevision: 7,
+			lastEventSeq: 8,
+		});
 	});
 
 	it("hydrates graph-backed activity from snapshot envelopes", () => {

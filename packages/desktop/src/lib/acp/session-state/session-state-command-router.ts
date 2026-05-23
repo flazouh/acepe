@@ -43,6 +43,7 @@ export type SessionStateCommand =
 	| {
 			kind: "applyLifecycle";
 			lifecycle: SessionGraphLifecycle;
+			revision: SessionGraphRevision;
 	  }
 	| {
 			kind: "applyCapabilities";
@@ -258,6 +259,7 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applyLifecycle",
 					lifecycle: envelope.payload.lifecycle,
+					revision: envelope.payload.revision,
 				},
 			];
 		case "capabilities":

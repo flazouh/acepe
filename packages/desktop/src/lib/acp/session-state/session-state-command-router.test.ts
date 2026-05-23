@@ -233,6 +233,45 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("routes lifecycle envelopes with their canonical revision", () => {
+		const lifecycle = {
+			status: "reconnecting",
+			actionability: {
+				canSend: false,
+				canResume: false,
+				canRetry: true,
+				canArchive: true,
+				canConfigure: false,
+				recommendedAction: "retry",
+				recoveryPhase: "reconnecting",
+				compactStatus: "reconnecting",
+			},
+		} as const;
+		const revision = {
+			graphRevision: 8,
+			transcriptRevision: 7,
+			lastEventSeq: 10,
+		} as const;
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "lifecycle",
+				lifecycle,
+				revision,
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
+			{
+				kind: "applyLifecycle",
+				lifecycle,
+				revision,
+			},
+		]);
+	});
+
 	it("routes operation patches before matching transcript tool rows", () => {
 		const operation = createTestOperationSnapshot();
 		const envelope: SessionStateEnvelope = {
