@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentStore } from "../agent-store.svelte.js";
+import { createFilePanelCacheKey } from "../file-panel-ownership.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
@@ -426,6 +427,24 @@ describe("PanelStore workspacePanels", () => {
 			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
 		} finally {
 			store.workspacePanels[Symbol.iterator] = originalIterator;
+		}
+	});
+
+	it("selects file panel count and path index without filtering workspace panels", () => {
+		const store = createStore();
+		const filePanel = store.openFilePanel("src/instant.ts", "/tmp/project");
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels for file-panel selectors");
+		};
+
+		try {
+			expect(store.filePanelCount).toBe(1);
+			expect(store.filePanelByPath.get(createFilePanelCacheKey("src/instant.ts", "/tmp/project", null))).toBe(filePanel);
+			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
 		}
 	});
 

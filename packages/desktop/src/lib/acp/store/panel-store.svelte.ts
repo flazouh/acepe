@@ -1200,16 +1200,10 @@ export class PanelStore {
 	);
 
 	readonly filePanelByPath = $derived.by(
-		() =>
-			new SvelteMap(
-				this.filePanels.map((p) => [
-					createFilePanelCacheKey(p.filePath, p.projectPath, p.ownerPanelId),
-					p,
-				])
-			)
+		() => this.filePanelByCacheKey
 	);
 
-	readonly filePanelCount = $derived(this.filePanels.length);
+	readonly filePanelCount = $derived(this.filePanelById.size);
 
 	readonly reviewPanelById = $derived.by(
 		() => new SvelteMap(this.reviewPanels.map((p) => [p.id, p]))
