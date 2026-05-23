@@ -3760,8 +3760,27 @@ function resolveUpdatedInteractionIndex(
 		);
 	}
 
+	const stablePrefixPatch = collectStableInteractionPrefixPatches(
+		previousInteractions,
+		nextInteractions
+	);
+	if (stablePrefixPatch === null) {
+		return buildInteractionIndex(nextInteractions);
+	}
+	if (stablePrefixPatch.size > 0) {
+		return createPatchedInteractionIndex(previousInteractionById, stablePrefixPatch, null);
+	}
+
+	return previousInteractionById;
+}
+
+function collectStableInteractionPrefixPatches(
+	previousInteractions: readonly InteractionSnapshot[],
+	nextInteractions: readonly InteractionSnapshot[]
+): ReadonlyMap<number, InteractionSnapshot> | null {
+	const stableLength = Math.min(previousInteractions.length, nextInteractions.length);
 	const patchedInteractionsByIndex = new Map<number, InteractionSnapshot>();
-	for (let index = 0; index < nextInteractions.length; index += 1) {
+	for (let index = 0; index < stableLength; index += 1) {
 		const previousInteraction = previousInteractions[index];
 		const nextInteraction = nextInteractions[index];
 		if (
@@ -3769,17 +3788,13 @@ function resolveUpdatedInteractionIndex(
 			nextInteraction === undefined ||
 			previousInteraction.id !== nextInteraction.id
 		) {
-			return buildInteractionIndex(nextInteractions);
+			return null;
 		}
 		if (previousInteraction !== nextInteraction) {
 			patchedInteractionsByIndex.set(index, nextInteraction);
 		}
 	}
-	if (patchedInteractionsByIndex.size > 0) {
-		return createPatchedInteractionIndex(previousInteractionById, patchedInteractionsByIndex, null);
-	}
-
-	return previousInteractionById;
+	return patchedInteractionsByIndex;
 }
 
 function appendTranscriptEntryIndexFromRange(
