@@ -103,6 +103,8 @@ describe("AgentAttachedFilePane", () => {
 			onResizeFilePanel: vi.fn(),
 		});
 
+		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
+
 		await waitFor(() => {
 			const badges = view.getAllByTestId("file-path-badge");
 			expect(badges[0]?.textContent).toBe("src/a.ts:3:1");

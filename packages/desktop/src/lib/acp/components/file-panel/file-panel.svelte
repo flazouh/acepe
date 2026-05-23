@@ -10,6 +10,7 @@ import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import { gitStatusCache } from "../../services/git-status-cache.svelte.js";
 import { createLogger } from "../../utils/logger.js";
+import { scheduleLazyPanelWork } from "./file-panel-defer.js";
 import FilePanelCsvView from "./file-panel-csv-view.svelte";
 import { resolveFilePanelGutterAction } from "./file-panel-gutter.js";
 import {
@@ -135,7 +136,7 @@ $effect(() => {
 	loading = true;
 	error = null;
 
-	const timeoutId = window.setTimeout(() => {
+	const deferredWork = scheduleLazyPanelWork(() => {
 		if (cancelled) {
 			return;
 		}
@@ -160,7 +161,7 @@ $effect(() => {
 
 	return () => {
 		cancelled = true;
-		window.clearTimeout(timeoutId);
+		deferredWork.cancel();
 	};
 });
 
@@ -177,7 +178,7 @@ $effect(() => {
 		currentProjectPath,
 	});
 
-	const timeoutId = window.setTimeout(() => {
+	const deferredWork = scheduleLazyPanelWork(() => {
 		if (cancelled) {
 			return;
 		}
@@ -219,7 +220,7 @@ $effect(() => {
 
 	return () => {
 		cancelled = true;
-		window.clearTimeout(timeoutId);
+		deferredWork.cancel();
 	};
 });
 
