@@ -2926,6 +2926,51 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
+	it("ignores stale lifecycle envelopes instead of rolling canonical lifecycle backward", () => {
+		const store = new SessionStore();
+		const graph = createSessionStateGraph({
+			turnState: "Running",
+			lifecycle: createGraphLifecycle("ready"),
+			activeTurnFailure: null,
+			revision: {
+				graphRevision: 9,
+				transcriptRevision: 7,
+				lastEventSeq: 9,
+			},
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(graph));
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("failed", "Old failure"),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
+				},
+			},
+		});
+
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionTurnState("session-1")).toBe("Running");
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 9,
+			transcriptRevision: 7,
+			lastEventSeq: 9,
+		});
+	});
+
 	it("carries canonical turnState from previous projection on lifecycle-only envelopes", () => {
 		const store = new SessionStore();
 		const graph = createSessionStateGraph({

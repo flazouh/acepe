@@ -3450,6 +3450,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						0,
 					lastEventSeq: envelope.lastEventSeq,
 				};
+				if (!isNewerGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
+					logger.debug("Ignoring stale session-state lifecycle envelope", {
+						sessionId,
+						currentRevision: previousProjection?.revision ?? null,
+						incomingRevision: lifecycleRevision,
+					});
+					continue;
+				}
 				this.canonicalProjections.set(sessionId, {
 					lifecycle: command.lifecycle,
 					activity: reconciledActivity,
