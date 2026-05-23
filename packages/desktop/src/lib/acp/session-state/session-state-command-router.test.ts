@@ -17,6 +17,71 @@ const runningOperationActivity: SessionGraphActivity = {
 };
 
 describe("routeSessionStateEnvelope", () => {
+	it("rejects envelopes for a different session before routing patches", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-2",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 9,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 10,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-1",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-1:block:0",
+										text: "wrong session",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 7,
+					lastEventSeq: 9,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "rejectSessionMismatch",
+				expectedSessionId: "session-1",
+				envelopeSessionId: "session-2",
+			},
+		]);
+	});
+
 	it("routes operation patches before matching transcript tool rows", () => {
 		const operation: OperationSnapshot = {
 			id: "op:session-1:tool-1",

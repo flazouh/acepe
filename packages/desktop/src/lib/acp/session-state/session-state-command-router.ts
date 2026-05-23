@@ -31,6 +31,11 @@ export type SessionStateCommand =
 			budget: SessionStateEnvelopeByteBudgetResult;
 	  }
 	| {
+			kind: "rejectSessionMismatch";
+			expectedSessionId: string;
+			envelopeSessionId: string;
+	  }
+	| {
 			kind: "replaceGraph";
 			graph: SessionStateGraph;
 	  }
@@ -139,6 +144,16 @@ export function routeSessionStateEnvelope(
 	currentRevision: CurrentSessionStateRevision,
 	envelope: SessionStateEnvelope
 ): SessionStateCommand[] {
+	if (envelope.sessionId !== sessionId) {
+		return [
+			{
+				kind: "rejectSessionMismatch",
+				expectedSessionId: sessionId,
+				envelopeSessionId: envelope.sessionId,
+			},
+		];
+	}
+
 	const budget = checkSessionStateEnvelopeByteBudget(envelope);
 	if (!budget.ok) {
 		return [

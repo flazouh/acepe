@@ -4343,6 +4343,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
+			if (command.kind === "rejectSessionMismatch") {
+				logger.warn("Rejected session-state envelope for another session", {
+					sessionId,
+					envelopeSessionId: command.envelopeSessionId,
+					expectedSessionId: command.expectedSessionId,
+				});
+				continue;
+			}
+
 			if (command.kind === "replaceGraph") {
 				const graph = command.graph;
 				const previousGraph = this.sessionStateGraphs.get(sessionId) ?? null;
