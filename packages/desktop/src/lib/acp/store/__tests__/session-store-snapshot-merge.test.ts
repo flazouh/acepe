@@ -6,6 +6,7 @@ import { getOperationSnapshotArrayPatch } from "../../session-state/operation-sn
 import {
 	mergeInteractionSnapshots,
 	mergeOperationSnapshots,
+	operationSnapshotIndexes,
 } from "../session-store.svelte.js";
 
 function createOperationSnapshot(overrides: Partial<OperationSnapshot> = {}): OperationSnapshot {
@@ -169,6 +170,36 @@ describe("session-state snapshot merges", () => {
 			expect(next.map((operation) => operation.id)).toEqual(["op-1", "op-2"]);
 		} finally {
 			current.slice = originalSlice;
+		}
+	});
+
+	it("appends operation snapshot indexes without cloning the current index", () => {
+		const firstOperation = createOperationSnapshot({ id: "op-1" });
+		const appendedOperation = createOperationSnapshot({
+			id: "op-2",
+			tool_call_id: "tool-2",
+		});
+		const current = [firstOperation];
+		mergeOperationSnapshots(current, []);
+		const currentIndex = operationSnapshotIndexes.get(current) as
+			| (ReadonlyMap<string, number> & Record<symbol, unknown>)
+			| undefined;
+		const originalIterator = currentIndex?.[Symbol.iterator];
+		if (currentIndex !== undefined) {
+			currentIndex[Symbol.iterator] = () => {
+				throw new Error("must not clone current operation snapshot index for append");
+			};
+		}
+
+		try {
+			const next = mergeOperationSnapshots(current, [appendedOperation]);
+
+			expect(next[0]).toBe(firstOperation);
+			expect(next[1]).toBe(appendedOperation);
+		} finally {
+			if (currentIndex !== undefined && originalIterator !== undefined) {
+				currentIndex[Symbol.iterator] = originalIterator;
+			}
 		}
 	});
 

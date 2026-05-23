@@ -198,7 +198,7 @@ type SnapshotWithId = {
 	readonly id: string;
 };
 
-const operationSnapshotIndexes = new WeakMap<
+export const operationSnapshotIndexes = new WeakMap<
 	readonly OperationSnapshot[],
 	ReadonlyMap<string, number>
 >();
@@ -474,7 +474,6 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 		}
 	}
 
-	let nextIndex: Map<string, number> | null = null;
 	let appendedSnapshots: TSnapshot[] | null = null;
 	const appendedIds = new Set<string>();
 	for (const patch of patches) {
@@ -488,8 +487,6 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 		}
 
 		appendedSnapshots ??= [];
-		nextIndex ??= new Map(currentIndex);
-		nextIndex.set(patch.id, current.length + appendedSnapshots.length);
 		appendedSnapshots.push(appendedPatch);
 		appendedIds.add(patch.id);
 	}
@@ -499,8 +496,107 @@ function mergeSnapshotsById<TSnapshot extends SnapshotWithId>(
 	}
 
 	const next = createMergedSnapshotArray(current, patchedIndexes, appendedSnapshots);
-	indexes.set(next, nextIndex ?? currentIndex);
+	indexes.set(
+		next,
+		appendedSnapshots === null
+			? currentIndex
+			: new AppendedSnapshotIndexMap(currentIndex, appendedSnapshots, current.length)
+	);
 	return next;
+}
+
+class AppendedSnapshotIndexMap<TSnapshot extends SnapshotWithId>
+	implements ReadonlyMap<string, number>
+{
+	readonly [Symbol.toStringTag] = "AppendedSnapshotIndexMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly appendedSnapshots: readonly TSnapshot[],
+		private readonly baseLength: number
+	) {}
+
+	get size(): number {
+		let appendedCount = 0;
+		for (const snapshot of this.appendedSnapshots) {
+			if (snapshot !== undefined && !this.base.has(snapshot.id)) {
+				appendedCount += 1;
+			}
+		}
+		return this.base.size + appendedCount;
+	}
+
+	get(key: string): number | undefined {
+		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
+			const snapshot = this.appendedSnapshots[index];
+			if (snapshot?.id === key) {
+				return this.baseLength + index;
+			}
+		}
+		return this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		const appendedKeys = new Set<string>();
+		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
+			const snapshot = this.appendedSnapshots[index];
+			if (snapshot !== undefined) {
+				appendedKeys.add(snapshot.id);
+			}
+		}
+		for (const [key, value] of this.base.entries()) {
+			if (!appendedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+		for (let index = 0; index < this.appendedSnapshots.length; index += 1) {
+			const snapshot = this.appendedSnapshots[index];
+			if (snapshot !== undefined) {
+				yield [snapshot.id, this.baseLength + index];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
