@@ -1,5 +1,5 @@
 import { okAsync, ResultAsync } from "neverthrow";
-import { SvelteDate } from "svelte/reactivity";
+import { SvelteDate, SvelteMap } from "svelte/reactivity";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 
 import { resolveProjectColor } from "@acepe/ui/colors";
@@ -64,6 +64,10 @@ export class ProjectManager {
 	 */
 	projects = $state<Project[]>([]);
 
+	readonly projectByPath = $derived.by(
+		() => new SvelteMap(this.projects.map((project) => [project.path, project]))
+	);
+
 	/**
 	 * Whether projects are currently loading.
 	 */
@@ -79,6 +83,10 @@ export class ProjectManager {
 		// Note: loadProjects() should be called explicitly after construction
 		// Do NOT call it here as it modifies $state during initialization
 		// which can cause infinite loops in Svelte 5
+	}
+
+	getProject(path: string): Project | undefined {
+		return this.projectByPath.get(path);
 	}
 
 	/**

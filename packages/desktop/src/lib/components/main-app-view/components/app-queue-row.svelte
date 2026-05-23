@@ -124,12 +124,12 @@ const liveSessionSyncInputs = $derived.by((): LiveSessionPanelSyncInput[] => {
 });
 
 function getProjectColor(projectPath: string): string | null {
-	const project = projectManager.projects.find((candidate) => candidate.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.color ?? null;
 }
 
 function getProjectIconSrc(projectPath: string): string | null {
-	const project = projectManager.projects.find((candidate) => candidate.path === projectPath);
+	const project = projectManager.getProject(projectPath);
 	return project?.iconPath ?? null;
 }
 

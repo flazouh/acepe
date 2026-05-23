@@ -548,7 +548,7 @@ export class MainAppViewState {
 		const focusedProjectPath =
 			this.panelStore.focusedViewProjectPath || this.panelStore.focusedTopLevelPanel?.projectPath;
 		if (focusedProjectPath) {
-			const project = this.projectManager.projects.find((p) => p.path === focusedProjectPath);
+			const project = this.projectManager.getProject(focusedProjectPath);
 			if (project) {
 				this.handleNewThreadForProject(project.path);
 				return;
@@ -571,7 +571,7 @@ export class MainAppViewState {
 	 * @param agentId - Optional agent ID to create session with immediately
 	 */
 	handleNewThreadForProject(projectPath: string, agentId?: string): void {
-		const project = this.projectManager.projects.find((p) => p.path === projectPath);
+		const project = this.projectManager.getProject(projectPath);
 		if (!project) {
 			return;
 		}

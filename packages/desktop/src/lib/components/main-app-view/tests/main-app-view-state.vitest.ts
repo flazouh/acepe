@@ -18,7 +18,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
-import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
@@ -58,10 +58,19 @@ function createTerminalPanel(projectPath: string): TerminalWorkspacePanel {
 	};
 }
 
+function createProject(path: string, name: string): Project {
+	return {
+		path,
+		name,
+		createdAt: new Date("2026-01-01T00:00:00.000Z"),
+		color: "cyan",
+	};
+}
+
 function createState(options?: {
 	focusedPanelProjectPath?: string | null;
 	focusedViewProjectPath?: string | null;
-	projects?: Array<{ path: string; name: string }>;
+	projects?: Project[];
 	selectedAgentIds?: string[];
 	setSelectedAgentIds?: ReturnType<typeof vi.fn>;
 }) {
@@ -120,6 +129,9 @@ function createState(options?: {
 	const projectManager = {
 		projects: options?.projects ? options.projects : [],
 		projectCount: options?.projects ? options.projects.length : 0,
+		getProject: vi.fn((path: string) =>
+			(options?.projects ? options.projects : []).find((project) => project.path === path)
+		),
 	} as Partial<ProjectManager>;
 
 	const agentPreferencesStore = {
@@ -259,7 +271,7 @@ describe("MainAppViewState file explorer", () => {
 
 	it("routes project-scoped thread creation through the override when one is registered", () => {
 		const { state, panelStore } = createState({
-			projects: [{ path: "/repo", name: "Repo" }],
+			projects: [createProject("/repo", "Repo")],
 		});
 		const override = vi.fn();
 		state.onNewThreadOverride = override;

@@ -32,10 +32,7 @@ function handleRequestGeneration(projectPath: string, prompt: string) {
 
 {#if gitDialog}
 	{@const activeGitDialog = gitDialog}
-	{@const project =
-		projectManager.projects.find(
-			(candidate) => candidate.path === activeGitDialog.projectPath
-		) ?? null}
+	{@const project = projectManager.getProject(activeGitDialog.projectPath) ?? null}
 	{@const projectName =
 		project?.name ??
 		activeGitDialog.projectPath.split("/").pop() ??

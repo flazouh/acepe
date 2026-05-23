@@ -283,7 +283,7 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 				return projectColor ? projectColor : null;
 			},
 			(projectPath) => {
-				const project = projectManager.projects.find((candidate) => candidate.path === projectPath);
+				const project = projectManager.getProject(projectPath);
 				return project ? (project.iconPath ?? null) : null;
 			}
 		);

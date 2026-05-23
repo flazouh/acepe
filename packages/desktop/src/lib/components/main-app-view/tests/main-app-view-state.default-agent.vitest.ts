@@ -16,7 +16,7 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 import type { WorktreeDefaultStore } from "$lib/acp/components/worktree/worktree-default-store.svelte.js";
-import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
@@ -45,6 +45,15 @@ function createAgentPanel(projectPath: string | null): AgentWorkspacePanel {
 	};
 }
 
+function createProject(path: string, name: string): Project {
+	return {
+		path,
+		name,
+		createdAt: new Date("2026-01-01T00:00:00.000Z"),
+		color: "cyan",
+	};
+}
+
 function createState(options: {
 	defaultAgentId: string | null;
 	availableAgents: Array<{ id: string }>;
@@ -70,8 +79,11 @@ function createState(options: {
 	} as unknown as PanelStore;
 
 	const projectManager = {
-		projects: [{ path: "/repo", name: "Repo" }],
+		projects: [createProject("/repo", "Repo")],
 		projectCount: 1,
+		getProject: vi.fn((path: string) =>
+			path === "/repo" ? createProject("/repo", "Repo") : undefined
+		),
 	} as Partial<ProjectManager>;
 
 	const agentPreferencesStore = {

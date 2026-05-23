@@ -243,11 +243,11 @@ const terminalTabsPanelStore = $derived.by(() => ({
 {/if}
 <AgentPanelDeck fullscreen={viewModeState.isFullscreenMode}>
 	<!-- Tabs are now rendered in parent (main-app-view.svelte) via TabBar -->
-		<!-- Fullscreen top-level panel -->
-		{#if viewModeState.isFullscreenMode && fullscreenTopLevelPanel && fullscreenTopLevelPanel.kind !== "agent"}
+	<!-- Fullscreen top-level panel -->
+	{#if viewModeState.isFullscreenMode && fullscreenTopLevelPanel && fullscreenTopLevelPanel.kind !== "agent"}
 			{#if fullscreenTopLevelPanel.kind === "file"}
 				{@const filePanel = fullscreenTopLevelPanel.panel}
-				{@const project = projectManager.projects.find((p) => p.path === filePanel.projectPath)}
+				{@const project = projectManager.getProject(filePanel.projectPath)}
 				<FilePanel
 					panelId={filePanel.id}
 					filePath={filePanel.filePath}
@@ -276,7 +276,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				/>
 			{:else if fullscreenTopLevelPanel.kind === "terminal"}
 				{@const terminalGroup = fullscreenTopLevelPanel.panel}
-				{@const project = projectManager.projects.find((p) => p.path === terminalGroup.projectPath)}
+				{@const project = projectManager.getProject(terminalGroup.projectPath)}
 				<TerminalTabs
 					group={terminalGroup}
 					tabs={panelStore.getTerminalTabsForGroup(terminalGroup.id)}
@@ -316,7 +316,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 				{#if !isAgentFullscreenActive}
 					<!-- File panels (tabbed per project) -->
 					{#if group.filePanels.length > 0}
-						{@const project = projectManager.projects.find((p) => p.path === group.projectPath)}
+						{@const project = projectManager.getProject(group.projectPath)}
 						<FilePanelTabs
 							filePanels={group.filePanels}
 							activeFilePanelId={panelStore.getActiveTopLevelFilePanelId(group.projectPath)}
@@ -352,8 +352,7 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								projectPath={group.projectPath}
 								projectName={group.projectName}
 								projectColor={group.projectColor}
-								projectIconSrc={projectManager.projects.find((project) => project.path === group.projectPath)?.iconPath ??
-									null}
+								projectIconSrc={projectManager.getProject(group.projectPath)?.iconPath ?? null}
 								panelStore={terminalTabsPanelStore}
 							/>
 						{/each}
