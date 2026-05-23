@@ -553,9 +553,16 @@ export function applyAgentPanelDisplayModelToSceneEntries(
 	const assistantRowsById = new Map<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>();
 	for (const row of model.rows) {
 		if (row.type === "assistant") {
+			if (row.displayText === row.canonicalText && model.turnState !== "streaming") {
+				continue;
+			}
 			assistantRowsById.set(row.id, row);
 		}
 	}
+	if (assistantRowsById.size === 0) {
+		return sceneEntries;
+	}
+
 	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
 	sceneEntries.forEach((entry, index) => {
 		if (entry.type !== "assistant") {

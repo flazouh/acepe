@@ -51,6 +51,52 @@ describe("applyAgentPanelDisplayModelToSceneEntries identity", () => {
 
 		expect(displayedEntries).toBe(sceneEntries);
 	});
+
+	it("returns scene entries directly when no assistant display text changed", () => {
+		const sceneEntries: readonly AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "Answer",
+				isStreaming: false,
+			},
+			{
+				id: "tool-1",
+				type: "tool_call",
+				title: "Run",
+				status: "done",
+			},
+		];
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: null,
+			status: "connected",
+			turnState: "idle",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: true, showStop: false },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+
+		expect(
+			applyAgentPanelDisplayModelToSceneEntries(
+				model,
+				createAgentPanelDisplayMemory(),
+				sceneEntries
+			)
+		).toBe(sceneEntries);
+	});
 });
 
 describe("buildAgentPanelBaseModel row projection", () => {
