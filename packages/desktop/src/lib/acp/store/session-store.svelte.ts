@@ -3485,7 +3485,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {
 		const commands = routeSessionStateEnvelope(
 			sessionId,
-			this.getGraphTranscriptRevision(sessionId),
+			this.getGraphRevision(sessionId),
 			envelope
 		);
 
@@ -3973,6 +3973,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {
 		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.revision;
+	}
+
+	private getGraphRevision(sessionId: string): SessionGraphRevision | undefined {
+		return this.sessionStateGraphs.get(sessionId)?.revision;
 	}
 
 	private refreshSessionStateSnapshot(sessionId: string): InflightSessionStateRefresh {

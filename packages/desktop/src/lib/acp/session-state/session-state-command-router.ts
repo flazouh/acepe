@@ -80,6 +80,30 @@ export type SessionStateCommand =
 			delta: AssistantTextDeltaPayload;
 	  };
 
+type CurrentSessionStateRevision = SessionGraphRevision | number | undefined;
+
+function currentTranscriptRevisionFrom(
+	currentRevision: CurrentSessionStateRevision
+): number | undefined {
+	if (typeof currentRevision === "number" || currentRevision === undefined) {
+		return currentRevision;
+	}
+	return currentRevision.transcriptRevision;
+}
+
+function currentGraphRevisionFrom(
+	currentRevision: CurrentSessionStateRevision
+): number | undefined {
+	if (typeof currentRevision === "number" || currentRevision === undefined) {
+		return undefined;
+	}
+	return currentRevision.graphRevision;
+}
+
+function hasCurrentGraphRevision(currentRevision: CurrentSessionStateRevision): boolean {
+	return typeof currentRevision === "object" && currentRevision !== null;
+}
+
 function commandFromDeltaResolution(
 	resolution: SessionStateDeltaResolution
 ): SessionStateCommand[] {
@@ -106,7 +130,7 @@ function commandFromDeltaResolution(
 
 export function routeSessionStateEnvelope(
 	sessionId: string,
-	currentTranscriptRevision: number | undefined,
+	currentRevision: CurrentSessionStateRevision,
 	envelope: SessionStateEnvelope
 ): SessionStateCommand[] {
 	const budget = checkSessionStateEnvelopeByteBudget(envelope);
@@ -161,6 +185,7 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "delta": {
+			const currentTranscriptRevision = currentTranscriptRevisionFrom(currentRevision);
 			const resolution = resolveSessionStateDelta(
 				sessionId,
 				currentTranscriptRevision,
@@ -187,10 +212,24 @@ export function routeSessionStateEnvelope(
 				includesActiveTurnFailure ||
 				includesLastTerminalTurnId ||
 				includesActiveStreamingTail;
+			const includesGraphPatch =
+				operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState;
+			const currentGraphRevision = currentGraphRevisionFrom(currentRevision);
 			if (
-				operationPatches.length > 0 ||
-				interactionPatches.length > 0 ||
-				includesGraphState
+				includesGraphPatch &&
+				hasCurrentGraphRevision(currentRevision) &&
+				envelope.payload.delta.fromRevision.graphRevision !== currentGraphRevision
+			) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.payload.delta.toRevision.graphRevision,
+					},
+				];
+			}
+			if (
+				includesGraphPatch
 			) {
 				commands.push({
 					kind: "applyGraphPatches",

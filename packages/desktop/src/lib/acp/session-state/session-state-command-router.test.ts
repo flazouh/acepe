@@ -164,6 +164,100 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("routes graph patch deltas when the graph frontier matches", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			).map((command) => command.kind)
+		).toEqual(["applyGraphPatches"]);
+	});
+
+	it("refreshes instead of applying graph patches on top of a skipped graph revision", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 4,
+						lastEventSeq: 10,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["activity"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 7,
+				toRevision: 8,
+			},
+		]);
+	});
+
 	it("routes active streaming tail deltas as graph patches", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
