@@ -1004,6 +1004,11 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 						previousSceneEntries,
 						sceneEntries.length
 					);
+				} else if (
+					previousSceneEntries !== null &&
+					hasSameSceneEntryIdOrder(previousSceneEntries, sceneEntries)
+				) {
+					// Same ids in the same slots means the existing id -> index map is still valid.
 				} else {
 					sceneEntryIndexesById = buildSceneEntryIndexes(sceneEntries);
 				}
@@ -1050,6 +1055,23 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			return displayedEntries;
 		},
 	};
+}
+
+function hasSameSceneEntryIdOrder(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (previousSceneEntries.length !== sceneEntries.length) {
+		return false;
+	}
+
+	for (let index = 0; index < sceneEntries.length; index += 1) {
+		if (previousSceneEntries[index]?.id !== sceneEntries[index]?.id) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 function removeTruncatedSceneEntryIndexes(

@@ -283,6 +283,62 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			markdown: "First patched",
 		});
 	});
+
+	it("keeps the cached scene entry index valid for same-length scene entry patches", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Draft",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Patched answer",
+					displayText: "Patched answer",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, assistantEntry],
+		});
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			...assistantEntry,
+			markdown: "Backend update before display patch",
+		};
+
+		const patchedEntries = readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, nextAssistantEntry],
+		});
+
+		expect(patchedEntries[0]).toBe(userEntry);
+		expect(patchedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Patched answer",
+		});
+	});
 });
 
 describe("buildAgentPanelBaseModel row projection", () => {
