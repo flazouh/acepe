@@ -30,6 +30,7 @@ const panelStore = getPanelStore();
 const filePanels = $derived(panelStore.getAttachedFilePanels(ownerPanelId));
 
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
+let retainedGitStatusFilePanels: readonly FilePanelType[] | null = null;
 
 function createRetainedGitStatusMap(
 	filePanels: readonly FilePanelType[],
@@ -86,11 +87,17 @@ $effect(() => {
 	// and should not kick off metadata work for every attached tab either.
 	// Important: keep updates based on a local map snapshot so sync test doubles or
 	// immediate cache hits do not create a read/write self-dependency loop.
-	let nextGitStatusByFilePanelKey = createRetainedGitStatusMap(
-		currentFilePanels,
-		currentGitStatuses
-	);
-	gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+	// Also keep the existing map reference when the tab list itself did not change;
+	// switching the active tab should not rebuild badge state for every attached tab.
+	let nextGitStatusByFilePanelKey = currentGitStatuses;
+	if (retainedGitStatusFilePanels !== currentFilePanels) {
+		nextGitStatusByFilePanelKey = createRetainedGitStatusMap(
+			currentFilePanels,
+			currentGitStatuses
+		);
+		gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+		retainedGitStatusFilePanels = currentFilePanels;
+	}
 
 	if (currentActiveFilePanel === null) {
 		return () => {
