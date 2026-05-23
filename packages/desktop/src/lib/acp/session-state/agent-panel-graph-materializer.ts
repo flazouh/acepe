@@ -723,8 +723,8 @@ function canReuseConversation(
 		previous.operations === graph.operations &&
 		previous.interactions === graph.interactions &&
 		previous.turnState === graph.turnState &&
-		previous.activeStreamingTail === graph.activeStreamingTail &&
-		previous.activity === graph.activity
+		areActiveStreamingTailsEquivalent(previous.activeStreamingTail, graph.activeStreamingTail) &&
+		areActivitiesEquivalent(previous.activity, graph.activity)
 	);
 }
 
@@ -781,8 +781,11 @@ function materializeTranscriptPatchedConversation(
 		previous.operations !== input.graph.operations ||
 		previous.interactions !== input.graph.interactions ||
 		previous.turnState !== input.graph.turnState ||
-		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
-		previous.activity !== input.graph.activity ||
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesEquivalent(previous.activity, input.graph.activity) ||
 		previous.transcriptEntries.length !== input.graph.transcriptSnapshot.entries.length
 	) {
 		return null;
@@ -864,8 +867,11 @@ function materializeTranscriptAppendedConversation(
 		previous.operations !== input.graph.operations ||
 		previous.interactions !== input.graph.interactions ||
 		previous.turnState !== input.graph.turnState ||
-		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
-		previous.activity !== input.graph.activity ||
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesEquivalent(previous.activity, input.graph.activity) ||
 		!isStableTranscriptAppend(previous.transcriptEntries, input.graph.transcriptSnapshot.entries)
 	) {
 		return null;
@@ -969,7 +975,10 @@ function materializeInteractionPatchedConversation(
 		previous.transcriptEntries !== input.graph.transcriptSnapshot.entries ||
 		previous.operations !== input.graph.operations ||
 		previous.turnState !== input.graph.turnState ||
-		previous.activeStreamingTail !== input.graph.activeStreamingTail
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		)
 	) {
 		return null;
 	}
@@ -1077,8 +1086,11 @@ function materializeOperationPatchedConversation(
 		previous.transcriptEntries !== input.graph.transcriptSnapshot.entries ||
 		previous.interactions !== input.graph.interactions ||
 		previous.turnState !== input.graph.turnState ||
-		previous.activeStreamingTail !== input.graph.activeStreamingTail ||
-		previous.activity !== input.graph.activity
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesEquivalent(previous.activity, input.graph.activity)
 	) {
 		return null;
 	}
@@ -1169,6 +1181,33 @@ function areSceneEntriesEquivalent(
 	right: AgentPanelSceneEntryModel
 ): boolean {
 	return areJsonLikeValuesEquivalent(left, right);
+}
+
+function areActiveStreamingTailsEquivalent(
+	left: AgentPanelCanonicalSource["activeStreamingTail"],
+	right: AgentPanelCanonicalSource["activeStreamingTail"]
+): boolean {
+	if (left === right) {
+		return true;
+	}
+	if (left === null || right === null) {
+		return false;
+	}
+	return left.rowId === right.rowId && left.contentKind === right.contentKind;
+}
+
+function areActivitiesEquivalent(
+	left: AgentPanelCanonicalSource["activity"],
+	right: AgentPanelCanonicalSource["activity"]
+): boolean {
+	return (
+		left === right ||
+		(left.kind === right.kind &&
+			left.activeOperationCount === right.activeOperationCount &&
+			left.activeSubagentCount === right.activeSubagentCount &&
+			left.dominantOperationId === right.dominantOperationId &&
+			left.blockingInteractionId === right.blockingInteractionId)
+	);
 }
 
 function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
