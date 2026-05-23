@@ -144,6 +144,26 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("keeps indexed file panel lookups current across open, resize, and close", () => {
+		const store = createStore();
+
+		const filePanel = store.openFilePanel("src/main.ts", "/tmp/project");
+
+		expect(store.getFilePanel(filePanel.id)).toBe(filePanel);
+		expect(store.getFilePanelByPath("src/main.ts", "/tmp/project")).toBe(filePanel);
+		expect(store.isFileOpen("src/main.ts", "/tmp/project")).toBe(true);
+
+		store.resizeFilePanel(filePanel.id, 25);
+		const resizedPanel = store.getFilePanel(filePanel.id);
+		expect(resizedPanel?.width).toBe(filePanel.width + 25);
+		expect(store.getFilePanelByPath("src/main.ts", "/tmp/project")).toBe(resizedPanel);
+
+		store.closeFilePanel(filePanel.id);
+		expect(store.getFilePanel(filePanel.id)).toBeUndefined();
+		expect(store.getFilePanelByPath("src/main.ts", "/tmp/project")).toBeUndefined();
+		expect(store.isFileOpen("src/main.ts", "/tmp/project")).toBe(false);
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 

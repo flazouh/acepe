@@ -95,6 +95,8 @@ export class PanelStore {
 	private suppressedAutoSessionSignals = new SvelteMap<string, string>();
 	private latestLiveSessionSignals = new SvelteMap<string, string>();
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
+	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
+	private filePanelById = new SvelteMap<string, FilePanel>();
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
 	private activeTopLevelFilePanelIdByProject = new SvelteMap<string, string>();
 	private nextTerminalTabCreatedAt = 1;
@@ -283,7 +285,7 @@ export class PanelStore {
 	}
 
 	set filePanels(nextPanels: FilePanel[]) {
-		this.syncAttachedFilePanelIndex(nextPanels);
+		this.syncFilePanelIndexes(nextPanels);
 		this.replaceWorkspacePanels("file", nextPanels);
 	}
 
@@ -328,9 +330,16 @@ export class PanelStore {
 		}
 	}
 
-	private syncAttachedFilePanelIndex(nextPanels: readonly FilePanel[]): void {
+	private syncFilePanelIndexes(nextPanels: readonly FilePanel[]): void {
+		this.filePanelByCacheKey.clear();
+		this.filePanelById.clear();
 		const groupedPanels = new Map<string, FilePanel[]>();
 		for (const panel of nextPanels) {
+			this.filePanelById.set(panel.id, panel);
+			this.filePanelByCacheKey.set(
+				createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
+				panel
+			);
 			if (panel.ownerPanelId === null) {
 				continue;
 			}
@@ -1410,7 +1419,7 @@ export class PanelStore {
 		const cacheKey = createFilePanelCacheKey(filePath, projectPath, ownerPanelId);
 
 		// Check if already open
-		const existing = this.filePanelByPath.get(cacheKey);
+		const existing = this.filePanelByCacheKey.get(cacheKey);
 		if (existing) {
 			if (ownerPanelId !== null) {
 				this.ensureOwnerPanelWidth(ownerPanelId, existing.width);
@@ -1506,7 +1515,7 @@ export class PanelStore {
 	 */
 	isFileOpen(filePath: string, projectPath: string): boolean {
 		const cacheKey = createFilePanelCacheKey(filePath, projectPath, null);
-		return this.filePanelByPath.has(cacheKey);
+		return this.filePanelByCacheKey.has(cacheKey);
 	}
 
 	/**
@@ -1534,7 +1543,7 @@ export class PanelStore {
 	 * Get a file panel by ID.
 	 */
 	getFilePanel(panelId: string): FilePanel | undefined {
-		return this.filePanels.find((p) => p.id === panelId);
+		return this.filePanelById.get(panelId);
 	}
 
 	/**
@@ -1542,7 +1551,7 @@ export class PanelStore {
 	 */
 	getFilePanelByPath(filePath: string, projectPath: string): FilePanel | undefined {
 		const cacheKey = createFilePanelCacheKey(filePath, projectPath, null);
-		return this.filePanelByPath.get(cacheKey);
+		return this.filePanelByCacheKey.get(cacheKey);
 	}
 
 	getAttachedFilePanels(ownerPanelId: string): FilePanel[] {
@@ -1556,19 +1565,17 @@ export class PanelStore {
 	getActiveAttachedFilePanel(ownerPanelId: string): FilePanel | null {
 		const activeFilePanelId = this.activeFilePanelIdByOwnerPanelId.get(ownerPanelId);
 		if (activeFilePanelId) {
-			const panel = this.filePanels.find(
-				(candidate) => candidate.id === activeFilePanelId && candidate.ownerPanelId === ownerPanelId
-			);
-			if (panel) return panel;
+			const panel = this.filePanelById.get(activeFilePanelId);
+			if (panel?.ownerPanelId === ownerPanelId) {
+				return panel;
+			}
 		}
 		return this.filePanels.find((panel) => panel.ownerPanelId === ownerPanelId) ?? null;
 	}
 
 	setActiveAttachedFilePanel(ownerPanelId: string, filePanelId: string): void {
-		const target = this.filePanels.find(
-			(panel) => panel.id === filePanelId && panel.ownerPanelId === ownerPanelId
-		);
-		if (!target) return;
+		const target = this.filePanelById.get(filePanelId);
+		if (target?.ownerPanelId !== ownerPanelId) return;
 		this.activeFilePanelIdByOwnerPanelId.set(ownerPanelId, filePanelId);
 		this.onPersist();
 	}
