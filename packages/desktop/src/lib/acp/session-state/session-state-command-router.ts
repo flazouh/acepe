@@ -258,6 +258,9 @@ export function routeSessionStateEnvelope(
 					},
 				];
 			}
+			for (const command of transcriptCommands) {
+				commands.push(command);
+			}
 			if (includesGraphPatch) {
 				commands.push({
 					kind: "applyGraphPatches",
@@ -276,9 +279,6 @@ export function routeSessionStateEnvelope(
 					operationPatches,
 					interactionPatches,
 				});
-			}
-			for (const command of transcriptCommands) {
-				commands.push(command);
 			}
 			return commands;
 		}
