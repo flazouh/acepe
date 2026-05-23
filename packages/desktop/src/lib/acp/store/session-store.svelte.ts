@@ -203,6 +203,10 @@ const interactionSnapshotIndexes = new WeakMap<
 	readonly InteractionSnapshot[],
 	ReadonlyMap<string, number>
 >();
+const transcriptEntryIndexes = new WeakMap<
+	readonly TranscriptEntry[],
+	ReadonlyMap<string, number>
+>();
 
 function resolveContextBudget(
 	usageTelemetryData: UsageTelemetryData,
@@ -532,23 +536,47 @@ function graphWithPatches(input: {
 	};
 }
 
+function getTranscriptEntryIndex(
+	entries: readonly TranscriptEntry[]
+): ReadonlyMap<string, number> {
+	const existing = transcriptEntryIndexes.get(entries);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const next = new Map<string, number>();
+	for (let index = 0; index < entries.length; index += 1) {
+		const entry = entries[index];
+		if (entry !== undefined && !next.has(entry.entryId)) {
+			next.set(entry.entryId, index);
+		}
+	}
+	transcriptEntryIndexes.set(entries, next);
+	return next;
+}
+
 function replaceTranscriptEntry(
 	entries: readonly TranscriptEntry[],
 	nextEntry: TranscriptEntry
 ): TranscriptEntry[] {
-	const nextEntries: TranscriptEntry[] = [];
-	let replaced = false;
-	for (const entry of entries) {
-		if (entry.entryId === nextEntry.entryId) {
-			nextEntries.push(nextEntry);
-			replaced = true;
-		} else {
-			nextEntries.push(entry);
-		}
+	const currentIndex = getTranscriptEntryIndex(entries);
+	const index = currentIndex.get(nextEntry.entryId);
+	if (index === undefined) {
+		const nextEntries = entries.concat([nextEntry]);
+		transcriptEntryIndexes.set(
+			nextEntries,
+			new Map(currentIndex).set(nextEntry.entryId, entries.length)
+		);
+		return nextEntries;
 	}
-	if (!replaced) {
-		nextEntries.push(nextEntry);
+
+	if (entries[index] === nextEntry) {
+		return entries as TranscriptEntry[];
 	}
+
+	const nextEntries = entries.slice();
+	nextEntries[index] = nextEntry;
+	transcriptEntryIndexes.set(nextEntries, currentIndex);
 	return nextEntries;
 }
 
@@ -558,31 +586,47 @@ function appendTranscriptSegment(
 	role: TranscriptEntry["role"],
 	segment: TranscriptEntry["segments"][number]
 ): TranscriptEntry[] {
-	const nextEntries: TranscriptEntry[] = [];
-	let appended = false;
-	for (const entry of entries) {
-		if (entry.entryId === entryId && entry.role === role) {
-			nextEntries.push({
-				entryId: entry.entryId,
-				role: entry.role,
-				segments: entry.segments.concat([segment]),
-			});
-			appended = true;
-		} else {
-			nextEntries.push(entry);
-		}
-	}
-	if (!appended) {
-		nextEntries.push({
+	const currentIndex = getTranscriptEntryIndex(entries);
+	const index = currentIndex.get(entryId);
+	if (index === undefined) {
+		const nextEntry = {
 			entryId,
 			role,
 			segments: [segment],
-		});
+		};
+		const nextEntries = entries.concat([nextEntry]);
+		transcriptEntryIndexes.set(
+			nextEntries,
+			new Map(currentIndex).set(entryId, entries.length)
+		);
+		return nextEntries;
 	}
+
+	if (entries[index]?.role !== role) {
+		return entries.concat([
+			{
+				entryId,
+				role,
+				segments: [segment],
+			},
+		]);
+	}
+
+	const entry = entries[index];
+	if (entry === undefined) {
+		return entries as TranscriptEntry[];
+	}
+	const nextEntries = entries.slice();
+	nextEntries[index] = {
+		entryId: entry.entryId,
+		role: entry.role,
+		segments: entry.segments.concat([segment]),
+	};
+	transcriptEntryIndexes.set(nextEntries, currentIndex);
 	return nextEntries;
 }
 
-function applyTranscriptDeltaToSnapshot(
+export function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
 ): TranscriptSnapshot {
