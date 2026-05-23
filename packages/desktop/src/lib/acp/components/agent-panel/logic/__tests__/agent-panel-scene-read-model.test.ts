@@ -388,6 +388,47 @@ describe("createAgentPanelSceneReadModel", () => {
 		}
 	});
 
+	it("patches stable transcript insertion without slicing the full scene", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-2",
+			type: "tool_call",
+			title: "Check",
+			status: "done",
+		};
+		readModel.applySnapshot([userEntry, nextToolEntry]);
+		const nextSceneEntries = [userEntry, toolEntry, nextToolEntry];
+		const originalSlice = nextSceneEntries.slice;
+
+		nextSceneEntries.slice = () => {
+			throw new Error("must not slice full scene for stable insertion");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applySnapshot(nextSceneEntries);
+
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"tool-1",
+				"tool-2",
+			]);
+		} finally {
+			nextSceneEntries.slice = originalSlice;
+		}
+	});
+
 	it("patches assistant insertion without copying preserved display rows", () => {
 		const readModel = createAgentPanelSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

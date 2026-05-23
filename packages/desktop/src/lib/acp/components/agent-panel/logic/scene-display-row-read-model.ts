@@ -387,9 +387,7 @@ function patchInsertedSceneDisplayRows(
 			return null;
 		}
 
-		const insertedRows = buildSceneDisplayRows(
-			sceneEntries.slice(startIndex, startIndex + insertedCount)
-		);
+		const insertedRows = buildInsertedSceneDisplayRows(sceneEntries, startIndex, insertedCount);
 		const rows = createInsertedSceneDisplayRowsArray(
 			previousRows,
 			insertedRows,
@@ -428,6 +426,26 @@ function patchInsertedSceneDisplayRows(
 		rows,
 		firstChangedRowIndex: firstRebuiltRowIndex,
 	};
+}
+
+function buildInsertedSceneDisplayRows(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number,
+	insertedCount: number
+): readonly SceneDisplayRow[] {
+	if (insertedCount === 1) {
+		const insertedEntry = sceneEntries[startIndex];
+		return insertedEntry === undefined ? [] : buildSceneDisplayRows([insertedEntry]);
+	}
+
+	const insertedEntries: AgentPanelSceneEntryModel[] = [];
+	for (let index = 0; index < insertedCount; index += 1) {
+		const insertedEntry = sceneEntries[startIndex + index];
+		if (insertedEntry !== undefined) {
+			insertedEntries.push(insertedEntry);
+		}
+	}
+	return buildSceneDisplayRows(insertedEntries);
 }
 
 function patchSameLengthSceneDisplayRows(
