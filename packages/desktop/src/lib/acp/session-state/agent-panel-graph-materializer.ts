@@ -812,7 +812,7 @@ function materializeTranscriptArrayPatchedConversation(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
 		) ||
-		!areActivitiesEquivalent(previous.activity, input.graph.activity)
+		!areActivitiesCompatibleForConversationPatch(previous.activity, input.graph.activity)
 	) {
 		return null;
 	}
@@ -869,6 +869,7 @@ function materializeTranscriptArrayPatchedConversation(
 			...previous,
 			transcriptEntries,
 			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+			activity: input.graph.activity,
 		};
 	}
 
@@ -902,7 +903,7 @@ function materializeTranscriptPatchedConversation(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
 		) ||
-		!areActivitiesEquivalent(previous.activity, input.graph.activity) ||
+		!areActivitiesCompatibleForConversationPatch(previous.activity, input.graph.activity) ||
 		previous.transcriptEntries.length !== input.graph.transcriptSnapshot.entries.length
 	) {
 		return null;
@@ -954,6 +955,7 @@ function materializeTranscriptPatchedConversation(
 			...previous,
 			transcriptEntries,
 			transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
+			activity: input.graph.activity,
 		};
 	}
 
@@ -994,7 +996,7 @@ function materializeTranscriptAppendedConversation(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
 		) ||
-		!areActivitiesEquivalent(previous.activity, input.graph.activity) ||
+		!areActivitiesCompatibleForConversationPatch(previous.activity, input.graph.activity) ||
 		(!hasMarkedAppend && !isStableTranscriptAppend(previous.transcriptEntries, transcriptEntries))
 	) {
 		return null;
@@ -1006,6 +1008,7 @@ function materializeTranscriptAppendedConversation(
 			...previous,
 			transcriptEntries,
 			transcriptEntryById: previous.transcriptEntryById,
+			activity: input.graph.activity,
 		};
 	}
 
@@ -1383,6 +1386,10 @@ function materializeOperationPatchedConversation(
 		!areActiveStreamingTailsEquivalent(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesCompatibleForConversationPatch(
+			previous.activity,
+			input.graph.activity
 		)
 	) {
 		return null;
@@ -1454,6 +1461,7 @@ function materializeOperationPatchedConversation(
 			...previous,
 			operations: input.graph.operations,
 			operationIndex,
+			activity: input.graph.activity,
 		};
 	}
 
@@ -1682,6 +1690,13 @@ function areActivitiesEquivalent(
 			left.dominantOperationId === right.dominantOperationId &&
 			left.blockingInteractionId === right.blockingInteractionId)
 	);
+}
+
+function areActivitiesCompatibleForConversationPatch(
+	left: AgentPanelCanonicalSource["activity"],
+	right: AgentPanelCanonicalSource["activity"]
+): boolean {
+	return left.blockingInteractionId === right.blockingInteractionId;
 }
 
 function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {

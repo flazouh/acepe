@@ -617,6 +617,89 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("rematerializes interaction rows when operation patches change the blocking interaction", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run first"),
+		]);
+		const operation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+			result: null,
+			operation_state: "running",
+		});
+		const operations = [operation];
+		const questionOne = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 1,
+			replyHandler: { kind: "json_rpc", requestId: "1" },
+		});
+		const questionTwo = createQuestionInteraction({
+			id: "question-2",
+			jsonRpcRequestId: 2,
+			replyHandler: { kind: "json_rpc", requestId: "2" },
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+			interactions: [questionOne, questionTwo],
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-1",
+				blockingInteractionId: "question-1",
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Question session" },
+		});
+		const patchedOperation = {
+			...operation,
+			result: { stdout: "done", stderr: null, exitCode: 0 },
+			operation_state: "completed" as const,
+		};
+		const nextOperations = [patchedOperation];
+		markOperationSnapshotArrayPatch(nextOperations, {
+			baseOperations: operations,
+			patchedOperationsByIndex: new Map([[0, patchedOperation]]),
+			appendedOperations: null,
+		});
+
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: nextOperations,
+				activity: {
+					kind: "waiting_for_user",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: "question-2",
+				},
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Question session" },
+		});
+
+		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"tool-1",
+			"interaction:question-1",
+		]);
+		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"tool-1",
+			"interaction:question-2",
+		]);
+	});
+
 	it("applies marked operation appends without cloning existing operation indexes", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("tool-1", "tool", "Run first"),
@@ -1188,6 +1271,13 @@ describe("agent panel graph materializer", () => {
 				rowId: "assistant-2",
 				contentKind: "message",
 			},
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
 		});
 		const readModel = createAgentPanelGraphMaterializerReadModel();
 
@@ -1241,6 +1331,13 @@ describe("agent panel graph materializer", () => {
 					transcriptSnapshot: {
 						revision: transcriptSnapshot.revision + 1,
 						entries: nextTranscriptEntries,
+					},
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
 					},
 					revision: {
 						graphRevision: 10,
