@@ -298,9 +298,7 @@ function assertSessionStateGraphCopyKeyCoverage(
 
 assertSessionStateGraphCopyKeyCoverage({});
 
-function sessionExportContentError(
-	kind: SessionExportContentErrorKind
-): SessionExportContentError {
+function sessionExportContentError(kind: SessionExportContentErrorKind): SessionExportContentError {
 	switch (kind) {
 		case "session_not_found":
 			return {
@@ -407,59 +405,88 @@ function mergeOperationSnapshots(
 	current: readonly OperationSnapshot[],
 	patches: readonly OperationSnapshot[]
 ): OperationSnapshot[] {
-	const operationById = new Map<string, OperationSnapshot>();
-	const orderedIds: string[] = [];
-
-	for (const operation of current) {
-		operationById.set(operation.id, operation);
-		orderedIds.push(operation.id);
-	}
+	const patchesById = new Map<string, OperationSnapshot>();
+	const appendedPatches: OperationSnapshot[] = [];
 
 	for (const patch of patches) {
-		const existing = operationById.get(patch.id);
-		if (existing === undefined) {
-			orderedIds.push(patch.id);
-		}
-		operationById.set(patch.id, patch);
+		patchesById.set(patch.id, patch);
 	}
 
-	const operations: OperationSnapshot[] = [];
-	for (const operationId of orderedIds) {
-		const operation = operationById.get(operationId);
-		if (operation !== undefined) {
-			operations.push(operation);
+	let operations: OperationSnapshot[] | null = null;
+	for (let index = 0; index < current.length; index += 1) {
+		const operation = current[index];
+		if (operation === undefined) {
+			continue;
+		}
+		const patch = patchesById.get(operation.id);
+		if (patch === undefined) {
+			operations?.push(operation);
+			continue;
+		}
+		operations ??= current.slice(0, index);
+		operations.push(patch);
+		patchesById.delete(operation.id);
+	}
+
+	const appendedIds = new Set<string>();
+	for (const patch of patches) {
+		if (patchesById.has(patch.id)) {
+			if (!appendedIds.has(patch.id)) {
+				appendedPatches.push(patchesById.get(patch.id)!);
+				appendedIds.add(patch.id);
+			}
 		}
 	}
-	return operations;
+
+	if (operations === null && appendedPatches.length === 0) {
+		return current.slice();
+	}
+
+	return (operations ?? current.slice()).concat(appendedPatches);
 }
 
 function mergeInteractionSnapshots(
 	current: readonly InteractionSnapshot[],
 	patches: readonly InteractionSnapshot[]
 ): InteractionSnapshot[] {
-	const interactionById = new Map<string, InteractionSnapshot>();
-	const orderedIds: string[] = [];
-
-	for (const interaction of current) {
-		interactionById.set(interaction.id, interaction);
-		orderedIds.push(interaction.id);
-	}
+	const patchesById = new Map<string, InteractionSnapshot>();
+	const appendedPatches: InteractionSnapshot[] = [];
 
 	for (const patch of patches) {
-		if (!interactionById.has(patch.id)) {
-			orderedIds.push(patch.id);
-		}
-		interactionById.set(patch.id, patch);
+		patchesById.set(patch.id, patch);
 	}
 
-	const interactions: InteractionSnapshot[] = [];
-	for (const interactionId of orderedIds) {
-		const interaction = interactionById.get(interactionId);
-		if (interaction !== undefined) {
-			interactions.push(interaction);
+	let interactions: InteractionSnapshot[] | null = null;
+	for (let index = 0; index < current.length; index += 1) {
+		const interaction = current[index];
+		if (interaction === undefined) {
+			continue;
+		}
+		const patch = patchesById.get(interaction.id);
+		if (patch === undefined) {
+			interactions?.push(interaction);
+			continue;
+		}
+		interactions ??= current.slice(0, index);
+		interactions.push(patch);
+		patchesById.delete(interaction.id);
+	}
+
+	const appendedIds = new Set<string>();
+	for (const patch of patches) {
+		if (patchesById.has(patch.id)) {
+			if (!appendedIds.has(patch.id)) {
+				appendedPatches.push(patchesById.get(patch.id)!);
+				appendedIds.add(patch.id);
+			}
 		}
 	}
-	return interactions;
+
+	if (interactions === null && appendedPatches.length === 0) {
+		return current.slice();
+	}
+
+	return (interactions ?? current.slice()).concat(appendedPatches);
 }
 
 function graphWithPatches(input: {
@@ -1672,7 +1699,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionLiveWorkSource(sessionId: string | null, active: boolean): LiveSessionWorkSource {
-		const projection = sessionId === null ? null : (this.canonicalProjections.get(sessionId) ?? null);
+		const projection =
+			sessionId === null ? null : (this.canonicalProjections.get(sessionId) ?? null);
 		if (active) {
 			return liveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
 		}
@@ -1680,7 +1708,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {
-		return this.transientProjectionStore.getTransientProjection(sessionId).pendingSendIntent ?? null;
+		return (
+			this.transientProjectionStore.getTransientProjection(sessionId).pendingSendIntent ?? null
+		);
 	}
 
 	getSessionHasLocalPendingSendIntent(sessionId: string): boolean {
@@ -1696,7 +1726,10 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionAutonomousTransitionBusy(sessionId: string): boolean {
-		return this.transientProjectionStore.getTransientProjection(sessionId).autonomousTransition !== "idle";
+		return (
+			this.transientProjectionStore.getTransientProjection(sessionId).autonomousTransition !==
+			"idle"
+		);
 	}
 
 	getSessionStatusChangedAt(sessionId: string): number {
@@ -1859,10 +1892,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 */
 	getSessionCapabilityRevision(sessionId: string): SessionGraphRevision | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (
-			projection === null ||
-			this.getCanonicalProjectedCapabilities(sessionId) === null
-		) {
+		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
 			return null;
 		}
 		return projection.revision;
@@ -1879,14 +1909,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return mutationState.pendingMutationId;
 	}
 
-	getSessionCapabilityPreviewState(
-		sessionId: string
-	): SessionCapabilities["previewState"] | null {
+	getSessionCapabilityPreviewState(sessionId: string): SessionCapabilities["previewState"] | null {
 		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (
-			projection === null ||
-			this.getCanonicalProjectedCapabilities(sessionId) === null
-		) {
+		if (projection === null || this.getCanonicalProjectedCapabilities(sessionId) === null) {
 			return null;
 		}
 		const mutationState = this.getTransientProjection(sessionId).capabilityMutationState ?? {
@@ -2063,10 +2088,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return this.operationStore.getCurrentToolKind(sessionId);
 	}
 
-	isPermissionRepresentedByToolCall(
-		permission: PermissionRequest,
-		sessionId: string
-	): boolean {
+	isPermissionRepresentedByToolCall(permission: PermissionRequest, sessionId: string): boolean {
 		return isPermissionRepresentedByOperation(permission, sessionId, this.operationStore);
 	}
 
@@ -3393,7 +3415,9 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		sessionId: string,
 		telemetry: import("./types.js").SessionUsageTelemetry
 	): void {
-		this.transientProjectionStore.updateTransientProjection(sessionId, { usageTelemetry: telemetry });
+		this.transientProjectionStore.updateTransientProjection(sessionId, {
+			usageTelemetry: telemetry,
+		});
 	}
 
 	applySessionStateEnvelope(sessionId: string, envelope: SessionStateEnvelope): void {
@@ -3498,14 +3522,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						0,
 					lastEventSeq: envelope.lastEventSeq,
 				};
-					if (isOlderGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
-						logger.debug("Ignoring stale session-state lifecycle envelope", {
-							sessionId,
-							currentRevision: previousProjection?.revision ?? null,
-							incomingRevision: lifecycleRevision,
-						});
-						continue;
-					}
+				if (isOlderGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
+					logger.debug("Ignoring stale session-state lifecycle envelope", {
+						sessionId,
+						currentRevision: previousProjection?.revision ?? null,
+						incomingRevision: lifecycleRevision,
+					});
+					continue;
+				}
 				this.canonicalProjections.set(sessionId, {
 					lifecycle: command.lifecycle,
 					activity: reconciledActivity,
@@ -3518,10 +3542,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					clockAnchor: preservedStreamingState.clockAnchor,
 					revision: lifecycleRevision,
 				});
-				this.canonicalCapabilitiesMaterialized.set(
-					sessionId,
-					previousCapabilitiesMaterialized
-				);
+				this.canonicalCapabilitiesMaterialized.set(sessionId, previousCapabilitiesMaterialized);
 				if (previousGraph !== null) {
 					this.sessionStateGraphs.set(
 						sessionId,
@@ -3553,7 +3574,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					);
 				}
 				const updates: SessionTransientProjectionUpdates = {
-					acpSessionId: command.lifecycle.status === "ready" ? sessionId : transientProjection.acpSessionId,
+					acpSessionId:
+						command.lifecycle.status === "ready" ? sessionId : transientProjection.acpSessionId,
 				};
 				if (previousProjection?.lifecycle.status !== command.lifecycle.status) {
 					updates.statusChangedAt = Date.now();
@@ -3578,18 +3600,18 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				);
 				this.syncAwaitingModelRefreshTimer(sessionId, reconciledActivity, turnState);
 				continue;
-				}
+			}
 
-				if (command.kind === "applyCapabilities") {
-					const sessionIdentity = this.getSessionIdentity(sessionId);
-					if (!sessionIdentity) {
-						continue;
-					}
-					const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-					if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
-						continue;
-					}
-					const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
+			if (command.kind === "applyCapabilities") {
+				const sessionIdentity = this.getSessionIdentity(sessionId);
+				if (!sessionIdentity) {
+					continue;
+				}
+				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+				if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+					continue;
+				}
+				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
 				this.canonicalCapabilitiesMaterialized.set(sessionId, true);
 				if (previousProjection !== null) {
