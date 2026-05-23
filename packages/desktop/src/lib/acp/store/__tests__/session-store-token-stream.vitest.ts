@@ -375,6 +375,58 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		});
 	});
 
+	it("rejects assistant text deltas that are older than the canonical graph frontier", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 10,
+						lastEventSeq: 10,
+					},
+					transcriptSnapshot: {
+						revision: 10,
+						entries: [
+							{
+								entryId: "assistant-current",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-current:block:0",
+										text: "current",
+									},
+								],
+							},
+						],
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-stale",
+				rowId: "assistant-stale",
+				charOffset: 0,
+				deltaText: "stale",
+				producedAtMonotonicMs: 1_000,
+				revision: 9,
+			})
+		);
+
+		expect(store.getRowTokenStream("session-1", "turn-stale", "assistant-stale")).toBeNull();
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 10,
+			transcriptRevision: 10,
+			lastEventSeq: 10,
+		});
+	});
+
 	it("produces identical canonical token streams when the same delta log is replayed", () => {
 		const liveStore = new SessionStore();
 		const replayStore = new SessionStore();

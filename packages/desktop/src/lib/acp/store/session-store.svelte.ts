@@ -3745,6 +3745,16 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (previousRow !== null && delta.revision <= previousRow.revision) {
 			return;
 		}
+		if (previousRow === null && delta.revision <= projection.revision.graphRevision) {
+			logger.debug("Ignoring stale assistant text delta before canonical graph frontier", {
+				sessionId,
+				turnId: delta.turnId,
+				rowId: delta.rowId,
+				deltaRevision: delta.revision,
+				graphRevision: projection.revision.graphRevision,
+			});
+			return;
+		}
 
 		const currentText = previousRow?.accumulatedText ?? "";
 		if (delta.charOffset !== currentText.length) {
