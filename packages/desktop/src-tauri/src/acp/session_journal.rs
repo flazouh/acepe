@@ -287,7 +287,10 @@ pub fn rebuild_session_projection(
         replay_context.agent_id.clone(),
     );
 
-    for event in events {
+    let mut ordered_events = events.iter().collect::<Vec<_>>();
+    ordered_events.sort_by_key(|event| event.event_seq);
+
+    for event in ordered_events {
         if event.session_id == replay_context.local_session_id {
             event.replay_into(&registry);
         }
@@ -316,7 +319,10 @@ pub fn rebuild_completed_local_transcript_snapshot(
 
     let registry = TranscriptProjectionRegistry::new();
     let mut applied_transcript_text = false;
-    for event in events {
+    let mut ordered_events = events.iter().collect::<Vec<_>>();
+    ordered_events.sort_by_key(|event| event.event_seq);
+
+    for event in ordered_events {
         if event.session_id != replay_context.local_session_id
             || event.event_seq > last_complete_seq
         {
@@ -634,10 +640,68 @@ mod tests {
         assert_eq!(
             snapshot.entries[0].segments[0],
             TranscriptSegment::Thought {
-                segment_id: "assistant-1:segment:1".to_string(),
+                segment_id: "assistant-event-1:segment:1".to_string(),
                 text: "checking the readme".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn completed_local_transcript_rebuild_is_ordered_by_journal_sequence() {
+        let replay_context = replay_context();
+        let rows = vec![
+            serialized_projection_row(
+                3,
+                SessionUpdate::TurnComplete {
+                    session_id: Some("local-session".to_string()),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            serialized_projection_row(
+                2,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: " world".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: Some("assistant-part-1".to_string()),
+                    message_id: Some("assistant-1".to_string()),
+                    session_id: Some("local-session".to_string()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+            serialized_projection_row(
+                1,
+                SessionUpdate::AgentMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "hello".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    part_id: Some("assistant-part-1".to_string()),
+                    message_id: Some("assistant-1".to_string()),
+                    session_id: Some("local-session".to_string()),
+                    produced_at_monotonic_ms: None,
+                },
+            ),
+        ];
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+
+        let snapshot = rebuild_completed_local_transcript_snapshot(&replay_context, &decoded)
+            .expect("rebuilt transcript");
+
+        let text = snapshot.entries[0]
+            .segments
+            .iter()
+            .map(|segment| match segment {
+                TranscriptSegment::Text { text, .. } => text.as_str(),
+                TranscriptSegment::Thought { text, .. } => text.as_str(),
+            })
+            .collect::<String>();
+        assert_eq!(text, "hello world");
     }
 
     #[test]
