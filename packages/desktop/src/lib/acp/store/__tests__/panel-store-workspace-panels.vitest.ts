@@ -451,6 +451,7 @@ describe("PanelStore workspacePanels", () => {
 
 		try {
 			expect(store.filePanelCount).toBe(1);
+			expect(store.filePanels).toEqual([filePanel]);
 			expect(store.filePanelByPath.get(createFilePanelCacheKey("src/instant.ts", "/tmp/project", null))).toBe(filePanel);
 			expect(store.getFilePanelByPath("src/instant.ts", "/tmp/project")).toBe(filePanel);
 		} finally {

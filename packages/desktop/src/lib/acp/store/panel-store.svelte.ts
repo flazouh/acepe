@@ -470,6 +470,7 @@ export class PanelStore {
 	private suppressedAutoSessionSignals = new SvelteMap<string, string>();
 	private latestLiveSessionSignals = new SvelteMap<string, string>();
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
+	private filePanelList = $state<FilePanel[]>([]);
 	private filePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private topLevelWorkspacePanelList = $state<WorkspacePanel[]>([]);
 	private topLevelNonAgentPanelProjectRefList = $state<TopLevelPanelProjectRef[]>([]);
@@ -649,6 +650,7 @@ export class PanelStore {
 		this.filePanelByCacheKey.delete(
 			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId)
 		);
+		this.filePanelList = createRemovedItemArray(this.filePanelList, panel.id);
 
 		const projectPanels = this.filePanelsByProject.get(panel.projectPath);
 		if (projectPanels !== undefined) {
@@ -728,9 +730,7 @@ export class PanelStore {
 	}
 
 	get filePanels(): FilePanel[] {
-		return this.workspacePanels.filter(
-			(panel): panel is FileWorkspacePanel => panel.kind === "file"
-		);
+		return this.filePanelList;
 	}
 
 	set filePanels(nextPanels: FilePanel[]) {
@@ -840,6 +840,9 @@ export class PanelStore {
 	}
 
 	private syncFilePanelIndexes(nextPanels: readonly FilePanel[]): void {
+		if (!areFilePanelListsEqual(this.filePanelList, nextPanels)) {
+			this.filePanelList = Array.from(nextPanels);
+		}
 		this.filePanelByCacheKey.clear();
 		this.filePanelById.clear();
 		const groupedPanels = new Map<string, FilePanel[]>();
@@ -925,6 +928,7 @@ export class PanelStore {
 			panel.projectPath,
 			createPrependedItemArray(panel, this.filePanelsByProject.get(panel.projectPath) ?? [])
 		);
+		this.filePanelList = createPrependedItemArray(panel, this.filePanelList);
 
 		if (panel.ownerPanelId === null) {
 			this.topLevelFilePanelsList = createPrependedItemArray(panel, this.topLevelFilePanelsList);
