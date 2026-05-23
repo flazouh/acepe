@@ -33,6 +33,7 @@ import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
 	markAgentPanelSceneEntryArraySplicePatch,
+	markAgentPanelSceneEntryArrayTruncation,
 } from "./agent-panel-scene-entry-array-patch.js";
 import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
 import { getOperationSnapshotArrayPatch } from "./operation-snapshot-array-patch.js";
@@ -809,6 +810,11 @@ function materializeCachedConversation(
 		return transcriptPatched;
 	}
 
+	const transcriptTruncated = materializeTranscriptTruncatedConversation(previous, input);
+	if (transcriptTruncated !== null) {
+		return transcriptTruncated;
+	}
+
 	const transcriptAppended = materializeTranscriptAppendedConversation(previous, input);
 	if (transcriptAppended !== null) {
 		return transcriptAppended;
@@ -1406,6 +1412,92 @@ function materializeTranscriptAppendedConversation(
 	};
 }
 
+function materializeTranscriptTruncatedConversation(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (
+		previous === null ||
+		previous.operations !== input.graph.operations ||
+		previous.interactions !== input.graph.interactions ||
+		previous.turnState !== input.graph.turnState ||
+		!areActiveStreamingTailsEquivalent(
+			previous.activeStreamingTail,
+			input.graph.activeStreamingTail
+		) ||
+		!areActivitiesCompatibleForConversationPatch(previous.activity, input.graph.activity)
+	) {
+		return null;
+	}
+
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	if (
+		transcriptEntries.length >= previous.transcriptEntries.length ||
+		!isStableTranscriptTruncation(previous.transcriptEntries, transcriptEntries)
+	) {
+		return null;
+	}
+
+	const nextTranscriptSceneEntryCount = transcriptEntries.length;
+	const previousTranscriptSceneEntryCount = previous.transcriptEntries.length;
+	const previousTrailingEntries =
+		previous.conversation.entries.length > previousTranscriptSceneEntryCount
+			? collectTrailingSceneEntries(
+					previous.conversation.entries,
+					previousTranscriptSceneEntryCount
+				)
+			: [];
+	const transcriptEntryById = createTruncatedTranscriptEntryIndex(
+		previous.transcriptEntryById,
+		previous.transcriptEntries,
+		nextTranscriptSceneEntryCount
+	);
+	const conversationEntries =
+		previousTrailingEntries.length === 0
+			? createTruncatedSceneEntryArray(
+					previous.conversation.entries,
+					nextTranscriptSceneEntryCount
+				)
+			: createInsertedSceneEntryArray(
+					previous.conversation.entries,
+					nextTranscriptSceneEntryCount,
+					[],
+					previousTrailingEntries
+				);
+	const deletedSceneEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		nextTranscriptSceneEntryCount
+	);
+	const sceneEntryRowIndex =
+		previousTrailingEntries.length === 0
+			? createTruncatedSceneEntryRowIndex(
+					previous.sceneEntryRowIndex,
+					deletedSceneEntries
+				)
+			: createSplicedSceneEntryRowIndex(
+					previous.sceneEntryRowIndex,
+					deletedSceneEntries,
+					previousTrailingEntries,
+					nextTranscriptSceneEntryCount
+				);
+
+	return {
+		transcriptEntries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById,
+		conversation: {
+			entries: conversationEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex,
+	};
+}
+
 function appendTranscriptEntriesBeforeTrailingInteractions(
 	previousEntries: readonly AgentPanelSceneEntryModel[],
 	transcriptSceneEntryCount: number,
@@ -1752,6 +1844,17 @@ function createSplicedSceneEntryRowIndex(
 	);
 }
 
+function createTruncatedSceneEntryRowIndex(
+	rowIndex: ReadonlyMap<string, number>,
+	deletedEntries: readonly AgentPanelSceneEntryModel[]
+): ReadonlyMap<string, number> {
+	const deletedKeys = new Set<string>();
+	for (const entry of deletedEntries) {
+		deletedKeys.add(entry.id);
+	}
+	return createPatchedReadonlyMap(rowIndex, new Map(), deletedKeys);
+}
+
 function isStableTranscriptAppend(
 	previousEntries: readonly TranscriptEntry[],
 	nextEntries: readonly TranscriptEntry[]
@@ -1761,6 +1864,23 @@ function isStableTranscriptAppend(
 	}
 
 	for (let index = 0; index < previousEntries.length; index += 1) {
+		if (nextEntries[index] !== previousEntries[index]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function isStableTranscriptTruncation(
+	previousEntries: readonly TranscriptEntry[],
+	nextEntries: readonly TranscriptEntry[]
+): boolean {
+	if (nextEntries.length >= previousEntries.length) {
+		return false;
+	}
+
+	for (let index = 0; index < nextEntries.length; index += 1) {
 		if (nextEntries[index] !== previousEntries[index]) {
 			return false;
 		}
@@ -1952,6 +2072,18 @@ function createAppendedSceneEntryArray(
 	markAgentPanelSceneEntryArrayAppendPatch(entries, {
 		baseSceneEntries: baseEntries,
 		appendedEntries,
+	});
+	return entries;
+}
+
+function createTruncatedSceneEntryArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	length: number
+): readonly AgentPanelSceneEntryModel[] {
+	const entries = createSceneEntryArrayView(length, (index) => baseEntries[index]);
+	markAgentPanelSceneEntryArrayTruncation(entries, {
+		baseSceneEntries: baseEntries,
+		length,
 	});
 	return entries;
 }
@@ -2746,6 +2878,21 @@ function createAppendedTranscriptEntryIndex(
 	startIndex: number
 ): ReadonlyMap<string, TranscriptEntry> {
 	return appendTranscriptEntryIndexFromRange(byEntryId, entries, startIndex);
+}
+
+function createTruncatedTranscriptEntryIndex(
+	byEntryId: ReadonlyMap<string, TranscriptEntry>,
+	previousEntries: readonly TranscriptEntry[],
+	length: number
+): ReadonlyMap<string, TranscriptEntry> {
+	const deletedKeys = new Set<string>();
+	for (let index = length; index < previousEntries.length; index += 1) {
+		const entry = previousEntries[index];
+		if (entry !== undefined) {
+			deletedKeys.add(entry.entryId);
+		}
+	}
+	return createPatchedReadonlyMap(byEntryId, new Map(), deletedKeys);
 }
 
 class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {

@@ -22,6 +22,7 @@ import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
 	getAgentPanelSceneEntryArraySplicePatch,
+	getAgentPanelSceneEntryArrayTruncation,
 } from "../agent-panel-scene-entry-array-patch.js";
 import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
@@ -1358,6 +1359,89 @@ describe("agent panel graph materializer", () => {
 				value: assistantEntry,
 			});
 		}
+	});
+
+	it("applies stable transcript truncation without rematerializing preserved rows", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+		const secondUserEntry = createTranscriptEntry("user-2", "user", "pick one");
+		const transcriptSnapshot = createTranscriptSnapshot([
+			userEntry,
+			assistantEntry,
+			secondUserEntry,
+		]);
+		const questionInteraction = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 1,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "1",
+			},
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: [questionInteraction],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Question session" },
+		});
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			slice: typeof Array.prototype.slice;
+		};
+		const originalSlice = firstEntries.slice;
+		firstEntries.slice = () => {
+			throw new Error("must not slice whole materialized scene entries for transcript truncation");
+		};
+
+		let nextScene: typeof firstScene;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: {
+						revision: transcriptSnapshot.revision + 1,
+						entries: [userEntry, assistantEntry],
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: transcriptSnapshot.revision + 1,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Question session" },
+			});
+		} finally {
+			firstEntries.slice = originalSlice;
+		}
+
+		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"user-1",
+			"assistant-1",
+			"interaction:question-1",
+		]);
+		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+		expect(nextScene.conversation.entries[2]).toBe(firstScene.conversation.entries[3]);
+		expect(
+			getAgentPanelSceneEntryArraySplicePatch(nextScene.conversation.entries)
+		).toMatchObject({
+			baseSceneEntries: firstScene.conversation.entries,
+			startIndex: 2,
+			insertedEntries: [],
+			trailingEntries: [firstScene.conversation.entries[3]],
+		});
 	});
 
 	it("patches one transcript row without rebuilding unaffected conversation rows", () => {
