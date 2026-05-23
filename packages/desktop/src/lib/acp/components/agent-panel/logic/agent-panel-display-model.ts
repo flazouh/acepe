@@ -1388,14 +1388,53 @@ function selectAssistantRowsForScenePatch(
 ): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
 	const assistantRowsById = new Map<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>>();
 	for (const row of model.rows) {
-		if (row.type === "assistant") {
-			if (row.displayText === row.canonicalText && model.turnState !== "streaming") {
-				continue;
-			}
+		if (shouldProjectAssistantDisplayRow(row)) {
 			assistantRowsById.set(row.id, row);
 		}
 	}
 	return assistantRowsById;
+}
+
+function shouldProjectAssistantDisplayRow(
+	row: AgentPanelDisplayRow
+): row is Extract<AgentPanelDisplayRow, { type: "assistant" }> {
+	return row.type === "assistant";
+}
+
+function patchAssistantRowsForScenePatch(
+	previousAssistantRowsById: ReadonlyMap<
+		string,
+		Extract<AgentPanelDisplayRow, { type: "assistant" }>
+	>,
+	previousRows: readonly AgentPanelDisplayRow[],
+	nextRows: readonly AgentPanelDisplayRow[]
+): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> | null {
+	const rowPatch = getAgentPanelDisplayRowArrayPatch(nextRows);
+	if (rowPatch?.baseRows !== previousRows) {
+		return null;
+	}
+
+	let patchedAssistantRowsById: Map<
+		string,
+		Extract<AgentPanelDisplayRow, { type: "assistant" }>
+	> | null = null;
+	for (const [index, nextRow] of rowPatch.rowPatches) {
+		const previousRow = previousRows[index];
+		if (
+			previousRow?.type === "assistant" &&
+			previousAssistantRowsById.has(previousRow.id)
+		) {
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.delete(previousRow.id);
+		}
+
+		if (shouldProjectAssistantDisplayRow(nextRow)) {
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.set(nextRow.id, nextRow);
+		}
+	}
+
+	return patchedAssistantRowsById ?? previousAssistantRowsById;
 }
 
 function applyAssistantDisplayRowsToSceneEntriesByIndex(
@@ -1496,7 +1535,6 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let sceneEntryIndexesById: Map<string, number> = new Map();
 	let previousModelRows: readonly AgentPanelDisplayRow[] | null = null;
-	let previousModelTurnState: TurnState | null = null;
 	let previousAssistantRowsById: ReadonlyMap<
 		string,
 		Extract<AgentPanelDisplayRow, { type: "assistant" }>
@@ -1600,15 +1638,21 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		model: AgentPanelDisplayModel
 	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
 		let assistantRowsById = previousAssistantRowsById;
-		if (
-			assistantRowsById === null ||
-			previousModelRows !== model.rows ||
-			previousModelTurnState !== model.turnState
-		) {
+		if (assistantRowsById === null) {
 			assistantRowsById = selectAssistantRowsForScenePatch(model);
+		} else if (previousModelRows !== model.rows) {
+			assistantRowsById =
+				previousModelRows === null
+					? selectAssistantRowsForScenePatch(model)
+					: (patchAssistantRowsForScenePatch(
+							assistantRowsById,
+							previousModelRows,
+							model.rows
+						) ?? selectAssistantRowsForScenePatch(model));
+		}
+		if (previousAssistantRowsById !== assistantRowsById || previousModelRows !== model.rows) {
 			previousAssistantRowsById = assistantRowsById;
 			previousModelRows = model.rows;
-			previousModelTurnState = model.turnState;
 		}
 		return assistantRowsById;
 	}

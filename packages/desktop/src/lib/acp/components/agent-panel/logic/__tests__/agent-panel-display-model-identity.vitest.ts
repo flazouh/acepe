@@ -755,6 +755,114 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		}
 	});
 
+	it("patches only changed assistant display rows without scanning unchanged row slots", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const secondAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		};
+		const baseRows = [
+			{
+				id: "assistant-1",
+				type: "assistant",
+				canonicalText: "First",
+				displayText: "First",
+				canonicalTextRevision: "1:assistant-1",
+				isLiveTail: false,
+			},
+			{
+				id: "assistant-2",
+				type: "assistant",
+				canonicalText: "Second",
+				displayText: "Second",
+				canonicalTextRevision: "1:assistant-2",
+				isLiveTail: false,
+			},
+		] satisfies AgentPanelDisplayModel["rows"];
+		const baseModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "idle",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: true, showStop: false },
+			rows: baseRows,
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		readModel.apply({
+			model: baseModel,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+
+		const nextSecondAssistantEntry: AgentPanelSceneEntryModel = {
+			...secondAssistantEntry,
+			markdown: "Backend second",
+		};
+		const nextSceneEntries = [firstAssistantEntry, nextSecondAssistantEntry];
+		markAgentPanelSceneEntryArrayPatch(nextSceneEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [nextSecondAssistantEntry],
+			entriesByIndex: new Map([[1, nextSecondAssistantEntry]]),
+		});
+		const nextRows = [
+			baseRows[0],
+			{
+				id: "assistant-2",
+				type: "assistant",
+				canonicalText: "Backend second",
+				displayText: "Display second",
+				canonicalTextRevision: "2:assistant-2",
+				isLiveTail: false,
+			},
+		] satisfies AgentPanelDisplayModel["rows"];
+		markAgentPanelDisplayRowArrayPatch(nextRows, {
+			baseRows,
+			rowPatches: new Map([[1, nextRows[1]]]),
+		});
+		Object.defineProperty(nextRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged display rows for a one-row display patch");
+			},
+		});
+
+		try {
+			const displayedEntries = readModel.applyPatch({
+				model: {
+					...baseModel,
+					rows: nextRows,
+				},
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: nextSceneEntries,
+			});
+
+			expect(displayedEntries).not.toBeNull();
+			if (displayedEntries === null) {
+				return;
+			}
+			expect(displayedEntries[0]).toBe(firstAssistantEntry);
+			expect(displayedEntries[1]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "Display second",
+			});
+		} finally {
+			Object.defineProperty(nextRows, "0", {
+				configurable: true,
+				value: baseRows[0],
+			});
+		}
+	});
+
 	it("does not treat unmarked scene entries as display scene entry patches", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

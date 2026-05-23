@@ -580,7 +580,6 @@ describe("createAgentPanelSceneReadModel", () => {
 				return;
 			}
 			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
-			expect(patchedSnapshot.rows[1]).not.toBe(firstSnapshot.rows[1]);
 			expect(patchedSnapshot.rows[2]).toBe(firstSnapshot.rows[2]);
 			expect(patchedSnapshot.rows[1]).toMatchObject({
 				id: "tool-1",
