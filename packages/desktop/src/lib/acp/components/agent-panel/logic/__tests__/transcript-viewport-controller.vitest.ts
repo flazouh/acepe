@@ -488,7 +488,13 @@ describe("TranscriptViewportController", () => {
 	it("preserves the captured row anchor when a row resizes while detached", () => {
 		const initial = createInitialTranscriptViewportState({
 			sessionId: "session-1",
-			rows: baseRows,
+			rows: {
+				...baseRows,
+				rowIndexByKey: new Map([
+					["user-1", 0],
+					["assistant-1", 1],
+				]),
+			},
 		});
 		const detached = reduceTranscriptViewportEvent(initial, {
 			type: "UserScroll",
@@ -518,6 +524,45 @@ describe("TranscriptViewportController", () => {
 			anchorKey: "assistant-1",
 			offsetPx: 18,
 		});
+	});
+
+	it("skips detached anchor preservation when a resized row is below the anchor", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: {
+				...baseRows,
+				count: 4,
+				lastKey: "tool-1",
+				rowIndexByKey: new Map([
+					["user-1", 0],
+					["assistant-1", 1],
+					["tool-1", 2],
+				]),
+				anchorEligibleKeys: ["user-1", "assistant-1", "tool-1"],
+			},
+		});
+		const detached = reduceTranscriptViewportEvent(initial, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: initial.generation,
+			measurement: {
+				scrollOffset: 240,
+				scrollSize: 1200,
+				viewportSize: 300,
+			},
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 18,
+		}).state;
+
+		const result = reduceTranscriptViewportEvent(detached, {
+			type: "RowResized",
+			sessionId: "session-1",
+			generation: detached.generation,
+			rowKey: "tool-1",
+		});
+
+		expect(result.state.follow).toBe("detached");
+		expect(result.effects).toEqual([]);
 	});
 
 	it("ignores stale generation events and reports a diagnostic", () => {
