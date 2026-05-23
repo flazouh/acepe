@@ -22,7 +22,6 @@ import { DEFAULT_BROWSER_PANEL_WIDTH, MIN_BROWSER_PANEL_WIDTH } from "./browser-
 import { EmbeddedTerminalStore } from "./embedded-terminal-store.svelte.js";
 import {
 	createFilePanelCacheKey,
-	getFirstAttachedFilePanelId,
 	normalizeOpenFilePanelOptions,
 	type OpenFilePanelOptions,
 } from "./file-panel-ownership.js";
@@ -294,6 +293,63 @@ function createPatchedItemArray<T extends { readonly id: string }>(
 	}) as T[];
 }
 
+function createRemovedItemArray<T extends { readonly id: string }>(
+	baseItems: readonly T[],
+	removedId: string
+): T[] {
+	const removedIndex = findItemIndexById(baseItems, removedId);
+	if (removedIndex === -1) {
+		return baseItems as T[];
+	}
+
+	const target = new Array<T>(baseItems.length - 1);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectRemovedItem(baseItems, removedIndex, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectRemovedItem(baseItems, removedIndex, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectRemovedItem(baseItems, removedIndex, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	}) as T[];
+}
+
 function findItemIndexById<T extends { readonly id: string }>(
 	items: readonly T[],
 	id: string
@@ -311,6 +367,14 @@ function selectPrependedItem<T>(item: T, baseItems: readonly T[], index: number)
 		return item;
 	}
 	return baseItems[index - 1];
+}
+
+function selectRemovedItem<T>(
+	baseItems: readonly T[],
+	removedIndex: number,
+	index: number
+): T | undefined {
+	return baseItems[index < removedIndex ? index : index + 1];
 }
 
 function toArrayIndex(property: string): number | null {
@@ -513,7 +577,8 @@ export class PanelStore {
 	}
 
 	private resetOwnerPanelWidthIfNoAttached(ownerPanelId: string): void {
-		const hasAttachedPanels = this.filePanels.some((panel) => panel.ownerPanelId === ownerPanelId);
+		const hasAttachedPanels =
+			(this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.length ?? 0) > 0;
 		if (hasAttachedPanels) return;
 		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
 		if (ownerPanel === undefined || ownerPanel.width === DEFAULT_PANEL_WIDTH) {
@@ -523,6 +588,56 @@ export class PanelStore {
 			...ownerPanel,
 			width: DEFAULT_PANEL_WIDTH,
 		});
+	}
+
+	private removeFilePanelFromIndexes(panel: FilePanel): void {
+		this.filePanelById.delete(panel.id);
+		this.filePanelByCacheKey.delete(
+			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId)
+		);
+
+		const projectPanels = this.filePanelsByProject.get(panel.projectPath);
+		if (projectPanels !== undefined) {
+			const nextProjectPanels = createRemovedItemArray(projectPanels, panel.id);
+			if (nextProjectPanels.length === 0) {
+				this.filePanelsByProject.delete(panel.projectPath);
+			} else {
+				this.filePanelsByProject.set(panel.projectPath, nextProjectPanels);
+			}
+		}
+
+		if (panel.ownerPanelId === null) {
+			this.topLevelFilePanelsList = createRemovedItemArray(this.topLevelFilePanelsList, panel.id);
+			const topLevelProjectPanels = this.topLevelFilePanelsByProject.get(panel.projectPath);
+			if (topLevelProjectPanels !== undefined) {
+				const nextTopLevelProjectPanels = createRemovedItemArray(topLevelProjectPanels, panel.id);
+				if (nextTopLevelProjectPanels.length === 0) {
+					this.topLevelFilePanelsByProject.delete(panel.projectPath);
+				} else {
+					this.topLevelFilePanelsByProject.set(panel.projectPath, nextTopLevelProjectPanels);
+				}
+			}
+			this.topLevelWorkspacePanelList = createRemovedItemArray(
+				this.topLevelWorkspacePanelList,
+				panel.id
+			);
+			this.topLevelNonAgentPanelProjectRefList = createRemovedItemArray(
+				this.topLevelNonAgentPanelProjectRefList,
+				panel.id
+			);
+		} else {
+			const attachedPanels = this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId);
+			if (attachedPanels !== undefined) {
+				const nextAttachedPanels = createRemovedItemArray(attachedPanels, panel.id);
+				if (nextAttachedPanels.length === 0) {
+					this.attachedFilePanelsByOwnerPanelId.delete(panel.ownerPanelId);
+				} else {
+					this.attachedFilePanelsByOwnerPanelId.set(panel.ownerPanelId, nextAttachedPanels);
+				}
+			}
+		}
+
+		this.workspacePanels = createRemovedItemArray(this.workspacePanels, panel.id);
 	}
 
 	/**
@@ -2016,20 +2131,22 @@ export class PanelStore {
 	 * Close a file panel by ID.
 	 */
 	closeFilePanel(panelId: string): void {
-		const panelToClose = this.filePanels.find((p) => p.id === panelId);
+		const panelToClose = this.filePanelById.get(panelId);
+		if (panelToClose === undefined) {
+			return;
+		}
 		const closeState =
-			panelToClose && panelToClose.ownerPanelId === null
+			panelToClose.ownerPanelId === null
 				? this.captureTopLevelPanelCloseState(panelId)
 				: null;
-		this.filePanels = this.filePanels.filter((p) => p.id !== panelId);
-		if (panelToClose?.ownerPanelId) {
+		this.removeFilePanelFromIndexes(panelToClose);
+		if (panelToClose.ownerPanelId) {
 			const ownerPanelId = panelToClose.ownerPanelId;
 			const activePanelId = this.activeFilePanelIdByOwnerPanelId.get(panelToClose.ownerPanelId);
 			if (activePanelId === panelId) {
-				const replacementId = getFirstAttachedFilePanelId(
-					this.filePanels,
-					panelToClose.ownerPanelId
-				);
+				const replacementId =
+					this.attachedFilePanelsByOwnerPanelId.get(panelToClose.ownerPanelId)?.[0]?.id ??
+					null;
 				if (replacementId) {
 					this.activeFilePanelIdByOwnerPanelId.set(panelToClose.ownerPanelId, replacementId);
 				} else {
@@ -2037,14 +2154,12 @@ export class PanelStore {
 				}
 			}
 			this.resetOwnerPanelWidthIfNoAttached(ownerPanelId);
-		} else if (panelToClose && panelToClose.ownerPanelId === null) {
+		} else if (panelToClose.ownerPanelId === null) {
 			// Handle top-level file panel active tracking
 			const projectPath = panelToClose.projectPath;
 			const activeId = this.activeTopLevelFilePanelIdByProject.get(projectPath);
 			if (activeId === panelId) {
-				const remaining = this.filePanels.find(
-					(p) => p.ownerPanelId === null && p.projectPath === projectPath
-				);
+				const remaining = this.topLevelFilePanelsByProject.get(projectPath)?.[0] ?? null;
 				if (remaining) {
 					this.activeTopLevelFilePanelIdByProject.set(projectPath, remaining.id);
 				} else {

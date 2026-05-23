@@ -228,6 +228,51 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.isFileOpen("src/main.ts", "/tmp/project")).toBe(false);
 	});
 
+	it("closes file panels without filtering the whole workspace panel list", () => {
+		const store = createStore();
+		const filePanel = store.openFilePanel("src/main.ts", "/tmp/project");
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels while closing a file");
+		};
+
+		try {
+			store.closeFilePanel(filePanel.id);
+
+			expect(store.getFilePanel(filePanel.id)).toBeUndefined();
+			expect(store.getFilePanelByPath("src/main.ts", "/tmp/project")).toBeUndefined();
+			expect(store.workspacePanels.length).toBe(0);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
+	it("closes attached file panels without scanning all file panels for owner fallback", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const firstPanel = store.openFilePanel("src/one.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const secondPanel = store.openFilePanel("src/two.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels while closing an attached file");
+		};
+
+		try {
+			store.closeFilePanel(secondPanel.id);
+
+			expect(store.getActiveAttachedFilePanel(owner.id)).toBe(firstPanel);
+			expect(store.getAttachedFilePanels(owner.id)).toEqual([firstPanel]);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("selects top-level file panels through the file panel index", () => {
 		const store = createStore();
 		const firstPanel = store.openFilePanel("src/one.ts", "/tmp/project");
