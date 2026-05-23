@@ -191,6 +191,76 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("refreshes when a snapshot envelope session id disagrees with the canonical graph id", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 10,
+			payload: {
+				kind: "snapshot",
+				graph: {
+					requestedSessionId: "session-1",
+					canonicalSessionId: "session-2",
+					isAlias: true,
+					agentId: "codex",
+					projectPath: "/tmp/project",
+					worktreePath: null,
+					sourcePath: null,
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 10,
+					},
+					transcriptSnapshot: {
+						revision: 8,
+						entries: [],
+					},
+					operations: [],
+					interactions: [],
+					turnState: "Idle",
+					messageCount: 0,
+					activeStreamingTail: null,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: {
+						status: "ready",
+						actionability: {
+							canSend: true,
+							canResume: false,
+							canRetry: false,
+							canArchive: true,
+							canConfigure: true,
+							recommendedAction: "send",
+							recoveryPhase: "none",
+							compactStatus: "ready",
+						},
+					},
+					activity: {
+						kind: "idle",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					capabilities: {
+						modes: null,
+						models: null,
+						configOptions: [],
+						autonomousEnabled: false,
+					},
+				},
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 8,
+				toRevision: 8,
+			},
+		]);
+	});
+
 	it("refreshes when a capabilities envelope header disagrees with payload revision", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",

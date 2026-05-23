@@ -237,6 +237,15 @@ export function routeSessionStateEnvelope(
 
 	switch (envelope.payload.kind) {
 		case "snapshot":
+			if (envelope.payload.graph.canonicalSessionId !== envelope.sessionId) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.graph.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.graph.revision)) {
 				return [
 					{
