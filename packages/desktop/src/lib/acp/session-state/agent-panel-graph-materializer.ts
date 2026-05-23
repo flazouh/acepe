@@ -1625,6 +1625,13 @@ function materializeInteractionPatchedConversation(
 	if (stableInteractionAppend !== null) {
 		return stableInteractionAppend;
 	}
+	const stableInteractionTruncation = materializeStableInteractionTruncatedConversation(
+		previous,
+		input
+	);
+	if (stableInteractionTruncation !== null) {
+		return stableInteractionTruncation;
+	}
 
 	const transcriptSceneEntryCount = previous.transcriptEntries.length;
 	const nextInteractionEntries = materializeVisibleInteractionEntries(
@@ -1770,6 +1777,72 @@ function materializeStableInteractionAppendedConversation(
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex,
+	};
+}
+
+function materializeStableInteractionTruncatedConversation(
+	previous: CachedConversationState,
+	input: CachedConversationInput
+): CachedConversationState | null {
+	if (input.graph.interactions.length >= previous.interactions.length) {
+		return null;
+	}
+
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const previousVisibleEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		transcriptSceneEntryCount
+	);
+	if (previousVisibleEntries.length > 1) {
+		return null;
+	}
+
+	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
+		previousVisibleEntries[0] ?? null;
+	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
+	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
+	if (nextBlockingInteractionId === previousBlockingInteractionId) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+	if (nextBlockingInteractionId !== null) {
+		return null;
+	}
+	if (previousVisibleEntry === null) {
+		return {
+			...previous,
+			interactions: input.graph.interactions,
+			activity: input.graph.activity,
+		};
+	}
+
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex: previous.operationIndex,
+		interactions: input.graph.interactions,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: createInsertedSceneEntryArray(
+				previous.conversation.entries,
+				transcriptSceneEntryCount,
+				[],
+				[]
+			),
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[previousVisibleEntry],
+			[],
+			transcriptSceneEntryCount
+		),
 	};
 }
 

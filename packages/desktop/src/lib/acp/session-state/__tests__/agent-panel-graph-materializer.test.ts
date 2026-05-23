@@ -2506,6 +2506,87 @@ describe("agent panel graph materializer", () => {
 		}
 	});
 
+	it("applies stable interaction removals without scanning unchanged interactions", () => {
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "Can you ask me?"),
+		]);
+		const operations: OperationSnapshot[] = [];
+		const hiddenInteraction = createQuestionInteraction({
+			id: "hidden-question",
+			jsonRpcRequestId: 1,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "1",
+			},
+		});
+		const visibleInteraction = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 2,
+			replyHandler: {
+				kind: "json_rpc",
+				requestId: "2",
+			},
+		});
+		const baseInteractions = [hiddenInteraction, visibleInteraction];
+		const baseGraph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: "question-1",
+			},
+			interactions: baseInteractions,
+		});
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph: baseGraph,
+			header: { title: "Question session" },
+		});
+		Object.defineProperty(baseInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged interactions for a stable removal");
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...baseGraph,
+					interactions: [hiddenInteraction],
+					activity: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: baseGraph.revision.transcriptRevision,
+						lastEventSeq: 44,
+					},
+				},
+				header: { title: "Question session" },
+			});
+
+			expect(nextScene.conversation.entries).toHaveLength(1);
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+		} finally {
+			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: hiddenInteraction,
+			});
+		}
+	});
+
 	it("materializes rich tool entries from canonical operations instead of transcript placeholders", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "Run the checks"),
