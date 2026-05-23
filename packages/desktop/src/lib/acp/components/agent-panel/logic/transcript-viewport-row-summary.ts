@@ -3,6 +3,10 @@ import {
 	getSceneDisplayRowTimestampMs,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
+import {
+	buildNativeFallbackWindow,
+	type IndexedViewportEntry,
+} from "./viewport-fallback-controller.svelte.js";
 
 export type TranscriptViewportChangedRange = {
 	startIndex: number;
@@ -52,6 +56,7 @@ export interface TranscriptViewportRowsReadModel {
 		reason: TranscriptViewportRowsReason;
 	}): TranscriptViewportRowSummary;
 	selectSummary(): TranscriptViewportRowSummary;
+	selectNativeFallbackWindow(limit: number): readonly IndexedViewportEntry<SceneDisplayRow>[];
 	selectThinkingDurationMs(index: number, nowMs?: number): number | null;
 }
 
@@ -64,6 +69,13 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 	let previousRows: readonly SceneDisplayRow[] | null = null;
 	let previousSummary: TranscriptViewportRowSummary = createEmptyTranscriptViewportRows();
 	let thinkingDurationSources: readonly ThinkingDurationSource[] = [];
+	let nativeFallbackWindowCache:
+		| {
+				readonly rows: readonly SceneDisplayRow[];
+				readonly limit: number;
+				readonly window: readonly IndexedViewportEntry<SceneDisplayRow>[];
+		  }
+		| null = null;
 
 	return {
 		applyRows({ rows, reason }) {
@@ -110,6 +122,26 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 		},
 		selectSummary() {
 			return previousSummary;
+		},
+		selectNativeFallbackWindow(limit) {
+			if (previousRows === null) {
+				return [];
+			}
+			if (
+				nativeFallbackWindowCache !== null &&
+				nativeFallbackWindowCache.rows === previousRows &&
+				nativeFallbackWindowCache.limit === limit
+			) {
+				return nativeFallbackWindowCache.window;
+			}
+
+			const window = buildNativeFallbackWindow(previousRows, limit);
+			nativeFallbackWindowCache = {
+				rows: previousRows,
+				limit,
+				window,
+			};
+			return window;
 		},
 		selectThinkingDurationMs(index, nowMs = Date.now()) {
 			const source = thinkingDurationSources[index];

@@ -28,7 +28,6 @@ import {
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
 import {
-	buildNativeFallbackWindow,
 	shouldRetryNativeFallback,
 	type IndexedViewportEntry,
 	type ViewportFallbackReason,
@@ -496,7 +495,7 @@ const shouldUseCompactToolNativeList = $derived(
 );
 const shouldUseNativeRenderer = $derived(shouldUseNativeList || shouldUseCompactToolNativeList);
 const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
-	return buildNativeFallbackWindow(displayEntries, NATIVE_FALLBACK_ENTRY_LIMIT);
+	return viewportRowsReadModel.selectNativeFallbackWindow(NATIVE_FALLBACK_ENTRY_LIMIT);
 });
 const vlistRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
 const wrapperStyle = $derived(
