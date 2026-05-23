@@ -12,6 +12,7 @@ import type {
 import type { ModelsForDisplay } from "$lib/services/acp-provider-metadata.js";
 
 import { SessionStore } from "../session-store.svelte.js";
+import { InteractionStore } from "../interaction-store.svelte.js";
 
 function createRevision(graphRevision: number): SessionGraphRevision {
 	return {
@@ -322,6 +323,28 @@ describe("SessionStore canonical projection accessors", () => {
 				blockingInteractionId: null,
 			},
 			turnState: "Running",
+		});
+		expect(
+			store.getSessionQueueSnapshot({
+				sessionId: "session-1",
+				agentId: "codex",
+				projectPath: "/repo",
+				title: "Session",
+				updatedAt: new Date("2026-04-28T00:00:00.000Z"),
+				interactionStore: new InteractionStore(),
+				hasUnseenCompletion: false,
+			})
+		).toMatchObject({
+			id: "session-1",
+			agentId: "codex",
+			projectPath: "/repo",
+			title: "Session",
+			status: "ready",
+			isStreaming: false,
+			isThinking: false,
+			currentModeId: "build",
+			connectionError: null,
+			activeTurnFailure: null,
 		});
 		expect(store.getSessionTranscriptEntries("session-1")).toBe(transcriptEntries);
 		expect(store.getSessionConnectionError("session-1")).toBeNull();

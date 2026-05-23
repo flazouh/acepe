@@ -75,6 +75,10 @@ import {
 	type SessionOperationInteractionSnapshot,
 } from "./operation-association.js";
 import {
+	buildQueueSessionSnapshot,
+	type QueueSessionSnapshot,
+} from "./queue/utils.js";
+import {
 	deriveLiveSessionLifecyclePresentation,
 	inactiveSessionWorkSourceFromCanonicalProjection,
 	liveSessionWorkSourceFromCanonicalProjection,
@@ -2595,6 +2599,39 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return liveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
 		}
 		return inactiveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
+	}
+
+	getSessionQueueSnapshot(input: {
+		readonly sessionId: string;
+		readonly agentId: string;
+		readonly projectPath: string;
+		readonly title: string | null;
+		readonly updatedAt: Date;
+		readonly interactionStore: InteractionStore;
+		readonly hasUnseenCompletion: boolean;
+		readonly active?: boolean;
+	}): QueueSessionSnapshot {
+		const sessionId = input.sessionId;
+		return buildQueueSessionSnapshot({
+			id: sessionId,
+			agentId: input.agentId,
+			projectPath: input.projectPath,
+			title: input.title,
+			currentStreamingToolCall: this.getSessionCurrentStreamingToolCall(sessionId),
+			currentToolKind: this.getSessionCurrentToolKind(sessionId),
+			lastToolCall: this.getSessionLastToolCall(sessionId),
+			lastTodoToolCall: this.getSessionLastTodoToolCall(sessionId),
+			updatedAt: input.updatedAt,
+			currentModeId: this.getSessionCurrentModeId(sessionId),
+			connectionError: this.getSessionConnectionError(sessionId),
+			activeTurnFailure: this.getSessionActiveTurnFailure(sessionId),
+			liveSessionSource: this.getSessionLiveWorkSource(sessionId, input.active ?? true),
+			interactionSnapshot: this.getSessionOperationInteractionSnapshot(
+				sessionId,
+				input.interactionStore
+			),
+			hasUnseenCompletion: input.hasUnseenCompletion,
+		});
 	}
 
 	getSessionPendingSendIntent(sessionId: string): SessionPendingSendIntent | null {

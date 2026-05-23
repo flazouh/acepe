@@ -48,7 +48,6 @@ import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import {
 	buildQueueItem,
-	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
 } from "$lib/acp/store/queue/utils.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
@@ -244,21 +243,13 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 		const pendingQuestionText = getPrimaryQuestionText(pendingQuestion);
 		const hasPendingQuestion = pendingQuestion !== null;
 		const hasPendingPermission = pendingPermission !== null;
-		const snapshot = buildQueueSessionSnapshot({
-			id: sessionId,
+		const snapshot = sessionStore.getSessionQueueSnapshot({
+			sessionId,
 			agentId: sessionAgentId,
 			projectPath: sessionProjectPath,
 			title: metadata ? metadata.title : panel.sessionTitle,
-			currentStreamingToolCall: sessionStore.getSessionCurrentStreamingToolCall(sessionId),
-			currentToolKind: sessionStore.getSessionCurrentToolKind(sessionId),
-			lastToolCall: sessionStore.getSessionLastToolCall(sessionId),
-			lastTodoToolCall: sessionStore.getSessionLastTodoToolCall(sessionId),
 			updatedAt: metadata ? metadata.updatedAt : new Date(0),
-			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
-			connectionError: sessionStore.getSessionConnectionError(sessionId),
-			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
-			liveSessionSource: sessionStore.getSessionLiveWorkSource(sessionId, true),
-			interactionSnapshot,
+			interactionStore,
 			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
 		});
 		const queueItem = buildQueueItem(

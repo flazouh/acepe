@@ -11,7 +11,6 @@ import {
 } from "$lib/acp/store/index.js";
 import { getPrimaryQuestionText } from "$lib/acp/store/question-selectors.js";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
-import { buildQueueSessionSnapshot } from "$lib/acp/store/queue/utils.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 import { SvelteMap } from "svelte/reactivity";
 
@@ -57,21 +56,13 @@ const queueInputs = $derived.by(() => {
 			identity.id,
 			interactionStore
 		);
-		const session = buildQueueSessionSnapshot({
-			id: identity.id,
+		const session = sessionStore.getSessionQueueSnapshot({
+			sessionId: identity.id,
 			agentId: identity.agentId,
 			projectPath: identity.projectPath,
 			title: metadata.title,
-			currentStreamingToolCall: sessionStore.getSessionCurrentStreamingToolCall(sessionId),
-			currentToolKind: sessionStore.getSessionCurrentToolKind(sessionId),
-			lastToolCall: sessionStore.getSessionLastToolCall(sessionId),
-			lastTodoToolCall: sessionStore.getSessionLastTodoToolCall(sessionId),
 			updatedAt: metadata.updatedAt,
-			currentModeId: sessionStore.getSessionCurrentModeId(sessionId),
-			connectionError: sessionStore.getSessionConnectionError(sessionId),
-			activeTurnFailure: sessionStore.getSessionActiveTurnFailure(sessionId),
-			liveSessionSource: sessionStore.getSessionLiveWorkSource(sessionId, true),
-			interactionSnapshot,
+			interactionStore,
 			hasUnseenCompletion: unseenStore.isUnseen(panelId),
 		});
 		const pendingQuestion = interactionSnapshot.pendingQuestion;
