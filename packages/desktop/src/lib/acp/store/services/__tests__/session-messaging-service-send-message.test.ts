@@ -55,7 +55,6 @@ function createMockDeps() {
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
 		getSessionModifiedFilesState: vi.fn().mockReturnValue(null),
-		isPreloaded: vi.fn(),
 		hasSessionCanonicalProjection: vi.fn().mockReturnValue(false),
 		getSessionCold: vi.fn().mockReturnValue({
 			id: "session-1",
@@ -89,7 +88,6 @@ function createMockDeps() {
 	};
 
 	const entryManager: IEntryManager = {
-		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),

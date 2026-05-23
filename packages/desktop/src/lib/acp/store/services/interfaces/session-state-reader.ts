@@ -91,11 +91,6 @@ export interface ISessionStateReader {
 	getSessionModifiedFilesState(sessionId: string): ModifiedFilesState | null;
 
 	/**
-	 * Check if a session's entries have been preloaded.
-	 */
-	isPreloaded(sessionId: string): boolean;
-
-	/**
 	 * Check if a canonical session graph has materialized for this session.
 	 */
 	hasSessionCanonicalProjection(sessionId: string): boolean;

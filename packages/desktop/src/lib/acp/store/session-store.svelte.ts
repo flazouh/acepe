@@ -3135,13 +3135,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return visiblePermissionsForOperations(permissions, this.operationStore);
 	}
 
-	/**
-	 * Check if session is preloaded.
-	 */
-	isPreloaded(sessionId: string): boolean {
-		return this.entryStore.isPreloaded(sessionId);
-	}
-
 	// ============================================
 	// SESSION STATE MACHINE MANAGEMENT (delegated to connectionService)
 	// ============================================

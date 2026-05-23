@@ -245,7 +245,6 @@ describe("SessionConnectionManager.connectSession", () => {
 		getSessionAvailableModes: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		getSessionModifiedFilesState: vi.fn(() => null),
-		isPreloaded: vi.fn(),
 		hasSessionCanonicalProjection: vi.fn(() => false),
 		getSessionCold: vi.fn(),
 		getSessionIdentity: vi.fn(),
@@ -280,7 +279,6 @@ describe("SessionConnectionManager.connectSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -1135,7 +1133,6 @@ describe("SessionConnectionManager.createSession", () => {
 		getSessionAvailableModes: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		getSessionModifiedFilesState: vi.fn(() => null),
-		isPreloaded: vi.fn(),
 		hasSessionCanonicalProjection: vi.fn(() => false),
 		getSessionCold: vi.fn(),
 		getSessionIdentity: vi.fn(),
@@ -1170,7 +1167,6 @@ describe("SessionConnectionManager.createSession", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -1873,7 +1869,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 		getSessionAvailableModes: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		getSessionModifiedFilesState: vi.fn(() => null),
-		isPreloaded: vi.fn(),
 		hasSessionCanonicalProjection: vi.fn(() => false),
 		getSessionCold: vi.fn(),
 		getSessionIdentity: vi.fn(),
@@ -1908,7 +1903,6 @@ describe("SessionConnectionManager autonomous policy", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2362,7 +2356,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		getSessionAvailableModes: vi.fn(),
 		getSessionToolCalls: vi.fn(),
 		getSessionModifiedFilesState: vi.fn(() => null),
-		isPreloaded: vi.fn(),
 		hasSessionCanonicalProjection: vi.fn(() => false),
 		getSessionCold: vi.fn(),
 		getSessionIdentity: vi.fn(),
@@ -2397,7 +2390,6 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 	};
 
 	const entryManager: IEntryManager = {
-		isPreloaded: vi.fn(),
 		markPreloaded: vi.fn(),
 		clearEntries: vi.fn(),
 		finalizeStreamingEntries: vi.fn(),
@@ -2503,7 +2495,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 			getSessionAvailableModes: vi.fn(() => []),
 			getSessionToolCalls: vi.fn(() => []),
 			getSessionModifiedFilesState: vi.fn(() => null),
-			isPreloaded: vi.fn(() => false),
 			hasSessionCanonicalProjection: vi.fn(() => false),
 			getSessionCold: vi.fn(() => ({
 				id: sessionId,
@@ -2555,7 +2546,6 @@ describe("SessionConnectionManager.disconnectSession", () => {
 		};
 
 		const entryManager: IEntryManager = {
-			isPreloaded: vi.fn(),
 			markPreloaded: vi.fn(),
 			clearEntries: vi.fn(),
 			finalizeStreamingEntries: vi.fn(),
