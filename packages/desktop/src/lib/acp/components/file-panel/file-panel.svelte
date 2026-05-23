@@ -257,7 +257,7 @@ $effect(() => {
 	if (gutterAction.kind === "load-modified-diff") {
 		gitGutterInput = null;
 		let cancelled = false;
-		const frameId = requestAnimationFrame(() => {
+		const deferredWork = scheduleLazyPanelMetadataWork(() => {
 			if (cancelled) {
 				return;
 			}
@@ -303,7 +303,7 @@ $effect(() => {
 
 		return () => {
 			cancelled = true;
-			cancelAnimationFrame(frameId);
+			deferredWork.cancel();
 		};
 	}
 });

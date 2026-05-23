@@ -192,17 +192,30 @@ describe("FilePanel", () => {
 		expect(getProjectGitStatusMock).not.toHaveBeenCalled();
 	});
 
-	it("defers modified-file gutter diff loading until after the next paint", async () => {
-		const scheduledFrame: { current: FrameRequestCallback | null } = { current: null };
-		const requestAnimationFrameSpy = vi
-			.spyOn(globalThis, "requestAnimationFrame")
-			.mockImplementation((callback: FrameRequestCallback) => {
-				scheduledFrame.current = callback;
-				return 1;
-			});
-		const cancelAnimationFrameSpy = vi
-			.spyOn(globalThis, "cancelAnimationFrame")
-			.mockImplementation(() => {});
+	it("defers modified-file gutter diff loading to lazy metadata work", async () => {
+		const idleCallbacks: Array<() => void> = [];
+		const originalRequestIdleCallback = globalThis.requestIdleCallback;
+		const originalCancelIdleCallback = globalThis.cancelIdleCallback;
+		const requestIdleCallbackMock = vi.fn((callback: IdleRequestCallback) => {
+			idleCallbacks.push(() =>
+				callback({
+					didTimeout: false,
+					timeRemaining: () => 50,
+				})
+			);
+			return idleCallbacks.length;
+		}) as unknown as typeof globalThis.requestIdleCallback;
+		const cancelIdleCallbackMock = vi.fn();
+		Object.defineProperty(globalThis, "requestIdleCallback", {
+			configurable: true,
+			writable: true,
+			value: requestIdleCallbackMock,
+		});
+		Object.defineProperty(globalThis, "cancelIdleCallback", {
+			configurable: true,
+			writable: true,
+			value: cancelIdleCallbackMock,
+		});
 
 		getProjectFileGitStatusSummaryMock.mockReturnValue({
 			match: (
@@ -238,24 +251,33 @@ describe("FilePanel", () => {
 			});
 
 			await waitFor(() => {
-				expect(scheduledFrame.current).not.toBeNull();
+				expect(idleCallbacks.length).toBeGreaterThanOrEqual(1);
+				expect(getFileContentMock).toHaveBeenCalledWith("/repo/src/file.ts", "/repo");
 			});
 
 			expect(getFileDiffMock).not.toHaveBeenCalled();
+			idleCallbacks.shift()?.();
 
-			const frame = scheduledFrame.current;
-			expect(frame).not.toBeNull();
-			if (frame === null) {
-				throw new Error("Expected modified file gutter work to be scheduled");
-			}
-			frame(performance.now());
+			await waitFor(() => {
+				expect(idleCallbacks.length).toBeGreaterThanOrEqual(1);
+			});
+			expect(getFileDiffMock).not.toHaveBeenCalled();
+			idleCallbacks.shift()?.();
 
 			await waitFor(() => {
 				expect(getFileDiffMock).toHaveBeenCalledWith("/repo/src/file.ts", "/repo");
 			});
 		} finally {
-			requestAnimationFrameSpy.mockRestore();
-			cancelAnimationFrameSpy.mockRestore();
+			Object.defineProperty(globalThis, "requestIdleCallback", {
+				configurable: true,
+				writable: true,
+				value: originalRequestIdleCallback,
+			});
+			Object.defineProperty(globalThis, "cancelIdleCallback", {
+				configurable: true,
+				writable: true,
+				value: originalCancelIdleCallback,
+			});
 		}
 	});
 });
