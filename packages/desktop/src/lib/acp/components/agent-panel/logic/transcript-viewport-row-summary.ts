@@ -174,6 +174,26 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				return previousSummary;
 			}
 
+			if (
+				previousRows !== null &&
+				rows.length < previousRows.length &&
+				isSamePrefix(previousRows, rows, rows.length)
+			) {
+				previousSummary = truncateTranscriptViewportRowsSummary(
+					previousSummary,
+					previousRows,
+					rows,
+					reason
+				);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, rows.length - 1)
+				);
+				previousRows = rows;
+				return previousSummary;
+			}
+
 			previousSummary = buildTranscriptViewportRowsSummary(rows, reason);
 			thinkingDurationSources = buildThinkingDurationSources(rows);
 			previousRows = rows;
@@ -216,6 +236,87 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			return Math.max(0, nowMs - source.startedAtMs);
 		},
 	};
+}
+
+function truncateTranscriptViewportRowsSummary(
+	previousSummary: TranscriptViewportRowSummary,
+	previousRows: readonly SceneDisplayRow[],
+	rows: readonly SceneDisplayRow[],
+	reason: TranscriptViewportRowsReason
+): TranscriptViewportRowSummary {
+	if (rows.length === 0) {
+		return buildTranscriptViewportRowsSummary(rows, reason);
+	}
+
+	const removedRows = previousRows.slice(rows.length);
+	const lastRow = rows.at(-1);
+	const lastKey = lastRow === undefined ? null : getSceneDisplayRowKey(lastRow);
+	const rowKeys = (previousSummary.rowKeys ?? []).slice(0, rows.length);
+	const anchorEligibleKeys = previousSummary.anchorEligibleKeys.slice(
+		0,
+		countAnchorEligibleRows(rows)
+	);
+
+	return {
+		version: rows.length,
+		count: rows.length,
+		firstKey: previousSummary.firstKey,
+		lastKey,
+		latestUserKey: didRemoveRowMatching(removedRows, (row) => row.type === "user")
+			? findLatestUserKeyFromEnd(rows)
+			: previousSummary.latestUserKey,
+		rowKeys,
+		anchorEligibleKeys,
+		hasLiveAssistantDisplayEntry: truncateBooleanFact(
+			previousSummary.hasLiveAssistantDisplayEntry === true,
+			removedRows,
+			rows,
+			isLiveAssistantDisplayRow
+		),
+		hasTokenRevealAssistantEntry: truncateBooleanFact(
+			previousSummary.hasTokenRevealAssistantEntry === true,
+			removedRows,
+			rows,
+			isTokenRevealAssistantDisplayRow
+		),
+		hasToolCallEntry: truncateBooleanFact(
+			previousSummary.hasToolCallEntry === true,
+			removedRows,
+			rows,
+			(row) => row.type === "tool_call"
+		),
+		reason,
+	};
+}
+
+function countAnchorEligibleRows(rows: readonly SceneDisplayRow[]): number {
+	let count = 0;
+	for (const row of rows) {
+		if (row.type !== "thinking") {
+			count += 1;
+		}
+	}
+	return count;
+}
+
+function truncateBooleanFact(
+	previousValue: boolean,
+	removedRows: readonly SceneDisplayRow[],
+	rows: readonly SceneDisplayRow[],
+	predicate: (row: SceneDisplayRow) => boolean
+): boolean {
+	if (!previousValue || !didRemoveRowMatching(removedRows, predicate)) {
+		return previousValue;
+	}
+
+	return rows.some(predicate);
+}
+
+function didRemoveRowMatching(
+	removedRows: readonly SceneDisplayRow[],
+	predicate: (row: SceneDisplayRow) => boolean
+): boolean {
+	return removedRows.some(predicate);
 }
 
 function selectNearbyRowDiagnostics(
@@ -531,6 +632,17 @@ function hasThoughtChunks(row: SceneDisplayRow): boolean {
 
 function findLatestUserKeyBeforeTail(rows: readonly SceneDisplayRow[]): string | null {
 	for (let index = rows.length - 2; index >= 0; index -= 1) {
+		const row = rows[index];
+		if (row?.type === "user") {
+			return getSceneDisplayRowKey(row);
+		}
+	}
+
+	return null;
+}
+
+function findLatestUserKeyFromEnd(rows: readonly SceneDisplayRow[]): string | null {
+	for (let index = rows.length - 1; index >= 0; index -= 1) {
 		const row = rows[index];
 		if (row?.type === "user") {
 			return getSceneDisplayRowKey(row);

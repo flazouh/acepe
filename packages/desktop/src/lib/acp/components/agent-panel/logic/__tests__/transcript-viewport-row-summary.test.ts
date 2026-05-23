@@ -146,6 +146,58 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(false);
 	});
 
+	it("truncates same-prefix rows without rebuilding from all rows", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [
+			userRow("user-1"),
+			assistantRow("assistant-1", { tokenReveal: true }),
+			toolRow("tool-1"),
+		];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = firstRows.slice(0, 2);
+
+		const nextSummary = readModel.applyRows({
+			rows: nextRows,
+			reason: "rows-updated",
+		});
+
+		expect(nextSummary.count).toBe(2);
+		expect(nextSummary.firstKey).toBe("user-1");
+		expect(nextSummary.lastKey).toBe("assistant-1");
+		expect(nextSummary.latestUserKey).toBe("user-1");
+		expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1"]);
+		expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1"]);
+		expect(nextSummary.hasToolCallEntry).toBe(false);
+		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(true);
+		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
+		expect(nextSummary).not.toBe(firstSummary);
+	});
+
+	it("updates thinking durations after truncating the following timed row", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
+		const firstRows = [
+			assistantRow("assistant-1", { thought: true, timestampMs: startedAtMs }),
+			userRow("user-2", { timestampMs: startedAtMs + 4_000 }),
+		];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 10_000)).toBe(4_000);
+
+		readModel.applyRows({
+			rows: firstRows.slice(0, 1),
+			reason: "rows-updated",
+		});
+
+		expect(readModel.selectThinkingDurationMs(0, startedAtMs + 10_000)).toBeNull();
+	});
+
 	it("selects fixed thinking durations from the next timed row", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
