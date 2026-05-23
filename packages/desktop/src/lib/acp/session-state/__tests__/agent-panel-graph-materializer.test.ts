@@ -698,33 +698,52 @@ describe("agent panel graph materializer", () => {
 			graph,
 			header: { title: "Session" },
 		});
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				transcriptSnapshot: {
-					revision: transcriptSnapshot.revision + 1,
-					entries: [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry],
-				},
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: transcriptSnapshot.revision + 1,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Session" },
-		});
+		const firstEntries = firstScene.conversation.entries as typeof firstScene.conversation.entries & {
+			slice: typeof Array.prototype.slice;
+		};
+		const originalSlice = firstEntries.slice;
 
-		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
-		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
-		expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
-		expect(nextScene.conversation.entries[2]).not.toBe(firstScene.conversation.entries[2]);
-		expect(nextScene.conversation.entries[2]).toMatchObject({
-			id: "assistant-2",
-			type: "assistant",
-			markdown: "streaming update",
-			isStreaming: true,
-		});
+		firstEntries.slice = () => {
+			throw new Error("must not copy whole materialized scene entries");
+		};
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: {
+						revision: transcriptSnapshot.revision + 1,
+						entries: [userEntry, firstAssistantEntry, patchedStreamingAssistantEntry],
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: transcriptSnapshot.revision + 1,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(Array.isArray(nextScene.conversation.entries)).toBe(true);
+			expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+			expect(nextScene.conversation.entries[2]).not.toBe(firstScene.conversation.entries[2]);
+			expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+				"user-1",
+				"assistant-1",
+				"assistant-2",
+			]);
+			expect(nextScene.conversation.entries[2]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "streaming update",
+				isStreaming: true,
+			});
+		} finally {
+			firstEntries.slice = originalSlice;
+		}
 	});
 
 	it("keeps transcript row patches incremental when equivalent control objects are recreated", () => {

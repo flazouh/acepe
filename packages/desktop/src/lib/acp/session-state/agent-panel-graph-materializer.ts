@@ -792,7 +792,7 @@ function materializeTranscriptPatchedConversation(
 	}
 
 	const transcriptEntries = input.graph.transcriptSnapshot.entries;
-	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
 	let transcriptEntryById: Map<string, TranscriptEntry> | null = null;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
@@ -829,11 +829,10 @@ function materializeTranscriptPatchedConversation(
 		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
 			continue;
 		}
-		nextEntries ??= previous.conversation.entries.slice();
-		nextEntries[rowIndex] = nextSceneEntry;
+		entryPatches = addSceneEntryPatch(entryPatches, rowIndex, nextSceneEntry);
 	}
 
-	if (nextEntries === null) {
+	if (entryPatches === null) {
 		return {
 			...previous,
 			transcriptEntries,
@@ -851,7 +850,7 @@ function materializeTranscriptPatchedConversation(
 		activity: input.graph.activity,
 		transcriptEntryById: transcriptEntryById ?? previous.transcriptEntryById,
 		conversation: {
-			entries: nextEntries,
+			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
@@ -1132,7 +1131,7 @@ function materializeOperationPatchedConversation(
 		};
 	}
 
-	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let entryPatches: Map<number, AgentPanelSceneEntryModel> | null = null;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 	for (const affectedEntryId of affectedEntryIds) {
@@ -1154,11 +1153,10 @@ function materializeOperationPatchedConversation(
 		if (previousEntry !== undefined && areSceneEntriesEquivalent(previousEntry, nextEntry)) {
 			continue;
 		}
-		nextEntries ??= previous.conversation.entries.slice();
-		nextEntries[rowIndex] = nextEntry;
+		entryPatches = addSceneEntryPatch(entryPatches, rowIndex, nextEntry);
 	}
 
-	if (nextEntries === null) {
+	if (entryPatches === null) {
 		return {
 			...previous,
 			operations: input.graph.operations,
@@ -1176,11 +1174,78 @@ function materializeOperationPatchedConversation(
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
 		conversation: {
-			entries: nextEntries,
+			entries: createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
+}
+
+function addSceneEntryPatch(
+	patches: Map<number, AgentPanelSceneEntryModel> | null,
+	rowIndex: number,
+	entry: AgentPanelSceneEntryModel
+): Map<number, AgentPanelSceneEntryModel> {
+	const nextPatches = patches ?? new Map<number, AgentPanelSceneEntryModel>();
+	nextPatches.set(rowIndex, entry);
+	return nextPatches;
+}
+
+function createPatchedSceneEntryArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	entryPatches: ReadonlyMap<number, AgentPanelSceneEntryModel>
+): readonly AgentPanelSceneEntryModel[] {
+	const target = new Array<AgentPanelSceneEntryModel>(baseEntries.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < baseEntries.length; index += 1) {
+						yield entryPatches.get(index) ?? baseEntries[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return entryPatches.get(index) ?? baseEntries[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < baseEntries.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < baseEntries.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: entryPatches.get(index) ?? baseEntries[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 function areSceneEntriesEquivalent(
