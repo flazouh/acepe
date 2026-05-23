@@ -1,10 +1,15 @@
 import { describe, expect, it } from "bun:test";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 
 import {
 	groupAllPanelsByProject,
 	groupWorkspacePanelsByProject,
 	sortProjectGroupsForMultiLayout,
 } from "./panel-grouping.js";
+
+function projectLookup(projects: readonly Project[]) {
+	return (projectPath: string) => projects.find((project) => project.path === projectPath);
+}
 
 describe("groupAllPanelsByProject", () => {
 	it("groups unified workspace panels by project and kind", () => {
@@ -47,7 +52,7 @@ describe("groupAllPanelsByProject", () => {
 				},
 			],
 			[],
-			[
+			projectLookup([
 				{
 					path: "/tmp/project-a",
 					name: "Project A",
@@ -55,7 +60,7 @@ describe("groupAllPanelsByProject", () => {
 					createdAt: new Date(),
 					iconPath: "/tmp/project-a/icon.png",
 				},
-			]
+			])
 		);
 
 		expect(groups).toHaveLength(1);
@@ -91,7 +96,7 @@ describe("groupAllPanelsByProject", () => {
 			[],
 			[],
 			[],
-			[
+			projectLookup([
 				{
 					path: "/tmp/project-a",
 					name: "Project A",
@@ -99,7 +104,7 @@ describe("groupAllPanelsByProject", () => {
 					createdAt: new Date(),
 					iconPath: null,
 				},
-			]
+			])
 		);
 
 		expect(groups[0]?.agentPanels.map((panel) => panel.id)).toEqual([
@@ -132,7 +137,7 @@ describe("groupAllPanelsByProject", () => {
 			[],
 			[],
 			[],
-			[
+			projectLookup([
 				{
 					path: "/tmp/project-a",
 					name: "Project A",
@@ -140,7 +145,7 @@ describe("groupAllPanelsByProject", () => {
 					createdAt: new Date(),
 					iconPath: null,
 				},
-			]
+			])
 		);
 
 		expect(groups[0]?.agentPanels.map((panel) => panel.id)).toEqual([
@@ -173,7 +178,7 @@ describe("groupAllPanelsByProject", () => {
 			],
 			[],
 			[],
-			[
+			projectLookup([
 				{
 					path: "/tmp/project-a",
 					name: "Project A",
@@ -181,7 +186,7 @@ describe("groupAllPanelsByProject", () => {
 					createdAt: new Date(),
 					iconPath: "/tmp/project-a/icon.png",
 				},
-			]
+			])
 		);
 
 		expect(groups).toHaveLength(1);
@@ -318,7 +323,7 @@ describe("groupWorkspacePanelsByProject", () => {
 			],
 			[],
 			[],
-			[
+			projectLookup([
 				{
 					path: "/tmp/project-a",
 					name: "Project A",
@@ -326,7 +331,7 @@ describe("groupWorkspacePanelsByProject", () => {
 					createdAt: new Date(),
 					iconPath: "/tmp/project-a/icon.png",
 				},
-			]
+			])
 		);
 
 		expect(groups).toHaveLength(1);

@@ -28,6 +28,8 @@ export interface UnifiedWorkspacePanelGroup<
 	readonly gitPanels: readonly GitPanel[];
 }
 
+export type ProjectLookup = (projectPath: string) => Project | undefined;
+
 /**
  * A group of agent panels belonging to the same project.
  */
@@ -63,7 +65,7 @@ export interface ProjectPanelGroup<
  */
 export function groupPanelsByProject<T extends { sessionProjectPath: string | null }>(
 	panels: readonly T[],
-	projects: readonly Project[]
+	projectLookup: ProjectLookup
 ): AgentPanelGroup<T>[] {
 	const groupMap = new Map<string, T[]>();
 	const groupOrder: string[] = [];
@@ -81,7 +83,7 @@ export function groupPanelsByProject<T extends { sessionProjectPath: string | nu
 
 	return groupOrder.map((key) => {
 		const groupPanels = groupMap.get(key)!;
-		const { name, color, iconSrc } = resolveProject(key, projects);
+		const { name, color, iconSrc } = resolveProject(key, projectLookup);
 		return {
 			projectPath: key,
 			projectName: name,
@@ -95,9 +97,9 @@ export function groupPanelsByProject<T extends { sessionProjectPath: string | nu
 /** Resolve project metadata for a given path. */
 function resolveProject(
 	projectPath: string,
-	projects: readonly Project[]
+	projectLookup: ProjectLookup
 ): { name: string; color: string; iconSrc: string | null } {
-	const project = projectPath ? projects.find((p) => p.path === projectPath) : null;
+	const project = projectPath ? (projectLookup(projectPath) ?? null) : null;
 	return {
 		name: project?.name ?? projectPath.split("/").pop() ?? "Unknown",
 		color: project?.color ?? "#4AD0FF",
@@ -110,11 +112,11 @@ function ensureGroup<TAgent extends { sessionProjectPath: string | null }>(
 	key: string,
 	groupMap: Map<string, ProjectPanelGroup<TAgent>>,
 	groupOrder: string[],
-	projects: readonly Project[]
+	projectLookup: ProjectLookup
 ): ProjectPanelGroup<TAgent> {
 	let group = groupMap.get(key);
 	if (!group) {
-		const { name, color, iconSrc } = resolveProject(key, projects);
+		const { name, color, iconSrc } = resolveProject(key, projectLookup);
 		group = {
 			projectPath: key,
 			projectName: name,
@@ -146,7 +148,7 @@ export function groupAllPanelsByProject<
 	terminalPanels: readonly TerminalPanelGroup[],
 	browserPanels: readonly BrowserPanel[],
 	gitPanels: readonly GitPanel[],
-	projects: readonly Project[]
+	projectLookup: ProjectLookup
 ): ProjectPanelGroup<TAgent>[] {
 	const groupMap = new Map<string, ProjectPanelGroup<TAgent>>();
 	const groupOrder: string[] = [];
@@ -154,38 +156,38 @@ export function groupAllPanelsByProject<
 	// Agent panels use sessionProjectPath
 	for (const panel of agentPanels) {
 		const key = panel.sessionProjectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.agentPanels as TAgent[]).push(panel);
 	}
 
 	// Non-agent panels use projectPath directly
 	for (const panel of filePanels) {
 		const key = panel.projectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.filePanels as FilePanel[]).push(panel);
 	}
 
 	for (const panel of reviewPanels) {
 		const key = panel.projectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.reviewPanels as ReviewPanel[]).push(panel);
 	}
 
 	for (const panel of terminalPanels) {
 		const key = panel.projectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.terminalPanels as TerminalPanelGroup[]).push(panel);
 	}
 
 	for (const panel of browserPanels) {
 		const key = panel.projectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.browserPanels as BrowserPanel[]).push(panel);
 	}
 
 	for (const panel of gitPanels) {
 		const key = panel.projectPath ?? "";
-		const group = ensureGroup(key, groupMap, groupOrder, projects);
+		const group = ensureGroup(key, groupMap, groupOrder, projectLookup);
 		(group.gitPanels as GitPanel[]).push(panel);
 	}
 
@@ -268,7 +270,7 @@ export function groupWorkspacePanelsByProject<
 	workspacePanels: readonly WorkspacePanel[],
 	reviewPanels: readonly ReviewPanel[],
 	gitPanels: readonly GitPanel[],
-	projects: readonly Project[]
+	projectLookup: ProjectLookup
 ): UnifiedWorkspacePanelGroup<TAgent>[] {
 	const groupMap = new Map<
 		string,
@@ -287,7 +289,7 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath ?? "";
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projects);
+			const { name, color, iconSrc } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
@@ -312,7 +314,7 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projects);
+			const { name, color, iconSrc } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
@@ -358,7 +360,7 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projects);
+			const { name, color, iconSrc } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
@@ -381,7 +383,7 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projects);
+			const { name, color, iconSrc } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,

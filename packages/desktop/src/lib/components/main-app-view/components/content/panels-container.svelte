@@ -92,7 +92,7 @@ const allGroups = $derived.by(() =>
 			panelStore.terminalPanelGroups,
 			panelStore.browserPanels,
 			[],
-			projectManager.projects
+			(projectPath) => projectManager.getProject(projectPath)
 		)
 	)
 );
