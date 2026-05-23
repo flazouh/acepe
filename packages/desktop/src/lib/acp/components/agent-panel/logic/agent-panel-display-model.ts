@@ -11,6 +11,7 @@ import type { AgentPanelCanonicalSource } from "../../../session-state/agent-pan
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArrayTruncation,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	type AgentPanelSceneEntryArrayAppendPatch,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
@@ -1495,6 +1496,26 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return appendPatch;
 	}
 
+	function applyGraphSceneTruncationIndexes(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): boolean {
+		const truncation = getAgentPanelSceneEntryArrayTruncation(sceneEntries);
+		if (
+			truncation === undefined ||
+			truncation.baseSceneEntries !== previousSceneEntries ||
+			truncation.length !== sceneEntries.length
+		) {
+			return false;
+		}
+		removeTruncatedSceneEntryIndexes(
+			sceneEntryIndexesById,
+			truncation.baseSceneEntries,
+			truncation.length
+		);
+		previousSceneEntries = sceneEntries;
+		return true;
+	}
+
 	function selectAssistantRows(
 		model: AgentPanelDisplayModel
 	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
@@ -1577,6 +1598,9 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 						applyDisplaySceneAppendEntries(model, appendPatch) ??
 						applyDisplaySceneEntries(model, sceneEntries)
 					);
+				}
+				if (applyGraphSceneTruncationIndexes(sceneEntries)) {
+					return applyDisplaySceneEntries(model, sceneEntries);
 				}
 				if (
 					previousSceneEntries !== null &&

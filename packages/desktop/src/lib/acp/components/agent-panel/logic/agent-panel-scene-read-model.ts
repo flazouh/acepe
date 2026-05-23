@@ -3,6 +3,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
 	createGraphSceneEntryIndexReadModel,
@@ -66,6 +67,7 @@ export function createAgentPanelSceneReadModel(input?: {
 			if (
 				getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined &&
 				getAgentPanelSceneEntryArrayAppendPatch(sceneEntries) === undefined &&
+				getAgentPanelSceneEntryArrayTruncation(sceneEntries) === undefined &&
 				getAgentPanelDisplayScenePatch(sceneEntries) === undefined &&
 				getTokenRevealScenePatch(sceneEntries) === undefined
 			) {

@@ -13,6 +13,7 @@ import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 export function findGraphSceneEntryForDisplayEntry(
@@ -111,6 +112,30 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			entryIndexesById,
 			appendPatch.appendedEntries,
 			appendPatch.baseSceneEntries.length
+		);
+		previousSceneEntries = sceneEntries;
+		return entriesById;
+	}
+
+	function applyGraphSceneTruncation(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
+		const truncation = getAgentPanelSceneEntryArrayTruncation(sceneEntries);
+		if (
+			truncation === undefined ||
+			truncation.baseSceneEntries !== previousSceneEntries ||
+			truncation.length !== sceneEntries.length
+		) {
+			return null;
+		}
+		baseEntriesByIdBeforeTokenReveal = null;
+		const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+		entriesById = mutableEntriesById;
+		removeTruncatedGraphSceneEntries(
+			mutableEntriesById,
+			entryIndexesById,
+			truncation.baseSceneEntries,
+			truncation.length
 		);
 		previousSceneEntries = sceneEntries;
 		return entriesById;
@@ -274,6 +299,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return (
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
+				applyGraphSceneTruncation(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);

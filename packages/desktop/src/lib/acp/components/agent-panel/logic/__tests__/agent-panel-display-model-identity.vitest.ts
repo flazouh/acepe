@@ -5,6 +5,7 @@ import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 import {
@@ -451,6 +452,86 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			type: "assistant",
 			markdown: "First patched",
 		});
+	});
+
+	it("applies marked scene entry truncation without checking every preserved entry", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "First patched",
+					displayText: "First patched",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [
+			userEntry,
+			firstAssistantEntry,
+			removedAssistantEntry,
+		];
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const truncatedEntries = [userEntry, firstAssistantEntry];
+		markAgentPanelSceneEntryArrayTruncation(truncatedEntries, {
+			baseSceneEntries: baseEntries,
+			length: truncatedEntries.length,
+		});
+		Object.defineProperty(baseEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan preserved scene entries for marked truncation");
+			},
+		});
+
+		try {
+			const displayedEntries = readModel.apply({
+				model,
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: truncatedEntries,
+			});
+
+			expect(displayedEntries).toHaveLength(2);
+			expect(displayedEntries[1]).toMatchObject({
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "First patched",
+			});
+		} finally {
+			Object.defineProperty(baseEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+		}
 	});
 
 	it("keeps the cached scene entry index valid for same-length scene entry patches", () => {

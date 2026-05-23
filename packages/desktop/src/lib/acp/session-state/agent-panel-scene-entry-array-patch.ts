@@ -11,6 +11,11 @@ export type AgentPanelSceneEntryArrayAppendPatch = {
 	readonly appendedEntries: readonly AgentPanelSceneEntryModel[];
 };
 
+export type AgentPanelSceneEntryArrayTruncation = {
+	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly length: number;
+};
+
 const agentPanelSceneEntryArrayPatches = new WeakMap<
 	readonly AgentPanelSceneEntryModel[],
 	AgentPanelSceneEntryArrayPatch
@@ -18,6 +23,10 @@ const agentPanelSceneEntryArrayPatches = new WeakMap<
 const agentPanelSceneEntryArrayAppendPatches = new WeakMap<
 	readonly AgentPanelSceneEntryModel[],
 	AgentPanelSceneEntryArrayAppendPatch
+>();
+const agentPanelSceneEntryArrayTruncations = new WeakMap<
+	readonly AgentPanelSceneEntryModel[],
+	AgentPanelSceneEntryArrayTruncation
 >();
 
 export function markAgentPanelSceneEntryArrayPatch(
@@ -44,4 +53,17 @@ export function getAgentPanelSceneEntryArrayAppendPatch(
 	sceneEntries: readonly AgentPanelSceneEntryModel[]
 ): AgentPanelSceneEntryArrayAppendPatch | undefined {
 	return agentPanelSceneEntryArrayAppendPatches.get(sceneEntries);
+}
+
+export function markAgentPanelSceneEntryArrayTruncation(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	truncation: AgentPanelSceneEntryArrayTruncation
+): void {
+	agentPanelSceneEntryArrayTruncations.set(sceneEntries, truncation);
+}
+
+export function getAgentPanelSceneEntryArrayTruncation(
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): AgentPanelSceneEntryArrayTruncation | undefined {
+	return agentPanelSceneEntryArrayTruncations.get(sceneEntries);
 }

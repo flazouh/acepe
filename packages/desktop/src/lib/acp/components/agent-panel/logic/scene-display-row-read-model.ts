@@ -15,6 +15,7 @@ import {
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
@@ -124,6 +125,33 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		return previousRows;
 	}
 
+	function applyGraphSceneTruncation(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const truncation = getAgentPanelSceneEntryArrayTruncation(sceneEntries);
+		if (
+			truncation === undefined ||
+			truncation.baseSceneEntries !== previousSceneEntries ||
+			truncation.length !== sceneEntries.length
+		) {
+			return null;
+		}
+		baseRowsBeforeTokenReveal = null;
+		const truncatedRows = truncateStableSceneDisplayRows(
+			truncation.baseSceneEntries,
+			sceneEntries,
+			previousRows,
+			rowIndexBySceneEntryId
+		);
+		if (truncatedRows === null) {
+			return null;
+		}
+		previousRows = truncatedRows;
+		latestTimestampMs = selectLatestTimestampMsFrom(previousRows, 0);
+		previousSceneEntries = sceneEntries;
+		return previousRows;
+	}
+
 	function applyDisplayScenePatch(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): readonly SceneDisplayRow[] | null {
@@ -211,6 +239,11 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			const displayPatchRows = applyDisplayScenePatch(sceneEntries);
 			if (displayPatchRows !== null) {
 				return displayPatchRows;
+			}
+
+			const truncationRows = applyGraphSceneTruncation(sceneEntries);
+			if (truncationRows !== null) {
+				return truncationRows;
 			}
 
 			if (
@@ -325,6 +358,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return (
 				applyGraphScenePatch(sceneEntries) ??
 				applyGraphSceneAppendPatch(sceneEntries) ??
+				applyGraphSceneTruncation(sceneEntries) ??
 				applyDisplayScenePatch(sceneEntries) ??
 				applyTokenRevealPatch(sceneEntries)
 			);
