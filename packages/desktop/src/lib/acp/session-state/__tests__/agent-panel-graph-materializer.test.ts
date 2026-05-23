@@ -2390,6 +2390,12 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not scan unchanged interactions for an interaction patch");
 			},
 		});
+		Object.defineProperty(nextInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged next interactions for an interaction patch");
+			},
+		});
 
 		try {
 			const nextScene = readModel.apply({
@@ -2422,6 +2428,10 @@ describe("agent panel graph materializer", () => {
 			});
 		} finally {
 			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: firstInteraction,
+			});
+			Object.defineProperty(nextInteractions, "0", {
 				configurable: true,
 				value: firstInteraction,
 			});
@@ -2464,6 +2474,7 @@ describe("agent panel graph materializer", () => {
 				requestId: "2",
 			},
 		});
+		const nextInteractions = [firstInteraction, appendedInteraction];
 
 		const firstScene = readModel.apply({
 			panelId: "panel-1",
@@ -2476,13 +2487,19 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not scan unchanged interactions for a stable append");
 			},
 		});
+		Object.defineProperty(nextInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged next interactions for a stable append");
+			},
+		});
 
 		try {
 			const nextScene = readModel.apply({
 				panelId: "panel-1",
 				graph: {
 					...baseGraph,
-					interactions: [firstInteraction, appendedInteraction],
+					interactions: nextInteractions,
 					activity: {
 						kind: "waiting_for_user",
 						activeOperationCount: 0,
@@ -2508,6 +2525,10 @@ describe("agent panel graph materializer", () => {
 			});
 		} finally {
 			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: firstInteraction,
+			});
+			Object.defineProperty(nextInteractions, "0", {
 				configurable: true,
 				value: firstInteraction,
 			});
@@ -2659,12 +2680,20 @@ describe("agent panel graph materializer", () => {
 			},
 		});
 
+		const nextInteractions = [hiddenInteraction];
+		Object.defineProperty(nextInteractions, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged next interactions for a stable removal");
+			},
+		});
+
 		try {
 			const nextScene = readModel.apply({
 				panelId: "panel-1",
 				graph: {
 					...baseGraph,
-					interactions: [hiddenInteraction],
+					interactions: nextInteractions,
 					activity: {
 						kind: "running_operation",
 						activeOperationCount: 1,
@@ -2685,6 +2714,10 @@ describe("agent panel graph materializer", () => {
 			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
 		} finally {
 			Object.defineProperty(baseInteractions, "0", {
+				configurable: true,
+				value: hiddenInteraction,
+			});
+			Object.defineProperty(nextInteractions, "0", {
 				configurable: true,
 				value: hiddenInteraction,
 			});

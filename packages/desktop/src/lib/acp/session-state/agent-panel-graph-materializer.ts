@@ -1737,7 +1737,14 @@ function materializeBlockingInteractionRetargetConversation(
 	const interactionById =
 		input.graph.interactions === previous.interactions
 			? previous.interactionById
-			: buildInteractionIndex(input.graph.interactions);
+			: nextBlockingInteractionId === null &&
+				  input.graph.interactions.length < previous.interactions.length
+				? createTruncatedInteractionIndex(
+						previous.interactionById,
+						previous.interactions,
+						input.graph.interactions.length
+					)
+				: buildInteractionIndex(input.graph.interactions);
 
 	if (
 		previousVisibleEntry !== null &&
@@ -1841,7 +1848,7 @@ function materializeStableInteractionAppendedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -1852,6 +1859,10 @@ function materializeStableInteractionAppendedConversation(
 	const appendedInteractions = collectAppendedInteractions(
 		input.graph.interactions,
 		previous.interactions.length
+	);
+	const interactionById = createAppendedInteractionIndex(
+		previous.interactionById,
+		appendedInteractions
 	);
 	let nextVisibleEntry: AgentPanelSceneEntryModel | null = null;
 	for (const interaction of appendedInteractions) {
@@ -1873,6 +1884,7 @@ function materializeStableInteractionAppendedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -1906,7 +1918,7 @@ function materializeStableInteractionAppendedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
-		interactionById: buildInteractionIndex(input.graph.interactions),
+		interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1938,13 +1950,18 @@ function materializeStableInteractionTruncatedConversation(
 
 	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
 		previousVisibleEntries[0] ?? null;
+	const interactionById = createTruncatedInteractionIndex(
+		previous.interactionById,
+		previous.interactions,
+		input.graph.interactions.length
+	);
 	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
 	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
 	if (nextBlockingInteractionId === previousBlockingInteractionId) {
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -1955,7 +1972,7 @@ function materializeStableInteractionTruncatedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -1965,7 +1982,7 @@ function materializeStableInteractionTruncatedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
-		interactionById: buildInteractionIndex(input.graph.interactions),
+		interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -2062,12 +2079,17 @@ function materializeMarkedInteractionPatchedConversation(
 			visibleEntryChanged = true;
 		}
 	}
+	const interactionById = createPatchedInteractionIndex(
+		previous.interactionById,
+		patchedInteractionsByIndex,
+		appendedInteractions
+	);
 
 	if (!visibleEntryChanged) {
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -2076,7 +2098,7 @@ function materializeMarkedInteractionPatchedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
-			interactionById: buildInteractionIndex(input.graph.interactions),
+			interactionById,
 			activity: input.graph.activity,
 		};
 	}
@@ -2133,7 +2155,7 @@ function materializeMarkedInteractionPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
-		interactionById: buildInteractionIndex(input.graph.interactions),
+		interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -3404,6 +3426,57 @@ function buildInteractionIndex(
 		byInteractionId.set(interaction.id, interaction);
 	}
 	return byInteractionId;
+}
+
+function createAppendedInteractionIndex(
+	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
+	appendedInteractions: readonly InteractionSnapshot[]
+): ReadonlyMap<string, InteractionSnapshot> {
+	if (appendedInteractions.length === 0) {
+		return byInteractionId;
+	}
+	const appendedEntries = new Map<string, InteractionSnapshot>();
+	for (const interaction of appendedInteractions) {
+		appendedEntries.set(interaction.id, interaction);
+	}
+	return createPatchedReadonlyMap(byInteractionId, appendedEntries);
+}
+
+function createTruncatedInteractionIndex(
+	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
+	previousInteractions: readonly InteractionSnapshot[],
+	nextLength: number
+): ReadonlyMap<string, InteractionSnapshot> {
+	if (nextLength >= previousInteractions.length) {
+		return byInteractionId;
+	}
+	const deletedKeys = new Set<string>();
+	for (let index = nextLength; index < previousInteractions.length; index += 1) {
+		const interaction = previousInteractions[index];
+		if (interaction !== undefined) {
+			deletedKeys.add(interaction.id);
+		}
+	}
+	return createPatchedReadonlyMap(byInteractionId, new Map(), deletedKeys);
+}
+
+function createPatchedInteractionIndex(
+	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,
+	patchedInteractionsByIndex: ReadonlyMap<number, InteractionSnapshot> | null,
+	appendedInteractions: readonly InteractionSnapshot[] | null
+): ReadonlyMap<string, InteractionSnapshot> {
+	const patches = new Map<string, InteractionSnapshot>();
+	if (patchedInteractionsByIndex !== null) {
+		for (const interaction of patchedInteractionsByIndex.values()) {
+			patches.set(interaction.id, interaction);
+		}
+	}
+	if (appendedInteractions !== null) {
+		for (const interaction of appendedInteractions) {
+			patches.set(interaction.id, interaction);
+		}
+	}
+	return createPatchedReadonlyMap(byInteractionId, patches);
 }
 
 function appendTranscriptEntryIndexFromRange(
