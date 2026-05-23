@@ -2453,6 +2453,12 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			}
 			if (
 				previousSceneEntries !== null &&
+				isStableSceneEntryTruncation(previousSceneEntries, sceneEntries)
+			) {
+				return applyDisplaySceneTruncationEntries(model, sceneEntries);
+			}
+			if (
+				previousSceneEntries !== null &&
 				hasSameSceneEntryIdOrder(previousSceneEntries, sceneEntries)
 			) {
 				return applyDisplaySceneEntries(model, sceneEntries);

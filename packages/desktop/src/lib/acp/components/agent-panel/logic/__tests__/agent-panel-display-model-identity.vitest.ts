@@ -622,6 +622,73 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		}
 	});
 
+	it("keeps stable scene entry truncation on the patch lane", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const memory = createAgentPanelDisplayMemory();
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer patched",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries = readModel.apply({
+			model,
+			memory,
+			sceneEntries: [userEntry, assistantEntry, removedAssistantEntry],
+		});
+
+		const displayedEntries = readModel.applyPatch({
+			model,
+			memory,
+			sceneEntries: [userEntry, assistantEntry],
+		});
+
+		expect(displayedEntries).not.toBeNull();
+		if (displayedEntries === null) {
+			return;
+		}
+		expect(displayedEntries).toHaveLength(2);
+		expect(displayedEntries[0]).toBe(baseEntries[0]);
+		expect(displayedEntries[1]).toBe(baseEntries[1]);
+		expect(displayedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer patched",
+		});
+		const truncation = getAgentPanelSceneEntryArrayTruncation(displayedEntries);
+		expect(truncation?.baseSceneEntries).toBe(baseEntries);
+		expect(truncation?.length).toBe(2);
+	});
+
 	it("keeps truncation shape when display overlay changes a kept assistant", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
