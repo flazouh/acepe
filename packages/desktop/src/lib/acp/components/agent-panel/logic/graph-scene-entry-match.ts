@@ -41,6 +41,7 @@ export interface GraphSceneEntryIndexReadModel {
 	): ReadonlyMap<string, AgentPanelSceneEntryModel>;
 	selectIndex(): ReadonlyMap<string, AgentPanelSceneEntryModel>;
 	selectEntryById(id: string | null | undefined): AgentPanelSceneEntryModel | undefined;
+	selectEntryIndexById(id: string | null | undefined): number | undefined;
 	getIndex(
 		sceneEntries: readonly AgentPanelSceneEntryModel[]
 	): ReadonlyMap<string, AgentPanelSceneEntryModel>;
@@ -49,6 +50,7 @@ export interface GraphSceneEntryIndexReadModel {
 export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let entriesById: Map<string, AgentPanelSceneEntryModel> = new Map();
+	let entryIndexesById: Map<string, number> = new Map();
 
 	return {
 		applySnapshot(sceneEntries) {
@@ -60,16 +62,19 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 			) {
-				appendGraphSceneEntriesToIndex(
+				appendGraphSceneEntriesToIndexes(
 					entriesById,
-					sceneEntries.slice(previousSceneEntries.length)
+					entryIndexesById,
+					sceneEntries.slice(previousSceneEntries.length),
+					previousSceneEntries.length
 				);
 				previousSceneEntries = sceneEntries;
 				return entriesById;
 			}
 
 			entriesById = new Map();
-			appendGraphSceneEntriesToIndex(entriesById, sceneEntries);
+			entryIndexesById = new Map();
+			appendGraphSceneEntriesToIndexes(entriesById, entryIndexesById, sceneEntries, 0);
 			previousSceneEntries = sceneEntries;
 			return entriesById;
 		},
@@ -78,7 +83,12 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return entriesById;
 			}
 
-			appendGraphSceneEntriesToIndex(entriesById, appendedSceneEntries);
+			appendGraphSceneEntriesToIndexes(
+				entriesById,
+				entryIndexesById,
+				appendedSceneEntries,
+				previousSceneEntries?.length ?? entriesById.size
+			);
 			previousSceneEntries = (previousSceneEntries ?? []).concat(appendedSceneEntries);
 			return entriesById;
 		},
@@ -87,6 +97,9 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 		},
 		selectEntryById(id) {
 			return id == null ? undefined : entriesById.get(id);
+		},
+		selectEntryIndexById(id) {
+			return id == null ? undefined : entryIndexesById.get(id);
 		},
 		getIndex(sceneEntries) {
 			return this.applySnapshot(sceneEntries);
@@ -98,9 +111,21 @@ function appendGraphSceneEntriesToIndex(
 	entriesById: Map<string, AgentPanelSceneEntryModel>,
 	sceneEntries: readonly AgentPanelSceneEntryModel[]
 ): void {
+	appendGraphSceneEntriesToIndexes(entriesById, undefined, sceneEntries, 0);
+}
+
+function appendGraphSceneEntriesToIndexes(
+	entriesById: Map<string, AgentPanelSceneEntryModel>,
+	entryIndexesById: Map<string, number> | undefined,
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): void {
+	let index = startIndex;
 	for (const sceneEntry of sceneEntries) {
 		if (!entriesById.has(sceneEntry.id)) {
 			entriesById.set(sceneEntry.id, sceneEntry);
+			entryIndexesById?.set(sceneEntry.id, index);
 		}
+		index += 1;
 	}
 }

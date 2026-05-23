@@ -5,6 +5,7 @@ export type TokenRevealSceneSnapshot = {
 	readonly sceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly sourceEntry: AgentPanelSceneEntryModel | undefined;
 	readonly tailRowId: string | null;
+	readonly tailRowIndex?: number | undefined;
 	readonly tokenRevealCss: TokenRevealCss | undefined;
 };
 
@@ -30,7 +31,8 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				snapshot.sceneEntries,
 				snapshot.tailRowId,
 				snapshot.tokenRevealCss,
-				previousTokenRevealEntryIndex
+				previousTokenRevealEntryIndex,
+				snapshot.tailRowIndex
 			);
 			if (tokenRevealEntryIndex === -1) {
 				previousSnapshot = snapshot;
@@ -72,6 +74,7 @@ function isSameTokenRevealSnapshot(
 		previous.sceneEntries === next.sceneEntries &&
 		previous.sourceEntry === next.sourceEntry &&
 		previous.tailRowId === next.tailRowId &&
+		previous.tailRowIndex === next.tailRowIndex &&
 		previous.tokenRevealCss === next.tokenRevealCss
 	);
 }
@@ -80,10 +83,16 @@ function resolveTokenRevealEntryIndex(
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
 	tailRowId: string | null,
 	tokenRevealCss: TokenRevealCss | undefined,
-	previousIndex: number
+	previousIndex: number,
+	tailRowIndex: number | undefined
 ): number {
 	if (tailRowId === null || tokenRevealCss === undefined) {
 		return -1;
+	}
+
+	const indexedEntry = sceneEntries[tailRowIndex ?? -1];
+	if (indexedEntry?.type === "assistant" && indexedEntry.id === tailRowId) {
+		return tailRowIndex ?? -1;
 	}
 
 	const previousEntry = sceneEntries[previousIndex];

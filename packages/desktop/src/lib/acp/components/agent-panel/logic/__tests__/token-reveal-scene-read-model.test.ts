@@ -140,4 +140,35 @@ describe("createTokenRevealSceneReadModel", () => {
 		expect(firstEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: firstCss });
 		expect(nextEntries[1]).toMatchObject({ id: "assistant-1", tokenRevealCss: nextCss });
 	});
+
+	it("uses the supplied tail row index before scanning for the reveal row", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const earlierAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-earlier",
+			type: "assistant",
+			markdown: "Earlier",
+		};
+		const tailAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-tail",
+			type: "assistant",
+			markdown: "Tail",
+			isStreaming: true,
+		};
+		const tokenRevealCss = createTokenRevealCss();
+
+		const selectedEntries = readModel.applySnapshot({
+			sceneEntries: [earlierAssistantEntry, tailAssistantEntry],
+			sourceEntry: tailAssistantEntry,
+			tailRowId: "assistant-tail",
+			tailRowIndex: 1,
+			tokenRevealCss,
+		});
+
+		expect(selectedEntries[0]).toBe(earlierAssistantEntry);
+		expect(selectedEntries[1]).not.toBe(tailAssistantEntry);
+		expect(selectedEntries[1]).toMatchObject({
+			id: "assistant-tail",
+			tokenRevealCss,
+		});
+	});
 });

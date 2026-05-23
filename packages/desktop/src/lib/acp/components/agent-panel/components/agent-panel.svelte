@@ -918,6 +918,8 @@ const tokenRevealSceneEntries = $derived.by(() => {
 	tokenRevealSourceIndexReadModel.applySnapshot(graphMaterializedScene.conversation.entries);
 	const tailEntry =
 		tokenRevealSourceIndexReadModel.selectEntryById(tokenRevealTailRowId);
+	const tailEntryIndex =
+		tokenRevealSourceIndexReadModel.selectEntryIndexById(tokenRevealTailRowId);
 	const tokenRevealCss =
 		tailEntry?.type === "assistant"
 			? buildTokenRevealCss(
@@ -935,6 +937,7 @@ const tokenRevealSceneEntries = $derived.by(() => {
 		sceneEntries: graphSceneEntries,
 		sourceEntry: tailEntry,
 		tailRowId: tokenRevealTailRowId,
+		tailRowIndex: tailEntryIndex,
 		tokenRevealCss,
 	});
 });

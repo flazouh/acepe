@@ -162,7 +162,10 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(patchedIndex.get("tool-1")).toBe(firstEntry);
 		expect(patchedIndex.get("tool-2")).toBe(nextEntry);
 		expect(readModel.selectEntryById("tool-2")).toBe(nextEntry);
+		expect(readModel.selectEntryIndexById("tool-1")).toBe(0);
+		expect(readModel.selectEntryIndexById("tool-2")).toBe(1);
 		expect(readModel.selectEntryById(null)).toBeUndefined();
+		expect(readModel.selectEntryIndexById(null)).toBeUndefined();
 	});
 
 	it("keeps the selected index stable for empty append patches", () => {
@@ -200,6 +203,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(nextIndex).toBe(firstIndex);
 		expect(nextIndex.get("tool-1")).toBe(firstEntry);
 		expect(nextIndex.get("tool-2")).toBe(nextEntry);
+		expect(readModel.selectEntryIndexById("tool-2")).toBe(1);
 	});
 
 	it("uses append-only updates when prior scene entries are fresh but content-stable", () => {
