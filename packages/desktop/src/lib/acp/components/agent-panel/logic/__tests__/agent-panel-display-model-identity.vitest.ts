@@ -157,6 +157,42 @@ describe("buildAgentPanelBaseModel row projection", () => {
 });
 
 describe("applyAgentPanelDisplayMemory identity", () => {
+	it("reuses displayed rows when source rows and turn state are unchanged", () => {
+		const assistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "Answer",
+			displayText: "Answer",
+			canonicalTextRevision: "1:assistant-1",
+			isLiveTail: false,
+		};
+		const baseModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [assistantRow],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+
+		const firstResult = applyAgentPanelDisplayMemory(
+			createAgentPanelDisplayMemory(),
+			baseModel
+		);
+		const secondResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+			...baseModel,
+			status: "running",
+			waiting: { show: true, label: "Planning next moves..." },
+		});
+
+		expect(secondResult.model.rows).toBe(firstResult.model.rows);
+		expect(secondResult.memory).toBe(firstResult.memory);
+		expect(secondResult.model.status).toBe("running");
+	});
+
 	it("keeps unchanged assistant rows stable after an append", () => {
 		const firstAssistantRow = {
 			id: "assistant-1",

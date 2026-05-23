@@ -72,6 +72,9 @@ export interface AgentPanelDisplayMemory {
 	readonly sessionId: string | null;
 	readonly turnId: string | null;
 	readonly displayTextByRowKey: ReadonlyMap<string, string>;
+	readonly sourceRows: readonly AgentPanelDisplayRow[] | null;
+	readonly displayRows: readonly AgentPanelDisplayRow[] | null;
+	readonly turnState: TurnState | null;
 }
 
 export interface AgentPanelDisplayResult {
@@ -86,6 +89,9 @@ export function createAgentPanelDisplayMemory(): AgentPanelDisplayMemory {
 		sessionId: null,
 		turnId: null,
 		displayTextByRowKey: new Map<string, string>(),
+		sourceRows: null,
+		displayRows: null,
+		turnState: null,
 	};
 }
 
@@ -356,7 +362,30 @@ export function applyAgentPanelDisplayMemory(
 	previousMemory: AgentPanelDisplayMemory,
 	baseModel: AgentPanelBaseModel
 ): AgentPanelDisplayResult {
-	const previousTexts = shouldResetMemory(previousMemory, baseModel)
+	const shouldReset = shouldResetMemory(previousMemory, baseModel);
+	if (
+		!shouldReset &&
+		previousMemory.sourceRows === baseModel.rows &&
+		previousMemory.displayRows !== null &&
+		previousMemory.turnState === baseModel.turnState
+	) {
+		return {
+			model: {
+				panelId: baseModel.panelId,
+				sessionId: baseModel.sessionId,
+				turnId: baseModel.turnId,
+				status: baseModel.status,
+				turnState: baseModel.turnState,
+				waiting: baseModel.waiting,
+				composer: baseModel.composer,
+				rows: previousMemory.displayRows,
+				viewport: baseModel.viewport,
+			},
+			memory: previousMemory,
+		};
+	}
+
+	const previousTexts = shouldReset
 		? new Map<string, string>()
 		: previousMemory.displayTextByRowKey;
 	const nextTexts = new Map<string, string>();
@@ -379,6 +408,9 @@ export function applyAgentPanelDisplayMemory(
 			sessionId: baseModel.sessionId,
 			turnId: baseModel.turnId,
 			displayTextByRowKey: nextTexts,
+			sourceRows: baseModel.rows,
+			displayRows: rows,
+			turnState: baseModel.turnState,
 		},
 	};
 }
