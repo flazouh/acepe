@@ -929,7 +929,7 @@ function materializeOperationPatchedConversation(
 		};
 	}
 
-	const nextEntries = previous.conversation.entries.slice();
+	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 	for (const affectedEntryId of affectedEntryIds) {
@@ -941,12 +941,26 @@ function materializeOperationPatchedConversation(
 		if (rowIndex === undefined) {
 			return null;
 		}
-		nextEntries[rowIndex] = materializeTranscriptEntry(
+		const nextEntry = materializeTranscriptEntry(
 			transcriptEntry,
 			input.graph,
 			operationIndex,
 			isRunning && transcriptEntry.entryId === liveAssistantEntryId
 		);
+		const previousEntry = previous.conversation.entries[rowIndex];
+		if (previousEntry !== undefined && areSceneEntriesEquivalent(previousEntry, nextEntry)) {
+			continue;
+		}
+		nextEntries ??= previous.conversation.entries.slice();
+		nextEntries[rowIndex] = nextEntry;
+	}
+
+	if (nextEntries === null) {
+		return {
+			...previous,
+			operations: input.graph.operations,
+			operationIndex,
+		};
 	}
 
 	return {
@@ -964,6 +978,13 @@ function materializeOperationPatchedConversation(
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
+}
+
+function areSceneEntriesEquivalent(
+	left: AgentPanelSceneEntryModel,
+	right: AgentPanelSceneEntryModel
+): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function applyOperationIndexPatch(

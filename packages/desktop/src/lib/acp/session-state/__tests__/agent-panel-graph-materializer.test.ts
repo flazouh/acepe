@@ -466,6 +466,49 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
 	});
 
+	it("keeps conversation rows stable when an operation patch has no visible scene change", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run tests"),
+		]);
+		const operation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+			operation_provenance_key: "first-key",
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [operation],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: [
+					{
+						...operation,
+						operation_provenance_key: "second-key",
+					},
+				],
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+	});
+
 	it("appends transcript rows without rebuilding existing conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");
