@@ -320,12 +320,16 @@ export class OperationStore {
 		const previousVersion = this.sessionOperationVersions.get(sessionId) ?? 0;
 		const cachedSessionOperations = this.sessionOperationsBySession.get(sessionId);
 		const cachedSessionToolCalls = this.sessionToolCallsBySession.get(sessionId);
+		const cachedModifiedFilesState = this.modifiedFilesStateBySession.get(sessionId);
 		let cachedOperationPatches: Map<number, Operation> | null = null;
 		let cachedOperationAppends: Operation[] | null = null;
 		let cachedToolCallPatches: Map<number, ToolCall> | null = null;
 		let cachedToolCallAppends: ToolCall[] | null = null;
 		let canPatchCachedToolCalls =
 			cachedSessionToolCalls === undefined || cachedSessionToolCalls.version === previousVersion;
+		let canPreserveModifiedFilesState =
+			cachedModifiedFilesState === undefined ||
+			cachedModifiedFilesState.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
@@ -336,6 +340,13 @@ export class OperationStore {
 			}
 			if (existingOperation !== undefined) {
 				this.unindexOperation(existingOperation);
+			}
+			if (
+				cachedModifiedFilesState?.version === previousVersion &&
+				(existingOperation === undefined ||
+					!areModifiedFileInputsEquivalent(existingOperation, operation))
+			) {
+				canPreserveModifiedFilesState = false;
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
@@ -414,6 +425,12 @@ export class OperationStore {
 						cachedToolCallPatches,
 						cachedToolCallAppends
 					),
+				});
+			}
+			if (cachedModifiedFilesState?.version === previousVersion && canPreserveModifiedFilesState) {
+				this.modifiedFilesStateBySession.set(sessionId, {
+					version: nextVersion,
+					state: cachedModifiedFilesState.state,
 				});
 			}
 		}
@@ -784,6 +801,16 @@ function areOperationsEquivalent(left: Operation, right: Operation): boolean {
 		areJsonLikeValuesEquivalent(left.childToolCallIds, right.childToolCallIds) &&
 		areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds) &&
 		left.degradationReason === right.degradationReason
+	);
+}
+
+function areModifiedFileInputsEquivalent(left: Operation, right: Operation): boolean {
+	return (
+		left.toolCallId === right.toolCallId &&
+		left.kind === right.kind &&
+		areJsonLikeValuesEquivalent(left.arguments, right.arguments) &&
+		left.parentOperationId === right.parentOperationId &&
+		areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds)
 	);
 }
 

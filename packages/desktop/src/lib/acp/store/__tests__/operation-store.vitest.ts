@@ -457,6 +457,62 @@ describe("OperationStore", () => {
 		expect(patchedState?.byPath.has("src/style.css")).toBe(true);
 	});
 
+	it("preserves modified files state for status-only operation patches", () => {
+		const operationStore = new OperationStore();
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "in_progress",
+				operation_state: "running",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+
+		const firstState = operationStore.getSessionModifiedFilesState("session-1");
+		expect(firstState?.fileCount).toBe(1);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+
+		const originalGetSessionToolCalls = operationStore.getSessionToolCalls;
+		operationStore.getSessionToolCalls = () => {
+			throw new Error("modified files state should not re-read every session tool call");
+		};
+
+		expect(operationStore.getSessionModifiedFilesState("session-1")).toBe(firstState);
+		operationStore.getSessionToolCalls = originalGetSessionToolCalls;
+	});
+
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
 
