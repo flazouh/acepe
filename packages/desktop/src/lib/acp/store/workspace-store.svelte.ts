@@ -54,32 +54,10 @@ function isPersistableAgentPanel(panel: Panel): boolean {
 	return panel.autoCreated !== true;
 }
 
-function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
-	return panel.kind !== "agent" || panel.autoCreated !== true;
-}
-
 function isPersistablePersistedAgentPanel(
 	panel: PersistedAgentWorkspacePanelState | PersistedPanelState
 ): boolean {
 	return panel.autoCreated !== true;
-}
-
-function filterPersistableWorkspacePanels(
-	workspacePanels: ReadonlyArray<WorkspacePanel>
-): WorkspacePanel[] {
-	const persistableTopLevelPanelIds = new Set<string>();
-	for (const panel of workspacePanels) {
-		if (panel.ownerPanelId === null && isPersistableWorkspacePanel(panel)) {
-			persistableTopLevelPanelIds.add(panel.id);
-		}
-	}
-
-	return workspacePanels.filter((panel) => {
-		if (!isPersistableWorkspacePanel(panel)) {
-			return false;
-		}
-		return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
-	});
 }
 
 function filterPersistablePersistedWorkspacePanels(
@@ -520,9 +498,7 @@ export class WorkspaceStore {
 	persist(immediate = false): void {
 		const saveState = () => {
 			this.persistDebounce = null;
-			const persistableWorkspacePanels = filterPersistableWorkspacePanels(
-				this.panelStore.workspacePanels
-			);
+			const persistableWorkspacePanels = this.panelStore.getPersistableWorkspacePanels();
 			const persistableAgentPanels = this.panelStore.panels.filter(isPersistableAgentPanel);
 			const persistableAgentPanelIds = new Set<string>(
 				persistableAgentPanels.map((panel) => panel.id)

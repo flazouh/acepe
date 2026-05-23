@@ -73,6 +73,23 @@ function createPanelStoreStub() {
 		getTerminalPanelGroup: mock(() => undefined),
 		getTerminalTabsForGroup: mock(() => []),
 		getActiveFilePanelIdByOwnerPanelIdRecord: mock(() => ({})),
+		getPersistableWorkspacePanels: mock(() => {
+			const persistableTopLevelPanelIds = new Set<string>();
+			for (const panel of store.workspacePanels) {
+				if (
+					panel.ownerPanelId === null &&
+					(panel.kind !== "agent" || panel.autoCreated !== true)
+				) {
+					persistableTopLevelPanelIds.add(panel.id);
+				}
+			}
+			return store.workspacePanels.filter((panel) => {
+				if (panel.kind === "agent" && panel.autoCreated === true) {
+					return false;
+				}
+				return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
+			});
+		}),
 		setActiveFilePanelMap: mock(() => {}),
 		restoreWorkspacePanels: mock((workspacePanels: WorkspacePanel[]) => {
 			store.workspacePanels = workspacePanels;

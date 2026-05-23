@@ -188,6 +188,10 @@ function arePanelProjectRefListsEqual(
 	);
 }
 
+function isPersistableWorkspacePanel(panel: WorkspacePanel): boolean {
+	return panel.kind !== "agent" || panel.autoCreated !== true;
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -718,6 +722,22 @@ export class PanelStore {
 
 	getTopLevelNonAgentPanelProjectRefs(): readonly TopLevelPanelProjectRef[] {
 		return this.topLevelNonAgentPanelProjectRefList;
+	}
+
+	getPersistableWorkspacePanels(): WorkspacePanel[] {
+		const persistableTopLevelPanelIds = new Set<string>();
+		for (const panel of this.workspacePanels) {
+			if (panel.ownerPanelId === null && isPersistableWorkspacePanel(panel)) {
+				persistableTopLevelPanelIds.add(panel.id);
+			}
+		}
+
+		return this.workspacePanels.filter((panel) => {
+			if (!isPersistableWorkspacePanel(panel)) {
+				return false;
+			}
+			return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
+		});
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {
