@@ -23,6 +23,22 @@ vi.mock("$lib/acp/components/file-panel/index.js", async () => ({
 	FilePanel: (await import("./fixtures/file-panel-stub.svelte")).default,
 }));
 
+vi.mock("$lib/acp/components/file-panel/file-panel-defer.js", () => ({
+	scheduleLazyPanelMetadataWork: (work: () => void) => {
+		let cancelled = false;
+		queueMicrotask(() => {
+			if (!cancelled) {
+				work();
+			}
+		});
+		return {
+			cancel: () => {
+				cancelled = true;
+			},
+		};
+	},
+}));
+
 const getProjectGitStatusSummaryMapMock = vi.fn();
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
@@ -34,12 +50,12 @@ vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 
 const { default: AgentAttachedFilePane } = await import("../agent-attached-file-pane.svelte");
 
-function createFilePanel(id: string, filePath: string): FilePanelType {
+function createFilePanel(id: string, filePath: string, projectPath = "/repo"): FilePanelType {
 	return {
 		id,
 		kind: "file",
 		filePath,
-		projectPath: "/repo",
+		projectPath,
 		ownerPanelId: "panel-1",
 		width: 420,
 	};
@@ -114,5 +130,31 @@ describe("AgentAttachedFilePane", () => {
 		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledTimes(1);
 		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledWith("/repo");
 		expect(valuesSpy).not.toHaveBeenCalled();
+	});
+
+	it("uses the active file project metadata from the project lookup", () => {
+		getProjectGitStatusSummaryMapMock.mockReturnValue({
+			match: () => Promise.resolve(),
+		});
+
+		const view = render(AgentAttachedFilePane, {
+			ownerPanelId: "panel-1",
+			filePanels: [
+				createFilePanel("file-a", "src/a.ts", "/repo-a"),
+				createFilePanel("file-b", "src/b.ts", "/repo-b"),
+			],
+			activeFilePanelId: "file-b",
+			projects: [
+				{ path: "/repo-a", name: "Repo A", createdAt: new Date(0), color: "#123456" },
+				{ path: "/repo-b", name: "Repo B", createdAt: new Date(0), color: "#abcdef" },
+			],
+			onSelectFilePanel: vi.fn(),
+			onCloseFilePanel: vi.fn(),
+			onResizeFilePanel: vi.fn(),
+		});
+
+		expect(view.getByTestId("attached-file-panel").textContent).toBe(
+			"file-b:src/b.ts:/repo-b:Repo B:420"
+		);
 	});
 });

@@ -46,6 +46,18 @@ const activeFilePanel = $derived.by(() => {
 	return active ?? filePanels[0] ?? null;
 });
 
+const projectsByPath = $derived.by(() => {
+	const nextProjectsByPath = new Map<string, Project>();
+	for (const project of projects) {
+		nextProjectsByPath.set(project.path, project);
+	}
+	return nextProjectsByPath;
+});
+
+const activeFileProject = $derived(
+	activeFilePanel === null ? undefined : projectsByPath.get(activeFilePanel.projectPath)
+);
+
 const panelProjectPaths = $derived.by(() =>
 	activeFilePanel === null ? [] : [activeFilePanel.projectPath]
 );
@@ -140,11 +152,9 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				panelId={activeFilePanel.id}
 				filePath={activeFilePanel.filePath}
 				projectPath={activeFilePanel.projectPath}
-				projectName={projects.find((project) => project.path === activeFilePanel.projectPath)?.name ??
-					"Unknown"}
-				projectColor={projects.find((project) => project.path === activeFilePanel.projectPath)?.color}
-				projectIconSrc={projects.find((project) => project.path === activeFilePanel.projectPath)?.iconPath ??
-					null}
+				projectName={activeFileProject?.name ?? "Unknown"}
+				projectColor={activeFileProject?.color}
+				projectIconSrc={activeFileProject?.iconPath ?? null}
 				width={activeFilePanel.width}
 				isFullscreenEmbedded={true}
 				hideProjectBadge={true}
