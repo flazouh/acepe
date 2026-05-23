@@ -2248,6 +2248,94 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
 	});
 
+	it("retargets the blocking interaction without scanning unchanged interactions", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("tool-1", "tool", "Run first"),
+		]);
+		const operation = createOperationSnapshot({
+			id: "op-1",
+			tool_call_id: "tool-1",
+			source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+			result: null,
+			operation_state: "running",
+		});
+		const questionOne = createQuestionInteraction({
+			id: "question-1",
+			jsonRpcRequestId: 1,
+			replyHandler: { kind: "json_rpc", requestId: "1" },
+		});
+		const questionTwo = createQuestionInteraction({
+			id: "question-2",
+			jsonRpcRequestId: 2,
+			replyHandler: { kind: "json_rpc", requestId: "2" },
+		});
+		const interactions = [questionOne, questionTwo];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [operation],
+			interactions,
+			activity: {
+				kind: "waiting_for_user",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-1",
+				blockingInteractionId: "question-1",
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Question session" },
+		});
+
+		Object.defineProperty(interactions, "0", {
+			configurable: true,
+			get() {
+				throw new Error(
+					"must not scan unchanged interactions for a blocking interaction retarget"
+				);
+			},
+		});
+
+		let nextScene: ReturnType<typeof readModel.apply>;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					activity: {
+						kind: "waiting_for_user",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: "op-1",
+						blockingInteractionId: "question-2",
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Question session" },
+			});
+		} finally {
+			Object.defineProperty(interactions, "0", {
+				configurable: true,
+				value: questionOne,
+			});
+		}
+
+		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"tool-1",
+			"interaction:question-1",
+		]);
+		expect(nextScene.conversation.entries.map((entry) => entry.id)).toEqual([
+			"tool-1",
+			"interaction:question-2",
+		]);
+	});
+
 	it("applies marked interaction appends without scanning unchanged interactions", () => {
 		const readModel = createAgentPanelGraphMaterializerReadModel();
 		const transcriptSnapshot = createTranscriptSnapshot([
