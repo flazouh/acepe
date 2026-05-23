@@ -437,6 +437,14 @@ export class PanelStore {
 	}
 
 	private findTopLevelWorkspacePanel(panelId: string): WorkspacePanel | undefined {
+		const agentPanel = this.topLevelAgentPanelsById.get(panelId);
+		if (agentPanel !== undefined) {
+			return agentPanel;
+		}
+		const filePanel = this.filePanelById.get(panelId);
+		if (filePanel?.ownerPanelId === null) {
+			return filePanel;
+		}
 		return this.workspacePanels.find(
 			(panel) => panel.id === panelId && this.isTopLevelWorkspacePanel(panel)
 		);

@@ -127,6 +127,7 @@ describe("PanelStore workspacePanels", () => {
 		store.focusPanel(filePanel.id);
 
 		expect(store.focusedPanelId).toBe(filePanel.id);
+		expect(store.focusedTopLevelPanel).toBe(filePanel);
 	});
 
 	it("stores file panel target location metadata", () => {
