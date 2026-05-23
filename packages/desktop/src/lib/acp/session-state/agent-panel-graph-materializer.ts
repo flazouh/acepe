@@ -1875,9 +1875,14 @@ function applyMarkedOperationIndexPatch(
 	}
 
 	if (appendedOperations !== null && appendedOperations.length > 0) {
-		operationIndex ??= cloneOperationIndex(previousIndex);
+		if (operationIndex === null) {
+			operationIndex = appendOperationIndex(previousIndex, appendedOperations);
+		} else {
+			for (const operation of appendedOperations) {
+				addOperationToIndex(operationIndex, operation);
+			}
+		}
 		for (const operation of appendedOperations) {
-			addOperationToIndex(operationIndex, operation);
 			changedOperationIds.add(operation.id);
 		}
 	}
@@ -1894,6 +1899,212 @@ function cloneOperationIndex(index: OperationIndex): OperationIndex {
 		byTranscriptSourceEntryId: new Map(index.byTranscriptSourceEntryId),
 		parentsByChildOperationId: new Map(index.parentsByChildOperationId),
 	};
+}
+
+function appendOperationIndex(
+	index: OperationIndex,
+	appendedOperations: readonly OperationSnapshot[]
+): OperationIndex {
+	return {
+		byOperationId: new AppendedOperationByIdMap(index.byOperationId, appendedOperations),
+		byTranscriptSourceEntryId: new AppendedOperationByTranscriptEntryMap(
+			index.byTranscriptSourceEntryId,
+			appendedOperations
+		),
+		parentsByChildOperationId: new AppendedParentsByChildOperationMap(
+			index.parentsByChildOperationId,
+			appendedOperations
+		),
+	};
+}
+
+class AppendedOperationByIdMap extends Map<string, OperationSnapshot> {
+	constructor(
+		private readonly base: Map<string, OperationSnapshot>,
+		private readonly appendedOperations: readonly OperationSnapshot[]
+	) {
+		super();
+	}
+
+	override get size(): number {
+		let size = this.base.size;
+		for (const operation of this.appendedOperations) {
+			if (!this.base.has(operation.id) && !super.has(operation.id)) {
+				size += 1;
+			}
+		}
+		return size + super.size;
+	}
+
+	override get(key: string): OperationSnapshot | undefined {
+		const local = super.get(key);
+		if (local !== undefined) {
+			return local;
+		}
+		for (const operation of this.appendedOperations) {
+			if (operation.id === key) {
+				return operation;
+			}
+		}
+		return this.base.get(key);
+	}
+
+	override has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	override *entries(): MapIterator<[string, OperationSnapshot]> {
+		const yieldedKeys = new Set<string>();
+		for (const [key, value] of this.base.entries()) {
+			if (!super.has(key)) {
+				yieldedKeys.add(key);
+				yield [key, value];
+			}
+		}
+		for (const operation of this.appendedOperations) {
+			if (!yieldedKeys.has(operation.id) && !super.has(operation.id)) {
+				yieldedKeys.add(operation.id);
+				yield [operation.id, operation];
+			}
+		}
+		for (const [key, value] of super.entries()) {
+			if (!yieldedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	override [Symbol.iterator](): MapIterator<[string, OperationSnapshot]> {
+		return this.entries();
+	}
+}
+
+class AppendedOperationByTranscriptEntryMap extends Map<string, OperationSnapshot> {
+	constructor(
+		private readonly base: Map<string, OperationSnapshot>,
+		private readonly appendedOperations: readonly OperationSnapshot[]
+	) {
+		super();
+	}
+
+	override get size(): number {
+		let size = this.base.size;
+		for (const operation of this.appendedOperations) {
+			if (
+				operation.source_link.kind === "transcript_linked" &&
+				!this.base.has(operation.source_link.entry_id) &&
+				!super.has(operation.source_link.entry_id)
+			) {
+				size += 1;
+			}
+		}
+		return size + super.size;
+	}
+
+	override get(key: string): OperationSnapshot | undefined {
+		const local = super.get(key);
+		if (local !== undefined) {
+			return local;
+		}
+		for (const operation of this.appendedOperations) {
+			if (
+				operation.source_link.kind === "transcript_linked" &&
+				operation.source_link.entry_id === key
+			) {
+				return operation;
+			}
+		}
+		return this.base.get(key);
+	}
+
+	override has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	override *entries(): MapIterator<[string, OperationSnapshot]> {
+		const yieldedKeys = new Set<string>();
+		for (const [key, value] of this.base.entries()) {
+			if (!super.has(key)) {
+				yieldedKeys.add(key);
+				yield [key, value];
+			}
+		}
+		for (const operation of this.appendedOperations) {
+			if (
+				operation.source_link.kind === "transcript_linked" &&
+				!yieldedKeys.has(operation.source_link.entry_id) &&
+				!super.has(operation.source_link.entry_id)
+			) {
+				yieldedKeys.add(operation.source_link.entry_id);
+				yield [operation.source_link.entry_id, operation];
+			}
+		}
+		for (const [key, value] of super.entries()) {
+			if (!yieldedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	override [Symbol.iterator](): MapIterator<[string, OperationSnapshot]> {
+		return this.entries();
+	}
+}
+
+class AppendedParentsByChildOperationMap extends Map<string, OperationSnapshot[]> {
+	constructor(
+		private readonly base: Map<string, OperationSnapshot[]>,
+		private readonly appendedOperations: readonly OperationSnapshot[]
+	) {
+		super();
+	}
+
+	override get(key: string): OperationSnapshot[] | undefined {
+		const local = super.get(key);
+		const baseParents = this.base.get(key);
+		const appendedParents = this.appendedOperations.filter((operation) =>
+			operation.child_operation_ids.includes(key)
+		);
+		if (local === undefined && appendedParents.length === 0) {
+			return baseParents;
+		}
+		return [...(baseParents ?? []), ...(local ?? []), ...appendedParents];
+	}
+
+	override has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	override *entries(): MapIterator<[string, OperationSnapshot[]]> {
+		const yieldedKeys = new Set<string>();
+		for (const [key] of this.base.entries()) {
+			const parents = this.get(key);
+			if (parents !== undefined) {
+				yieldedKeys.add(key);
+				yield [key, parents];
+			}
+		}
+		for (const operation of this.appendedOperations) {
+			for (const childOperationId of operation.child_operation_ids) {
+				if (!yieldedKeys.has(childOperationId)) {
+					const parents = this.get(childOperationId);
+					if (parents !== undefined) {
+						yieldedKeys.add(childOperationId);
+						yield [childOperationId, parents];
+					}
+				}
+			}
+		}
+		for (const [key, value] of super.entries()) {
+			if (!yieldedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	override [Symbol.iterator](): MapIterator<[string, OperationSnapshot[]]> {
+		return this.entries();
+	}
 }
 
 function replaceOperationInIndex(
