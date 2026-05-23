@@ -225,6 +225,64 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			markdown: "Second",
 		});
 	});
+
+	it("keeps the cached scene entry index valid after stable scene truncation", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "First patched",
+					displayText: "First patched",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, firstAssistantEntry, removedAssistantEntry],
+		});
+
+		const truncatedEntries = readModel.apply({
+			model,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: [userEntry, firstAssistantEntry],
+		});
+
+		expect(truncatedEntries).toHaveLength(2);
+		expect(truncatedEntries[0]).toBe(userEntry);
+		expect(truncatedEntries[1]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First patched",
+		});
+	});
 });
 
 describe("buildAgentPanelBaseModel row projection", () => {
@@ -609,5 +667,65 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		});
 
 		expect(repeatedProjection).toBe(appendedProjection);
+	});
+
+	it("truncates display rows without rebuilding preserved rows", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const removedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Removed",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry, removedAssistantEntry],
+			transcriptRevision: 1,
+		});
+
+		const truncatedProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, assistantEntry],
+			transcriptRevision: 1,
+		});
+
+		expect(truncatedProjection.rows).toHaveLength(2);
+		expect(truncatedProjection.rows[0]).toBe(firstProjection.rows[0]);
+		expect(truncatedProjection.rows[1]).toBe(firstProjection.rows[1]);
+		expect(truncatedProjection.hasLiveTail).toBe(true);
+	});
+
+	it("reuses display row projection when only non-display tail entries are removed", () => {
+		const readModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const interactionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:question-1",
+			type: "tool_call",
+			title: "Question",
+			status: "running",
+		};
+		const firstProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry, interactionEntry],
+			transcriptRevision: 1,
+		});
+
+		const truncatedProjection = readModel.applySnapshot({
+			sceneEntries: [userEntry],
+			transcriptRevision: 1,
+		});
+
+		expect(truncatedProjection).toBe(firstProjection);
 	});
 });

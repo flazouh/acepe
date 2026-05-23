@@ -10,7 +10,10 @@ import type { SessionGraphActivity, SessionTurnState } from "$lib/services/acp-t
 import type { AgentPanelCanonicalSource } from "../../../session-state/agent-panel-canonical-source.js";
 import type { TurnState } from "../../../store/types.js";
 import { getPreparingThreadLabel } from "./agent-panel-header-labels.js";
-import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
+import {
+	isStableSceneEntryAppend,
+	isStableSceneEntryTruncation,
+} from "./scene-entry-stability.js";
 import { mapCanonicalSessionToPanelStatus } from "./session-status-mapper.js";
 
 export type AgentPanelDisplayRow =
@@ -195,6 +198,26 @@ export function createAgentPanelDisplayRowsReadModel(): AgentPanelDisplayRowsRea
 				return previousProjection;
 			}
 
+			if (
+				previousSceneEntries !== null &&
+				isStableDisplaySceneTruncation(previousSceneEntries, sceneEntries)
+			) {
+				const nextRowCount = countDisplayRows(sceneEntries);
+				if (nextRowCount === previousProjection.rows.length) {
+					previousSceneEntries = sceneEntries;
+					previousTranscriptRevision = transcriptRevision;
+					return previousProjection;
+				}
+				const rows = previousProjection.rows.slice(0, nextRowCount);
+				previousProjection = {
+					rows,
+					hasLiveTail: rows.some((row) => row.type === "assistant" && row.isLiveTail),
+				};
+				previousSceneEntries = sceneEntries;
+				previousTranscriptRevision = transcriptRevision;
+				return previousProjection;
+			}
+
 			previousProjection = createRowsFromScene(sceneEntries, transcriptRevision);
 			previousSceneEntries = sceneEntries;
 			previousTranscriptRevision = transcriptRevision;
@@ -265,6 +288,33 @@ function isStableDisplaySceneAppend(
 	}
 
 	return true;
+}
+
+function isStableDisplaySceneTruncation(
+	previous: readonly AgentPanelSceneEntryModel[],
+	next: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (next.length >= previous.length) {
+		return false;
+	}
+
+	for (let index = 0; index < next.length; index += 1) {
+		if (!isDisplaySceneEntryStable(previous[index], next[index])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function countDisplayRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): number {
+	let count = 0;
+	for (const entry of sceneEntries) {
+		if (entry.type === "user" || entry.type === "assistant") {
+			count += 1;
+		}
+	}
+	return count;
 }
 
 function isDisplaySceneEntryStable(
@@ -945,6 +995,15 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 						previousSceneEntries.length,
 						previousSceneEntries.length
 					);
+				} else if (
+					previousSceneEntries !== null &&
+					isStableSceneEntryTruncation(previousSceneEntries, sceneEntries)
+				) {
+					removeTruncatedSceneEntryIndexes(
+						sceneEntryIndexesById,
+						previousSceneEntries,
+						sceneEntries.length
+					);
 				} else {
 					sceneEntryIndexesById = buildSceneEntryIndexes(sceneEntries);
 				}
@@ -991,6 +1050,20 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			return displayedEntries;
 		},
 	};
+}
+
+function removeTruncatedSceneEntryIndexes(
+	indexesById: Map<string, number>,
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): void {
+	for (let entryIndex = startIndex; entryIndex < previousSceneEntries.length; entryIndex += 1) {
+		const entry = previousSceneEntries[entryIndex];
+		if (entry === undefined) {
+			continue;
+		}
+		indexesById.delete(entry.id);
+	}
 }
 
 function buildSceneEntryIndexes(
