@@ -72,10 +72,10 @@ export type SessionStateCommand =
 	| {
 			kind: "applyGraphPatches";
 			revision: SessionGraphRevision;
-			activity: SessionGraphActivity;
-			turnState: SessionTurnState;
-			activeTurnFailure: TurnFailureSnapshot | null;
-			lastTerminalTurnId: string | null;
+			activity: SessionGraphActivity | undefined;
+			turnState: SessionTurnState | undefined;
+			activeTurnFailure: TurnFailureSnapshot | null | undefined;
+			lastTerminalTurnId: string | null | undefined;
 			activeStreamingTail: ActiveStreamingTail | null | undefined;
 			operationPatches: OperationSnapshot[];
 			interactionPatches: InteractionSnapshot[];
@@ -262,10 +262,14 @@ export function routeSessionStateEnvelope(
 				commands.push({
 					kind: "applyGraphPatches",
 					revision: envelope.payload.delta.toRevision,
-					activity: envelope.payload.delta.activity,
-					turnState: envelope.payload.delta.turnState,
-					activeTurnFailure: envelope.payload.delta.activeTurnFailure ?? null,
-					lastTerminalTurnId: envelope.payload.delta.lastTerminalTurnId ?? null,
+					activity: includesActivity ? envelope.payload.delta.activity : undefined,
+					turnState: includesTurnState ? envelope.payload.delta.turnState : undefined,
+					activeTurnFailure: includesActiveTurnFailure
+						? (envelope.payload.delta.activeTurnFailure ?? null)
+						: undefined,
+					lastTerminalTurnId: includesLastTerminalTurnId
+						? (envelope.payload.delta.lastTerminalTurnId ?? null)
+						: undefined,
 					activeStreamingTail: includesActiveStreamingTail
 						? (envelope.payload.delta.activeStreamingTail ?? null)
 						: undefined,

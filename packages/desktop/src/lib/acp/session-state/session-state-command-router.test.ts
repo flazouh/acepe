@@ -16,6 +16,45 @@ const runningOperationActivity: SessionGraphActivity = {
 	blockingInteractionId: null,
 };
 
+function createTestOperationSnapshot(): OperationSnapshot {
+	return {
+		id: "op:session-1:tool-1",
+		session_id: "session-1",
+		tool_call_id: "tool-1",
+		name: "Bash",
+		kind: "execute",
+		provider_status: "in_progress",
+		title: "Run",
+		arguments: {
+			kind: "execute",
+			command: "pwd",
+		},
+		progressive_arguments: null,
+		result: null,
+		command: "pwd",
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+		operation_provenance_key: "tool-1",
+		operation_state: "running",
+		locations: null,
+		skill_meta: null,
+		normalized_questions: null,
+		question_answer: null,
+		awaiting_plan_approval: false,
+		plan_approval_request_id: null,
+		started_at_ms: null,
+		completed_at_ms: null,
+		source_link: {
+			kind: "transcript_linked",
+			entry_id: "tool-1",
+		},
+		degradation_reason: null,
+	};
+}
+
 describe("routeSessionStateEnvelope", () => {
 	it("rejects envelopes for a different session before routing patches", () => {
 		const envelope: SessionStateEnvelope = {
@@ -83,42 +122,7 @@ describe("routeSessionStateEnvelope", () => {
 	});
 
 	it("routes operation patches before matching transcript tool rows", () => {
-		const operation: OperationSnapshot = {
-			id: "op:session-1:tool-1",
-			session_id: "session-1",
-			tool_call_id: "tool-1",
-			name: "Bash",
-			kind: "execute",
-			provider_status: "in_progress",
-			title: "Run",
-			arguments: {
-				kind: "execute",
-				command: "pwd",
-			},
-			progressive_arguments: null,
-			result: null,
-			command: "pwd",
-			normalized_todos: null,
-			parent_tool_call_id: null,
-			parent_operation_id: null,
-			child_tool_call_ids: [],
-			child_operation_ids: [],
-			operation_provenance_key: "tool-1",
-			operation_state: "running",
-			locations: null,
-			skill_meta: null,
-			normalized_questions: null,
-			question_answer: null,
-			awaiting_plan_approval: false,
-			plan_approval_request_id: null,
-			started_at_ms: null,
-			completed_at_ms: null,
-			source_link: {
-				kind: "transcript_linked",
-				entry_id: "tool-1",
-			},
-			degradation_reason: null,
-		};
+		const operation = createTestOperationSnapshot();
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 8,
@@ -410,12 +414,73 @@ describe("routeSessionStateEnvelope", () => {
 					transcriptRevision: 4,
 					lastEventSeq: 9,
 				},
-				activity: runningOperationActivity,
-				turnState: "Running",
-				activeTurnFailure: null,
-				lastTerminalTurnId: null,
+				activity: undefined,
+				turnState: undefined,
+				activeTurnFailure: undefined,
+				lastTerminalTurnId: undefined,
 				activeStreamingTail: { rowId: "assistant-1", contentKind: "message" },
 				operationPatches: [],
+				interactionPatches: [],
+			},
+		]);
+	});
+
+	it("keeps unchanged graph scalars out of operation-only patch commands", () => {
+		const operation = createTestOperationSnapshot();
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 4,
+						lastEventSeq: 8,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 4,
+						lastEventSeq: 9,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [operation],
+					interactionPatches: [],
+					changedFields: ["operations"],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 6,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "applyGraphPatches",
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 9,
+				},
+				activity: undefined,
+				turnState: undefined,
+				activeTurnFailure: undefined,
+				lastTerminalTurnId: undefined,
+				activeStreamingTail: undefined,
+				operationPatches: [operation],
 				interactionPatches: [],
 			},
 		]);

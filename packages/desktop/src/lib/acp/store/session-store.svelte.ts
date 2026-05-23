@@ -741,10 +741,10 @@ export function mergeInteractionSnapshots(
 function graphWithPatches(input: {
 	readonly graph: SessionStateGraph;
 	readonly revision: SessionGraphRevision;
-	readonly activity: SessionGraphActivity;
-	readonly turnState: SessionTurnState;
-	readonly activeTurnFailure: TurnFailureSnapshot | null;
-	readonly lastTerminalTurnId: string | null;
+	readonly activity: SessionGraphActivity | undefined;
+	readonly turnState: SessionTurnState | undefined;
+	readonly activeTurnFailure: TurnFailureSnapshot | null | undefined;
+	readonly lastTerminalTurnId: string | null | undefined;
 	readonly activeStreamingTail: SessionStateGraph["activeStreamingTail"] | undefined;
 	readonly operationPatches: readonly OperationSnapshot[];
 	readonly interactionPatches: readonly InteractionSnapshot[];
@@ -767,16 +767,22 @@ function graphWithPatches(input: {
 			input.interactionPatches.length === 0
 				? input.graph.interactions
 				: mergeInteractionSnapshots(input.graph.interactions, input.interactionPatches),
-		turnState: input.turnState,
+		turnState: input.turnState ?? input.graph.turnState,
 		messageCount: input.graph.messageCount,
 		activeStreamingTail:
 			input.activeStreamingTail === undefined
 				? (input.graph.activeStreamingTail ?? null)
 				: input.activeStreamingTail,
-		activeTurnFailure: input.activeTurnFailure,
-		lastTerminalTurnId: input.lastTerminalTurnId,
+		activeTurnFailure:
+			input.activeTurnFailure === undefined
+				? input.graph.activeTurnFailure
+				: input.activeTurnFailure,
+		lastTerminalTurnId:
+			input.lastTerminalTurnId === undefined
+				? input.graph.lastTerminalTurnId
+				: input.lastTerminalTurnId,
 		lifecycle: input.graph.lifecycle,
-		activity: input.activity,
+		activity: input.activity ?? input.graph.activity,
 		capabilities: input.graph.capabilities,
 	};
 }
@@ -4816,13 +4822,22 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						})
 					);
 				}
-				const activeTurnFailure = mapProjectionTurnFailure(command.activeTurnFailure);
+				const activeTurnFailure =
+					command.activeTurnFailure === undefined
+						? previousProjection.activeTurnFailure
+						: mapProjectionTurnFailure(command.activeTurnFailure);
+				const nextActivity = command.activity ?? previousProjection.activity;
+				const nextTurnState = command.turnState ?? previousProjection.turnState;
+				const nextLastTerminalTurnId =
+					command.lastTerminalTurnId === undefined
+						? previousProjection.lastTerminalTurnId
+						: command.lastTerminalTurnId;
 				this.canonicalProjections.set(sessionId, {
 					lifecycle: previousProjection.lifecycle,
-					activity: command.activity,
-					turnState: command.turnState,
+					activity: nextActivity,
+					turnState: nextTurnState,
 					activeTurnFailure,
-					lastTerminalTurnId: command.lastTerminalTurnId,
+					lastTerminalTurnId: nextLastTerminalTurnId,
 					activeStreamingTail:
 						command.activeStreamingTail === undefined
 							? previousProjection.activeStreamingTail
@@ -4849,18 +4864,18 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				this.applyCanonicalTerminalTurnSideEffects({
 					sessionId,
 					previousProjection,
-					turnState: command.turnState,
+					turnState: nextTurnState,
 					activeTurnFailure,
-					projectedFailure: command.activeTurnFailure,
-					lastTerminalTurnId: command.lastTerminalTurnId,
+					projectedFailure: command.activeTurnFailure ?? null,
+					lastTerminalTurnId: nextLastTerminalTurnId,
 				});
 				this.reconcileConnectionMachineFromCanonicalState(
 					sessionId,
 					previousProjection.lifecycle,
-					command.turnState,
+					nextTurnState,
 					activeTurnFailure
 				);
-				this.syncAwaitingModelRefreshTimer(sessionId, command.activity, command.turnState);
+				this.syncAwaitingModelRefreshTimer(sessionId, nextActivity, nextTurnState);
 				continue;
 			}
 
