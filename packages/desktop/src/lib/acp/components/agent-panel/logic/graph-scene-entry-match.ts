@@ -281,7 +281,11 @@ class PatchedSceneEntryMap implements ReadonlyMap<string, AgentPanelSceneEntryMo
 		private readonly base: ReadonlyMap<string, AgentPanelSceneEntryModel>,
 		patchedEntries: readonly AgentPanelSceneEntryModel[]
 	) {
-		this.patchedEntriesById = new Map(patchedEntries.map((entry) => [entry.id, entry]));
+		const patchedEntriesById = new Map<string, AgentPanelSceneEntryModel>();
+		for (const entry of patchedEntries) {
+			patchedEntriesById.set(entry.id, entry);
+		}
+		this.patchedEntriesById = patchedEntriesById;
 	}
 
 	get size(): number {

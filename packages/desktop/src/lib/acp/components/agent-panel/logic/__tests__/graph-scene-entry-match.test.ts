@@ -5,6 +5,7 @@ import {
 	type AgentPanelDisplayModel,
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
+	getAgentPanelDisplayScenePatch,
 } from "../agent-panel-display-model.js";
 import {
 	createGraphSceneEntryIndex,
@@ -388,5 +389,63 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect([...patchedIndex.keys()]).toEqual(["assistant-1"]);
 		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
 		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
+	});
+
+	it("indexes display-patched entries without mapping the patch list", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		readModel.getIndex(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const patchedEntries = applyAgentPanelDisplayModelToSceneEntries(
+			model,
+			createAgentPanelDisplayMemory(),
+			baseEntries
+		);
+		const patch = getAgentPanelDisplayScenePatch(patchedEntries);
+		expect(patch).toBeDefined();
+		const originalMap = patch?.entries.map;
+		if (patch !== undefined) {
+			patch.entries.map = () => {
+				throw new Error("must not map display patches while indexing scene entries");
+			};
+		}
+
+		try {
+			const patchedIndex = readModel.getIndex(patchedEntries);
+
+			expect(patchedIndex.get("assistant-1")).toMatchObject({
+				id: "assistant-1",
+				markdown: "Answer",
+			});
+		} finally {
+			if (patch !== undefined && originalMap !== undefined) {
+				patch.entries.map = originalMap;
+			}
+		}
 	});
 });
