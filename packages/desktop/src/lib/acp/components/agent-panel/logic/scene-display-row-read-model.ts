@@ -8,6 +8,7 @@ import {
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
 import {
+	findStableSceneEntryInsertion,
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
@@ -98,6 +99,31 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				if (truncatedRows !== null) {
 					previousRows = truncatedRows;
 					latestTimestampMs = selectLatestTimestampMsFrom(previousRows, 0);
+					previousSceneEntries = sceneEntries;
+					return previousRows;
+				}
+			}
+
+			if (previousSceneEntries !== null) {
+				const insertion = findStableSceneEntryInsertion(previousSceneEntries, sceneEntries);
+				const insertedRows =
+					insertion === null
+						? null
+						: patchInsertedSceneDisplayRows(
+								previousSceneEntries,
+								sceneEntries,
+								previousRows,
+								rowIndexBySceneEntryId,
+								insertion.startIndex,
+								insertion.insertedCount
+							);
+				if (insertedRows !== null) {
+					previousRows = insertedRows.rows;
+					latestTimestampMs = selectLatestTimestampMsFrom(
+						previousRows,
+						insertedRows.firstChangedRowIndex,
+						latestTimestampMs
+					);
 					previousSceneEntries = sceneEntries;
 					return previousRows;
 				}
@@ -199,6 +225,71 @@ function truncateStableSceneDisplayRows(
 		rowIndexBySceneEntryId.delete(entryId);
 	}
 	return previousRows.slice(0, firstRemovedRowIndex);
+}
+
+function patchInsertedSceneDisplayRows(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: Map<string, number>,
+	startIndex: number,
+	insertedCount: number
+): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
+	const previousEntry = previousSceneEntries[startIndex - 1];
+	const firstInsertedEntry = sceneEntries[startIndex];
+	const nextExistingEntry = previousSceneEntries[startIndex];
+	const canMergeWithPreviousAssistant =
+		previousEntry?.type === "assistant" && firstInsertedEntry?.type === "assistant";
+	const canMergeWithNextAssistant =
+		firstInsertedEntry?.type === "assistant" && nextExistingEntry?.type === "assistant";
+	if (!canMergeWithPreviousAssistant && !canMergeWithNextAssistant) {
+		const firstInsertedRowIndex =
+			startIndex >= previousSceneEntries.length
+				? previousRows.length
+				: rowIndexBySceneEntryId.get(nextExistingEntry?.id ?? "");
+		if (firstInsertedRowIndex === undefined) {
+			return null;
+		}
+
+		const insertedRows = buildSceneDisplayRows(
+			sceneEntries.slice(startIndex, startIndex + insertedCount)
+		);
+		const rows = previousRows
+			.slice(0, firstInsertedRowIndex)
+			.concat(insertedRows, previousRows.slice(firstInsertedRowIndex));
+		indexRowsBySceneEntryId(rowIndexBySceneEntryId, rows, firstInsertedRowIndex);
+		return {
+			rows,
+			firstChangedRowIndex: firstInsertedRowIndex,
+		};
+	}
+
+	const rebuildSceneIndex = canMergeWithPreviousAssistant ? Math.max(0, startIndex - 1) : startIndex;
+	const firstRebuiltRowIndex =
+		rebuildSceneIndex === 0
+			? 0
+			: rowIndexBySceneEntryId.get(previousSceneEntries[rebuildSceneIndex]?.id ?? "");
+	if (firstRebuiltRowIndex === undefined) {
+		return null;
+	}
+
+	for (let index = rebuildSceneIndex; index < previousSceneEntries.length; index += 1) {
+		const entry = previousSceneEntries[index];
+		if (entry !== undefined) {
+			rowIndexBySceneEntryId.delete(entry.id);
+		}
+	}
+
+	const rows = appendSceneDisplayRowsFromIndex(
+		previousRows.slice(0, firstRebuiltRowIndex),
+		sceneEntries,
+		rebuildSceneIndex
+	);
+	indexRowsBySceneEntryId(rowIndexBySceneEntryId, rows, firstRebuiltRowIndex);
+	return {
+		rows,
+		firstChangedRowIndex: firstRebuiltRowIndex,
+	};
 }
 
 function patchSameLengthSceneDisplayRows(

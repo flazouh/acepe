@@ -1,6 +1,7 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 import {
+	findStableSceneEntryInsertion,
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
@@ -145,6 +146,23 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				}
 			}
 
+			if (previousSceneEntries !== null) {
+				const insertion = findStableSceneEntryInsertion(previousSceneEntries, sceneEntries);
+				if (insertion !== null) {
+					const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+					entriesById = mutableEntriesById;
+					patchInsertedGraphSceneEntries(
+						mutableEntriesById,
+						entryIndexesById,
+						sceneEntries,
+						insertion.startIndex,
+						insertion.insertedCount
+					);
+					previousSceneEntries = sceneEntries;
+					return entriesById;
+				}
+			}
+
 			const nextEntriesById = new Map<string, AgentPanelSceneEntryModel>();
 			entriesById = nextEntriesById;
 			entryIndexesById = new Map();
@@ -208,6 +226,25 @@ function patchSameLengthGraphSceneEntries(
 	}
 
 	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
+}
+
+function patchInsertedGraphSceneEntries(
+	entriesById: Map<string, AgentPanelSceneEntryModel>,
+	entryIndexesById: Map<string, number>,
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number,
+	insertedCount: number
+): void {
+	for (let index = startIndex; index < sceneEntries.length; index += 1) {
+		const entry = sceneEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
+		if (index < startIndex + insertedCount) {
+			entriesById.set(entry.id, entry);
+		}
+		entryIndexesById.set(entry.id, index);
+	}
 }
 
 function removeTruncatedGraphSceneEntries(

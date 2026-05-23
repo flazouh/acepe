@@ -148,4 +148,48 @@ describe("createAgentPanelSceneReadModel", () => {
 			nextToolEntry
 		);
 	});
+
+	it("patches stable transcript insertion before a pending interaction", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const interactionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:question-1",
+			type: "tool_call",
+			interactionId: "question-1",
+			title: "Question",
+			status: "running",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			timestampMs: 20,
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, interactionEntry]);
+
+		const patchedSnapshot = readModel.applySnapshot([
+			userEntry,
+			assistantEntry,
+			interactionEntry,
+		]);
+
+		expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+			"user-1",
+			"assistant-1",
+			"interaction:question-1",
+		]);
+		expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+		expect(patchedSnapshot.rows[2]).toBe(firstSnapshot.rows[1]);
+		expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+		expect(patchedSnapshot.entriesById.get("assistant-1")).toBe(assistantEntry);
+		expect(patchedSnapshot.entriesById.get("interaction:question-1")).toBe(interactionEntry);
+		expect(readModel.selectGraphEntryForDisplayEntry(patchedSnapshot.rows[2])).toBe(
+			interactionEntry
+		);
+	});
 });

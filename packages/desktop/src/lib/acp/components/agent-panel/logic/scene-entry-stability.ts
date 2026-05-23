@@ -34,6 +34,40 @@ export function isStableSceneEntryTruncation(
 	return true;
 }
 
+export type StableSceneEntryInsertion = {
+	readonly startIndex: number;
+	readonly insertedCount: number;
+};
+
+export function findStableSceneEntryInsertion(
+	previous: readonly AgentPanelSceneEntryModel[],
+	next: readonly AgentPanelSceneEntryModel[]
+): StableSceneEntryInsertion | null {
+	if (next.length <= previous.length) {
+		return null;
+	}
+
+	let startIndex = 0;
+	while (
+		startIndex < previous.length &&
+		isSceneEntryStable(previous[startIndex], next[startIndex])
+	) {
+		startIndex += 1;
+	}
+
+	const insertedCount = next.length - previous.length;
+	for (let index = startIndex; index < previous.length; index += 1) {
+		if (!isSceneEntryStable(previous[index], next[index + insertedCount])) {
+			return null;
+		}
+	}
+
+	return {
+		startIndex,
+		insertedCount,
+	};
+}
+
 export function isSceneEntryStable(
 	previous: AgentPanelSceneEntryModel | undefined,
 	next: AgentPanelSceneEntryModel | undefined

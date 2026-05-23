@@ -244,7 +244,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(nextIndex.get("assistant-1")).toBe(nextAssistantEntry);
 	});
 
-	it("rebuilds the index when an existing scene entry object changes", () => {
+	it("patches the index when an existing scene entry object changes", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const firstEntry: AgentPanelSceneEntryModel = {
 			id: "tool-1",
@@ -262,8 +262,38 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 
 		const nextIndex = readModel.getIndex([changedEntry]);
 
-		expect(nextIndex).not.toBe(firstIndex);
+		expect(nextIndex).toBe(firstIndex);
 		expect(nextIndex.get("tool-1")).toBe(changedEntry);
+	});
+
+	it("patches stable middle insertions without rebuilding the graph entry index", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const interactionEntry: AgentPanelSceneEntryModel = {
+			id: "interaction:question-1",
+			type: "tool_call",
+			title: "Question",
+			status: "running",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+		};
+		const firstIndex = readModel.getIndex([userEntry, interactionEntry]);
+
+		const nextIndex = readModel.getIndex([userEntry, assistantEntry, interactionEntry]);
+
+		expect(nextIndex).toBe(firstIndex);
+		expect(nextIndex.get("user-1")).toBe(userEntry);
+		expect(nextIndex.get("assistant-1")).toBe(assistantEntry);
+		expect(nextIndex.get("interaction:question-1")).toBe(interactionEntry);
+		expect(readModel.selectEntryIndexById("assistant-1")).toBe(1);
+		expect(readModel.selectEntryIndexById("interaction:question-1")).toBe(2);
 	});
 
 	it("patches and restores token reveal entries without rebuilding indexes", () => {
