@@ -106,6 +106,66 @@ function createPendingPermissionInteraction(
 	};
 }
 
+function createPendingQuestionInteraction(
+	sessionId: string,
+	toolCallId: string
+): InteractionSnapshot {
+	return {
+		id: "question-1",
+		session_id: sessionId,
+		kind: "Question",
+		state: "Pending",
+		json_rpc_request_id: 102,
+		reply_handler: null,
+		tool_reference: {
+			messageId: toolCallId,
+			callId: toolCallId,
+		},
+		responded_at_event_seq: null,
+		response: null,
+		canonical_operation_id: `op-${toolCallId}`,
+		payload: {
+			Question: {
+				id: "question-1",
+				sessionId,
+				jsonRpcRequestId: 102,
+				replyHandler: null,
+				questions: [],
+				tool: {
+					messageId: toolCallId,
+					callId: toolCallId,
+				},
+			},
+		},
+	};
+}
+
+function createPendingPlanApprovalInteraction(
+	sessionId: string,
+	toolCallId: string
+): InteractionSnapshot {
+	return {
+		id: "approval-1",
+		session_id: sessionId,
+		kind: "PlanApproval",
+		state: "Pending",
+		json_rpc_request_id: 103,
+		reply_handler: null,
+		tool_reference: {
+			messageId: toolCallId,
+			callId: toolCallId,
+		},
+		responded_at_event_seq: null,
+		response: null,
+		canonical_operation_id: `op-${toolCallId}`,
+		payload: {
+			PlanApproval: {
+				source: "CreatePlan",
+			},
+		},
+	};
+}
+
 describe("operation association", () => {
 	it("prefers explicit tool references over semantic fallback", () => {
 		const operationStore = new OperationStore();
@@ -212,12 +272,9 @@ describe("operation association", () => {
 	it("does not choose the first pending question when no operation match exists", () => {
 		const operationStore = new OperationStore();
 		const interactions = new InteractionStore();
-		interactions.questionsPending.set("question-1", {
-			id: "question-1",
-			sessionId: "session-1",
-			questions: [],
-			tool: { messageID: "", callID: "missing-tool" },
-		});
+		interactions.applySessionInteractionPatches([
+			createPendingQuestionInteraction("session-1", "missing-tool"),
+		]);
 
 		const snapshot = buildSessionOperationInteractionSnapshot(
 			"session-1",
@@ -232,10 +289,9 @@ describe("operation association", () => {
 	it("does not choose the first pending permission when no operation match exists", () => {
 		const operationStore = new OperationStore();
 		const interactions = new InteractionStore();
-		interactions.permissionsPending.set(
-			"permission-1",
-			createExecutePermission("session-1", "missing-tool", "git status")
-		);
+		interactions.applySessionInteractionPatches([
+			createPendingPermissionInteraction("session-1", "missing-tool"),
+		]);
 
 		const snapshot = buildSessionOperationInteractionSnapshot(
 			"session-1",
@@ -277,19 +333,53 @@ describe("operation association", () => {
 		}
 	});
 
+	it("does not scan global pending interactions for sessions without pending input", () => {
+		const interactions = new InteractionStore();
+		interactions.applySessionInteractionPatches([
+			createPendingQuestionInteraction("other-session", "other-tool"),
+			createPendingPermissionInteraction("other-session", "other-tool"),
+			createPendingPlanApprovalInteraction("other-session", "other-tool"),
+		]);
+		const questionValues = interactions.questionsPending.values.bind(interactions.questionsPending);
+		const permissionValues = interactions.permissionsPending.values.bind(
+			interactions.permissionsPending
+		);
+		const approvalValues = interactions.planApprovalsPending.values.bind(
+			interactions.planApprovalsPending
+		);
+		(interactions.questionsPending as unknown as { values: () => IterableIterator<QuestionRequest> }).values =
+			() => {
+				throw new Error("question selector must not scan all pending questions");
+			};
+		(interactions.permissionsPending as unknown as { values: () => IterableIterator<PermissionRequest> }).values =
+			() => {
+				throw new Error("permission selector must not scan all pending permissions");
+			};
+		(interactions.planApprovalsPending as unknown as { values: () => IterableIterator<PlanApprovalInteraction> }).values =
+			() => {
+				throw new Error("approval selector must not scan all pending approvals");
+			};
+
+		try {
+			expect(interactions.getPendingQuestionsForSession("session-1")).toEqual([]);
+			expect(interactions.getPendingPermissionsForSession("session-1")).toEqual([]);
+			expect(interactions.getPendingPlanApprovalsForSession("session-1")).toEqual([]);
+		} finally {
+			(interactions.questionsPending as unknown as { values: typeof questionValues }).values =
+				questionValues;
+			(interactions.permissionsPending as unknown as { values: typeof permissionValues }).values =
+				permissionValues;
+			(interactions.planApprovalsPending as unknown as { values: typeof approvalValues }).values =
+				approvalValues;
+		}
+	});
+
 	it("does not choose the first pending plan approval when no operation match exists", () => {
 		const operationStore = new OperationStore();
 		const interactions = new InteractionStore();
-		interactions.planApprovalsPending.set("approval-1", {
-			id: "approval-1",
-			kind: "plan_approval",
-			source: "create_plan",
-			sessionId: "session-1",
-			tool: { messageID: "", callID: "missing-tool" },
-			jsonRpcRequestId: 10,
-			replyHandler: { kind: "json-rpc", requestId: 10 },
-			status: "pending",
-		});
+		interactions.applySessionInteractionPatches([
+			createPendingPlanApprovalInteraction("session-1", "missing-tool"),
+		]);
 
 		const snapshot = buildSessionOperationInteractionSnapshot(
 			"session-1",

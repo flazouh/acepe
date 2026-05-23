@@ -24,6 +24,7 @@ import {
 } from "../types/reply-handler.js";
 
 const INTERACTION_STORE_KEY = Symbol("interaction-store");
+const EMPTY_PENDING_INTERACTIONS: readonly never[] = Object.freeze([]);
 
 export class InteractionStore {
 	readonly permissionsPending = new SvelteMap<string, PermissionRequest>();
@@ -39,6 +40,15 @@ export class InteractionStore {
 	private readonly pendingPlanApprovalsBySession = new Map<
 		string,
 		Map<string, PlanApprovalInteraction>
+	>();
+	private readonly pendingPermissionValuesBySession = new Map<
+		string,
+		readonly PermissionRequest[]
+	>();
+	private readonly pendingQuestionValuesBySession = new Map<string, readonly QuestionRequest[]>();
+	private readonly pendingPlanApprovalValuesBySession = new Map<
+		string,
+		readonly PlanApprovalInteraction[]
 	>();
 
 	setPlanApprovalStatus(interactionId: string, status: PlanApprovalInteraction["status"]): void {
@@ -63,35 +73,26 @@ export class InteractionStore {
 	}
 
 	getPendingQuestionsForSession(sessionId: string): readonly QuestionRequest[] {
-		const indexed = this.pendingQuestionsBySession.get(sessionId);
-		if (indexed !== undefined) {
-			return Array.from(indexed.values());
-		}
-
-		return Array.from(this.questionsPending.values()).filter(
-			(question) => question.sessionId === sessionId
+		return readSessionIndexValues(
+			this.pendingQuestionsBySession,
+			this.pendingQuestionValuesBySession,
+			sessionId
 		);
 	}
 
 	getPendingPermissionsForSession(sessionId: string): readonly PermissionRequest[] {
-		const indexed = this.pendingPermissionsBySession.get(sessionId);
-		if (indexed !== undefined) {
-			return Array.from(indexed.values());
-		}
-
-		return Array.from(this.permissionsPending.values()).filter(
-			(permission) => permission.sessionId === sessionId
+		return readSessionIndexValues(
+			this.pendingPermissionsBySession,
+			this.pendingPermissionValuesBySession,
+			sessionId
 		);
 	}
 
 	getPendingPlanApprovalsForSession(sessionId: string): readonly PlanApprovalInteraction[] {
-		const indexed = this.pendingPlanApprovalsBySession.get(sessionId);
-		if (indexed !== undefined) {
-			return Array.from(indexed.values());
-		}
-
-		return Array.from(this.planApprovalsPending.values()).filter(
-			(approval) => approval.sessionId === sessionId
+		return readSessionIndexValues(
+			this.pendingPlanApprovalsBySession,
+			this.pendingPlanApprovalValuesBySession,
+			sessionId
 		);
 	}
 
@@ -256,6 +257,7 @@ export class InteractionStore {
 			interactionId,
 			permission
 		);
+		this.pendingPermissionValuesBySession.delete(permission.sessionId);
 	}
 
 	private deletePendingPermission(interactionId: string): void {
@@ -269,6 +271,7 @@ export class InteractionStore {
 			existing.sessionId,
 			interactionId
 		);
+		this.pendingPermissionValuesBySession.delete(existing.sessionId);
 	}
 
 	private setPendingQuestion(interactionId: string, question: QuestionRequest): void {
@@ -278,6 +281,7 @@ export class InteractionStore {
 			interactionId,
 			question
 		);
+		this.pendingQuestionValuesBySession.delete(question.sessionId);
 	}
 
 	private deletePendingQuestion(interactionId: string): void {
@@ -287,6 +291,7 @@ export class InteractionStore {
 		}
 		this.questionsPending.delete(interactionId);
 		deleteSessionIndexEntry(this.pendingQuestionsBySession, existing.sessionId, interactionId);
+		this.pendingQuestionValuesBySession.delete(existing.sessionId);
 	}
 
 	private setPendingPlanApproval(
@@ -299,6 +304,7 @@ export class InteractionStore {
 			interactionId,
 			approval
 		);
+		this.pendingPlanApprovalValuesBySession.delete(approval.sessionId);
 	}
 
 	private deletePendingPlanApproval(interactionId: string): void {
@@ -312,6 +318,7 @@ export class InteractionStore {
 			existing.sessionId,
 			interactionId
 		);
+		this.pendingPlanApprovalValuesBySession.delete(existing.sessionId);
 	}
 
 	private buildQuestionRequest(
@@ -350,6 +357,26 @@ export class InteractionStore {
 
 		return {};
 	}
+}
+
+function readSessionIndexValues<T>(
+	index: Map<string, Map<string, T>>,
+	valuesBySession: Map<string, readonly T[]>,
+	sessionId: string
+): readonly T[] {
+	const cached = valuesBySession.get(sessionId);
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const sessionIndex = index.get(sessionId);
+	if (sessionIndex === undefined) {
+		return EMPTY_PENDING_INTERACTIONS;
+	}
+
+	const values = Array.from(sessionIndex.values());
+	valuesBySession.set(sessionId, values);
+	return values;
 }
 
 function toInteractionToolReference(
