@@ -129,6 +129,22 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return entriesById;
 			}
 
+			if (
+				previousSceneEntries !== null &&
+				previousSceneEntries.length === sceneEntries.length
+			) {
+				const mutableEntriesById = patchSameLengthGraphSceneEntries(
+					entriesById,
+					previousSceneEntries,
+					sceneEntries
+				);
+				if (mutableEntriesById !== null) {
+					entriesById = mutableEntriesById;
+					previousSceneEntries = sceneEntries;
+					return entriesById;
+				}
+			}
+
 			const nextEntriesById = new Map<string, AgentPanelSceneEntryModel>();
 			entriesById = nextEntriesById;
 			entryIndexesById = new Map();
@@ -165,6 +181,33 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return this.applySnapshot(sceneEntries);
 		},
 	};
+}
+
+function patchSameLengthGraphSceneEntries(
+	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): Map<string, AgentPanelSceneEntryModel> | null {
+	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
+	for (let index = 0; index < sceneEntries.length; index += 1) {
+		const previousEntry = previousSceneEntries[index];
+		const nextEntry = sceneEntries[index];
+		if (previousEntry === nextEntry) {
+			continue;
+		}
+		if (
+			previousEntry === undefined ||
+			nextEntry === undefined ||
+			previousEntry.id !== nextEntry.id ||
+			!entriesById.has(nextEntry.id)
+		) {
+			return null;
+		}
+		mutableEntriesById ??= ensureMutableSceneEntryMap(entriesById);
+		mutableEntriesById.set(nextEntry.id, nextEntry);
+	}
+
+	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
 }
 
 function removeTruncatedGraphSceneEntries(

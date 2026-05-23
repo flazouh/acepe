@@ -118,4 +118,34 @@ describe("createAgentPanelSceneReadModel", () => {
 			toolEntry
 		);
 	});
+
+	it("patches one graph entry without rebuilding the graph entry index", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "running",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, toolEntry]);
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			...toolEntry,
+			status: "done",
+		};
+
+		const patchedSnapshot = readModel.applySnapshot([userEntry, nextToolEntry]);
+
+		expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+		expect(patchedSnapshot.entriesById.get("user-1")).toBe(userEntry);
+		expect(patchedSnapshot.entriesById.get("tool-1")).toBe(nextToolEntry);
+		expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+		expect(readModel.selectGraphEntryForDisplayEntry(patchedSnapshot.rows[1])).toBe(
+			nextToolEntry
+		);
+	});
 });
