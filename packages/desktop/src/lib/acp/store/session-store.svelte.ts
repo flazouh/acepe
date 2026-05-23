@@ -3819,8 +3819,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		if (previousRow !== null && delta.revision <= previousRow.revision) {
 			return;
 		}
-		if (previousRow === null && delta.revision <= projection.revision.graphRevision) {
-			logger.debug("Ignoring stale assistant text delta before canonical graph frontier", {
+		if (delta.revision <= projection.revision.graphRevision) {
+			logger.debug("Ignoring stale assistant text delta behind canonical graph frontier", {
 				sessionId,
 				turnId: delta.turnId,
 				rowId: delta.rowId,
@@ -3843,30 +3843,28 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			return;
 		}
 
-			const nextText = `${currentText}${delta.deltaText}`;
-			const wordCounts = countAppendedMarkdownWords({
-				previousText: currentText,
-				previousWordCount: previousRow?.wordCount ?? 0,
-				deltaText: delta.deltaText,
-			});
-			const nextRow: RowTokenStream = {
-				turnId: delta.turnId,
-				rowId: delta.rowId,
-				accumulatedText: nextText,
-				wordCount: wordCounts.wordCount,
-				latestWordCount: wordCounts.latestWordCount,
-				firstDeltaProducedAtMonotonicMs:
-					previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
-				lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
-				revision: delta.revision,
-			};
-			const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
-			nextTokenStream.set(rowKey, nextRow);
-			const nextTokenStreamByRowId = new Map(
-				this.rowTokenStreamsByRowId.get(sessionId) ?? []
-			);
-			nextTokenStreamByRowId.set(delta.rowId, nextRow);
-			this.rowTokenStreamsByRowId.set(sessionId, nextTokenStreamByRowId);
+		const nextText = `${currentText}${delta.deltaText}`;
+		const wordCounts = countAppendedMarkdownWords({
+			previousText: currentText,
+			previousWordCount: previousRow?.wordCount ?? 0,
+			deltaText: delta.deltaText,
+		});
+		const nextRow: RowTokenStream = {
+			turnId: delta.turnId,
+			rowId: delta.rowId,
+			accumulatedText: nextText,
+			wordCount: wordCounts.wordCount,
+			latestWordCount: wordCounts.latestWordCount,
+			firstDeltaProducedAtMonotonicMs:
+				previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
+			lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
+			revision: delta.revision,
+		};
+		const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
+		nextTokenStream.set(rowKey, nextRow);
+		const nextTokenStreamByRowId = new Map(this.rowTokenStreamsByRowId.get(sessionId) ?? []);
+		nextTokenStreamByRowId.set(delta.rowId, nextRow);
+		this.rowTokenStreamsByRowId.set(sessionId, nextTokenStreamByRowId);
 		const nextClockAnchor =
 			projection.clockAnchor ??
 			({

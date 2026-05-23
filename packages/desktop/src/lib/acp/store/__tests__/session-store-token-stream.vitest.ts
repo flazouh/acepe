@@ -500,6 +500,62 @@ describe("SessionStore assistantTextDelta canonical projection", () => {
 		});
 	});
 
+	it("rejects late assistant text deltas for an existing row after the graph frontier advances", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope());
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: 0,
+				deltaText: "hello",
+				producedAtMonotonicMs: 1_000,
+				revision: 2,
+			})
+		);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: 10,
+						lastEventSeq: 10,
+					},
+					transcriptSnapshot: {
+						revision: 10,
+						entries: [],
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createAssistantTextDeltaEnvelope("session-1", {
+				turnId: "turn-1",
+				rowId: "assistant-1",
+				charOffset: "hello".length,
+				deltaText: " stale",
+				producedAtMonotonicMs: 1_100,
+				revision: 3,
+			})
+		);
+
+		expect(store.getRowTokenStream("session-1", "turn-1", "assistant-1")).toMatchObject({
+			accumulatedText: "hello",
+			revision: 2,
+		});
+		expect(store.getSessionGraphRevision("session-1")).toEqual({
+			graphRevision: 10,
+			transcriptRevision: 10,
+			lastEventSeq: 10,
+		});
+	});
+
 	it("produces identical canonical token streams when the same delta log is replayed", () => {
 		const liveStore = new SessionStore();
 		const replayStore = new SessionStore();
