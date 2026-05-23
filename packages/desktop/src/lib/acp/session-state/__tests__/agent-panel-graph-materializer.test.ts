@@ -558,6 +558,13 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not scan unchanged operation rows for an operation patch");
 			},
 		});
+		const originalMapIterator = Map.prototype[Symbol.iterator];
+		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
+				throw new Error("must not clone operation index maps for a stable operation patch");
+			}
+			return originalMapIterator.call(this);
+		};
 
 		try {
 			const nextScene = readModel.apply({
@@ -583,6 +590,7 @@ describe("agent panel graph materializer", () => {
 				stdout: "done",
 			});
 		} finally {
+			Map.prototype[Symbol.iterator] = originalMapIterator;
 			Object.defineProperty(operations, "0", {
 				configurable: true,
 				value: firstOperation,

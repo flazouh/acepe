@@ -75,6 +75,12 @@ interface OperationIndex {
 	readonly parentsByChildOperationId: Map<string, OperationSnapshot[]>;
 }
 
+type OperationIndexPatchResult = {
+	readonly operationIndex: OperationIndex;
+	readonly changedOperationIds: Set<string>;
+	readonly affectedEntryIds?: Set<string>;
+};
+
 function segmentText(entry: TranscriptEntry): string {
 	let text = "";
 	for (const segment of entry.segments) {
@@ -1379,11 +1385,17 @@ function materializeOperationPatchedConversation(
 		return null;
 	}
 
-	const operationPatch = applyOperationIndexPatch(
-		previous.operations,
-		input.graph.operations,
-		previous.operationIndex
-	);
+	const operationPatch =
+		applyStableMarkedOperationIndexPatchInPlace(
+			previous.operations,
+			input.graph.operations,
+			previous.operationIndex
+		) ??
+		applyOperationIndexPatch(
+			previous.operations,
+			input.graph.operations,
+			previous.operationIndex
+		);
 	if (operationPatch === null) {
 		return null;
 	}
@@ -1396,11 +1408,9 @@ function materializeOperationPatchedConversation(
 		};
 	}
 
-	const affectedEntryIds = collectAffectedTranscriptEntryIds(
-		previous.operationIndex,
-		operationIndex,
-		changedOperationIds
-	);
+	const affectedEntryIds =
+		operationPatch.affectedEntryIds ??
+		collectAffectedTranscriptEntryIds(previous.operationIndex, operationIndex, changedOperationIds);
 	if (affectedEntryIds.size === 0) {
 		return {
 			...previous,
@@ -1687,7 +1697,7 @@ function applyOperationIndexPatch(
 	previousOperations: readonly OperationSnapshot[],
 	nextOperations: readonly OperationSnapshot[],
 	previousIndex: OperationIndex
-): { operationIndex: OperationIndex; changedOperationIds: Set<string> } | null {
+): OperationIndexPatchResult | null {
 	if (nextOperations.length < previousOperations.length) {
 		return null;
 	}
@@ -1741,12 +1751,90 @@ function applyOperationIndexPatch(
 	};
 }
 
+function applyStableMarkedOperationIndexPatchInPlace(
+	previousOperations: readonly OperationSnapshot[],
+	nextOperations: readonly OperationSnapshot[],
+	previousIndex: OperationIndex
+): OperationIndexPatchResult | null {
+	const operationArrayPatch = getOperationSnapshotArrayPatch(nextOperations);
+	if (
+		operationArrayPatch?.baseOperations !== previousOperations ||
+		operationArrayPatch.appendedOperations !== null ||
+		operationArrayPatch.patchedOperationsByIndex === null
+	) {
+		return null;
+	}
+
+	const changedOperationIds = new Set<string>();
+	const operationsToPatch: OperationSnapshot[] = [];
+	for (const [index, nextOperation] of operationArrayPatch.patchedOperationsByIndex) {
+		const previousOperation = previousOperations[index];
+		if (previousOperation === undefined || previousOperation.id !== nextOperation.id) {
+			return null;
+		}
+		if (previousOperation === nextOperation) {
+			continue;
+		}
+		if (!canPatchOperationIndexInPlace(previousOperation, nextOperation)) {
+			return null;
+		}
+		changedOperationIds.add(nextOperation.id);
+		operationsToPatch.push(nextOperation);
+	}
+
+	if (changedOperationIds.size === 0) {
+		return {
+			operationIndex: previousIndex,
+			changedOperationIds,
+			affectedEntryIds: new Set(),
+		};
+	}
+
+	const affectedEntryIds = collectAffectedTranscriptEntryIds(
+		previousIndex,
+		previousIndex,
+		changedOperationIds
+	);
+	for (const nextOperation of operationsToPatch) {
+		previousIndex.byOperationId.set(nextOperation.id, nextOperation);
+		if (nextOperation.source_link.kind === "transcript_linked") {
+			previousIndex.byTranscriptSourceEntryId.set(
+				nextOperation.source_link.entry_id,
+				nextOperation
+			);
+		}
+	}
+
+	return {
+		operationIndex: previousIndex,
+		changedOperationIds,
+		affectedEntryIds,
+	};
+}
+
+function canPatchOperationIndexInPlace(
+	previousOperation: OperationSnapshot,
+	nextOperation: OperationSnapshot
+): boolean {
+	return (
+		areJsonLikeValuesEquivalent(previousOperation.source_link, nextOperation.source_link) &&
+		areStringListsEquivalent(
+			previousOperation.child_operation_ids,
+			nextOperation.child_operation_ids
+		)
+	);
+}
+
+function areStringListsEquivalent(left: readonly string[], right: readonly string[]): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function applyMarkedOperationIndexPatch(
 	previousOperations: readonly OperationSnapshot[],
 	previousIndex: OperationIndex,
 	patchedOperationsByIndex: ReadonlyMap<number, OperationSnapshot> | null,
 	appendedOperations: readonly OperationSnapshot[] | null
-): { operationIndex: OperationIndex; changedOperationIds: Set<string> } | null {
+): OperationIndexPatchResult | null {
 	let operationIndex: OperationIndex | null = null;
 	const changedOperationIds = new Set<string>();
 
