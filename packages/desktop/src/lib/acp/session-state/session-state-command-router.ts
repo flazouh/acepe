@@ -116,6 +116,16 @@ function hasCurrentGraphRevision(currentRevision: CurrentSessionStateRevision): 
 	return typeof currentRevision === "object" && currentRevision !== null;
 }
 
+function envelopeFrontierMatchesRevision(
+	envelope: Pick<SessionStateEnvelope, "graphRevision" | "lastEventSeq">,
+	revision: Pick<SessionGraphRevision, "graphRevision" | "lastEventSeq">
+): boolean {
+	return (
+		envelope.graphRevision === revision.graphRevision &&
+		envelope.lastEventSeq === revision.lastEventSeq
+	);
+}
+
 function commandFromDeltaResolution(
 	resolution: SessionStateDeltaResolution
 ): SessionStateCommand[] {
@@ -219,6 +229,15 @@ export function routeSessionStateEnvelope(
 
 	switch (envelope.payload.kind) {
 		case "snapshot":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.graph.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.graph.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "replaceGraph",
@@ -226,6 +245,15 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "lifecycle":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyLifecycle",
@@ -233,6 +261,15 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "capabilities":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyCapabilities",
@@ -243,6 +280,15 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "telemetry":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyTelemetry",
@@ -251,6 +297,15 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "plan":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			return [
 				{
 					kind: "applyPlan",
@@ -259,6 +314,15 @@ export function routeSessionStateEnvelope(
 				},
 			];
 		case "delta": {
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.delta.toRevision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
 			const deltaEventSeqDidNotAdvance =
 				envelope.payload.delta.toRevision.lastEventSeq <=
 				envelope.payload.delta.fromRevision.lastEventSeq;

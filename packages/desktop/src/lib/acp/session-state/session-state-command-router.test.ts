@@ -121,6 +121,118 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
+	it("refreshes when a snapshot envelope header disagrees with the graph revision", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 11,
+			payload: {
+				kind: "snapshot",
+				graph: {
+					requestedSessionId: "session-1",
+					canonicalSessionId: "session-1",
+					isAlias: false,
+					agentId: "codex",
+					projectPath: "/tmp/project",
+					worktreePath: null,
+					sourcePath: null,
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 10,
+					},
+					transcriptSnapshot: {
+						revision: 8,
+						entries: [],
+					},
+					operations: [],
+					interactions: [],
+					turnState: "Idle",
+					messageCount: 0,
+					activeStreamingTail: null,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					lifecycle: {
+						status: "ready",
+						actionability: {
+							canSend: true,
+							canResume: false,
+							canRetry: false,
+							canArchive: true,
+							canConfigure: true,
+							recommendedAction: "send",
+							recoveryPhase: "none",
+							compactStatus: "ready",
+						},
+					},
+					activity: {
+						kind: "idle",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					capabilities: {
+						modes: null,
+						models: null,
+						configOptions: [],
+						autonomousEnabled: false,
+					},
+				},
+			},
+		};
+
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 8,
+				toRevision: 9,
+			},
+		]);
+	});
+
+	it("refreshes when a capabilities envelope header disagrees with payload revision", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 9,
+			lastEventSeq: 11,
+			payload: {
+				kind: "capabilities",
+				capabilities: {
+					modes: null,
+					models: null,
+					configOptions: [],
+					autonomousEnabled: false,
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 8,
+					lastEventSeq: 10,
+				},
+				pending_mutation_id: null,
+				preview_state: "canonical",
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 8,
+					transcriptRevision: 8,
+					lastEventSeq: 10,
+				},
+				envelope
+			)
+		).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 8,
+				toRevision: 9,
+			},
+		]);
+	});
+
 	it("routes operation patches before matching transcript tool rows", () => {
 		const operation = createTestOperationSnapshot();
 		const envelope: SessionStateEnvelope = {
