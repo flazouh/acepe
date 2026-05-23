@@ -1674,10 +1674,16 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 				return applyDisplaySceneEntries(model, sceneEntries);
 			}
 			const appendPatch = applyGraphSceneAppendPatchIndexes(sceneEntries);
-			if (appendPatch === null) {
-				return null;
+			if (appendPatch !== null) {
+				return applyDisplaySceneAppendEntries(model, appendPatch);
 			}
-			return applyDisplaySceneAppendEntries(model, appendPatch);
+			if (applyGraphSceneTruncationIndexes(sceneEntries)) {
+				return applyDisplaySceneEntries(model, sceneEntries);
+			}
+			if (applyGraphSceneSpliceIndexes(sceneEntries)) {
+				return applyDisplaySceneEntries(model, sceneEntries);
+			}
+			return null;
 		},
 	};
 }
