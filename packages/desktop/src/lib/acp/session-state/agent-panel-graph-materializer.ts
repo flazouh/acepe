@@ -832,8 +832,6 @@ function materializeTranscriptArrayPatchedConversation(
 			return null;
 		}
 
-		transcriptEntryById ??= new Map(previous.transcriptEntryById);
-		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		const rowIndex = previous.sceneEntryRowIndex.get(nextTranscriptEntry.entryId);
 		if (rowIndex === undefined) {
 			return null;
@@ -848,6 +846,8 @@ function materializeTranscriptArrayPatchedConversation(
 			previous.operationIndex,
 			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
 		);
+		transcriptEntryById ??= previous.transcriptEntryById;
+		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
 			continue;
 		}
@@ -917,8 +917,6 @@ function materializeTranscriptPatchedConversation(
 			continue;
 		}
 
-		transcriptEntryById ??= new Map(previous.transcriptEntryById);
-		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		const rowIndex = previous.sceneEntryRowIndex.get(nextTranscriptEntry.entryId);
 		if (rowIndex === undefined) {
 			return null;
@@ -933,6 +931,8 @@ function materializeTranscriptPatchedConversation(
 			previous.operationIndex,
 			isRunning && nextTranscriptEntry.entryId === liveAssistantEntryId
 		);
+		transcriptEntryById ??= previous.transcriptEntryById;
+		transcriptEntryById.set(nextTranscriptEntry.entryId, nextTranscriptEntry);
 		if (areSceneEntriesEquivalent(previousSceneEntry, nextSceneEntry)) {
 			continue;
 		}

@@ -974,6 +974,16 @@ describe("agent panel graph materializer", () => {
 				throw new Error("must not scan unchanged transcript rows for a transcript patch");
 			},
 		});
+		const originalMapIterator = Map.prototype[Symbol.iterator];
+		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
+			if (
+				this.has("assistant-2" as K) &&
+				(this.get("assistant-2" as K) as TranscriptEntry | undefined)?.entryId === "assistant-2"
+			) {
+				throw new Error("must not clone the transcript entry index for a transcript patch");
+			}
+			return originalMapIterator.call(this);
+		};
 
 		try {
 			const nextScene = readModel.apply({
@@ -1010,6 +1020,7 @@ describe("agent panel graph materializer", () => {
 				isStreaming: true,
 			});
 		} finally {
+			Map.prototype[Symbol.iterator] = originalMapIterator;
 			firstEntries.slice = originalSlice;
 			Object.defineProperty(nextTranscriptEntries, "0", {
 				configurable: true,
