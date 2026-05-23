@@ -254,7 +254,6 @@ export function routeSessionStateEnvelope(
 			const includesActiveStreamingTail =
 				changedFields?.includes("activeStreamingTail") ?? false;
 			const includesGraphState =
-				changedFields === null ||
 				includesActivity ||
 				includesTurnState ||
 				includesActiveTurnFailure ||

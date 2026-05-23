@@ -251,6 +251,64 @@ describe("routeSessionStateEnvelope", () => {
 		expect(second?.kind).toBe("applyGraphPatches");
 	});
 
+	it("does not guess graph patches when transcript deltas omit changedFields", () => {
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-1",
+			graphRevision: 8,
+			lastEventSeq: 8,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					toRevision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 8,
+					},
+					activity: runningOperationActivity,
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-1",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-1:block:0",
+										text: "hello",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+				},
+			},
+		};
+
+		expect(
+			routeSessionStateEnvelope(
+				"session-1",
+				{
+					graphRevision: 7,
+					transcriptRevision: 7,
+					lastEventSeq: 7,
+				},
+				envelope
+			).map((command) => command.kind)
+		).toEqual(["applyTranscriptDelta"]);
+	});
+
 	it("refreshes graph patch deltas when only a transcript frontier is available", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
