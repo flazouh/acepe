@@ -110,6 +110,37 @@ describe("OperationStore", () => {
 		expect(patchedOperations[0]?.operationState).toBe("completed");
 	});
 
+	it("keeps cached operations stable for semantically duplicate patches", () => {
+		const operationStore = new OperationStore();
+		const operationId = buildCanonicalOperationId("session-1", "tool-1");
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+				arguments: { kind: "execute", command: "pwd" },
+				command: "pwd",
+			}),
+		]);
+		const firstOperations = operationStore.getSessionOperations("session-1");
+		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+				arguments: { kind: "execute", command: "pwd" },
+				command: "pwd",
+			}),
+		]);
+
+		expect(operationStore.getSessionOperations("session-1")).toBe(firstOperations);
+		expect(operationStore.getSessionToolCalls("session-1")).toBe(firstToolCalls);
+	});
+
 	it("caches materialized session tool calls until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");

@@ -317,15 +317,20 @@ export class OperationStore {
 			this.sessionOperationIdSets.set(sessionId, sessionOperationIdSet);
 		}
 
+		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			const existingOperation = this.operationsById.get(operation.id);
+			if (existingOperation !== undefined && areOperationsEquivalent(existingOperation, operation)) {
+				continue;
+			}
 			if (existingOperation !== undefined) {
 				this.unindexOperation(existingOperation);
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
+			changed = true;
 			if (!sessionOperationIdSet.has(operation.id)) {
 				sessionOperationIds.push(operation.id);
 				sessionOperationIdSet.add(operation.id);
@@ -336,7 +341,9 @@ export class OperationStore {
 		if (appendedOperationId) {
 			this.sessionOperationIds.set(sessionId, sessionOperationIds);
 		}
-		this.bumpSessionOperationVersion(sessionId);
+		if (changed) {
+			this.bumpSessionOperationVersion(sessionId);
+		}
 	}
 
 	private bumpSessionOperationVersion(sessionId: string): void {
@@ -498,4 +505,75 @@ export class OperationStore {
 			presentationStatus: mapOperationStateToToolPresentationStatus(operation.operationState),
 		};
 	}
+}
+
+function areOperationsEquivalent(left: Operation, right: Operation): boolean {
+	return (
+		left.id === right.id &&
+		left.sessionId === right.sessionId &&
+		left.toolCallId === right.toolCallId &&
+		areJsonLikeValuesEquivalent(left.sourceLink, right.sourceLink) &&
+		left.name === right.name &&
+		left.kind === right.kind &&
+		left.status === right.status &&
+		left.operationState === right.operationState &&
+		left.operationProvenanceKey === right.operationProvenanceKey &&
+		left.title === right.title &&
+		areJsonLikeValuesEquivalent(left.arguments, right.arguments) &&
+		areJsonLikeValuesEquivalent(left.progressiveArguments, right.progressiveArguments) &&
+		areJsonLikeValuesEquivalent(left.result, right.result) &&
+		areJsonLikeValuesEquivalent(left.locations, right.locations) &&
+		areJsonLikeValuesEquivalent(left.skillMeta, right.skillMeta) &&
+		areJsonLikeValuesEquivalent(left.normalizedQuestions, right.normalizedQuestions) &&
+		areJsonLikeValuesEquivalent(left.normalizedTodos, right.normalizedTodos) &&
+		areJsonLikeValuesEquivalent(left.questionAnswer, right.questionAnswer) &&
+		left.awaitingPlanApproval === right.awaitingPlanApproval &&
+		left.planApprovalRequestId === right.planApprovalRequestId &&
+		left.startedAtMs === right.startedAtMs &&
+		left.completedAtMs === right.completedAtMs &&
+		left.command === right.command &&
+		left.parentToolCallId === right.parentToolCallId &&
+		left.parentOperationId === right.parentOperationId &&
+		areJsonLikeValuesEquivalent(left.childToolCallIds, right.childToolCallIds) &&
+		areJsonLikeValuesEquivalent(left.childOperationIds, right.childOperationIds) &&
+		left.degradationReason === right.degradationReason
+	);
+}
+
+function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (Object.is(left, right)) {
+		return true;
+	}
+	if (typeof left !== typeof right) {
+		return false;
+	}
+	if (left === null || right === null || left === undefined || right === undefined) {
+		return false;
+	}
+	if (typeof left !== "object" || typeof right !== "object") {
+		return false;
+	}
+	if (Array.isArray(left) || Array.isArray(right)) {
+		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+			return false;
+		}
+		for (let index = 0; index < left.length; index += 1) {
+			if (!areJsonLikeValuesEquivalent(left[index], right[index])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	const leftEntries = Object.entries(left);
+	const rightRecord = right as Record<string, unknown>;
+	if (leftEntries.length !== Object.keys(rightRecord).length) {
+		return false;
+	}
+	for (const [key, value] of leftEntries) {
+		if (!areJsonLikeValuesEquivalent(value, rightRecord[key])) {
+			return false;
+		}
+	}
+	return true;
 }
