@@ -1193,18 +1193,27 @@ export class PanelStore {
 
 	getPersistableWorkspacePanels(): WorkspacePanel[] {
 		const persistableTopLevelPanelIds = new Set<string>();
-		for (const panel of this.workspacePanels) {
-			if (panel.ownerPanelId === null && isPersistableWorkspacePanel(panel)) {
+		const persistablePanels: WorkspacePanel[] = [];
+		for (const panel of this.topLevelWorkspacePanelList) {
+			if (isPersistableWorkspacePanel(panel)) {
 				persistableTopLevelPanelIds.add(panel.id);
+				persistablePanels.push(panel);
 			}
 		}
 
-		return this.workspacePanels.filter((panel) => {
-			if (!isPersistableWorkspacePanel(panel)) {
-				return false;
+		for (const ownerPanelId of persistableTopLevelPanelIds) {
+			const attachedPanels = this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId);
+			if (attachedPanels === undefined) {
+				continue;
 			}
-			return panel.ownerPanelId === null || persistableTopLevelPanelIds.has(panel.ownerPanelId);
-		});
+			for (const attachedPanel of attachedPanels) {
+				if (isPersistableWorkspacePanel(attachedPanel)) {
+					persistablePanels.push(attachedPanel);
+				}
+			}
+		}
+
+		return persistablePanels;
 	}
 
 	private getNextTopLevelPanelId(closedPanelId: string): string | null {

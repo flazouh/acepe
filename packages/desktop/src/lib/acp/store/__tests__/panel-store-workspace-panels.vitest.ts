@@ -366,6 +366,32 @@ describe("PanelStore workspacePanels", () => {
 		expect(persistablePanelIds).not.toContain(autoAttachedPanel.id);
 	});
 
+	it("selects persistable workspace panels from indexes without scanning workspace panels", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const attachedPanel = store.openFilePanel("src/attached.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const workspaceIterator = store.workspacePanels[Symbol.iterator];
+		const workspaceFilter = store.workspacePanels.filter;
+		store.workspacePanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate workspace panels for persistable panel selection");
+		};
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels for persistable panel selection");
+		};
+
+		try {
+			expect(store.getPersistableWorkspacePanels().map((panel) => panel.id)).toEqual([
+				owner.id,
+				attachedPanel.id,
+			]);
+		} finally {
+			store.workspacePanels[Symbol.iterator] = workspaceIterator;
+			store.workspacePanels.filter = workspaceFilter;
+		}
+	});
+
 	it("falls back to attached file panel groups without scanning all file panels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
