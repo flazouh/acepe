@@ -153,6 +153,11 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			if (rows === previousRows) {
 				return previousSummary;
 			}
+			const commitSummary = (summary: TranscriptViewportRowSummary) => {
+				previousSummary = withNextTranscriptViewportRowsRevision(previousSummary, summary);
+				previousRows = rows;
+				return previousSummary;
+			};
 
 			const patchedRows = getSceneDisplayRowArrayPatch(rows);
 			if (previousRows !== null && patchedRows?.baseRows === previousRows) {
@@ -167,44 +172,40 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					const firstPatchedIndex = selectFirstPatchedRowIndex(
 						patchedRows.patchedRowsByIndex
 					);
-					previousSummary = patchedSummary;
 					thinkingDurationSources = updateThinkingDurationSources(
 						thinkingDurationSources,
 						rows,
 						Math.max(0, firstPatchedIndex - 1)
 					);
-					previousRows = rows;
-					return previousSummary;
+					return commitSummary(patchedSummary);
 				}
 			}
 
 			const singleAppendRows = singleAppendRowsMetadata.get(rows);
 			if (previousRows !== null && singleAppendRows?.baseRows === previousRows) {
-				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				const nextSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
 				thinkingDurationSources = updateThinkingDurationSources(
 					thinkingDurationSources,
 					rows,
 					Math.max(0, previousRows.length - 1)
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			const appendedRows = getSceneDisplayRowArrayAppend(rows);
 			if (previousRows !== null && appendedRows?.baseRows === previousRows) {
-				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				const nextSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
 				thinkingDurationSources = updateThinkingDurationSources(
 					thinkingDurationSources,
 					rows,
 					Math.max(0, previousRows.length - 1)
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			const truncatedRows = getSceneDisplayRowArrayTruncation(rows);
 			if (previousRows !== null && truncatedRows?.baseRows === previousRows) {
-				previousSummary = truncateTranscriptViewportRowsSummary(
+				const nextSummary = truncateTranscriptViewportRowsSummary(
 					previousSummary,
 					previousRows,
 					rows,
@@ -214,8 +215,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					thinkingDurationSources,
 					rows.length
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			const insertedRows = getSceneDisplayRowArrayInsertion(rows);
@@ -225,7 +225,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					thinkingDurationSources[insertedRows.insertIndex - 1]?.type !== "none"
 						? insertedRows.insertIndex - 1
 						: insertedRows.insertIndex;
-				previousSummary = insertTranscriptViewportRowsSummary(
+				const nextSummary = insertTranscriptViewportRowsSummary(
 					previousSummary,
 					rows,
 					insertedRows.insertedRows,
@@ -237,19 +237,17 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					rows,
 					durationStartIndex
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			if (previousRows !== null && isSamePrefix(previousRows, rows, previousRows.length)) {
-				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				const nextSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
 				thinkingDurationSources = updateThinkingDurationSources(
 					thinkingDurationSources,
 					rows,
 					Math.max(0, previousRows.length - 1)
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			if (
@@ -258,7 +256,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				rows.length > 0 &&
 				isSamePrefix(previousRows, rows, rows.length - 1)
 			) {
-				previousSummary = replaceTranscriptViewportRowsTailSummary(
+				const nextSummary = replaceTranscriptViewportRowsTailSummary(
 					previousSummary,
 					previousRows,
 					rows,
@@ -269,8 +267,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					rows,
 					Math.max(0, rows.length - 2)
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
 			if (
@@ -278,7 +275,7 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				rows.length < previousRows.length &&
 				isSamePrefix(previousRows, rows, rows.length)
 			) {
-				previousSummary = truncateTranscriptViewportRowsSummary(
+				const nextSummary = truncateTranscriptViewportRowsSummary(
 					previousSummary,
 					previousRows,
 					rows,
@@ -289,14 +286,12 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					rows,
 					Math.max(0, rows.length - 1)
 				);
-				previousRows = rows;
-				return previousSummary;
+				return commitSummary(nextSummary);
 			}
 
-			previousSummary = buildTranscriptViewportRowsSummary(rows, reason);
+			const nextSummary = buildTranscriptViewportRowsSummary(rows, reason);
 			thinkingDurationSources = buildThinkingDurationSources(rows);
-			previousRows = rows;
-			return previousSummary;
+			return commitSummary(nextSummary);
 		},
 		selectSummary() {
 			return previousSummary;
@@ -390,6 +385,19 @@ function createSingleAppendRows(
 	});
 	singleAppendRowsMetadata.set(rows, { baseRows, appendedRow });
 	return rows;
+}
+
+function withNextTranscriptViewportRowsRevision(
+	previousSummary: TranscriptViewportRowSummary,
+	nextSummary: TranscriptViewportRowSummary
+): TranscriptViewportRowSummary {
+	const nextVersion = previousSummary.version + 1;
+	return nextSummary.version === nextVersion
+		? nextSummary
+		: {
+				...nextSummary,
+				version: nextVersion,
+			};
 }
 
 function toArrayIndex(property: string): number | null {

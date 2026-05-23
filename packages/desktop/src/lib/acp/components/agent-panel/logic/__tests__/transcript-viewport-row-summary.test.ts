@@ -96,6 +96,41 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(readModel.selectSummary()).toBe(summary);
 	});
 
+	it("advances row revisions for same-length patches", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const userEntry = {
+			type: "user",
+			id: "user-1",
+			text: "Prompt",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const toolEntry = {
+			type: "tool_call",
+			id: "tool-1",
+			title: "Run",
+			status: "running",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = displayRows.applySnapshot([userEntry, toolEntry]);
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const patchedRows = displayRows.applySnapshot([
+			userEntry,
+			{ ...toolEntry, status: "done" },
+		]);
+
+		const patchedSummary = readModel.applyRows({
+			rows: patchedRows,
+			reason: "rows-updated",
+		});
+
+		expect(patchedSummary.count).toBe(firstSummary.count);
+		expect(patchedSummary.version).toBe(firstSummary.version + 1);
+		expect(patchedSummary.changedRange).toEqual({ startIndex: 1, endIndex: 2 });
+	});
+
 	it("updates append-only rows without rebuilding existing anchor keys", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
