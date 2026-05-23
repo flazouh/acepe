@@ -74,6 +74,56 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 }
 
 describe("OperationStore", () => {
+	it("caches materialized session tool calls until canonical operations change", () => {
+		const operationStore = new OperationStore();
+		const operationId = buildCanonicalOperationId("session-1", "tool-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+				arguments: { kind: "execute", command: "pwd" },
+				command: "pwd",
+			}),
+		]);
+
+		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+		const secondToolCalls = operationStore.getSessionToolCalls("session-1");
+
+		expect(secondToolCalls).toBe(firstToolCalls);
+		expect(firstToolCalls).toHaveLength(1);
+		expect(firstToolCalls[0]).toMatchObject({
+			id: "tool-1",
+			arguments: { kind: "execute", command: "pwd" },
+			status: "in_progress",
+		});
+
+		operationStore.applySessionOperationPatches("session-1", []);
+		expect(operationStore.getSessionToolCalls("session-1")).toBe(firstToolCalls);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: { kind: "execute", command: "pwd" },
+				command: "pwd",
+				result: "ok",
+			}),
+		]);
+
+		const patchedToolCalls = operationStore.getSessionToolCalls("session-1");
+		expect(patchedToolCalls).not.toBe(firstToolCalls);
+		expect(patchedToolCalls[0]).toMatchObject({
+			id: "tool-1",
+			status: "completed",
+			result: "ok",
+		});
+	});
+
 	it("caches modified files read-model state until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
