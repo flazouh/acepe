@@ -477,6 +477,8 @@ export class PanelStore {
 	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private reviewPanelByIdIndex = new SvelteMap<string, ReviewPanel>();
 	private reviewPanelByProjectPath = new SvelteMap<string, ReviewPanel>();
+	private gitPanelById = new SvelteMap<string, GitPanel>();
+	private gitPanelByProjectPathIndex = new SvelteMap<string, GitPanel>();
 	private browserPanelsByProject = new SvelteMap<string, BrowserPanel[]>();
 	private browserPanelById = new SvelteMap<string, BrowserPanel>();
 	private terminalPanelGroupById = new SvelteMap<string, TerminalPanelGroup>();
@@ -1053,7 +1055,17 @@ export class PanelStore {
 	}
 
 	set gitPanels(nextPanels: GitPanel[]) {
+		this.syncGitPanelIndexes(nextPanels);
 		this.replaceWorkspacePanels("git", nextPanels);
+	}
+
+	private syncGitPanelIndexes(nextPanels: readonly GitPanel[]): void {
+		this.gitPanelById.clear();
+		this.gitPanelByProjectPathIndex.clear();
+		for (const panel of nextPanels) {
+			this.gitPanelById.set(panel.id, panel);
+			this.gitPanelByProjectPathIndex.set(panel.projectPath, panel);
+		}
 	}
 
 	private replaceWorkspacePanels(
@@ -1097,6 +1109,12 @@ export class PanelStore {
 		const nextFilePanels = nextWorkspacePanels.filter(
 			(panel): panel is FileWorkspacePanel => panel.kind === "file"
 		);
+		const nextReviewPanels = nextWorkspacePanels.filter(
+			(panel): panel is ReviewPanel => panel.kind === "review"
+		);
+		const nextGitPanels = nextWorkspacePanels.filter(
+			(panel): panel is GitPanel => panel.kind === "git"
+		);
 		const nextBrowserPanels = nextWorkspacePanels.filter(
 			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
 		);
@@ -1104,6 +1122,8 @@ export class PanelStore {
 		this.syncTopLevelAgentPanelIndex(nextAgentPanels);
 		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
 		this.syncFilePanelIndexes(nextFilePanels);
+		this.syncReviewPanelIndexes(nextReviewPanels);
+		this.syncGitPanelIndexes(nextGitPanels);
 		this.syncBrowserPanelIndexes(nextBrowserPanels);
 		this.setWorkspacePanels(nextWorkspacePanels);
 	}
@@ -1115,6 +1135,12 @@ export class PanelStore {
 		const nextFilePanels = nextWorkspacePanels.filter(
 			(panel): panel is FileWorkspacePanel => panel.kind === "file"
 		);
+		const nextReviewPanels = nextWorkspacePanels.filter(
+			(panel): panel is ReviewPanel => panel.kind === "review"
+		);
+		const nextGitPanels = nextWorkspacePanels.filter(
+			(panel): panel is GitPanel => panel.kind === "git"
+		);
 		const nextBrowserPanels = nextWorkspacePanels.filter(
 			(panel): panel is BrowserWorkspacePanel => panel.kind === "browser"
 		);
@@ -1122,6 +1148,8 @@ export class PanelStore {
 		this.syncTopLevelAgentPanelIndex(nextAgentPanels);
 		this.clearRemovedTopLevelAgentPanelRefs(nextAgentPanels);
 		this.syncFilePanelIndexes(nextFilePanels);
+		this.syncReviewPanelIndexes(nextReviewPanels);
+		this.syncGitPanelIndexes(nextGitPanels);
 		this.syncBrowserPanelIndexes(nextBrowserPanels);
 		this.setWorkspacePanels(nextWorkspacePanels);
 	}
@@ -1227,10 +1255,10 @@ export class PanelStore {
 	readonly terminalPanelCount = $derived(this.terminalPanelGroups.length);
 
 	readonly gitPanelByProjectPath = $derived.by(
-		() => new SvelteMap(this.gitPanels.map((p) => [p.projectPath, p]))
+		() => this.gitPanelByProjectPathIndex
 	);
 
-	readonly gitPanelCount = $derived(this.gitPanels.length);
+	readonly gitPanelCount = $derived(this.gitPanelById.size);
 	gitDialog = $state<GitDialogState | null>(null);
 
 	readonly browserPanelCount = $derived(this.browserPanelById.size);

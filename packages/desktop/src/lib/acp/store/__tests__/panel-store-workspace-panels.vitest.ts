@@ -660,6 +660,30 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("selects restored git panels and count without filtering workspace panels", () => {
+		const store = createStore();
+		const gitPanel = {
+			id: "git-1",
+			kind: "git" as const,
+			projectPath: "/tmp/project",
+			width: 400,
+			ownerPanelId: null,
+		};
+		store.restoreWorkspacePanels([gitPanel]);
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels for git-panel selectors");
+		};
+
+		try {
+			expect(store.gitPanelCount).toBe(1);
+			expect(store.gitPanelByProjectPath.get("/tmp/project")).toEqual(gitPanel);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("keeps terminal group indexes current across open, move, and close", () => {
 		const store = createStore();
 		const firstGroup = store.openTerminalPanel("/tmp/project");
