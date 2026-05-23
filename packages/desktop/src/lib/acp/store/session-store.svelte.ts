@@ -60,7 +60,6 @@ import type { PermissionRequest } from "../types/permission.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
-import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
 import type {
 	CanonicalSessionProjection,
 	RowTokenStream,
@@ -2033,12 +2032,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getSessionModifiedFilesState(sessionId: string): ModifiedFilesState | null {
-		const toolCalls = this.getSessionToolCalls(sessionId);
-		if (toolCalls.length === 0) {
-			return null;
-		}
-		const state = aggregateFileEditsFromToolCalls(toolCalls);
-		return state.fileCount > 0 ? state : null;
+		return this.operationStore.getSessionModifiedFilesState(sessionId);
 	}
 
 	getSessionOperationInteractionSnapshot(

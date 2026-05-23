@@ -1,5 +1,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { OperationSnapshot, OperationSourceLink } from "../../services/acp-types.js";
+import { aggregateFileEditsFromToolCalls } from "../logic/aggregate-file-edits.js";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { Operation, OperationState } from "../types/operation.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
@@ -36,7 +38,12 @@ export class OperationStore {
 	private readonly operationIdByProvenanceKey = new SvelteMap<string, string>();
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
+	private readonly sessionOperationVersions = new SvelteMap<string, number>();
 	private readonly currentStreamingOperationIdBySession = new SvelteMap<string, string>();
+	private readonly modifiedFilesStateBySession = new Map<
+		string,
+		{ readonly version: number; readonly state: ModifiedFilesState | null }
+	>();
 
 	getById(operationId: string): Operation | undefined {
 		return this.operationsById.get(operationId);
@@ -108,6 +115,25 @@ export class OperationStore {
 			}
 		}
 		return toolCalls;
+	}
+
+	getSessionModifiedFilesState(sessionId: string): ModifiedFilesState | null {
+		const version = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cached = this.modifiedFilesStateBySession.get(sessionId);
+		if (cached !== undefined && cached.version === version) {
+			return cached.state;
+		}
+
+		const toolCalls = this.getSessionToolCalls(sessionId);
+		if (toolCalls.length === 0) {
+			this.modifiedFilesStateBySession.set(sessionId, { version, state: null });
+			return null;
+		}
+
+		const state = aggregateFileEditsFromToolCalls(toolCalls);
+		const selectedState = state.fileCount > 0 ? state : null;
+		this.modifiedFilesStateBySession.set(sessionId, { version, state: selectedState });
+		return selectedState;
 	}
 
 	getCurrentStreamingToolCall(sessionId: string): ToolCall | null {
@@ -183,6 +209,8 @@ export class OperationStore {
 
 		this.sessionOperationIds.delete(sessionId);
 		this.currentStreamingOperationIdBySession.delete(sessionId);
+		this.modifiedFilesStateBySession.delete(sessionId);
+		this.bumpSessionOperationVersion(sessionId);
 	}
 
 	replaceSessionOperations(sessionId: string, snapshots: ReadonlyArray<OperationSnapshot>): void {
@@ -204,12 +232,17 @@ export class OperationStore {
 		} else {
 			this.currentStreamingOperationIdBySession.set(sessionId, currentStreamingOperationId);
 		}
+		this.bumpSessionOperationVersion(sessionId);
 	}
 
 	applySessionOperationPatches(
 		sessionId: string,
 		snapshots: ReadonlyArray<OperationSnapshot>
 	): void {
+		if (snapshots.length === 0) {
+			return;
+		}
+
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			const existingOperation = this.operationsById.get(operation.id);
@@ -226,6 +259,15 @@ export class OperationStore {
 			}
 			this.updateCurrentStreamingOperation(sessionId, operation);
 		}
+		this.bumpSessionOperationVersion(sessionId);
+	}
+
+	private bumpSessionOperationVersion(sessionId: string): void {
+		this.sessionOperationVersions.set(
+			sessionId,
+			(this.sessionOperationVersions.get(sessionId) ?? 0) + 1
+		);
+		this.modifiedFilesStateBySession.delete(sessionId);
 	}
 
 	private operationFromSnapshot(snapshot: OperationSnapshot): Operation {

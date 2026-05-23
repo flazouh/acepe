@@ -74,6 +74,77 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 }
 
 describe("OperationStore", () => {
+	it("caches modified files read-model state until canonical operations change", () => {
+		const operationStore = new OperationStore();
+		const editOperationId = buildCanonicalOperationId("session-1", "edit-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+					],
+				},
+			}),
+		]);
+
+		const firstState = operationStore.getSessionModifiedFilesState("session-1");
+		const secondState = operationStore.getSessionModifiedFilesState("session-1");
+
+		expect(firstState).toBe(secondState);
+		expect(firstState).toMatchObject({
+			fileCount: 1,
+			totalEditCount: 1,
+		});
+		expect(firstState?.byPath.get("src/app.ts")?.fileName).toBe("app.ts");
+
+		operationStore.applySessionOperationPatches("session-1", []);
+		expect(operationStore.getSessionModifiedFilesState("session-1")).toBe(firstState);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: editOperationId,
+				tool_call_id: "edit-1",
+				kind: "edit",
+				provider_status: "completed",
+				operation_state: "completed",
+				arguments: {
+					kind: "edit",
+					edits: [
+						{
+							filePath: "src/app.ts",
+							oldString: "const value = 1;",
+							newString: "const value = 2;",
+						},
+						{
+							filePath: "src/style.css",
+							oldString: ".old { color: red; }",
+							newString: ".old { color: blue; }",
+						},
+					],
+				},
+			}),
+		]);
+
+		const patchedState = operationStore.getSessionModifiedFilesState("session-1");
+		expect(patchedState).not.toBe(firstState);
+		expect(patchedState).toMatchObject({
+			fileCount: 2,
+			totalEditCount: 1,
+		});
+		expect(patchedState?.byPath.has("src/style.css")).toBe(true);
+	});
+
 	it("tracks one canonical operation for a streaming tool call lifecycle", () => {
 		const operationStore = new OperationStore();
 
