@@ -1957,10 +1957,91 @@ function patchAssistantRowsForScenePatch(
 	nextRows: readonly AgentPanelDisplayRow[]
 ): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> | null {
 	const rowPatch = getAgentPanelDisplayRowArrayPatch(nextRows);
-	if (rowPatch?.baseRows !== previousRows) {
-		return null;
+	if (rowPatch?.baseRows === previousRows) {
+		return applyAssistantRowPatchToMap(previousAssistantRowsById, previousRows, rowPatch);
 	}
 
+	const appendPatch = getAgentPanelDisplayRowArrayAppendPatch(nextRows);
+	if (appendPatch?.baseRows === previousRows) {
+		let patchedAssistantRowsById: Map<
+			string,
+			Extract<AgentPanelDisplayRow, { type: "assistant" }>
+		> | null = null;
+		for (const appendedRow of appendPatch.appendedRows) {
+			if (!shouldProjectAssistantDisplayRow(appendedRow)) {
+				continue;
+			}
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.set(appendedRow.id, appendedRow);
+		}
+		return patchedAssistantRowsById ?? previousAssistantRowsById;
+	}
+
+	const truncation = getAgentPanelDisplayRowArrayTruncation(nextRows);
+	if (truncation?.baseRows === previousRows) {
+		let patchedAssistantRowsById: Map<
+			string,
+			Extract<AgentPanelDisplayRow, { type: "assistant" }>
+		> | null = null;
+		for (let index = truncation.length; index < previousRows.length; index += 1) {
+			const removedRow = previousRows[index];
+			if (
+				removedRow?.type !== "assistant" ||
+				!previousAssistantRowsById.has(removedRow.id)
+			) {
+				continue;
+			}
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.delete(removedRow.id);
+		}
+		return patchedAssistantRowsById ?? previousAssistantRowsById;
+	}
+
+	const splicePatch = getAgentPanelDisplayRowArraySplicePatch(nextRows);
+	if (splicePatch?.baseRows === previousRows) {
+		let patchedAssistantRowsById: Map<
+			string,
+			Extract<AgentPanelDisplayRow, { type: "assistant" }>
+		> | null = null;
+		for (let index = splicePatch.startIndex; index < previousRows.length; index += 1) {
+			const removedRow = previousRows[index];
+			if (
+				removedRow?.type !== "assistant" ||
+				!previousAssistantRowsById.has(removedRow.id)
+			) {
+				continue;
+			}
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.delete(removedRow.id);
+		}
+		for (const insertedRow of splicePatch.insertedRows) {
+			if (!shouldProjectAssistantDisplayRow(insertedRow)) {
+				continue;
+			}
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.set(insertedRow.id, insertedRow);
+		}
+		for (const trailingRow of splicePatch.trailingRows) {
+			if (!shouldProjectAssistantDisplayRow(trailingRow)) {
+				continue;
+			}
+			patchedAssistantRowsById ??= new Map(previousAssistantRowsById);
+			patchedAssistantRowsById.set(trailingRow.id, trailingRow);
+		}
+		return patchedAssistantRowsById ?? previousAssistantRowsById;
+	}
+
+	return null;
+}
+
+function applyAssistantRowPatchToMap(
+	previousAssistantRowsById: ReadonlyMap<
+		string,
+		Extract<AgentPanelDisplayRow, { type: "assistant" }>
+	>,
+	previousRows: readonly AgentPanelDisplayRow[],
+	rowPatch: AgentPanelDisplayRowArrayPatch
+): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
 	let patchedAssistantRowsById: Map<
 		string,
 		Extract<AgentPanelDisplayRow, { type: "assistant" }>

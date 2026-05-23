@@ -400,6 +400,97 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		}
 	});
 
+	it("applies marked append patches without scanning unchanged display rows", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const rowReadModel = createAgentPanelDisplayRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+		};
+		const baseEntries = [userEntry, firstAssistantEntry];
+		const firstProjection = rowReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			transcriptRevision: 1,
+		});
+		const modelBase: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: firstProjection.rows,
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		readModel.apply({
+			model: modelBase,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+
+		const nextSceneEntries = [userEntry, firstAssistantEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(nextSceneEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [nextAssistantEntry],
+		});
+		const nextProjection = rowReadModel.applyPatch({
+			sceneEntries: nextSceneEntries,
+			transcriptRevision: 2,
+		});
+		expect(nextProjection).not.toBeNull();
+		if (nextProjection === null) {
+			return;
+		}
+		const preservedFirstRow = firstProjection.rows[0];
+		Object.defineProperty(firstProjection.rows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged display rows for display scene append patch");
+			},
+		});
+
+		try {
+			const displayedEntries = readModel.applyPatch({
+				model: {
+					...modelBase,
+					rows: nextProjection.rows,
+				},
+				memory: createAgentPanelDisplayMemory(),
+				sceneEntries: nextSceneEntries,
+			});
+
+			expect(displayedEntries).not.toBeNull();
+			if (displayedEntries === null) {
+				return;
+			}
+			expect(displayedEntries[0]).toBe(userEntry);
+			expect(displayedEntries[1]).toBe(firstAssistantEntry);
+			expect(displayedEntries[2]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "Second",
+			});
+		} finally {
+			Object.defineProperty(firstProjection.rows, "0", {
+				configurable: true,
+				value: preservedFirstRow,
+				writable: true,
+			});
+		}
+	});
+
 	it("keeps the cached scene entry index valid after stable scene truncation", () => {
 		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {
