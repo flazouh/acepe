@@ -25,6 +25,7 @@ import type {
 	TranscriptDelta,
 } from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
+import { getSessionStateEnvelopeByteBudget } from "../../session-state/session-state-envelope-budget.js";
 import { SessionEntryStore } from "../session-entry-store.svelte.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
@@ -1397,6 +1398,87 @@ describe("SessionEventService streaming delta handling", () => {
 				currentModeId: "build",
 			},
 		});
+	});
+
+	it("rejects oversized session-state envelopes before advancing connection revision frontiers", async () => {
+		const connectedHandler = createMockHandler();
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ready-budget-1",
+				graphRevision: 99,
+				lastEventSeq: 99,
+				payload: {
+					kind: "assistantTextDelta",
+					delta: {
+						turnId: "turn-1",
+						rowId: "assistant-1",
+						charOffset: 0,
+						deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
+						producedAtMonotonicMs: 12,
+						revision: 99,
+					},
+				},
+			},
+			connectedHandler
+		);
+		const { promise } = service.waitForConnectionMaterialization("session-ready-budget-1", 5000);
+
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ready-budget-1",
+				graphRevision: 1,
+				lastEventSeq: 1,
+				payload: {
+					kind: "capabilities",
+					capabilities: {
+						models: {
+							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+							currentModelId: "claude-sonnet-4.6",
+						},
+						modes: {
+							currentModeId: "build",
+							availableModes: [{ id: "build", name: "Build", description: null }],
+						},
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: true,
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+					pending_mutation_id: null,
+					preview_state: "canonical",
+				},
+			},
+			connectedHandler
+		);
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ready-budget-1",
+				graphRevision: 1,
+				lastEventSeq: 1,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 1,
+						lastEventSeq: 1,
+					},
+				},
+			},
+			connectedHandler
+		);
+
+		await expect(promise).resolves.toMatchObject({
+			autonomousEnabled: true,
+			modes: {
+				currentModeId: "build",
+			},
+		});
+		expect(connectedHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(2);
 	});
 
 	it("preserves missing autonomous capability in connection materialization", async () => {

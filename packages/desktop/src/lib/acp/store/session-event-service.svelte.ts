@@ -27,6 +27,7 @@ import type {
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
+import { checkSessionStateEnvelopeByteBudget } from "../session-state/session-state-envelope-budget.js";
 import { createLogger } from "../utils/logger.js";
 import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
@@ -533,6 +534,17 @@ export class SessionEventService {
 	}
 
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
+		const budget = checkSessionStateEnvelopeByteBudget(envelope);
+		if (!budget.ok) {
+			logger.warn("Rejected oversized session-state envelope at event ingress", {
+				sessionId: envelope.sessionId,
+				kind: budget.kind,
+				byteLength: budget.byteLength,
+				maxBytes: budget.maxBytes,
+			});
+			return;
+		}
+
 		this.latestSessionStateGraphRevision.set(
 			envelope.sessionId,
 			Math.max(
