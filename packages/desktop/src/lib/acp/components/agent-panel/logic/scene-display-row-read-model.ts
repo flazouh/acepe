@@ -27,6 +27,22 @@ export interface SceneDisplayRowsReadModel {
 	getRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
 }
 
+export type SceneDisplayRowArrayPatch = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>;
+};
+
+const sceneDisplayRowArrayPatches = new WeakMap<
+	readonly SceneDisplayRow[],
+	SceneDisplayRowArrayPatch
+>();
+
+export function getSceneDisplayRowArrayPatch(
+	rows: readonly SceneDisplayRow[]
+): SceneDisplayRowArrayPatch | undefined {
+	return sceneDisplayRowArrayPatches.get(rows);
+}
+
 export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let previousRows: readonly SceneDisplayRow[] = [];
@@ -249,7 +265,7 @@ function createPatchedSceneDisplayRowsArray(
 	patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>
 ): readonly SceneDisplayRow[] {
 	const target = new Array<SceneDisplayRow>(baseRows.length);
-	return new Proxy(target, {
+	const rows = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -291,6 +307,8 @@ function createPatchedSceneDisplayRowsArray(
 			return Reflect.getOwnPropertyDescriptor(targetArray, property);
 		},
 	});
+	sceneDisplayRowArrayPatches.set(rows, { baseRows, patchedRowsByIndex });
+	return rows;
 }
 
 function toArrayIndex(property: string): number | null {

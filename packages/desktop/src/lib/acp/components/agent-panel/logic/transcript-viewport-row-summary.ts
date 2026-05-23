@@ -4,6 +4,7 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
+import { getSceneDisplayRowArrayPatch } from "./scene-display-row-read-model.js";
 import {
 	buildNativeFallbackWindow,
 	type IndexedViewportEntry,
@@ -144,6 +145,30 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 		applyRows({ rows, reason }) {
 			if (rows === previousRows) {
 				return previousSummary;
+			}
+
+			const patchedRows = getSceneDisplayRowArrayPatch(rows);
+			if (previousRows !== null && patchedRows?.baseRows === previousRows) {
+				const patchedSummary = patchTranscriptViewportRowsSummary(
+					previousSummary,
+					previousRows,
+					rows,
+					patchedRows.patchedRowsByIndex,
+					reason
+				);
+				if (patchedSummary !== null) {
+					const firstPatchedIndex = selectFirstPatchedRowIndex(
+						patchedRows.patchedRowsByIndex
+					);
+					previousSummary = patchedSummary;
+					thinkingDurationSources = updateThinkingDurationSources(
+						thinkingDurationSources,
+						rows,
+						Math.max(0, firstPatchedIndex - 1)
+					);
+					previousRows = rows;
+					return previousSummary;
+				}
 			}
 
 			const singleAppendRows = singleAppendRowsMetadata.get(rows);
@@ -315,6 +340,69 @@ function toArrayIndex(property: string): number | null {
 	}
 	const index = Number(property);
 	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
+}
+
+function patchTranscriptViewportRowsSummary(
+	previousSummary: TranscriptViewportRowSummary,
+	previousRows: readonly SceneDisplayRow[],
+	rows: readonly SceneDisplayRow[],
+	patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>,
+	reason: TranscriptViewportRowsReason
+): TranscriptViewportRowSummary | null {
+	if (patchedRowsByIndex.size === 0) {
+		return previousSummary;
+	}
+
+	let firstChangedIndex = Number.POSITIVE_INFINITY;
+	let lastChangedIndex = -1;
+	for (const [index, nextRow] of patchedRowsByIndex) {
+		const previousRow = previousRows[index];
+		if (previousRow === undefined || index < 0 || index >= rows.length) {
+			return null;
+		}
+
+		if (!canPatchTranscriptViewportRowSummary(previousRow, nextRow)) {
+			return null;
+		}
+
+		firstChangedIndex = Math.min(firstChangedIndex, index);
+		lastChangedIndex = Math.max(lastChangedIndex, index);
+	}
+
+	return {
+		...previousSummary,
+		version: rows.length,
+		count: rows.length,
+		changedRange: {
+			startIndex: firstChangedIndex,
+			endIndex: lastChangedIndex + 1,
+		},
+		reason,
+	};
+}
+
+function canPatchTranscriptViewportRowSummary(
+	previousRow: SceneDisplayRow,
+	nextRow: SceneDisplayRow
+): boolean {
+	return (
+		getSceneDisplayRowKey(previousRow) === getSceneDisplayRowKey(nextRow) &&
+		previousRow.type === nextRow.type &&
+		(previousRow.type !== "thinking") === (nextRow.type !== "thinking") &&
+		isLiveAssistantDisplayRow(previousRow) === isLiveAssistantDisplayRow(nextRow) &&
+		isTokenRevealAssistantDisplayRow(previousRow) === isTokenRevealAssistantDisplayRow(nextRow) &&
+		(previousRow.type === "tool_call") === (nextRow.type === "tool_call")
+	);
+}
+
+function selectFirstPatchedRowIndex(
+	patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>
+): number {
+	let firstIndex = Number.POSITIVE_INFINITY;
+	for (const index of patchedRowsByIndex.keys()) {
+		firstIndex = Math.min(firstIndex, index);
+	}
+	return Number.isFinite(firstIndex) ? firstIndex : 0;
 }
 
 function truncateTranscriptViewportRowsSummary(

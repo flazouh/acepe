@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
 import {
 	buildTranscriptViewportRowsSummary,
 	createTranscriptViewportRowsReadModel,
 } from "../transcript-viewport-row-summary.js";
+import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 import type { SceneDisplayRow } from "../scene-display-rows.js";
 
 describe("createTranscriptViewportRowsReadModel", () => {
@@ -287,6 +289,65 @@ describe("createTranscriptViewportRowsReadModel", () => {
 			}
 			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
 			firstSummary.anchorEligibleKeys.concat = anchorKeysConcat;
+		}
+	});
+
+	it("updates same-key patched display rows without scanning unchanged row prefixes", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const userEntry = {
+			type: "user",
+			id: "user-1",
+			text: "Prompt",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			type: "assistant",
+			id: "assistant-1",
+			markdown: "Answer",
+			isStreaming: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const firstToolEntry = {
+			type: "tool_call",
+			id: "tool-1",
+			title: "Run",
+			status: "running",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = displayRows.applySnapshot([userEntry, assistantEntry, firstToolEntry]);
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = displayRows.applySnapshot([
+			userEntry,
+			assistantEntry,
+			{ ...firstToolEntry, status: "done" },
+		]);
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged viewport rows");
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(3);
+			expect(nextSummary.rowKeys).toBe(firstSummary.rowKeys);
+			expect(nextSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
+			expect(nextSummary.changedRange).toEqual({ startIndex: 2, endIndex: 3 });
+			expect(nextSummary.hasToolCallEntry).toBe(true);
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
 		}
 	});
 
