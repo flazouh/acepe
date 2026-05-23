@@ -304,6 +304,83 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
 	});
 
+	it("reuses conversation rows when only graph activity changes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("user-1", "user", "hello"),
+			createTranscriptEntry("assistant-1", "assistant", "working"),
+		]);
+		const operations = [
+			createOperationSnapshot({
+				id: "op-1",
+				operation_state: "running",
+				provider_status: "pending",
+			}),
+		];
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations,
+			turnState: "Running",
+			activeStreamingTail: {
+				rowId: "assistant-1",
+				contentKind: "message",
+			},
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-1",
+				blockingInteractionId: null,
+			},
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const originalOperation = operations[0];
+		Object.defineProperty(operations, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan operations when only activity changes");
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					activity: {
+						kind: "awaiting_model",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(nextScene.conversation.entries).toBe(firstScene.conversation.entries);
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+		} finally {
+			Object.defineProperty(operations, "0", {
+				configurable: true,
+				value: originalOperation,
+				writable: true,
+				enumerable: true,
+			});
+		}
+	});
+
 	it("reuses unaffected conversation rows when one linked operation changes", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "hello"),

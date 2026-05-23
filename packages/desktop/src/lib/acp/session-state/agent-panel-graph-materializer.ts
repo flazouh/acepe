@@ -750,12 +750,35 @@ function canReuseConversation(
 	);
 }
 
+function canReuseConversationEntriesWithUpdatedActivity(
+	previous: CachedConversationState | null,
+	input: CachedConversationInput
+): previous is CachedConversationState {
+	const graph = input.graph;
+	return (
+		previous !== null &&
+		previous.transcriptEntries === graph.transcriptSnapshot.entries &&
+		previous.operations === graph.operations &&
+		previous.interactions === graph.interactions &&
+		previous.turnState === graph.turnState &&
+		areActiveStreamingTailsEquivalent(previous.activeStreamingTail, graph.activeStreamingTail)
+	);
+}
+
 function materializeCachedConversation(
 	previous: CachedConversationState | null,
 	input: CachedConversationInput
 ): CachedConversationState {
 	if (canReuseConversation(previous, input)) {
 		return previous;
+	}
+
+	if (canReuseConversationEntriesWithUpdatedActivity(previous, input)) {
+		const cachedConversation = previous as CachedConversationState;
+		return {
+			...cachedConversation,
+			activity: input.graph.activity,
+		};
 	}
 
 	const operationPatched = materializeOperationPatchedConversation(previous, input);
