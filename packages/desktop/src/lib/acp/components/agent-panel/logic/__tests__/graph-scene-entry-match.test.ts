@@ -2,6 +2,11 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
+	type AgentPanelDisplayModel,
+	applyAgentPanelDisplayModelToSceneEntries,
+	createAgentPanelDisplayMemory,
+} from "../agent-panel-display-model.js";
+import {
 	createGraphSceneEntryIndex,
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
@@ -301,6 +306,56 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			id: "assistant-1",
 			tokenRevealCss: { revealCount: 1 },
 		});
+		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
+		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
+	});
+
+	it("overlays display-patched scene entries without rebuilding indexes", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		const baseIndex = readModel.getIndex(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+
+		const patchedIndex = readModel.getIndex(
+			applyAgentPanelDisplayModelToSceneEntries(
+				model,
+				createAgentPanelDisplayMemory(),
+				baseEntries
+			)
+		);
+
+		expect(patchedIndex).not.toBe(baseIndex);
+		expect(patchedIndex.get("assistant-1")).toMatchObject({
+			id: "assistant-1",
+			markdown: "Answer",
+		});
+		expect(patchedIndex.size).toBe(baseIndex.size);
+		expect([...patchedIndex.keys()]).toEqual(["assistant-1"]);
 		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
 		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
 	});

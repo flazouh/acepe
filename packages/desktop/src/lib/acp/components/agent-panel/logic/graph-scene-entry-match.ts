@@ -3,6 +3,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
 import type { SceneDisplayRow } from "./scene-display-rows.js";
 import { getSceneDisplayRowKey } from "./scene-display-rows.js";
+import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export function findGraphSceneEntryForDisplayEntry(
@@ -57,6 +58,19 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 
 	return {
 		applySnapshot(sceneEntries) {
+			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
+			if (
+				displayScenePatch !== undefined &&
+				displayScenePatch.baseSceneEntries === previousSceneEntries
+			) {
+				baseEntriesByIdBeforeTokenReveal ??= entriesById;
+				entriesById = new PatchedSceneEntryMap(
+					baseEntriesByIdBeforeTokenReveal,
+					displayScenePatch.entries
+				);
+				return entriesById;
+			}
+
 			const tokenRevealPatch = getTokenRevealScenePatch(sceneEntries);
 			if (
 				tokenRevealPatch !== undefined &&
@@ -65,7 +79,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				baseEntriesByIdBeforeTokenReveal ??= entriesById;
 				entriesById = new PatchedSceneEntryMap(
 					baseEntriesByIdBeforeTokenReveal,
-					tokenRevealPatch.entry
+					[tokenRevealPatch.entry]
 				);
 				return entriesById;
 			}
@@ -142,22 +156,31 @@ function ensureMutableSceneEntryMap(
 
 class PatchedSceneEntryMap implements ReadonlyMap<string, AgentPanelSceneEntryModel> {
 	readonly [Symbol.toStringTag] = "PatchedSceneEntryMap";
+	private readonly patchedEntriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>;
 
 	constructor(
 		private readonly base: ReadonlyMap<string, AgentPanelSceneEntryModel>,
-		private readonly patchedEntry: AgentPanelSceneEntryModel
-	) {}
+		patchedEntries: readonly AgentPanelSceneEntryModel[]
+	) {
+		this.patchedEntriesById = new Map(patchedEntries.map((entry) => [entry.id, entry]));
+	}
 
 	get size(): number {
-		return this.base.has(this.patchedEntry.id) ? this.base.size : this.base.size + 1;
+		let size = this.base.size;
+		for (const key of this.patchedEntriesById.keys()) {
+			if (!this.base.has(key)) {
+				size += 1;
+			}
+		}
+		return size;
 	}
 
 	get(key: string): AgentPanelSceneEntryModel | undefined {
-		return key === this.patchedEntry.id ? this.patchedEntry : this.base.get(key);
+		return this.patchedEntriesById.get(key) ?? this.base.get(key);
 	}
 
 	has(key: string): boolean {
-		return key === this.patchedEntry.id || this.base.has(key);
+		return this.patchedEntriesById.has(key) || this.base.has(key);
 	}
 
 	forEach(
@@ -174,17 +197,20 @@ class PatchedSceneEntryMap implements ReadonlyMap<string, AgentPanelSceneEntryMo
 	}
 
 	private *entryIterator(): IterableIterator<[string, AgentPanelSceneEntryModel]> {
-		let yieldedPatchedEntry = false;
+		const yieldedPatchKeys = new Set<string>();
 		for (const [key, value] of this.base.entries()) {
-			if (key === this.patchedEntry.id) {
-				yield [key, this.patchedEntry];
-				yieldedPatchedEntry = true;
+			const patchedEntry = this.patchedEntriesById.get(key);
+			if (patchedEntry !== undefined) {
+				yield [key, patchedEntry];
+				yieldedPatchKeys.add(key);
 				continue;
 			}
 			yield [key, value];
 		}
-		if (!yieldedPatchedEntry) {
-			yield [this.patchedEntry.id, this.patchedEntry];
+		for (const [key, value] of this.patchedEntriesById.entries()) {
+			if (!yieldedPatchKeys.has(key)) {
+				yield [key, value];
+			}
 		}
 	}
 

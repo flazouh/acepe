@@ -74,6 +74,22 @@ export interface AgentPanelDisplaySceneEntriesReadModel {
 	}): readonly AgentPanelSceneEntryModel[];
 }
 
+export type AgentPanelDisplayScenePatch = {
+	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly entries: readonly AgentPanelSceneEntryModel[];
+};
+
+const agentPanelDisplayScenePatches = new WeakMap<
+	readonly AgentPanelSceneEntryModel[],
+	AgentPanelDisplayScenePatch
+>();
+
+export function getAgentPanelDisplayScenePatch(
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): AgentPanelDisplayScenePatch | undefined {
+	return agentPanelDisplayScenePatches.get(sceneEntries);
+}
+
 export interface AgentPanelDisplayMemory {
 	readonly sessionId: string | null;
 	readonly turnId: string | null;
@@ -822,6 +838,7 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 	}
 
 	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let patchedEntries: AgentPanelSceneEntryModel[] | null = null;
 	for (const [entryId, row] of assistantRowsById) {
 		const index = sceneEntryIndexesById.get(entryId);
 		if (index === undefined) {
@@ -836,7 +853,16 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 		}
 
 		nextEntries ??= sceneEntries.slice();
-		nextEntries[index] = applyDisplayRowToAssistantEntry(entry, row);
+		const patchedEntry = applyDisplayRowToAssistantEntry(entry, row);
+		nextEntries[index] = patchedEntry;
+		patchedEntries ??= [];
+		patchedEntries.push(patchedEntry);
+	}
+	if (nextEntries !== null && patchedEntries !== null) {
+		agentPanelDisplayScenePatches.set(nextEntries, {
+			baseSceneEntries: sceneEntries,
+			entries: patchedEntries,
+		});
 	}
 	return nextEntries ?? sceneEntries;
 }
@@ -850,6 +876,7 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 	}
 
 	let nextEntries: AgentPanelSceneEntryModel[] | null = null;
+	let patchedEntries: AgentPanelSceneEntryModel[] | null = null;
 	sceneEntries.forEach((entry, index) => {
 		if (entry.type !== "assistant") {
 			return;
@@ -864,8 +891,17 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 		}
 
 		nextEntries ??= sceneEntries.slice();
-		nextEntries[index] = applyDisplayRowToAssistantEntry(entry, row);
+		const patchedEntry = applyDisplayRowToAssistantEntry(entry, row);
+		nextEntries[index] = patchedEntry;
+		patchedEntries ??= [];
+		patchedEntries.push(patchedEntry);
 	});
+	if (nextEntries !== null && patchedEntries !== null) {
+		agentPanelDisplayScenePatches.set(nextEntries, {
+			baseSceneEntries: sceneEntries,
+			entries: patchedEntries,
+		});
+	}
 	return nextEntries ?? sceneEntries;
 }
 
