@@ -45,6 +45,10 @@ export class OperationStore {
 		string,
 		{ readonly version: number; readonly state: ModifiedFilesState | null }
 	>();
+	private readonly sessionOperationsBySession = new Map<
+		string,
+		{ readonly version: number; readonly operations: Array<Operation> }
+	>();
 	private readonly sessionToolCallsBySession = new Map<
 		string,
 		{ readonly version: number; readonly toolCalls: Array<ToolCall> }
@@ -95,6 +99,12 @@ export class OperationStore {
 	}
 
 	getSessionOperations(sessionId: string): Array<Operation> {
+		const version = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cached = this.sessionOperationsBySession.get(sessionId);
+		if (cached !== undefined && cached.version === version) {
+			return cached.operations;
+		}
+
 		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
 		const operations: Array<Operation> = [];
 		for (const operationId of operationIds) {
@@ -103,6 +113,7 @@ export class OperationStore {
 				operations.push(operation);
 			}
 		}
+		this.sessionOperationsBySession.set(sessionId, { version, operations });
 		return operations;
 	}
 
@@ -297,6 +308,7 @@ export class OperationStore {
 			sessionId,
 			(this.sessionOperationVersions.get(sessionId) ?? 0) + 1
 		);
+		this.sessionOperationsBySession.delete(sessionId);
 		this.modifiedFilesStateBySession.delete(sessionId);
 		this.sessionToolCallsBySession.delete(sessionId);
 	}

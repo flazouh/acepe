@@ -74,6 +74,42 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 }
 
 describe("OperationStore", () => {
+	it("caches session operations until canonical operations change", () => {
+		const operationStore = new OperationStore();
+		const operationId = buildCanonicalOperationId("session-1", "tool-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+		]);
+
+		const firstOperations = operationStore.getSessionOperations("session-1");
+		const secondOperations = operationStore.getSessionOperations("session-1");
+
+		expect(secondOperations).toBe(firstOperations);
+		expect(firstOperations).toHaveLength(1);
+
+		operationStore.applySessionOperationPatches("session-1", []);
+		expect(operationStore.getSessionOperations("session-1")).toBe(firstOperations);
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: operationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+		]);
+
+		const patchedOperations = operationStore.getSessionOperations("session-1");
+		expect(patchedOperations).not.toBe(firstOperations);
+		expect(patchedOperations[0]?.operationState).toBe("completed");
+	});
+
 	it("caches materialized session tool calls until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");
