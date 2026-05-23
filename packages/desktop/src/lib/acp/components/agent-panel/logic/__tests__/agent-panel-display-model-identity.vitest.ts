@@ -507,18 +507,32 @@ describe("applyAgentPanelDisplayMemory identity", () => {
 			displayText: "Second answer updated",
 			canonicalTextRevision: "2:assistant-2",
 		};
+		const originalSlice = firstResult.model.rows.slice;
 
-		const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
-			...firstModel,
-			rows: [firstResult.model.rows[0]!, updatedSecondAssistantRow],
-		});
+		firstResult.model.rows.slice = () => {
+			throw new Error("must not copy existing display rows");
+		};
 
-		expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
-		expect(nextResult.model.rows[1]).toBe(updatedSecondAssistantRow);
-		expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
-		expect(nextResult.memory.displayTextByRowKey.get("assistant-2")).toBe(
-			"Second answer updated"
-		);
+		try {
+			const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+				...firstModel,
+				rows: [firstResult.model.rows[0]!, updatedSecondAssistantRow],
+			});
+
+			expect(Array.isArray(nextResult.model.rows)).toBe(true);
+			expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
+			expect(nextResult.model.rows[1]).toBe(updatedSecondAssistantRow);
+			expect(nextResult.model.rows.map((row) => row.id)).toEqual([
+				"assistant-1",
+				"assistant-2",
+			]);
+			expect(nextResult.memory.displayTextByRowKey).toBe(firstResult.memory.displayTextByRowKey);
+			expect(nextResult.memory.displayTextByRowKey.get("assistant-2")).toBe(
+				"Second answer updated"
+			);
+		} finally {
+			firstResult.model.rows.slice = originalSlice;
+		}
 	});
 
 	it("patches only rows whose display text changes when streaming completes", () => {

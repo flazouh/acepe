@@ -602,7 +602,7 @@ export function applyAgentPanelDisplayMemory(
 	) {
 		const previousTexts = previousMemory.displayTextByRowKey;
 		const nextTexts = new Map<string, string>();
-		let rows: AgentPanelDisplayRow[] | null = null;
+		const rowPatches = new Map<number, AgentPanelDisplayRow>();
 		for (let index = 0; index < baseModel.rows.length; index += 1) {
 			const sourceRow = baseModel.rows[index];
 			if (sourceRow === undefined) {
@@ -612,10 +612,12 @@ export function applyAgentPanelDisplayMemory(
 			if (displayRow === previousMemory.displayRows[index]) {
 				continue;
 			}
-			rows ??= previousMemory.displayRows.slice();
-			rows[index] = displayRow;
+			rowPatches.set(index, displayRow);
 		}
-		const displayRows = rows ?? previousMemory.displayRows;
+		const displayRows =
+			rowPatches.size === 0
+				? previousMemory.displayRows
+				: createPatchedDisplayRowArray(previousMemory.displayRows, rowPatches);
 		return {
 			model: {
 				panelId: baseModel.panelId,
@@ -647,23 +649,25 @@ export function applyAgentPanelDisplayMemory(
 		previousMemory.sourceRows.length === baseModel.rows.length
 	) {
 		const previousTexts = previousMemory.displayTextByRowKey;
-		let rows: AgentPanelDisplayRow[] | null = null;
+		const rowPatches = new Map<number, AgentPanelDisplayRow>();
 		for (let index = 0; index < baseModel.rows.length; index += 1) {
 			const previousSourceRow = previousMemory.sourceRows[index];
 			const nextSourceRow = baseModel.rows[index];
 			if (previousSourceRow === nextSourceRow || nextSourceRow === undefined) {
 				continue;
 			}
-			rows ??= previousMemory.displayRows.slice();
 			if (
 				previousSourceRow?.type === "assistant" &&
 				(previousSourceRow.id !== nextSourceRow.id || nextSourceRow.type !== "assistant")
 			) {
 				previousTexts.delete(previousSourceRow.id);
 			}
-			rows[index] = applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts);
+			rowPatches.set(
+				index,
+				applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
+			);
 		}
-		if (rows === null) {
+		if (rowPatches.size === 0) {
 			return {
 				model: {
 					panelId: baseModel.panelId,
@@ -686,6 +690,7 @@ export function applyAgentPanelDisplayMemory(
 				},
 			};
 		}
+		const rows = createPatchedDisplayRowArray(previousMemory.displayRows, rowPatches);
 		return {
 			model: {
 				panelId: baseModel.panelId,
@@ -800,6 +805,55 @@ export function applyAgentPanelDisplayMemory(
 			turnState: baseModel.turnState,
 		},
 	};
+}
+
+function createPatchedDisplayRowArray(
+	baseRows: readonly AgentPanelDisplayRow[],
+	rowPatches: ReadonlyMap<number, AgentPanelDisplayRow>
+): readonly AgentPanelDisplayRow[] {
+	const target = new Array<AgentPanelDisplayRow>(baseRows.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < baseRows.length; index += 1) {
+						yield rowPatches.get(index) ?? baseRows[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return rowPatches.get(index) ?? baseRows[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < baseRows.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < baseRows.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: rowPatches.get(index) ?? baseRows[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
 }
 
 function isStableDisplayRowAppend(
