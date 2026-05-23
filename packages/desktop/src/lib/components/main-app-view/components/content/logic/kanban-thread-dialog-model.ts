@@ -10,7 +10,7 @@ export interface KanbanThreadDialogPanelSnapshotInput {
 	readonly panel: Panel | null;
 	readonly sessionIdentity: SessionIdentity | undefined;
 	readonly hotState: PanelHotState | null;
-	readonly projects: readonly Project[];
+	readonly getProject: (projectPath: string) => Project | undefined;
 }
 
 export interface KanbanThreadDialogPanelSnapshot {
@@ -48,7 +48,7 @@ export function buildKanbanThreadDialogPanelSnapshot(
 		project:
 			sessionProjectPath === null
 				? null
-				: (input.projects.find((candidate) => candidate.path === sessionProjectPath) ?? null),
+				: (input.getProject(sessionProjectPath) ?? null),
 	};
 }
 

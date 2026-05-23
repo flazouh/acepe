@@ -94,6 +94,11 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 	} as Project;
 }
 
+function projectLookup(projects: readonly Project[]) {
+	const projectsByPath = new Map(projects.map((project) => [project.path, project]));
+	return (projectPath: string) => projectsByPath.get(projectPath);
+}
+
 function makeUserEntry(text: string): SessionEntry {
 	return {
 		id: "entry-1",
@@ -204,7 +209,7 @@ describe("kanban-card-model", () => {
 				makePanel({ id: "panel-3" }),
 				makePanel({ id: "panel-4", sessionId: "session-4" }),
 			],
-			projects: [makeProject()],
+			getProject: projectLookup([makeProject()]),
 			getPanelHotState: (panelId) => hotStates.get(panelId) ?? DEFAULT_PANEL_HOT_STATE,
 			getAgentIcon: (agentId) => `/icons/${agentId}.svg`,
 		});

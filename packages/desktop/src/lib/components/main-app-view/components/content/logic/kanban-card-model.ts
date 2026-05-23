@@ -151,7 +151,7 @@ export function buildKanbanCard(input: BuildKanbanCardInput): KanbanCardData {
 
 export interface BuildOptimisticKanbanCardsInput {
 	readonly panels: readonly Panel[];
-	readonly projects: readonly Project[];
+	readonly getProject: (projectPath: string) => Project | undefined;
 	readonly getPanelHotState: (panelId: string) => PanelHotState;
 	readonly getAgentIcon: (agentId: string | null | undefined) => string;
 }
@@ -171,7 +171,7 @@ export function buildOptimisticKanbanCards(
 			continue;
 		}
 
-		const project = input.projects.find((candidate) => candidate.path === panel.projectPath) ?? null;
+		const project = input.getProject(panel.projectPath) ?? null;
 		const entry = hotState.pendingUserEntry;
 		const pendingText =
 			entry && entry.type === "user" && entry.message.content.type === "text"

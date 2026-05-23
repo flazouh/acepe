@@ -76,7 +76,7 @@ const panelSnapshot = $derived.by(() => {
 		panel,
 		sessionIdentity: identity,
 		hotState,
-		projects: projectManager.projects,
+		getProject: (projectPath) => projectManager.getProject(projectPath),
 	});
 });
 

@@ -191,13 +191,7 @@ const selectedProject = $derived.by((): Project | null => {
 		return null;
 	}
 
-	for (const project of projects) {
-		if (project.path === selectedProjectPath) {
-			return project;
-		}
-	}
-
-	return null;
+	return projectManager.getProject(selectedProjectPath) ?? null;
 });
 const showProjectPicker = $derived(projects.length > 1);
 const canShowNewSessionInput = $derived(projects.length > 0 && availableAgents.length > 0);
@@ -393,7 +387,7 @@ function buildSceneCard(card: ReturnType<typeof mapItemToCard>): KanbanSceneCard
 function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
 	return buildOptimisticKanbanCardModels({
 		panels: panelStore.panels,
-		projects,
+		getProject: (projectPath) => projectManager.getProject(projectPath),
 		getPanelHotState: (panelId) => panelStore.getHotState(panelId),
 		getAgentIcon: getCanonicalAgentIcon,
 	});

@@ -44,6 +44,11 @@ function createProject(path = "/repo"): Project {
 	};
 }
 
+function projectLookup(projects: readonly Project[]) {
+	const projectsByPath = new Map(projects.map((project) => [project.path, project]));
+	return (projectPath: string) => projectsByPath.get(projectPath);
+}
+
 describe("kanban thread dialog model", () => {
 	it("returns an empty snapshot when no panel is selected", () => {
 		expect(
@@ -51,7 +56,7 @@ describe("kanban thread dialog model", () => {
 				panel: null,
 				sessionIdentity: undefined,
 				hotState: null,
-				projects: [createProject()],
+				getProject: projectLookup([createProject()]),
 			})
 		).toEqual({
 			panelId: "",
@@ -72,7 +77,7 @@ describe("kanban thread dialog model", () => {
 			panel: createPanel({ sessionId: null, selectedAgentId: "cursor" }),
 			sessionIdentity: undefined,
 			hotState: null,
-			projects: [createProject()],
+			getProject: projectLookup([createProject()]),
 		});
 
 		expect(snapshot.project?.path).toBe("/repo");
@@ -89,7 +94,7 @@ describe("kanban thread dialog model", () => {
 				agentId: "codex",
 			},
 			hotState: null,
-			projects: [createProject("/panel-repo"), createProject("/canonical-repo")],
+			getProject: projectLookup([createProject("/panel-repo"), createProject("/canonical-repo")]),
 		});
 
 		expect(snapshot.project?.path).toBe("/canonical-repo");
@@ -107,7 +112,7 @@ describe("kanban thread dialog model", () => {
 			}),
 			sessionIdentity: undefined,
 			hotState: null,
-			projects: [createProject("/panel-repo")],
+			getProject: projectLookup([createProject("/panel-repo")]),
 		});
 
 		expect(snapshot.project).toBeNull();
@@ -123,7 +128,7 @@ describe("kanban thread dialog model", () => {
 				reviewMode: true,
 				reviewFileIndex: 3,
 			}),
-			projects: [createProject()],
+			getProject: projectLookup([createProject()]),
 		});
 
 		expect(snapshot.reviewMode).toBe(true);
