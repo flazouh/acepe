@@ -85,15 +85,15 @@ export type SessionStateCommand =
 			delta: AssistantTextDeltaPayload;
 	  };
 
-type CurrentSessionStateRevision = SessionGraphRevision | number | null | undefined;
+type CurrentSessionStateRevision = SessionGraphRevision | null | undefined;
 
 function currentTranscriptRevisionFrom(
 	currentRevision: CurrentSessionStateRevision
 ): number | undefined {
-	if (typeof currentRevision === "number" || currentRevision === undefined) {
-		return currentRevision;
-	}
 	if (currentRevision === null) {
+		return undefined;
+	}
+	if (currentRevision === undefined) {
 		return undefined;
 	}
 	return currentRevision.transcriptRevision;
@@ -102,10 +102,10 @@ function currentTranscriptRevisionFrom(
 function currentGraphRevisionFrom(
 	currentRevision: CurrentSessionStateRevision
 ): number | undefined {
-	if (typeof currentRevision === "number" || currentRevision === undefined) {
+	if (currentRevision === null) {
 		return undefined;
 	}
-	if (currentRevision === null) {
+	if (currentRevision === undefined) {
 		return undefined;
 	}
 	return currentRevision.graphRevision;
@@ -235,8 +235,7 @@ export function routeSessionStateEnvelope(
 				includesActiveStreamingTail;
 			const includesGraphPatch =
 				operationPatches.length > 0 || interactionPatches.length > 0 || includesGraphState;
-			const currentGraphRevision = currentGraphRevisionFrom(currentRevision);
-			if (includesGraphPatch && !hasCurrentGraphRevision(currentRevision)) {
+			if (!hasCurrentGraphRevision(currentRevision)) {
 				return [
 					{
 						kind: "refreshSnapshot",
@@ -245,6 +244,7 @@ export function routeSessionStateEnvelope(
 					},
 				];
 			}
+			const currentGraphRevision = currentGraphRevisionFrom(currentRevision);
 			if (
 				includesGraphPatch &&
 				hasCurrentGraphRevision(currentRevision) &&

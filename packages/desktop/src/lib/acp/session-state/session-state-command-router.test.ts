@@ -251,7 +251,7 @@ describe("routeSessionStateEnvelope", () => {
 		expect(second?.kind).toBe("applyGraphPatches");
 	});
 
-	it("refreshes graph patch deltas when only a legacy transcript frontier is available", () => {
+	it("refreshes graph patch deltas when only a transcript frontier is available", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 7,
@@ -282,7 +282,7 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		expect(routeSessionStateEnvelope("session-1", 4, envelope)).toEqual([
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
 			{
 				kind: "refreshSnapshot",
 				fromRevision: 6,
@@ -546,7 +546,7 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("still routes transcript-only deltas with a legacy transcript frontier", () => {
+	it("refreshes transcript-only deltas when no canonical graph frontier exists", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 7,
@@ -592,9 +592,13 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		expect(
-			routeSessionStateEnvelope("session-1", 4, envelope).map((command) => command.kind)
-		).toEqual(["applyTranscriptDelta"]);
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 4,
+				toRevision: 5,
+			},
+		]);
 	});
 
 	it("does not apply graph patches from a transcript delta with a stale frontier", () => {
@@ -649,7 +653,7 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		expect(routeSessionStateEnvelope("session-1", 6, envelope)).toEqual([
+		expect(routeSessionStateEnvelope("session-1", null, envelope)).toEqual([
 			{
 				kind: "refreshSnapshot",
 				fromRevision: 7,
@@ -676,7 +680,15 @@ describe("routeSessionStateEnvelope", () => {
 			},
 		};
 
-		const commands = routeSessionStateEnvelope("session-1", 7, envelope);
+		const commands = routeSessionStateEnvelope(
+			"session-1",
+			{
+				graphRevision: 7,
+				transcriptRevision: 7,
+				lastEventSeq: 7,
+			},
+			envelope
+		);
 
 		expect(commands).toHaveLength(1);
 		expect(commands[0]).toMatchObject({
