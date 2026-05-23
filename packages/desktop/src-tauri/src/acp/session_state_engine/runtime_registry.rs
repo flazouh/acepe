@@ -441,17 +441,23 @@ impl SessionGraphRuntimeRegistry {
     }
 
     #[must_use]
-    pub fn build_assistant_text_delta_envelope(
+    pub fn build_assistant_text_delta_envelopes(
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
-    ) -> Option<SessionStateEnvelope> {
+    ) -> Vec<SessionStateEnvelope> {
         let snapshot = request
             .transcript_projection_registry
-            .snapshot_for_session(request.session_id)?;
+            .snapshot_for_session(request.session_id);
+        let Some(snapshot) = snapshot else {
+            return Vec::new();
+        };
+        let Some(transcript_delta) = request.transcript_delta else {
+            return Vec::new();
+        };
         build_assistant_text_delta_from_components(
             request.session_id,
             request.update,
-            request.transcript_delta?,
+            transcript_delta,
             &snapshot,
             request.revision,
         )
@@ -470,9 +476,7 @@ impl SessionGraphRuntimeRegistry {
                 request.revision,
             ));
         }
-        if let Some(envelope) = self.build_assistant_text_delta_envelope(request) {
-            envelopes.push(envelope);
-        }
+        envelopes.extend(self.build_assistant_text_delta_envelopes(request));
         envelopes
     }
 
@@ -959,24 +963,30 @@ fn build_assistant_text_delta_from_components(
     transcript_delta: &TranscriptDelta,
     snapshot: &TranscriptSnapshot,
     revision: SessionGraphRevision,
-) -> Option<SessionStateEnvelope> {
+) -> Vec<SessionStateEnvelope> {
     let SessionUpdate::AgentMessageChunk {
         chunk,
         produced_at_monotonic_ms: Some(produced_at_monotonic_ms),
         ..
     } = update
     else {
-        return None;
+        return Vec::new();
     };
-    let delta_text = assistant_text_from_update_chunk(chunk)?;
-    let row_entry_id = assistant_row_entry_id(transcript_delta)?;
-    let (row_index, row_entry) = snapshot.entries.iter().enumerate().find(|(_, entry)| {
+    let Some(delta_text) = assistant_text_from_update_chunk(chunk) else {
+        return Vec::new();
+    };
+    let Some(row_entry_id) = assistant_row_entry_id(transcript_delta) else {
+        return Vec::new();
+    };
+    let Some((row_index, row_entry)) = snapshot.entries.iter().enumerate().find(|(_, entry)| {
         entry.role == TranscriptEntryRole::Assistant && entry.entry_id == row_entry_id
-    })?;
+    }) else {
+        return Vec::new();
+    };
     let total_chars = transcript_entry_text_char_count(row_entry);
     let delta_chars = delta_text.chars().count();
     let char_offset_chars = total_chars.saturating_sub(delta_chars);
-    let char_offset = match u32::try_from(char_offset_chars) {
+    let start_char_offset = match u32::try_from(char_offset_chars) {
         Ok(value) => value,
         Err(_) => {
             tracing::error!(
@@ -985,34 +995,123 @@ fn build_assistant_text_delta_from_components(
                 char_offset_chars,
                 "Assistant text delta char offset exceeded u32::MAX; skipping envelope"
             );
-            return None;
+            return Vec::new();
         }
     };
     let row_id = sanitize_row_id(row_entry_id);
     let turn_id = assistant_turn_id_from_snapshot(snapshot, row_index, &row_id);
-    let envelope = build_assistant_text_delta_state_envelope(
+    build_budgeted_assistant_text_delta_state_envelopes(
         session_id,
         revision,
-        AssistantTextDeltaPayload {
-            turn_id,
-            row_id,
-            char_offset,
-            delta_text: delta_text.to_string(),
-            produced_at_monotonic_ms: *produced_at_monotonic_ms,
-            revision: revision.transcript_revision,
-        },
-    );
-    if let Err(status) = session_state_envelope_byte_budget_status(&envelope) {
-        tracing::warn!(
+        turn_id,
+        row_id,
+        start_char_offset,
+        delta_text,
+        *produced_at_monotonic_ms,
+    )
+}
+
+fn build_budgeted_assistant_text_delta_state_envelopes(
+    session_id: &str,
+    revision: SessionGraphRevision,
+    turn_id: String,
+    row_id: String,
+    start_char_offset: u32,
+    delta_text: &str,
+    produced_at_monotonic_ms: u64,
+) -> Vec<SessionStateEnvelope> {
+    if delta_text.is_empty() {
+        return vec![build_assistant_text_delta_state_envelope(
             session_id,
-            row_entry_id,
-            byte_len = status.byte_len,
-            max_bytes = status.max_bytes,
-            "Skipping oversized assistant text delta envelope"
-        );
-        return None;
+            revision,
+            AssistantTextDeltaPayload {
+                turn_id,
+                row_id,
+                char_offset: start_char_offset,
+                delta_text: String::new(),
+                produced_at_monotonic_ms,
+                revision: revision.transcript_revision,
+            },
+        )];
     }
-    Some(envelope)
+
+    const INITIAL_CHUNK_BYTES: usize = 6_000;
+    let mut envelopes = Vec::new();
+    let mut offset = 0;
+    let mut char_offset = start_char_offset;
+
+    while offset < delta_text.len() {
+        let mut chunk_end = next_char_boundary(delta_text, offset, INITIAL_CHUNK_BYTES);
+        let mut accepted = None;
+
+        while chunk_end > offset {
+            let chunk = &delta_text[offset..chunk_end];
+            let envelope = build_assistant_text_delta_state_envelope(
+                session_id,
+                revision,
+                AssistantTextDeltaPayload {
+                    turn_id: turn_id.clone(),
+                    row_id: row_id.clone(),
+                    char_offset,
+                    delta_text: chunk.to_string(),
+                    produced_at_monotonic_ms,
+                    revision: revision.transcript_revision,
+                },
+            );
+
+            match session_state_envelope_byte_budget_status(&envelope) {
+                Ok(_) => {
+                    accepted = Some((envelope, chunk.chars().count()));
+                    break;
+                }
+                Err(status) => {
+                    if chunk.chars().count() <= 1 {
+                        tracing::warn!(
+                            session_id,
+                            byte_len = status.byte_len,
+                            max_bytes = status.max_bytes,
+                            "Skipping assistant text delta chunk that cannot fit byte budget"
+                        );
+                        return envelopes;
+                    }
+                    chunk_end = previous_midpoint_char_boundary(delta_text, offset, chunk_end);
+                }
+            }
+        }
+
+        let Some((envelope, chunk_chars)) = accepted else {
+            break;
+        };
+        envelopes.push(envelope);
+        offset = chunk_end;
+        char_offset = char_offset.saturating_add(chunk_chars as u32);
+    }
+
+    envelopes
+}
+
+fn next_char_boundary(value: &str, start: usize, max_bytes: usize) -> usize {
+    let mut end = value.len().min(start.saturating_add(max_bytes));
+    while end > start && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    if end == start {
+        value[start..]
+            .char_indices()
+            .nth(1)
+            .map(|(index, _)| start + index)
+            .unwrap_or(value.len())
+    } else {
+        end
+    }
+}
+
+fn previous_midpoint_char_boundary(value: &str, start: usize, end: usize) -> usize {
+    let mut midpoint = start + (end - start) / 2;
+    while midpoint > start && !value.is_char_boundary(midpoint) {
+        midpoint -= 1;
+    }
+    midpoint
 }
 
 fn build_assistant_text_delta_state_envelope(
@@ -1236,7 +1335,8 @@ mod tests {
     use super::{
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
-        CapabilityPreviewState, LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
+        session_state_envelope_byte_budget_status, CapabilityPreviewState,
+        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
     };
 
     #[test]
@@ -1543,6 +1643,8 @@ mod tests {
             &snapshot,
             SessionGraphRevision::new(event_seq, event_seq, event_seq),
         )
+        .into_iter()
+        .next()
         .expect("assistant text delta envelope")
     }
 
@@ -1620,14 +1722,11 @@ mod tests {
     }
 
     #[test]
-    fn assistant_text_delta_envelope_respects_byte_budget_at_source() {
+    fn assistant_text_delta_envelope_splits_oversized_chunks_at_source() {
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let update = create_agent_message_chunk_update(
-            "session-1",
-            Some("assistant-1"),
-            &"x".repeat(8_000),
-            5,
-        );
+        let oversized_text = "x".repeat(8_000);
+        let update =
+            create_agent_message_chunk_update("session-1", Some("assistant-1"), &oversized_text, 5);
         let transcript_delta = transcript_projection_registry
             .apply_session_update(1, &update)
             .expect("transcript delta");
@@ -1635,7 +1734,7 @@ mod tests {
             .snapshot_for_session("session-1")
             .expect("transcript snapshot");
 
-        let envelope = build_assistant_text_delta_from_components(
+        let envelopes = build_assistant_text_delta_from_components(
             "session-1",
             &update,
             &transcript_delta,
@@ -1644,9 +1743,21 @@ mod tests {
         );
 
         assert!(
-            envelope.is_none(),
-            "oversized assistant text deltas should fall back to regular transcript delivery"
+            envelopes.len() > 1,
+            "oversized assistant text deltas should be split, not dropped"
         );
+        let mut reconstructed = String::new();
+        for envelope in &envelopes {
+            session_state_envelope_byte_budget_status(envelope)
+                .expect("split assistant text delta should stay within budget");
+            match &envelope.payload {
+                SessionStatePayload::AssistantTextDelta { delta } => {
+                    reconstructed.push_str(&delta.delta_text);
+                }
+                other => panic!("expected assistant text delta payload, got {other:?}"),
+            }
+        }
+        assert_eq!(reconstructed, oversized_text);
     }
 
     fn assert_hot_tool_delta_contract(envelope: &SessionStateEnvelope) {
