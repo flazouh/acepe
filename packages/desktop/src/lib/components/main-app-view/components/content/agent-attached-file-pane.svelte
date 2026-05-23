@@ -17,9 +17,6 @@ interface Props {
 	projects: readonly Project[];
 	columnWidth?: number;
 	isFullscreenEmbedded?: boolean;
-	onSelectFilePanel: (ownerPanelId: string, panelId: string) => void;
-	onCloseFilePanel: (panelId: string) => void;
-	onResizeFilePanel: (panelId: string, delta: number) => void;
 }
 
 let {
@@ -27,9 +24,6 @@ let {
 	projects,
 	columnWidth = 450,
 	isFullscreenEmbedded: _isFullscreenEmbedded = false,
-	onSelectFilePanel,
-	onCloseFilePanel,
-	onResizeFilePanel,
 }: Props = $props();
 
 const panelStore = getPanelStore();
@@ -163,7 +157,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 					<button
 						type="button"
 						class="min-w-0"
-						onclick={() => onSelectFilePanel(ownerPanelId, filePanel.id)}
+						onclick={() => panelStore.setActiveAttachedFilePanel(ownerPanelId, filePanel.id)}
 						title={filePanel.filePath}
 					>
 						<FilePathBadge
@@ -178,7 +172,7 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 					<button
 						type="button"
 						class="inline-flex h-4 w-4 items-center justify-center rounded opacity-50 hover:opacity-100 hover:bg-muted-foreground/10"
-						onclick={() => onCloseFilePanel(filePanel.id)}
+						onclick={() => panelStore.closeFilePanel(filePanel.id)}
 						title="Close tab"
 					>
 						<IconX class="h-3 w-3" />
@@ -202,8 +196,8 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				compactHeader={true}
 				useReadOnlyPierreView={true}
 				flatStyle={true}
-				onClose={() => onCloseFilePanel(activeFilePanel.id)}
-				onResize={(panelId, delta) => onResizeFilePanel(panelId, delta)}
+				onClose={() => panelStore.closeFilePanel(activeFilePanel.id)}
+				onResize={(panelId, delta) => panelStore.resizeFilePanel(panelId, delta)}
 			/>
 		{/snippet}
 	</SharedAgentAttachedFilePane>

@@ -44,6 +44,9 @@ const getProjectFileGitStatusSummaryMock = vi.fn();
 const getAttachedFilePanelsMock = vi.fn();
 const getActiveFilePanelIdMock = vi.fn();
 const getActiveAttachedFilePanelMock = vi.fn();
+const setActiveAttachedFilePanelMock = vi.fn();
+const closeFilePanelMock = vi.fn();
+const resizeFilePanelMock = vi.fn();
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
@@ -60,6 +63,10 @@ vi.mock("$lib/acp/store/index.js", () => ({
 		getActiveFilePanelId: (ownerPanelId: string) => getActiveFilePanelIdMock(ownerPanelId),
 		getActiveAttachedFilePanel: (ownerPanelId: string) =>
 			getActiveAttachedFilePanelMock(ownerPanelId),
+		setActiveAttachedFilePanel: (ownerPanelId: string, filePanelId: string) =>
+			setActiveAttachedFilePanelMock(ownerPanelId, filePanelId),
+		closeFilePanel: (filePanelId: string) => closeFilePanelMock(filePanelId),
+		resizeFilePanel: (filePanelId: string, delta: number) => resizeFilePanelMock(filePanelId, delta),
 	}),
 }));
 
@@ -83,6 +90,9 @@ describe("AgentAttachedFilePane", () => {
 		getAttachedFilePanelsMock.mockReset();
 		getActiveFilePanelIdMock.mockReset();
 		getActiveAttachedFilePanelMock.mockReset();
+		setActiveAttachedFilePanelMock.mockReset();
+		closeFilePanelMock.mockReset();
+		resizeFilePanelMock.mockReset();
 	});
 
 	afterEach(() => {
@@ -137,9 +147,6 @@ describe("AgentAttachedFilePane", () => {
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
-			onSelectFilePanel: vi.fn(),
-			onCloseFilePanel: vi.fn(),
-			onResizeFilePanel: vi.fn(),
 		});
 
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
@@ -168,9 +175,6 @@ describe("AgentAttachedFilePane", () => {
 		await view.rerender({
 			ownerPanelId: "panel-1",
 			projects: [{ path: "/repo", name: "repo", createdAt: new Date(0), color: "#123456" }],
-			onSelectFilePanel: vi.fn(),
-			onCloseFilePanel: vi.fn(),
-			onResizeFilePanel: vi.fn(),
 		});
 
 		await waitFor(() => {
@@ -204,9 +208,6 @@ describe("AgentAttachedFilePane", () => {
 				{ path: "/repo-a", name: "Repo A", createdAt: new Date(0), color: "#123456" },
 				{ path: "/repo-b", name: "Repo B", createdAt: new Date(0), color: "#abcdef" },
 			],
-			onSelectFilePanel: vi.fn(),
-			onCloseFilePanel: vi.fn(),
-			onResizeFilePanel: vi.fn(),
 		});
 
 		expect(view.getByTestId("attached-file-panel").textContent).toBe(

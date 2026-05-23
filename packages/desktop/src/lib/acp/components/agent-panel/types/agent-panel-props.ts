@@ -181,19 +181,4 @@ export interface AgentPanelProps {
 	 * Whether this agent panel currently has any attached file tabs.
 	 */
 	readonly hasAttachedFilePane?: boolean;
-
-	/**
-	 * Callback to select active attached file tab.
-	 */
-	readonly onSelectAttachedFilePanel?: (ownerPanelId: string, filePanelId: string) => void;
-
-	/**
-	 * Callback to close an attached file panel.
-	 */
-	readonly onCloseAttachedFilePanel?: (filePanelId: string) => void;
-
-	/**
-	 * Callback to resize an attached file panel.
-	 */
-	readonly onResizeAttachedFilePanel?: (filePanelId: string, delta: number) => void;
 }

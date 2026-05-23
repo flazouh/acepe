@@ -198,9 +198,6 @@ let {
 	onExitReviewMode,
 	onReviewFileIndexChange,
 	hasAttachedFilePane = false,
-	onSelectAttachedFilePanel,
-	onCloseAttachedFilePanel,
-	onResizeAttachedFilePanel,
 	onCreateIssueReport,
 }: AgentPanelProps = $props();
 
@@ -2332,11 +2329,6 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 				projects={allProjects}
 				columnWidth={ATTACHED_COLUMN_WIDTH}
 				isFullscreenEmbedded={isFullscreen}
-				onSelectFilePanel={(ownerPanelId, filePanelId) =>
-					onSelectAttachedFilePanel?.(ownerPanelId, filePanelId)}
-				onCloseFilePanel={(filePanelId) => onCloseAttachedFilePanel?.(filePanelId)}
-				onResizeFilePanel={(filePanelId, delta) =>
-					onResizeAttachedFilePanel?.(filePanelId, delta)}
 			/>
 		{/if}
 	{/snippet}

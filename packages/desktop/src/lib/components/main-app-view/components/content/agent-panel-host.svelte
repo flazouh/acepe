@@ -165,17 +165,6 @@ function handleCreateIssueReport(
 	state.openUserReportsWithDraft(draft);
 }
 
-function handleSelectAttachedFilePanel(ownerPanelId: string, filePanelId: string): void {
-	panelStore.setActiveAttachedFilePanel(ownerPanelId, filePanelId);
-}
-
-function handleCloseAttachedFilePanel(filePanelId: string): void {
-	panelStore.closeFilePanel(filePanelId);
-}
-
-function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void {
-	panelStore.resizeFilePanel(filePanelId, delta);
-}
 </script>
 
 {#if panel}
@@ -210,9 +199,6 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 			onReviewFileIndexChange={handleReviewFileIndexChange}
 			onCreateIssueReport={handleCreateIssueReport}
 			{hasAttachedFilePane}
-			onSelectAttachedFilePanel={handleSelectAttachedFilePanel}
-			onCloseAttachedFilePanel={handleCloseAttachedFilePanel}
-			onResizeAttachedFilePanel={handleResizeAttachedFilePanel}
 		/>
 		{#snippet failed(error, reset)}
 			{@const boundaryError = normalizeAgentPanelBoundaryError(error)}
