@@ -4,11 +4,16 @@ import {
 	createAppendedSceneEntriesArray,
 	createPatchedSceneEntriesArray,
 } from "./scene-entry-array-view.js";
+import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import {
 	getAgentPanelSceneEntryArrayAppendPatch,
 	getAgentPanelSceneEntryArrayPatch,
+	getAgentPanelSceneEntryArraySplicePatch,
+	getAgentPanelSceneEntryArrayTruncation,
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArraySplicePatch,
+	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 export type TokenRevealSceneSnapshot = {
@@ -95,23 +100,100 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			}
 
 			const graphPatch = getAgentPanelSceneEntryArrayPatch(snapshot.sceneEntries);
-			if (
-				graphPatch?.baseSceneEntries === previous.sceneEntries &&
-				previousTokenRevealEntryIndex !== -1 &&
-				!graphPatch.entriesByIndex.has(previousTokenRevealEntryIndex)
-			) {
-				const nextEntries = createPatchedSceneEntriesArray(
-					previousEntries,
-					graphPatch.entriesByIndex
-				);
-				markAgentPanelSceneEntryArrayPatch(nextEntries, {
-					baseSceneEntries: previousEntries,
-					entries: graphPatch.entries,
-					entriesByIndex: graphPatch.entriesByIndex,
-				});
-				previousSnapshot = snapshot;
-				previousEntries = nextEntries;
-				return previousEntries;
+			if (graphPatch?.baseSceneEntries === previous.sceneEntries) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				if (!graphPatch.entriesByIndex.has(previousTokenRevealEntryIndex)) {
+					const nextEntries = createPatchedSceneEntriesArray(
+						previousEntries,
+						graphPatch.entriesByIndex
+					);
+					markAgentPanelSceneEntryArrayPatch(nextEntries, {
+						baseSceneEntries: previousEntries,
+						entries: graphPatch.entries,
+						entriesByIndex: graphPatch.entriesByIndex,
+					});
+					previousSnapshot = snapshot;
+					previousEntries = nextEntries;
+					return previousEntries;
+				}
+			}
+
+			const displayPatch = getAgentPanelDisplayScenePatch(snapshot.sceneEntries);
+			if (displayPatch?.baseSceneEntries === previous.sceneEntries) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				if (!displayPatch.entriesByIndex.has(previousTokenRevealEntryIndex)) {
+					const nextEntries = createPatchedSceneEntriesArray(
+						previousEntries,
+						displayPatch.entriesByIndex
+					);
+					markAgentPanelSceneEntryArrayPatch(nextEntries, {
+						baseSceneEntries: previousEntries,
+						entries: displayPatch.entries,
+						entriesByIndex: displayPatch.entriesByIndex,
+					});
+					previousSnapshot = snapshot;
+					previousEntries = nextEntries;
+					return previousEntries;
+				}
+			}
+
+			const truncation = getAgentPanelSceneEntryArrayTruncation(snapshot.sceneEntries);
+			if (truncation?.baseSceneEntries === previous.sceneEntries) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				if (previousTokenRevealEntryIndex < truncation.length) {
+					const nextEntries = createTruncatedSceneEntriesArray(
+						previousEntries,
+						truncation.length
+					);
+					markAgentPanelSceneEntryArrayTruncation(nextEntries, {
+						baseSceneEntries: previousEntries,
+						length: truncation.length,
+					});
+					previousSnapshot = snapshot;
+					previousEntries = nextEntries;
+					return previousEntries;
+				}
+			}
+
+			const splicePatch = getAgentPanelSceneEntryArraySplicePatch(snapshot.sceneEntries);
+			if (splicePatch?.baseSceneEntries === previous.sceneEntries) {
+				if (previousTokenRevealEntryIndex === -1) {
+					previousSnapshot = snapshot;
+					previousEntries = snapshot.sceneEntries;
+					return previousEntries;
+				}
+				if (previousTokenRevealEntryIndex < splicePatch.startIndex) {
+					const replacementEntries = snapshot.sceneEntries.slice(splicePatch.startIndex);
+					const nextEntries = createSplicedSceneEntriesArray(
+						previousEntries,
+						splicePatch.startIndex,
+						replacementEntries
+					);
+					markAgentPanelSceneEntryArraySplicePatch(nextEntries, {
+						baseSceneEntries: previousEntries,
+						startIndex: splicePatch.startIndex,
+						insertedEntries: replacementEntries.slice(
+							0,
+							Math.max(0, replacementEntries.length - splicePatch.trailingEntries.length)
+						),
+						trailingEntries: splicePatch.trailingEntries,
+					});
+					previousSnapshot = snapshot;
+					previousEntries = nextEntries;
+					return previousEntries;
+				}
 			}
 
 			return null;
@@ -177,6 +259,148 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			return previousTimings;
 		},
 	};
+}
+
+function createTruncatedSceneEntriesArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	length: number
+): readonly AgentPanelSceneEntryModel[] {
+	if (length >= baseEntries.length) {
+		return baseEntries;
+	}
+
+	const target = new Array<AgentPanelSceneEntryModel>(length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield baseEntries[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index < targetArray.length ? baseEntries[index] : undefined;
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+				if (property === "at") {
+					return (index: number) => {
+						const resolvedIndex = index < 0 ? targetArray.length + index : index;
+						if (resolvedIndex < 0 || resolvedIndex >= targetArray.length) {
+							return undefined;
+						}
+						return baseEntries[resolvedIndex];
+					};
+				}
+			}
+			if (property === "length") {
+				return targetArray.length;
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		ownKeys() {
+			return Reflect.ownKeys(target);
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: baseEntries[index],
+					writable: false,
+				};
+			}
+			return (
+				Reflect.getOwnPropertyDescriptor(targetArray, property) ??
+				Reflect.getOwnPropertyDescriptor(baseEntries, property)
+			);
+		},
+	});
+}
+
+function createSplicedSceneEntriesArray(
+	baseEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number,
+	replacementEntries: readonly AgentPanelSceneEntryModel[]
+): readonly AgentPanelSceneEntryModel[] {
+	const target = new Array<AgentPanelSceneEntryModel>(startIndex + replacementEntries.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index < startIndex ? baseEntries[index] : replacementEntries[index - startIndex];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index < startIndex ? baseEntries[index] : replacementEntries[index - startIndex];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+				if (property === "at") {
+					return (index: number) => {
+						const resolvedIndex = index < 0 ? targetArray.length + index : index;
+						if (resolvedIndex < 0 || resolvedIndex >= targetArray.length) {
+							return undefined;
+						}
+						return resolvedIndex < startIndex
+							? baseEntries[resolvedIndex]
+							: replacementEntries[resolvedIndex - startIndex];
+					};
+				}
+			}
+			if (property === "length") {
+				return targetArray.length;
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		ownKeys() {
+			return Reflect.ownKeys(target);
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value:
+						index < startIndex ? baseEntries[index] : replacementEntries[index - startIndex],
+					writable: false,
+				};
+			}
+			return (
+				Reflect.getOwnPropertyDescriptor(targetArray, property) ??
+				Reflect.getOwnPropertyDescriptor(baseEntries, property)
+			);
+		},
+	});
 }
 
 function createPatchedSceneEntryArray(

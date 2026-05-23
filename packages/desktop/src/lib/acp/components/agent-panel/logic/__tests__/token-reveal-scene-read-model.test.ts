@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
+	markAgentPanelSceneEntryArrayTruncation,
 } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	applyAgentPanelDisplayModelToSceneEntries,
+	createAgentPanelDisplayMemory,
+	type AgentPanelDisplayModel,
+} from "../agent-panel-display-model.js";
 import {
 	createTokenRevealSceneReadModel,
 	getTokenRevealScenePatch,
@@ -369,5 +375,124 @@ describe("createTokenRevealSceneReadModel", () => {
 		expect(patchedEntries).not.toBeNull();
 		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
 		expect(patchedEntries?.[1]).toBe(patchedToolEntry);
+	});
+
+	it("applies unrelated display patches over the existing reveal overlay", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const revealAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const otherAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Original",
+			isStreaming: false,
+		};
+		const tokenRevealCss = createTokenRevealCss();
+		const baseEntries = [revealAssistantEntry, otherAssistantEntry];
+
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: revealAssistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		const displayModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+				{
+					id: "assistant-2",
+					type: "assistant",
+					canonicalText: "Original",
+					displayText: "Display override",
+					canonicalTextRevision: "1:assistant-2",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const displayPatchedEntries = applyAgentPanelDisplayModelToSceneEntries(
+			displayModel,
+			createAgentPanelDisplayMemory(),
+			baseEntries
+		);
+
+		const patchedEntries = readModel.applyPatch({
+			sceneEntries: displayPatchedEntries,
+			sourceEntry: revealAssistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		expect(patchedEntries).not.toBeNull();
+		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
+		expect(patchedEntries?.[1]).toMatchObject({
+			id: "assistant-2",
+			markdown: "Display override",
+		});
+	});
+
+	it("applies truncation patches without rebuilding the existing reveal overlay", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Read file",
+			status: "done",
+		};
+		const baseEntries = [assistantEntry, toolEntry];
+		const tokenRevealCss = createTokenRevealCss();
+
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+		const truncatedEntries = [assistantEntry];
+		markAgentPanelSceneEntryArrayTruncation(truncatedEntries, {
+			baseSceneEntries: baseEntries,
+			length: 1,
+		});
+
+		const patchedEntries = readModel.applyPatch({
+			sceneEntries: truncatedEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		expect(patchedEntries).not.toBeNull();
+		expect(patchedEntries).toHaveLength(1);
+		expect(patchedEntries?.[0]).toBe(firstEntries[0]);
 	});
 });
