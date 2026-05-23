@@ -988,6 +988,156 @@ function removeSessionColdFromArray(
 	return nextSessions;
 }
 
+function sessionLiveSyncReferenceFromSession(session: SessionCold): SessionLiveSyncReference {
+	return {
+		id: session.id,
+		updatedAtMs: session.updatedAt.getTime(),
+	};
+}
+
+function sessionPaletteReferenceFromSession(session: SessionCold): SessionPaletteReference {
+	return {
+		id: session.id,
+		projectPath: session.projectPath,
+		agentId: session.agentId,
+		title: session.title,
+	};
+}
+
+function createPrependedReferenceArray<TReference>(
+	reference: TReference,
+	base: readonly TReference[]
+): TReference[] {
+	const target = new Array<TReference>(base.length + 1);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index === 0 ? reference : base[index - 1];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === 0 ? reference : base[index - 1];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === 0 ? reference : base[index - 1],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function createPatchedReferenceArray<TReference extends { readonly id: string }>(
+	base: readonly TReference[],
+	reference: TReference
+): TReference[] {
+	const patchedIndex = findReferenceIndexById(base, reference.id);
+	if (patchedIndex === -1) {
+		return createPrependedReferenceArray(reference, base);
+	}
+	const target = new Array<TReference>(base.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index === patchedIndex ? reference : base[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === patchedIndex ? reference : base[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === patchedIndex ? reference : base[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+}
+
+function findReferenceIndexById<TReference extends { readonly id: string }>(
+	references: readonly TReference[],
+	id: string
+): number {
+	for (let index = 0; index < references.length; index += 1) {
+		if (references[index]?.id === id) {
+			return index;
+		}
+	}
+	return -1;
+}
+
+function rebuildLiveSessionSyncReferences(
+	sessions: readonly SessionCold[]
+): SessionLiveSyncReference[] {
+	const references: SessionLiveSyncReference[] = [];
+	for (const session of sessions) {
+		references.push(sessionLiveSyncReferenceFromSession(session));
+	}
+	return references;
+}
+
+function rebuildSessionPaletteReferences(
+	sessions: readonly SessionCold[]
+): SessionPaletteReference[] {
+	const references: SessionPaletteReference[] = [];
+	for (const session of sessions) {
+		references.push(sessionPaletteReferenceFromSession(session));
+	}
+	return references;
+}
+
 export function applyTranscriptDeltaToSnapshot(
 	snapshot: TranscriptSnapshot,
 	delta: TranscriptDelta
@@ -1772,6 +1922,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private sessions = $state<SessionCold[]>([]);
 	private readonly sessionById = new SvelteMap<string, SessionCold>();
 	private readonly sessionsByProject = new SvelteMap<string, SessionCold[]>();
+	private liveSessionSyncReferences = $state<SessionLiveSyncReference[]>([]);
+	private sessionPaletteReferences = $state<SessionPaletteReference[]>([]);
 	loading = $state(false);
 
 	/** Project paths currently being scanned for sessions (for per-project skeleton display). */
@@ -1832,23 +1984,6 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	private eventService: SessionEventService;
 	private callbacks: SessionStoreCallbacks = {};
 
-	// === DERIVED LOOKUPS ===
-	private readonly liveSessionSyncReferences = $derived.by(() =>
-		this.sessions.map((session) => ({
-			id: session.id,
-			updatedAtMs: session.updatedAt.getTime(),
-		}))
-	);
-
-	private readonly sessionPaletteReferences = $derived.by(() =>
-		this.sessions.map((session) => ({
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			title: session.title,
-		}))
-	);
-
 	constructor() {
 		this.eventService = new SessionEventService();
 		// Create repository with this store as the state reader/writer
@@ -1882,6 +2017,8 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = sessions;
 		rebuildSessionByIdIndex(this.sessionById, sessions);
 		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
+		this.liveSessionSyncReferences = rebuildLiveSessionSyncReferences(sessions);
+		this.sessionPaletteReferences = rebuildSessionPaletteReferences(sessions);
 	}
 
 	/**
@@ -2723,6 +2860,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = createPrependedSessionColdArray(session, this.sessions);
 		this.sessionById.set(session.id, session);
 		patchSessionsByProjectIndex(this.sessionsByProject, undefined, session);
+		this.liveSessionSyncReferences = createPrependedReferenceArray(
+			sessionLiveSyncReferenceFromSession(session),
+			this.liveSessionSyncReferences
+		);
+		this.sessionPaletteReferences = createPrependedReferenceArray(
+			sessionPaletteReferenceFromSession(session),
+			this.sessionPaletteReferences
+		);
 		logger.debug("Added session", { sessionId: session.id });
 	}
 
@@ -2810,6 +2955,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 					: createPatchedSessionColdArray(this.sessions, sessionIndex, snapshotSession);
 			this.sessionById.set(canonicalSessionId, snapshotSession);
 			patchSessionsByProjectIndex(this.sessionsByProject, canonicalSession, snapshotSession);
+			this.liveSessionSyncReferences = createPatchedReferenceArray(
+				this.liveSessionSyncReferences,
+				sessionLiveSyncReferenceFromSession(snapshotSession)
+			);
+			this.sessionPaletteReferences = createPatchedReferenceArray(
+				this.sessionPaletteReferences,
+				sessionPaletteReferenceFromSession(snapshotSession)
+			);
 		} else {
 			this.addSession(snapshotSession);
 		}
@@ -2936,6 +3089,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.sessions = createPatchedSessionColdArray(this.sessions, sessionIndex, updatedSession);
 		this.sessionById.set(id, updatedSession);
 		patchSessionsByProjectIndex(this.sessionsByProject, session, updatedSession);
+		this.liveSessionSyncReferences = createPatchedReferenceArray(
+			this.liveSessionSyncReferences,
+			sessionLiveSyncReferenceFromSession(updatedSession)
+		);
+		this.sessionPaletteReferences = createPatchedReferenceArray(
+			this.sessionPaletteReferences,
+			sessionPaletteReferenceFromSession(updatedSession)
+		);
 	}
 
 	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {

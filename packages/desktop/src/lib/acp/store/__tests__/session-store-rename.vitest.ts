@@ -179,4 +179,51 @@ describe("SessionStore renameSession", () => {
 			sessions[Symbol.iterator] = originalIterator;
 		}
 	});
+
+	it("returns session reference selectors without mapping the session list", () => {
+		store.addSession({
+			id: "session-reference",
+			projectPath: "/project",
+			agentId: "claude-code",
+			title: "Reference",
+			updatedAt: new Date("2026-04-06T10:00:00.000Z"),
+			createdAt: new Date("2026-04-06T09:00:00.000Z"),
+			parentId: null,
+		});
+		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
+		const originalMap = sessions.map;
+		sessions.map = () => {
+			throw new Error("must not map every session for reference selectors");
+		};
+
+		try {
+			const paletteReferences = store.getSessionPaletteReferences();
+			expect(paletteReferences).toHaveLength(1);
+			expect(paletteReferences[0]).toEqual({
+				id: "session-reference",
+				projectPath: "/project",
+				agentId: "claude-code",
+				title: "Reference",
+			});
+			const syncReferences = store.getLiveSessionSyncReferences();
+			expect(syncReferences).toHaveLength(1);
+			expect(syncReferences[0]).toEqual({
+				id: "session-reference",
+				updatedAtMs: Date.parse("2026-04-06T10:00:00.000Z"),
+			});
+
+			store.updateSession(
+				"session-reference",
+				{ title: "Reference updated" },
+				{ touchUpdatedAt: false }
+			);
+
+			expect(store.getSessionPaletteReferences()[0]?.title).toBe("Reference updated");
+			expect(store.getLiveSessionSyncReferences()[0]?.updatedAtMs).toBe(
+				Date.parse("2026-04-06T10:00:00.000Z")
+			);
+		} finally {
+			sessions.map = originalMap;
+		}
+	});
 });
