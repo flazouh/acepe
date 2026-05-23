@@ -52,6 +52,38 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		).toBe(selectedRows);
 	});
 
+	it("selects a waiting row without iterating or copying base rows", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const rows = [userRow("user-1"), assistantRow("assistant-1")];
+		const originalIterator = rows[Symbol.iterator];
+		rows[Symbol.iterator] = () => {
+			throw new Error("must not iterate base rows");
+		};
+
+		try {
+			const selectedRows = readModel.selectRows({
+				rows,
+				waiting: {
+					show: true,
+					startedAtMs: 1_000,
+					label: "Planning next moves...",
+				},
+			});
+
+			expect(selectedRows).toHaveLength(3);
+			expect(selectedRows[0]).toBe(rows[0]);
+			expect(selectedRows[1]).toBe(rows[1]);
+			expect(selectedRows[2]).toEqual({
+				type: "thinking",
+				id: "thinking-indicator",
+				startedAtMs: 1_000,
+				label: "Planning next moves...",
+			});
+		} finally {
+			rows[Symbol.iterator] = originalIterator;
+		}
+	});
+
 	it("keeps the selected summary stable for the same rows reference", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const rows = [userRow("user-1"), assistantRow("assistant-1")];
@@ -103,6 +135,50 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(waitingSummary.latestUserKey).toBe("user-1");
 		expect(waitingSummary.rowKeys).toEqual(["user-1", "assistant-1", "thinking-indicator"]);
 		expect(waitingSummary.anchorEligibleKeys).toBe(firstSummary.anchorEligibleKeys);
+	});
+
+	it("applies a waiting row append without checking the whole row prefix", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const selectedRows = readModel.selectRows({
+			rows: firstRows,
+			waiting: {
+				show: true,
+				startedAtMs: 1_000,
+				label: "Planning next moves...",
+			},
+		});
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not compare every previous row");
+			},
+		});
+
+		try {
+			const waitingSummary = readModel.applyRows({
+				rows: selectedRows,
+				reason: "waiting-row-appended",
+			});
+
+			expect(waitingSummary.lastKey).toBe("thinking-indicator");
+			expect(waitingSummary.rowKeys).toEqual([
+				"user-1",
+				"assistant-1",
+				"thinking-indicator",
+			]);
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
 	});
 
 	it("updates a replaced tail row from the previous summary", () => {

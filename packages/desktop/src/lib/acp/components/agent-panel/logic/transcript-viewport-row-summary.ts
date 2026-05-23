@@ -85,6 +85,16 @@ type ThinkingDurationSource =
 	| { readonly type: "fixed"; readonly durationMs: number }
 	| { readonly type: "elapsed"; readonly startedAtMs: number };
 
+type SingleAppendRowsMetadata = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly appendedRow: SceneDisplayRow;
+};
+
+const singleAppendRowsMetadata = new WeakMap<
+	readonly SceneDisplayRow[],
+	SingleAppendRowsMetadata
+>();
+
 export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsReadModel {
 	let previousRows: readonly SceneDisplayRow[] | null = null;
 	let previousSummary: TranscriptViewportRowSummary = createEmptyTranscriptViewportRows();
@@ -116,19 +126,13 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				return selectedRowsCache.selectedRows;
 			}
 
-			const selectedRows: SceneDisplayRow[] = [];
-			selectedRows.length = rows.length + 1;
-			let writeIndex = 0;
-			for (const row of rows) {
-				selectedRows[writeIndex] = row;
-				writeIndex += 1;
-			}
-			selectedRows[writeIndex] = {
+			const waitingRow = {
 				type: THINKING_DISPLAY_ENTRY.type,
 				id: THINKING_DISPLAY_ENTRY.id,
 				startedAtMs: waiting.startedAtMs,
 				label: waiting.label,
-			};
+			} satisfies SceneDisplayRow;
+			const selectedRows = createSingleAppendRows(rows, waitingRow);
 			selectedRowsCache = {
 				rows,
 				startedAtMs: waiting.startedAtMs,
@@ -139,6 +143,18 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 		},
 		applyRows({ rows, reason }) {
 			if (rows === previousRows) {
+				return previousSummary;
+			}
+
+			const singleAppendRows = singleAppendRowsMetadata.get(rows);
+			if (previousRows !== null && singleAppendRows?.baseRows === previousRows) {
+				previousSummary = appendTranscriptViewportRowsSummary(previousSummary, rows, reason);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, previousRows.length - 1)
+				);
+				previousRows = rows;
 				return previousSummary;
 			}
 
@@ -236,6 +252,66 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 			return Math.max(0, nowMs - source.startedAtMs);
 		},
 	};
+}
+
+function createSingleAppendRows(
+	baseRows: readonly SceneDisplayRow[],
+	appendedRow: SceneDisplayRow
+): readonly SceneDisplayRow[] {
+	const target = new Array<SceneDisplayRow>(baseRows.length + 1);
+	const rows = new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < baseRows.length; index += 1) {
+						yield baseRows[index];
+					}
+					yield appendedRow;
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === baseRows.length ? appendedRow : baseRows[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === baseRows.length ? appendedRow : baseRows[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+	});
+	singleAppendRowsMetadata.set(rows, { baseRows, appendedRow });
+	return rows;
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 function truncateTranscriptViewportRowsSummary(
