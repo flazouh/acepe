@@ -1058,6 +1058,91 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 			})
 		).toBeNull();
 	});
+
+	it("keeps mixed prefix updates plus appended tail on the structural patch lane", () => {
+		const readModel = createAgentPanelDisplaySceneEntriesReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "First tool",
+			status: "running",
+		};
+		const appendedAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Backend draft",
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [{ id: "user-1", type: "user", text: "Prompt" }],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const baseEntries = [userEntry, toolEntry];
+		const firstDisplayedEntries = readModel.apply({
+			model: firstModel,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: baseEntries,
+		});
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Updated tool",
+			status: "done",
+		};
+		const nextEntries = [userEntry, nextToolEntry, appendedAssistantEntry];
+		const nextModel: AgentPanelDisplayModel = {
+			...firstModel,
+			rows: [
+				...firstModel.rows,
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Backend draft",
+					displayText: "Display answer",
+					canonicalTextRevision: "2:assistant-1",
+					isLiveTail: false,
+				},
+			],
+		};
+
+		const displayedEntries = readModel.applyPatch({
+			model: nextModel,
+			memory: createAgentPanelDisplayMemory(),
+			sceneEntries: nextEntries,
+		});
+
+		expect(displayedEntries).not.toBeNull();
+		if (displayedEntries === null) {
+			return;
+		}
+		expect(displayedEntries[0]).toBe(firstDisplayedEntries[0]);
+		expect(displayedEntries[1]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			title: "Updated tool",
+			status: "done",
+		});
+		expect(displayedEntries[2]).toMatchObject({
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Display answer",
+		});
+		const splice = getAgentPanelSceneEntryArraySplicePatch(displayedEntries);
+		expect(splice?.baseSceneEntries).toBe(firstDisplayedEntries);
+		expect(splice?.startIndex).toBe(1);
+		expect(splice?.insertedEntries).toHaveLength(2);
+	});
 });
 
 describe("buildAgentPanelBaseModel row projection", () => {

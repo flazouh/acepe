@@ -2056,6 +2056,28 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return true;
 	}
 
+	function applyStablePrefixAppendSceneIndexes(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): number | null {
+		const previousEntries = previousSceneEntries;
+		if (previousEntries === null || sceneEntries.length <= previousEntries.length) {
+			return null;
+		}
+		for (let index = 0; index < previousEntries.length; index += 1) {
+			if (previousEntries[index]?.id !== sceneEntries[index]?.id) {
+				return null;
+			}
+		}
+		appendSceneEntryIndexes(
+			sceneEntryIndexesById,
+			sceneEntries,
+			previousEntries.length,
+			previousEntries.length
+		);
+		previousSceneEntries = sceneEntries;
+		return previousEntries.length;
+	}
+
 	function selectAssistantRows(
 		model: AgentPanelDisplayModel
 	): ReadonlyMap<string, Extract<AgentPanelDisplayRow, { type: "assistant" }>> {
@@ -2213,6 +2235,52 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 		return displayedEntries;
 	}
 
+	function applyDisplayScenePrefixAppendEntries(
+		model: AgentPanelDisplayModel,
+		sceneEntries: readonly AgentPanelSceneEntryModel[],
+		appendStartIndex: number
+	): readonly AgentPanelSceneEntryModel[] | null {
+		if (previousDisplayedSceneEntries === null || previousPatchedSceneEntries === null) {
+			return null;
+		}
+		const assistantRowsById = selectAssistantRows(model);
+		const firstDisplayChangeIndex = findFirstDisplaySceneChangeIndex(
+			assistantRowsById,
+			sceneEntries,
+			sceneEntryIndexesById,
+			previousDisplayedSceneEntries
+		);
+		const firstCanonicalChangeIndex = findFirstSceneEntryDifferenceIndex(
+			previousPatchedSceneEntries,
+			sceneEntries,
+			appendStartIndex
+		);
+		const effectiveStartIndex = Math.min(
+			firstCanonicalChangeIndex,
+			firstDisplayChangeIndex ?? sceneEntries.length
+		);
+		const replacementEntries = buildDisplayedSceneSuffixEntries(
+			assistantRowsById,
+			sceneEntries,
+			effectiveStartIndex
+		);
+		const displayedEntries =
+			effectiveStartIndex >= previousDisplayedSceneEntries.length
+				? createAppendedDisplayedSceneEntriesArray(
+						previousDisplayedSceneEntries,
+						replacementEntries
+					)
+				: createSplicedDisplayedSceneEntriesArray(
+						previousDisplayedSceneEntries,
+						effectiveStartIndex,
+						replacementEntries
+					);
+		previousPatchedSceneEntries = sceneEntries;
+		previousPatchedAssistantRowsById = assistantRowsById;
+		previousDisplayedSceneEntries = displayedEntries;
+		return displayedEntries;
+	}
+
 	return {
 		apply({ model, sceneEntries }) {
 			if (sceneEntries !== previousSceneEntries) {
@@ -2290,8 +2358,16 @@ export function createAgentPanelDisplaySceneEntriesReadModel(): AgentPanelDispla
 			const splicePatch = getAgentPanelSceneEntryArraySplicePatch(sceneEntries);
 			if (applyGraphSceneSpliceIndexes(sceneEntries)) {
 				return splicePatch === undefined
-					? null
-					: applyDisplaySceneSpliceEntries(model, sceneEntries, splicePatch.startIndex);
+							? null
+							: applyDisplaySceneSpliceEntries(model, sceneEntries, splicePatch.startIndex);
+			}
+			const stablePrefixAppendStartIndex = applyStablePrefixAppendSceneIndexes(sceneEntries);
+			if (stablePrefixAppendStartIndex !== null) {
+				return applyDisplayScenePrefixAppendEntries(
+					model,
+					sceneEntries,
+					stablePrefixAppendStartIndex
+				);
 			}
 			return null;
 		},
@@ -2322,6 +2398,19 @@ function findFirstDisplaySceneChangeIndex(
 		}
 	}
 	return firstChangedIndex;
+}
+
+function findFirstSceneEntryDifferenceIndex(
+	previousSceneEntries: readonly AgentPanelSceneEntryModel[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	endIndex: number
+): number {
+	for (let index = 0; index < endIndex; index += 1) {
+		if (!areJsonLikeValuesEquivalent(previousSceneEntries[index], sceneEntries[index])) {
+			return index;
+		}
+	}
+	return endIndex;
 }
 
 function buildDisplayedSceneSuffixEntries(
