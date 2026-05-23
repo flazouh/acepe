@@ -79,7 +79,7 @@ export class SessionsProvider implements PaletteProvider {
 		color?: string;
 		iconSrc: string | null;
 	} {
-		const project = this.config.projectManager.projects.find((p) => p.path === projectPath);
+		const project = this.config.projectManager.getProject(projectPath);
 		if (project) {
 			return {
 				name: project.name,

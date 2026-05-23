@@ -238,7 +238,7 @@ export class FilesProvider implements PaletteProvider {
 		let project: Project | undefined;
 		if (colonIndex > 0) {
 			const projectPath = stored.id.slice(0, colonIndex);
-			project = this.config.projectManager.projects.find((p) => p.path === projectPath);
+			project = this.config.projectManager.getProject(projectPath);
 		}
 
 		// Extract extension from description (file path)
