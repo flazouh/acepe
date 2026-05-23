@@ -15,6 +15,7 @@ import {
 	createAgentPanelDisplayMemory,
 	createAgentPanelDisplaySceneEntriesReadModel,
 	createAgentPanelDisplayRowsReadModel,
+	markAgentPanelDisplayRowArrayPatch,
 } from "../agent-panel-display-model.js";
 
 describe("applyAgentPanelDisplayModelToSceneEntries identity", () => {
@@ -1696,6 +1697,51 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		expect(nextProjection).toBe(firstProjection);
 		expect(nextProjection.rows[0]).toBe(firstProjection.rows[0]);
 		expect(nextProjection.rows[1]).toBe(firstProjection.rows[1]);
+	});
+
+	it("keeps displayed rows stable when patched source rows map to the same display rows", () => {
+		const firstAssistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "Answer",
+			displayText: "Answer",
+			canonicalTextRevision: "2:assistant-1",
+			isLiveTail: false,
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "completed",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: true, showStop: false },
+			rows: [firstAssistantRow],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(createAgentPanelDisplayMemory(), firstModel);
+		const nextAssistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "Answer",
+			displayText: "Answer",
+			canonicalTextRevision: "2:assistant-1",
+			isLiveTail: false,
+		};
+		const nextRows = [nextAssistantRow];
+		markAgentPanelDisplayRowArrayPatch(nextRows, {
+			baseRows: firstModel.rows,
+			rowPatches: new Map([[0, nextAssistantRow]]),
+		});
+
+		const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+			...firstModel,
+			rows: nextRows,
+		});
+
+		expect(nextResult.model.rows).toBe(firstResult.model.rows);
+		expect(nextResult.memory.displayRows).toBe(firstResult.memory.displayRows);
+		expect(nextResult.memory.sourceRows).toBe(nextRows);
 	});
 
 	it("applies marked assistant graph patches without rebuilding display rows", () => {

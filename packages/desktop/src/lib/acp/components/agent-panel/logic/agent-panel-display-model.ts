@@ -126,6 +126,13 @@ function getAgentPanelDisplayRowArrayPatch(
 	return agentPanelDisplayRowArrayPatches.get(rows);
 }
 
+export function markAgentPanelDisplayRowArrayPatch(
+	rows: readonly AgentPanelDisplayRow[],
+	patch: AgentPanelDisplayRowArrayPatch
+): void {
+	agentPanelDisplayRowArrayPatches.set(rows, patch);
+}
+
 export interface AgentPanelDisplayMemory {
 	readonly sessionId: string | null;
 	readonly turnId: string | null;
@@ -962,10 +969,19 @@ export function applyAgentPanelDisplayMemory(
 				) {
 					previousTexts.delete(previousSourceRow.id);
 				}
-				rowPatches.set(
-					index,
-					applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
+				const nextDisplayRow = applyDisplayTextToRow(
+					nextSourceRow,
+					baseModel,
+					previousTexts,
+					previousTexts
 				);
+				if (
+					previousMemory.displayRows[index] !== undefined &&
+					areDisplayRowsEquivalent(previousMemory.displayRows[index], nextDisplayRow)
+				) {
+					continue;
+				}
+				rowPatches.set(index, nextDisplayRow);
 			}
 		} else {
 			for (let index = 0; index < baseModel.rows.length; index += 1) {
@@ -980,10 +996,19 @@ export function applyAgentPanelDisplayMemory(
 				) {
 					previousTexts.delete(previousSourceRow.id);
 				}
-				rowPatches.set(
-					index,
-					applyDisplayTextToRow(nextSourceRow, baseModel, previousTexts, previousTexts)
+				const nextDisplayRow = applyDisplayTextToRow(
+					nextSourceRow,
+					baseModel,
+					previousTexts,
+					previousTexts
 				);
+				if (
+					previousMemory.displayRows[index] !== undefined &&
+					areDisplayRowsEquivalent(previousMemory.displayRows[index], nextDisplayRow)
+				) {
+					continue;
+				}
+				rowPatches.set(index, nextDisplayRow);
 			}
 		}
 		if (rowPatches.size === 0) {
