@@ -436,6 +436,104 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	it("drops same-graph envelopes with older event sequence at ingress", () => {
+		const freshEnvelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 7,
+			lastEventSeq: 10,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("ready"),
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 10,
+				},
+			},
+		};
+		const staleEnvelope: SessionStateEnvelope = {
+			sessionId: "session-123",
+			graphRevision: 7,
+			lastEventSeq: 9,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 9,
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(freshEnvelope, handler);
+		service.handleSessionStateEnvelope(staleEnvelope, handler);
+
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-123",
+			freshEnvelope
+		);
+	});
+
+	it("prunes buffered same-graph envelopes with older event sequence before replay", async () => {
+		const pendingHandler = createMockHandler();
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		const staleEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-ordered-2",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reconnecting"),
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 7,
+				},
+			},
+		};
+		const freshEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-ordered-2",
+			graphRevision: 7,
+			lastEventSeq: 8,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("ready"),
+				revision: {
+					graphRevision: 7,
+					transcriptRevision: 4,
+					lastEventSeq: 8,
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(staleEnvelope, pendingHandler);
+		service.handleSessionStateEnvelope(freshEnvelope, pendingHandler);
+
+		expect(pendingHandler.applySessionStateEnvelope).not.toHaveBeenCalled();
+
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-ordered-2",
+		} as unknown as SessionCold);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-ordered-2",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		});
+		service.flushPendingEvents("session-pending-ordered-2", pendingHandler);
+		await new Promise((resolve) => {
+			setTimeout(resolve, 0);
+		});
+
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-pending-ordered-2",
+			freshEnvelope
+		);
+	});
+
 	it("materializes pending creation sessions before applying canonical delta envelopes", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);

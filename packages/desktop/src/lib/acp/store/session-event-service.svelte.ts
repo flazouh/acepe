@@ -38,6 +38,36 @@ type PendingSessionEvent =
 	| { kind: "sessionUpdate"; update: SessionUpdate; envelopeSeq: number | null }
 	| { kind: "sessionState"; envelope: SessionStateEnvelope };
 
+interface SessionStateEnvelopeFrontier {
+	graphRevision: number;
+	lastEventSeq: number;
+}
+
+function isOlderEnvelopeFrontier(
+	current: SessionStateEnvelopeFrontier | undefined,
+	incoming: SessionStateEnvelopeFrontier
+): boolean {
+	if (current === undefined) {
+		return false;
+	}
+
+	if (incoming.graphRevision !== current.graphRevision) {
+		return incoming.graphRevision < current.graphRevision;
+	}
+
+	return incoming.lastEventSeq < current.lastEventSeq;
+}
+
+function maxEnvelopeFrontier(
+	current: SessionStateEnvelopeFrontier | undefined,
+	incoming: SessionStateEnvelopeFrontier
+): SessionStateEnvelopeFrontier {
+	if (current === undefined || isOlderEnvelopeFrontier(current, incoming)) {
+		return incoming;
+	}
+	return current;
+}
+
 function isJsonObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -156,7 +186,10 @@ export class SessionEventService {
 
 	// Canonical connection waiters — per-session promises awaiting ready/error envelopes.
 	private connectionMaterializationWaiters = new Map<string, ConnectionMaterializationWaiter>();
-	private latestSessionStateGraphRevision = new SvelteMap<string, number>();
+	private latestSessionStateEnvelopeFrontier = new SvelteMap<
+		string,
+		SessionStateEnvelopeFrontier
+	>();
 
 	/**
 	 * Set callbacks for handling permission and question requests.
@@ -187,7 +220,8 @@ export class SessionEventService {
 			waiterResolve = resolve;
 			waiterReject = reject;
 		});
-		const minGraphRevision = this.latestSessionStateGraphRevision.get(sessionId) ?? 0;
+		const minGraphRevision =
+			this.latestSessionStateEnvelopeFrontier.get(sessionId)?.graphRevision ?? 0;
 
 		const timeoutId = setTimeout(() => {
 			const waiter = this.takeConnectionMaterializationWaiter(sessionId);
@@ -308,7 +342,7 @@ export class SessionEventService {
 			clearTimeout(waiter.timeoutId);
 		}
 		this.connectionMaterializationWaiters.clear();
-		this.latestSessionStateGraphRevision.clear();
+		this.latestSessionStateEnvelopeFrontier.clear();
 		this.processedSessionUpdateSeqs.clear();
 		this.stopTelemetryReporter();
 
@@ -545,21 +579,26 @@ export class SessionEventService {
 			return;
 		}
 
-		const latestGraphRevision =
-			this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0;
-		if (envelope.graphRevision < latestGraphRevision) {
+		const latestFrontier = this.latestSessionStateEnvelopeFrontier.get(envelope.sessionId);
+		const incomingFrontier = {
+			graphRevision: envelope.graphRevision,
+			lastEventSeq: envelope.lastEventSeq,
+		};
+		if (isOlderEnvelopeFrontier(latestFrontier, incomingFrontier)) {
 			logger.warn("Dropped stale session-state envelope at event ingress", {
 				sessionId: envelope.sessionId,
 				kind: envelope.payload.kind,
 				graphRevision: envelope.graphRevision,
-				latestGraphRevision,
+				lastEventSeq: envelope.lastEventSeq,
+				latestGraphRevision: latestFrontier?.graphRevision ?? 0,
+				latestLastEventSeq: latestFrontier?.lastEventSeq ?? 0,
 			});
 			return;
 		}
 
-		this.latestSessionStateGraphRevision.set(
+		this.latestSessionStateEnvelopeFrontier.set(
 			envelope.sessionId,
-			Math.max(latestGraphRevision, envelope.graphRevision)
+			maxEnvelopeFrontier(latestFrontier, incomingFrontier)
 		);
 		this.advanceConnectionMaterializationWaiter(envelope);
 		if (!this.hasKnownSession(handler, envelope.sessionId)) {
@@ -775,14 +814,20 @@ export class SessionEventService {
 	}
 
 	private bufferPendingSessionState(sessionId: string, envelope: SessionStateEnvelope): void {
-		this.dropStaleBufferedSessionState(sessionId, envelope.graphRevision);
+		this.dropStaleBufferedSessionState(sessionId, {
+			graphRevision: envelope.graphRevision,
+			lastEventSeq: envelope.lastEventSeq,
+		});
 		this.bufferPending(sessionId, {
 			kind: "sessionState",
 			envelope,
 		});
 	}
 
-	private dropStaleBufferedSessionState(sessionId: string, graphRevision: number): void {
+	private dropStaleBufferedSessionState(
+		sessionId: string,
+		frontier: SessionStateEnvelopeFrontier
+	): void {
 		const pending = this.pendingEvents.get(sessionId);
 		if (pending === undefined || pending.length === 0) {
 			return;
@@ -791,7 +836,10 @@ export class SessionEventService {
 		const retained = pending.filter((pendingEvent) => {
 			return (
 				pendingEvent.kind !== "sessionState" ||
-				pendingEvent.envelope.graphRevision >= graphRevision
+				!isOlderEnvelopeFrontier(frontier, {
+					graphRevision: pendingEvent.envelope.graphRevision,
+					lastEventSeq: pendingEvent.envelope.lastEventSeq,
+				})
 			);
 		});
 		if (retained.length === pending.length) {
