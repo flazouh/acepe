@@ -1589,7 +1589,7 @@ export class PanelStore {
 				return panel;
 			}
 		}
-		return this.filePanels.find((panel) => panel.ownerPanelId === ownerPanelId) ?? null;
+		return this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId)?.[0] ?? null;
 	}
 
 	setActiveAttachedFilePanel(ownerPanelId: string, filePanelId: string): void {
@@ -1604,11 +1604,8 @@ export class PanelStore {
 	}
 
 	setActiveTopLevelFilePanel(projectPath: string, filePanelId: string): void {
-		const target = this.filePanels.find(
-			(panel) =>
-				panel.id === filePanelId && panel.ownerPanelId === null && panel.projectPath === projectPath
-		);
-		if (!target) return;
+		const target = this.filePanelById.get(filePanelId);
+		if (!target || target.ownerPanelId !== null || target.projectPath !== projectPath) return;
 		this.activeTopLevelFilePanelIdByProject.set(projectPath, filePanelId);
 		this.onPersist();
 	}

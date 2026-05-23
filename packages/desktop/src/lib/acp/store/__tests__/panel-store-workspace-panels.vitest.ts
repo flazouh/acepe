@@ -174,6 +174,33 @@ describe("PanelStore workspacePanels", () => {
 		expect(store.isFileOpen("src/main.ts", "/tmp/project")).toBe(false);
 	});
 
+	it("selects top-level file panels through the file panel index", () => {
+		const store = createStore();
+		const firstPanel = store.openFilePanel("src/one.ts", "/tmp/project");
+		const secondPanel = store.openFilePanel("src/two.ts", "/tmp/project");
+
+		store.setActiveTopLevelFilePanel("/tmp/project", firstPanel.id);
+
+		expect(store.getActiveTopLevelFilePanelId("/tmp/project")).toBe(firstPanel.id);
+		store.closeFilePanel(secondPanel.id);
+		expect(store.getFilePanel(firstPanel.id)).toMatchObject({
+			id: firstPanel.id,
+			filePath: "src/one.ts",
+			projectPath: "/tmp/project",
+			ownerPanelId: null,
+		});
+	});
+
+	it("falls back to attached file panel groups without scanning all file panels", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const attachedPanel = store.openFilePanel("src/attached.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+
+		expect(store.getActiveAttachedFilePanel(owner.id)).toBe(attachedPanel);
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 
