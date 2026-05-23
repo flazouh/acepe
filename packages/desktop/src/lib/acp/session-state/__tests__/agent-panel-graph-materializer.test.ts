@@ -754,6 +754,14 @@ describe("agent panel graph materializer", () => {
 			graph,
 			header: { title: "Question session" },
 		});
+		Object.defineProperty(graph.interactions, "0", {
+			configurable: true,
+			get() {
+				throw new Error(
+					"must not scan unchanged interactions when operation patches only retarget the blocking question"
+				);
+			},
+		});
 		const patchedOperation = {
 			...operation,
 			result: { stdout: "done", stderr: null, exitCode: 0 },
@@ -766,26 +774,34 @@ describe("agent panel graph materializer", () => {
 			appendedOperations: null,
 		});
 
-		const nextScene = readModel.apply({
-			panelId: "panel-1",
-			graph: {
-				...graph,
-				operations: nextOperations,
-				activity: {
-					kind: "waiting_for_user",
-					activeOperationCount: 0,
-					activeSubagentCount: 0,
-					dominantOperationId: null,
-					blockingInteractionId: "question-2",
+		let nextScene: ReturnType<typeof readModel.apply>;
+		try {
+			nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					operations: nextOperations,
+					activity: {
+						kind: "waiting_for_user",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: "question-2",
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: graph.revision.transcriptRevision,
+						lastEventSeq: 43,
+					},
 				},
-				revision: {
-					graphRevision: 10,
-					transcriptRevision: graph.revision.transcriptRevision,
-					lastEventSeq: 43,
-				},
-			},
-			header: { title: "Question session" },
-		});
+				header: { title: "Question session" },
+			});
+		} finally {
+			Object.defineProperty(graph.interactions, "0", {
+				configurable: true,
+				value: questionOne,
+			});
+		}
 
 		expect(firstScene.conversation.entries.map((entry) => entry.id)).toEqual([
 			"tool-1",

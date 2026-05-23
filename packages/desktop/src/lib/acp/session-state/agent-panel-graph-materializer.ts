@@ -117,6 +117,7 @@ interface CachedConversationState {
 	readonly operations: AgentPanelCanonicalSource["operations"];
 	readonly operationIndex: OperationIndex;
 	readonly interactions: AgentPanelCanonicalSource["interactions"];
+	readonly interactionById: ReadonlyMap<string, InteractionSnapshot>;
 	readonly turnState: AgentPanelCanonicalSource["turnState"];
 	readonly activeStreamingTail: AgentPanelCanonicalSource["activeStreamingTail"];
 	readonly activity: AgentPanelCanonicalSource["activity"];
@@ -832,6 +833,7 @@ function materializeCachedConversation(
 		operations: input.graph.operations,
 		operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: buildInteractionIndex(input.graph.interactions),
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -923,6 +925,7 @@ function materializeTranscriptArrayPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1008,6 +1011,7 @@ function materializeStreamingStatePatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1259,6 +1263,7 @@ function materializeTranscriptPatchedAndAppendedConversation(
 			operations: input.graph.operations,
 			operationIndex: previous.operationIndex,
 			interactions: input.graph.interactions,
+			interactionById: previous.interactionById,
 			turnState: input.graph.turnState,
 			activeStreamingTail: input.graph.activeStreamingTail,
 			activity: input.graph.activity,
@@ -1309,6 +1314,7 @@ function materializeTranscriptPatchedAndAppendedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1422,6 +1428,7 @@ function materializeTranscriptAppendedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1508,6 +1515,7 @@ function materializeTranscriptTruncatedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1646,6 +1654,7 @@ function materializeInteractionPatchedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1667,6 +1676,7 @@ function materializeInteractionPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: buildInteractionIndex(input.graph.interactions),
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1704,6 +1714,7 @@ function materializeStableInteractionAppendedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1768,6 +1779,7 @@ function materializeStableInteractionAppendedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: buildInteractionIndex(input.graph.interactions),
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1805,6 +1817,7 @@ function materializeStableInteractionTruncatedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1815,6 +1828,7 @@ function materializeStableInteractionTruncatedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1824,6 +1838,7 @@ function materializeStableInteractionTruncatedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: buildInteractionIndex(input.graph.interactions),
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -1925,6 +1940,7 @@ function materializeMarkedInteractionPatchedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1933,6 +1949,7 @@ function materializeMarkedInteractionPatchedConversation(
 		return {
 			...previous,
 			interactions: input.graph.interactions,
+			interactionById: buildInteractionIndex(input.graph.interactions),
 			activity: input.graph.activity,
 		};
 	}
@@ -1989,6 +2006,7 @@ function materializeMarkedInteractionPatchedConversation(
 		operations: input.graph.operations,
 		operationIndex: previous.operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: buildInteractionIndex(input.graph.interactions),
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -2180,10 +2198,6 @@ function materializeOperationPatchedConversation(
 		!areActiveStreamingTailsEquivalent(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
-		) ||
-		!areActivitiesCompatibleForConversationPatch(
-			previous.activity,
-			input.graph.activity
 		)
 	) {
 		return null;
@@ -2259,11 +2273,22 @@ function materializeOperationPatchedConversation(
 		};
 	}
 
+	const blockingInteractionPatched = materializeBlockingInteractionActivityChange(
+		previous,
+		input,
+		operationIndex,
+		entryPatches
+	);
+	if (blockingInteractionPatched !== null) {
+		return blockingInteractionPatched;
+	}
+
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,
 		operationIndex,
 		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
 		turnState: input.graph.turnState,
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
@@ -2273,6 +2298,114 @@ function materializeOperationPatchedConversation(
 			isStreaming: previous.conversation.isStreaming,
 		},
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+	};
+}
+
+function materializeBlockingInteractionActivityChange(
+	previous: CachedConversationState,
+	input: CachedConversationInput,
+	operationIndex: OperationIndex,
+	entryPatches: ReadonlyMap<number, AgentPanelSceneEntryModel>
+): CachedConversationState | null {
+	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
+	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
+	if (previousBlockingInteractionId === nextBlockingInteractionId) {
+		return null;
+	}
+
+	const transcriptSceneEntryCount = previous.transcriptEntries.length;
+	const previousVisibleEntries = collectTrailingSceneEntries(
+		previous.conversation.entries,
+		transcriptSceneEntryCount
+	);
+	if (previousVisibleEntries.length > 1) {
+		return null;
+	}
+
+	const previousVisibleEntry = previousVisibleEntries[0] ?? null;
+	const nextVisibleInteraction =
+		nextBlockingInteractionId === null
+			? null
+			: previous.interactionById.get(nextBlockingInteractionId) ?? null;
+	if (nextBlockingInteractionId !== null && nextVisibleInteraction === null) {
+		return null;
+	}
+
+	const nextVisibleEntry =
+		nextVisibleInteraction === null
+			? null
+			: questionInteractionToSceneEntry(nextVisibleInteraction, input.graph);
+	const baseEntries = createPatchedSceneEntryArray(previous.conversation.entries, entryPatches);
+
+	let nextEntries: readonly AgentPanelSceneEntryModel[];
+	let sceneEntryRowIndex: ReadonlyMap<string, number>;
+	if (previousVisibleEntry === null && nextVisibleEntry === null) {
+		return {
+			...previous,
+			operations: input.graph.operations,
+			operationIndex,
+			activity: input.graph.activity,
+			conversation: {
+				entries: baseEntries,
+				isStreaming: previous.conversation.isStreaming,
+			},
+		};
+	}
+	if (previousVisibleEntry === null && nextVisibleEntry !== null) {
+		nextEntries = createAppendedSceneEntryArray(baseEntries, [nextVisibleEntry]);
+		sceneEntryRowIndex = createAppendedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[nextVisibleEntry],
+			baseEntries.length
+		);
+	} else if (previousVisibleEntry !== null && nextVisibleEntry === null) {
+		nextEntries = createInsertedSceneEntryArray(baseEntries, transcriptSceneEntryCount, [], []);
+		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			[previousVisibleEntry],
+			[],
+			transcriptSceneEntryCount
+		);
+	} else if (
+		previousVisibleEntry !== null &&
+		nextVisibleEntry !== null &&
+		previousVisibleEntry.id === nextVisibleEntry.id
+	) {
+		nextEntries = createPatchedSceneEntryArray(
+			baseEntries,
+			new Map([[transcriptSceneEntryCount, nextVisibleEntry]])
+		);
+		sceneEntryRowIndex = previous.sceneEntryRowIndex;
+	} else {
+		nextEntries = createInsertedSceneEntryArray(
+			baseEntries,
+			transcriptSceneEntryCount,
+			nextVisibleEntry === null ? [] : [nextVisibleEntry],
+			[]
+		);
+		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
+			previous.sceneEntryRowIndex,
+			previousVisibleEntry === null ? [] : [previousVisibleEntry],
+			nextVisibleEntry === null ? [] : [nextVisibleEntry],
+			transcriptSceneEntryCount
+		);
+	}
+
+	return {
+		transcriptEntries: input.graph.transcriptSnapshot.entries,
+		operations: input.graph.operations,
+		operationIndex,
+		interactions: input.graph.interactions,
+		interactionById: previous.interactionById,
+		turnState: input.graph.turnState,
+		activeStreamingTail: input.graph.activeStreamingTail,
+		activity: input.graph.activity,
+		transcriptEntryById: previous.transcriptEntryById,
+		conversation: {
+			entries: nextEntries,
+			isStreaming: previous.conversation.isStreaming,
+		},
+		sceneEntryRowIndex,
 	};
 }
 
@@ -3134,6 +3267,16 @@ function buildTranscriptEntryIndex(
 		byEntryId.set(entry.entryId, entry);
 	}
 	return byEntryId;
+}
+
+function buildInteractionIndex(
+	interactions: readonly InteractionSnapshot[]
+): Map<string, InteractionSnapshot> {
+	const byInteractionId = new Map<string, InteractionSnapshot>();
+	for (const interaction of interactions) {
+		byInteractionId.set(interaction.id, interaction);
+	}
+	return byInteractionId;
 }
 
 function appendTranscriptEntryIndexFromRange(
