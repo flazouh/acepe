@@ -228,6 +228,39 @@ function createGraph(input: {
 }
 
 describe("agent panel graph materializer", () => {
+	it("reuses the operation index when materializing a fresh cached conversation", () => {
+		let sourceLinkReadCount = 0;
+		const operation = createOperationSnapshot();
+		Object.defineProperty(operation, "source_link", {
+			configurable: true,
+			enumerable: true,
+			get() {
+				sourceLinkReadCount += 1;
+				return {
+					kind: "transcript_linked",
+					entry_id: "tool-1",
+				};
+			},
+		});
+		const graph = createGraph({
+			transcriptSnapshot: createTranscriptSnapshot([
+				createTranscriptEntry("tool-1", "assistant", "Ran command"),
+			]),
+			operations: [operation],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: {
+				title: "Session",
+			},
+		});
+
+		expect(sourceLinkReadCount).toBe(2);
+	});
+
 	it("reuses conversation rows when only lifecycle changes", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "hello"),

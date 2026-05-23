@@ -640,6 +640,17 @@ function materializeConversation(graph: AgentPanelCanonicalSource): {
 } {
 	const isRunning = graph.turnState === "Running";
 	const index = buildOperationIndex(graph.operations);
+	return materializeConversationWithOperationIndex(graph, index, isRunning);
+}
+
+function materializeConversationWithOperationIndex(
+	graph: AgentPanelCanonicalSource,
+	index: OperationIndex,
+	isRunning = graph.turnState === "Running"
+): {
+	entries: readonly AgentPanelSceneEntryModel[];
+	isStreaming: boolean;
+} {
 	const liveAssistantEntryId = isRunning ? (graph.activeStreamingTail?.rowId ?? null) : null;
 
 	const entries: AgentPanelSceneEntryModel[] = [];
@@ -708,7 +719,7 @@ function materializeCachedConversation(
 	}
 
 	const operationIndex = buildOperationIndex(input.graph.operations);
-	const conversation = materializeConversation(input.graph);
+	const conversation = materializeConversationWithOperationIndex(input.graph, operationIndex);
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
 		operations: input.graph.operations,
