@@ -387,4 +387,61 @@ describe("createAgentPanelSceneReadModel", () => {
 			firstSnapshot.rows.slice = originalSlice;
 		}
 	});
+
+	it("patches assistant insertion without copying preserved display rows", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			timestampMs: 20,
+		};
+		const secondAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			timestampMs: 30,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const firstSnapshot = readModel.applySnapshot([userEntry, firstAssistantEntry, toolEntry]);
+		const originalSlice = firstSnapshot.rows.slice;
+
+		firstSnapshot.rows.slice = () => {
+			throw new Error("must not copy preserved display rows for assistant insertion");
+		};
+
+		try {
+			const patchedSnapshot = readModel.applySnapshot([
+				userEntry,
+				firstAssistantEntry,
+				secondAssistantEntry,
+				toolEntry,
+			]);
+
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"assistant-1",
+				"tool-1",
+			]);
+			expect(patchedSnapshot.rows[1]).toMatchObject({
+				type: "assistant_merged",
+				memberIds: ["assistant-1", "assistant-2"],
+				markdown: "FirstSecond",
+			});
+		} finally {
+			firstSnapshot.rows.slice = originalSlice;
+		}
+	});
 });

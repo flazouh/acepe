@@ -419,7 +419,7 @@ function patchInsertedSceneDisplayRows(
 	}
 
 	const rows = appendSceneDisplayRowsFromIndex(
-		previousRows.slice(0, firstRebuiltRowIndex),
+		createTruncatedSceneDisplayRowsArray(previousRows, firstRebuiltRowIndex),
 		sceneEntries,
 		rebuildSceneIndex
 	);
