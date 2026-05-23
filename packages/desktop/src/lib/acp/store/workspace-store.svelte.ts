@@ -49,6 +49,77 @@ import {
 
 const WORKSPACE_STORE_KEY = Symbol("workspace-store");
 const logger = createLogger({ id: "workspace-store", name: "WorkspaceStore" });
+const WORKSPACE_PERSIST_DEBOUNCE_MS = 300;
+const WORKSPACE_PERSIST_IDLE_TIMEOUT_MS = 2_000;
+
+type WorkspaceIdleCallbackHandle = number;
+type WorkspaceIdleCallbackOptions = {
+	timeout?: number;
+};
+type WorkspaceIdleCallback = (deadline: WorkspaceIdleDeadline) => void;
+type WorkspaceIdleDeadline = {
+	readonly didTimeout: boolean;
+	timeRemaining(): number;
+};
+
+type DeferredWorkspacePersistHandle = {
+	cancel(): void;
+};
+
+function getWorkspaceRequestIdleCallback():
+	| ((
+			callback: WorkspaceIdleCallback,
+			options?: WorkspaceIdleCallbackOptions
+	  ) => WorkspaceIdleCallbackHandle)
+	| undefined {
+	return typeof globalThis.requestIdleCallback === "function"
+		? globalThis.requestIdleCallback.bind(globalThis)
+		: undefined;
+}
+
+function getWorkspaceCancelIdleCallback():
+	| ((handle: WorkspaceIdleCallbackHandle) => void)
+	| undefined {
+	return typeof globalThis.cancelIdleCallback === "function"
+		? globalThis.cancelIdleCallback.bind(globalThis)
+		: undefined;
+}
+
+function scheduleIdleWorkspacePersist(work: () => void): DeferredWorkspacePersistHandle {
+	const requestIdleCallback = getWorkspaceRequestIdleCallback();
+	if (requestIdleCallback === undefined) {
+		let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+			timeoutId = null;
+			work();
+		}, 0);
+		return {
+			cancel() {
+				if (timeoutId !== null) {
+					clearTimeout(timeoutId);
+					timeoutId = null;
+				}
+			},
+		};
+	}
+
+	let idleCallbackId: WorkspaceIdleCallbackHandle | null = requestIdleCallback(
+		() => {
+			idleCallbackId = null;
+			work();
+		},
+		{ timeout: WORKSPACE_PERSIST_IDLE_TIMEOUT_MS }
+	);
+
+	return {
+		cancel() {
+			if (idleCallbackId === null) {
+				return;
+			}
+			getWorkspaceCancelIdleCallback()?.(idleCallbackId);
+			idleCallbackId = null;
+		},
+	};
+}
 
 function isPersistableAgentPanel(panel: Panel): boolean {
 	return panel.autoCreated !== true;
@@ -499,6 +570,7 @@ export interface WorkspaceStateProviders {
 
 export class WorkspaceStore {
 	private persistDebounce: ReturnType<typeof setTimeout> | null = null;
+	private deferredPersist: DeferredWorkspacePersistHandle | null = null;
 	private providers: WorkspaceStateProviders = {};
 
 	constructor(
@@ -619,13 +691,23 @@ export class WorkspaceStore {
 			clearTimeout(this.persistDebounce);
 			this.persistDebounce = null;
 		}
+		if (this.deferredPersist) {
+			this.deferredPersist.cancel();
+			this.deferredPersist = null;
+		}
 
 		if (immediate) {
 			saveState();
 			return;
 		}
 
-		this.persistDebounce = setTimeout(saveState, 300);
+		this.persistDebounce = setTimeout(() => {
+			this.persistDebounce = null;
+			this.deferredPersist = scheduleIdleWorkspacePersist(() => {
+				this.deferredPersist = null;
+				saveState();
+			});
+		}, WORKSPACE_PERSIST_DEBOUNCE_MS);
 	}
 
 	private restoreProviderState(state: PersistedWorkspaceRestoreState): void {

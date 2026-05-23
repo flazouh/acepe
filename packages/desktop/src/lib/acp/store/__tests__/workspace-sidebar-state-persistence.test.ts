@@ -311,6 +311,54 @@ describe("workspace sidebar state persistence", () => {
 		});
 	});
 
+	it("defers non-immediate persistence until idle time", () => {
+		const originalSetTimeout = globalThis.setTimeout;
+		const originalClearTimeout = globalThis.clearTimeout;
+		const originalRequestIdleCallback = globalThis.requestIdleCallback;
+		const originalCancelIdleCallback = globalThis.cancelIdleCallback;
+		type TestIdleCallback = (deadline: {
+			readonly didTimeout: boolean;
+			timeRemaining(): number;
+		}) => void;
+		let idleCallback: TestIdleCallback | null = null;
+
+		globalThis.setTimeout = ((callback: () => void) => {
+			callback();
+			return 1;
+		}) as typeof globalThis.setTimeout;
+		globalThis.clearTimeout = (() => {}) as typeof globalThis.clearTimeout;
+		globalThis.requestIdleCallback = ((callback: typeof idleCallback) => {
+			idleCallback = callback;
+			return 1;
+		}) as typeof globalThis.requestIdleCallback;
+		globalThis.cancelIdleCallback = (() => {}) as typeof globalThis.cancelIdleCallback;
+
+		try {
+			const store = new WorkspaceStore(
+				createPanelStoreStub() as never,
+				createSessionStoreStub() as never
+			);
+
+			store.persist();
+
+			expect(saveWorkspaceStateMock).not.toHaveBeenCalled();
+			expect(idleCallback).not.toBeNull();
+
+			const runIdleCallback = idleCallback as unknown as TestIdleCallback;
+			runIdleCallback({
+				didTimeout: false,
+				timeRemaining: () => 10,
+			});
+
+			expect(saveWorkspaceStateMock).toHaveBeenCalledTimes(1);
+		} finally {
+			globalThis.setTimeout = originalSetTimeout;
+			globalThis.clearTimeout = originalClearTimeout;
+			globalThis.requestIdleCallback = originalRequestIdleCallback;
+			globalThis.cancelIdleCallback = originalCancelIdleCallback;
+		}
+	});
+
 	it("persists from workspace panel indexes without rebuilding panel lists", () => {
 		const panelStore = createPanelStoreStub();
 		panelStore.workspacePanels = [
