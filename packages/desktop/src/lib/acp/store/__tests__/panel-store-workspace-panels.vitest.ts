@@ -343,6 +343,27 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("widens attached file owners without rebuilding panel lists", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter workspace panels while widening an owner");
+		};
+
+		try {
+			store.openFilePanel("src/wide.ts", "/tmp/project", {
+				ownerPanelId: owner.id,
+				width: owner.width + 120,
+			});
+
+			expect(store.getTopLevelAgentPanel(owner.id)?.width).toBe(owner.width + 120);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("opens file panels without copying the whole workspace panel list", () => {
 		const store = createStore();
 		store.spawnPanel({ projectPath: "/tmp/project" });
