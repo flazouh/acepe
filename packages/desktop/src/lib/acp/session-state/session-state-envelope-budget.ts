@@ -21,6 +21,11 @@ export type SessionStateEnvelopeByteBudgetResult =
 			readonly maxBytes: number;
 	  };
 
+const sessionStateEnvelopeByteBudgetResults = new WeakMap<
+	SessionStateEnvelope,
+	SessionStateEnvelopeByteBudgetResult
+>();
+
 const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	snapshot: 2_000_000,
 	delta: 64_000,
@@ -50,22 +55,27 @@ export function measureSessionStateEnvelopeBytes(envelope: SessionStateEnvelope)
 export function checkSessionStateEnvelopeByteBudget(
 	envelope: SessionStateEnvelope
 ): SessionStateEnvelopeByteBudgetResult {
+	const cachedResult = sessionStateEnvelopeByteBudgetResults.get(envelope);
+	if (cachedResult !== undefined) {
+		return cachedResult;
+	}
 	const kind = envelope.payload.kind;
 	const maxBytes = getSessionStateEnvelopeByteBudget(kind);
 	const byteLength = measureSessionStateEnvelopeBytes(envelope);
-	if (byteLength <= maxBytes) {
-		return {
-			ok: true,
-			kind,
-			byteLength,
-			maxBytes,
-		};
-	}
-
-	return {
-		ok: false,
-		kind,
-		byteLength,
-		maxBytes,
-	};
+	const result: SessionStateEnvelopeByteBudgetResult =
+		byteLength <= maxBytes
+			? {
+					ok: true,
+					kind,
+					byteLength,
+					maxBytes,
+				}
+			: {
+					ok: false,
+					kind,
+					byteLength,
+					maxBytes,
+				};
+	sessionStateEnvelopeByteBudgetResults.set(envelope, result);
+	return result;
 }

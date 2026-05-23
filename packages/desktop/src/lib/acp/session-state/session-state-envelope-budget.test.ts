@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
 import {
@@ -141,6 +141,10 @@ function createSnapshotGraph(assistantText = "Hello"): SessionStateGraph {
 }
 
 describe("session-state envelope byte budgets", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("defines a byte budget for every session-state payload kind", () => {
 		expect(SESSION_STATE_ENVELOPE_BYTE_BUDGETS.map((budget) => budget.kind).sort()).toEqual([
 			"assistantTextDelta",
@@ -469,5 +473,35 @@ describe("session-state envelope byte budgets", () => {
 			kind: "snapshot",
 			maxBytes: getSessionStateEnvelopeByteBudget("snapshot"),
 		});
+	});
+
+	it("memoizes repeated byte-budget checks for the same envelope object", () => {
+		const stringifySpy = vi.spyOn(JSON, "stringify");
+		const envelope = createEnvelope({
+			kind: "delta",
+			delta: {
+				fromRevision: revision,
+				toRevision: {
+					graphRevision: 2,
+					transcriptRevision: 1,
+					lastEventSeq: 2,
+				},
+				activity: idleActivity,
+				turnState: "Idle",
+				activeTurnFailure: null,
+				lastTerminalTurnId: null,
+				activeStreamingTail: null,
+				transcriptOperations: [],
+				operationPatches: [],
+				interactionPatches: [],
+				changedFields: ["activity"],
+			},
+		});
+
+		const firstResult = checkSessionStateEnvelopeByteBudget(envelope);
+		const secondResult = checkSessionStateEnvelopeByteBudget(envelope);
+
+		expect(secondResult).toBe(firstResult);
+		expect(stringifySpy).toHaveBeenCalledTimes(1);
 	});
 });
