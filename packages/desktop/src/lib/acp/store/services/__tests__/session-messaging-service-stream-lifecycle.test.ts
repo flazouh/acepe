@@ -8,7 +8,7 @@
 
 import { okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolCall } from "../../../types/tool-call.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
 import type { IEntryManager } from "../interfaces/entry-manager.js";
 import type { ISessionStateReader } from "../interfaces/session-state-reader.js";
@@ -57,6 +57,7 @@ function createMockDeps() {
 		getSessionAvailableModels: vi.fn().mockReturnValue([]),
 		getSessionAvailableModes: vi.fn().mockReturnValue([]),
 		getSessionToolCalls: vi.fn().mockReturnValue([]),
+		getSessionModifiedFilesState: vi.fn().mockReturnValue(null),
 		isPreloaded: vi.fn(),
 		getSessionCold: vi.fn().mockReturnValue(null),
 		getSessionIdentity: vi.fn().mockReturnValue(undefined),
@@ -291,30 +292,29 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 			projectPath: "/tmp/project",
 			agentId: "opencode",
 		});
-		(deps.stateReader.getSessionToolCalls as ReturnType<typeof vi.fn>).mockReturnValue([
-			{
-				id: "tool-call-1",
-				name: "Edit",
-				arguments: {
-					kind: "edit",
-					edits: [
-						{
-							filePath: "/tmp/project/src/app.ts",
-							oldString: "old",
-							newString: "new",
-							content: null,
-						},
-					],
+		const modifiedFilesState: ModifiedFilesState = {
+			files: [
+				{
+					filePath: "/tmp/project/src/app.ts",
+					fileName: "app.ts",
+					editCount: 1,
+					totalAdded: 1,
+					totalRemoved: 1,
+					originalContent: null,
+					finalContent: null,
 				},
-				status: "completed",
-				kind: "edit",
-				title: "Edit file",
-				awaitingPlanApproval: false,
-			} satisfies ToolCall,
-		]);
+			],
+			byPath: new Map(),
+			fileCount: 1,
+			totalEditCount: 1,
+		};
+		(deps.stateReader.getSessionModifiedFilesState as ReturnType<typeof vi.fn>).mockReturnValue(
+			modifiedFilesState
+		);
 
 		service.handleCanonicalTurnComplete(sessionId);
 
+		expect(deps.stateReader.getSessionToolCalls).not.toHaveBeenCalled();
 		expect(createCheckpoint).toHaveBeenCalledWith(
 			sessionId,
 			"/tmp/project",

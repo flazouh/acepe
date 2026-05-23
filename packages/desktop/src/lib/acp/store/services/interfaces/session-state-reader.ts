@@ -16,6 +16,7 @@ import type {
 	SessionIdentity,
 	SessionMetadata,
 } from "../../types.js";
+import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ToolCall } from "../../../types/tool-call.js";
 
 /**
@@ -83,6 +84,11 @@ export interface ISessionStateReader {
 	 * Canonical operation-backed tool calls for a session.
 	 */
 	getSessionToolCalls(sessionId: string): ToolCall[];
+
+	/**
+	 * Canonical operation-backed modified files state for a session.
+	 */
+	getSessionModifiedFilesState(sessionId: string): ModifiedFilesState | null;
 
 	/**
 	 * Check if a session's entries have been preloaded.

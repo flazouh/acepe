@@ -16,7 +16,6 @@ import type { Attachment } from "../../components/agent-input/types/attachment.j
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError, ConnectionError, SessionNotFoundError } from "../../errors/app-error.js";
 import { getErrorCauseDetails } from "../../errors/error-cause-details.js";
-import { aggregateFileEditsFromToolCalls } from "../../logic/aggregate-file-edits.js";
 import type { AvailableCommand } from "../../types/available-command.js";
 import type { TurnCompleteUpdate, TurnErrorUpdate } from "../../types/turn-error.js";
 import { normalizeActiveTurnFailure } from "../../types/turn-error.js";
@@ -385,12 +384,10 @@ export class SessionMessagingService {
 			return;
 		}
 
-		const toolCalls = this.stateReader.getSessionToolCalls(sessionId);
-		const modifiedFilesState = aggregateFileEditsFromToolCalls(toolCalls);
-		if (modifiedFilesState.fileCount === 0) {
+		const modifiedFilesState = this.stateReader.getSessionModifiedFilesState(sessionId);
+		if (modifiedFilesState === null || modifiedFilesState.fileCount === 0) {
 			logger.info("Auto-checkpoint skipped: no edit entries found", {
 				sessionId,
-				toolCallEntries: toolCalls.length,
 			});
 			return;
 		}

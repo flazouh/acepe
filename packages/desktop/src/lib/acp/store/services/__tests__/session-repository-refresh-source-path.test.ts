@@ -58,6 +58,7 @@ function createStateReader(state: SessionStoreState): ISessionStateReader {
 		getSessionAvailableModels: () => [],
 		getSessionAvailableModes: () => [],
 		getSessionToolCalls: () => [],
+		getSessionModifiedFilesState: () => null,
 		isPreloaded: () => false,
 		getSessionCold: (id: string) => state.sessions.find((session) => session.id === id),
 		getSessionIdentity: (id: string) => {
