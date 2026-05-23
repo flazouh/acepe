@@ -6,6 +6,7 @@ import {
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
 } from "../graph-scene-entry-match.js";
+import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import { buildVirtualizedDisplayEntries } from "../virtualized-entry-display.js";
 
 function createAssistantDisplayEntry(id: string, text: string): SessionEntry {
@@ -258,5 +259,43 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 
 		expect(nextIndex).not.toBe(firstIndex);
 		expect(nextIndex.get("tool-1")).toBe(changedEntry);
+	});
+
+	it("patches and restores token reveal entries without rebuilding indexes", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		const baseIndex = readModel.getIndex(baseEntries);
+
+		const patchedIndex = readModel.getIndex(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: assistantEntry,
+				tailRowId: "assistant-1",
+				tailRowIndex: 0,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		expect(patchedIndex).not.toBe(baseIndex);
+		expect(patchedIndex.get("assistant-1")).toMatchObject({
+			id: "assistant-1",
+			tokenRevealCss: { revealCount: 1 },
+		});
+		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
+		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
 	});
 });

@@ -15,6 +15,22 @@ export interface TokenRevealSceneReadModel {
 	selectSettlingTimings(): readonly TokenRevealTiming[];
 }
 
+export type TokenRevealScenePatch = {
+	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly entry: AgentPanelSceneEntryModel;
+};
+
+const tokenRevealScenePatches = new WeakMap<
+	readonly AgentPanelSceneEntryModel[],
+	TokenRevealScenePatch
+>();
+
+export function getTokenRevealScenePatch(
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): TokenRevealScenePatch | undefined {
+	return tokenRevealScenePatches.get(sceneEntries);
+}
+
 export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 	let previousSnapshot: TokenRevealSceneSnapshot | null = null;
 	let previousEntries: readonly AgentPanelSceneEntryModel[] = [];
@@ -49,6 +65,10 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			);
 			const nextEntries = snapshot.sceneEntries.slice();
 			nextEntries[tokenRevealEntryIndex] = tokenRevealEntry;
+			tokenRevealScenePatches.set(nextEntries, {
+				baseSceneEntries: snapshot.sceneEntries,
+				entry: tokenRevealEntry,
+			});
 
 			previousSnapshot = snapshot;
 			previousEntries = nextEntries;

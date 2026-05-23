@@ -3,6 +3,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
 import type { SceneDisplayRow } from "./scene-display-rows.js";
 import { getSceneDisplayRowKey } from "./scene-display-rows.js";
+import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export function findGraphSceneEntryForDisplayEntry(
 	entry: SceneDisplayRow | undefined,
@@ -50,14 +51,31 @@ export interface GraphSceneEntryIndexReadModel {
 export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let entriesById: Map<string, AgentPanelSceneEntryModel> = new Map();
+	let baseEntriesByIdBeforeTokenReveal: Map<string, AgentPanelSceneEntryModel> | null = null;
 	let entryIndexesById: Map<string, number> = new Map();
 
 	return {
 		applySnapshot(sceneEntries) {
-			if (sceneEntries === previousSceneEntries) {
+			const tokenRevealPatch = getTokenRevealScenePatch(sceneEntries);
+			if (
+				tokenRevealPatch !== undefined &&
+				tokenRevealPatch.baseSceneEntries === previousSceneEntries
+			) {
+				baseEntriesByIdBeforeTokenReveal ??= entriesById;
+				entriesById = new Map(baseEntriesByIdBeforeTokenReveal);
+				entriesById.set(tokenRevealPatch.entry.id, tokenRevealPatch.entry);
 				return entriesById;
 			}
 
+			if (sceneEntries === previousSceneEntries) {
+				if (baseEntriesByIdBeforeTokenReveal !== null) {
+					entriesById = baseEntriesByIdBeforeTokenReveal;
+					baseEntriesByIdBeforeTokenReveal = null;
+				}
+				return entriesById;
+			}
+
+			baseEntriesByIdBeforeTokenReveal = null;
 			if (
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)

@@ -9,6 +9,7 @@ import {
 	THINKING_DISPLAY_ENTRY,
 } from "../scene-display-rows.js";
 import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
+import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 
 describe("scene-display-rows", () => {
 	it("builds stable scene-derived display rows for mixed conversation entries", () => {
@@ -288,5 +289,49 @@ describe("scene-display-rows", () => {
 			"user-1",
 			"assistant-2",
 		]);
+	});
+
+	it("patches only the token reveal assistant row", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [userEntry, assistantEntry];
+		const baseRows = readModel.getRows(baseEntries);
+
+		const tokenRevealRows = readModel.getRows(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: assistantEntry,
+				tailRowId: "assistant-1",
+				tailRowIndex: 1,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		expect(tokenRevealRows[0]).toBe(baseRows[0]);
+		expect(tokenRevealRows[1]).not.toBe(baseRows[1]);
+		expect(tokenRevealRows[1]?.type).toBe("assistant_merged");
+		if (tokenRevealRows[1]?.type === "assistant_merged") {
+			expect(tokenRevealRows[1].tokenRevealCss?.revealCount).toBe(1);
+		}
+
+		expect(readModel.getRows(baseEntries)).toBe(baseRows);
 	});
 });
