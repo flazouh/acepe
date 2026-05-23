@@ -75,6 +75,25 @@ function createReactiveValue<T>(current: T): ReactiveValue<T> {
 	return new ReactiveValueBox(current);
 }
 
+function areFilePanelListsEqual(
+	left: readonly FilePanel[] | undefined,
+	right: readonly FilePanel[]
+): boolean {
+	if (left === undefined || left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		(panel, index) =>
+			panel.id === right[index]?.id &&
+			panel.filePath === right[index]?.filePath &&
+			panel.projectPath === right[index]?.projectPath &&
+			panel.ownerPanelId === right[index]?.ownerPanelId &&
+			panel.width === right[index]?.width &&
+			panel.targetLine === right[index]?.targetLine &&
+			panel.targetColumn === right[index]?.targetColumn
+	);
+}
+
 export class PanelStore {
 	workspacePanels = $state<WorkspacePanel[]>([]);
 	focusedPanelId = $state<string | null>(null);
@@ -96,6 +115,8 @@ export class PanelStore {
 	private suppressedAutoSessionSignals = new SvelteMap<string, string>();
 	private latestLiveSessionSignals = new SvelteMap<string, string>();
 	private attachedFilePanelsByOwnerPanelId = new SvelteMap<string, FilePanel[]>();
+	private topLevelFilePanelsList = $state<FilePanel[]>([]);
+	private topLevelFilePanelsByProject = new SvelteMap<string, FilePanel[]>();
 	private filePanelByCacheKey = new SvelteMap<string, FilePanel>();
 	private filePanelById = new SvelteMap<string, FilePanel>();
 	private activeFilePanelIdByOwnerPanelId = new SvelteMap<string, string>();
@@ -343,6 +364,8 @@ export class PanelStore {
 		this.filePanelByCacheKey.clear();
 		this.filePanelById.clear();
 		const groupedPanels = new Map<string, FilePanel[]>();
+		const topLevelPanels: FilePanel[] = [];
+		const topLevelGroupedPanels = new Map<string, FilePanel[]>();
 		for (const panel of nextPanels) {
 			this.filePanelById.set(panel.id, panel);
 			this.filePanelByCacheKey.set(
@@ -350,6 +373,13 @@ export class PanelStore {
 				panel
 			);
 			if (panel.ownerPanelId === null) {
+				topLevelPanels.push(panel);
+				const topLevelExisting = topLevelGroupedPanels.get(panel.projectPath);
+				if (topLevelExisting) {
+					topLevelExisting.push(panel);
+				} else {
+					topLevelGroupedPanels.set(panel.projectPath, [panel]);
+				}
 				continue;
 			}
 			const existing = groupedPanels.get(panel.ownerPanelId);
@@ -366,21 +396,23 @@ export class PanelStore {
 		}
 		for (const [ownerPanelId, panels] of groupedPanels.entries()) {
 			const current = this.attachedFilePanelsByOwnerPanelId.get(ownerPanelId);
-			const isSame =
-				current !== undefined &&
-				current.length === panels.length &&
-				current.every(
-					(panel, index) =>
-						panel.id === panels[index]?.id &&
-						panel.filePath === panels[index]?.filePath &&
-						panel.projectPath === panels[index]?.projectPath &&
-						panel.ownerPanelId === panels[index]?.ownerPanelId &&
-						panel.width === panels[index]?.width &&
-						panel.targetLine === panels[index]?.targetLine &&
-						panel.targetColumn === panels[index]?.targetColumn
-				);
-			if (!isSame) {
+			if (!areFilePanelListsEqual(current, panels)) {
 				this.attachedFilePanelsByOwnerPanelId.set(ownerPanelId, panels);
+			}
+		}
+
+		if (!areFilePanelListsEqual(this.topLevelFilePanelsList, topLevelPanels)) {
+			this.topLevelFilePanelsList = topLevelPanels;
+		}
+		for (const projectPath of this.topLevelFilePanelsByProject.keys()) {
+			if (!topLevelGroupedPanels.has(projectPath)) {
+				this.topLevelFilePanelsByProject.delete(projectPath);
+			}
+		}
+		for (const [projectPath, panels] of topLevelGroupedPanels.entries()) {
+			const current = this.topLevelFilePanelsByProject.get(projectPath);
+			if (!areFilePanelListsEqual(current, panels)) {
+				this.topLevelFilePanelsByProject.set(projectPath, panels);
 			}
 		}
 	}
@@ -1603,6 +1635,10 @@ export class PanelStore {
 		return this.activeTopLevelFilePanelIdByProject.get(projectPath) ?? null;
 	}
 
+	getTopLevelFilePanels(): FilePanel[] {
+		return this.topLevelFilePanelsList;
+	}
+
 	setActiveTopLevelFilePanel(projectPath: string, filePanelId: string): void {
 		const target = this.filePanelById.get(filePanelId);
 		if (!target || target.ownerPanelId !== null || target.projectPath !== projectPath) return;
@@ -1611,9 +1647,7 @@ export class PanelStore {
 	}
 
 	getTopLevelFilePanelsForProject(projectPath: string): FilePanel[] {
-		return this.filePanels.filter(
-			(panel) => panel.ownerPanelId === null && panel.projectPath === projectPath
-		);
+		return this.topLevelFilePanelsByProject.get(projectPath) ?? [];
 	}
 
 	getActiveFilePanelIdByOwnerPanelIdRecord(): Record<string, string> {

@@ -87,7 +87,7 @@ const allGroups = $derived.by(() =>
 	projectGroupStabilizer.stabilize(
 		groupAllPanelsByProject(
 			agentPanelProjectRefs,
-			panelStore.filePanels.filter((panel) => panel.ownerPanelId === null),
+			panelStore.getTopLevelFilePanels(),
 			panelStore.reviewPanels,
 			panelStore.terminalPanelGroups,
 			panelStore.browserPanels,

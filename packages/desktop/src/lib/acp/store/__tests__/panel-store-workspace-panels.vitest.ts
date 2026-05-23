@@ -191,6 +191,23 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("selects top-level file panel groups without scanning attached panels", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const firstPanel = store.openFilePanel("src/one.ts", "/tmp/project");
+		store.openFilePanel("src/attached.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const secondPanel = store.openFilePanel("src/two.ts", "/tmp/project");
+
+		expect(store.getTopLevelFilePanels()).toEqual([secondPanel, firstPanel]);
+		expect(store.getTopLevelFilePanelsForProject("/tmp/project")).toEqual([
+			secondPanel,
+			firstPanel,
+		]);
+		expect(store.getTopLevelFilePanelsForProject("/tmp/other")).toEqual([]);
+	});
+
 	it("falls back to attached file panel groups without scanning all file panels", () => {
 		const store = createStore();
 		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
