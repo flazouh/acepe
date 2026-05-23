@@ -1140,6 +1140,14 @@ describe("agent panel graph materializer", () => {
 			) {
 				throw new Error("must not mutate the previous transcript entry index for an append");
 			}
+			if (
+				typeof key === "string" &&
+				countedKeys.has(key) &&
+				typeof value === "number" &&
+				this.has("user-1" as K)
+			) {
+				throw new Error("must not mutate the previous scene row index for an append");
+			}
 			if (typeof key === "string" && countedKeys.has(key)) {
 				relevantMapSetCount += 1;
 			}

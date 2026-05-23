@@ -124,7 +124,7 @@ interface CachedConversationState {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
 	};
-	readonly sceneEntryRowIndex: Map<string, number>;
+	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
 }
 
 export interface AgentPanelGraphMaterializerReadModel {
@@ -1061,20 +1061,18 @@ function materializeTranscriptAppendedConversation(
 				previousTrailingEntries
 			)
 		: createAppendedSceneEntryArray(previous.conversation.entries, appendedSceneEntries);
-	if (hasTrailingInteractionEntries) {
-		patchTrailingSceneEntryRowIndex(
-			previous.sceneEntryRowIndex,
-			previousTrailingEntries,
-			createAppendedInteractionTail(previousTrailingEntries, appendedSceneEntries),
-			transcriptSceneEntryCount
-		);
-	} else {
-		appendSceneEntryRowIndex(
-			previous.sceneEntryRowIndex,
-			appendedSceneEntries,
-			transcriptSceneEntryCount
-		);
-	}
+	const sceneEntryRowIndex = hasTrailingInteractionEntries
+		? createSplicedSceneEntryRowIndex(
+				previous.sceneEntryRowIndex,
+				previousTrailingEntries,
+				createAppendedInteractionTail(previousTrailingEntries, appendedSceneEntries),
+				transcriptSceneEntryCount
+			)
+		: createAppendedSceneEntryRowIndex(
+				previous.sceneEntryRowIndex,
+				appendedSceneEntries,
+				transcriptSceneEntryCount
+			);
 
 	return {
 		transcriptEntries,
@@ -1089,7 +1087,7 @@ function materializeTranscriptAppendedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
-		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+		sceneEntryRowIndex,
 	};
 }
 
@@ -1215,7 +1213,7 @@ function materializeInteractionPatchedConversation(
 		nextInteractionEntries,
 		[]
 	);
-	patchTrailingSceneEntryRowIndex(
+	const sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
 		previous.sceneEntryRowIndex,
 		previousInteractionEntries,
 		nextInteractionEntries,
@@ -1234,7 +1232,7 @@ function materializeInteractionPatchedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
-		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+		sceneEntryRowIndex,
 	};
 }
 
@@ -1303,13 +1301,14 @@ function materializeMarkedInteractionPatchedConversation(
 		appendedEntries === null
 			? patchedEntries
 			: createAppendedSceneEntryArray(patchedEntries, appendedEntries);
-	if (appendedEntries !== null) {
-		appendSceneEntryRowIndex(
-			previous.sceneEntryRowIndex,
-			appendedEntries,
-			previous.conversation.entries.length
-		);
-	}
+	const sceneEntryRowIndex =
+		appendedEntries === null
+			? previous.sceneEntryRowIndex
+			: createAppendedSceneEntryRowIndex(
+					previous.sceneEntryRowIndex,
+					appendedEntries,
+					previous.conversation.entries.length
+				);
 
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
@@ -1324,7 +1323,7 @@ function materializeMarkedInteractionPatchedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
-		sceneEntryRowIndex: previous.sceneEntryRowIndex,
+		sceneEntryRowIndex,
 	};
 }
 
@@ -1357,16 +1356,21 @@ function areSceneEntryListsEquivalent(
 	return left.every((entry, index) => areSceneEntriesEquivalent(entry, right[index]));
 }
 
-function patchTrailingSceneEntryRowIndex(
-	rowIndex: Map<string, number>,
+function createSplicedSceneEntryRowIndex(
+	rowIndex: ReadonlyMap<string, number>,
 	previousEntries: readonly AgentPanelSceneEntryModel[],
 	nextEntries: readonly AgentPanelSceneEntryModel[],
 	startIndex: number
-): void {
+): ReadonlyMap<string, number> {
+	const deletedKeys = new Set<string>();
 	for (const entry of previousEntries) {
-		rowIndex.delete(entry.id);
+		deletedKeys.add(entry.id);
 	}
-	appendSceneEntryRowIndex(rowIndex, nextEntries, startIndex);
+	return createPatchedReadonlyMap(
+		rowIndex,
+		createSceneEntryRowIndexForRange(nextEntries, startIndex),
+		deletedKeys
+	);
 }
 
 function isStableTranscriptAppend(
@@ -2275,11 +2279,17 @@ class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {
 
 	constructor(
 		private readonly base: ReadonlyMap<K, V>,
-		private readonly patches: ReadonlyMap<K, V>
+		private readonly patches: ReadonlyMap<K, V>,
+		private readonly deletedKeys: ReadonlySet<K> = new Set<K>()
 	) {}
 
 	get size(): number {
 		let size = this.base.size;
+		for (const key of this.deletedKeys) {
+			if (this.base.has(key) && !this.patches.has(key)) {
+				size -= 1;
+			}
+		}
 		for (const key of this.patches.keys()) {
 			if (!this.base.has(key)) {
 				size += 1;
@@ -2289,11 +2299,17 @@ class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {
 	}
 
 	get(key: K): V | undefined {
-		return this.patches.has(key) ? this.patches.get(key) : this.base.get(key);
+		if (this.patches.has(key)) {
+			return this.patches.get(key);
+		}
+		if (this.deletedKeys.has(key)) {
+			return undefined;
+		}
+		return this.base.get(key);
 	}
 
 	has(key: K): boolean {
-		return this.patches.has(key) || this.base.has(key);
+		return this.patches.has(key) || (!this.deletedKeys.has(key) && this.base.has(key));
 	}
 
 	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown): void {
@@ -2309,7 +2325,7 @@ class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {
 			yield [key, value];
 		}
 		for (const [key, value] of this.base.entries()) {
-			if (!patchedKeys.has(key)) {
+			if (!patchedKeys.has(key) && !this.deletedKeys.has(key)) {
 				yield [key, value];
 			}
 		}
@@ -2334,9 +2350,12 @@ class PatchedReadonlyMap<K, V> implements ReadonlyMap<K, V> {
 
 function createPatchedReadonlyMap<K, V>(
 	base: ReadonlyMap<K, V>,
-	patches: ReadonlyMap<K, V>
+	patches: ReadonlyMap<K, V>,
+	deletedKeys: ReadonlySet<K> = new Set<K>()
 ): ReadonlyMap<K, V> {
-	return patches.size === 0 ? base : new PatchedReadonlyMap(base, patches);
+	return patches.size === 0 && deletedKeys.size === 0
+		? base
+		: new PatchedReadonlyMap(base, patches, deletedKeys);
 }
 
 function collectAffectedTranscriptEntryIdsFromIndex(
@@ -2372,15 +2391,26 @@ function buildSceneEntryRowIndex(
 	return byEntryId;
 }
 
-function appendSceneEntryRowIndex(
-	byEntryId: Map<string, number>,
+function createAppendedSceneEntryRowIndex(
+	byEntryId: ReadonlyMap<string, number>,
 	appendedEntries: readonly AgentPanelSceneEntryModel[],
 	startIndex: number
-): Map<string, number> {
-	appendedEntries.forEach((entry, index) => {
-		byEntryId.set(entry.id, startIndex + index);
+): ReadonlyMap<string, number> {
+	return createPatchedReadonlyMap(
+		byEntryId,
+		createSceneEntryRowIndexForRange(appendedEntries, startIndex)
+	);
+}
+
+function createSceneEntryRowIndexForRange(
+	entries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): ReadonlyMap<string, number> {
+	const indexByEntryId = new Map<string, number>();
+	entries.forEach((entry, index) => {
+		indexByEntryId.set(entry.id, startIndex + index);
 	});
-	return byEntryId;
+	return indexByEntryId;
 }
 
 function materializeAgentPanelSceneFromConversation(
