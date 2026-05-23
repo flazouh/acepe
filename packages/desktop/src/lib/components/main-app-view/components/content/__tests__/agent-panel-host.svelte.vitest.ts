@@ -170,6 +170,8 @@ describe("AgentPanelHost", () => {
 		};
 
 		const view = render(AgentPanelHost, props);
+		expect(hoisted.panelStore.getActiveFilePanelId).not.toHaveBeenCalled();
+		expect(hoisted.panelStore.getActiveAttachedFilePanel).not.toHaveBeenCalled();
 
 		await fireEvent.click(view.getByTestId("trigger-close-crash"));
 		expect(state.handleClosePanel).toHaveBeenCalledTimes(1);

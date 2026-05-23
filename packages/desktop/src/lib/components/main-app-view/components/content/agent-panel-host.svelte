@@ -102,12 +102,6 @@ const project = $derived(hostModel?.project ?? null);
 const selectedAgentId = $derived(hostModel?.selectedAgentId ?? null);
 const isWaitingForSession = $derived(hostModel?.isWaitingForSession ?? false);
 const attachedFilePanels = $derived(panel ? panelStore.getAttachedFilePanels(panel.id) : []);
-const activeAttachedFilePanelId = $derived(
-	panel ? panelStore.getActiveFilePanelId(panel.id) : null
-);
-const activeAttachedFilePanel = $derived(
-	panel ? panelStore.getActiveAttachedFilePanel(panel.id) : null
-);
 const reviewMode = $derived(hostModel?.reviewMode ?? false);
 const reviewFilesState = $derived(hostModel?.reviewFilesState ?? null);
 const reviewFileIndex = $derived(hostModel?.reviewFileIndex ?? 0);
@@ -216,8 +210,6 @@ function handleResizeAttachedFilePanel(filePanelId: string, delta: number): void
 			onReviewFileIndexChange={handleReviewFileIndexChange}
 			onCreateIssueReport={handleCreateIssueReport}
 			{attachedFilePanels}
-			{activeAttachedFilePanelId}
-			{activeAttachedFilePanel}
 			onSelectAttachedFilePanel={handleSelectAttachedFilePanel}
 			onCloseAttachedFilePanel={handleCloseAttachedFilePanel}
 			onResizeAttachedFilePanel={handleResizeAttachedFilePanel}

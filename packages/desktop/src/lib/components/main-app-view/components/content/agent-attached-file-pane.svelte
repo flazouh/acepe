@@ -6,6 +6,7 @@ import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import { getPanelStore } from "$lib/acp/store/index.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
@@ -13,8 +14,6 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 interface Props {
 	ownerPanelId: string;
 	filePanels: readonly FilePanelType[];
-	activeFilePanelId: string | null;
-	activeFilePanel?: FilePanelType | null;
 	projects: readonly Project[];
 	columnWidth?: number;
 	isFullscreenEmbedded?: boolean;
@@ -26,8 +25,6 @@ interface Props {
 let {
 	ownerPanelId,
 	filePanels,
-	activeFilePanelId,
-	activeFilePanel: selectedActiveFilePanel = null,
 	projects,
 	columnWidth = 450,
 	isFullscreenEmbedded: _isFullscreenEmbedded = false,
@@ -35,6 +32,8 @@ let {
 	onCloseFilePanel,
 	onResizeFilePanel,
 }: Props = $props();
+
+const panelStore = getPanelStore();
 
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 
@@ -51,6 +50,8 @@ function createRetainedGitStatusMap(
 }
 
 const activeFilePanel = $derived.by(() => {
+	const activeFilePanelId = panelStore.getActiveFilePanelId(ownerPanelId);
+	const selectedActiveFilePanel = panelStore.getActiveAttachedFilePanel(ownerPanelId);
 	if (selectedActiveFilePanel?.ownerPanelId === ownerPanelId) {
 		return selectedActiveFilePanel;
 	}
