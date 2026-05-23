@@ -53,6 +53,12 @@ export type SceneDisplayRowArrayInsertion = {
 	readonly insertIndex: number;
 };
 
+export type SceneDisplayRowArraySplice = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly startIndex: number;
+	readonly replacementRows: readonly SceneDisplayRow[];
+};
+
 const sceneDisplayRowArrayPatches = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayPatch
@@ -68,6 +74,10 @@ const sceneDisplayRowArrayTruncations = new WeakMap<
 const sceneDisplayRowArrayInsertions = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayInsertion
+>();
+const sceneDisplayRowArraySplices = new WeakMap<
+	readonly SceneDisplayRow[],
+	SceneDisplayRowArraySplice
 >();
 
 export function getSceneDisplayRowArrayPatch(
@@ -92,6 +102,12 @@ export function getSceneDisplayRowArrayInsertion(
 	rows: readonly SceneDisplayRow[]
 ): SceneDisplayRowArrayInsertion | undefined {
 	return sceneDisplayRowArrayInsertions.get(rows);
+}
+
+export function getSceneDisplayRowArraySplice(
+	rows: readonly SceneDisplayRow[]
+): SceneDisplayRowArraySplice | undefined {
+	return sceneDisplayRowArraySplices.get(rows);
 }
 
 export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
@@ -222,10 +238,11 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				rowIndexBySceneEntryId.delete(entry.id);
 			}
 		}
-		const rows = appendSceneDisplayRowsFromIndex(
-			createTruncatedSceneDisplayRowsArray(previousRows, firstChangedRowIndex),
-			sceneEntries,
-			splicePatch.startIndex
+		const replacementRows = appendSceneDisplayRowsFromIndex([], sceneEntries, splicePatch.startIndex);
+		const rows = createSplicedSceneDisplayRowsArray(
+			previousRows,
+			firstChangedRowIndex,
+			replacementRows
 		);
 		previousRows = rows;
 		latestTimestampMs = selectLatestTimestampMsFrom(
@@ -970,6 +987,67 @@ function createInsertedSceneDisplayRowsArray(
 		},
 	});
 	sceneDisplayRowArrayInsertions.set(rows, { baseRows, insertedRows, insertIndex });
+	return rows;
+}
+
+function createSplicedSceneDisplayRowsArray(
+	baseRows: readonly SceneDisplayRow[],
+	startIndex: number,
+	replacementRows: readonly SceneDisplayRow[]
+): readonly SceneDisplayRow[] {
+	if (startIndex >= baseRows.length) {
+		return replacementRows.length === 0
+			? baseRows
+			: createInsertedSceneDisplayRowsArray(baseRows, replacementRows, baseRows.length);
+	}
+
+	const target = new Array<SceneDisplayRow>(startIndex + replacementRows.length);
+	const rows = new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index < startIndex ? baseRows[index] : replacementRows[index - startIndex];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index < startIndex ? baseRows[index] : replacementRows[index - startIndex];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index < startIndex ? baseRows[index] : replacementRows[index - startIndex],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	});
+	sceneDisplayRowArraySplices.set(rows, { baseRows, startIndex, replacementRows });
 	return rows;
 }
 

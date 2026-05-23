@@ -8,6 +8,7 @@ import {
 	getSceneDisplayRowArrayAppend,
 	getSceneDisplayRowArrayPatch,
 	getSceneDisplayRowArrayInsertion,
+	getSceneDisplayRowArraySplice,
 	getSceneDisplayRowArrayTruncation,
 } from "./scene-display-row-read-model.js";
 import {
@@ -265,6 +266,23 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					thinkingDurationSources,
 					rows,
 					durationStartIndex
+				);
+				return commitSummary(nextSummary);
+			}
+
+			const splicedRows = getSceneDisplayRowArraySplice(rows);
+			if (previousRows !== null && splicedRows?.baseRows === previousRows) {
+				const nextSummary = spliceTranscriptViewportRowsSummary(
+					previousSummary,
+					rows,
+					splicedRows.startIndex,
+					splicedRows.replacementRows,
+					reason
+				);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					Math.max(0, splicedRows.startIndex - 1)
 				);
 				return commitSummary(nextSummary);
 			}
@@ -934,6 +952,113 @@ function insertTranscriptViewportRowsSummary(
 	};
 }
 
+function spliceTranscriptViewportRowsSummary(
+	previousSummary: TranscriptViewportRowSummary,
+	rows: readonly SceneDisplayRow[],
+	startIndex: number,
+	replacementRows: readonly SceneDisplayRow[],
+	reason: TranscriptViewportRowsReason
+): TranscriptViewportRowSummary {
+	const previousRowKeys = previousSummary.rowKeys ?? [];
+	const replacementRowKeys: string[] = [];
+	const replacementRowIndexByKey = new Map<string, number>();
+	const replacementAnchorEligibleKeys: string[] = [];
+	const replacementUserIndexes: number[] = [];
+	const replacementLiveAssistantDisplayEntryIndexes: number[] = [];
+	const replacementTokenRevealAssistantEntryIndexes: number[] = [];
+	const replacementToolCallEntryIndexes: number[] = [];
+	let latestReplacementUserKey: string | null = null;
+
+	for (let index = 0; index < replacementRows.length; index += 1) {
+		const row = replacementRows[index];
+		if (row === undefined) {
+			continue;
+		}
+		const rowIndex = startIndex + index;
+		const key = getSceneDisplayRowKey(row);
+		replacementRowKeys.push(key);
+		replacementRowIndexByKey.set(key, rowIndex);
+		if (row.type !== "thinking") {
+			replacementAnchorEligibleKeys.push(key);
+		}
+		if (row.type === "user") {
+			replacementUserIndexes.push(rowIndex);
+			latestReplacementUserKey = key;
+		}
+		if (isLiveAssistantDisplayRow(row)) {
+			replacementLiveAssistantDisplayEntryIndexes.push(rowIndex);
+		}
+		if (isTokenRevealAssistantDisplayRow(row)) {
+			replacementTokenRevealAssistantEntryIndexes.push(rowIndex);
+		}
+		if (row.type === "tool_call") {
+			replacementToolCallEntryIndexes.push(rowIndex);
+		}
+	}
+
+	const userRowIndexes = createSplicedMatchingIndexes(
+		previousSummary.userRowIndexes ?? [],
+		startIndex,
+		replacementUserIndexes
+	);
+	const liveAssistantDisplayEntryIndexes = createSplicedMatchingIndexes(
+		previousSummary.liveAssistantDisplayEntryIndexes ?? [],
+		startIndex,
+		replacementLiveAssistantDisplayEntryIndexes
+	);
+	const tokenRevealAssistantEntryIndexes = createSplicedMatchingIndexes(
+		previousSummary.tokenRevealAssistantEntryIndexes ?? [],
+		startIndex,
+		replacementTokenRevealAssistantEntryIndexes
+	);
+	const toolCallEntryIndexes = createSplicedMatchingIndexes(
+		previousSummary.toolCallEntryIndexes ?? [],
+		startIndex,
+		replacementToolCallEntryIndexes
+	);
+	const rowKeys = createSplicedArrayView(previousRowKeys, startIndex, replacementRowKeys);
+
+	return {
+		version: rows.length,
+		count: rows.length,
+		firstKey: rowKeys[0] ?? null,
+		lastKey: rowKeys.at(-1) ?? null,
+		latestUserKey:
+			latestReplacementUserKey ??
+			selectLatestKeyFromIndexes(previousRowKeys, userRowIndexes) ??
+			previousSummary.latestUserKey,
+		lastUserRowIndex: selectLastMatchingIndex(userRowIndexes),
+		userRowIndexes,
+		rowKeys,
+		rowIndexByKey: createSplicedRowIndexByKey(
+			previousSummary.rowIndexByKey,
+			startIndex,
+			replacementRowIndexByKey
+		),
+		anchorEligibleKeys: createSplicedArrayView(
+			previousSummary.anchorEligibleKeys,
+			startIndex,
+			replacementAnchorEligibleKeys
+		),
+		hasLiveAssistantDisplayEntry: liveAssistantDisplayEntryIndexes.length > 0,
+		hasTokenRevealAssistantEntry: tokenRevealAssistantEntryIndexes.length > 0,
+		hasToolCallEntry: toolCallEntryIndexes.length > 0,
+		lastLiveAssistantDisplayEntryIndex: selectLastMatchingIndex(liveAssistantDisplayEntryIndexes),
+		lastTokenRevealAssistantEntryIndex: selectLastMatchingIndex(
+			tokenRevealAssistantEntryIndexes
+		),
+		lastToolCallEntryIndex: selectLastMatchingIndex(toolCallEntryIndexes),
+		liveAssistantDisplayEntryIndexes,
+		tokenRevealAssistantEntryIndexes,
+		toolCallEntryIndexes,
+		changedRange: {
+			startIndex,
+			endIndex: rows.length,
+		},
+		reason,
+	};
+}
+
 function createInsertedArrayView<T>(
 	baseItems: readonly T[],
 	insertedItems: readonly T[],
@@ -947,6 +1072,16 @@ function createInsertedArrayView<T>(
 			return insertedItems[index - insertIndex];
 		}
 		return baseItems[index - insertedItems.length];
+	});
+}
+
+function createSplicedArrayView<T>(
+	baseItems: readonly T[],
+	startIndex: number,
+	replacementItems: readonly T[]
+): readonly T[] {
+	return createArrayView(startIndex + replacementItems.length, (index) => {
+		return index < startIndex ? baseItems[index] : replacementItems[index - startIndex];
 	});
 }
 
@@ -965,6 +1100,98 @@ function createInsertedRowIndexByKey(
 		insertIndex,
 		insertedCount
 	);
+}
+
+function createSplicedRowIndexByKey(
+	baseIndexByKey: ReadonlyMap<string, number> | undefined,
+	startIndex: number,
+	replacementIndexByKey: ReadonlyMap<string, number>
+): ReadonlyMap<string, number> {
+	if (baseIndexByKey === undefined) {
+		return replacementIndexByKey;
+	}
+	return new SplicedRowIndexByKeyMap(baseIndexByKey, replacementIndexByKey, startIndex);
+}
+
+class SplicedRowIndexByKeyMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "SplicedRowIndexByKeyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly replacement: ReadonlyMap<string, number>,
+		private readonly startIndex: number
+	) {}
+
+	get size(): number {
+		let size = this.replacement.size;
+		for (const value of this.base.values()) {
+			if (value < this.startIndex) {
+				size += 1;
+			}
+		}
+		return size;
+	}
+
+	get(key: string): number | undefined {
+		const replacementValue = this.replacement.get(key);
+		if (replacementValue !== undefined) {
+			return replacementValue;
+		}
+		const baseValue = this.base.get(key);
+		return baseValue !== undefined && baseValue < this.startIndex ? baseValue : undefined;
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		for (const [key, value] of this.base.entries()) {
+			if (value < this.startIndex && !this.replacement.has(key)) {
+				yield [key, value];
+			}
+		}
+		for (const [key, value] of this.replacement.entries()) {
+			yield [key, value];
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 class InsertedRowIndexByKeyMap implements ReadonlyMap<string, number> {
@@ -1530,6 +1757,17 @@ function createInsertedMatchingIndexes(
 	}
 	nextIndexes.sort((left, right) => left - right);
 	return nextIndexes;
+}
+
+function createSplicedMatchingIndexes(
+	baseIndexes: readonly number[],
+	startIndex: number,
+	replacementIndexes: readonly number[]
+): readonly number[] {
+	const preservedIndexes = truncateMatchingIndexes(baseIndexes, startIndex);
+	return replacementIndexes.length === 0
+		? preservedIndexes
+		: preservedIndexes.concat(replacementIndexes);
 }
 
 function replaceTailMatchingIndexes(

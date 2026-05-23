@@ -7,6 +7,7 @@ import {
 } from "../transcript-viewport-row-summary.js";
 import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 import type { SceneDisplayRow } from "../scene-display-rows.js";
+import { markAgentPanelSceneEntryArraySplicePatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 describe("createTranscriptViewportRowsReadModel", () => {
 	it("selects base rows directly when no waiting row is needed", () => {
@@ -799,6 +800,85 @@ describe("createTranscriptViewportRowsReadModel", () => {
 			expect(nextSummary.lastKey).toBe("user-1");
 			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
 			expect(nextSummary.rowIndexByKey?.get("missing-1")).toBeUndefined();
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
+	});
+
+	it("applies scene display row splice metadata without checking the whole row prefix", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const stableToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-0",
+			type: "tool_call",
+			title: "Stable tool",
+			status: "done",
+		};
+		const oldAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Old",
+		};
+		const nextAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Next",
+			isStreaming: true,
+		};
+		const baseEntries: AgentPanelSceneEntryModel[] = [
+			userEntry,
+			stableToolEntry,
+			oldAssistantEntry,
+		];
+		const firstRows = displayRows.applySnapshot(baseEntries);
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextEntries = [userEntry, stableToolEntry, nextAssistantEntry];
+		markAgentPanelSceneEntryArraySplicePatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			startIndex: 2,
+			insertedEntries: [nextAssistantEntry],
+			trailingEntries: [],
+		});
+		const nextRows = displayRows.applyPatch(nextEntries);
+		expect(nextRows).not.toBeNull();
+		if (nextRows === null) {
+			return;
+		}
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not compare every previous row for metadata splice");
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(3);
+			expect(nextSummary.rowKeys).toEqual(["user-1", "tool-0", "assistant-2"]);
+			expect(nextSummary.lastKey).toBe("assistant-2");
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("tool-0")).toBe(1);
+			expect(nextSummary.rowIndexByKey?.get("assistant-2")).toBe(2);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBeUndefined();
+			expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
+			expect(nextSummary.lastLiveAssistantDisplayEntryIndex).toBe(2);
 		} finally {
 			Object.defineProperty(firstRows, "0", {
 				configurable: true,
