@@ -2054,7 +2054,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	 * Get all sessions (cold data only).
 	 */
 	getAllSessions(): SessionCold[] {
-		return this.sessions.map((session) => sessionColdFromExistingSession(session));
+		const sessions: SessionCold[] = [];
+		for (const session of this.sessions) {
+			sessions.push(sessionColdFromExistingSession(session));
+		}
+		return sessions;
 	}
 
 	// ============================================

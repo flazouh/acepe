@@ -226,4 +226,31 @@ describe("SessionStore renameSession", () => {
 			sessions.map = originalMap;
 		}
 	});
+
+	it("snapshots all sessions without using the broad session map helper", () => {
+		store.addSession({
+			id: "session-snapshot",
+			projectPath: "/project",
+			agentId: "claude-code",
+			title: "Snapshot",
+			updatedAt: new Date("2026-04-06T10:00:00.000Z"),
+			createdAt: new Date("2026-04-06T09:00:00.000Z"),
+			parentId: null,
+		});
+		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
+		const originalMap = sessions.map;
+		sessions.map = () => {
+			throw new Error("must not use sessions.map for all-session snapshots");
+		};
+
+		try {
+			const snapshot = store.getAllSessions();
+
+			expect(snapshot).toHaveLength(1);
+			expect(snapshot[0]?.id).toBe("session-snapshot");
+			expect(snapshot[0]).not.toBe(sessions[0]);
+		} finally {
+			sessions.map = originalMap;
+		}
+	});
 });
