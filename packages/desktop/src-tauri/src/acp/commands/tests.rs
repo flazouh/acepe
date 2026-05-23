@@ -598,7 +598,7 @@ async fn connection_complete_builds_graph_native_snapshot_envelope() {
 }
 
 #[tokio::test]
-async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
+async fn connection_failed_builds_graph_native_error_lifecycle_envelope() {
     let db = setup_test_db().await;
     SessionMetadataRepository::upsert(
         &db,
@@ -638,22 +638,25 @@ async fn connection_failed_builds_graph_native_error_snapshot_envelope() {
             transcript_delta: None,
         })
         .await
-        .expect("snapshot envelope");
+        .expect("lifecycle envelope");
 
     match envelope.payload {
-        SessionStatePayload::Snapshot { graph } => {
-            assert_eq!(graph.revision, SessionGraphRevision::new(9, 4, 9));
+        SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        } => {
+            assert_eq!(revision, SessionGraphRevision::new(9, 4, 9));
             assert_eq!(
-                graph.lifecycle.status,
+                lifecycle.status,
                 crate::acp::lifecycle::LifecycleStatus::Failed
             );
             assert_eq!(
-                graph.lifecycle.error_message.as_deref(),
+                lifecycle.error_message.as_deref(),
                 Some("connection dropped")
             );
-            assert!(graph.lifecycle.actionability.can_retry);
+            assert!(lifecycle.actionability.can_retry);
         }
-        payload => panic!("expected snapshot payload, got {payload:?}"),
+        payload => panic!("expected lifecycle payload, got {payload:?}"),
     }
 }
 

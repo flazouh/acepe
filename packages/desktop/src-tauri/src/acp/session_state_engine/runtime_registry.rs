@@ -274,6 +274,14 @@ impl SessionGraphRuntimeRegistry {
             return self.build_turn_state_delta_envelope(&request).await;
         }
 
+        if should_emit_session_state_lifecycle(request.update) {
+            return Some(build_live_session_state_lifecycle_envelope(
+                request.session_id,
+                self.snapshot_for_session(request.session_id).lifecycle,
+                request.revision,
+            ));
+        }
+
         if let Some(interaction_id) = interaction_id_for_patch(request.update) {
             return self
                 .build_interaction_delta_envelope(&request, interaction_id)
@@ -1057,6 +1065,22 @@ fn build_live_session_state_plan_envelope(
     }
 }
 
+fn build_live_session_state_lifecycle_envelope(
+    session_id: &str,
+    lifecycle: SessionGraphLifecycle,
+    revision: SessionGraphRevision,
+) -> SessionStateEnvelope {
+    SessionStateEnvelope {
+        session_id: session_id.to_string(),
+        graph_revision: revision.graph_revision,
+        last_event_seq: revision.last_event_seq,
+        payload: SessionStatePayload::Lifecycle {
+            lifecycle,
+            revision,
+        },
+    }
+}
+
 fn build_live_session_state_capabilities_envelope(
     session_id: &str,
     capabilities: SessionGraphCapabilities,
@@ -1087,10 +1111,11 @@ fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
 }
 
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
-    matches!(
-        update,
-        SessionUpdate::ConnectionComplete { .. } | SessionUpdate::ConnectionFailed { .. }
-    )
+    matches!(update, SessionUpdate::ConnectionComplete { .. })
+}
+
+fn should_emit_session_state_lifecycle(update: &SessionUpdate) -> bool {
+    matches!(update, SessionUpdate::ConnectionFailed { .. })
 }
 
 fn should_emit_turn_state_delta(update: &SessionUpdate) -> bool {
@@ -1321,6 +1346,7 @@ mod tests {
         let projection_registry = ProjectionRegistry::new();
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_registry = SessionGraphRuntimeRegistry::new();
+        seed_lifecycle(&runtime_registry, "session-1", 10);
 
         projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
         for index in 0..history_count {
@@ -1679,6 +1705,36 @@ mod tests {
             long_len > short_len + 1024,
             "{surface} did not show measurable history scaling: short={short_len}, long={long_len}"
         );
+    }
+
+    async fn assert_lifecycle_surface_stays_history_independent(
+        db: &DbConn,
+        surface: &str,
+        update_under_test: SessionUpdate,
+    ) {
+        let short_envelope =
+            build_snapshot_for_history_depth(db, 4, update_under_test.clone()).await;
+        let long_envelope =
+            build_snapshot_for_history_depth(db, 300, update_under_test.clone()).await;
+        let doubled_envelope = build_snapshot_for_history_depth(db, 600, update_under_test).await;
+        for envelope in [&short_envelope, &long_envelope, &doubled_envelope] {
+            match &envelope.payload {
+                SessionStatePayload::Lifecycle { lifecycle, .. } => {
+                    assert_eq!(
+                        lifecycle.status,
+                        crate::acp::lifecycle::LifecycleStatus::Failed,
+                        "{surface} should carry lifecycle failure state"
+                    );
+                    assert!(
+                        lifecycle.error_message.is_some(),
+                        "{surface} should carry lifecycle error details"
+                    );
+                }
+                other => panic!("expected lifecycle payload for {surface}, got {:?}", other),
+            }
+        }
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
     }
 
     async fn assert_interaction_surface_stays_history_independent(
@@ -2464,7 +2520,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connection_snapshot_payloads_are_measurable_history_scaling_surfaces() {
+    async fn connection_complete_payloads_are_measurable_history_scaling_surfaces() {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
 
@@ -2474,7 +2530,14 @@ mod tests {
             create_connection_complete_update(),
         )
         .await;
-        assert_snapshot_surface_scales_with_history(
+    }
+
+    #[tokio::test]
+    async fn connection_failed_emits_history_independent_lifecycle() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
+        assert_lifecycle_surface_stays_history_independent(
             &db,
             "connection_failed",
             create_connection_failed_update(),
