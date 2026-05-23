@@ -56,6 +56,7 @@ import {
 import { createTranscriptViewportScheduler } from "../logic/transcript-viewport-scheduler.svelte.js";
 import {
 	createTranscriptViewportRowsReadModel,
+	inferTranscriptViewportRowsReason,
 	type TranscriptViewportRowSummary,
 } from "../logic/transcript-viewport-row-summary.js";
 import type { TranscriptViewportAnchor } from "../logic/viewport-anchor.js";
@@ -451,7 +452,10 @@ const displayEntries = $derived(
 const viewportRowsSummary = $derived(
 	viewportRowsReadModel.applyRows({
 		rows: displayEntries,
-		reason: isWaitingForResponse ? "waiting-row-appended" : "rows-updated",
+		reason: inferTranscriptViewportRowsReason({
+			rows: displayEntries,
+			isWaitingForResponse,
+		}),
 	})
 );
 const revealResizeObserverTargetKey = $derived(

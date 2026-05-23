@@ -462,6 +462,53 @@ describe("TranscriptViewportController", () => {
 		});
 	});
 
+	it("reveals the tail for explicit streaming-tail growth instead of re-targeting the same row", () => {
+		const state = reduceTranscriptViewportEvent(
+			createInitialTranscriptViewportState({
+				sessionId: "session-1",
+				rows: baseRows,
+			}),
+			{
+				type: "RowsChanged",
+				sessionId: "session-1",
+				generation: 0,
+				rows: {
+					version: 2,
+					count: 3,
+					firstKey: "user-1",
+					lastKey: "assistant-1",
+					latestUserKey: "user-1",
+					anchorEligibleKeys: ["user-1", "assistant-1"],
+					reason: "streaming-growth",
+				},
+			}
+		).state;
+
+		const resizeReveal = reduceTranscriptViewportEvent(state, {
+			type: "ExplicitRevealRequested",
+			sessionId: "session-1",
+			generation: state.generation,
+			targetKey: "assistant-1",
+		});
+
+		expect(resizeReveal.state.follow).toBe("following");
+		expect(resizeReveal.effects).toContainEqual({
+			type: "RevealTail",
+			sessionId: "session-1",
+			generation: state.generation,
+			force: false,
+			reason: "rows-changed-following",
+		});
+		expect(resizeReveal.effects).not.toContainEqual({
+			type: "RevealRow",
+			sessionId: "session-1",
+			generation: state.generation,
+			targetKey: "assistant-1",
+			align: "end",
+			reason: "explicit-reveal",
+		});
+	});
+
 	it("keeps following the tail when a row resizes while attached", () => {
 		const initial = createInitialTranscriptViewportState({
 			sessionId: "session-1",

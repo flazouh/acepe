@@ -230,6 +230,9 @@ function shouldRevealTailForExplicitReveal(
 	state: TranscriptViewportState,
 	targetKey: string
 ): boolean {
+	if (state.rows.reason === "streaming-growth") {
+		return state.rows.lastKey !== null && state.rows.lastKey === targetKey;
+	}
 	return (
 		state.rows.reason === "waiting-row-appended" &&
 		state.rows.lastKey !== null &&

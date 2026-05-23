@@ -57,6 +57,22 @@ export type TranscriptViewportNearbyRowDiagnostic = {
 	readonly key?: string;
 };
 
+export function inferTranscriptViewportRowsReason(input: {
+	rows: readonly SceneDisplayRow[];
+	isWaitingForResponse: boolean;
+}): TranscriptViewportRowsReason {
+	if (input.isWaitingForResponse) {
+		return "waiting-row-appended";
+	}
+
+	const lastRow = input.rows.at(-1);
+	if (lastRow !== undefined && isLiveAssistantDisplayRow(lastRow)) {
+		return "streaming-growth";
+	}
+
+	return "rows-updated";
+}
+
 export function createEmptyTranscriptViewportRows(): TranscriptViewportRowSummary {
 	return {
 		version: 0,

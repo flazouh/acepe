@@ -4,6 +4,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import {
 	buildTranscriptViewportRowsSummary,
 	createTranscriptViewportRowsReadModel,
+	inferTranscriptViewportRowsReason,
 } from "../transcript-viewport-row-summary.js";
 import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 import type { SceneDisplayRow } from "../scene-display-rows.js";
@@ -95,6 +96,29 @@ describe("createTranscriptViewportRowsReadModel", () => {
 
 		expect(readModel.applyRows({ rows, reason: "rows-updated" })).toBe(summary);
 		expect(readModel.selectSummary()).toBe(summary);
+	});
+
+	it("classifies waiting rows, streaming tails, and settled rows without component guesses", () => {
+		expect(
+			inferTranscriptViewportRowsReason({
+				rows: [userRow("user-1")],
+				isWaitingForResponse: true,
+			})
+		).toBe("waiting-row-appended");
+
+		expect(
+			inferTranscriptViewportRowsReason({
+				rows: [assistantRow("assistant-1", { isStreaming: true })],
+				isWaitingForResponse: false,
+			})
+		).toBe("streaming-growth");
+
+		expect(
+			inferTranscriptViewportRowsReason({
+				rows: [assistantRow("assistant-1")],
+				isWaitingForResponse: false,
+			})
+		).toBe("rows-updated");
 	});
 
 	it("keeps the summary stable for same-length patches that do not change viewport facts", () => {
