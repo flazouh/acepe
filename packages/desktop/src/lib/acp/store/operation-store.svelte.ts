@@ -317,6 +317,10 @@ export class OperationStore {
 			this.sessionOperationIdSets.set(sessionId, sessionOperationIdSet);
 		}
 
+		const previousVersion = this.sessionOperationVersions.get(sessionId) ?? 0;
+		const cachedSessionOperations = this.sessionOperationsBySession.get(sessionId);
+		let cachedOperationPatches: Map<number, Operation> | null = null;
+		let cachedOperationAppends: Operation[] | null = null;
 		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
@@ -335,6 +339,19 @@ export class OperationStore {
 				sessionOperationIds.push(operation.id);
 				sessionOperationIdSet.add(operation.id);
 				appendedOperationId = true;
+				if (cachedSessionOperations?.version === previousVersion) {
+					cachedOperationAppends ??= [];
+					cachedOperationAppends.push(operation);
+				}
+			} else if (cachedSessionOperations?.version === previousVersion) {
+				const cachedOperationIndex = findCachedOperationIndex(
+					cachedSessionOperations.operations,
+					operation.id
+				);
+				if (cachedOperationIndex !== -1) {
+					cachedOperationPatches ??= new Map<number, Operation>();
+					cachedOperationPatches.set(cachedOperationIndex, operation);
+				}
 			}
 			this.updateCurrentStreamingOperation(sessionId, operation);
 		}
@@ -342,21 +359,30 @@ export class OperationStore {
 			this.sessionOperationIds.set(sessionId, sessionOperationIds);
 		}
 		if (changed) {
-			this.bumpSessionOperationVersion(sessionId);
+			const nextVersion = this.bumpSessionOperationVersion(sessionId);
+			if (cachedSessionOperations?.version === previousVersion) {
+				this.sessionOperationsBySession.set(sessionId, {
+					version: nextVersion,
+					operations: createPatchedOperationArray(
+						cachedSessionOperations.operations,
+						cachedOperationPatches,
+						cachedOperationAppends
+					),
+				});
+			}
 		}
 	}
 
-	private bumpSessionOperationVersion(sessionId: string): void {
-		this.sessionOperationVersions.set(
-			sessionId,
-			(this.sessionOperationVersions.get(sessionId) ?? 0) + 1
-		);
+	private bumpSessionOperationVersion(sessionId: string): number {
+		const nextVersion = (this.sessionOperationVersions.get(sessionId) ?? 0) + 1;
+		this.sessionOperationVersions.set(sessionId, nextVersion);
 		this.sessionOperationsBySession.delete(sessionId);
 		this.modifiedFilesStateBySession.delete(sessionId);
 		this.sessionToolCallsBySession.delete(sessionId);
 		this.currentStreamingToolCallBySession.delete(sessionId);
 		this.lastToolCallBySession.delete(sessionId);
 		this.lastTodoToolCallBySession.delete(sessionId);
+		return nextVersion;
 	}
 
 	private operationFromSnapshot(snapshot: OperationSnapshot): Operation {
@@ -505,6 +531,102 @@ export class OperationStore {
 			presentationStatus: mapOperationStateToToolPresentationStatus(operation.operationState),
 		};
 	}
+}
+
+function findCachedOperationIndex(operations: readonly Operation[], operationId: string): number {
+	for (let index = 0; index < operations.length; index += 1) {
+		if (operations[index]?.id === operationId) {
+			return index;
+		}
+	}
+	return -1;
+}
+
+function createPatchedOperationArray(
+	baseOperations: readonly Operation[],
+	operationPatches: ReadonlyMap<number, Operation> | null,
+	appendedOperations: readonly Operation[] | null
+): Array<Operation> {
+	if (operationPatches === null && appendedOperations === null) {
+		return baseOperations as Array<Operation>;
+	}
+
+	const appended = appendedOperations ?? [];
+	const target = new Array<Operation>(baseOperations.length + appended.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectPatchedOperation(baseOperations, operationPatches, appended, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectPatchedOperation(baseOperations, operationPatches, appended, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectPatchedOperation(baseOperations, operationPatches, appended, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	}) as Array<Operation>;
+}
+
+function selectPatchedOperation(
+	baseOperations: readonly Operation[],
+	operationPatches: ReadonlyMap<number, Operation> | null,
+	appendedOperations: readonly Operation[],
+	index: number
+): Operation | undefined {
+	if (index < baseOperations.length) {
+		return operationPatches?.get(index) ?? baseOperations[index];
+	}
+	return appendedOperations[index - baseOperations.length];
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
+}
+
+function createArrayLikeOwnKeys(length: number): string[] {
+	const keys: string[] = [];
+	for (let index = 0; index < length; index += 1) {
+		keys.push(String(index));
+	}
+	keys.push("length");
+	return keys;
 }
 
 function areOperationsEquivalent(left: Operation, right: Operation): boolean {

@@ -110,6 +110,61 @@ describe("OperationStore", () => {
 		expect(patchedOperations[0]?.operationState).toBe("completed");
 	});
 
+	it("updates cached session operations without rebuilding the full operation list", () => {
+		const operationStore = new OperationStore();
+		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const secondOperationId = buildCanonicalOperationId("session-1", "tool-2");
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+			}),
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+		]);
+		const firstOperations = operationStore.getSessionOperations("session-1");
+		const operationsById = (operationStore as unknown as {
+			operationsById: Map<string, unknown>;
+		}).operationsById;
+		const originalGet = operationsById.get;
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "ok",
+			}),
+		]);
+
+		operationsById.get = function patchedGet(this: Map<string, unknown>, key: string) {
+			if (key === firstOperationId) {
+				throw new Error("must not rebuild every session operation");
+			}
+			return originalGet.call(this, key);
+		};
+
+		try {
+			const patchedOperations = operationStore.getSessionOperations("session-1");
+			expect(patchedOperations).not.toBe(firstOperations);
+			expect(patchedOperations[0]).toBe(firstOperations[0]);
+			expect(patchedOperations[1]?.operationState).toBe("completed");
+			expect(patchedOperations.map((operation) => operation.id)).toEqual([
+				firstOperationId,
+				secondOperationId,
+			]);
+		} finally {
+			operationsById.get = originalGet;
+		}
+	});
+
 	it("keeps cached operations stable for semantically duplicate patches", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");
