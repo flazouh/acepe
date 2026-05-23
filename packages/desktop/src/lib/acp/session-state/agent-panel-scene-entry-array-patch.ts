@@ -6,9 +6,18 @@ export type AgentPanelSceneEntryArrayPatch = {
 	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
+export type AgentPanelSceneEntryArrayAppendPatch = {
+	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
+	readonly appendedEntries: readonly AgentPanelSceneEntryModel[];
+};
+
 const agentPanelSceneEntryArrayPatches = new WeakMap<
 	readonly AgentPanelSceneEntryModel[],
 	AgentPanelSceneEntryArrayPatch
+>();
+const agentPanelSceneEntryArrayAppendPatches = new WeakMap<
+	readonly AgentPanelSceneEntryModel[],
+	AgentPanelSceneEntryArrayAppendPatch
 >();
 
 export function markAgentPanelSceneEntryArrayPatch(
@@ -22,4 +31,17 @@ export function getAgentPanelSceneEntryArrayPatch(
 	sceneEntries: readonly AgentPanelSceneEntryModel[]
 ): AgentPanelSceneEntryArrayPatch | undefined {
 	return agentPanelSceneEntryArrayPatches.get(sceneEntries);
+}
+
+export function markAgentPanelSceneEntryArrayAppendPatch(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	patch: AgentPanelSceneEntryArrayAppendPatch
+): void {
+	agentPanelSceneEntryArrayAppendPatches.set(sceneEntries, patch);
+}
+
+export function getAgentPanelSceneEntryArrayAppendPatch(
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): AgentPanelSceneEntryArrayAppendPatch | undefined {
+	return agentPanelSceneEntryArrayAppendPatches.get(sceneEntries);
 }

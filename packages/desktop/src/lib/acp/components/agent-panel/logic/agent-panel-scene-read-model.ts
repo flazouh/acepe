@@ -1,6 +1,9 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
-import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArrayPatch,
+} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
@@ -58,7 +61,10 @@ export function createAgentPanelSceneReadModel(input?: {
 			return this.selectSnapshot();
 		},
 		applyPatch(sceneEntries) {
-			if (getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined) {
+			if (
+				getAgentPanelSceneEntryArrayPatch(sceneEntries) === undefined &&
+				getAgentPanelSceneEntryArrayAppendPatch(sceneEntries) === undefined
+			) {
 				return null;
 			}
 			const patchedRows = rows.applyPatch(sceneEntries);

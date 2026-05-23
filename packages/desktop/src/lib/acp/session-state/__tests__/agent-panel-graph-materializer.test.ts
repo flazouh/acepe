@@ -18,7 +18,10 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
-import { getAgentPanelSceneEntryArrayPatch } from "../agent-panel-scene-entry-array-patch.js";
+import {
+	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArrayPatch,
+} from "../agent-panel-scene-entry-array-patch.js";
 import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
@@ -729,6 +732,9 @@ describe("agent panel graph materializer", () => {
 			type: "tool_call",
 			presentationState: "degraded_operation",
 		});
+		const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(nextScene.conversation.entries);
+		expect(appendPatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
+		expect(appendPatch?.appendedEntries).toEqual([nextScene.conversation.entries[1]]);
 
 		const patchedScene = readModel.apply({
 			panelId: "panel-1",

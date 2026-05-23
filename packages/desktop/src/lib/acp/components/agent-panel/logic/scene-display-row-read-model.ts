@@ -12,7 +12,10 @@ import {
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
-import { getAgentPanelSceneEntryArrayPatch } from "../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	getAgentPanelSceneEntryArrayAppendPatch,
+	getAgentPanelSceneEntryArrayPatch,
+} from "../../../session-state/agent-panel-scene-entry-array-patch.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
@@ -91,6 +94,33 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			latestTimestampMs
 		);
 		previousSceneEntries = sceneEntries;
+		return previousRows;
+	}
+
+	function applyGraphSceneAppendPatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(sceneEntries);
+		if (
+			appendPatch === undefined ||
+			appendPatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		if (appendPatch.appendedEntries.length === 0) {
+			previousSceneEntries = sceneEntries;
+			return previousRows;
+		}
+
+		const firstChangedRowIndex = Math.max(0, previousRows.length - 1);
+		previousRows = appendSceneDisplayRows(previousRows, appendPatch.appendedEntries);
+		latestTimestampMs = selectLatestTimestampMsFrom(
+			previousRows,
+			firstChangedRowIndex,
+			latestTimestampMs
+		);
+		previousSceneEntries = sceneEntries;
+		indexRowsBySceneEntryId(rowIndexBySceneEntryId, previousRows, firstChangedRowIndex);
 		return previousRows;
 	}
 
@@ -268,7 +298,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return previousRows;
 		},
 		applyPatch(sceneEntries) {
-			return applyGraphScenePatch(sceneEntries);
+			return applyGraphScenePatch(sceneEntries) ?? applyGraphSceneAppendPatch(sceneEntries);
 		},
 		selectRows() {
 			return previousRows;

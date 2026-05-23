@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 
 import { createAgentPanelSceneReadModel } from "../agent-panel-scene-read-model.js";
 import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
-import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 
 describe("createAgentPanelSceneReadModel", () => {
 	it("exposes rows and graph entries from one scene snapshot", () => {
@@ -120,6 +123,71 @@ describe("createAgentPanelSceneReadModel", () => {
 			expect(patchedSnapshot.entriesById.get("tool-1")).toBe(nextToolEntry);
 		} finally {
 			entries.concat = originalConcat;
+		}
+	});
+
+	it("applies marked full-scene append patches without scanning the unchanged prefix", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+		};
+		const nextToolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run",
+			status: "done",
+		};
+		const baseEntries = [userEntry, assistantEntry];
+		const firstSnapshot = readModel.applySnapshot(baseEntries);
+		const nextEntries = [userEntry, assistantEntry, nextToolEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries: [nextToolEntry],
+		});
+		Object.defineProperty(nextEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for append patch");
+			},
+		});
+		Object.defineProperty(nextEntries, "1", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for append patch");
+			},
+		});
+
+		try {
+			const patchedSnapshot = readModel.applyPatch(nextEntries);
+
+			expect(patchedSnapshot).not.toBeNull();
+			if (patchedSnapshot === null) {
+				return;
+			}
+			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
+			expect(patchedSnapshot.rows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"assistant-1",
+				"tool-1",
+			]);
+			expect(patchedSnapshot.entriesById).toBe(firstSnapshot.entriesById);
+			expect(patchedSnapshot.entriesById.get("tool-1")).toBe(nextToolEntry);
+		} finally {
+			Object.defineProperty(nextEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(nextEntries, "1", {
+				configurable: true,
+				value: assistantEntry,
+			});
 		}
 	});
 

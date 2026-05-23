@@ -29,7 +29,10 @@ import { normalizeToolResult } from "../store/services/tool-result-normalizer.js
 import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
-import { markAgentPanelSceneEntryArrayPatch } from "./agent-panel-scene-entry-array-patch.js";
+import {
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "./agent-panel-scene-entry-array-patch.js";
 import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
 import { getOperationSnapshotArrayPatch } from "./operation-snapshot-array-patch.js";
 import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
@@ -1538,9 +1541,14 @@ function createAppendedSceneEntryArray(
 	baseEntries: readonly AgentPanelSceneEntryModel[],
 	appendedEntries: readonly AgentPanelSceneEntryModel[]
 ): readonly AgentPanelSceneEntryModel[] {
-	return createSceneEntryArrayView(baseEntries.length + appendedEntries.length, (index) =>
+	const entries = createSceneEntryArrayView(baseEntries.length + appendedEntries.length, (index) =>
 		index < baseEntries.length ? baseEntries[index] : appendedEntries[index - baseEntries.length]
 	);
+	markAgentPanelSceneEntryArrayAppendPatch(entries, {
+		baseSceneEntries: baseEntries,
+		appendedEntries,
+	});
+	return entries;
 }
 
 function createInsertedSceneEntryArray(
