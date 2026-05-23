@@ -352,6 +352,81 @@ describe("agent panel graph materializer", () => {
 		});
 	});
 
+	it("updates a transcript row when one child operation changes", () => {
+		const transcriptSnapshot = createTranscriptSnapshot([
+			createTranscriptEntry("task-entry", "tool", "Task completed"),
+		]);
+		const parentOperation = createOperationSnapshot({
+			id: "operation-parent",
+			tool_call_id: "task-tool",
+			name: "task",
+			kind: "task",
+			title: "Task completed",
+			child_tool_call_ids: ["child-tool"],
+			child_operation_ids: ["operation-child"],
+			source_link: {
+				kind: "transcript_linked",
+				entry_id: "task-entry",
+			},
+		});
+		const childOperation = createOperationSnapshot({
+			id: "operation-child",
+			tool_call_id: "child-tool",
+			name: "bash",
+			kind: "execute",
+			title: "Run",
+			result: null,
+			parent_operation_id: "operation-parent",
+			source_link: {
+				kind: "synthetic",
+				reason: "task_child_operation",
+			},
+		});
+		const graph = createGraph({
+			transcriptSnapshot,
+			operations: [parentOperation, childOperation],
+		});
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				operations: [
+					parentOperation,
+					{
+						...childOperation,
+						result: { stdout: "child ok", stderr: null, exitCode: 0 },
+					},
+				],
+				revision: {
+					graphRevision: 10,
+					transcriptRevision: graph.revision.transcriptRevision,
+					lastEventSeq: 43,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
+		expect(nextScene.conversation.entries[0]).not.toBe(firstScene.conversation.entries[0]);
+		expect(nextScene.conversation.entries[0]).toMatchObject({
+			id: "task-entry",
+			type: "tool_call",
+			taskChildren: [
+				{
+					toolCallId: "child-tool",
+					stdout: "child ok",
+				},
+			],
+		});
+	});
+
 	it("keeps conversation rows stable when only the operations array identity changes", () => {
 		const transcriptSnapshot = createTranscriptSnapshot([
 			createTranscriptEntry("user-1", "user", "hello"),
@@ -1118,7 +1193,7 @@ describe("agent panel graph materializer", () => {
 				createOperationSnapshot({
 					provider_status: "completed",
 					operation_state: "degraded",
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 					degradation_reason: {
 						code: "classification_failure",
 						detail: "Tool classification was insufficient for canonical presentation.",
@@ -1164,7 +1239,7 @@ describe("agent panel graph materializer", () => {
 					},
 					provider_status: "completed",
 					operation_state: "completed",
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 					degradation_reason: null,
 				}),
 			],
@@ -1197,7 +1272,7 @@ describe("agent panel graph materializer", () => {
 				createOperationSnapshot({
 					provider_status: "completed",
 					operation_state: "blocked",
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 				}),
 			],
 			turnState: "Running",
@@ -2041,7 +2116,7 @@ describe("agent panel graph materializer", () => {
 					createOperationSnapshot({
 						provider_status: "pending",
 						operation_state: "running",
-	awaiting_plan_approval: false,
+						awaiting_plan_approval: false,
 						result: null,
 					}),
 				],

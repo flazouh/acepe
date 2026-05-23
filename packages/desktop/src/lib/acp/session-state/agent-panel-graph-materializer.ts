@@ -68,6 +68,7 @@ export interface AgentPanelGraphMaterializerInput {
 interface OperationIndex {
 	readonly byOperationId: Map<string, OperationSnapshot>;
 	readonly byTranscriptSourceEntryId: Map<string, OperationSnapshot>;
+	readonly parentsByChildOperationId: Map<string, readonly OperationSnapshot[]>;
 }
 
 function segmentText(entry: TranscriptEntry): string {
@@ -161,17 +162,27 @@ function truncateDisplayText(
 function buildOperationIndex(operations: readonly OperationSnapshot[]): OperationIndex {
 	const byOperationId = new Map<string, OperationSnapshot>();
 	const byTranscriptSourceEntryId = new Map<string, OperationSnapshot>();
+	const parentsByChildOperationId = new Map<string, OperationSnapshot[]>();
 
 	for (const operation of operations) {
 		byOperationId.set(operation.id, operation);
 		if (operation.source_link.kind === "transcript_linked") {
 			byTranscriptSourceEntryId.set(operation.source_link.entry_id, operation);
 		}
+		for (const childOperationId of operation.child_operation_ids) {
+			let parents = parentsByChildOperationId.get(childOperationId);
+			if (parents === undefined) {
+				parents = [];
+				parentsByChildOperationId.set(childOperationId, parents);
+			}
+			parents.push(operation);
+		}
 	}
 
 	return {
 		byOperationId,
 		byTranscriptSourceEntryId,
+		parentsByChildOperationId,
 	};
 }
 
@@ -1010,16 +1021,20 @@ function collectAffectedTranscriptEntryIdsFromIndex(
 	changedOperationIds: ReadonlySet<string>,
 	affectedEntryIds: Set<string>
 ): void {
-	for (const operation of operationIndex.byOperationId.values()) {
-		if (operation.source_link.kind !== "transcript_linked") {
+	for (const operationId of changedOperationIds) {
+		const operation = operationIndex.byOperationId.get(operationId);
+		if (operation?.source_link.kind === "transcript_linked") {
+			affectedEntryIds.add(operation.source_link.entry_id);
+		}
+
+		const parents = operationIndex.parentsByChildOperationId.get(operationId);
+		if (parents === undefined) {
 			continue;
 		}
-		if (changedOperationIds.has(operation.id)) {
-			affectedEntryIds.add(operation.source_link.entry_id);
-			continue;
-		}
-		if (operation.child_operation_ids.some((operationId) => changedOperationIds.has(operationId))) {
-			affectedEntryIds.add(operation.source_link.entry_id);
+		for (const parentOperation of parents) {
+			if (parentOperation.source_link.kind === "transcript_linked") {
+				affectedEntryIds.add(parentOperation.source_link.entry_id);
+			}
 		}
 	}
 }
