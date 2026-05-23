@@ -38,6 +38,7 @@ export class OperationStore {
 	private readonly operationIdByProvenanceKey = new SvelteMap<string, string>();
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
+	private readonly sessionOperationIdSets = new Map<string, Set<string>>();
 	private readonly sessionOperationVersions = new SvelteMap<string, number>();
 	private readonly currentStreamingOperationIdBySession = new SvelteMap<string, string>();
 	private readonly modifiedFilesStateBySession = new Map<
@@ -219,6 +220,7 @@ export class OperationStore {
 		}
 
 		this.sessionOperationIds.delete(sessionId);
+		this.sessionOperationIdSets.delete(sessionId);
 		this.currentStreamingOperationIdBySession.delete(sessionId);
 		this.modifiedFilesStateBySession.delete(sessionId);
 		this.bumpSessionOperationVersion(sessionId);
@@ -227,17 +229,20 @@ export class OperationStore {
 	replaceSessionOperations(sessionId: string, snapshots: ReadonlyArray<OperationSnapshot>): void {
 		this.clearSession(sessionId);
 		const nextSessionOperationIds: Array<string> = [];
+		const nextSessionOperationIdSet = new Set<string>();
 		let currentStreamingOperationId: string | null = null;
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
 			nextSessionOperationIds.push(operation.id);
+			nextSessionOperationIdSet.add(operation.id);
 			if (isStreamingOperationState(operation.operationState)) {
 				currentStreamingOperationId = operation.id;
 			}
 		}
 		this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
+		this.sessionOperationIdSets.set(sessionId, nextSessionOperationIdSet);
 		if (currentStreamingOperationId === null) {
 			this.currentStreamingOperationIdBySession.delete(sessionId);
 		} else {
@@ -254,6 +259,18 @@ export class OperationStore {
 			return;
 		}
 
+		let sessionOperationIds = this.sessionOperationIds.get(sessionId);
+		if (sessionOperationIds === undefined) {
+			sessionOperationIds = [];
+			this.sessionOperationIds.set(sessionId, sessionOperationIds);
+		}
+		let sessionOperationIdSet = this.sessionOperationIdSets.get(sessionId);
+		if (sessionOperationIdSet === undefined) {
+			sessionOperationIdSet = new Set(sessionOperationIds);
+			this.sessionOperationIdSets.set(sessionId, sessionOperationIdSet);
+		}
+
+		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
 			const operation = this.operationFromSnapshot(snapshot);
 			const existingOperation = this.operationsById.get(operation.id);
@@ -262,13 +279,15 @@ export class OperationStore {
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
-			const sessionOperationIds = this.sessionOperationIds.get(sessionId) ?? [];
-			if (!sessionOperationIds.includes(operation.id)) {
-				const nextSessionOperationIds = sessionOperationIds.slice();
-				nextSessionOperationIds.push(operation.id);
-				this.sessionOperationIds.set(sessionId, nextSessionOperationIds);
+			if (!sessionOperationIdSet.has(operation.id)) {
+				sessionOperationIds.push(operation.id);
+				sessionOperationIdSet.add(operation.id);
+				appendedOperationId = true;
 			}
 			this.updateCurrentStreamingOperation(sessionId, operation);
+		}
+		if (appendedOperationId) {
+			this.sessionOperationIds.set(sessionId, sessionOperationIds);
 		}
 		this.bumpSessionOperationVersion(sessionId);
 	}
