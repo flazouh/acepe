@@ -233,6 +233,10 @@ export class PanelStore {
 
 	private ensureOwnerPanelWidth(ownerPanelId: string, attachedWidth: number): void {
 		const requiredWidth = Math.max(MIN_PANEL_WIDTH, attachedWidth);
+		const ownerPanel = this.topLevelAgentPanelsById.get(ownerPanelId);
+		if (ownerPanel === undefined || ownerPanel.width >= requiredWidth) {
+			return;
+		}
 		this.panels = this.panels.map((panel) =>
 			panel.id === ownerPanelId ? { ...panel, width: Math.max(panel.width, requiredWidth) } : panel
 		);

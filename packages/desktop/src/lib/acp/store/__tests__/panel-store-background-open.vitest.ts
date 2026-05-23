@@ -69,6 +69,17 @@ function createStore(sessionStubs: readonly SessionStub[] = []): PanelStore {
 }
 
 describe("PanelStore materializeSessionPanel", () => {
+	it("does not rewrite the owner panel when focusing an already open attached file", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project-a" });
+		store.openFilePanel("src/main.ts", "/tmp/project-a", { ownerPanelId: owner.id });
+		const ownerAfterOpen = store.panels.find((panel) => panel.id === owner.id);
+
+		store.openFilePanel("src/main.ts", "/tmp/project-a", { ownerPanelId: owner.id });
+
+		expect(store.panels.find((panel) => panel.id === owner.id)).toBe(ownerAfterOpen);
+	});
+
 	it("creates a hidden session panel without changing focusedPanelId, viewMode, or fullscreen selection", () => {
 		const store = createStore([
 			{
