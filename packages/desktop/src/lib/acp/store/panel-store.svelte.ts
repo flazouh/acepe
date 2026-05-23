@@ -188,24 +188,21 @@ function arePanelProjectRefListsEqual(
 	);
 }
 
-function createPrependedWorkspacePanelArray(
-	panel: WorkspacePanel,
-	basePanels: readonly WorkspacePanel[]
-): WorkspacePanel[] {
-	const target = new Array<WorkspacePanel>(basePanels.length + 1);
+function createPrependedItemArray<T>(item: T, baseItems: readonly T[]): T[] {
+	const target = new Array<T>(baseItems.length + 1);
 	return new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
 					for (let index = 0; index < targetArray.length; index += 1) {
-						yield selectPrependedWorkspacePanel(panel, basePanels, index);
+						yield selectPrependedItem(item, baseItems, index);
 					}
 				};
 			}
 			if (typeof property === "string") {
 				const index = toArrayIndex(property);
 				if (index !== null) {
-					return selectPrependedWorkspacePanel(panel, basePanels, index);
+					return selectPrependedItem(item, baseItems, index);
 				}
 				if (property === "slice") {
 					return (start?: number, end?: number) =>
@@ -228,7 +225,7 @@ function createPrependedWorkspacePanelArray(
 				return {
 					configurable: true,
 					enumerable: true,
-					value: selectPrependedWorkspacePanel(panel, basePanels, index),
+					value: selectPrependedItem(item, baseItems, index),
 					writable: false,
 				};
 			}
@@ -237,7 +234,7 @@ function createPrependedWorkspacePanelArray(
 		ownKeys(targetArray) {
 			return createArrayLikeOwnKeys(targetArray.length);
 		},
-	}) as WorkspacePanel[];
+	}) as T[];
 }
 
 function createPatchedItemArray<T extends { readonly id: string }>(
@@ -309,15 +306,11 @@ function findItemIndexById<T extends { readonly id: string }>(
 	return -1;
 }
 
-function selectPrependedWorkspacePanel(
-	panel: WorkspacePanel,
-	basePanels: readonly WorkspacePanel[],
-	index: number
-): WorkspacePanel | undefined {
+function selectPrependedItem<T>(item: T, baseItems: readonly T[], index: number): T | undefined {
 	if (index === 0) {
-		return panel;
+		return item;
 	}
-	return basePanels[index - 1];
+	return baseItems[index - 1];
 }
 
 function toArrayIndex(property: string): number | null {
@@ -759,30 +752,39 @@ export class PanelStore {
 			createFilePanelCacheKey(panel.filePath, panel.projectPath, panel.ownerPanelId),
 			panel
 		);
-		this.filePanelsByProject.set(panel.projectPath, [
-			panel,
-			...(this.filePanelsByProject.get(panel.projectPath) ?? []),
-		]);
+		this.filePanelsByProject.set(
+			panel.projectPath,
+			createPrependedItemArray(panel, this.filePanelsByProject.get(panel.projectPath) ?? [])
+		);
 
 		if (panel.ownerPanelId === null) {
-			this.topLevelFilePanelsList = [panel, ...this.topLevelFilePanelsList];
-			this.topLevelFilePanelsByProject.set(panel.projectPath, [
+			this.topLevelFilePanelsList = createPrependedItemArray(panel, this.topLevelFilePanelsList);
+			this.topLevelFilePanelsByProject.set(
+				panel.projectPath,
+				createPrependedItemArray(
+					panel,
+					this.topLevelFilePanelsByProject.get(panel.projectPath) ?? []
+				)
+			);
+			this.topLevelWorkspacePanelList = createPrependedItemArray(
 				panel,
-				...(this.topLevelFilePanelsByProject.get(panel.projectPath) ?? []),
-			]);
-			this.topLevelWorkspacePanelList = [panel, ...this.topLevelWorkspacePanelList];
-			this.topLevelNonAgentPanelProjectRefList = [
+				this.topLevelWorkspacePanelList
+			);
+			this.topLevelNonAgentPanelProjectRefList = createPrependedItemArray(
 				{ id: panel.id, projectPath: panel.projectPath },
-				...this.topLevelNonAgentPanelProjectRefList,
-			];
+				this.topLevelNonAgentPanelProjectRefList
+			);
 		} else {
-			this.attachedFilePanelsByOwnerPanelId.set(panel.ownerPanelId, [
-				panel,
-				...(this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId) ?? []),
-			]);
+			this.attachedFilePanelsByOwnerPanelId.set(
+				panel.ownerPanelId,
+				createPrependedItemArray(
+					panel,
+					this.attachedFilePanelsByOwnerPanelId.get(panel.ownerPanelId) ?? []
+				)
+			);
 		}
 
-		this.workspacePanels = createPrependedWorkspacePanelArray(panel, this.workspacePanels);
+		this.workspacePanels = createPrependedItemArray(panel, this.workspacePanels);
 	}
 
 	get terminalPanels(): TerminalWorkspacePanel[] {

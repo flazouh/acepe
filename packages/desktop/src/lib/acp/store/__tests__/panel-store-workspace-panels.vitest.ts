@@ -384,6 +384,51 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("opens file panels without copying existing project file-panel lists", () => {
+		const store = createStore();
+		const firstPanel = store.openFilePanel("src/first.ts", "/tmp/project");
+		const projectPanels = store.getFilePanelsForProject("/tmp/project");
+		const originalIterator = projectPanels[Symbol.iterator];
+
+		projectPanels[Symbol.iterator] = function* () {
+			throw new Error("must not copy existing project file panels while opening a file");
+		};
+
+		try {
+			const secondPanel = store.openFilePanel("src/second.ts", "/tmp/project");
+
+			expect(store.getFilePanelsForProject("/tmp/project")[0]).toBe(secondPanel);
+			expect(store.getFilePanelsForProject("/tmp/project")[1]).toBe(firstPanel);
+		} finally {
+			projectPanels[Symbol.iterator] = originalIterator;
+		}
+	});
+
+	it("opens attached file panels without copying existing owner file-panel lists", () => {
+		const store = createStore();
+		const owner = store.spawnPanel({ projectPath: "/tmp/project" });
+		const firstPanel = store.openFilePanel("src/first.ts", "/tmp/project", {
+			ownerPanelId: owner.id,
+		});
+		const ownerPanels = store.getAttachedFilePanels(owner.id);
+		const originalIterator = ownerPanels[Symbol.iterator];
+
+		ownerPanels[Symbol.iterator] = function* () {
+			throw new Error("must not copy existing owner file panels while opening an attached file");
+		};
+
+		try {
+			const secondPanel = store.openFilePanel("src/second.ts", "/tmp/project", {
+				ownerPanelId: owner.id,
+			});
+
+			expect(store.getAttachedFilePanels(owner.id)[0]).toBe(secondPanel);
+			expect(store.getAttachedFilePanels(owner.id)[1]).toBe(firstPanel);
+		} finally {
+			ownerPanels[Symbol.iterator] = originalIterator;
+		}
+	});
+
 	it("closes a top-level non-agent workspace panel through closePanel", () => {
 		const store = createStore();
 
