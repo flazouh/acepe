@@ -116,6 +116,52 @@ describe("desktop agent panel scene adapter", () => {
 		});
 	});
 
+	it("maps desktop session entries without eagerly rebuilding the whole conversation list", () => {
+		const entries: SessionEntry[] = [
+			{
+				id: "user-1",
+				type: "user",
+				message: {
+					content: { type: "text", text: "Open the file" },
+					chunks: [{ type: "text", text: "Open the file" }],
+				},
+			},
+			{
+				id: "assistant-1",
+				type: "assistant",
+				message: {
+					chunks: [{ type: "message", block: { type: "text", text: "Done." } }],
+				},
+			},
+		];
+		const originalMap = entries.map;
+		entries.map = () => {
+			throw new Error("must not map every session entry while building conversation model");
+		};
+
+		try {
+			const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
+
+			expect(conversation.entries).toHaveLength(2);
+			expect(conversation.entries[0]).toEqual({
+				id: "user-1",
+				type: "user",
+				text: "Open the file",
+				isOptimistic: undefined,
+				timestampMs: undefined,
+			});
+			expect(conversation.entries[1]).toEqual({
+				id: "assistant-1",
+				type: "assistant",
+				markdown: "Done.",
+				isStreaming: undefined,
+				timestampMs: undefined,
+			});
+		} finally {
+			entries.map = originalMap;
+		}
+	});
+
 	it("preserves read source context in scene tool entries", () => {
 		const entries: SessionEntry[] = [
 			{

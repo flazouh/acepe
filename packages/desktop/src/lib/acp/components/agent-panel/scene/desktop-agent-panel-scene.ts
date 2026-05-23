@@ -1109,14 +1109,85 @@ export function mapSessionEntriesToConversationModel(
 	entries: readonly SessionEntry[],
 	turnState: TurnState | undefined
 ): { entries: readonly AgentPanelSceneEntryModel[]; isStreaming: boolean } {
-	const conversationEntries = entries.map((entry) =>
-		mapSessionEntryToConversationEntry(entry, turnState)
-	);
-
 	return {
-		entries: conversationEntries,
+		entries: createMappedConversationEntriesView(entries, turnState),
 		isStreaming: turnState === "streaming",
 	};
+}
+
+function createMappedConversationEntriesView(
+	entries: readonly SessionEntry[],
+	turnState: TurnState | undefined
+): readonly AgentPanelSceneEntryModel[] {
+	const target = new Array<AgentPanelSceneEntryModel>(entries.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						const entry = entries[index];
+						if (entry !== undefined) {
+							yield mapSessionEntryToConversationEntry(entry, turnState);
+						}
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					const entry = entries[index];
+					return entry === undefined
+						? undefined
+						: mapSessionEntryToConversationEntry(entry, turnState);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				const entry = entries[index];
+				return {
+					configurable: true,
+					enumerable: true,
+					value:
+						entry === undefined
+							? undefined
+							: mapSessionEntryToConversationEntry(entry, turnState),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			const keys: string[] = [];
+			for (let index = 0; index < targetArray.length; index += 1) {
+				keys.push(String(index));
+			}
+			keys.push("length");
+			return keys;
+		},
+	});
+}
+
+function toArrayIndex(property: string): number | null {
+	if (property === "") {
+		return null;
+	}
+	const index = Number(property);
+	return Number.isInteger(index) && index >= 0 && String(index) === property ? index : null;
 }
 
 export function mapSessionEntryToConversationEntry(
