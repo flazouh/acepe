@@ -499,7 +499,7 @@ describe("OperationStore", () => {
 				tool_call_id: "task-parent",
 				name: "task",
 				kind: "task",
-				provider_status: "running",
+				provider_status: "in_progress",
 				operation_state: "running",
 				title: "Task",
 				arguments: { kind: "other", raw: {} },
@@ -616,6 +616,80 @@ describe("OperationStore", () => {
 		operationStore.getSessionOperations = originalGetSessionOperations;
 	});
 
+	it("updates the last tool selector when a nested child changes under the last root tool", () => {
+		const operationStore = new OperationStore();
+		const firstRootOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const parentOperationId = buildCanonicalOperationId("session-1", "task-parent");
+		const childOperationId = buildCanonicalOperationId("session-1", "task-child");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstRootOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "earlier",
+			}),
+			createOperationSnapshot({
+				id: parentOperationId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "in_progress",
+				operation_state: "running",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childOperationId],
+			}),
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "in_progress",
+				operation_state: "running",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const firstLastTool = operationStore.getLastToolCall("session-1");
+		expect(firstLastTool?.id).toBe("task-parent");
+		expect(firstLastTool?.taskChildren?.[0]?.status).toBe("in_progress");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "done",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const patchedLastTool = operationStore.getLastToolCall("session-1");
+		expect(patchedLastTool).not.toBe(firstLastTool);
+		expect(patchedLastTool?.taskChildren?.[0]).toMatchObject({
+			id: "task-child",
+			status: "completed",
+			result: "done",
+		});
+	});
+
 	it("preserves current streaming selector when an unrelated completed operation changes", () => {
 		const operationStore = new OperationStore();
 		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
@@ -657,6 +731,78 @@ describe("OperationStore", () => {
 
 		expect(operationStore.getCurrentStreamingToolCall("session-1")).toBe(firstCurrentTool);
 		operationStore.getCurrentStreamingOperation = originalGetCurrentStreamingOperation;
+	});
+
+	it("updates the current streaming selector when a nested child changes under the active root tool", () => {
+		const operationStore = new OperationStore();
+		const parentOperationId = buildCanonicalOperationId("session-1", "task-parent");
+		const childOperationId = buildCanonicalOperationId("session-1", "task-child");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: parentOperationId,
+				tool_call_id: "task-parent",
+				name: "task",
+				kind: "task",
+				provider_status: "in_progress",
+				operation_state: "running",
+				title: "Task",
+				arguments: { kind: "other", raw: {} },
+				command: null,
+				child_tool_call_ids: ["task-child"],
+				child_operation_ids: [childOperationId],
+			}),
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "before",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const firstCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
+		expect(firstCurrentTool?.id).toBe("task-parent");
+		expect(firstCurrentTool?.taskChildren?.[0]).toMatchObject({
+			id: "task-child",
+			status: "completed",
+			result: "before",
+		});
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: childOperationId,
+				tool_call_id: "task-child",
+				provider_status: "completed",
+				operation_state: "completed",
+				parent_tool_call_id: "task-parent",
+				parent_operation_id: parentOperationId,
+				arguments: { kind: "execute", command: "go test ./..." },
+				command: "go test ./...",
+				result: "after",
+				source_link: {
+					kind: "synthetic",
+					reason: "task_child_operation",
+				},
+			}),
+		]);
+
+		const patchedCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
+		expect(patchedCurrentTool).not.toBe(firstCurrentTool);
+		expect(patchedCurrentTool?.id).toBe("task-parent");
+		expect(patchedCurrentTool?.taskChildren?.[0]).toMatchObject({
+			id: "task-child",
+			status: "completed",
+			result: "after",
+		});
 	});
 
 	it("caches the last todo selector until canonical operations change", () => {

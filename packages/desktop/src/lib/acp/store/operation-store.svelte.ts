@@ -440,6 +440,25 @@ export class OperationStore {
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
+			const rootOperationId =
+				operation.parentOperationId === null ? operation.id : this.findRootOperationId(operation.id);
+			if (
+				rootOperationId !== null &&
+				cachedLastToolCall?.version === previousVersion &&
+				cachedLastToolCall.toolCall !== null &&
+				this.getByToolCallId(sessionId, cachedLastToolCall.toolCall.id)?.id === rootOperationId
+			) {
+				canPreserveLastToolCall = false;
+			}
+			if (
+				rootOperationId !== null &&
+				cachedCurrentStreamingToolCall?.version === previousVersion &&
+				cachedCurrentStreamingToolCall.toolCall !== null &&
+				this.getByToolCallId(sessionId, cachedCurrentStreamingToolCall.toolCall.id)?.id ===
+					rootOperationId
+			) {
+				canPreserveCurrentStreamingToolCall = false;
+			}
 			changed = true;
 			if (existingOperation !== undefined) {
 				if (
@@ -505,7 +524,6 @@ export class OperationStore {
 				) {
 					canPatchCachedToolCalls = false;
 				} else {
-					const rootOperationId = this.findRootOperationId(operation.id);
 					if (rootOperationId === null) {
 						canPatchCachedToolCalls = false;
 					} else if (
