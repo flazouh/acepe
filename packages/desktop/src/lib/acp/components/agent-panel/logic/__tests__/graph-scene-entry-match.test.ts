@@ -295,6 +295,12 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			id: "assistant-1",
 			tokenRevealCss: { revealCount: 1 },
 		});
+		expect(patchedIndex.size).toBe(baseIndex.size);
+		expect([...patchedIndex.keys()]).toEqual(["assistant-1"]);
+		expect([...patchedIndex.values()][0]).toMatchObject({
+			id: "assistant-1",
+			tokenRevealCss: { revealCount: 1 },
+		});
 		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
 		expect(readModel.getIndex(baseEntries)).toBe(baseIndex);
 	});

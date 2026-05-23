@@ -50,8 +50,9 @@ export interface GraphSceneEntryIndexReadModel {
 
 export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadModel {
 	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
-	let entriesById: Map<string, AgentPanelSceneEntryModel> = new Map();
-	let baseEntriesByIdBeforeTokenReveal: Map<string, AgentPanelSceneEntryModel> | null = null;
+	let entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel> = new Map();
+	let baseEntriesByIdBeforeTokenReveal: ReadonlyMap<string, AgentPanelSceneEntryModel> | null =
+		null;
 	let entryIndexesById: Map<string, number> = new Map();
 
 	return {
@@ -62,8 +63,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				tokenRevealPatch.baseSceneEntries === previousSceneEntries
 			) {
 				baseEntriesByIdBeforeTokenReveal ??= entriesById;
-				entriesById = new Map(baseEntriesByIdBeforeTokenReveal);
-				entriesById.set(tokenRevealPatch.entry.id, tokenRevealPatch.entry);
+				entriesById = new PatchedSceneEntryMap(
+					baseEntriesByIdBeforeTokenReveal,
+					tokenRevealPatch.entry
+				);
 				return entriesById;
 			}
 
@@ -80,8 +83,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 			) {
+				const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+				entriesById = mutableEntriesById;
 				appendGraphSceneEntriesToIndexes(
-					entriesById,
+					mutableEntriesById,
 					entryIndexesById,
 					sceneEntries,
 					previousSceneEntries.length,
@@ -91,9 +96,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return entriesById;
 			}
 
-			entriesById = new Map();
+			const nextEntriesById = new Map<string, AgentPanelSceneEntryModel>();
+			entriesById = nextEntriesById;
 			entryIndexesById = new Map();
-			appendGraphSceneEntriesToIndexes(entriesById, entryIndexesById, sceneEntries, 0);
+			appendGraphSceneEntriesToIndexes(nextEntriesById, entryIndexesById, sceneEntries, 0);
 			previousSceneEntries = sceneEntries;
 			return entriesById;
 		},
@@ -102,8 +108,10 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				return entriesById;
 			}
 
+			const mutableEntriesById = ensureMutableSceneEntryMap(entriesById);
+			entriesById = mutableEntriesById;
 			appendGraphSceneEntriesToIndexes(
-				entriesById,
+				mutableEntriesById,
 				entryIndexesById,
 				appendedSceneEntries,
 				previousSceneEntries?.length ?? entriesById.size
@@ -124,6 +132,91 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 			return this.applySnapshot(sceneEntries);
 		},
 	};
+}
+
+function ensureMutableSceneEntryMap(
+	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>
+): Map<string, AgentPanelSceneEntryModel> {
+	return entriesById instanceof Map ? entriesById : new Map(entriesById);
+}
+
+class PatchedSceneEntryMap implements ReadonlyMap<string, AgentPanelSceneEntryModel> {
+	readonly [Symbol.toStringTag] = "PatchedSceneEntryMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, AgentPanelSceneEntryModel>,
+		private readonly patchedEntry: AgentPanelSceneEntryModel
+	) {}
+
+	get size(): number {
+		return this.base.has(this.patchedEntry.id) ? this.base.size : this.base.size + 1;
+	}
+
+	get(key: string): AgentPanelSceneEntryModel | undefined {
+		return key === this.patchedEntry.id ? this.patchedEntry : this.base.get(key);
+	}
+
+	has(key: string): boolean {
+		return key === this.patchedEntry.id || this.base.has(key);
+	}
+
+	forEach(
+		callbackfn: (
+			value: AgentPanelSceneEntryModel,
+			key: string,
+			map: ReadonlyMap<string, AgentPanelSceneEntryModel>
+		) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, AgentPanelSceneEntryModel]> {
+		let yieldedPatchedEntry = false;
+		for (const [key, value] of this.base.entries()) {
+			if (key === this.patchedEntry.id) {
+				yield [key, this.patchedEntry];
+				yieldedPatchedEntry = true;
+				continue;
+			}
+			yield [key, value];
+		}
+		if (!yieldedPatchedEntry) {
+			yield [this.patchedEntry.id, this.patchedEntry];
+		}
+	}
+
+	entries(): MapIterator<[string, AgentPanelSceneEntryModel]> {
+		return this.entryIterator() as unknown as MapIterator<
+			[string, AgentPanelSceneEntryModel]
+		>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<AgentPanelSceneEntryModel> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<AgentPanelSceneEntryModel> {
+		return this.valueIterator() as unknown as MapIterator<AgentPanelSceneEntryModel>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, AgentPanelSceneEntryModel]> {
+		return this.entries();
+	}
 }
 
 function appendGraphSceneEntriesToIndex(
