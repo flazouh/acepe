@@ -322,6 +322,9 @@ function applyDisplayTextToRow(
 	}
 	if (model.turnState === "completed") {
 		nextTexts.set(row.id, row.canonicalText);
+		if (row.displayText === row.canonicalText) {
+			return row;
+		}
 		return {
 			id: row.id,
 			type: "assistant",
@@ -336,6 +339,9 @@ function applyDisplayTextToRow(
 	const displayText =
 		row.canonicalText.length === 0 && previousText.length > 0 ? previousText : row.canonicalText;
 	nextTexts.set(row.id, displayText);
+	if (row.displayText === displayText) {
+		return row;
+	}
 	return {
 		id: row.id,
 		type: "assistant",

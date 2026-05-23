@@ -4,6 +4,7 @@ import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-
 
 import {
 	type AgentPanelDisplayModel,
+	applyAgentPanelDisplayMemory,
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
 	createAgentPanelDisplayRowsReadModel,
@@ -106,6 +107,50 @@ describe("buildAgentPanelBaseModel row projection", () => {
 			hasLiveTail: true,
 			requiresStableTailMount: true,
 		});
+	});
+});
+
+describe("applyAgentPanelDisplayMemory identity", () => {
+	it("keeps unchanged assistant rows stable after an append", () => {
+		const firstAssistantRow = {
+			id: "assistant-1",
+			type: "assistant" as const,
+			canonicalText: "First answer",
+			displayText: "First answer",
+			canonicalTextRevision: "1:assistant-1",
+			isLiveTail: false,
+		};
+		const firstModel: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "connected",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [firstAssistantRow],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const firstResult = applyAgentPanelDisplayMemory(
+			createAgentPanelDisplayMemory(),
+			firstModel
+		);
+		const nextAssistantRow = {
+			id: "assistant-2",
+			type: "assistant" as const,
+			canonicalText: "Second answer",
+			displayText: "Second answer",
+			canonicalTextRevision: "2:assistant-2",
+			isLiveTail: false,
+		};
+
+		const nextResult = applyAgentPanelDisplayMemory(firstResult.memory, {
+			...firstModel,
+			rows: [firstResult.model.rows[0]!, nextAssistantRow],
+		});
+
+		expect(nextResult.model.rows[0]).toBe(firstResult.model.rows[0]);
+		expect(nextResult.model.rows[1]).toBe(nextAssistantRow);
 	});
 });
 
