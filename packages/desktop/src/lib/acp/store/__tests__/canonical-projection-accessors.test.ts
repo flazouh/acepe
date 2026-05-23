@@ -158,6 +158,24 @@ function createQuestionInteraction(): InteractionSnapshot {
 	};
 }
 
+function textEntry(
+	entryId: string,
+	role: TranscriptEntry["role"],
+	text: string
+): TranscriptEntry {
+	return {
+		entryId,
+		role,
+		segments: [
+			{
+				kind: "text",
+				segmentId: `${entryId}:segment-1`,
+				text,
+			},
+		],
+	};
+}
+
 function addColdSession(store: SessionStore): void {
 	store.addSession({
 		id: "session-1",
@@ -172,6 +190,47 @@ function addColdSession(store: SessionStore): void {
 }
 
 describe("SessionStore canonical projection accessors", () => {
+	it("seeds transcript entry indexes when accepting graph snapshots", () => {
+		const store = new SessionStore();
+		const userEntry = textEntry("user-1", "user", "Prompt");
+		const assistantEntry = textEntry("assistant-1", "assistant", "Answer");
+		const entries = [userEntry, assistantEntry];
+		store.applySessionStateGraph(createGraph(createCapabilities(), entries));
+		const originalIterator = entries[Symbol.iterator];
+		entries[Symbol.iterator] = function* () {
+			throw new Error("must not scan full transcript entries after graph snapshot");
+		};
+
+		try {
+			store.applyTranscriptDelta("session-1", {
+				eventSeq: 8,
+				sessionId: "session-1",
+				snapshotRevision: 8,
+				operations: [
+					{
+						kind: "appendSegment",
+						entryId: "assistant-1",
+						role: "assistant",
+						segment: {
+							kind: "text",
+							segmentId: "assistant-1:segment-2",
+							text: " More",
+						},
+					},
+				],
+			});
+
+			const transcriptEntries = store.getSessionTranscriptEntries("session-1");
+			expect(transcriptEntries?.[0]).toBe(userEntry);
+			expect(transcriptEntries?.[1]?.segments.map((segment) => segment.text)).toEqual([
+				"Answer",
+				" More",
+			]);
+		} finally {
+			entries[Symbol.iterator] = originalIterator;
+		}
+	});
+
 	it("returns null for canonical-owned scalar values when no canonical projection exists", () => {
 		const store = new SessionStore();
 
@@ -232,7 +291,7 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(panelSource?.transcriptSnapshot.entries).toBe(transcriptEntries);
 		expect(panelSource?.operations).toEqual([]);
 		expect(panelSource && "capabilities" in panelSource).toBe(false);
-		expect(panelSource && "projectPath" in panelSource).toBe(false);
+		expect(panelSource?.projectPath).toBe("/repo");
 		expect(store.getSessionListState("session-1")).toEqual({
 			status: "streaming",
 			isConnected: true,
@@ -265,6 +324,7 @@ describe("SessionStore canonical projection accessors", () => {
 				type: "string",
 				currentValue: "workspace-write",
 				options: [],
+				presentation: "advanced",
 			},
 		]);
 		expect(store.getSessionAvailableModels("session-1")).toEqual([

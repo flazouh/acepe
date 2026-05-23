@@ -637,6 +637,13 @@ function getTranscriptEntryIndex(
 	return next;
 }
 
+function seedTranscriptEntryIndex(entries: readonly TranscriptEntry[]): void {
+	if (transcriptEntryIndexes.has(entries)) {
+		return;
+	}
+	getTranscriptEntryIndex(entries);
+}
+
 function replaceTranscriptEntry(
 	entries: readonly TranscriptEntry[],
 	nextEntry: TranscriptEntry
@@ -1215,6 +1222,7 @@ export function applyTranscriptDeltaToSnapshot(
 	for (const operation of delta.operations) {
 		if (operation.kind === "replaceSnapshot") {
 			entries = operation.snapshot.entries;
+			seedTranscriptEntryIndex(entries);
 			continue;
 		}
 
@@ -2768,6 +2776,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		const previousTransientProjection = this.getTransientProjection(graph.canonicalSessionId);
 		const previousProjection = this.canonicalProjections.get(graph.canonicalSessionId) ?? null;
 		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
+		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
 		this.sessionStateGraphs.set(graph.canonicalSessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
 		this.canonicalCapabilitiesMaterialized.set(graph.canonicalSessionId, true);
@@ -3050,6 +3059,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		this.entryStore.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
 		this.transientProjectionStore.initializeTransientProjection(canonicalSessionId);
 		const graph = materializeSnapshotFromOpenFound(snapshot).graph;
+		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
 		this.sessionStateGraphs.set(canonicalSessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
 		this.canonicalCapabilitiesMaterialized.set(canonicalSessionId, true);
