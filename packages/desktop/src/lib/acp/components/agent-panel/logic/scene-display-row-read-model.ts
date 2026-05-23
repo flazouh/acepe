@@ -277,25 +277,26 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		) {
 			return null;
 		}
-		const rowIndex = rowIndexBySceneEntryId.get(tokenRevealPatch.entry.id);
-		if (rowIndex === undefined) {
-			return null;
-		}
-		const patchedRows = buildSceneDisplayRows([tokenRevealPatch.entry]);
-		const patchedRow = patchedRows[0];
-		if (patchedRow === undefined) {
-			return null;
-		}
 		baseRowsBeforeTokenReveal ??= previousRows;
-		const nextRows = createPatchedSceneDisplayRowArray(
+		const effectivePatchedEntries = tokenRevealPatch.entries.filter((entry) => {
+			const rowIndex = rowIndexBySceneEntryId.get(entry.id);
+			if (rowIndex === undefined) {
+				return true;
+			}
+			return tokenRevealPatch.baseSceneEntries[rowIndex] !== entry;
+		});
+		const patchedRows = patchDisplaySceneDisplayRows(
 			baseRowsBeforeTokenReveal,
-			rowIndex,
-			patchedRow
+			rowIndexBySceneEntryId,
+			effectivePatchedEntries
 		);
-		previousRows = nextRows;
+		if (patchedRows === null) {
+			return null;
+		}
+		previousRows = patchedRows.rows;
 		latestTimestampMs = selectLatestTimestampMsFrom(
 			previousRows,
-			rowIndex,
+			patchedRows.firstChangedRowIndex,
 			latestTimestampMs
 		);
 		return previousRows;

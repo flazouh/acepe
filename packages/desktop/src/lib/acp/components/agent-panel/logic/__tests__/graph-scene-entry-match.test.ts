@@ -345,6 +345,68 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		expect(readModel.applySnapshot(baseEntries)).toBe(baseIndex);
 	});
 
+	it("patches both reveal-target entries when the token reveal tail moves", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const firstAssistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondAssistantEntry = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		const baseIndex = readModel.applySnapshot(baseEntries);
+
+		readModel.applySnapshot(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: firstAssistantEntry,
+				tailRowId: "assistant-1",
+				tailRowIndex: 0,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		const movedIndex = readModel.applySnapshot(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: secondAssistantEntry,
+				tailRowId: "assistant-2",
+				tailRowIndex: 1,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		expect(movedIndex).not.toBe(baseIndex);
+		expect(movedIndex.get("assistant-1")).toBe(firstAssistantEntry);
+		expect(movedIndex.get("assistant-2")).toMatchObject({
+			id: "assistant-2",
+			tokenRevealCss: { revealCount: 1 },
+		});
+		expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
+		expect(readModel.selectEntryIndexById("assistant-2")).toBe(1);
+	});
+
 	it("overlays display-patched scene entries without rebuilding indexes", () => {
 		const readModel = createGraphSceneEntryIndexReadModel();
 		const assistantEntry = {

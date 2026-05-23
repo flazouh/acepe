@@ -1,6 +1,9 @@
 import type { AgentPanelSceneEntryModel, TokenRevealCss } from "@acepe/ui/agent-panel";
 import { describe, expect, it } from "vitest";
-import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
+import {
+	createTokenRevealSceneReadModel,
+	getTokenRevealScenePatch,
+} from "../token-reveal-scene-read-model.js";
 
 function createTokenRevealCss(): TokenRevealCss {
 	return {
@@ -225,5 +228,48 @@ describe("createTokenRevealSceneReadModel", () => {
 			id: "assistant-tail",
 			tokenRevealCss,
 		});
+	});
+
+	it("describes both assistant row changes when the reveal tail moves", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const firstAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			isStreaming: true,
+		};
+		const secondAssistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: true,
+		};
+		const tokenRevealCss = createTokenRevealCss();
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+
+		readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: firstAssistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		const movedEntries = readModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: secondAssistantEntry,
+			tailRowId: "assistant-2",
+			tailRowIndex: 1,
+			tokenRevealCss,
+		});
+
+		const patch = getTokenRevealScenePatch(movedEntries);
+		expect(patch?.baseSceneEntries).toBe(baseEntries);
+		expect(patch?.entries).toHaveLength(2);
+		expect(patch?.entries[0]).toMatchObject({ id: "assistant-2", tokenRevealCss });
+		expect(patch?.entries[1]).toBe(firstAssistantEntry);
+		expect(movedEntries[0]).toBe(firstAssistantEntry);
+		expect(movedEntries[1]).not.toBe(secondAssistantEntry);
+		expect(movedEntries[1]).toMatchObject({ id: "assistant-2", tokenRevealCss });
 	});
 });

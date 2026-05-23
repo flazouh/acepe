@@ -574,6 +574,64 @@ describe("scene-display-rows", () => {
 		expect(readModel.applySnapshot(baseEntries)).toBe(baseRows);
 	});
 
+	it("patches only the affected display rows when the token reveal tail moves", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const firstAssistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "First",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const secondAssistantEntry = {
+			id: "assistant-2",
+			type: "assistant",
+			markdown: "Second",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [firstAssistantEntry, secondAssistantEntry];
+		const baseRows = readModel.applySnapshot(baseEntries);
+		readModel.applySnapshot(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: firstAssistantEntry,
+				tailRowId: "assistant-1",
+				tailRowIndex: 0,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		const movedRevealRows = readModel.applySnapshot(
+			tokenRevealReadModel.applySnapshot({
+				sceneEntries: baseEntries,
+				sourceEntry: secondAssistantEntry,
+				tailRowId: "assistant-2",
+				tailRowIndex: 1,
+				tokenRevealCss: {
+					revealCount: 1,
+					revealedCharCount: 6,
+					baselineMs: 0,
+					tokStepMs: 20,
+					tokFadeDurMs: 80,
+					mode: "smooth",
+				},
+			})
+		);
+
+		expect(movedRevealRows[0]).toBe(baseRows[0]);
+		expect(movedRevealRows[1]).not.toBe(baseRows[1]);
+		if (movedRevealRows[1]?.type === "assistant_merged") {
+			expect(movedRevealRows[1].tokenRevealCss?.revealCount).toBe(1);
+		}
+	});
+
 	it("patches token reveal rows without slicing the whole row array", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const tokenRevealReadModel = createTokenRevealSceneReadModel();

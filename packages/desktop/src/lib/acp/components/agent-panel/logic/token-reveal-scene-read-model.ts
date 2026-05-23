@@ -17,7 +17,7 @@ export interface TokenRevealSceneReadModel {
 
 export type TokenRevealScenePatch = {
 	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly entry: AgentPanelSceneEntryModel;
+	readonly entries: readonly AgentPanelSceneEntryModel[];
 };
 
 const tokenRevealScenePatches = new WeakMap<
@@ -63,14 +63,26 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				snapshot.sourceEntry,
 				snapshot.tokenRevealCss
 			);
-			const nextEntries = createPatchedSceneEntryArray(
-				snapshot.sceneEntries,
-				tokenRevealEntryIndex,
-				tokenRevealEntry
-			);
+			const patchedEntriesByIndex = new Map<number, AgentPanelSceneEntryModel>([
+				[tokenRevealEntryIndex, tokenRevealEntry],
+			]);
+			const previousTailRowId =
+				previousSnapshot?.tokenRevealCss === undefined ? null : (previousSnapshot?.tailRowId ?? null);
+			if (previousTailRowId !== null && previousTailRowId !== snapshot.tailRowId) {
+				const previousEntryIndex = resolvePreviousRevealEntryIndex(
+					snapshot.sceneEntries,
+					previousTailRowId,
+					previousTokenRevealEntryIndex
+				);
+				const previousEntry = snapshot.sceneEntries[previousEntryIndex];
+				if (previousEntry !== undefined) {
+					patchedEntriesByIndex.set(previousEntryIndex, previousEntry);
+				}
+			}
+			const nextEntries = createPatchedSceneEntryArray(snapshot.sceneEntries, patchedEntriesByIndex);
 			tokenRevealScenePatches.set(nextEntries, {
 				baseSceneEntries: snapshot.sceneEntries,
-				entry: tokenRevealEntry,
+				entries: Array.from(patchedEntriesByIndex.values()),
 			});
 
 			previousSnapshot = snapshot;
@@ -90,8 +102,7 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 
 function createPatchedSceneEntryArray(
 	baseEntries: readonly AgentPanelSceneEntryModel[],
-	patchedIndex: number,
-	patchedEntry: AgentPanelSceneEntryModel
+	patchedEntriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>
 ): readonly AgentPanelSceneEntryModel[] {
 	const target = new Array<AgentPanelSceneEntryModel>(baseEntries.length);
 	return new Proxy(target, {
@@ -99,14 +110,14 @@ function createPatchedSceneEntryArray(
 			if (property === Symbol.iterator) {
 				return function* () {
 					for (let index = 0; index < baseEntries.length; index += 1) {
-						yield index === patchedIndex ? patchedEntry : baseEntries[index];
+						yield patchedEntriesByIndex.get(index) ?? baseEntries[index];
 					}
 				};
 			}
 			if (typeof property === "string") {
 				const index = toArrayIndex(property);
 				if (index !== null) {
-					return index === patchedIndex ? patchedEntry : baseEntries[index];
+					return patchedEntriesByIndex.get(index) ?? baseEntries[index];
 				}
 				if (property === "slice") {
 					return (start?: number, end?: number) =>
@@ -118,7 +129,7 @@ function createPatchedSceneEntryArray(
 						if (resolvedIndex < 0 || resolvedIndex >= baseEntries.length) {
 							return undefined;
 						}
-						return resolvedIndex === patchedIndex ? patchedEntry : baseEntries[resolvedIndex];
+						return patchedEntriesByIndex.get(resolvedIndex) ?? baseEntries[resolvedIndex];
 					};
 				}
 			}
@@ -144,7 +155,7 @@ function createPatchedSceneEntryArray(
 				return {
 					configurable: true,
 					enumerable: true,
-					value: index === patchedIndex ? patchedEntry : baseEntries[index],
+					value: patchedEntriesByIndex.get(index) ?? baseEntries[index],
 					writable: false,
 				};
 			}
@@ -154,6 +165,26 @@ function createPatchedSceneEntryArray(
 			);
 		},
 	});
+}
+
+function resolvePreviousRevealEntryIndex(
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	previousTailRowId: string,
+	previousIndex: number
+): number {
+	const previousEntry = sceneEntries[previousIndex];
+	if (previousEntry?.type === "assistant" && previousEntry.id === previousTailRowId) {
+		return previousIndex;
+	}
+
+	for (let index = sceneEntries.length - 1; index >= 0; index -= 1) {
+		const entry = sceneEntries[index];
+		if (entry?.type === "assistant" && entry.id === previousTailRowId) {
+			return index;
+		}
+	}
+
+	return -1;
 }
 
 function toArrayIndex(property: string): number | null {
