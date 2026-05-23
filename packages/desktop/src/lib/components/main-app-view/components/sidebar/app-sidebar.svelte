@@ -133,9 +133,7 @@ function handleRemoveProject(projectPath: string) {
 	for (const bp of panelStore.getBrowserPanelsForProject(projectPath)) {
 		panelStore.closeBrowserPanel(bp.id);
 	}
-	panelStore.workspacePanels = panelStore.workspacePanels.filter(
-		(panel) => panel.projectPath !== projectPath
-	);
+	panelStore.removeWorkspacePanelsForProject(projectPath);
 
 	projectManager.removeProject(projectPath).mapErr((error) => {
 		toast.error(`Failed to remove project: ${error.message}`);

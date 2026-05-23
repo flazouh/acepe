@@ -159,6 +159,28 @@ describe("PanelStore workspacePanels", () => {
 		]);
 	});
 
+	it("removes project workspace panels through indexed store state", () => {
+		const store = createStore();
+		const removedAgent = store.spawnPanel({ projectPath: "/tmp/remove" });
+		const keptAgent = store.spawnPanel({ projectPath: "/tmp/keep" });
+		const removedFile = store.openFilePanel("src/remove.ts", "/tmp/remove");
+		const keptFile = store.openFilePanel("src/keep.ts", "/tmp/keep");
+		const removedBrowser = store.openBrowserPanel("/tmp/remove", "https://remove.example", "Remove");
+		const keptBrowser = store.openBrowserPanel("/tmp/keep", "https://keep.example", "Keep");
+
+		store.removeWorkspacePanelsForProject("/tmp/remove");
+
+		expect(store.getTopLevelAgentPanel(removedAgent.id)).toBeUndefined();
+		expect(store.getTopLevelAgentPanel(keptAgent.id)?.id).toBe(keptAgent.id);
+		expect(store.getFilePanel(removedFile.id)).toBeUndefined();
+		expect(store.getFilePanel(keptFile.id)?.id).toBe(keptFile.id);
+		expect(store.getBrowserPanelsForProject("/tmp/remove")).toEqual([]);
+		expect(store.getBrowserPanelsForProject("/tmp/keep").map((panel) => panel.id)).toEqual([
+			keptBrowser.id,
+		]);
+		expect(store.workspacePanels.map((panel) => panel.id)).not.toContain(removedBrowser.id);
+	});
+
 	it("focuses a top-level non-agent workspace panel by id", () => {
 		const store = createStore();
 
