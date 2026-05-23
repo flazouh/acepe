@@ -36,6 +36,21 @@ interface FileDiffResult {
 	fileName: string;
 }
 
+type FetchFileContent = (
+	filePath: string,
+	projectPath: string
+) => ResultAsync<string, unknown>;
+
+type FetchFileDiff = (
+	filePath: string,
+	projectPath: string
+) => ResultAsync<FileDiffResult, unknown>;
+
+type FileContentCacheOptions = {
+	readonly fetchFileContent?: FetchFileContent;
+	readonly fetchFileDiff?: FetchFileDiff;
+};
+
 /**
  * LRU Cache implementation with TTL support.
  */
@@ -102,11 +117,27 @@ class LRUCache<T> {
 class FileContentCache {
 	private readonly contentCache: LRUCache<string>;
 	private readonly diffCache: LRUCache<FileDiffResult>;
+	private readonly contentInflightByKey = new Map<
+		string,
+		ResultAsync<string, FileContentCacheError>
+	>();
+	private readonly diffInflightByKey = new Map<
+		string,
+		ResultAsync<FileDiffResult, FileContentCacheError>
+	>();
+	private readonly fetchFileContent: FetchFileContent;
+	private readonly fetchFileDiff: FetchFileDiff;
 
-	constructor() {
+	constructor(options?: FileContentCacheOptions) {
 		// 50 files max, 60 second TTL
 		this.contentCache = new LRUCache<string>(50, 60000);
 		this.diffCache = new LRUCache<FileDiffResult>(50, 60000);
+		this.fetchFileContent =
+			options?.fetchFileContent ??
+			((filePath, projectPath) => fileIndex.readFileContent(filePath, projectPath));
+		this.fetchFileDiff =
+			options?.fetchFileDiff ??
+			((filePath, projectPath) => fileIndex.getFileDiff(filePath, projectPath));
 	}
 
 	/**
@@ -123,15 +154,26 @@ class FileContentCache {
 			return okAsync(cached);
 		}
 
-		return fileIndex
-			.readFileContent(filePath, projectPath)
+		const existingRequest = this.contentInflightByKey.get(cacheKey);
+		if (existingRequest !== undefined) {
+			return existingRequest;
+		}
+
+		const request = this.fetchFileContent(filePath, projectPath)
 			.mapErr((error) => {
-				return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
+				this.contentInflightByKey.delete(cacheKey);
+				return new FileContentCacheError(
+					`Failed to read file ${filePath}: ${error}`,
+					"READ_ERROR"
+				);
 			})
 			.map((content) => {
 				this.contentCache.set(cacheKey, content);
+				this.contentInflightByKey.delete(cacheKey);
 				return content;
 			});
+		this.contentInflightByKey.set(cacheKey, request);
+		return request;
 	}
 
 	/**
@@ -155,14 +197,19 @@ class FileContentCache {
 			return okAsync(cached);
 		}
 
+		const existingRequest = this.diffInflightByKey.get(cacheKey);
+		if (existingRequest !== undefined) {
+			return existingRequest;
+		}
+
 		logger.info("Diff cache miss, invoking get_file_diff", {
 			filePath,
 			projectPath,
 		});
 
-		return fileIndex
-			.getFileDiff(filePath, projectPath)
+		const request = this.fetchFileDiff(filePath, projectPath)
 			.mapErr((error) => {
+				this.diffInflightByKey.delete(cacheKey);
 				return new FileContentCacheError(
 					`Failed to get diff for ${filePath}: ${error}`,
 					"DIFF_ERROR"
@@ -177,8 +224,11 @@ class FileContentCache {
 					newLength: diff.newContent.length,
 				});
 				this.diffCache.set(cacheKey, diff);
+				this.diffInflightByKey.delete(cacheKey);
 				return diff;
 			});
+		this.diffInflightByKey.set(cacheKey, request);
+		return request;
 	}
 
 	/**
@@ -212,6 +262,8 @@ class FileContentCache {
 		const diffKey = `diff:${projectPath}:${filePath}`;
 		this.contentCache.invalidate(contentKey);
 		this.diffCache.invalidate(diffKey);
+		this.contentInflightByKey.delete(contentKey);
+		this.diffInflightByKey.delete(diffKey);
 	}
 
 	/**
@@ -220,10 +272,16 @@ class FileContentCache {
 	clear(): void {
 		this.contentCache.clear();
 		this.diffCache.clear();
+		this.contentInflightByKey.clear();
+		this.diffInflightByKey.clear();
 	}
+}
+
+export function createFileContentCache(options?: FileContentCacheOptions): FileContentCache {
+	return new FileContentCache(options);
 }
 
 /**
  * Singleton file content cache instance.
  */
-export const fileContentCache = new FileContentCache();
+export const fileContentCache = createFileContentCache();
