@@ -120,4 +120,83 @@ describe("session-state envelope byte budgets", () => {
 		expect(result.ok).toBe(true);
 		expect(result.kind).toBe("delta");
 	});
+
+	it("rejects oversized delta envelopes so graph patches stay small", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "delta",
+				delta: {
+					fromRevision: revision,
+					toRevision: {
+						graphRevision: 2,
+						transcriptRevision: 1,
+						lastEventSeq: 2,
+					},
+					activity: idleActivity,
+					turnState: "Idle",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [
+						{
+							id: "op-1",
+							session_id: "session-1",
+							tool_call_id: "tool-1",
+							name: "bash",
+							kind: "execute",
+							provider_status: "completed",
+							title: "Run",
+							arguments: {
+								kind: "execute",
+								command: "printf oversized",
+							},
+							progressive_arguments: null,
+							result: {
+								stdout: "x".repeat(getSessionStateEnvelopeByteBudget("delta")),
+								stderr: null,
+								exitCode: 0,
+							},
+							command: "printf oversized",
+							normalized_todos: null,
+							parent_tool_call_id: null,
+							parent_operation_id: null,
+							child_tool_call_ids: [],
+							child_operation_ids: [],
+							operation_provenance_key: "tool-1",
+							operation_state: "completed",
+							locations: null,
+							skill_meta: null,
+							normalized_questions: null,
+							question_answer: null,
+							awaiting_plan_approval: false,
+							plan_approval_request_id: null,
+							started_at_ms: null,
+							completed_at_ms: null,
+							source_link: {
+								kind: "transcript_linked",
+								entry_id: "tool-1",
+							},
+							degradation_reason: null,
+						},
+					],
+					interactionPatches: [],
+					changedFields: ["operations"],
+				},
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "delta",
+			maxBytes: getSessionStateEnvelopeByteBudget("delta"),
+		});
+	});
+
+	it("keeps snapshot budget larger than patch budgets but still bounded", () => {
+		expect(getSessionStateEnvelopeByteBudget("snapshot")).toBeGreaterThan(
+			getSessionStateEnvelopeByteBudget("plan")
+		);
+		expect(getSessionStateEnvelopeByteBudget("snapshot")).toBeLessThanOrEqual(2_000_000);
+	});
 });
