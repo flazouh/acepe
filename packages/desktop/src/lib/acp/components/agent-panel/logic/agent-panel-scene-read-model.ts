@@ -1,5 +1,6 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 
+import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
 import {
 	createGraphSceneEntryIndexReadModel,
 	findGraphSceneEntryForDisplayEntry,
@@ -39,6 +40,7 @@ export function createAgentPanelSceneReadModel(input?: {
 }): AgentPanelSceneReadModel {
 	const rows = input?.rows ?? createSceneDisplayRowsReadModel();
 	const entryIndex = input?.entryIndex ?? createGraphSceneEntryIndexReadModel();
+	let previousSceneEntries: readonly AgentPanelSceneEntryModel[] | null = null;
 	let previousSnapshot: AgentPanelSceneReadModelSnapshot = {
 		rows: rows.selectRows(),
 		entriesById: entryIndex.selectIndex(),
@@ -49,19 +51,33 @@ export function createAgentPanelSceneReadModel(input?: {
 		applySnapshot(sceneEntries) {
 			rows.applySnapshot(sceneEntries);
 			entryIndex.applySnapshot(sceneEntries);
+			previousSceneEntries = sceneEntries;
 			return this.selectSnapshot();
 		},
 		applyAppendPatch(appendedSceneEntries) {
 			rows.applyAppendPatch(appendedSceneEntries);
 			entryIndex.applyAppendPatch(appendedSceneEntries);
+			previousSceneEntries = createAppendedSceneEntriesArray(
+				previousSceneEntries ?? [],
+				appendedSceneEntries
+			);
 			return this.selectSnapshot();
 		},
 		applyPatch(sceneEntries) {
 			const patchedRows = rows.applyPatch(sceneEntries);
 			const patchedIndex = entryIndex.applyPatch(sceneEntries);
 			if (patchedRows === null || patchedIndex === null) {
+				if (previousSceneEntries !== null) {
+					if (patchedRows !== null) {
+						rows.applySnapshot(previousSceneEntries);
+					}
+					if (patchedIndex !== null) {
+						entryIndex.applySnapshot(previousSceneEntries);
+					}
+				}
 				return null;
 			}
+			previousSceneEntries = sceneEntries;
 			return this.selectSnapshot();
 		},
 		selectSnapshot() {

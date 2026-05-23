@@ -7,7 +7,14 @@ import {
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
 import { applyAgentPanelDisplayModelToSceneEntries } from "../agent-panel-display-scene-test-helper.js";
-import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
+import type { GraphSceneEntryIndexReadModel } from "../graph-scene-entry-match.js";
+import {
+	buildSceneDisplayRows,
+	getSceneDisplayRowKey,
+	THINKING_DISPLAY_ENTRY,
+	type SceneDisplayRow,
+} from "../scene-display-rows.js";
+import type { SceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
@@ -612,6 +619,81 @@ describe("createAgentPanelSceneReadModel", () => {
 		const firstSnapshot = readModel.applySnapshot([userEntry]);
 
 		expect(readModel.applyPatch([userEntry])).toBe(firstSnapshot);
+	});
+
+	it("rolls back row state when entry-index patching fails", () => {
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		const patchedUserEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt again",
+		};
+		const initialRows: SceneDisplayRow[] = buildSceneDisplayRows([userEntry]);
+		const patchedRows: SceneDisplayRow[] = buildSceneDisplayRows([patchedUserEntry]);
+		let currentRows = initialRows as ReturnType<SceneDisplayRowsReadModel["selectRows"]>;
+		let currentIndex = new Map<string, AgentPanelSceneEntryModel>([["user-1", userEntry]]);
+
+		const rows: SceneDisplayRowsReadModel = {
+			applySnapshot(sceneEntries) {
+				currentRows =
+					sceneEntries.length === 1 && sceneEntries[0] === patchedUserEntry
+						? (patchedRows as ReturnType<SceneDisplayRowsReadModel["selectRows"]>)
+						: (initialRows as ReturnType<SceneDisplayRowsReadModel["selectRows"]>);
+				return currentRows;
+			},
+			applyAppendPatch() {
+				return currentRows;
+			},
+			applyPatch(sceneEntries) {
+				if (sceneEntries.length === 1 && sceneEntries[0] === patchedUserEntry) {
+					currentRows = patchedRows as ReturnType<SceneDisplayRowsReadModel["selectRows"]>;
+					return currentRows;
+				}
+				return null;
+			},
+			selectRows() {
+				return currentRows;
+			},
+			selectLatestTimestampMs() {
+				return null;
+			},
+		};
+
+		const entryIndex: GraphSceneEntryIndexReadModel = {
+			applySnapshot(sceneEntries) {
+				currentIndex = new Map(sceneEntries.map((entry) => [entry.id, entry] as const));
+				return currentIndex;
+			},
+			applyAppendPatch() {
+				return currentIndex;
+			},
+			applyPatch() {
+				return null;
+			},
+			selectIndex() {
+				return currentIndex;
+			},
+			selectEntryById(id) {
+				return id == null ? undefined : currentIndex.get(id);
+			},
+			selectEntryIndexById(id) {
+				return id === "user-1" ? 0 : undefined;
+			},
+		};
+
+		const readModel = createAgentPanelSceneReadModel({
+			rows,
+			entryIndex,
+		});
+		const firstSnapshot = readModel.applySnapshot([userEntry]);
+
+		expect(readModel.applyPatch([patchedUserEntry])).toBeNull();
+		expect(readModel.selectSnapshot()).toBe(firstSnapshot);
+		expect(readModel.selectSnapshot().entriesById.get("user-1")).toBe(userEntry);
 	});
 
 	it("patches stable transcript insertion before a pending interaction", () => {
