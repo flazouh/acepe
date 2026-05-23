@@ -321,7 +321,9 @@ export class OperationStore {
 		const cachedSessionOperations = this.sessionOperationsBySession.get(sessionId);
 		const cachedSessionToolCalls = this.sessionToolCallsBySession.get(sessionId);
 		const cachedModifiedFilesState = this.modifiedFilesStateBySession.get(sessionId);
+		const cachedCurrentStreamingToolCall = this.currentStreamingToolCallBySession.get(sessionId);
 		const cachedLastToolCall = this.lastToolCallBySession.get(sessionId);
+		const cachedLastTodoToolCall = this.lastTodoToolCallBySession.get(sessionId);
 		let cachedOperationPatches: Map<number, Operation> | null = null;
 		let cachedOperationAppends: Operation[] | null = null;
 		let cachedToolCallPatches: Map<number, ToolCall> | null = null;
@@ -331,8 +333,14 @@ export class OperationStore {
 		let canPreserveModifiedFilesState =
 			cachedModifiedFilesState === undefined ||
 			cachedModifiedFilesState.version === previousVersion;
+		let canPreserveCurrentStreamingToolCall =
+			cachedCurrentStreamingToolCall === undefined ||
+			cachedCurrentStreamingToolCall.version === previousVersion;
 		let canPreserveLastToolCall =
 			cachedLastToolCall === undefined || cachedLastToolCall.version === previousVersion;
+		let canPreserveLastTodoToolCall =
+			cachedLastTodoToolCall === undefined ||
+			cachedLastTodoToolCall.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
@@ -359,6 +367,22 @@ export class OperationStore {
 					operation.toolCallId === cachedLastToolCall.toolCall.id)
 			) {
 				canPreserveLastToolCall = false;
+			}
+			if (
+				cachedCurrentStreamingToolCall?.version === previousVersion &&
+				(cachedCurrentStreamingToolCall.toolCall === null ||
+					operation.toolCallId === cachedCurrentStreamingToolCall.toolCall.id ||
+					isStreamingOperationState(operation.operationState))
+			) {
+				canPreserveCurrentStreamingToolCall = false;
+			}
+			if (
+				cachedLastTodoToolCall?.version === previousVersion &&
+				(cachedLastTodoToolCall.toolCall === null ||
+					operation.toolCallId === cachedLastTodoToolCall.toolCall.id ||
+					operationHasTodos(operation))
+			) {
+				canPreserveLastTodoToolCall = false;
 			}
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
@@ -449,6 +473,21 @@ export class OperationStore {
 				this.lastToolCallBySession.set(sessionId, {
 					version: nextVersion,
 					toolCall: cachedLastToolCall.toolCall,
+				});
+			}
+			if (
+				cachedCurrentStreamingToolCall?.version === previousVersion &&
+				canPreserveCurrentStreamingToolCall
+			) {
+				this.currentStreamingToolCallBySession.set(sessionId, {
+					version: nextVersion,
+					toolCall: cachedCurrentStreamingToolCall.toolCall,
+				});
+			}
+			if (cachedLastTodoToolCall?.version === previousVersion && canPreserveLastTodoToolCall) {
+				this.lastTodoToolCallBySession.set(sessionId, {
+					version: nextVersion,
+					toolCall: cachedLastTodoToolCall.toolCall,
 				});
 			}
 		}
@@ -834,6 +873,10 @@ function areModifiedFileInputsEquivalent(left: Operation, right: Operation): boo
 
 function operationCanAffectModifiedFiles(operation: Operation): boolean {
 	return operation.kind === "edit" || operation.childOperationIds.length > 0;
+}
+
+function operationHasTodos(operation: Operation): boolean {
+	return operation.normalizedTodos != null && operation.normalizedTodos.length > 0;
 }
 
 function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {

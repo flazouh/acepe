@@ -384,6 +384,49 @@ describe("OperationStore", () => {
 		operationStore.getSessionOperations = originalGetSessionOperations;
 	});
 
+	it("preserves current streaming selector when an unrelated completed operation changes", () => {
+		const operationStore = new OperationStore();
+		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const secondOperationId = buildCanonicalOperationId("session-1", "tool-2");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "earlier",
+			}),
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+		]);
+
+		const firstCurrentTool = operationStore.getCurrentStreamingToolCall("session-1");
+		expect(firstCurrentTool?.id).toBe("tool-2");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "earlier patched",
+			}),
+		]);
+
+		const originalGetCurrentStreamingOperation = operationStore.getCurrentStreamingOperation;
+		operationStore.getCurrentStreamingOperation = () => {
+			throw new Error("current streaming selector should keep the cached tool");
+		};
+
+		expect(operationStore.getCurrentStreamingToolCall("session-1")).toBe(firstCurrentTool);
+		operationStore.getCurrentStreamingOperation = originalGetCurrentStreamingOperation;
+	});
+
 	it("caches the last todo selector until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "todo-1");
@@ -427,6 +470,54 @@ describe("OperationStore", () => {
 		const patchedTodoTool = operationStore.getLastTodoToolCall("session-1");
 		expect(patchedTodoTool).not.toBe(firstTodoTool);
 		expect(patchedTodoTool?.normalizedTodos?.[0]?.status).toBe("completed");
+	});
+
+	it("preserves last todo selector when an unrelated operation changes", () => {
+		const operationStore = new OperationStore();
+		const executeOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const todoOperationId = buildCanonicalOperationId("session-1", "todo-1");
+
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+			createOperationSnapshot({
+				id: todoOperationId,
+				tool_call_id: "todo-1",
+				kind: null,
+				normalized_todos: [
+					{
+						content: "Keep selectors small",
+						status: "in_progress",
+						activeForm: "Keeping selectors small",
+					},
+				],
+			}),
+		]);
+
+		const firstTodoTool = operationStore.getLastTodoToolCall("session-1");
+		expect(firstTodoTool?.id).toBe("todo-1");
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: executeOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "done",
+			}),
+		]);
+
+		const originalGetSessionOperations = operationStore.getSessionOperations;
+		operationStore.getSessionOperations = () => {
+			throw new Error("last todo selector should not scan operations when unchanged");
+		};
+
+		expect(operationStore.getLastTodoToolCall("session-1")).toBe(firstTodoTool);
+		operationStore.getSessionOperations = originalGetSessionOperations;
 	});
 
 	it("caches modified files read-model state until canonical operations change", () => {
