@@ -7,7 +7,10 @@ import {
 	createAgentPanelDisplayMemory,
 	getAgentPanelDisplayScenePatch,
 } from "../agent-panel-display-model.js";
-import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
+import {
+	markAgentPanelSceneEntryArrayAppendPatch,
+	markAgentPanelSceneEntryArrayPatch,
+} from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
 	createGraphSceneEntryIndex,
 	createGraphSceneEntryIndexReadModel,
@@ -555,5 +558,82 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		readModel.applySnapshot([entry]);
 
 		expect(readModel.applyPatch([entry])).toBeNull();
+	});
+
+	it("applies marked appends over an overlay index without cloning the overlay", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		readModel.applySnapshot(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const overlayIndex = readModel.applySnapshot(
+			applyAgentPanelDisplayModelToSceneEntries(
+				model,
+				createAgentPanelDisplayMemory(),
+				baseEntries
+			)
+		);
+		const originalIterator = overlayIndex[Symbol.iterator];
+		(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
+			Symbol.iterator
+		] = () => {
+			throw new Error("must not clone overlay scene entry indexes for appends");
+		};
+		const appendedEntry = {
+			id: "tool-1",
+			type: "tool_call",
+			title: "Run command",
+			status: "done",
+		} satisfies AgentPanelSceneEntryModel;
+		const appendedEntries = [appendedEntry];
+		const nextEntries = [assistantEntry, appendedEntry];
+		markAgentPanelSceneEntryArrayAppendPatch(nextEntries, {
+			baseSceneEntries: baseEntries,
+			appendedEntries,
+		});
+
+		try {
+			const appendedIndex = readModel.applyPatch(nextEntries);
+
+			expect(appendedIndex).not.toBeNull();
+			if (appendedIndex === null) {
+				return;
+			}
+			expect(appendedIndex).not.toBe(overlayIndex);
+			expect(appendedIndex.get("assistant-1")).toMatchObject({
+				id: "assistant-1",
+				markdown: "Answer",
+			});
+			expect(appendedIndex.get("tool-1")).toBe(appendedEntry);
+			expect(readModel.selectEntryIndexById("tool-1")).toBe(1);
+		} finally {
+			(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
+				Symbol.iterator
+			] = originalIterator;
+		}
 	});
 });
