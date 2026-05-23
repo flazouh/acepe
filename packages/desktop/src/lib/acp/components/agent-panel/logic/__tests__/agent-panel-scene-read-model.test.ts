@@ -275,8 +275,12 @@ describe("createAgentPanelSceneReadModel", () => {
 		});
 
 		try {
-			const patchedSnapshot = readModel.applySnapshot(patchedEntries);
+			const patchedSnapshot = readModel.applyPatch(patchedEntries);
 
+			expect(patchedSnapshot).not.toBeNull();
+			if (patchedSnapshot === null) {
+				return;
+			}
 			expect(patchedSnapshot.rows[0]).toBe(firstSnapshot.rows[0]);
 			expect(patchedSnapshot.rows[1]).not.toBe(firstSnapshot.rows[1]);
 			expect(patchedSnapshot.rows[2]).toBe(firstSnapshot.rows[2]);
@@ -299,6 +303,18 @@ describe("createAgentPanelSceneReadModel", () => {
 				value: assistantEntry,
 			});
 		}
+	});
+
+	it("does not treat unmarked scene entries as graph patches", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		};
+		readModel.applySnapshot([userEntry]);
+
+		expect(readModel.applyPatch([userEntry])).toBeNull();
 	});
 
 	it("patches stable transcript insertion before a pending interaction", () => {

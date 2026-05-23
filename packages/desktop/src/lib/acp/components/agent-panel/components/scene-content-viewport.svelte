@@ -132,8 +132,16 @@ const chatPrefs = getChatPreferencesStore();
 const streamingAnimationMode = $derived(
 	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
 );
+function applySceneEntriesToReadModel(
+	entries: readonly AgentPanelSceneEntryModel[]
+) {
+	return (
+		agentPanelSceneReadModel.applyPatch(entries) ??
+		agentPanelSceneReadModel.applySnapshot(entries)
+	);
+}
 const agentPanelSceneSnapshot = $derived(
-	agentPanelSceneReadModel.applySnapshot(sceneEntries ?? EMPTY_SCENE_ENTRIES)
+	applySceneEntriesToReadModel(sceneEntries ?? EMPTY_SCENE_ENTRIES)
 );
 
 // ===== EDIT TOOL THEME =====
