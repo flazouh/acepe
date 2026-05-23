@@ -760,7 +760,7 @@ function materializeTranscriptAppendedConversation(
 		return {
 			...previous,
 			transcriptEntries: input.graph.transcriptSnapshot.entries,
-			transcriptEntryById: buildTranscriptEntryIndex(input.graph.transcriptSnapshot.entries),
+			transcriptEntryById: previous.transcriptEntryById,
 		};
 	}
 
@@ -786,6 +786,10 @@ function materializeTranscriptAppendedConversation(
 	const nextEntries = existingTranscriptEntries
 		.concat(appendedSceneEntries)
 		.concat(trailingInteractionEntries);
+	const sceneEntryRowIndex =
+		trailingInteractionEntries.length === 0
+			? appendSceneEntryRowIndex(previous.sceneEntryRowIndex, appendedSceneEntries, transcriptSceneEntryCount)
+			: buildSceneEntryRowIndex(nextEntries);
 
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
@@ -803,7 +807,7 @@ function materializeTranscriptAppendedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
-		sceneEntryRowIndex: buildSceneEntryRowIndex(nextEntries),
+		sceneEntryRowIndex,
 	};
 }
 
@@ -985,6 +989,22 @@ function buildSceneEntryRowIndex(
 	const byEntryId = new Map<string, number>();
 	entries.forEach((entry, index) => {
 		byEntryId.set(entry.id, index);
+	});
+	return byEntryId;
+}
+
+function appendSceneEntryRowIndex(
+	previous: ReadonlyMap<string, number>,
+	appendedEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): ReadonlyMap<string, number> {
+	if (appendedEntries.length === 0) {
+		return previous;
+	}
+
+	const byEntryId = new Map(previous);
+	appendedEntries.forEach((entry, index) => {
+		byEntryId.set(entry.id, startIndex + index);
 	});
 	return byEntryId;
 }

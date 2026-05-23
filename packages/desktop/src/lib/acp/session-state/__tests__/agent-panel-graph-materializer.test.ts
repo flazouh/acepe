@@ -393,10 +393,14 @@ describe("agent panel graph materializer", () => {
 
 	it("appends transcript rows without rebuilding existing conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
-		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "hi");
+		const toolEntry = createTranscriptEntry("tool-1", "tool", "Ran command");
 		const transcriptSnapshot = createTranscriptSnapshot([userEntry]);
 		const graph = createGraph({ transcriptSnapshot });
 		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const appendedTranscriptSnapshot = {
+			revision: transcriptSnapshot.revision + 1,
+			entries: [userEntry, toolEntry],
+		};
 
 		const firstScene = readModel.apply({
 			panelId: "panel-1",
@@ -407,10 +411,7 @@ describe("agent panel graph materializer", () => {
 			panelId: "panel-1",
 			graph: {
 				...graph,
-				transcriptSnapshot: {
-					revision: transcriptSnapshot.revision + 1,
-					entries: [userEntry, assistantEntry],
-				},
+				transcriptSnapshot: appendedTranscriptSnapshot,
 				revision: {
 					graphRevision: 10,
 					transcriptRevision: transcriptSnapshot.revision + 1,
@@ -423,9 +424,38 @@ describe("agent panel graph materializer", () => {
 		expect(nextScene.conversation.entries).not.toBe(firstScene.conversation.entries);
 		expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
 		expect(nextScene.conversation.entries[1]).toMatchObject({
-			id: "assistant-1",
-			type: "assistant",
-			markdown: "hi",
+			id: "tool-1",
+			type: "tool_call",
+			presentationState: "degraded_operation",
+		});
+
+		const patchedScene = readModel.apply({
+			panelId: "panel-1",
+			graph: {
+				...graph,
+				transcriptSnapshot: appendedTranscriptSnapshot,
+				operations: [
+					createOperationSnapshot({
+						id: "op-assistant-1",
+						tool_call_id: "tool-assistant-1",
+						source_link: { kind: "transcript_linked", entry_id: "tool-1" },
+					}),
+				],
+				revision: {
+					graphRevision: 11,
+					transcriptRevision: transcriptSnapshot.revision + 1,
+					lastEventSeq: 44,
+				},
+			},
+			header: { title: "Session" },
+		});
+
+		expect(patchedScene.conversation.entries[0]).toBe(nextScene.conversation.entries[0]);
+		expect(patchedScene.conversation.entries[1]).not.toBe(nextScene.conversation.entries[1]);
+		expect(patchedScene.conversation.entries[1]).toMatchObject({
+			id: "tool-1",
+			type: "tool_call",
+			toolCallId: "tool-assistant-1",
 		});
 	});
 
