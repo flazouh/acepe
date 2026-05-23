@@ -42,6 +42,12 @@ export type SceneDisplayRowArrayTruncation = {
 	readonly length: number;
 };
 
+export type SceneDisplayRowArrayInsertion = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly insertedRows: readonly SceneDisplayRow[];
+	readonly insertIndex: number;
+};
+
 const sceneDisplayRowArrayPatches = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayPatch
@@ -49,6 +55,10 @@ const sceneDisplayRowArrayPatches = new WeakMap<
 const sceneDisplayRowArrayTruncations = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayTruncation
+>();
+const sceneDisplayRowArrayInsertions = new WeakMap<
+	readonly SceneDisplayRow[],
+	SceneDisplayRowArrayInsertion
 >();
 
 export function getSceneDisplayRowArrayPatch(
@@ -61,6 +71,12 @@ export function getSceneDisplayRowArrayTruncation(
 	rows: readonly SceneDisplayRow[]
 ): SceneDisplayRowArrayTruncation | undefined {
 	return sceneDisplayRowArrayTruncations.get(rows);
+}
+
+export function getSceneDisplayRowArrayInsertion(
+	rows: readonly SceneDisplayRow[]
+): SceneDisplayRowArrayInsertion | undefined {
+	return sceneDisplayRowArrayInsertions.get(rows);
 }
 
 export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
@@ -761,7 +777,7 @@ function createInsertedSceneDisplayRowsArray(
 	}
 
 	const target = new Array<SceneDisplayRow>(baseRows.length + insertedRows.length);
-	return new Proxy(target, {
+	const rows = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -806,6 +822,8 @@ function createInsertedSceneDisplayRowsArray(
 			return createArrayLikeOwnKeys(targetArray.length);
 		},
 	});
+	sceneDisplayRowArrayInsertions.set(rows, { baseRows, insertedRows, insertIndex });
+	return rows;
 }
 
 function createTruncatedSceneDisplayRowsArray(

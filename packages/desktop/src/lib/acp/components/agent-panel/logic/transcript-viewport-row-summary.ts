@@ -6,6 +6,7 @@ import {
 } from "./scene-display-rows.js";
 import {
 	getSceneDisplayRowArrayPatch,
+	getSceneDisplayRowArrayInsertion,
 	getSceneDisplayRowArrayTruncation,
 } from "./scene-display-row-read-model.js";
 import {
@@ -199,6 +200,29 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 				thinkingDurationSources = truncateThinkingDurationSources(
 					thinkingDurationSources,
 					rows.length
+				);
+				previousRows = rows;
+				return previousSummary;
+			}
+
+			const insertedRows = getSceneDisplayRowArrayInsertion(rows);
+			if (previousRows !== null && insertedRows?.baseRows === previousRows) {
+				const durationStartIndex =
+					insertedRows.insertIndex > 0 &&
+					thinkingDurationSources[insertedRows.insertIndex - 1]?.type !== "none"
+						? insertedRows.insertIndex - 1
+						: insertedRows.insertIndex;
+				previousSummary = insertTranscriptViewportRowsSummary(
+					previousSummary,
+					rows,
+					insertedRows.insertedRows,
+					insertedRows.insertIndex,
+					reason
+				);
+				thinkingDurationSources = updateThinkingDurationSources(
+					thinkingDurationSources,
+					rows,
+					durationStartIndex
 				);
 				previousRows = rows;
 				return previousSummary;
@@ -673,6 +697,204 @@ function createAppendedRowIndexByKey(
 		return appendedIndexByKey;
 	}
 	return new AppendedRowIndexByKeyMap(baseIndexByKey, appendedIndexByKey);
+}
+
+function insertTranscriptViewportRowsSummary(
+	previousSummary: TranscriptViewportRowSummary,
+	rows: readonly SceneDisplayRow[],
+	insertedRows: readonly SceneDisplayRow[],
+	insertIndex: number,
+	reason: TranscriptViewportRowsReason
+): TranscriptViewportRowSummary {
+	if (insertedRows.length === 0) {
+		return previousSummary;
+	}
+
+	let latestUserKey = previousSummary.latestUserKey;
+	let hasLiveAssistantDisplayEntry = previousSummary.hasLiveAssistantDisplayEntry === true;
+	let hasTokenRevealAssistantEntry = previousSummary.hasTokenRevealAssistantEntry === true;
+	let hasToolCallEntry = previousSummary.hasToolCallEntry === true;
+	const insertedRowKeys: string[] = [];
+	const insertedAnchorEligibleKeys: string[] = [];
+	const insertedRowIndexByKey = new Map<string, number>();
+	for (let index = 0; index < insertedRows.length; index += 1) {
+		const row = insertedRows[index];
+		if (row === undefined) {
+			continue;
+		}
+		const key = getSceneDisplayRowKey(row);
+		insertedRowKeys.push(key);
+		insertedRowIndexByKey.set(key, insertIndex + index);
+		if (row.type === "user") {
+			latestUserKey = key;
+		}
+		if (row.type !== "thinking") {
+			insertedAnchorEligibleKeys.push(key);
+		}
+		hasLiveAssistantDisplayEntry ||= isLiveAssistantDisplayRow(row);
+		hasTokenRevealAssistantEntry ||= isTokenRevealAssistantDisplayRow(row);
+		hasToolCallEntry ||= row.type === "tool_call";
+	}
+
+	const previousRowKeys = previousSummary.rowKeys ?? [];
+	const rowKeys = createInsertedArrayView(previousRowKeys, insertedRowKeys, insertIndex);
+	const anchorEligibleKeys =
+		insertedAnchorEligibleKeys.length === 0
+			? previousSummary.anchorEligibleKeys
+			: createInsertedArrayView(
+					previousSummary.anchorEligibleKeys,
+					insertedAnchorEligibleKeys,
+					Math.min(insertIndex, previousSummary.anchorEligibleKeys.length)
+				);
+	const lastKey =
+		insertIndex >= previousSummary.count
+			? (insertedRowKeys.at(-1) ?? previousSummary.lastKey)
+			: previousSummary.lastKey;
+
+	return {
+		version: rows.length,
+		count: rows.length,
+		firstKey: rowKeys[0] ?? null,
+		lastKey,
+		latestUserKey,
+		rowKeys,
+		rowIndexByKey: createInsertedRowIndexByKey(
+			previousSummary.rowIndexByKey,
+			insertedRowIndexByKey,
+			insertIndex,
+			insertedRows.length
+		),
+		anchorEligibleKeys,
+		hasLiveAssistantDisplayEntry,
+		hasTokenRevealAssistantEntry,
+		hasToolCallEntry,
+		changedRange: {
+			startIndex: insertIndex,
+			endIndex: insertIndex + insertedRows.length,
+		},
+		reason,
+	};
+}
+
+function createInsertedArrayView<T>(
+	baseItems: readonly T[],
+	insertedItems: readonly T[],
+	insertIndex: number
+): readonly T[] {
+	return createArrayView(baseItems.length + insertedItems.length, (index) => {
+		if (index < insertIndex) {
+			return baseItems[index];
+		}
+		if (index < insertIndex + insertedItems.length) {
+			return insertedItems[index - insertIndex];
+		}
+		return baseItems[index - insertedItems.length];
+	});
+}
+
+function createInsertedRowIndexByKey(
+	baseIndexByKey: ReadonlyMap<string, number> | undefined,
+	insertedIndexByKey: ReadonlyMap<string, number>,
+	insertIndex: number,
+	insertedCount: number
+): ReadonlyMap<string, number> {
+	if (baseIndexByKey === undefined) {
+		return insertedIndexByKey;
+	}
+	return new InsertedRowIndexByKeyMap(
+		baseIndexByKey,
+		insertedIndexByKey,
+		insertIndex,
+		insertedCount
+	);
+}
+
+class InsertedRowIndexByKeyMap implements ReadonlyMap<string, number> {
+	readonly [Symbol.toStringTag] = "InsertedRowIndexByKeyMap";
+
+	constructor(
+		private readonly base: ReadonlyMap<string, number>,
+		private readonly inserted: ReadonlyMap<string, number>,
+		private readonly insertIndex: number,
+		private readonly insertedCount: number
+	) {}
+
+	get size(): number {
+		let size = this.base.size;
+		for (const key of this.inserted.keys()) {
+			if (!this.base.has(key)) {
+				size += 1;
+			}
+		}
+		return size;
+	}
+
+	get(key: string): number | undefined {
+		const insertedIndex = this.inserted.get(key);
+		if (insertedIndex !== undefined) {
+			return insertedIndex;
+		}
+		const baseIndex = this.base.get(key);
+		if (baseIndex === undefined) {
+			return undefined;
+		}
+		return baseIndex >= this.insertIndex ? baseIndex + this.insertedCount : baseIndex;
+	}
+
+	has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	forEach(
+		callbackfn: (value: number, key: string, map: ReadonlyMap<string, number>) => void,
+		thisArg?: unknown
+	): void {
+		for (const [key, value] of this.entries()) {
+			callbackfn.call(thisArg, value, key, this);
+		}
+	}
+
+	private *entryIterator(): IterableIterator<[string, number]> {
+		for (const [key] of this.base.entries()) {
+			const value = this.get(key);
+			if (value !== undefined) {
+				yield [key, value];
+			}
+		}
+		for (const [key, value] of this.inserted.entries()) {
+			if (!this.base.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	entries(): MapIterator<[string, number]> {
+		return this.entryIterator() as unknown as MapIterator<[string, number]>;
+	}
+
+	private *keyIterator(): IterableIterator<string> {
+		for (const [key] of this.entries()) {
+			yield key;
+		}
+	}
+
+	keys(): MapIterator<string> {
+		return this.keyIterator() as unknown as MapIterator<string>;
+	}
+
+	private *valueIterator(): IterableIterator<number> {
+		for (const [, value] of this.entries()) {
+			yield value;
+		}
+	}
+
+	values(): MapIterator<number> {
+		return this.valueIterator() as unknown as MapIterator<number>;
+	}
+
+	[Symbol.iterator](): MapIterator<[string, number]> {
+		return this.entries();
+	}
 }
 
 class AppendedRowIndexByKeyMap implements ReadonlyMap<string, number> {

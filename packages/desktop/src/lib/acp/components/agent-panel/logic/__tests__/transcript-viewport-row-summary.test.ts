@@ -421,6 +421,62 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		}
 	});
 
+	it("applies scene display row insertions without scanning unchanged row prefixes", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const userEntry = {
+			type: "user",
+			id: "user-1",
+			text: "Prompt",
+			isOptimistic: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			type: "assistant",
+			id: "assistant-1",
+			markdown: "Answer",
+			isStreaming: false,
+		} satisfies AgentPanelSceneEntryModel;
+		const toolEntry = {
+			type: "tool_call",
+			id: "tool-1",
+			title: "Run",
+			status: "running",
+		} satisfies AgentPanelSceneEntryModel;
+		const firstRows = displayRows.applySnapshot([userEntry, toolEntry]);
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = displayRows.applySnapshot([userEntry, assistantEntry, toolEntry]);
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged viewport rows for insertion");
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(3);
+			expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1", "tool-1"]);
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("assistant-1")).toBe(1);
+			expect(nextSummary.rowIndexByKey?.get("tool-1")).toBe(2);
+			expect(nextSummary.changedRange).toEqual({ startIndex: 1, endIndex: 2 });
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
+	});
+
 	it("updates tail-derived boolean facts without losing earlier matches", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const firstRows = [toolRow("tool-1"), assistantRow("assistant-1", { tokenReveal: true })];
