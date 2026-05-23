@@ -50,11 +50,19 @@ export class OperationStore {
 	>();
 	private readonly sessionOperationsBySession = new Map<
 		string,
-		{ readonly version: number; readonly operations: Array<Operation> }
+		{
+			readonly version: number;
+			readonly operations: Array<Operation>;
+			readonly operationIndexById: ReadonlyMap<string, number>;
+		}
 	>();
 	private readonly sessionToolCallsBySession = new Map<
 		string,
-		{ readonly version: number; readonly toolCalls: Array<ToolCall> }
+		{
+			readonly version: number;
+			readonly toolCalls: Array<ToolCall>;
+			readonly toolCallIndexById: ReadonlyMap<string, number>;
+		}
 	>();
 	private readonly currentStreamingToolCallBySession = new Map<
 		string,
@@ -122,13 +130,15 @@ export class OperationStore {
 
 		const operationIds = this.sessionOperationIds.get(sessionId) ?? [];
 		const operations: Array<Operation> = [];
+		const operationIndexById = new Map<string, number>();
 		for (const operationId of operationIds) {
 			const operation = this.operationsById.get(operationId);
 			if (operation != null) {
+				operationIndexById.set(operation.id, operations.length);
 				operations.push(operation);
 			}
 		}
-		this.sessionOperationsBySession.set(sessionId, { version, operations });
+		this.sessionOperationsBySession.set(sessionId, { version, operations, operationIndexById });
 		return operations;
 	}
 
@@ -141,6 +151,7 @@ export class OperationStore {
 
 		const operationIds = this.sessionRootOperationIds.get(sessionId) ?? [];
 		const toolCalls: Array<ToolCall> = [];
+		const toolCallIndexById = new Map<string, number>();
 		for (const operationId of operationIds) {
 			const operation = this.operationsById.get(operationId);
 			if (operation == null) {
@@ -148,10 +159,11 @@ export class OperationStore {
 			}
 			const toolCall = this.materializeToolCall(operation.id, new Set<string>());
 			if (toolCall !== null) {
+				toolCallIndexById.set(toolCall.id, toolCalls.length);
 				toolCalls.push(toolCall);
 			}
 		}
-		this.sessionToolCallsBySession.set(sessionId, { version, toolCalls });
+		this.sessionToolCallsBySession.set(sessionId, { version, toolCalls, toolCallIndexById });
 		return toolCalls;
 	}
 
@@ -472,10 +484,8 @@ export class OperationStore {
 					}
 				}
 			} else if (cachedSessionOperations?.version === previousVersion) {
-				const cachedOperationIndex = findCachedOperationIndex(
-					cachedSessionOperations.operations,
-					operation.id
-				);
+				const cachedOperationIndex =
+					cachedSessionOperations.operationIndexById.get(operation.id) ?? -1;
 				if (cachedOperationIndex !== -1) {
 					cachedOperationPatches ??= new Map<number, Operation>();
 					cachedOperationPatches.set(cachedOperationIndex, operation);
@@ -487,10 +497,8 @@ export class OperationStore {
 				cachedSessionToolCalls?.version === previousVersion &&
 				canPatchRootToolCall
 			) {
-				const cachedToolCallIndex = findCachedToolCallIndex(
-					cachedSessionToolCalls.toolCalls,
-					operation.toolCallId
-				);
+				const cachedToolCallIndex =
+					cachedSessionToolCalls.toolCallIndexById.get(operation.toolCallId) ?? -1;
 				const toolCall = this.materializeToolCall(operation.id, new Set<string>());
 				if (cachedToolCallIndex !== -1 && toolCall !== null) {
 					cachedToolCallPatches ??= new Map<number, ToolCall>();
@@ -514,6 +522,11 @@ export class OperationStore {
 			}
 			const nextVersion = this.bumpSessionOperationVersion(sessionId);
 			if (cachedSessionOperations?.version === previousVersion) {
+				const nextOperationIndexById = patchCachedItemIndex(
+					cachedSessionOperations.operationIndexById,
+					cachedOperationAppends,
+					cachedSessionOperations.operations.length
+				);
 				this.sessionOperationsBySession.set(sessionId, {
 					version: nextVersion,
 					operations: createPatchedOperationArray(
@@ -521,9 +534,15 @@ export class OperationStore {
 						cachedOperationPatches,
 						cachedOperationAppends
 					),
+					operationIndexById: nextOperationIndexById,
 				});
 			}
 			if (cachedSessionToolCalls?.version === previousVersion && canPatchCachedToolCalls) {
+				const nextToolCallIndexById = patchCachedItemIndex(
+					cachedSessionToolCalls.toolCallIndexById,
+					cachedToolCallAppends,
+					cachedSessionToolCalls.toolCalls.length
+				);
 				this.sessionToolCallsBySession.set(sessionId, {
 					version: nextVersion,
 					toolCalls: createPatchedToolCallArray(
@@ -531,6 +550,7 @@ export class OperationStore {
 						cachedToolCallPatches,
 						cachedToolCallAppends
 					),
+					toolCallIndexById: nextToolCallIndexById,
 				});
 			}
 			if (cachedModifiedFilesState?.version === previousVersion && canPreserveModifiedFilesState) {
@@ -783,24 +803,6 @@ export class OperationStore {
 	}
 }
 
-function findCachedOperationIndex(operations: readonly Operation[], operationId: string): number {
-	for (let index = 0; index < operations.length; index += 1) {
-		if (operations[index]?.id === operationId) {
-			return index;
-		}
-	}
-	return -1;
-}
-
-function findCachedToolCallIndex(toolCalls: readonly ToolCall[], toolCallId: string): number {
-	for (let index = 0; index < toolCalls.length; index += 1) {
-		if (toolCalls[index]?.id === toolCallId) {
-			return index;
-		}
-	}
-	return -1;
-}
-
 function createPatchedOperationArray(
 	baseOperations: readonly Operation[],
 	operationPatches: ReadonlyMap<number, Operation> | null,
@@ -974,6 +976,25 @@ function createPatchedToolCallArray(
 			return createArrayLikeOwnKeys(targetArray.length);
 		},
 	}) as Array<ToolCall>;
+}
+
+function patchCachedItemIndex<T extends { readonly id: string }>(
+	baseIndexById: ReadonlyMap<string, number>,
+	appendedItems: readonly T[] | null,
+	baseLength: number
+): ReadonlyMap<string, number> {
+	if (appendedItems === null || appendedItems.length === 0) {
+		return baseIndexById;
+	}
+
+	const nextIndexById = new Map(baseIndexById);
+	for (let index = 0; index < appendedItems.length; index += 1) {
+		const item = appendedItems[index];
+		if (item !== undefined) {
+			nextIndexById.set(item.id, baseLength + index);
+		}
+	}
+	return nextIndexById;
 }
 
 function selectPatchedOperation(

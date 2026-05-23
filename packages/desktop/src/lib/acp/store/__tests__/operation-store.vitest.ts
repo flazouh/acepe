@@ -129,20 +129,35 @@ describe("OperationStore", () => {
 			}),
 		]);
 		const firstOperations = operationStore.getSessionOperations("session-1");
+		const originalFirstOperation = firstOperations[0];
 		const operationsById = (operationStore as unknown as {
 			operationsById: Map<string, unknown>;
 		}).operationsById;
 		const originalGet = operationsById.get;
 
-		operationStore.applySessionOperationPatches("session-1", [
-			createOperationSnapshot({
-				id: secondOperationId,
-				tool_call_id: "tool-2",
-				provider_status: "completed",
-				operation_state: "completed",
-				result: "ok",
-			}),
-		]);
+		Object.defineProperty(firstOperations, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan cached operations while applying one patch");
+			},
+		});
+		try {
+			operationStore.applySessionOperationPatches("session-1", [
+				createOperationSnapshot({
+					id: secondOperationId,
+					tool_call_id: "tool-2",
+					provider_status: "completed",
+					operation_state: "completed",
+					result: "ok",
+				}),
+			]);
+		} finally {
+			Object.defineProperty(firstOperations, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstOperation,
+			});
+		}
 
 		operationsById.get = function patchedGet(this: Map<string, unknown>, key: string) {
 			if (key === firstOperationId) {
@@ -266,20 +281,35 @@ describe("OperationStore", () => {
 			}),
 		]);
 		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+		const originalFirstToolCall = firstToolCalls[0];
 		const operationsById = (operationStore as unknown as {
 			operationsById: Map<string, unknown>;
 		}).operationsById;
 		const originalGet = operationsById.get;
 
-		operationStore.applySessionOperationPatches("session-1", [
-			createOperationSnapshot({
-				id: secondOperationId,
-				tool_call_id: "tool-2",
-				provider_status: "completed",
-				operation_state: "completed",
-				result: "second",
-			}),
-		]);
+		Object.defineProperty(firstToolCalls, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan cached tool calls while applying one patch");
+			},
+		});
+		try {
+			operationStore.applySessionOperationPatches("session-1", [
+				createOperationSnapshot({
+					id: secondOperationId,
+					tool_call_id: "tool-2",
+					provider_status: "completed",
+					operation_state: "completed",
+					result: "second",
+				}),
+			]);
+		} finally {
+			Object.defineProperty(firstToolCalls, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstToolCall,
+			});
+		}
 
 		operationsById.get = function patchedGet(this: Map<string, unknown>, key: string) {
 			if (key === firstOperationId) {
