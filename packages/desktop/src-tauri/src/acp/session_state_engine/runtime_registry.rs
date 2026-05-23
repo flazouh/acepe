@@ -274,6 +274,12 @@ impl SessionGraphRuntimeRegistry {
             return self.build_turn_state_delta_envelope(&request).await;
         }
 
+        if let Some(interaction_id) = interaction_id_for_patch(request.update) {
+            return self
+                .build_interaction_delta_envelope(&request, interaction_id)
+                .await;
+        }
+
         if should_emit_session_state_snapshot(request.update) {
             return self
                 .build_snapshot_envelope(
@@ -509,6 +515,76 @@ impl SessionGraphRuntimeRegistry {
                     transcript_operations,
                     operation_patches,
                     interaction_patches: Vec::new(),
+                    changed_fields,
+                }))
+            }
+        }
+    }
+
+    async fn build_interaction_delta_envelope(
+        &self,
+        request: &LiveSessionStateEnvelopeRequest<'_>,
+        interaction_id: &str,
+    ) -> Option<SessionStateEnvelope> {
+        let current_frontier = current_frontier_from_previous_revision(request.previous_revision);
+
+        match decide_frontier_transition(current_frontier, request.revision, 0, false) {
+            SessionFrontierDecision::RequireSnapshot { .. } => {
+                self.build_snapshot_envelope(
+                    request.db,
+                    request.session_id,
+                    request.revision,
+                    request.projection_registry,
+                    request.transcript_projection_registry,
+                )
+                .await
+            }
+            SessionFrontierDecision::AcceptDelta {
+                from_revision,
+                to_revision,
+            } => {
+                let Some(interaction) = request.projection_registry.interaction(interaction_id)
+                else {
+                    return self
+                        .build_snapshot_envelope(
+                            request.db,
+                            request.session_id,
+                            request.revision,
+                            request.projection_registry,
+                            request.transcript_projection_registry,
+                        )
+                        .await;
+                };
+                let operation_patches = interaction
+                    .canonical_operation_id
+                    .as_deref()
+                    .and_then(|operation_id| request.projection_registry.operation(operation_id))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let mut changed_fields = vec![
+                    "interactions".to_string(),
+                    "activity".to_string(),
+                    "turnState".to_string(),
+                    "activeTurnFailure".to_string(),
+                    "lastTerminalTurnId".to_string(),
+                    "activeStreamingTail".to_string(),
+                ];
+                if !operation_patches.is_empty() {
+                    changed_fields.push("operations".to_string());
+                }
+
+                Some(build_delta_envelope(DeltaEnvelopeParts {
+                    session_id: request.session_id,
+                    from_revision,
+                    to_revision,
+                    projection: self.delta_projection_for_session(
+                        request.session_id,
+                        request.projection_registry,
+                        request.transcript_projection_registry,
+                    ),
+                    transcript_operations: Vec::new(),
+                    operation_patches,
+                    interaction_patches: vec![interaction],
                     changed_fields,
                 }))
             }
@@ -1013,10 +1089,7 @@ fn should_emit_session_state_capabilities(update: &SessionUpdate) -> bool {
 fn should_emit_session_state_snapshot(update: &SessionUpdate) -> bool {
     matches!(
         update,
-        SessionUpdate::PermissionRequest { .. }
-            | SessionUpdate::QuestionRequest { .. }
-            | SessionUpdate::ConnectionComplete { .. }
-            | SessionUpdate::ConnectionFailed { .. }
+        SessionUpdate::ConnectionComplete { .. } | SessionUpdate::ConnectionFailed { .. }
     )
 }
 
@@ -1039,6 +1112,14 @@ fn operation_patches_for_terminal_update(
     }
 
     projection_registry.last_cancelled_operation_patches(session_id)
+}
+
+fn interaction_id_for_patch(update: &SessionUpdate) -> Option<&str> {
+    match update {
+        SessionUpdate::PermissionRequest { permission, .. } => Some(permission.id.as_str()),
+        SessionUpdate::QuestionRequest { question, .. } => Some(question.id.as_str()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1090,8 +1171,8 @@ mod tests {
         CurrentModeData, SessionUpdate, UsageTelemetryData, UsageTelemetryTokens,
     };
     use crate::acp::session_update::{
-        PermissionData, QuestionData, QuestionItem, QuestionOption, ToolArguments, ToolCallData,
-        ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
+        InteractionReplyHandler, PermissionData, QuestionData, QuestionItem, QuestionOption,
+        ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, TurnErrorData,
     };
     use crate::acp::transcript_projection::{
         TranscriptDelta, TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSnapshot,
@@ -1502,6 +1583,47 @@ mod tests {
         }
     }
 
+    fn assert_interaction_delta_contract(
+        surface: &str,
+        envelope: &SessionStateEnvelope,
+        expected_interaction_id: &str,
+    ) {
+        match &envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(
+                    delta.transcript_operations.len(),
+                    0,
+                    "{surface} must not carry transcript work"
+                );
+                assert_eq!(delta.interaction_patches.len(), 1);
+                assert_eq!(delta.interaction_patches[0].id, expected_interaction_id);
+                assert_eq!(delta.operation_patches.len(), 0);
+                assert!(
+                    delta.changed_fields.contains(&"interactions".to_string()),
+                    "{surface} delta should update interactions"
+                );
+                assert!(
+                    delta.changed_fields.contains(&"activity".to_string()),
+                    "{surface} delta should update activity"
+                );
+            }
+            other => panic!("expected interaction delta for {surface}, got {:?}", other),
+        }
+
+        let value = serde_json::to_value(envelope).expect("serialize envelope to value");
+        let payload = value
+            .get("payload")
+            .expect("payload")
+            .as_object()
+            .expect("payload object");
+        assert_eq!(
+            payload.get("kind").and_then(|kind| kind.as_str()),
+            Some("delta")
+        );
+        assert!(payload.get("graph").is_none());
+        assert!(payload.get("transcriptSnapshot").is_none());
+    }
+
     fn assert_turn_state_delta_contract(
         surface: &str,
         envelope: &SessionStateEnvelope,
@@ -1557,6 +1679,24 @@ mod tests {
             long_len > short_len + 1024,
             "{surface} did not show measurable history scaling: short={short_len}, long={long_len}"
         );
+    }
+
+    async fn assert_interaction_surface_stays_history_independent(
+        db: &DbConn,
+        surface: &str,
+        update_under_test: SessionUpdate,
+        expected_interaction_id: &str,
+    ) {
+        let short_envelope =
+            build_snapshot_for_history_depth(db, 4, update_under_test.clone()).await;
+        let long_envelope =
+            build_snapshot_for_history_depth(db, 300, update_under_test.clone()).await;
+        let doubled_envelope = build_snapshot_for_history_depth(db, 600, update_under_test).await;
+        assert_interaction_delta_contract(surface, &short_envelope, expected_interaction_id);
+        assert_interaction_delta_contract(surface, &long_envelope, expected_interaction_id);
+        assert_interaction_delta_contract(surface, &doubled_envelope, expected_interaction_id);
+        assert_history_independent_payload_size(&short_envelope, &long_envelope);
+        assert_history_independent_payload_size(&short_envelope, &doubled_envelope);
     }
 
     async fn assert_turn_state_surface_stays_history_independent(
@@ -2180,6 +2320,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn linked_interaction_delta_carries_blocked_operation_patch() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_registry = SessionGraphRuntimeRegistry::new();
+        let active_tool_call = create_active_tool_call_update();
+        let update = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-linked".to_string(),
+                session_id: "session-1".to_string(),
+                json_rpc_request_id: Some(7),
+                reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
+                permission: "Execute".to_string(),
+                patterns: Vec::new(),
+                metadata: serde_json::json!({}),
+                always: Vec::new(),
+                auto_accepted: false,
+                tool: Some(crate::acp::session_update::ToolReference {
+                    message_id: None,
+                    call_id: "active-tool".to_string(),
+                }),
+            },
+            session_id: Some("session-1".to_string()),
+        };
+
+        projection_registry.register_session("session-1".to_string(), CanonicalAgentId::Cursor);
+        projection_registry.apply_session_update("session-1", &active_tool_call);
+        projection_registry.apply_session_update("session-1", &update);
+
+        let envelope = runtime_registry
+            .build_live_session_state_envelope(LiveSessionStateEnvelopeRequest {
+                db: &db,
+                session_id: "session-1",
+                update: &update,
+                previous_revision: SessionGraphRevision::new(7, 6, 7),
+                revision: SessionGraphRevision::new(8, 6, 8),
+                projection_registry: &projection_registry,
+                transcript_projection_registry: &transcript_projection_registry,
+                transcript_delta: None,
+            })
+            .await
+            .expect("linked interaction delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.interaction_patches.len(), 1);
+                assert_eq!(delta.interaction_patches[0].id, "permission-linked");
+                assert_eq!(delta.operation_patches.len(), 1);
+                assert_eq!(delta.operation_patches[0].tool_call_id, "active-tool");
+                assert_eq!(
+                    delta.operation_patches[0].operation_state,
+                    crate::acp::projections::OperationState::Blocked
+                );
+                assert!(delta.changed_fields.contains(&"interactions".to_string()));
+                assert!(delta.changed_fields.contains(&"operations".to_string()));
+            }
+            other => panic!("expected delta payload, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
     async fn hot_tool_call_delta_payload_stays_history_independent() {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
@@ -2241,22 +2443,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_turn_snapshot_payloads_are_measurable_history_scaling_surfaces() {
+    async fn interaction_requests_emit_history_independent_deltas() {
         let db = setup_test_db().await;
         insert_session_metadata(&db, "session-1").await;
 
-        assert_snapshot_surface_scales_with_history(
+        assert_interaction_surface_stays_history_independent(
             &db,
             "permission_request",
             create_permission_request_update(),
+            "permission-1",
         )
         .await;
-        assert_snapshot_surface_scales_with_history(
+        assert_interaction_surface_stays_history_independent(
             &db,
             "question_request",
             create_question_request_update(),
+            "question-1",
         )
         .await;
+    }
+
+    #[tokio::test]
+    async fn connection_snapshot_payloads_are_measurable_history_scaling_surfaces() {
+        let db = setup_test_db().await;
+        insert_session_metadata(&db, "session-1").await;
+
         assert_snapshot_surface_scales_with_history(
             &db,
             "connection_complete",

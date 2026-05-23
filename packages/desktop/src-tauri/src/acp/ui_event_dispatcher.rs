@@ -2051,7 +2051,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persist_dispatch_event_builds_snapshot_envelope_for_interaction_updates() {
+    async fn persist_dispatch_event_builds_delta_envelope_for_interaction_updates() {
         let db = setup_test_db().await;
         SessionMetadataRepository::ensure_exists(
             &db,
@@ -2086,7 +2086,12 @@ mod tests {
         }
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
-        seed_lifecycle(&runtime_graph_registry, "session-1");
+        runtime_graph_registry.restore_session_state(
+            "session-1".to_string(),
+            1,
+            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
+            crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+        );
         let effects = persist_dispatch_event(
             Some(&db),
             &event,
@@ -2100,19 +2105,20 @@ mod tests {
             .session_state_envelope
             .expect("session state envelope");
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
-                assert_eq!(graph.revision.graph_revision, 1);
+            crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.to_revision.graph_revision, 2);
                 assert_eq!(
-                    graph.revision.transcript_revision, 0,
+                    delta.to_revision.transcript_revision, 0,
                     "PermissionRequest is non-transcript-bearing and must not advance transcript_revision"
                 );
-                assert_eq!(graph.interactions.len(), 1);
+                assert_eq!(delta.interaction_patches.len(), 1);
+                assert_eq!(delta.interaction_patches[0].id, "permission-1");
                 assert_eq!(
-                    graph.lifecycle.status,
-                    crate::acp::lifecycle::LifecycleStatus::Reserved
+                    delta.activity.kind,
+                    crate::acp::session_state_engine::SessionGraphActivityKind::WaitingForUser
                 );
             }
-            other => panic!("expected snapshot payload, got {:?}", other),
+            other => panic!("expected delta payload, got {:?}", other),
         }
     }
 
@@ -2154,7 +2160,12 @@ mod tests {
         }
         let transcript_projection_registry = TranscriptProjectionRegistry::new();
         let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
-        seed_lifecycle(&runtime_graph_registry, "session-1");
+        runtime_graph_registry.restore_session_state(
+            "session-1".to_string(),
+            1,
+            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::reserved(),
+            crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+        );
         let effects = persist_dispatch_event(
             Some(&db),
             &event,
@@ -2176,11 +2187,12 @@ mod tests {
             .session_state_envelope
             .expect("session state envelope");
         match envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
-                assert_eq!(graph.interactions.len(), 1);
-                assert_eq!(graph.interactions[0].id, "question-1");
+            crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
+                assert_eq!(delta.interaction_patches.len(), 1);
+                assert_eq!(delta.interaction_patches[0].id, "question-1");
+                assert!(delta.changed_fields.contains(&"interactions".to_string()));
             }
-            other => panic!("expected snapshot payload, got {:?}", other),
+            other => panic!("expected delta payload, got {:?}", other),
         }
     }
 
