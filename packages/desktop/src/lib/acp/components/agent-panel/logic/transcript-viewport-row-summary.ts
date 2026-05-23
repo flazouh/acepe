@@ -327,14 +327,16 @@ function truncateTranscriptViewportRowsSummary(
 		return buildTranscriptViewportRowsSummary(rows, reason);
 	}
 
-	const removedRows = previousRows.slice(rows.length);
+	const removedRows = createArrayView(previousRows.length - rows.length, (index) => {
+		return previousRows[rows.length + index];
+	});
 	const lastRow = rows.at(-1);
 	const lastKey = lastRow === undefined ? null : getSceneDisplayRowKey(lastRow);
-	const rowKeys = (previousSummary.rowKeys ?? []).slice(0, rows.length);
-	const anchorEligibleKeys = previousSummary.anchorEligibleKeys.slice(
-		0,
-		countAnchorEligibleRows(rows)
-	);
+	const previousRowKeys = previousSummary.rowKeys ?? [];
+	const rowKeys = createArrayView(rows.length, (index) => previousRowKeys[index]);
+	const anchorEligibleKeys = createArrayView(countAnchorEligibleRows(rows), (index) => {
+		return previousSummary.anchorEligibleKeys[index];
+	});
 
 	return {
 		version: rows.length,
@@ -533,25 +535,32 @@ function createAppendedArrayView<T>(
 	baseItems: readonly T[],
 	appendedItems: readonly T[]
 ): readonly T[] {
-	const target = new Array<T>(baseItems.length + appendedItems.length);
+	return createArrayView(baseItems.length + appendedItems.length, (index) => {
+		return index < baseItems.length ? baseItems[index] : appendedItems[index - baseItems.length];
+	});
+}
+
+function createReplacedTailArrayView<T>(baseItems: readonly T[], tailItem: T): readonly T[] {
+	return createArrayView(baseItems.length, (index) => {
+		return index === baseItems.length - 1 ? tailItem : baseItems[index];
+	});
+}
+
+function createArrayView<T>(length: number, getItem: (index: number) => T | undefined): readonly T[] {
+	const target = new Array<T>(length);
 	return new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
-					for (let index = 0; index < baseItems.length; index += 1) {
-						yield baseItems[index];
-					}
-					for (const item of appendedItems) {
-						yield item;
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield getItem(index);
 					}
 				};
 			}
 			if (typeof property === "string") {
 				const index = toArrayIndex(property);
 				if (index !== null) {
-					return index < baseItems.length
-						? baseItems[index]
-						: appendedItems[index - baseItems.length];
+					return getItem(index);
 				}
 				if (property === "slice") {
 					return (start?: number, end?: number) =>
@@ -574,10 +583,7 @@ function createAppendedArrayView<T>(
 				return {
 					configurable: true,
 					enumerable: true,
-					value:
-						index < baseItems.length
-							? baseItems[index]
-							: appendedItems[index - baseItems.length],
+					value: getItem(index),
 					writable: false,
 				};
 			}
@@ -612,18 +618,25 @@ function replaceTranscriptViewportRowsTailSummary(
 	const previousTailKey = previousSummary.lastKey;
 	const previousTailRow = previousRows.at(-1);
 	const nextTailKey = getSceneDisplayRowKey(tailRow);
-	const rowKeys = (previousSummary.rowKeys ?? []).slice(0, -1).concat(nextTailKey);
+	const rowKeys = createReplacedTailArrayView(previousSummary.rowKeys ?? [], nextTailKey);
 	let anchorEligibleKeys = previousSummary.anchorEligibleKeys;
 	if (tailRow.type === "thinking") {
 		anchorEligibleKeys =
 			previousTailKey !== null && previousSummary.anchorEligibleKeys.at(-1) === previousTailKey
-				? previousSummary.anchorEligibleKeys.slice(0, -1)
+				? createArrayView(previousSummary.anchorEligibleKeys.length - 1, (index) => {
+						return previousSummary.anchorEligibleKeys[index];
+					})
 				: previousSummary.anchorEligibleKeys;
 	} else if (previousTailKey !== nextTailKey) {
 		if (previousTailKey !== null && previousSummary.anchorEligibleKeys.at(-1) === previousTailKey) {
-			anchorEligibleKeys = previousSummary.anchorEligibleKeys.slice(0, -1).concat(nextTailKey);
+			anchorEligibleKeys = createReplacedTailArrayView(
+				previousSummary.anchorEligibleKeys,
+				nextTailKey
+			);
 		} else {
-			anchorEligibleKeys = previousSummary.anchorEligibleKeys.concat(nextTailKey);
+			anchorEligibleKeys = createAppendedArrayView(previousSummary.anchorEligibleKeys, [
+				nextTailKey,
+			]);
 		}
 	}
 

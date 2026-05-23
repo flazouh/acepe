@@ -240,6 +240,56 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.anchorEligibleKeys).not.toBe(firstSummary.anchorEligibleKeys);
 	});
 
+	it("updates replaced tail keys without copying previous key arrays", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [userRow("user-1"), assistantRow("assistant-1")];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const rowKeysSlice = firstSummary.rowKeys?.slice;
+		const rowKeysConcat = firstSummary.rowKeys?.concat;
+		const anchorKeysSlice = firstSummary.anchorEligibleKeys.slice;
+		const anchorKeysConcat = firstSummary.anchorEligibleKeys.concat;
+		if (firstSummary.rowKeys !== undefined) {
+			firstSummary.rowKeys.slice = () => {
+				throw new Error("must not copy previous row keys");
+			};
+			firstSummary.rowKeys.concat = () => {
+				throw new Error("must not concatenate previous row keys");
+			};
+		}
+		firstSummary.anchorEligibleKeys.slice = () => {
+			throw new Error("must not copy previous anchor keys");
+		};
+		firstSummary.anchorEligibleKeys.concat = () => {
+			throw new Error("must not concatenate previous anchor keys");
+		};
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: [firstRows[0]!, assistantRow("assistant-2")],
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-2"]);
+			expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-2"]);
+			expect(nextSummary.rowKeys?.[0]).toBe("user-1");
+			expect(nextSummary.rowKeys?.[1]).toBe("assistant-2");
+		} finally {
+			if (firstSummary.rowKeys !== undefined) {
+				if (rowKeysSlice !== undefined) {
+					firstSummary.rowKeys.slice = rowKeysSlice;
+				}
+				if (rowKeysConcat !== undefined) {
+					firstSummary.rowKeys.concat = rowKeysConcat;
+				}
+			}
+			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
+			firstSummary.anchorEligibleKeys.concat = anchorKeysConcat;
+		}
+	});
+
 	it("updates tail-derived boolean facts without losing earlier matches", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const firstRows = [toolRow("tool-1"), assistantRow("assistant-1", { tokenReveal: true })];
@@ -286,6 +336,52 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(nextSummary.hasTokenRevealAssistantEntry).toBe(true);
 		expect(nextSummary.hasLiveAssistantDisplayEntry).toBe(true);
 		expect(nextSummary).not.toBe(firstSummary);
+	});
+
+	it("truncates same-prefix row keys without copying previous arrays", () => {
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = [
+			userRow("user-1"),
+			assistantRow("assistant-1"),
+			toolRow("tool-1"),
+		];
+		const firstSummary = readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = firstRows.slice(0, 2);
+		const previousRowsSlice = firstRows.slice;
+		const rowKeysSlice = firstSummary.rowKeys?.slice;
+		const anchorKeysSlice = firstSummary.anchorEligibleKeys.slice;
+		firstRows.slice = () => {
+			throw new Error("must not copy previous rows");
+		};
+		if (firstSummary.rowKeys !== undefined) {
+			firstSummary.rowKeys.slice = () => {
+				throw new Error("must not copy previous row keys");
+			};
+		}
+		firstSummary.anchorEligibleKeys.slice = () => {
+			throw new Error("must not copy previous anchor keys");
+		};
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.rowKeys).toEqual(["user-1", "assistant-1"]);
+			expect(nextSummary.anchorEligibleKeys).toEqual(["user-1", "assistant-1"]);
+			expect(nextSummary.rowKeys?.[0]).toBe("user-1");
+			expect(nextSummary.rowKeys?.[1]).toBe("assistant-1");
+		} finally {
+			firstRows.slice = previousRowsSlice;
+			if (firstSummary.rowKeys !== undefined && rowKeysSlice !== undefined) {
+				firstSummary.rowKeys.slice = rowKeysSlice;
+			}
+			firstSummary.anchorEligibleKeys.slice = anchorKeysSlice;
+		}
 	});
 
 	it("updates thinking durations after truncating the following timed row", () => {
