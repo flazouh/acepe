@@ -545,12 +545,21 @@ export class SessionEventService {
 			return;
 		}
 
+		const latestGraphRevision =
+			this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0;
+		if (envelope.graphRevision < latestGraphRevision) {
+			logger.warn("Dropped stale session-state envelope at event ingress", {
+				sessionId: envelope.sessionId,
+				kind: envelope.payload.kind,
+				graphRevision: envelope.graphRevision,
+				latestGraphRevision,
+			});
+			return;
+		}
+
 		this.latestSessionStateGraphRevision.set(
 			envelope.sessionId,
-			Math.max(
-				this.latestSessionStateGraphRevision.get(envelope.sessionId) ?? 0,
-				envelope.graphRevision
-			)
+			Math.max(latestGraphRevision, envelope.graphRevision)
 		);
 		this.advanceConnectionMaterializationWaiter(envelope);
 		if (!this.hasKnownSession(handler, envelope.sessionId)) {

@@ -1481,6 +1481,98 @@ describe("SessionEventService streaming delta handling", () => {
 		expect(connectedHandler.applySessionStateEnvelope).toHaveBeenCalledTimes(2);
 	});
 
+	it("drops lower-revision session-state envelopes after a newer frontier", () => {
+		const handler = createMockHandler();
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ordered-1",
+				graphRevision: 8,
+				lastEventSeq: 8,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 3,
+						lastEventSeq: 8,
+					},
+				},
+			},
+			handler
+		);
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ordered-1",
+				graphRevision: 7,
+				lastEventSeq: 7,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle("reconnecting"),
+					revision: {
+						graphRevision: 7,
+						transcriptRevision: 3,
+						lastEventSeq: 7,
+					},
+				},
+			},
+			handler
+		);
+
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledTimes(1);
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-ordered-1",
+			expect.objectContaining({ graphRevision: 8 })
+		);
+	});
+
+	it("allows same-revision session-state envelopes in one frontier batch", () => {
+		const handler = createMockHandler();
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ordered-2",
+				graphRevision: 8,
+				lastEventSeq: 8,
+				payload: {
+					kind: "capabilities",
+					capabilities: {
+						models: null,
+						modes: null,
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: true,
+					},
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 3,
+						lastEventSeq: 8,
+					},
+					pending_mutation_id: null,
+					preview_state: "canonical",
+				},
+			},
+			handler
+		);
+		service.handleSessionStateEnvelope(
+			{
+				sessionId: "session-ordered-2",
+				graphRevision: 8,
+				lastEventSeq: 8,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 3,
+						lastEventSeq: 8,
+					},
+				},
+			},
+			handler
+		);
+
+		expect(handler.applySessionStateEnvelope).toHaveBeenCalledTimes(2);
+	});
+
 	it("preserves missing autonomous capability in connection materialization", async () => {
 		const connectedHandler = createMockHandler();
 		const { promise } = service.waitForConnectionMaterialization(
