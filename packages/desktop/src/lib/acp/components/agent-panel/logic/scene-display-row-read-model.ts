@@ -1,6 +1,7 @@
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import {
 	appendSceneDisplayRows,
+	appendSceneDisplayRowsFromIndex,
 	buildSceneDisplayRows,
 	getSceneDisplayRowTimestampMs,
 	type SceneDisplayRow,
@@ -9,7 +10,9 @@ import { isStableSceneEntryAppend } from "./scene-entry-stability.js";
 
 export interface SceneDisplayRowsReadModel {
 	applySnapshot(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
-	applyAppendPatch(appendedSceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
+	applyAppendPatch(
+		appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[];
 	selectRows(): readonly SceneDisplayRow[];
 	selectLatestTimestampMs(): number | null;
 	getRows(sceneEntries: readonly AgentPanelSceneEntryModel[]): readonly SceneDisplayRow[];
@@ -31,9 +34,10 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
 			) {
 				const firstChangedRowIndex = Math.max(0, previousRows.length - 1);
-				previousRows = appendSceneDisplayRows(
+				previousRows = appendSceneDisplayRowsFromIndex(
 					previousRows,
-					sceneEntries.slice(previousSceneEntries.length)
+					sceneEntries,
+					previousSceneEntries.length
 				);
 				latestTimestampMs = selectLatestTimestampMsFrom(
 					previousRows,

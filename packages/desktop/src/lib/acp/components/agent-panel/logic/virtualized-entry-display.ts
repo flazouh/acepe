@@ -263,12 +263,24 @@ export function appendVirtualizedDisplayEntriesFromScene(
 	currentRows: readonly VirtualizedDisplayEntry[],
 	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
 ): readonly VirtualizedDisplayEntry[] {
-	if (appendedSceneEntries.length === 0) {
+	return appendVirtualizedDisplayEntriesFromSceneRange(currentRows, appendedSceneEntries, 0);
+}
+
+export function appendVirtualizedDisplayEntriesFromSceneRange(
+	currentRows: readonly VirtualizedDisplayEntry[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[],
+	startIndex: number
+): readonly VirtualizedDisplayEntry[] {
+	if (startIndex >= sceneEntries.length) {
 		return currentRows;
 	}
 
 	const merged = currentRows.slice();
-	for (const entry of appendedSceneEntries) {
+	for (let index = startIndex; index < sceneEntries.length; index += 1) {
+		const entry = sceneEntries[index];
+		if (entry === undefined) {
+			continue;
+		}
 		pushSceneEntryIntoDisplayRows(merged, entry);
 	}
 	return merged;

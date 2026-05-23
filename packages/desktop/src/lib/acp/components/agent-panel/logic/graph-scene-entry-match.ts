@@ -65,7 +65,8 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				appendGraphSceneEntriesToIndexes(
 					entriesById,
 					entryIndexesById,
-					sceneEntries.slice(previousSceneEntries.length),
+					sceneEntries,
+					previousSceneEntries.length,
 					previousSceneEntries.length
 				);
 				previousSceneEntries = sceneEntries;
@@ -118,10 +119,19 @@ function appendGraphSceneEntriesToIndexes(
 	entriesById: Map<string, AgentPanelSceneEntryModel>,
 	entryIndexesById: Map<string, number> | undefined,
 	sceneEntries: readonly AgentPanelSceneEntryModel[],
-	startIndex: number
+	startIndex: number,
+	entryIndexStart: number = 0
 ): void {
 	let index = startIndex;
-	for (const sceneEntry of sceneEntries) {
+	for (
+		let sceneEntryIndex = entryIndexStart;
+		sceneEntryIndex < sceneEntries.length;
+		sceneEntryIndex += 1
+	) {
+		const sceneEntry = sceneEntries[sceneEntryIndex];
+		if (sceneEntry === undefined) {
+			continue;
+		}
 		if (!entriesById.has(sceneEntry.id)) {
 			entriesById.set(sceneEntry.id, sceneEntry);
 			entryIndexesById?.set(sceneEntry.id, index);

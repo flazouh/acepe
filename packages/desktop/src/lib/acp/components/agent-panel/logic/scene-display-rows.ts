@@ -1,5 +1,6 @@
 export {
 	appendVirtualizedDisplayEntriesFromScene as appendSceneDisplayRows,
+	appendVirtualizedDisplayEntriesFromSceneRange as appendSceneDisplayRowsFromIndex,
 	buildVirtualizedDisplayEntriesFromScene as buildSceneDisplayRows,
 	findLastAssistantSceneIndex,
 	getLatestRevealTargetKey as getLatestSceneDisplayRevealTargetKey,
