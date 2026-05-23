@@ -361,4 +361,63 @@ describe("scene-display-rows", () => {
 
 		expect(readModel.getRows(baseEntries)).toBe(baseRows);
 	});
+
+	it("patches token reveal rows without slicing the whole row array", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const userEntry = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+		} satisfies AgentPanelSceneEntryModel;
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [userEntry, assistantEntry];
+		const baseRows = readModel.getRows(baseEntries);
+		const originalSlice = baseRows.slice;
+
+		baseRows.slice = () => {
+			throw new Error("must not slice whole display rows");
+		};
+
+		try {
+			const tokenRevealRows = readModel.getRows(
+				tokenRevealReadModel.applySnapshot({
+					sceneEntries: baseEntries,
+					sourceEntry: assistantEntry,
+					tailRowId: "assistant-1",
+					tailRowIndex: 1,
+					tokenRevealCss: {
+						revealCount: 1,
+						revealedCharCount: 6,
+						baselineMs: 0,
+						tokStepMs: 20,
+						tokFadeDurMs: 80,
+						mode: "smooth",
+					},
+				})
+			);
+
+			expect(Array.isArray(tokenRevealRows)).toBe(true);
+			expect(tokenRevealRows).toHaveLength(2);
+			expect(tokenRevealRows[0]).toBe(baseRows[0]);
+			expect(tokenRevealRows[1]).not.toBe(baseRows[1]);
+			expect(tokenRevealRows.map((row) => getSceneDisplayRowKey(row))).toEqual([
+				"user-1",
+				"assistant-1",
+			]);
+			expect([...tokenRevealRows][1]).toMatchObject({
+				type: "assistant_merged",
+				tokenRevealCss: {
+					revealCount: 1,
+				},
+			});
+		} finally {
+			baseRows.slice = originalSlice;
+		}
+	});
 });
