@@ -107,6 +107,7 @@ interface CachedConversationState {
 		entries: readonly AgentPanelSceneEntryModel[];
 		isStreaming: boolean;
 	};
+	readonly sceneEntryRowIndex: ReadonlyMap<string, number>;
 }
 
 export interface AgentPanelGraphMaterializerReadModel {
@@ -716,6 +717,7 @@ function materializeCachedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		conversation,
+		sceneEntryRowIndex: buildSceneEntryRowIndex(conversation.entries),
 	};
 }
 
@@ -767,6 +769,9 @@ function materializeTranscriptAppendedConversation(
 	const trailingInteractionEntries = previous.conversation.entries
 		.slice(transcriptSceneEntryCount)
 		.filter((entry) => !appendedIds.has(entry.id));
+	const nextEntries = existingTranscriptEntries
+		.concat(appendedSceneEntries)
+		.concat(trailingInteractionEntries);
 
 	return {
 		transcriptEntries: input.graph.transcriptSnapshot.entries,
@@ -777,11 +782,10 @@ function materializeTranscriptAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		conversation: {
-			entries: existingTranscriptEntries
-				.concat(appendedSceneEntries)
-				.concat(trailingInteractionEntries),
+			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
+		sceneEntryRowIndex: buildSceneEntryRowIndex(nextEntries),
 	};
 }
 
@@ -841,14 +845,13 @@ function materializeOperationPatchedConversation(
 	}
 
 	const nextEntries = previous.conversation.entries.slice();
-	const rowIndexByEntryId = buildSceneEntryRowIndex(previous.conversation.entries);
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 	for (const transcriptEntry of input.graph.transcriptSnapshot.entries) {
 		if (!affectedEntryIds.has(transcriptEntry.entryId)) {
 			continue;
 		}
-		const rowIndex = rowIndexByEntryId.get(transcriptEntry.entryId);
+		const rowIndex = previous.sceneEntryRowIndex.get(transcriptEntry.entryId);
 		if (rowIndex === undefined) {
 			return null;
 		}
@@ -872,6 +875,7 @@ function materializeOperationPatchedConversation(
 			entries: nextEntries,
 			isStreaming: previous.conversation.isStreaming,
 		},
+		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
 
