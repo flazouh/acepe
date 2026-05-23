@@ -429,6 +429,81 @@ describe("PanelStore workspacePanels", () => {
 		}
 	});
 
+	it("opens session panels without copying existing panel lists", () => {
+		const store = createStore();
+		store.spawnPanel({ projectPath: "/tmp/project" });
+		const workspaceIterator = store.workspacePanels[Symbol.iterator];
+		const agentPanels = store.getTopLevelAgentPanels();
+		const agentIterator = agentPanels[Symbol.iterator];
+
+		store.workspacePanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate every workspace panel while opening a session");
+		};
+		agentPanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate every agent panel while opening a session");
+		};
+
+		try {
+			const panel = store.openSession("session-instant", 450);
+
+			expect(panel).not.toBeNull();
+			expect(store.workspacePanels[0]).toBe(panel);
+			expect(store.getTopLevelAgentPanels()[0]).toBe(panel);
+			expect(store.getPanelBySessionId("session-instant")).toBe(panel);
+		} finally {
+			store.workspacePanels[Symbol.iterator] = workspaceIterator;
+			agentPanels[Symbol.iterator] = agentIterator;
+		}
+	});
+
+	it("materializes background session panels without copying existing panel lists", () => {
+		const store = createStore();
+		const firstPanel = store.spawnPanel({ projectPath: "/tmp/project" });
+		const workspaceIterator = store.workspacePanels[Symbol.iterator];
+		const agentPanels = store.getTopLevelAgentPanels();
+		const agentIterator = agentPanels[Symbol.iterator];
+
+		store.workspacePanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate every workspace panel while materializing a session");
+		};
+		agentPanels[Symbol.iterator] = function* () {
+			throw new Error("must not iterate every agent panel while materializing a session");
+		};
+
+		try {
+			const panel = store.materializeSessionPanel("session-background", 450);
+
+			expect(panel).not.toBeNull();
+			expect(store.workspacePanels[0]?.id).toBe(firstPanel.id);
+			expect(store.workspacePanels[1]).toBe(panel);
+			expect(store.getTopLevelAgentPanels()[0]?.id).toBe(firstPanel.id);
+			expect(store.getTopLevelAgentPanels()[1]).toBe(panel);
+		} finally {
+			store.workspacePanels[Symbol.iterator] = workspaceIterator;
+			agentPanels[Symbol.iterator] = agentIterator;
+		}
+	});
+
+	it("promotes background session panels without filtering all workspace panels", () => {
+		const store = createStore();
+		const panel = store.materializeSessionPanel("session-promote", 450);
+		expect(panel?.autoCreated).toBe(true);
+		const originalFilter = store.workspacePanels.filter;
+
+		store.workspacePanels.filter = () => {
+			throw new Error("must not filter every workspace panel while promoting a session");
+		};
+
+		try {
+			const promoted = store.openSession("session-promote", 450);
+
+			expect(promoted?.autoCreated).toBe(false);
+			expect(store.getPanelBySessionId("session-promote")?.autoCreated).toBe(false);
+		} finally {
+			store.workspacePanels.filter = originalFilter;
+		}
+	});
+
 	it("opens file panels without copying existing project file-panel lists", () => {
 		const store = createStore();
 		const firstPanel = store.openFilePanel("src/first.ts", "/tmp/project");

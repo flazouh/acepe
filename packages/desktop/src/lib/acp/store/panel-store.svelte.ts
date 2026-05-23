@@ -236,6 +236,55 @@ function createPrependedItemArray<T>(item: T, baseItems: readonly T[]): T[] {
 	}) as T[];
 }
 
+function createAppendedItemArray<T>(baseItems: readonly T[], item: T): T[] {
+	const target = new Array<T>(baseItems.length + 1);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield index === baseItems.length ? item : baseItems[index];
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return index === baseItems.length ? item : baseItems[index];
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: index === baseItems.length ? item : baseItems[index],
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	}) as T[];
+}
+
 function createPatchedItemArray<T extends { readonly id: string }>(
 	baseItems: readonly T[],
 	updatedItem: T
@@ -902,6 +951,36 @@ export class PanelStore {
 		this.workspacePanels = createPrependedItemArray(panel, this.workspacePanels);
 	}
 
+	private insertTopLevelAgentPanel(panel: Panel, placement: "prepend" | "append"): void {
+		this.topLevelAgentPanelsById.set(panel.id, panel);
+		this.topLevelAgentPanelRefs.set(panel.id, createReactiveValue(panel));
+		if (panel.sessionId !== null) {
+			this.topLevelAgentPanelBySessionId.set(panel.sessionId, panel);
+		}
+		if (panel.projectPath !== null) {
+			const projectPanels = this.topLevelAgentPanelsByProject.get(panel.projectPath) ?? [];
+			this.topLevelAgentPanelsByProject.set(
+				panel.projectPath,
+				placement === "prepend"
+					? createPrependedItemArray(panel, projectPanels)
+					: createAppendedItemArray(projectPanels, panel)
+			);
+		}
+
+		this.topLevelAgentPanelList =
+			placement === "prepend"
+				? createPrependedItemArray(panel, this.topLevelAgentPanelList)
+				: createAppendedItemArray(this.topLevelAgentPanelList, panel);
+		this.workspacePanels =
+			placement === "prepend"
+				? createPrependedItemArray<WorkspacePanel>(panel, this.workspacePanels)
+				: createAppendedItemArray<WorkspacePanel>(this.workspacePanels, panel);
+		this.topLevelWorkspacePanelList =
+			placement === "prepend"
+				? createPrependedItemArray<WorkspacePanel>(panel, this.topLevelWorkspacePanelList)
+				: createAppendedItemArray<WorkspacePanel>(this.topLevelWorkspacePanelList, panel);
+	}
+
 	get terminalPanels(): TerminalWorkspacePanel[] {
 		return this.workspacePanels.filter(
 			(panel): panel is TerminalWorkspacePanel => panel.kind === "terminal"
@@ -1270,33 +1349,28 @@ export class PanelStore {
 	}
 
 	private setPanelAutoCreated(panelId: string, autoCreated: boolean): Panel | null {
-		let updatedPanel: Panel | null = null;
-		this.panels = this.panels.map((panel) => {
-			if (panel.id !== panelId) {
-				return panel;
-			}
-
-			updatedPanel = {
-				id: panel.id,
-				kind: panel.kind,
-				ownerPanelId: panel.ownerPanelId,
-				sessionId: panel.sessionId,
-				autoCreated,
-				width: panel.width,
-				pendingProjectSelection: panel.pendingProjectSelection,
-				pendingWorktreeEnabled: panel.pendingWorktreeEnabled ?? null,
-				preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
-				selectedAgentId: panel.selectedAgentId,
-				projectPath: panel.projectPath,
-				agentId: panel.agentId,
-				sourcePath: panel.sourcePath,
-				worktreePath: panel.worktreePath,
-				sessionTitle: panel.sessionTitle,
-			};
-
-			return updatedPanel;
-		});
-
+		const panel = this.topLevelAgentPanelsById.get(panelId);
+		if (panel === undefined) {
+			return null;
+		}
+		const updatedPanel: Panel = {
+			id: panel.id,
+			kind: panel.kind,
+			ownerPanelId: panel.ownerPanelId,
+			sessionId: panel.sessionId,
+			autoCreated,
+			width: panel.width,
+			pendingProjectSelection: panel.pendingProjectSelection,
+			pendingWorktreeEnabled: panel.pendingWorktreeEnabled ?? null,
+			preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
+			selectedAgentId: panel.selectedAgentId,
+			projectPath: panel.projectPath,
+			agentId: panel.agentId,
+			sourcePath: panel.sourcePath,
+			worktreePath: panel.worktreePath,
+			sessionTitle: panel.sessionTitle,
+		};
+		this.patchTopLevelAgentPanel(updatedPanel);
 		return updatedPanel;
 	}
 
@@ -1350,7 +1424,7 @@ export class PanelStore {
 
 		const panel = this.createSessionPanel(sessionId, width, false);
 
-		this.panels = [panel].concat(this.panels);
+		this.insertTopLevelAgentPanel(panel, "prepend");
 		this.focusedPanelId = panel.id;
 
 		// If in fullscreen mode, switch fullscreen to the new panel
@@ -1391,7 +1465,7 @@ export class PanelStore {
 		this.openingSessionIds.add(sessionId);
 
 		const panel = this.createSessionPanel(sessionId, width, true);
-		this.panels = this.panels.concat(panel);
+		this.insertTopLevelAgentPanel(panel, "append");
 		this.onPersist();
 
 		queueMicrotask(() => {
