@@ -262,9 +262,9 @@ export function buildVirtualizedDisplayEntriesFromScene(
 export function appendVirtualizedDisplayEntriesFromScene(
 	currentRows: readonly VirtualizedDisplayEntry[],
 	appendedSceneEntries: readonly AgentPanelSceneEntryModel[]
-): VirtualizedDisplayEntry[] {
+): readonly VirtualizedDisplayEntry[] {
 	if (appendedSceneEntries.length === 0) {
-		return currentRows.slice();
+		return currentRows;
 	}
 
 	const merged = currentRows.slice();

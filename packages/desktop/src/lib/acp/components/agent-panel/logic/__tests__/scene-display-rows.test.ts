@@ -223,6 +223,21 @@ describe("scene-display-rows", () => {
 		}
 	});
 
+	it("keeps rows stable when a fresh snapshot has the same content and no appended entries", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const firstRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
+			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
+		]);
+
+		const nextRows = readModel.getRows([
+			{ id: "user-1", type: "user", text: "Prompt", timestampMs: 1 },
+			{ id: "assistant-1", type: "assistant", markdown: "First", timestampMs: 2 },
+		]);
+
+		expect(nextRows).toBe(firstRows);
+	});
+
 	it("rebuilds rows when an existing scene entry changes content with the same id", () => {
 		const readModel = createSceneDisplayRowsReadModel();
 		const firstRows = readModel.getRows([
