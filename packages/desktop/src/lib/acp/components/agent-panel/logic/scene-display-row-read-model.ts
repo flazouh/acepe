@@ -124,33 +124,45 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 		return previousRows;
 	}
 
+	function applyTokenRevealPatch(
+		sceneEntries: readonly AgentPanelSceneEntryModel[]
+	): readonly SceneDisplayRow[] | null {
+		const tokenRevealPatch = getTokenRevealScenePatch(sceneEntries);
+		if (
+			tokenRevealPatch === undefined ||
+			tokenRevealPatch.baseSceneEntries !== previousSceneEntries
+		) {
+			return null;
+		}
+		const rowIndex = rowIndexBySceneEntryId.get(tokenRevealPatch.entry.id);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const patchedRows = buildSceneDisplayRows([tokenRevealPatch.entry]);
+		const patchedRow = patchedRows[0];
+		if (patchedRow === undefined) {
+			return null;
+		}
+		baseRowsBeforeTokenReveal ??= previousRows;
+		const nextRows = createPatchedSceneDisplayRowArray(
+			baseRowsBeforeTokenReveal,
+			rowIndex,
+			patchedRow
+		);
+		previousRows = nextRows;
+		latestTimestampMs = selectLatestTimestampMsFrom(
+			previousRows,
+			rowIndex,
+			latestTimestampMs
+		);
+		return previousRows;
+	}
+
 	return {
 		applySnapshot(sceneEntries) {
-			const tokenRevealPatch = getTokenRevealScenePatch(sceneEntries);
-			if (
-				tokenRevealPatch !== undefined &&
-				tokenRevealPatch.baseSceneEntries === previousSceneEntries
-			) {
-				const rowIndex = rowIndexBySceneEntryId.get(tokenRevealPatch.entry.id);
-				if (rowIndex !== undefined) {
-					const patchedRows = buildSceneDisplayRows([tokenRevealPatch.entry]);
-					const patchedRow = patchedRows[0];
-					if (patchedRow !== undefined) {
-						baseRowsBeforeTokenReveal ??= previousRows;
-						const nextRows = createPatchedSceneDisplayRowArray(
-							baseRowsBeforeTokenReveal,
-							rowIndex,
-							patchedRow
-						);
-						previousRows = nextRows;
-						latestTimestampMs = selectLatestTimestampMsFrom(
-							previousRows,
-							rowIndex,
-							latestTimestampMs
-						);
-						return previousRows;
-					}
-				}
+			const tokenRevealRows = applyTokenRevealPatch(sceneEntries);
+			if (tokenRevealRows !== null) {
+				return tokenRevealRows;
 			}
 
 			if (sceneEntries === previousSceneEntries) {
@@ -298,7 +310,11 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			return previousRows;
 		},
 		applyPatch(sceneEntries) {
-			return applyGraphScenePatch(sceneEntries) ?? applyGraphSceneAppendPatch(sceneEntries);
+			return (
+				applyGraphScenePatch(sceneEntries) ??
+				applyGraphSceneAppendPatch(sceneEntries) ??
+				applyTokenRevealPatch(sceneEntries)
+			);
 		},
 		selectRows() {
 			return previousRows;

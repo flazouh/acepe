@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { createAgentPanelSceneReadModel } from "../agent-panel-scene-read-model.js";
 import { getSceneDisplayRowKey, THINKING_DISPLAY_ENTRY } from "../scene-display-rows.js";
+import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
 import {
 	markAgentPanelSceneEntryArrayAppendPatch,
 	markAgentPanelSceneEntryArrayPatch,
@@ -569,5 +570,60 @@ describe("createAgentPanelSceneReadModel", () => {
 		} finally {
 			firstSnapshot.rows.slice = originalSlice;
 		}
+	});
+
+	it("applies token reveal overlays through the patch path", () => {
+		const readModel = createAgentPanelSceneReadModel();
+		const tokenRevealReadModel = createTokenRevealSceneReadModel();
+		const userEntry: AgentPanelSceneEntryModel = {
+			id: "user-1",
+			type: "user",
+			text: "Prompt",
+			timestampMs: 10,
+		};
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Display",
+			isStreaming: true,
+			timestampMs: 20,
+		};
+		const baseEntries = [userEntry, assistantEntry];
+		const baseSnapshot = readModel.applySnapshot(baseEntries);
+		const tokenRevealCss = {
+			revealCount: 2,
+			revealedCharCount: 7,
+			baselineMs: 100,
+			tokStepMs: 20,
+			tokFadeDurMs: 80,
+			mode: "smooth" as const,
+		};
+
+		const tokenRevealEntries = tokenRevealReadModel.applySnapshot({
+			sceneEntries: baseEntries,
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 1,
+			tokenRevealCss,
+		});
+		const patchedSnapshot = readModel.applyPatch(tokenRevealEntries);
+
+		expect(patchedSnapshot).not.toBeNull();
+		if (patchedSnapshot === null) {
+			return;
+		}
+		expect(patchedSnapshot.rows[0]).toBe(baseSnapshot.rows[0]);
+		expect(patchedSnapshot.rows[1]).toMatchObject({
+			type: "assistant_merged",
+			tokenRevealCss,
+		});
+		expect(patchedSnapshot.entriesById.get("assistant-1")).toMatchObject({
+			id: "assistant-1",
+			tokenRevealCss,
+		});
+		const restoredSnapshot = readModel.applySnapshot(baseEntries);
+		expect(restoredSnapshot.rows).toBe(baseSnapshot.rows);
+		expect(restoredSnapshot.entriesById).toBe(baseSnapshot.entriesById);
+		expect(restoredSnapshot.latestRowTimestampMs).toBe(baseSnapshot.latestRowTimestampMs);
 	});
 });
