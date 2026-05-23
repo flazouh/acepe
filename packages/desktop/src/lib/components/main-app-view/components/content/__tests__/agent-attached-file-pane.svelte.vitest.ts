@@ -40,11 +40,14 @@ vi.mock("$lib/acp/components/file-panel/file-panel-defer.js", () => ({
 }));
 
 const getProjectGitStatusSummaryMapMock = vi.fn();
+const getProjectFileGitStatusSummaryMock = vi.fn();
 
 vi.mock("$lib/acp/services/git-status-cache.svelte.js", () => ({
 	gitStatusCache: {
 		getProjectGitStatusSummaryMap: (projectPath: string) =>
 			getProjectGitStatusSummaryMapMock(projectPath),
+		getProjectFileGitStatusSummary: (projectPath: string, filePath: string) =>
+			getProjectFileGitStatusSummaryMock(projectPath, filePath),
 	},
 }));
 
@@ -64,6 +67,7 @@ function createFilePanel(id: string, filePath: string, projectPath = "/repo"): F
 describe("AgentAttachedFilePane", () => {
 	beforeEach(() => {
 		getProjectGitStatusSummaryMapMock.mockReset();
+		getProjectFileGitStatusSummaryMock.mockReset();
 	});
 
 	afterEach(() => {
@@ -71,7 +75,7 @@ describe("AgentAttachedFilePane", () => {
 	});
 
 	it("renders attached tab diff stats without materializing the full project status list", async () => {
-		const statusMap = new Map([
+		const statusByFilePath = new Map([
 			[
 				"src/a.ts",
 				{
@@ -91,23 +95,22 @@ describe("AgentAttachedFilePane", () => {
 				},
 			],
 		]);
-		const valuesSpy = vi.spyOn(statusMap, "values");
 
-		getProjectGitStatusSummaryMapMock.mockReturnValue({
+		getProjectGitStatusSummaryMapMock.mockImplementation(() => {
+			throw new Error("must not load full project git status for attached file tabs");
+		});
+		getProjectFileGitStatusSummaryMock.mockImplementation((_projectPath: string, filePath: string) => ({
 			match: (
 				onOk: (
-					result: ReadonlyMap<
-						string,
-						{ path: string; status: string; insertions: number; deletions: number }
-					>
+					result: { path: string; status: string; insertions: number; deletions: number } | null
 				) => void
 			) => {
 				queueMicrotask(() => {
-					onOk(statusMap);
+					onOk(statusByFilePath.get(filePath) ?? null);
 				});
 				return Promise.resolve();
 			},
-		});
+		}));
 
 		const view = render(AgentAttachedFilePane, {
 			ownerPanelId: "panel-1",
@@ -120,6 +123,7 @@ describe("AgentAttachedFilePane", () => {
 		});
 
 		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
+		expect(getProjectFileGitStatusSummaryMock).not.toHaveBeenCalled();
 
 		await waitFor(() => {
 			const badges = view.getAllByTestId("file-path-badge");
@@ -127,13 +131,14 @@ describe("AgentAttachedFilePane", () => {
 			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
 		});
 
-		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledTimes(1);
-		expect(getProjectGitStatusSummaryMapMock).toHaveBeenCalledWith("/repo");
-		expect(valuesSpy).not.toHaveBeenCalled();
+		expect(getProjectGitStatusSummaryMapMock).not.toHaveBeenCalled();
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledTimes(2);
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "src/a.ts");
+		expect(getProjectFileGitStatusSummaryMock).toHaveBeenCalledWith("/repo", "src/b.ts");
 	});
 
 	it("uses the active file project metadata from the project lookup", () => {
-		getProjectGitStatusSummaryMapMock.mockReturnValue({
+		getProjectFileGitStatusSummaryMock.mockReturnValue({
 			match: () => Promise.resolve(),
 		});
 

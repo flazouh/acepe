@@ -4,7 +4,6 @@ import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
 import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
-import { getFilePanelGitStats } from "$lib/acp/components/file-panel/file-panel-git-status.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
@@ -34,9 +33,7 @@ let {
 	onResizeFilePanel,
 }: Props = $props();
 
-const EMPTY_GIT_STATUS_MAP: ReadonlyMap<string, FileGitStatus> = new Map();
-
-let gitStatusMapsByProjectPath = $state(new Map<string, ReadonlyMap<string, FileGitStatus>>());
+let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 
 const activeFilePanel = $derived.by(() => {
 	const active =
@@ -58,39 +55,36 @@ const activeFileProject = $derived(
 	activeFilePanel === null ? undefined : projectsByPath.get(activeFilePanel.projectPath)
 );
 
-const panelProjectPaths = $derived.by(() =>
-	activeFilePanel === null ? [] : [activeFilePanel.projectPath]
-);
-
 $effect(() => {
-	const currentProjectPaths = panelProjectPaths;
+	const currentFilePanels = filePanels;
 	let cancelled = false;
 
-	// Reset cache to currently relevant projects only.
+	// Reset cache to currently relevant tabs only.
 	// Important: keep updates based on a local map snapshot so sync test doubles or
 	// immediate cache hits do not create a read/write self-dependency loop.
-	let nextStatusMapsByProjectPath = new Map<string, ReadonlyMap<string, FileGitStatus>>();
-	for (const projectPath of currentProjectPaths) {
-		nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
+	let nextGitStatusByFilePanelKey = new Map<string, FileGitStatus | null>();
+	for (const filePanel of currentFilePanels) {
+		nextGitStatusByFilePanelKey.set(getFilePanelStatusKey(filePanel), null);
 	}
-	gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
+	gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 
 	const deferredWork = scheduleLazyPanelMetadataWork(() => {
 		if (cancelled) return;
 
-		for (const projectPath of currentProjectPaths) {
-			gitStatusCache.getProjectGitStatusSummaryMap(projectPath).match(
-				(statusMap) => {
+		for (const filePanel of currentFilePanels) {
+			const filePanelStatusKey = getFilePanelStatusKey(filePanel);
+			gitStatusCache.getProjectFileGitStatusSummary(filePanel.projectPath, filePanel.filePath).match(
+				(fileStatus) => {
 					if (cancelled) return;
-					nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
-					nextStatusMapsByProjectPath.set(projectPath, statusMap);
-					gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
+					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
+					nextGitStatusByFilePanelKey.set(filePanelStatusKey, fileStatus);
+					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 				},
 				() => {
 					if (cancelled) return;
-					nextStatusMapsByProjectPath = new Map(nextStatusMapsByProjectPath);
-					nextStatusMapsByProjectPath.set(projectPath, EMPTY_GIT_STATUS_MAP);
-					gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
+					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
+					nextGitStatusByFilePanelKey.set(filePanelStatusKey, null);
+					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 				}
 			);
 		}
@@ -102,9 +96,16 @@ $effect(() => {
 	};
 });
 
+function getFilePanelStatusKey(filePanel: FilePanelType): string {
+	return `${filePanel.projectPath}\0${filePanel.filePath}`;
+}
+
 function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: number } {
-	const statusMap = gitStatusMapsByProjectPath.get(filePanel.projectPath) ?? EMPTY_GIT_STATUS_MAP;
-	return getFilePanelGitStats(statusMap, filePanel.filePath, filePanel.projectPath);
+	const status = gitStatusByFilePanelKey.get(getFilePanelStatusKey(filePanel)) ?? null;
+	return {
+		added: status?.insertions ?? 0,
+		removed: status?.deletions ?? 0,
+	};
 }
 </script>
 
