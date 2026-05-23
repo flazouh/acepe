@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { scheduleLazyPanelWork } from "./file-panel-defer.js";
+import { scheduleLazyPanelMetadataWork, scheduleLazyPanelWork } from "./file-panel-defer.js";
 
 describe("scheduleLazyPanelWork", () => {
 	afterEach(() => {
@@ -31,5 +31,24 @@ describe("scheduleLazyPanelWork", () => {
 		vi.runAllTimers();
 
 		expect(work).not.toHaveBeenCalled();
+	});
+
+	it("defers panel metadata work longer than file content work", () => {
+		vi.useFakeTimers();
+		const contentWork = vi.fn();
+		const metadataWork = vi.fn();
+
+		scheduleLazyPanelWork(contentWork);
+		scheduleLazyPanelMetadataWork(metadataWork);
+
+		vi.advanceTimersByTime(16);
+		expect(contentWork).toHaveBeenCalledTimes(1);
+		expect(metadataWork).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(233);
+		expect(metadataWork).not.toHaveBeenCalled();
+
+		vi.advanceTimersByTime(1);
+		expect(metadataWork).toHaveBeenCalledTimes(1);
 	});
 });

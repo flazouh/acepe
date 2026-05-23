@@ -3,7 +3,7 @@ import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/
 import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
 import { FilePanel } from "$lib/acp/components/file-panel/index.js";
-import { scheduleLazyPanelWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
+import { scheduleLazyPanelMetadataWork } from "$lib/acp/components/file-panel/file-panel-defer.js";
 import { getFilePanelGitStats } from "$lib/acp/components/file-panel/file-panel-git-status.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import { gitStatusCache } from "$lib/acp/services/git-status-cache.svelte.js";
@@ -63,7 +63,7 @@ $effect(() => {
 	}
 	gitStatusMapsByProjectPath = nextStatusMapsByProjectPath;
 
-	const deferredWork = scheduleLazyPanelWork(() => {
+	const deferredWork = scheduleLazyPanelMetadataWork(() => {
 		if (cancelled) return;
 
 		for (const projectPath of currentProjectPaths) {

@@ -3,12 +3,13 @@ export type DeferredWorkHandle = {
 };
 
 const LAZY_PANEL_WORK_DELAY_MS = 16;
+const LAZY_PANEL_METADATA_DELAY_MS = 250;
 
-export function scheduleLazyPanelWork(work: () => void): DeferredWorkHandle {
+function scheduleDeferredPanelWork(work: () => void, delayMs: number): DeferredWorkHandle {
 	let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
 		timeoutId = null;
 		work();
-	}, LAZY_PANEL_WORK_DELAY_MS);
+	}, delayMs);
 
 	return {
 		cancel() {
@@ -18,4 +19,12 @@ export function scheduleLazyPanelWork(work: () => void): DeferredWorkHandle {
 			}
 		},
 	};
+}
+
+export function scheduleLazyPanelWork(work: () => void): DeferredWorkHandle {
+	return scheduleDeferredPanelWork(work, LAZY_PANEL_WORK_DELAY_MS);
+}
+
+export function scheduleLazyPanelMetadataWork(work: () => void): DeferredWorkHandle {
+	return scheduleDeferredPanelWork(work, LAZY_PANEL_METADATA_DELAY_MS);
 }
