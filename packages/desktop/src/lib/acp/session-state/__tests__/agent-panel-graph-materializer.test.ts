@@ -767,6 +767,74 @@ describe("agent panel graph materializer", () => {
 		expect(relevantMapSetCount).toBe(3);
 	});
 
+	it("applies marked transcript appends without scanning unchanged transcript rows", () => {
+		const userEntry = createTranscriptEntry("user-1", "user", "hello");
+		const assistantEntry = createTranscriptEntry("assistant-1", "assistant", "working");
+		const appendedEntry = createTranscriptEntry("assistant-2", "assistant", "done");
+		const transcriptSnapshot = createTranscriptSnapshot([userEntry, assistantEntry]);
+		const graph = createGraph({ transcriptSnapshot });
+		const readModel = createAgentPanelGraphMaterializerReadModel();
+		const firstScene = readModel.apply({
+			panelId: "panel-1",
+			graph,
+			header: { title: "Session" },
+		});
+		const nextTranscriptEntries = [userEntry, assistantEntry, appendedEntry];
+		markTranscriptEntryArrayPatch(nextTranscriptEntries, {
+			baseEntries: transcriptSnapshot.entries,
+			patchedEntriesByIndex: null,
+			appendedEntries: [appendedEntry],
+		});
+		Object.defineProperty(nextTranscriptEntries, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged transcript rows for marked append");
+			},
+		});
+		Object.defineProperty(nextTranscriptEntries, "1", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged transcript rows for marked append");
+			},
+		});
+
+		try {
+			const nextScene = readModel.apply({
+				panelId: "panel-1",
+				graph: {
+					...graph,
+					transcriptSnapshot: {
+						revision: transcriptSnapshot.revision + 1,
+						entries: nextTranscriptEntries,
+					},
+					revision: {
+						graphRevision: 10,
+						transcriptRevision: transcriptSnapshot.revision + 1,
+						lastEventSeq: 43,
+					},
+				},
+				header: { title: "Session" },
+			});
+
+			expect(nextScene.conversation.entries[0]).toBe(firstScene.conversation.entries[0]);
+			expect(nextScene.conversation.entries[1]).toBe(firstScene.conversation.entries[1]);
+			expect(nextScene.conversation.entries[2]).toMatchObject({
+				id: "assistant-2",
+				type: "assistant",
+				markdown: "done",
+			});
+		} finally {
+			Object.defineProperty(nextTranscriptEntries, "0", {
+				configurable: true,
+				value: userEntry,
+			});
+			Object.defineProperty(nextTranscriptEntries, "1", {
+				configurable: true,
+				value: assistantEntry,
+			});
+		}
+	});
+
 	it("patches one transcript row without rebuilding unaffected conversation rows", () => {
 		const userEntry = createTranscriptEntry("user-1", "user", "hello");
 		const firstAssistantEntry = createTranscriptEntry("assistant-1", "assistant", "first");

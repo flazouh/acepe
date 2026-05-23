@@ -968,6 +968,13 @@ function materializeTranscriptAppendedConversation(
 	previous: CachedConversationState | null,
 	input: CachedConversationInput
 ): CachedConversationState | null {
+	const transcriptEntries = input.graph.transcriptSnapshot.entries;
+	const transcriptPatch = getTranscriptEntryArrayPatch(transcriptEntries);
+	const hasMarkedAppend =
+		transcriptPatch !== undefined &&
+		transcriptPatch.baseEntries === previous?.transcriptEntries &&
+		transcriptPatch.appendedEntries !== null &&
+		transcriptPatch.patchedEntriesByIndex === null;
 	if (
 		previous === null ||
 		previous.operations !== input.graph.operations ||
@@ -978,12 +985,11 @@ function materializeTranscriptAppendedConversation(
 			input.graph.activeStreamingTail
 		) ||
 		!areActivitiesEquivalent(previous.activity, input.graph.activity) ||
-		!isStableTranscriptAppend(previous.transcriptEntries, input.graph.transcriptSnapshot.entries)
+		(!hasMarkedAppend && !isStableTranscriptAppend(previous.transcriptEntries, transcriptEntries))
 	) {
 		return null;
 	}
 
-	const transcriptEntries = input.graph.transcriptSnapshot.entries;
 	const appendStartIndex = previous.transcriptEntries.length;
 	if (appendStartIndex === transcriptEntries.length) {
 		return {
