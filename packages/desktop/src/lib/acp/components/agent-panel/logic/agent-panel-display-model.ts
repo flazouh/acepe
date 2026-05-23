@@ -94,6 +94,7 @@ export interface AgentPanelDisplaySceneEntriesReadModel {
 export type AgentPanelDisplayScenePatch = {
 	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly entries: readonly AgentPanelSceneEntryModel[];
+	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
 const agentPanelDisplayScenePatches = new WeakMap<
@@ -1224,6 +1225,7 @@ function applyAssistantDisplayRowsToSceneEntriesByIndex(
 		agentPanelDisplayScenePatches.set(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
+			entriesByIndex: patchedEntriesByIndex,
 		});
 		return nextEntries;
 	}
@@ -1264,6 +1266,7 @@ function applyAssistantDisplayRowsToSceneEntriesByScan(
 		agentPanelDisplayScenePatches.set(nextEntries, {
 			baseSceneEntries: sceneEntries,
 			entries: patchedEntries,
+			entriesByIndex: patchedEntriesByIndex,
 		});
 		return nextEntries;
 	}

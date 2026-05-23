@@ -13,6 +13,7 @@ import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-mode
 import {
 	applyAgentPanelDisplayModelToSceneEntries,
 	createAgentPanelDisplayMemory,
+	getAgentPanelDisplayScenePatch,
 	type AgentPanelDisplayModel,
 } from "../agent-panel-display-model.js";
 import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
@@ -258,6 +259,21 @@ describe("scene-display-rows", () => {
 			createAgentPanelDisplayMemory(),
 			sceneEntries
 		);
+		const patch = getAgentPanelDisplayScenePatch(displayedEntries);
+		expect(patch?.entriesByIndex.get(2)).toMatchObject({
+			id: "assistant-1",
+			markdown: "Patched",
+		});
+		let originalPatchIterator: (() => IterableIterator<AgentPanelSceneEntryModel>) | undefined;
+		if (patch !== undefined) {
+			originalPatchIterator = patch.entries[Symbol.iterator].bind(patch.entries);
+			Object.defineProperty(patch.entries, Symbol.iterator, {
+				configurable: true,
+				value: () => {
+					throw new Error("must not iterate display patch entries directly");
+				},
+			});
+		}
 		Object.defineProperty(sceneEntries, "1", {
 			configurable: true,
 			get() {
@@ -279,6 +295,12 @@ describe("scene-display-rows", () => {
 				configurable: true,
 				value: { id: "tool-1", type: "tool_call", title: "Run", status: "done" },
 			});
+			if (patch !== undefined && originalPatchIterator !== undefined) {
+				Object.defineProperty(patch.entries, Symbol.iterator, {
+					configurable: true,
+					value: originalPatchIterator,
+				});
+			}
 		}
 	});
 

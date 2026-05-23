@@ -131,7 +131,7 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				baseEntriesByIdBeforeTokenReveal ??= entriesById;
 				entriesById = new PatchedSceneEntryMap(
 					baseEntriesByIdBeforeTokenReveal,
-					displayScenePatch.entries
+					displayScenePatch.entriesByIndex.values()
 				);
 				return entriesById;
 			}

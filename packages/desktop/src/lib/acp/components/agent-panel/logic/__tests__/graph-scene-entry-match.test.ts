@@ -429,11 +429,23 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		);
 		const patch = getAgentPanelDisplayScenePatch(patchedEntries);
 		expect(patch).toBeDefined();
+		expect(patch?.entriesByIndex.get(0)).toMatchObject({
+			id: "assistant-1",
+			markdown: "Answer",
+		});
 		const originalMap = patch?.entries.map;
+		let originalPatchIterator: (() => IterableIterator<AgentPanelSceneEntryModel>) | undefined;
 		if (patch !== undefined) {
 			patch.entries.map = () => {
 				throw new Error("must not map display patches while indexing scene entries");
 			};
+			originalPatchIterator = patch.entries[Symbol.iterator].bind(patch.entries);
+			Object.defineProperty(patch.entries, Symbol.iterator, {
+				configurable: true,
+				value: () => {
+					throw new Error("must not iterate display patch entries directly");
+				},
+			});
 		}
 
 		try {
@@ -446,6 +458,12 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		} finally {
 			if (patch !== undefined && originalMap !== undefined) {
 				patch.entries.map = originalMap;
+			}
+			if (patch !== undefined && originalPatchIterator !== undefined) {
+				Object.defineProperty(patch.entries, Symbol.iterator, {
+					configurable: true,
+					value: originalPatchIterator,
+				});
 			}
 		}
 	});

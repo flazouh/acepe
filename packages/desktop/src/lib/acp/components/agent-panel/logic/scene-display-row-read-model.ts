@@ -175,7 +175,7 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 				const patchedRows = patchDisplaySceneDisplayRows(
 					previousRows,
 					rowIndexBySceneEntryId,
-					displayScenePatch.entries
+					displayScenePatch.entriesByIndex.values()
 				);
 				if (patchedRows !== null) {
 					previousRows = patchedRows.rows;
