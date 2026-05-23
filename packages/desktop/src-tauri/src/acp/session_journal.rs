@@ -394,9 +394,12 @@ pub fn decode_serialized_events(
     replay_context: &SessionReplayContext,
     rows: Vec<SerializedSessionJournalEventRow>,
 ) -> Result<Vec<SessionJournalEvent>, anyhow::Error> {
-    rows.into_iter()
+    let mut events = rows
+        .into_iter()
         .map(|row| decode_serialized_event(replay_context, row))
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    events.sort_by_key(|event| event.event_seq);
+    Ok(events)
 }
 
 #[cfg(test)]
@@ -572,6 +575,24 @@ mod tests {
             },
             other => panic!("expected projection payload, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn decode_serialized_events_orders_rows_by_journal_sequence() {
+        let replay_context = replay_context();
+        let rows = vec![
+            serialized_projection_row(3, permission_update(3)),
+            serialized_projection_row(1, permission_update(1)),
+            serialized_projection_row(2, permission_update(2)),
+        ];
+
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+
+        let event_sequences = decoded
+            .iter()
+            .map(|event| event.event_seq)
+            .collect::<Vec<_>>();
+        assert_eq!(event_sequences, vec![1, 2, 3]);
     }
 
     #[test]
