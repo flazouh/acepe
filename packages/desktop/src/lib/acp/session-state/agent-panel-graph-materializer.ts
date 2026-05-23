@@ -1850,19 +1850,21 @@ function applyStableMarkedOperationIndexPatchInPlace(
 		previousIndex,
 		patchedOperationIds
 	);
-	for (const nextOperation of operationsToPatch) {
-		previousIndex.byOperationId.set(nextOperation.id, nextOperation);
-		if (nextOperation.source_link.kind === "transcript_linked") {
-			previousIndex.byTranscriptSourceEntryId.set(
-				nextOperation.source_link.entry_id,
-				nextOperation
-			);
-		}
-	}
+	const patchedOperationById = createOperationPatchMap(operationsToPatch);
+	const patchedOperationByTranscriptEntryId =
+		createTranscriptLinkedOperationPatchMap(operationsToPatch);
+	const patchedOperationIndex =
+		changedOperationIds.size === 0
+			? previousIndex
+			: createPatchedOperationIndex(
+					previousIndex,
+					patchedOperationById,
+					patchedOperationByTranscriptEntryId
+				);
 
-	let operationIndex = previousIndex;
+	let operationIndex = patchedOperationIndex;
 	if (hasAppendedOperations) {
-		operationIndex = appendOperationIndex(previousIndex, appendedOperations);
+		operationIndex = appendOperationIndex(patchedOperationIndex, appendedOperations);
 		const appendedOperationIds = new Set<string>();
 		for (const operation of appendedOperations) {
 			appendedOperationIds.add(operation.id);
@@ -1969,6 +1971,99 @@ function appendOperationIndex(
 			appendedOperations
 		),
 	};
+}
+
+function createOperationPatchMap(
+	operations: readonly OperationSnapshot[]
+): ReadonlyMap<string, OperationSnapshot> {
+	const patches = new Map<string, OperationSnapshot>();
+	for (const operation of operations) {
+		patches.set(operation.id, operation);
+	}
+	return patches;
+}
+
+function createTranscriptLinkedOperationPatchMap(
+	operations: readonly OperationSnapshot[]
+): ReadonlyMap<string, OperationSnapshot> {
+	const patches = new Map<string, OperationSnapshot>();
+	for (const operation of operations) {
+		if (operation.source_link.kind === "transcript_linked") {
+			patches.set(operation.source_link.entry_id, operation);
+		}
+	}
+	return patches;
+}
+
+function createPatchedOperationIndex(
+	index: OperationIndex,
+	operationPatchesById: ReadonlyMap<string, OperationSnapshot>,
+	operationPatchesByTranscriptEntryId: ReadonlyMap<string, OperationSnapshot>
+): OperationIndex {
+	return {
+		byOperationId: new PatchedOperationMap(index.byOperationId, operationPatchesById),
+		byTranscriptSourceEntryId: new PatchedOperationMap(
+			index.byTranscriptSourceEntryId,
+			operationPatchesByTranscriptEntryId
+		),
+		parentsByChildOperationId: index.parentsByChildOperationId,
+	};
+}
+
+class PatchedOperationMap extends Map<string, OperationSnapshot> {
+	constructor(
+		private readonly base: Map<string, OperationSnapshot>,
+		private readonly patches: ReadonlyMap<string, OperationSnapshot>
+	) {
+		super();
+	}
+
+	override get size(): number {
+		let size = this.base.size;
+		for (const key of this.patches.keys()) {
+			if (!this.base.has(key) && !super.has(key)) {
+				size += 1;
+			}
+		}
+		return size + super.size;
+	}
+
+	override get(key: string): OperationSnapshot | undefined {
+		const local = super.get(key);
+		if (local !== undefined) {
+			return local;
+		}
+		return this.patches.get(key) ?? this.base.get(key);
+	}
+
+	override has(key: string): boolean {
+		return this.get(key) !== undefined;
+	}
+
+	override *entries(): MapIterator<[string, OperationSnapshot]> {
+		const yieldedKeys = new Set<string>();
+		for (const [key, value] of this.patches.entries()) {
+			if (!super.has(key)) {
+				yieldedKeys.add(key);
+				yield [key, value];
+			}
+		}
+		for (const [key, value] of this.base.entries()) {
+			if (!yieldedKeys.has(key) && !super.has(key)) {
+				yieldedKeys.add(key);
+				yield [key, value];
+			}
+		}
+		for (const [key, value] of super.entries()) {
+			if (!yieldedKeys.has(key)) {
+				yield [key, value];
+			}
+		}
+	}
+
+	override [Symbol.iterator](): MapIterator<[string, OperationSnapshot]> {
+		return this.entries();
+	}
 }
 
 class AppendedOperationByIdMap extends Map<string, OperationSnapshot> {

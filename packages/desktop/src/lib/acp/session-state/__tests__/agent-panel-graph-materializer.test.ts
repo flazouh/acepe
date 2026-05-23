@@ -571,11 +571,29 @@ describe("agent panel graph materializer", () => {
 			},
 		});
 		const originalMapIterator = Map.prototype[Symbol.iterator];
+		const originalMapSet = Map.prototype.set;
 		Map.prototype[Symbol.iterator] = function patchedMapIterator<K, V>(this: Map<K, V>) {
 			if (this.has("op-1" as K) || this.has("tool-1" as K)) {
 				throw new Error("must not clone operation index maps for a stable operation patch");
 			}
 			return originalMapIterator.call(this);
+		};
+		Map.prototype.set = function patchedMapSet<K, V>(
+			this: Map<K, V>,
+			key: K,
+			value: V
+		): Map<K, V> {
+			if (
+				typeof key === "string" &&
+				(key === "op-2" || key === "tool-2") &&
+				typeof value === "object" &&
+				value !== null &&
+				"id" in value &&
+				this.has("op-1" as K)
+			) {
+				throw new Error("must not mutate the previous operation index for a stable patch");
+			}
+			return originalMapSet.call(this, key, value);
 		};
 
 		try {
@@ -610,6 +628,7 @@ describe("agent panel graph materializer", () => {
 			});
 		} finally {
 			Map.prototype[Symbol.iterator] = originalMapIterator;
+			Map.prototype.set = originalMapSet;
 			Object.defineProperty(operations, "0", {
 				configurable: true,
 				value: firstOperation,
