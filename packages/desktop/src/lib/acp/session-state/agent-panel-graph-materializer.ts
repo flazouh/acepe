@@ -984,7 +984,37 @@ function areSceneEntriesEquivalent(
 	left: AgentPanelSceneEntryModel,
 	right: AgentPanelSceneEntryModel
 ): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
+	return areJsonLikeValuesEquivalent(left, right);
+}
+
+function areJsonLikeValuesEquivalent(left: unknown, right: unknown): boolean {
+	if (Object.is(left, right)) {
+		return true;
+	}
+	if (typeof left !== typeof right) {
+		return false;
+	}
+	if (left === null || right === null) {
+		return false;
+	}
+	if (typeof left !== "object" || typeof right !== "object") {
+		return false;
+	}
+	if (Array.isArray(left) || Array.isArray(right)) {
+		if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+			return false;
+		}
+		return left.every((item, index) => areJsonLikeValuesEquivalent(item, right[index]));
+	}
+
+	const leftEntries = Object.entries(left);
+	const rightRecord = right as Record<string, unknown>;
+	if (leftEntries.length !== Object.keys(rightRecord).length) {
+		return false;
+	}
+	return leftEntries.every(([key, value]) =>
+		areJsonLikeValuesEquivalent(value, rightRecord[key])
+	);
 }
 
 function applyOperationIndexPatch(
