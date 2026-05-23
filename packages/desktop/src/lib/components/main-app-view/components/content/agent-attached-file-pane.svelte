@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
 import { FilePathBadge } from "@acepe/ui";
 import { IconX } from "@tabler/icons-svelte";
@@ -37,6 +38,18 @@ let {
 
 let gitStatusByFilePanelKey = $state(new Map<string, FileGitStatus | null>());
 
+function createRetainedGitStatusMap(
+	filePanels: readonly FilePanelType[],
+	currentStatuses: ReadonlyMap<string, FileGitStatus | null>
+): Map<string, FileGitStatus | null> {
+	const nextStatuses = new Map<string, FileGitStatus | null>();
+	for (const filePanel of filePanels) {
+		const key = getFilePanelStatusKey(filePanel);
+		nextStatuses.set(key, currentStatuses.get(key) ?? null);
+	}
+	return nextStatuses;
+}
+
 const activeFilePanel = $derived.by(() => {
 	if (selectedActiveFilePanel?.ownerPanelId === ownerPanelId) {
 		return selectedActiveFilePanel;
@@ -63,16 +76,18 @@ const activeFileProject = $derived(
 $effect(() => {
 	const currentFilePanels = filePanels;
 	const currentActiveFilePanel = activeFilePanel;
+	const currentGitStatuses = untrack(() => gitStatusByFilePanelKey);
 	let cancelled = false;
 
 	// Reset cache to currently relevant tabs only, but keep git metadata lazy.
-	// Opening a file should not kick off metadata work for every attached tab.
+	// Opening or switching files should not clear known badge stats for unaffected tabs,
+	// and should not kick off metadata work for every attached tab either.
 	// Important: keep updates based on a local map snapshot so sync test doubles or
 	// immediate cache hits do not create a read/write self-dependency loop.
-	let nextGitStatusByFilePanelKey = new Map<string, FileGitStatus | null>();
-	for (const filePanel of currentFilePanels) {
-		nextGitStatusByFilePanelKey.set(getFilePanelStatusKey(filePanel), null);
-	}
+	let nextGitStatusByFilePanelKey = createRetainedGitStatusMap(
+		currentFilePanels,
+		currentGitStatuses
+	);
 	gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 
 	if (currentActiveFilePanel === null) {

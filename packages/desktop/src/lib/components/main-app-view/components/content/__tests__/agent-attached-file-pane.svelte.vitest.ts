@@ -157,6 +157,7 @@ describe("AgentAttachedFilePane", () => {
 
 		await waitFor(() => {
 			const badges = view.getAllByTestId("file-path-badge");
+			expect(badges[0]?.textContent).toBe("src/a.ts:3:1");
 			expect(badges[1]?.textContent).toBe("src/b.ts:8:2");
 		});
 
