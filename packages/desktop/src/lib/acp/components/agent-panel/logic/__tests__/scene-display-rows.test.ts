@@ -10,6 +10,11 @@ import {
 } from "../scene-display-rows.js";
 import { createSceneDisplayRowsReadModel } from "../scene-display-row-read-model.js";
 import { createTokenRevealSceneReadModel } from "../token-reveal-scene-read-model.js";
+import {
+	applyAgentPanelDisplayModelToSceneEntries,
+	createAgentPanelDisplayMemory,
+	type AgentPanelDisplayModel,
+} from "../agent-panel-display-model.js";
 
 describe("scene-display-rows", () => {
 	it("builds stable scene-derived display rows for mixed conversation entries", () => {
@@ -217,6 +222,63 @@ describe("scene-display-rows", () => {
 
 		expect(readModel.applyAppendPatch([])).toBe(snapshotRows);
 		expect(readModel.selectRows()).toBe(snapshotRows);
+	});
+
+	it("applies display scene patches without scanning unchanged scene entries", () => {
+		const readModel = createSceneDisplayRowsReadModel();
+		const sceneEntries: AgentPanelSceneEntryModel[] = [
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "tool-1", type: "tool_call", title: "Run", status: "done" },
+			{ id: "assistant-1", type: "assistant", markdown: "" },
+		];
+		const initialRows = readModel.applySnapshot(sceneEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Patched",
+					displayText: "Patched",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: false,
+				},
+			],
+			viewport: { hasLiveTail: false, requiresStableTailMount: false },
+		};
+		const displayedEntries = applyAgentPanelDisplayModelToSceneEntries(
+			model,
+			createAgentPanelDisplayMemory(),
+			sceneEntries
+		);
+		Object.defineProperty(sceneEntries, "1", {
+			configurable: true,
+			get() {
+				throw new Error("must not scan unchanged scene entries for a display patch");
+			},
+		});
+
+		try {
+			const patchedRows = readModel.applySnapshot(displayedEntries);
+
+			expect(patchedRows[0]).toBe(initialRows[0]);
+			expect(patchedRows[1]).toBe(initialRows[1]);
+			expect(patchedRows[2]).toMatchObject({
+				type: "assistant_merged",
+				markdown: "Patched",
+			});
+		} finally {
+			Object.defineProperty(sceneEntries, "1", {
+				configurable: true,
+				value: { id: "tool-1", type: "tool_call", title: "Run", status: "done" },
+			});
+		}
 	});
 
 	it("uses append-only updates when prior scene entries are fresh objects but content-stable", () => {

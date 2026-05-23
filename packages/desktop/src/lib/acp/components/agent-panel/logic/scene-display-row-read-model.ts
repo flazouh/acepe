@@ -13,6 +13,7 @@ import {
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
 import { createAppendedSceneEntriesArray } from "./scene-entry-array-view.js";
+import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import { getTokenRevealScenePatch } from "./token-reveal-scene-read-model.js";
 
 export interface SceneDisplayRowsReadModel {
@@ -70,6 +71,28 @@ export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
 			}
 
 			baseRowsBeforeTokenReveal = null;
+			const displayScenePatch = getAgentPanelDisplayScenePatch(sceneEntries);
+			if (
+				displayScenePatch !== undefined &&
+				displayScenePatch.baseSceneEntries === previousSceneEntries
+			) {
+				const patchedRows = patchDisplaySceneDisplayRows(
+					previousRows,
+					rowIndexBySceneEntryId,
+					displayScenePatch.entries
+				);
+				if (patchedRows !== null) {
+					previousRows = patchedRows.rows;
+					latestTimestampMs = selectLatestTimestampMsFrom(
+						previousRows,
+						patchedRows.firstChangedRowIndex,
+						latestTimestampMs
+					);
+					previousSceneEntries = sceneEntries;
+					return previousRows;
+				}
+			}
+
 			if (
 				previousSceneEntries !== null &&
 				isStableSceneEntryAppend(previousSceneEntries, sceneEntries)
@@ -413,6 +436,43 @@ function patchSameLengthSceneDisplayRows(
 	if (patchedRowsByIndex.size === 0) {
 		return { rows: previousRows, firstChangedRowIndex: previousRows.length };
 	}
+	return {
+		rows: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex),
+		firstChangedRowIndex,
+	};
+}
+
+function patchDisplaySceneDisplayRows(
+	previousRows: readonly SceneDisplayRow[],
+	rowIndexBySceneEntryId: ReadonlyMap<string, number>,
+	patchedEntries: readonly AgentPanelSceneEntryModel[]
+): { readonly rows: readonly SceneDisplayRow[]; readonly firstChangedRowIndex: number } | null {
+	const patchedRowsByIndex = new Map<number, SceneDisplayRow>();
+	let firstChangedRowIndex = Number.POSITIVE_INFINITY;
+	for (const patchedEntry of patchedEntries) {
+		const rowIndex = rowIndexBySceneEntryId.get(patchedEntry.id);
+		if (rowIndex === undefined) {
+			return null;
+		}
+		const previousRow = previousRows[rowIndex];
+		if (previousRow === undefined || !canPatchSceneDisplayRow(previousRow, patchedEntry.id)) {
+			return null;
+		}
+		const patchedRow = buildSceneDisplayRows([patchedEntry])[0];
+		if (
+			patchedRow === undefined ||
+			getSceneDisplayRowKey(patchedRow) !== getSceneDisplayRowKey(previousRow)
+		) {
+			return null;
+		}
+		patchedRowsByIndex.set(rowIndex, patchedRow);
+		firstChangedRowIndex = Math.min(firstChangedRowIndex, rowIndex);
+	}
+
+	if (patchedRowsByIndex.size === 0) {
+		return { rows: previousRows, firstChangedRowIndex: previousRows.length };
+	}
+
 	return {
 		rows: createPatchedSceneDisplayRowsArray(previousRows, patchedRowsByIndex),
 		firstChangedRowIndex,
