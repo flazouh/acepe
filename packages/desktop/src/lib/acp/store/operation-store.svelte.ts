@@ -319,8 +319,13 @@ export class OperationStore {
 
 		const previousVersion = this.sessionOperationVersions.get(sessionId) ?? 0;
 		const cachedSessionOperations = this.sessionOperationsBySession.get(sessionId);
+		const cachedSessionToolCalls = this.sessionToolCallsBySession.get(sessionId);
 		let cachedOperationPatches: Map<number, Operation> | null = null;
 		let cachedOperationAppends: Operation[] | null = null;
+		let cachedToolCallPatches: Map<number, ToolCall> | null = null;
+		let cachedToolCallAppends: ToolCall[] | null = null;
+		let canPatchCachedToolCalls =
+			cachedSessionToolCalls === undefined || cachedSessionToolCalls.version === previousVersion;
 		let changed = false;
 		let appendedOperationId = false;
 		for (const snapshot of snapshots) {
@@ -335,13 +340,28 @@ export class OperationStore {
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
 			changed = true;
+			const isRootOperation =
+				operation.parentOperationId === null &&
+				(existingOperation === undefined || existingOperation.parentOperationId === null);
+			if (cachedSessionToolCalls?.version === previousVersion && !isRootOperation) {
+				canPatchCachedToolCalls = false;
+			}
+			let wasAppendedOperation = false;
 			if (!sessionOperationIdSet.has(operation.id)) {
 				sessionOperationIds.push(operation.id);
 				sessionOperationIdSet.add(operation.id);
 				appendedOperationId = true;
+				wasAppendedOperation = true;
 				if (cachedSessionOperations?.version === previousVersion) {
 					cachedOperationAppends ??= [];
 					cachedOperationAppends.push(operation);
+				}
+				if (cachedSessionToolCalls?.version === previousVersion && isRootOperation) {
+					const toolCall = this.materializeToolCall(operation.id, new Set<string>());
+					if (toolCall !== null) {
+						cachedToolCallAppends ??= [];
+						cachedToolCallAppends.push(toolCall);
+					}
 				}
 			} else if (cachedSessionOperations?.version === previousVersion) {
 				const cachedOperationIndex = findCachedOperationIndex(
@@ -351,6 +371,22 @@ export class OperationStore {
 				if (cachedOperationIndex !== -1) {
 					cachedOperationPatches ??= new Map<number, Operation>();
 					cachedOperationPatches.set(cachedOperationIndex, operation);
+				}
+			}
+			if (
+				sessionOperationIdSet.has(operation.id) &&
+				!wasAppendedOperation &&
+				cachedSessionToolCalls?.version === previousVersion &&
+				isRootOperation
+			) {
+				const cachedToolCallIndex = findCachedToolCallIndex(
+					cachedSessionToolCalls.toolCalls,
+					operation.toolCallId
+				);
+				const toolCall = this.materializeToolCall(operation.id, new Set<string>());
+				if (cachedToolCallIndex !== -1 && toolCall !== null) {
+					cachedToolCallPatches ??= new Map<number, ToolCall>();
+					cachedToolCallPatches.set(cachedToolCallIndex, toolCall);
 				}
 			}
 			this.updateCurrentStreamingOperation(sessionId, operation);
@@ -367,6 +403,16 @@ export class OperationStore {
 						cachedSessionOperations.operations,
 						cachedOperationPatches,
 						cachedOperationAppends
+					),
+				});
+			}
+			if (cachedSessionToolCalls?.version === previousVersion && canPatchCachedToolCalls) {
+				this.sessionToolCallsBySession.set(sessionId, {
+					version: nextVersion,
+					toolCalls: createPatchedToolCallArray(
+						cachedSessionToolCalls.toolCalls,
+						cachedToolCallPatches,
+						cachedToolCallAppends
 					),
 				});
 			}
@@ -542,6 +588,15 @@ function findCachedOperationIndex(operations: readonly Operation[], operationId:
 	return -1;
 }
 
+function findCachedToolCallIndex(toolCalls: readonly ToolCall[], toolCallId: string): number {
+	for (let index = 0; index < toolCalls.length; index += 1) {
+		if (toolCalls[index]?.id === toolCallId) {
+			return index;
+		}
+	}
+	return -1;
+}
+
 function createPatchedOperationArray(
 	baseOperations: readonly Operation[],
 	operationPatches: ReadonlyMap<number, Operation> | null,
@@ -600,6 +655,64 @@ function createPatchedOperationArray(
 	}) as Array<Operation>;
 }
 
+function createPatchedToolCallArray(
+	baseToolCalls: readonly ToolCall[],
+	toolCallPatches: ReadonlyMap<number, ToolCall> | null,
+	appendedToolCalls: readonly ToolCall[] | null
+): Array<ToolCall> {
+	if (toolCallPatches === null && appendedToolCalls === null) {
+		return baseToolCalls as Array<ToolCall>;
+	}
+
+	const appended = appendedToolCalls ?? [];
+	const target = new Array<ToolCall>(baseToolCalls.length + appended.length);
+	return new Proxy(target, {
+		get(targetArray, property, receiver) {
+			if (property === Symbol.iterator) {
+				return function* () {
+					for (let index = 0; index < targetArray.length; index += 1) {
+						yield selectPatchedToolCall(baseToolCalls, toolCallPatches, appended, index);
+					}
+				};
+			}
+			if (typeof property === "string") {
+				const index = toArrayIndex(property);
+				if (index !== null) {
+					return selectPatchedToolCall(baseToolCalls, toolCallPatches, appended, index);
+				}
+				if (property === "slice") {
+					return (start?: number, end?: number) =>
+						Array.prototype.slice.call(receiver, start, end);
+				}
+			}
+			const value = Reflect.get(targetArray, property, receiver);
+			return typeof value === "function" ? value.bind(receiver) : value;
+		},
+		has(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null) {
+				return index >= 0 && index < targetArray.length;
+			}
+			return property in targetArray;
+		},
+		getOwnPropertyDescriptor(targetArray, property) {
+			const index = typeof property === "string" ? toArrayIndex(property) : null;
+			if (index !== null && index >= 0 && index < targetArray.length) {
+				return {
+					configurable: true,
+					enumerable: true,
+					value: selectPatchedToolCall(baseToolCalls, toolCallPatches, appended, index),
+					writable: false,
+				};
+			}
+			return Reflect.getOwnPropertyDescriptor(targetArray, property);
+		},
+		ownKeys(targetArray) {
+			return createArrayLikeOwnKeys(targetArray.length);
+		},
+	}) as Array<ToolCall>;
+}
+
 function selectPatchedOperation(
 	baseOperations: readonly Operation[],
 	operationPatches: ReadonlyMap<number, Operation> | null,
@@ -610,6 +723,18 @@ function selectPatchedOperation(
 		return operationPatches?.get(index) ?? baseOperations[index];
 	}
 	return appendedOperations[index - baseOperations.length];
+}
+
+function selectPatchedToolCall(
+	baseToolCalls: readonly ToolCall[],
+	toolCallPatches: ReadonlyMap<number, ToolCall> | null,
+	appendedToolCalls: readonly ToolCall[],
+	index: number
+): ToolCall | undefined {
+	if (index < baseToolCalls.length) {
+		return toolCallPatches?.get(index) ?? baseToolCalls[index];
+	}
+	return appendedToolCalls[index - baseToolCalls.length];
 }
 
 function toArrayIndex(property: string): number | null {

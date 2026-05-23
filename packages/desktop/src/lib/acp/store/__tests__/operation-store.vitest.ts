@@ -246,6 +246,63 @@ describe("OperationStore", () => {
 		});
 	});
 
+	it("updates cached root tool calls without rematerializing unchanged roots", () => {
+		const operationStore = new OperationStore();
+		const firstOperationId = buildCanonicalOperationId("session-1", "tool-1");
+		const secondOperationId = buildCanonicalOperationId("session-1", "tool-2");
+		operationStore.replaceSessionOperations("session-1", [
+			createOperationSnapshot({
+				id: firstOperationId,
+				tool_call_id: "tool-1",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "first",
+			}),
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "in_progress",
+				operation_state: "running",
+			}),
+		]);
+		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
+		const operationsById = (operationStore as unknown as {
+			operationsById: Map<string, unknown>;
+		}).operationsById;
+		const originalGet = operationsById.get;
+
+		operationStore.applySessionOperationPatches("session-1", [
+			createOperationSnapshot({
+				id: secondOperationId,
+				tool_call_id: "tool-2",
+				provider_status: "completed",
+				operation_state: "completed",
+				result: "second",
+			}),
+		]);
+
+		operationsById.get = function patchedGet(this: Map<string, unknown>, key: string) {
+			if (key === firstOperationId) {
+				throw new Error("must not rematerialize unchanged root tool calls");
+			}
+			return originalGet.call(this, key);
+		};
+
+		try {
+			const patchedToolCalls = operationStore.getSessionToolCalls("session-1");
+			expect(patchedToolCalls).not.toBe(firstToolCalls);
+			expect(patchedToolCalls[0]).toBe(firstToolCalls[0]);
+			expect(patchedToolCalls[1]).toMatchObject({
+				id: "tool-2",
+				status: "completed",
+				result: "second",
+			});
+			expect(patchedToolCalls.map((toolCall) => toolCall.id)).toEqual(["tool-1", "tool-2"]);
+		} finally {
+			operationsById.get = originalGet;
+		}
+	});
+
 	it("caches current and last tool selectors until canonical operations change", () => {
 		const operationStore = new OperationStore();
 		const operationId = buildCanonicalOperationId("session-1", "tool-1");
