@@ -1383,8 +1383,7 @@ function materializeOperationPatchedConversation(
 		!areActiveStreamingTailsEquivalent(
 			previous.activeStreamingTail,
 			input.graph.activeStreamingTail
-		) ||
-		!areActivitiesEquivalent(previous.activity, input.graph.activity)
+		)
 	) {
 		return null;
 	}
@@ -1409,6 +1408,7 @@ function materializeOperationPatchedConversation(
 			...previous,
 			operations: input.graph.operations,
 			operationIndex,
+			activity: input.graph.activity,
 		};
 	}
 
@@ -1420,6 +1420,7 @@ function materializeOperationPatchedConversation(
 			...previous,
 			operations: input.graph.operations,
 			operationIndex,
+			activity: input.graph.activity,
 		};
 	}
 

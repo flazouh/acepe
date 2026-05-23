@@ -538,6 +538,13 @@ describe("agent panel graph materializer", () => {
 		const graph = createGraph({
 			transcriptSnapshot,
 			operations,
+			activity: {
+				kind: "running_operation",
+				activeOperationCount: 1,
+				activeSubagentCount: 0,
+				dominantOperationId: "op-2",
+				blockingInteractionId: null,
+			},
 		});
 		const readModel = createAgentPanelGraphMaterializerReadModel();
 
@@ -577,6 +584,13 @@ describe("agent panel graph materializer", () => {
 				graph: {
 					...graph,
 					operations: nextOperations,
+					activity: {
+						kind: "idle",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+						dominantOperationId: null,
+						blockingInteractionId: null,
+					},
 					revision: {
 						graphRevision: 10,
 						transcriptRevision: graph.revision.transcriptRevision,
