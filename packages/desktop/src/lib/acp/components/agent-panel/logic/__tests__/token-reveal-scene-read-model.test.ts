@@ -171,6 +171,41 @@ describe("createTokenRevealSceneReadModel", () => {
 		expect(readModel.selectSettlingTimings()).toEqual([]);
 	});
 
+	it("keeps stable no-op scene updates on the patch lane", () => {
+		const readModel = createTokenRevealSceneReadModel();
+		const assistantEntry: AgentPanelSceneEntryModel = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "Answer",
+			isStreaming: true,
+		};
+		const toolEntry: AgentPanelSceneEntryModel = {
+			id: "tool-1",
+			type: "tool_call",
+			kind: "execute",
+			title: "Read file",
+			status: "done",
+		};
+		const tokenRevealCss = createTokenRevealCss();
+		const firstEntries = readModel.applySnapshot({
+			sceneEntries: [assistantEntry, toolEntry],
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		const patchedEntries = readModel.applyPatch({
+			sceneEntries: [{ ...assistantEntry }, { ...toolEntry }],
+			sourceEntry: assistantEntry,
+			tailRowId: "assistant-1",
+			tailRowIndex: 0,
+			tokenRevealCss,
+		});
+
+		expect(patchedEntries).toBe(firstEntries);
+	});
+
 	it("keeps selecting the same tail row when token reveal css changes", () => {
 		const readModel = createTokenRevealSceneReadModel();
 		const userEntry: AgentPanelSceneEntryModel = {

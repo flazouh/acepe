@@ -6,6 +6,7 @@ import {
 } from "./scene-entry-array-view.js";
 import { getAgentPanelDisplayScenePatch } from "./agent-panel-display-model.js";
 import {
+	isSceneEntryStable,
 	isStableSceneEntryAppend,
 	isStableSceneEntryTruncation,
 } from "./scene-entry-stability.js";
@@ -75,6 +76,10 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 				previous.tokenRevealCss === snapshot.tokenRevealCss;
 			if (!revealStateUnchanged) {
 				return null;
+			}
+			if (hasSameStableSceneEntries(previous.sceneEntries, snapshot.sceneEntries)) {
+				previousSnapshot = snapshot;
+				return previousEntries;
 			}
 
 			const appendPatch = getAgentPanelSceneEntryArrayAppendPatch(snapshot.sceneEntries);
@@ -308,6 +313,23 @@ export function createTokenRevealSceneReadModel(): TokenRevealSceneReadModel {
 			return previousTimings;
 		},
 	};
+}
+
+function hasSameStableSceneEntries(
+	previous: readonly AgentPanelSceneEntryModel[],
+	next: readonly AgentPanelSceneEntryModel[]
+): boolean {
+	if (previous.length !== next.length) {
+		return false;
+	}
+
+	for (let index = 0; index < previous.length; index += 1) {
+		if (!isSceneEntryStable(previous[index], next[index])) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 function createTruncatedSceneEntriesArray(
