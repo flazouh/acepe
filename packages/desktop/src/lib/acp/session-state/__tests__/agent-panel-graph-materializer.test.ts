@@ -18,6 +18,7 @@ import {
 	createAgentPanelGraphMaterializerReadModel,
 	materializeAgentPanelSceneFromGraph,
 } from "../agent-panel-graph-materializer.js";
+import { getAgentPanelSceneEntryArrayPatch } from "../agent-panel-scene-entry-array-patch.js";
 import { markInteractionSnapshotArrayPatch } from "../interaction-snapshot-array-patch.js";
 import { markOperationSnapshotArrayPatch } from "../operation-snapshot-array-patch.js";
 import { markTranscriptEntryArrayPatch } from "../transcript-entry-array-patch.js";
@@ -1027,6 +1028,11 @@ describe("agent panel graph materializer", () => {
 				markdown: "streaming update",
 				isStreaming: true,
 			});
+			const scenePatch = getAgentPanelSceneEntryArrayPatch(nextScene.conversation.entries);
+			expect(scenePatch?.baseSceneEntries).toBe(firstScene.conversation.entries);
+			expect(scenePatch?.entries).toEqual([nextScene.conversation.entries[2]]);
+			expect(scenePatch?.entriesByIndex.get(2)).toBe(nextScene.conversation.entries[2]);
+			expect(Array.from(scenePatch?.entriesByIndex.keys() ?? [])).toEqual([2]);
 		} finally {
 			Map.prototype[Symbol.iterator] = originalMapIterator;
 			firstEntries.slice = originalSlice;

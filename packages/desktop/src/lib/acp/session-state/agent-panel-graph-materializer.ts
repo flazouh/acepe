@@ -1529,6 +1529,7 @@ function createPatchedSceneEntryArray(
 	markAgentPanelSceneEntryArrayPatch(entries, {
 		baseSceneEntries: baseEntries,
 		entries: Array.from(entryPatches.values()),
+		entriesByIndex: entryPatches,
 	});
 	return entries;
 }

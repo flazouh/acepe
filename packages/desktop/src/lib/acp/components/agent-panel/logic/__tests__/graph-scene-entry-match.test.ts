@@ -501,6 +501,7 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
 			baseSceneEntries: baseEntries,
 			entries: [patchedEntry],
+			entriesByIndex: new Map([[0, patchedEntry]]),
 		});
 
 		try {

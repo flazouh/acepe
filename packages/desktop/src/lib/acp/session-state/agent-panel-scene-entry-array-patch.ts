@@ -3,6 +3,7 @@ import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 export type AgentPanelSceneEntryArrayPatch = {
 	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
 	readonly entries: readonly AgentPanelSceneEntryModel[];
+	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
 };
 
 const agentPanelSceneEntryArrayPatches = new WeakMap<

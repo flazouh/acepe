@@ -439,6 +439,7 @@ describe("createAgentPanelDisplaySceneEntriesReadModel", () => {
 		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
 			baseSceneEntries: baseEntries,
 			entries: [nextAssistantEntry],
+			entriesByIndex: new Map([[1, nextAssistantEntry]]),
 		});
 		Object.defineProperty(baseEntries, "0", {
 			configurable: true,
@@ -1095,6 +1096,7 @@ describe("createAgentPanelDisplayRowsReadModel", () => {
 		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
 			baseSceneEntries: baseEntries,
 			entries: [patchedToolEntry],
+			entriesByIndex: new Map([[1, patchedToolEntry]]),
 		});
 		Object.defineProperty(baseEntries, "0", {
 			configurable: true,
