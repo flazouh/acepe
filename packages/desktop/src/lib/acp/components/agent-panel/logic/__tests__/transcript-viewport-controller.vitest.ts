@@ -84,6 +84,58 @@ describe("TranscriptViewportController", () => {
 		expect(result.effects.map((effect) => effect.type)).not.toContain("RevealTail");
 	});
 
+	it("skips detached anchor preservation when the changed range is entirely below the anchor", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: {
+				...baseRows,
+				rowIndexByKey: new Map([
+					["user-1", 0],
+					["assistant-1", 1],
+					["tool-1", 2],
+				]),
+			},
+		});
+		const detached = reduceTranscriptViewportEvent(initial, {
+			type: "UserScroll",
+			sessionId: "session-1",
+			generation: initial.generation,
+			measurement: {
+				scrollOffset: 240,
+				scrollSize: 1200,
+				viewportSize: 300,
+			},
+			anchorKey: "assistant-1",
+			anchorOffsetPx: 18,
+		}).state;
+
+		const result = reduceTranscriptViewportEvent(detached, {
+			type: "RowsChanged",
+			sessionId: "session-1",
+			generation: detached.generation,
+			rows: {
+				version: 2,
+				count: 4,
+				firstKey: "user-1",
+				lastKey: "tool-2",
+				latestUserKey: "user-1",
+				rowIndexByKey: new Map([
+					["user-1", 0],
+					["assistant-1", 1],
+					["tool-2", 2],
+				]),
+				anchorEligibleKeys: ["user-1", "assistant-1", "tool-2"],
+				changedRange: {
+					startIndex: 2,
+					endIndex: 3,
+				},
+			},
+		});
+
+		expect(result.state.follow).toBe("detached");
+		expect(result.effects).toEqual([]);
+	});
+
 	it("stores the captured visible anchor offset instead of raw scroll offset", () => {
 		const initial = createInitialTranscriptViewportState({
 			sessionId: "session-1",

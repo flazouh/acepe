@@ -275,6 +275,12 @@ function reduceRowsChanged(
 	}
 
 	if (nextRowsState.anchor.type === "row") {
+		if (!shouldPreserveDetachedRowAnchor(nextRowsState.rows, nextRowsState.anchor.rowKey)) {
+			return {
+				state: nextRowsState,
+				effects: [],
+			};
+		}
 		return {
 			state: nextRowsState,
 			effects: [
@@ -293,6 +299,21 @@ function reduceRowsChanged(
 		state: nextRowsState,
 		effects: [],
 	};
+}
+
+function shouldPreserveDetachedRowAnchor(
+	rows: TranscriptViewportRowSummary,
+	anchorKey: string
+): boolean {
+	const anchorIndex = rows.rowIndexByKey?.get(anchorKey);
+	if (anchorIndex === undefined) {
+		return true;
+	}
+	const changedRange = rows.changedRange;
+	if (changedRange === undefined) {
+		return true;
+	}
+	return changedRange.startIndex <= anchorIndex;
 }
 
 function reduceUserScroll(
