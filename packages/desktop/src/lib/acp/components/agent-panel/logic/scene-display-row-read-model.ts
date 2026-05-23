@@ -32,15 +32,30 @@ export type SceneDisplayRowArrayPatch = {
 	readonly patchedRowsByIndex: ReadonlyMap<number, SceneDisplayRow>;
 };
 
+export type SceneDisplayRowArrayTruncation = {
+	readonly baseRows: readonly SceneDisplayRow[];
+	readonly length: number;
+};
+
 const sceneDisplayRowArrayPatches = new WeakMap<
 	readonly SceneDisplayRow[],
 	SceneDisplayRowArrayPatch
+>();
+const sceneDisplayRowArrayTruncations = new WeakMap<
+	readonly SceneDisplayRow[],
+	SceneDisplayRowArrayTruncation
 >();
 
 export function getSceneDisplayRowArrayPatch(
 	rows: readonly SceneDisplayRow[]
 ): SceneDisplayRowArrayPatch | undefined {
 	return sceneDisplayRowArrayPatches.get(rows);
+}
+
+export function getSceneDisplayRowArrayTruncation(
+	rows: readonly SceneDisplayRow[]
+): SceneDisplayRowArrayTruncation | undefined {
+	return sceneDisplayRowArrayTruncations.get(rows);
 }
 
 export function createSceneDisplayRowsReadModel(): SceneDisplayRowsReadModel {
@@ -350,7 +365,6 @@ function truncateStableSceneDisplayRows(
 			row === undefined ||
 			row.type === "assistant_merged" ||
 			row.type === "thinking" ||
-			row.type === "missing" ||
 			!removedEntryIds.has(getSceneDisplayRowKey(row))
 		) {
 			return null;
@@ -614,7 +628,7 @@ function createTruncatedSceneDisplayRowsArray(
 	}
 
 	const target = new Array<SceneDisplayRow>(length);
-	return new Proxy(target, {
+	const rows = new Proxy(target, {
 		get(targetArray, property, receiver) {
 			if (property === Symbol.iterator) {
 				return function* () {
@@ -659,6 +673,8 @@ function createTruncatedSceneDisplayRowsArray(
 			return createArrayLikeOwnKeys(targetArray.length);
 		},
 	});
+	sceneDisplayRowArrayTruncations.set(rows, { baseRows, length });
+	return rows;
 }
 
 function selectInsertedSceneDisplayRow(
@@ -700,7 +716,7 @@ function indexRowsBySceneEntryId(
 ): void {
 	for (let rowIndex = startIndex; rowIndex < rows.length; rowIndex += 1) {
 		const row = rows[rowIndex];
-		if (row === undefined || row.type === "thinking" || row.type === "missing") {
+		if (row === undefined || row.type === "thinking") {
 			continue;
 		}
 		if (row.type === "assistant_merged") {

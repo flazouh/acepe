@@ -4,7 +4,10 @@ import {
 	THINKING_DISPLAY_ENTRY,
 	type SceneDisplayRow,
 } from "./scene-display-rows.js";
-import { getSceneDisplayRowArrayPatch } from "./scene-display-row-read-model.js";
+import {
+	getSceneDisplayRowArrayPatch,
+	getSceneDisplayRowArrayTruncation,
+} from "./scene-display-row-read-model.js";
 import {
 	buildNativeFallbackWindow,
 	type IndexedViewportEntry,
@@ -180,6 +183,22 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 					thinkingDurationSources,
 					rows,
 					Math.max(0, previousRows.length - 1)
+				);
+				previousRows = rows;
+				return previousSummary;
+			}
+
+			const truncatedRows = getSceneDisplayRowArrayTruncation(rows);
+			if (previousRows !== null && truncatedRows?.baseRows === previousRows) {
+				previousSummary = truncateTranscriptViewportRowsSummary(
+					previousSummary,
+					previousRows,
+					rows,
+					reason
+				);
+				thinkingDurationSources = truncateThinkingDurationSources(
+					thinkingDurationSources,
+					rows.length
 				);
 				previousRows = rows;
 				return previousSummary;
@@ -420,17 +439,18 @@ function truncateTranscriptViewportRowsSummary(
 	const removedRows = createArrayView(previousRows.length - rows.length, (index) => {
 		return previousRows[rows.length + index];
 	});
-	const lastRow = rows.at(-1);
-	const lastKey = lastRow === undefined ? null : getSceneDisplayRowKey(lastRow);
 	const previousRowKeys = previousSummary.rowKeys ?? [];
+	const lastKey = previousRowKeys[rows.length - 1] ?? null;
 	const rowKeys = createArrayView(rows.length, (index) => previousRowKeys[index]);
 	const rowIndexByKey = createTruncatedRowIndexByKey(
 		previousSummary.rowIndexByKey,
 		rows.length
 	);
-	const anchorEligibleKeys = createArrayView(countAnchorEligibleRows(rows), (index) => {
-		return previousSummary.anchorEligibleKeys[index];
-	});
+	const removedAnchorEligibleCount = countAnchorEligibleRows(removedRows);
+	const anchorEligibleKeys = createArrayView(
+		Math.max(0, previousSummary.anchorEligibleKeys.length - removedAnchorEligibleCount),
+		(index) => previousSummary.anchorEligibleKeys[index]
+	);
 
 	return {
 		version: rows.length,
@@ -1118,6 +1138,14 @@ function updateThinkingDurationSources(
 	for (let index = startIndex; index < rows.length; index += 1) {
 		previousSources[index] = buildThinkingDurationSource(rows, index);
 	}
+	return previousSources;
+}
+
+function truncateThinkingDurationSources(
+	previousSources: ThinkingDurationSource[],
+	length: number
+): ThinkingDurationSource[] {
+	previousSources.length = length;
 	return previousSources;
 }
 

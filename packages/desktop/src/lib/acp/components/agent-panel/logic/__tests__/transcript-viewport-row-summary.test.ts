@@ -556,6 +556,47 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		}
 	});
 
+	it("applies scene display row truncation metadata without checking the whole row prefix", () => {
+		const displayRows = createSceneDisplayRowsReadModel();
+		const readModel = createTranscriptViewportRowsReadModel();
+		const firstRows = displayRows.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+			{ id: "missing-1", type: "missing", diagnosticLabel: "missing-1" },
+		]);
+		readModel.applyRows({
+			rows: firstRows,
+			reason: "rows-updated",
+		});
+		const nextRows = displayRows.applySnapshot([
+			{ id: "user-1", type: "user", text: "Prompt" },
+		]);
+		const originalFirstRow = firstRows[0];
+		Object.defineProperty(firstRows, "0", {
+			configurable: true,
+			get() {
+				throw new Error("must not compare every previous row for metadata truncation");
+			},
+		});
+
+		try {
+			const nextSummary = readModel.applyRows({
+				rows: nextRows,
+				reason: "rows-updated",
+			});
+
+			expect(nextSummary.count).toBe(1);
+			expect(nextSummary.lastKey).toBe("user-1");
+			expect(nextSummary.rowIndexByKey?.get("user-1")).toBe(0);
+			expect(nextSummary.rowIndexByKey?.get("missing-1")).toBeUndefined();
+		} finally {
+			Object.defineProperty(firstRows, "0", {
+				configurable: true,
+				writable: true,
+				value: originalFirstRow,
+			});
+		}
+	});
+
 	it("updates thinking durations after truncating the following timed row", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		const startedAtMs = Date.parse("2026-01-01T00:00:00.000Z");
