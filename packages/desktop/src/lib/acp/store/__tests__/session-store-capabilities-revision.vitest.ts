@@ -172,6 +172,23 @@ function createCapabilitiesEnvelope(
 	};
 }
 
+function createLifecycleEnvelope(
+	sessionId: string,
+	revision: SessionGraphRevision,
+	lifecycle: SessionGraphLifecycle
+): SessionStateEnvelope {
+	return {
+		sessionId,
+		graphRevision: revision.graphRevision,
+		lastEventSeq: revision.lastEventSeq,
+		payload: {
+			kind: "lifecycle",
+			lifecycle,
+			revision,
+		},
+	};
+}
+
 describe("SessionStore capability revision handling", () => {
 	it("applies canonical capabilities envelopes with revision metadata", () => {
 		const store = new SessionStore();
@@ -220,6 +237,48 @@ describe("SessionStore capability revision handling", () => {
 			lastEventSeq: 7,
 		});
 		expect(store.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+	});
+
+	it("applies same-revision lifecycle after capabilities for split connection complete envelopes", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		seedProjection(store, createRevision(6), createCapabilities("build", "gpt-4.1"));
+		const revision = createRevision(7);
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createCapabilitiesEnvelope("session-1", revision, createCapabilities("plan", "gpt-5"))
+		);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createLifecycleEnvelope("session-1", revision, createGraphLifecycle("ready"))
+		);
+
+		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionGraphRevision("session-1")).toEqual(revision);
+	});
+
+	it("applies same-revision capabilities after lifecycle for split connection complete envelopes", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		seedProjection(store, createRevision(6), createCapabilities("build", "gpt-4.1"));
+		const revision = createRevision(7);
+
+		store.applySessionStateEnvelope(
+			"session-1",
+			createLifecycleEnvelope("session-1", revision, createGraphLifecycle("ready"))
+		);
+		store.applySessionStateEnvelope(
+			"session-1",
+			createCapabilitiesEnvelope("session-1", revision, createCapabilities("plan", "gpt-5"))
+		);
+
+		expect(store.getSessionLifecycleStatus("session-1")).toBe("ready");
+		expect(store.getSessionCurrentModeId("session-1")).toBe("plan");
+		expect(store.getSessionCurrentModelId("session-1")).toBe("gpt-5");
+		expect(store.getSessionGraphRevision("session-1")).toEqual(revision);
 	});
 
 	it("projects pending capability envelopes into canonical session projection", () => {

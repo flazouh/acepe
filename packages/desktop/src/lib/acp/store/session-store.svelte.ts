@@ -1099,6 +1099,25 @@ function isNewerGraphRevision(
 	return incoming.transcriptRevision > current.transcriptRevision;
 }
 
+function isOlderGraphRevision(
+	current: SessionGraphRevision | null,
+	incoming: SessionGraphRevision
+): boolean {
+	if (current === null) {
+		return false;
+	}
+
+	if (incoming.graphRevision !== current.graphRevision) {
+		return incoming.graphRevision < current.graphRevision;
+	}
+
+	if (incoming.lastEventSeq !== current.lastEventSeq) {
+		return incoming.lastEventSeq < current.lastEventSeq;
+	}
+
+	return incoming.transcriptRevision < current.transcriptRevision;
+}
+
 function deriveCapabilityPreviewState(
 	capabilities: SessionGraphCapabilities
 ): SessionCapabilities["previewState"] {
@@ -3460,14 +3479,14 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 						0,
 					lastEventSeq: envelope.lastEventSeq,
 				};
-				if (!isNewerGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
-					logger.debug("Ignoring stale session-state lifecycle envelope", {
-						sessionId,
-						currentRevision: previousProjection?.revision ?? null,
-						incomingRevision: lifecycleRevision,
-					});
-					continue;
-				}
+					if (isOlderGraphRevision(previousProjection?.revision ?? null, lifecycleRevision)) {
+						logger.debug("Ignoring stale session-state lifecycle envelope", {
+							sessionId,
+							currentRevision: previousProjection?.revision ?? null,
+							incomingRevision: lifecycleRevision,
+						});
+						continue;
+					}
 				this.canonicalProjections.set(sessionId, {
 					lifecycle: command.lifecycle,
 					activity: reconciledActivity,
@@ -3540,18 +3559,18 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				);
 				this.syncAwaitingModelRefreshTimer(sessionId, reconciledActivity, turnState);
 				continue;
-			}
+				}
 
-			if (command.kind === "applyCapabilities") {
-				const sessionIdentity = this.getSessionIdentity(sessionId);
-				if (!sessionIdentity) {
-					continue;
-				}
-				const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
-				if (!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision)) {
-					continue;
-				}
-				const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
+				if (command.kind === "applyCapabilities") {
+					const sessionIdentity = this.getSessionIdentity(sessionId);
+					if (!sessionIdentity) {
+						continue;
+					}
+					const previousProjection = this.canonicalProjections.get(sessionId) ?? null;
+					if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+						continue;
+					}
+					const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 				const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
 				this.canonicalCapabilitiesMaterialized.set(sessionId, true);
 				if (previousProjection !== null) {
