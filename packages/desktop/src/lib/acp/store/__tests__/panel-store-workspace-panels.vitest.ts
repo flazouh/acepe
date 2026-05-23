@@ -128,9 +128,18 @@ describe("PanelStore workspacePanels", () => {
 			secondPanel.id,
 			firstPanel.id,
 		]);
+		expect(store.getTopLevelAgentPanels().map((panel) => panel.id)).toEqual([
+			secondPanel.id,
+			otherPanel.id,
+			firstPanel.id,
+		]);
 		expect(store.getTopLevelAgentPanelsForProject("/tmp/other").map((panel) => panel.id)).toEqual([
 			otherPanel.id,
 		]);
+		expect(store.getPanel(secondPanel.id)).toMatchObject({
+			id: secondPanel.id,
+			sessionId: "session-2",
+		});
 		expect(store.getFirstSessionAgentPanelForProject("/tmp/project")?.id).toBe(secondPanel.id);
 		expect(store.getTopLevelAgentPanelsForProject("/tmp/missing")).toEqual([]);
 		expect(store.getFirstSessionAgentPanelForProject("/tmp/missing")).toBeUndefined();

@@ -165,6 +165,7 @@ export class PanelStore {
 
 	// Hot state (transient, frequently changing)
 	private hotState = new SvelteMap<string, PanelHotState>();
+	private topLevelAgentPanelList = $state<Panel[]>([]);
 	private topLevelAgentPanelsById = new SvelteMap<string, Panel>();
 	private topLevelAgentPanelBySessionId = new SvelteMap<string, Panel>();
 	private topLevelAgentPanelsByProject = new SvelteMap<string, Panel[]>();
@@ -380,6 +381,9 @@ export class PanelStore {
 	}
 
 	private syncTopLevelAgentPanelIndex(nextPanels: readonly Panel[]): void {
+		if (!areAgentPanelListsEqual(this.topLevelAgentPanelList, nextPanels)) {
+			this.topLevelAgentPanelList = Array.from(nextPanels);
+		}
 		this.topLevelAgentPanelBySessionId.clear();
 		const panelsByProject = new Map<string, Panel[]>();
 		for (const panel of nextPanels) {
@@ -629,10 +633,14 @@ export class PanelStore {
 	// Derived lookups
 	readonly panelBySessionId = $derived.by(
 		() =>
-			new SvelteMap(this.panels.filter((p) => p.sessionId !== null).map((p) => [p.sessionId!, p]))
+			new SvelteMap(
+				this.topLevelAgentPanelList
+					.filter((panel) => panel.sessionId !== null)
+					.map((panel) => [panel.sessionId!, panel])
+			)
 	);
 
-	readonly panelCount = $derived(this.panels.length);
+	readonly panelCount = $derived(this.topLevelAgentPanelList.length);
 
 	readonly focusedTopLevelPanel = $derived(
 		this.focusedPanelId ? (this.findTopLevelWorkspacePanel(this.focusedPanelId) ?? null) : null
@@ -705,6 +713,10 @@ export class PanelStore {
 		);
 	}
 
+	getTopLevelAgentPanels(): readonly Panel[] {
+		return this.topLevelAgentPanelList;
+	}
+
 	getTopLevelAgentPanelRef(panelId: string): ReactiveValue<Panel | null> {
 		const existing = this.topLevelAgentPanelRefs.get(panelId);
 		if (existing) {
@@ -718,7 +730,7 @@ export class PanelStore {
 	}
 
 	getTopLevelAgentPanelIds(): string[] {
-		return this.panels.map((panel) => panel.id);
+		return this.topLevelAgentPanelList.map((panel) => panel.id);
 	}
 
 	getTopLevelAgentPanelProjectRefs(): Array<{
@@ -726,7 +738,7 @@ export class PanelStore {
 		readonly sessionProjectPath: string | null;
 		readonly sessionSequenceId: number | null;
 	}> {
-		return this.panels.map((panel) => {
+		return this.topLevelAgentPanelList.map((panel) => {
 			const sessionIdentity =
 				panel.sessionId !== null
 					? this.sessionStore.getSessionIdentity(panel.sessionId)
@@ -760,7 +772,7 @@ export class PanelStore {
 	 * Get panel with merged hot state.
 	 */
 	getPanel(panelId: string): (Panel & PanelHotState) | undefined {
-		const panel = this.panels.find((p) => p.id === panelId);
+		const panel = this.topLevelAgentPanelsById.get(panelId);
 		if (!panel) return undefined;
 		const hot = this.getHotState(panelId);
 		return { ...panel, ...hot };
