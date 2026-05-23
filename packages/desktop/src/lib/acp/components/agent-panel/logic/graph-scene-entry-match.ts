@@ -70,12 +70,12 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 				graphScenePatch.baseSceneEntries === previousSceneEntries
 			) {
 				baseEntriesByIdBeforeTokenReveal = null;
-				const mutableEntriesById = patchSameLengthGraphSceneEntrySet(
+				const patchedEntriesById = patchSameLengthGraphSceneEntrySet(
 					entriesById,
 					graphScenePatch.entries
 				);
-				if (mutableEntriesById !== null) {
-					entriesById = mutableEntriesById;
+				if (patchedEntriesById !== null) {
+					entriesById = patchedEntriesById;
 					previousSceneEntries = sceneEntries;
 					return entriesById;
 				}
@@ -226,16 +226,22 @@ export function createGraphSceneEntryIndexReadModel(): GraphSceneEntryIndexReadM
 function patchSameLengthGraphSceneEntrySet(
 	entriesById: ReadonlyMap<string, AgentPanelSceneEntryModel>,
 	patchedEntries: readonly AgentPanelSceneEntryModel[]
-): Map<string, AgentPanelSceneEntryModel> | null {
+): ReadonlyMap<string, AgentPanelSceneEntryModel> | null {
 	let mutableEntriesById: Map<string, AgentPanelSceneEntryModel> | null = null;
 	for (const patchedEntry of patchedEntries) {
 		if (!entriesById.has(patchedEntry.id)) {
 			return null;
 		}
+		if (!(entriesById instanceof Map)) {
+			continue;
+		}
 		mutableEntriesById ??= ensureMutableSceneEntryMap(entriesById);
 		mutableEntriesById.set(patchedEntry.id, patchedEntry);
 	}
-	return mutableEntriesById ?? ensureMutableSceneEntryMap(entriesById);
+	if (entriesById instanceof Map) {
+		return mutableEntriesById ?? entriesById;
+	}
+	return new PatchedSceneEntryMap(entriesById, patchedEntries);
 }
 
 function patchSameLengthGraphSceneEntries(

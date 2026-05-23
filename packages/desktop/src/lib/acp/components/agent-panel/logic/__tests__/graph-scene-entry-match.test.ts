@@ -7,6 +7,7 @@ import {
 	createAgentPanelDisplayMemory,
 	getAgentPanelDisplayScenePatch,
 } from "../agent-panel-display-model.js";
+import { markAgentPanelSceneEntryArrayPatch } from "../../../../session-state/agent-panel-scene-entry-array-patch.js";
 import {
 	createGraphSceneEntryIndex,
 	createGraphSceneEntryIndexReadModel,
@@ -446,6 +447,72 @@ describe("createGraphSceneEntryIndexReadModel", () => {
 			if (patch !== undefined && originalMap !== undefined) {
 				patch.entries.map = originalMap;
 			}
+		}
+	});
+
+	it("applies marked scene patches over an overlay index without cloning the overlay", () => {
+		const readModel = createGraphSceneEntryIndexReadModel();
+		const assistantEntry = {
+			id: "assistant-1",
+			type: "assistant",
+			markdown: "",
+			isStreaming: true,
+		} satisfies AgentPanelSceneEntryModel;
+		const baseEntries = [assistantEntry];
+		readModel.getIndex(baseEntries);
+		const model: AgentPanelDisplayModel = {
+			panelId: "panel-1",
+			sessionId: "session-1",
+			turnId: "turn-1",
+			status: "running",
+			turnState: "streaming",
+			waiting: { show: false, label: null },
+			composer: { canSubmit: false, showStop: true },
+			rows: [
+				{
+					id: "assistant-1",
+					type: "assistant",
+					canonicalText: "Answer",
+					displayText: "Answer",
+					canonicalTextRevision: "1:assistant-1",
+					isLiveTail: true,
+				},
+			],
+			viewport: { hasLiveTail: true, requiresStableTailMount: true },
+		};
+		const overlayIndex = readModel.getIndex(
+			applyAgentPanelDisplayModelToSceneEntries(
+				model,
+				createAgentPanelDisplayMemory(),
+				baseEntries
+			)
+		);
+		const originalIterator = overlayIndex[Symbol.iterator];
+		(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
+			Symbol.iterator
+		] = () => {
+			throw new Error("must not clone overlay scene entry indexes");
+		};
+		const patchedEntry = {
+			...assistantEntry,
+			markdown: "Canonical answer",
+		} satisfies AgentPanelSceneEntryModel;
+		const patchedEntries = [patchedEntry];
+		markAgentPanelSceneEntryArrayPatch(patchedEntries, {
+			baseSceneEntries: baseEntries,
+			entries: [patchedEntry],
+		});
+
+		try {
+			const patchedIndex = readModel.getIndex(patchedEntries);
+
+			expect(patchedIndex).not.toBe(overlayIndex);
+			expect(patchedIndex.get("assistant-1")).toBe(patchedEntry);
+			expect(readModel.selectEntryIndexById("assistant-1")).toBe(0);
+		} finally {
+			(overlayIndex as ReadonlyMap<string, AgentPanelSceneEntryModel> & Record<symbol, unknown>)[
+				Symbol.iterator
+			] = originalIterator;
 		}
 	});
 });
