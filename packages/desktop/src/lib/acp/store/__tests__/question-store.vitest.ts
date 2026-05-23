@@ -108,6 +108,64 @@ describe("QuestionStore", () => {
 
 			expect(matched?.id).toBe("q-tool");
 		});
+
+		it("uses session-scoped indexes for question selectors", () => {
+			const operationStore = new OperationStore();
+			operationStore.replaceSessionOperations("session-1", [
+				{
+					id: "op-tool-question",
+					session_id: "session-1",
+					tool_call_id: "tool-question",
+					operation_provenance_key: "tool-question",
+					name: "question_tool",
+					arguments: { kind: "other", raw: {} },
+					provider_status: "pending",
+					operation_state: "pending",
+					awaiting_plan_approval: false,
+					source_link: { kind: "transcript_linked", entry_id: "tool-question" },
+					result: null,
+					kind: "question",
+					title: null,
+					progressive_arguments: null,
+					command: null,
+					normalized_todos: null,
+					parent_tool_call_id: null,
+					parent_operation_id: null,
+					child_tool_call_ids: [],
+					child_operation_ids: [],
+				},
+			]);
+			const question: QuestionRequest = {
+				id: "q-tool",
+				sessionId: "session-1",
+				questions: [],
+				tool: {
+					messageID: "",
+					callID: "tool-question",
+				},
+			};
+			store.add(question);
+			store.add({
+				id: "q-other",
+				sessionId: "session-2",
+				questions: [],
+			});
+			const values = store.pending.values.bind(store.pending);
+			(store.pending as unknown as { values: () => IterableIterator<QuestionRequest> }).values =
+				() => {
+					throw new Error("question selectors must not scan all pending questions");
+				};
+
+			try {
+				expect(store.getForSession("session-1").map((candidate) => candidate.id)).toEqual([
+					"q-tool",
+				]);
+				const operation = operationStore.getByToolCallId("session-1", "tool-question");
+				expect(operation ? store.getForOperation(operation)?.id : null).toBe("q-tool");
+			} finally {
+				(store.pending as unknown as { values: typeof values }).values = values;
+			}
+		});
 	});
 
 	describe("remove", () => {

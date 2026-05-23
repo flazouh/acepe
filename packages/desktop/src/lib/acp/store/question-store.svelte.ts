@@ -50,6 +50,7 @@ function mergeQuestionRequest(
 
 export class QuestionStore {
 	private interactions = new InteractionStore();
+	private directPendingBySession = new Map<string, Map<string, QuestionRequest>>();
 
 	constructor(interactions?: InteractionStore) {
 		if (interactions !== undefined) {
@@ -66,11 +67,7 @@ export class QuestionStore {
 	}
 
 	getForOperation(operation: Operation): QuestionRequest | undefined {
-		for (const question of this.pending.values()) {
-			if (question.sessionId !== operation.sessionId) {
-				continue;
-			}
-
+		for (const question of this.getForSession(operation.sessionId)) {
 			if (!questionMatchesOperation(question, operation)) {
 				continue;
 			}
@@ -81,22 +78,25 @@ export class QuestionStore {
 		return undefined;
 	}
 
-	/**
-	 * Index mapping sessionId → first pending QuestionRequest for O(1) lookup.
-	 *
-	 * Computed once per change to `pending` instead of O(q) scan per panel.
-	 * Only the first (oldest) question per session is stored; callers that need
-	 * all questions for a session should iterate `pending` directly.
-	 */
-	readonly pendingBySession = $derived.by(() => {
-		const map = new SvelteMap<string, QuestionRequest>();
-		for (const question of this.pending.values()) {
-			if (!map.has(question.sessionId)) {
-				map.set(question.sessionId, question);
-			}
+	getForSession(sessionId: string): QuestionRequest[] {
+		const canonicalQuestions = this.interactions.getPendingQuestionsForSession(sessionId);
+		const directQuestions = this.directPendingBySession.get(sessionId);
+		if (directQuestions === undefined || directQuestions.size === 0) {
+			return [...canonicalQuestions];
 		}
-		return map;
-	});
+		if (canonicalQuestions.length === 0) {
+			return Array.from(directQuestions.values());
+		}
+
+		const merged = new Map<string, QuestionRequest>();
+		for (const question of canonicalQuestions) {
+			merged.set(question.id, question);
+		}
+		for (const question of directQuestions.values()) {
+			merged.set(question.id, question);
+		}
+		return Array.from(merged.values());
+	}
 
 	/**
 	 * Add a pending question request.
@@ -104,7 +104,7 @@ export class QuestionStore {
 	add(question: QuestionRequest): void {
 		const existing = this.pending.get(question.id);
 		const nextQuestion = existing ? mergeQuestionRequest(existing, question) : question;
-		this.pending.set(question.id, nextQuestion);
+		this.setDirectPending(question.id, nextQuestion);
 		logger.debug(existing ? "Question request merged" : "Question request added", {
 			questionId: question.id,
 			jsonRpcRequestId: nextQuestion.jsonRpcRequestId,
@@ -115,7 +115,7 @@ export class QuestionStore {
 	 * Remove a pending question request.
 	 */
 	remove(questionId: string): void {
-		this.pending.delete(questionId);
+		this.deleteDirectPending(questionId, this.pending.get(questionId));
 		logger.debug("Question request removed", { questionId });
 	}
 
@@ -123,8 +123,8 @@ export class QuestionStore {
 	 * Remove all questions for a session.
 	 */
 	removeForSession(sessionId: string): void {
-		for (const [id, q] of this.pending) {
-			if (q.sessionId === sessionId) this.pending.delete(id);
+		for (const question of this.getForSession(sessionId)) {
+			this.deleteDirectPending(question.id, question);
 		}
 		logger.debug("Questions removed for session", { sessionId });
 	}
@@ -228,12 +228,7 @@ export class QuestionStore {
 	}
 
 	cancelForSession(sessionId: string): ResultAsyncType<void, AppError> {
-		const pendingQuestions: QuestionRequest[] = [];
-		for (const question of this.pending.values()) {
-			if (question.sessionId === sessionId) {
-				pendingQuestions.push(question);
-			}
-		}
+		const pendingQuestions = this.getForSession(sessionId);
 
 		if (pendingQuestions.length === 0) {
 			return okAsync(undefined);
@@ -253,6 +248,50 @@ export class QuestionStore {
 			})
 		).map(() => undefined);
 	}
+
+	private setDirectPending(questionId: string, question: QuestionRequest): void {
+		const previous = this.pending.get(questionId);
+		if (previous !== undefined && previous.sessionId !== question.sessionId) {
+			this.deleteDirectPending(questionId, previous);
+		}
+		this.interactions.setPendingQuestionRequest(questionId, question);
+		getOrCreateSessionQuestionIndex(this.directPendingBySession, question.sessionId).set(
+			questionId,
+			question
+		);
+	}
+
+	private deleteDirectPending(
+		questionId: string,
+		question: QuestionRequest | undefined
+	): void {
+		this.interactions.deletePendingQuestionRequest(questionId);
+		if (question === undefined) {
+			return;
+		}
+		const sessionIndex = this.directPendingBySession.get(question.sessionId);
+		if (sessionIndex === undefined) {
+			return;
+		}
+		sessionIndex.delete(questionId);
+		if (sessionIndex.size === 0) {
+			this.directPendingBySession.delete(question.sessionId);
+		}
+	}
+}
+
+function getOrCreateSessionQuestionIndex(
+	index: Map<string, Map<string, QuestionRequest>>,
+	sessionId: string
+): Map<string, QuestionRequest> {
+	const existing = index.get(sessionId);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const created = new Map<string, QuestionRequest>();
+	index.set(sessionId, created);
+	return created;
 }
 
 /**

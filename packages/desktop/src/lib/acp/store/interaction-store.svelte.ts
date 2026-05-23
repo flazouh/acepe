@@ -104,6 +104,14 @@ export class InteractionStore {
 		this.deletePendingPermission(interactionId);
 	}
 
+	setPendingQuestionRequest(interactionId: string, question: QuestionRequest): void {
+		this.setPendingQuestion(interactionId, question);
+	}
+
+	deletePendingQuestionRequest(interactionId: string): void {
+		this.deletePendingQuestion(interactionId);
+	}
+
 	clearSession(sessionId: string): void {
 		for (const [interactionId, permission] of this.permissionsPending) {
 			if (permission.sessionId === sessionId) {
