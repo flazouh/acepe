@@ -1442,6 +1442,22 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 		return map;
 	});
 
+	private readonly liveSessionSyncReferences = $derived.by(() =>
+		this.sessions.map((session) => ({
+			id: session.id,
+			updatedAtMs: session.updatedAt.getTime(),
+		}))
+	);
+
+	private readonly sessionPaletteReferences = $derived.by(() =>
+		this.sessions.map((session) => ({
+			id: session.id,
+			projectPath: session.projectPath,
+			agentId: session.agentId,
+			title: session.title,
+		}))
+	);
+
 	constructor() {
 		this.eventService = new SessionEventService();
 		// Create repository with this store as the state reader/writer
@@ -1980,19 +1996,11 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	getLiveSessionSyncReferences(): SessionLiveSyncReference[] {
-		return this.sessions.map((session) => ({
-			id: session.id,
-			updatedAtMs: session.updatedAt.getTime(),
-		}));
+		return this.liveSessionSyncReferences;
 	}
 
 	getSessionPaletteReferences(): SessionPaletteReference[] {
-		return this.sessions.map((session) => ({
-			id: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-			title: session.title,
-		}));
+		return this.sessionPaletteReferences;
 	}
 
 	getSessionPaletteReference(sessionId: string): SessionPaletteReference | undefined {
