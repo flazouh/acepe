@@ -39,7 +39,40 @@ describe("TranscriptViewportController", () => {
 		});
 
 		expect(result.state.renderer).toEqual({ type: "primary" });
-		expect(result.effects.map((effect) => effect.type)).not.toContain("SwitchRenderer");
+		expect(result.effects).toEqual([
+			{
+				type: "RevealTail",
+				sessionId: "session-1",
+				generation: initial.generation,
+				force: false,
+				reason: "rows-changed-following",
+			},
+		]);
+	});
+
+	it("reports renderer failures without switching away from the primary renderer", () => {
+		const initial = createInitialTranscriptViewportState({
+			sessionId: "session-1",
+			rows: baseRows,
+		});
+
+		const result = reduceTranscriptViewportEvent(initial, {
+			type: "RendererFailed",
+			sessionId: "session-1",
+			generation: initial.generation,
+			reason: "no_rendered_entries",
+		});
+
+		expect(result.state.renderer).toEqual({ type: "primary" });
+		expect(result.effects).toEqual([
+			{
+				type: "ReportDiagnostic",
+				sessionId: "session-1",
+				generation: initial.generation,
+				code: "renderer-health",
+				message: "Transcript virtualizer health probe failed: no_rendered_entries",
+			},
+		]);
 	});
 
 	it("preserves a row anchor when detached rows change", () => {

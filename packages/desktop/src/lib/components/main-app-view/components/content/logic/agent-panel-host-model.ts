@@ -66,6 +66,9 @@ export function resolveAgentPanelHostSelectedAgentId(input: {
 			: (input.panel.selectedAgentId ?? null);
 
 	if (configuredAgentId === null) {
+		if (input.panel.sessionId === null) {
+			return input.availableAgents[0]?.id ?? null;
+		}
 		return null;
 	}
 

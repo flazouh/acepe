@@ -190,11 +190,14 @@ export function deriveCanonicalAgentPanelSessionState(
 	input: CanonicalAgentPanelSessionStateInput
 ): CanonicalAgentPanelSessionState {
 	if (input.source.kind === "missing_canonical") {
+		const hasPendingSessionStart =
+			input.hasLocalPendingSendIntent === true || input.hasOptimisticPendingEntry === true;
+
 		return {
-			sessionStatus: "error",
+			sessionStatus: hasPendingSessionStart ? "warming" : "error",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: input.hasLocalPendingSendIntent === true,
+			showPlanningIndicator: hasPendingSessionStart,
 			canSubmit: false,
 			showStop: false,
 		};

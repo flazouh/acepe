@@ -43,7 +43,7 @@ export interface AgentPanelHeaderProps {
 	readonly sessionAgentId: string | null;
 	readonly currentAgentId: string | null;
 	readonly availableAgents: readonly { id: string; name: string }[];
-	readonly agentIconSrc: string;
+	readonly agentIconSrc: string | null;
 	readonly agentName: string | null;
 	readonly isFullscreen: boolean;
 	readonly sessionStatus: SessionStatusUI;

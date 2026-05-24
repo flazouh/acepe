@@ -103,6 +103,7 @@ function createRepresentativeGraph(): SessionStateGraph {
 		projectPath: "/repo",
 		worktreePath: "/repo",
 		sourcePath: "/repo/.acepe/sessions/session-1.json",
+		sequenceId: null,
 		revision: {
 			graphRevision: 42,
 			transcriptRevision: 17,
@@ -203,6 +204,7 @@ function createSessionOpenFoundFromGraph(graph: SessionStateGraph): SessionOpenF
 		projectPath: graph.projectPath,
 		worktreePath: graph.worktreePath ?? null,
 		sourcePath: graph.sourcePath ?? null,
+		sequenceId: graph.sequenceId ?? null,
 		transcriptSnapshot: graph.transcriptSnapshot,
 		sessionTitle: "Opened session",
 		operations: graph.operations,

@@ -6,6 +6,38 @@ export type SlashCommandSource = {
 	tokenType: "command" | "skill";
 };
 
+export function isSlashSkillCommand(input: {
+	command: AvailableCommand;
+	preconnectionCommands: ReadonlyArray<AvailableCommand>;
+}): boolean {
+	const preconnectionSkillNames = new Set(input.preconnectionCommands.map((command) => command.name));
+	if (preconnectionSkillNames.has(input.command.name)) {
+		return true;
+	}
+
+	const description = input.command.description.toLowerCase();
+	return description.includes("skill") || input.command.name.includes("_");
+}
+
+function resolveLiveSlashTokenType(input: {
+	liveCommands: ReadonlyArray<AvailableCommand>;
+	preconnectionCommands: ReadonlyArray<AvailableCommand>;
+}): "command" | "skill" {
+	if (
+		input.liveCommands.length > 0 &&
+		input.liveCommands.every((command) =>
+			isSlashSkillCommand({
+				command,
+				preconnectionCommands: input.preconnectionCommands,
+			})
+		)
+	) {
+		return "skill";
+	}
+
+	return "command";
+}
+
 export function shouldShowSlashCommandDropdown(input: {
 	isTriggerActive: boolean;
 	source: SlashCommandSource;
@@ -15,7 +47,7 @@ export function shouldShowSlashCommandDropdown(input: {
 		return false;
 	}
 
-	return input.source.source !== "none" && input.capabilitiesAgentId !== null;
+	return input.source.source !== "none";
 }
 
 export function resolveSlashCommandSource(input: {
@@ -30,7 +62,10 @@ export function resolveSlashCommandSource(input: {
 			return {
 				source: "live",
 				commands: Array.from(input.liveCommands),
-				tokenType: "command",
+				tokenType: resolveLiveSlashTokenType({
+					liveCommands: input.liveCommands,
+					preconnectionCommands: input.preconnectionCommands,
+				}),
 			};
 		}
 

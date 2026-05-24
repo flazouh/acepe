@@ -3,7 +3,11 @@ import {
 	getEffectiveSlashCommandIndex,
 	getFilteredSlashCommands,
 	getNextSlashCommandIndex,
+	getSlashCommandDescriptionCharCount,
 	getSlashCommandEmptyState,
+	getSlashCommandKindLabel,
+	getSlashCommandMetaLabel,
+	getSlashCommandWorkspaceMarkdown,
 	MAX_SLASH_COMMAND_RESULTS,
 	type AgentInputSlashCommand,
 } from "./agent-input-slash-command-dropdown-state.js";
@@ -101,5 +105,39 @@ describe("agent input slash command dropdown state", () => {
 				query: "",
 			})
 		).toBe("start-typing");
+	});
+
+	test("builds compact metadata labels for commands and skills", () => {
+		const command: AgentInputSlashCommand = {
+			name: "review",
+			description: " Review code ",
+			input: {
+				hint: "path",
+			},
+		};
+
+		expect(getSlashCommandKindLabel("command")).toBe("Command");
+		expect(getSlashCommandKindLabel("skill")).toBe("Skill");
+		expect(getSlashCommandDescriptionCharCount(command)).toBe(11);
+		expect(getSlashCommandMetaLabel({ command, tokenType: "skill" })).toBe(
+			"Skill - 11 chars - path"
+		);
+	});
+
+	test("builds readable workspace markdown for the preview modal", () => {
+		const command: AgentInputSlashCommand = {
+			name: "ce-debug",
+			description: "Debug with `evidence`.\n\n```ts\nconst ok = true;\n```",
+		};
+
+		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
+			"# /ce-debug"
+		);
+		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
+			"| Type | Skill |"
+		);
+		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
+			"```ts"
+		);
 	});
 });

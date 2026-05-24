@@ -11,11 +11,6 @@ import {
 	getSceneDisplayRowArraySplice,
 	getSceneDisplayRowArrayTruncation,
 } from "./scene-display-row-read-model.js";
-import {
-	buildNativeFallbackWindow,
-	type IndexedViewportEntry,
-} from "./viewport-fallback-controller.svelte.js";
-
 export type TranscriptViewportChangedRange = {
 	startIndex: number;
 	endIndex: number;
@@ -113,7 +108,6 @@ export interface TranscriptViewportRowsReadModel {
 		reason: TranscriptViewportRowsReason;
 	}): TranscriptViewportRowSummary;
 	selectSummary(): TranscriptViewportRowSummary;
-	selectNativeFallbackWindow(limit: number): readonly IndexedViewportEntry<SceneDisplayRow>[];
 	selectNearbyRowDiagnostics(
 		index: number | undefined,
 		radius: number
@@ -140,11 +134,6 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 	let previousRows: readonly SceneDisplayRow[] | null = null;
 	let previousSummary: TranscriptViewportRowSummary = createEmptyTranscriptViewportRows();
 	let thinkingDurationSources: ThinkingDurationSource[] = [];
-	let nativeFallbackWindowCache: {
-		readonly rows: readonly SceneDisplayRow[];
-		readonly limit: number;
-		readonly window: readonly IndexedViewportEntry<SceneDisplayRow>[];
-	} | null = null;
 	let selectedRowsCache: {
 		readonly rows: readonly SceneDisplayRow[];
 		readonly startedAtMs: number | null;
@@ -353,26 +342,6 @@ export function createTranscriptViewportRowsReadModel(): TranscriptViewportRowsR
 		},
 		selectSummary() {
 			return previousSummary;
-		},
-		selectNativeFallbackWindow(limit) {
-			if (previousRows === null) {
-				return [];
-			}
-			if (
-				nativeFallbackWindowCache !== null &&
-				nativeFallbackWindowCache.rows === previousRows &&
-				nativeFallbackWindowCache.limit === limit
-			) {
-				return nativeFallbackWindowCache.window;
-			}
-
-			const window = buildNativeFallbackWindow(previousRows, limit);
-			nativeFallbackWindowCache = {
-				rows: previousRows,
-				limit,
-				window,
-			};
-			return window;
 		},
 		selectNearbyRowDiagnostics(index, radius) {
 			return selectNearbyRowDiagnostics(previousRows ?? [], index, radius);

@@ -42,7 +42,7 @@ export interface KanbanCardData {
 	readonly title: string | null;
 	/** Token-preserved title for rendering artifact chips. When non-null, render via RichTokenText. */
 	readonly richTitle?: string | null;
-	readonly agentIconSrc: string;
+	readonly agentIconSrc: string | null;
 	readonly agentLabel: string;
 	readonly isAutoMode: boolean;
 	readonly projectName: string;

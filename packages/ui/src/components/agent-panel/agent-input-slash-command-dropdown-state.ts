@@ -7,6 +7,7 @@ export interface AgentInputSlashCommand {
 }
 
 export const MAX_SLASH_COMMAND_RESULTS = 20;
+export type AgentInputSlashCommandTokenType = "command" | "skill";
 
 export function getFilteredSlashCommands(
 	commands: ReadonlyArray<AgentInputSlashCommand>,
@@ -51,4 +52,61 @@ export function getSlashCommandEmptyState(input: {
 	if (input.commandCount === 0) return "no-commands";
 	if (input.query.length > 0) return "no-results";
 	return "start-typing";
+}
+
+export function getSlashCommandKindLabel(tokenType: AgentInputSlashCommandTokenType): string {
+	if (tokenType === "skill") {
+		return "Skill";
+	}
+	return "Command";
+}
+
+export function getSlashCommandDescriptionCharCount(command: AgentInputSlashCommand): number {
+	return command.description.trim().length;
+}
+
+export function getSlashCommandMetaLabel(input: {
+	command: AgentInputSlashCommand;
+	tokenType: AgentInputSlashCommandTokenType;
+}): string {
+	const kindLabel = getSlashCommandKindLabel(input.tokenType);
+	const descriptionCharCount = getSlashCommandDescriptionCharCount(input.command);
+	const hint = input.command.input?.hint.trim();
+	if (hint && hint.length > 0) {
+		return `${kindLabel} - ${descriptionCharCount} chars - ${hint}`;
+	}
+	return `${kindLabel} - ${descriptionCharCount} chars`;
+}
+
+function markdownTableValue(value: string): string {
+	return value.replaceAll("\\", "\\\\").replaceAll("|", "\\|").replaceAll("\n", " ");
+}
+
+export function getSlashCommandWorkspaceMarkdown(input: {
+	command: AgentInputSlashCommand;
+	tokenType: AgentInputSlashCommandTokenType;
+}): string {
+	const kindLabel = getSlashCommandKindLabel(input.tokenType);
+	const description = input.command.description.trim();
+	const hint = input.command.input?.hint.trim();
+	const commandName = markdownTableValue(input.command.name);
+	const detailRows = [
+		`| Type | ${kindLabel} |`,
+		"| Name | `/" + commandName + "` |",
+		`| Description chars | ${getSlashCommandDescriptionCharCount(input.command)} |`,
+	];
+	const hintRows = hint && hint.length > 0 ? [`| Input hint | ${markdownTableValue(hint)} |`] : [];
+
+	return [
+		`# /${input.command.name}`,
+		"",
+		"| Field | Value |",
+		"| --- | --- |",
+		...detailRows,
+		...hintRows,
+		"",
+		"## Description",
+		"",
+		description.length > 0 ? description : "_No description available._",
+	].join("\n");
 }

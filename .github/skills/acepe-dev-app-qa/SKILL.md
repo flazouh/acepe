@@ -141,6 +141,110 @@ This is the best evidence because Acepe is a Tauri app. A browser at
 
 If Tauri MCP is unavailable, say exactly how you checked or why it is unavailable.
 
+### 2b. Codex CLI Path When The Tauri MCP Namespace Is Missing
+
+Sometimes Codex does not expose callable tools like `mcp__tauri__...` even
+though the dev app and bridge are running. In that case, use the Tauri MCP
+companion CLI. This is still Tauri MCP evidence because it talks to the same
+bridge inside the real dev WebView.
+
+First prove the dev app is running and find the bridge port:
+
+```bash
+ps -p <dev-acepe-pid> -o pid,comm,args
+lsof -Pan -p <dev-acepe-pid> -iTCP | rg LISTEN
+```
+
+For the Acepe dev app, the bridge normally listens on port `9223`.
+
+Start or attach the driver session:
+
+```bash
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp driver-session start --port 9223
+```
+
+Confirm the target is the dev WebView, not `/Applications/Acepe.app`:
+
+```bash
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp manage-window \
+  --action list \
+  --app-identifier 9223 \
+  --json
+```
+
+Expected useful proof:
+
+- window URL is the dev app URL, normally `http://localhost:1420/`
+- process inspection shows `target/debug/acepe` from this checkout
+- do not accept Computer Use attaching to `/Applications/Acepe.app` as proof
+
+Useful CLI commands:
+
+```bash
+# Accessibility tree for the whole app or a scoped selector
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-dom-snapshot \
+  --type accessibility \
+  --selector 'main' \
+  --app-identifier 9223
+
+# DOM structure, useful for finding selectors/classes
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-dom-snapshot \
+  --type structure \
+  --selector 'aside, [role=complementary]' \
+  --app-identifier 9223
+
+# Run JavaScript in the real Tauri WebView. Always use an IIFE for return values.
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-execute-js \
+  --app-identifier 9223 \
+  --json \
+  --script '(() => ({ href: location.href, title: document.title }))()'
+
+# Click by ref from a DOM snapshot
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-interact \
+  --app-identifier 9223 \
+  --action click \
+  --selector 'ref=e154'
+
+# Type into a textbox by ref from a DOM snapshot
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-keyboard \
+  --app-identifier 9223 \
+  --action type \
+  --selector 'ref=e542' \
+  --text 'qa message'
+
+# Read WebView console logs
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp read-logs \
+  --app-identifier 9223 \
+  --source console
+
+# Screenshot proof
+npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp webview-screenshot \
+  --app-identifier 9223 \
+  --file /tmp/acepe-dev-qa.jpg
+```
+
+Notes from the verified Codex path:
+
+- `tool_search` may fail to expose Tauri MCP tools even while the server is
+  running.
+- Computer Use with app name `acepe` may attach to `/Applications/Acepe.app`;
+  reject that as dev QA evidence.
+- The CLI option is `--app-identifier`, not `--appIdentifier`.
+- `manage-window` requires `--action list`, `--action info`, or
+  `--action resize`.
+- `webview-execute-js` uses `--script`; the raw JSON field is not named
+  `script` unless you use the exact raw format supported by the CLI.
+- Text matching can be fragile for hidden/sidebar controls. Prefer DOM snapshot
+  refs or precise selectors after inspecting structure.
+- Acepe's composer is a `contenteditable` element, not a normal `<textarea>`.
+  After using `webview-keyboard --action type`, verify that the editor has real
+  `textContent` and that the send button state changed. If the DOM only shows a
+  synthetic `value` property while `textContent` is empty, the app did not
+  receive real input and that is not valid send-path QA.
+- For contenteditable diagnostics, a controlled `webview-execute-js` probe may
+  set `textContent` and dispatch an `InputEvent`, but label that as diagnostic
+  evidence, not proof of the normal user typing path.
+
 ### 3. Use Computer Use Only As Fallback
 
 Use Computer Use only after Tauri MCP is unavailable or blocked.

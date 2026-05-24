@@ -940,6 +940,33 @@ describe("PanelStore workspacePanels", () => {
 		});
 	});
 
+	it("keeps pending creation panels in their project group until identity is available", () => {
+		const sessionStore = {
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+			hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
+		} as unknown as SessionStore;
+		const agentStore = {
+			getDefaultAgentId: vi.fn(() => "claude-code"),
+		} as unknown as AgentStore;
+		const store = new PanelStore(sessionStore, agentStore, vi.fn());
+
+		const panel = store.spawnPanel({
+			selectedAgentId: "claude-code",
+			projectPath: "/tmp/project",
+		});
+
+		store.updatePanelSession(panel.id, "pending-session");
+
+		expect(store.getTopLevelAgentPanelProjectRefs()).toEqual([
+			{
+				id: panel.id,
+				sessionProjectPath: "/tmp/project",
+				sessionSequenceId: null,
+			},
+		]);
+	});
+
 	it("derives top-level agent project refs without rebuilding panel snapshots", () => {
 		const sessionStore = {
 			getSessionIdentity: vi.fn((sessionId: string) =>

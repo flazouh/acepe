@@ -15,6 +15,7 @@ import { SvelteMap } from "svelte/reactivity";
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
 import { applyCompletionAttentionAction } from "../logic/completion-acknowledgement.js";
+import { resolveQueueUpdateInputs } from "../logic/app-queue-row-update.js";
 import {
 	syncLiveSessionPanels,
 	type LiveSessionPanelSyncInput,
@@ -106,7 +107,11 @@ $effect(() => {
 	);
 
 	queueStore.setProjectIconSrcLookup(getProjectIconSrc);
-	queueStore.updateFromSessions(queueInputs, sessionToPanelMap, getProjectColor);
+	queueStore.updateFromSessions(
+		resolveQueueUpdateInputs(queueInputs),
+		sessionToPanelMap,
+		getProjectColor
+	);
 });
 
 function handleQueueItemSelect(item: QueueItem) {

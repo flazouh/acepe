@@ -299,7 +299,7 @@ function selectPresentationConnectionPhase(
 	input: LiveSessionLifecyclePresentationInput
 ): ConnectionPhase {
 	if (input.source.kind === "missing_canonical") {
-		return "failed";
+		return input.hasLocalPendingSendIntent ? "connecting" : "failed";
 	}
 
 	const canonical = canonicalProjectionFromSource(input.source);

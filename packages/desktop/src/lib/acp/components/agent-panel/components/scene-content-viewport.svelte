@@ -28,11 +28,6 @@ import {
 	type SceneDisplayRow,
 } from "../logic/scene-display-rows.js";
 import {
-	shouldRetryNativeFallback,
-	type IndexedViewportEntry,
-	type ViewportFallbackReason,
-} from "../logic/viewport-fallback-controller.svelte.js";
-import {
 	createInitialTranscriptViewportState,
 	reduceTranscriptViewportEvent,
 	type TranscriptViewportState,
@@ -43,7 +38,6 @@ import type {
 } from "../logic/transcript-viewport-events.js";
 import type { TranscriptViewportEffect } from "../logic/transcript-viewport-effects.js";
 import {
-	createNativeTranscriptRendererAdapter,
 	createTranscriptVirtualizerRendererAdapter,
 	type TranscriptRendererEffectOutcome,
 	type TranscriptRendererAdapter,
@@ -69,8 +63,6 @@ import {
 
 const MAX_VIEWPORT_RECOVERY_FRAMES = 8;
 const MAX_EMPTY_RENDER_FRAMES = 4;
-const NATIVE_FALLBACK_ENTRY_LIMIT = 80;
-const COMPACT_TOOL_NATIVE_ENTRY_LIMIT = 80;
 const NEAR_EDGE_THRESHOLD_PX = 24;
 const TANSTACK_TRANSCRIPT_OVERSCAN = 8;
 const ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX = 120;
@@ -84,6 +76,7 @@ type SceneContentViewportProps = {
 	projectPath: string | undefined;
 	/** Session ID for detecting session changes */
 	sessionId: string | null;
+	pendingUserRevealRequestKey?: string | null;
 	/** Whether the panel is in fullscreen mode (centers content with max-width) */
 	isFullscreen?: boolean;
 	/** Pre-computed modified files state from parent (avoids duplicate aggregateFileEdits calls) */
@@ -100,8 +93,6 @@ type SceneContentViewportProps = {
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 };
 
-type IndexedDisplayEntry = IndexedViewportEntry<SceneDisplayRow>;
-
 const permissionStore = getPermissionStore();
 const sessionStore = getSessionStore();
 const agentPanelSceneReadModel = createAgentPanelSceneReadModel();
@@ -115,6 +106,7 @@ let {
 	waitingLabel = null,
 	projectPath,
 	sessionId,
+	pendingUserRevealRequestKey = null,
 	isFullscreen = false,
 	modifiedFilesState = null,
 	onNearBottomChange,
@@ -183,11 +175,8 @@ setContext(SESSION_CONTEXT_KEY_EXPORT, {
 // ===== REFS =====
 let wrapperRef: HTMLDivElement | null = $state(null);
 let virtualizerViewportRef: HTMLDivElement | null = $state(null);
-let fallbackViewportRef: HTMLDivElement | null = $state(null);
 let viewportNudgeOffsetPx = $state(0);
-let nativeFallbackRetryCount = $state(0);
 const virtualizedRowRefs = new Map<string, HTMLElement>();
-const fallbackRowRefs = new Map<string, HTMLElement>();
 
 function bindVirtualizedRow(
 	node: HTMLElement,
@@ -206,27 +195,6 @@ function bindVirtualizedRow(
 		},
 		destroy() {
 			virtualizedRowRefs.delete(currentKey);
-		},
-	};
-}
-
-function bindFallbackRow(
-	node: HTMLElement,
-	key: string
-): { update: (nextKey: string) => void; destroy: () => void } {
-	let currentKey = key;
-	fallbackRowRefs.set(currentKey, node);
-	return {
-		update(nextKey) {
-			if (nextKey === currentKey) {
-				return;
-			}
-			fallbackRowRefs.delete(currentKey);
-			currentKey = nextKey;
-			fallbackRowRefs.set(currentKey, node);
-		},
-		destroy() {
-			fallbackRowRefs.delete(currentKey);
 		},
 	};
 }
@@ -471,24 +439,7 @@ let viewportState: TranscriptViewportState = $state(
 		rows: viewportRowsReadModel.selectSummary(),
 	})
 );
-const shouldUseNativeList = $derived(viewportState.renderer.type === "fallback");
-const nativeFallbackReason = $derived(
-	viewportState.renderer.type === "fallback"
-		? (viewportState.renderer.reason as ViewportFallbackReason)
-		: null
-);
-const shouldUseCompactToolNativeList = $derived(
-	!isStreaming &&
-		!isWaitingForResponse &&
-		viewportRowsSummary.count > 0 &&
-		viewportRowsSummary.count <= COMPACT_TOOL_NATIVE_ENTRY_LIMIT &&
-		viewportRowsSummary.hasTokenRevealAssistantEntry !== true &&
-		viewportRowsSummary.hasToolCallEntry === true
-);
-const shouldUseNativeRenderer = $derived(shouldUseNativeList || shouldUseCompactToolNativeList);
-const nativeFallbackEntries = $derived.by((): readonly IndexedDisplayEntry[] => {
-	return viewportRowsReadModel.selectNativeFallbackWindow(NATIVE_FALLBACK_ENTRY_LIMIT);
-});
+let consumedPendingUserRevealRequestKey = $state<string | null>(null);
 const virtualizerRenderKey = $derived(initialHydrationComplete ? "hydrated" : "deferred");
 const wrapperStyle = $derived(
 	viewportNudgeOffsetPx === 0 ? "height: 100%;" : `height: calc(100% - ${viewportNudgeOffsetPx}px);`
@@ -497,6 +448,8 @@ const transcriptVirtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>(
 	count: 0,
 	getScrollElement: () => virtualizerViewportRef,
 	estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
+	measureElement: (element) => element.getBoundingClientRect().height,
+	useAnimationFrameWithResizeObserver: true,
 	overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
 	getItemKey: (index) => index,
 });
@@ -510,6 +463,8 @@ $effect(() => {
 			return row === undefined ? index : getSceneDisplayRowKey(row);
 		},
 		estimateSize: () => ESTIMATED_TRANSCRIPT_ROW_HEIGHT_PX,
+		measureElement: (element) => element.getBoundingClientRect().height,
+		useAnimationFrameWithResizeObserver: true,
 		overscan: TANSTACK_TRANSCRIPT_OVERSCAN,
 	});
 });
@@ -530,20 +485,17 @@ $effect(() => {
 });
 
 function measureVirtualizedRow(
-	node: HTMLDivElement
-): { update: () => void; destroy: () => void } {
+	node: HTMLDivElement,
+	_entryKey: string
+): { update: (_nextEntryKey: string) => void; destroy: () => void } {
 	const virtualizer = get(transcriptVirtualizer);
 	virtualizer.measureElement(node);
-	const observer = new ResizeObserver(() => {
-		virtualizer.measureElement(node);
-	});
-	observer.observe(node);
 	return {
-		update() {
+		update(_nextEntryKey) {
 			virtualizer.measureElement(node);
 		},
 		destroy() {
-			observer.disconnect();
+			virtualizer.measureElement(null);
 		},
 	};
 }
@@ -554,6 +506,16 @@ function getRowKeys(): readonly string[] {
 
 function getRowIndex(rowKey: string): number {
 	return viewportRowsSummary.rowIndexByKey?.get(rowKey) ?? -1;
+}
+
+function getLatestUserRowKey(): string | null {
+	for (let index = displayEntries.length - 1; index >= 0; index -= 1) {
+		const row = displayEntries[index];
+		if (row?.type === "user") {
+			return getSceneDisplayRowKey(row);
+		}
+	}
+	return null;
 }
 
 function getVirtualizerHandle(): TranscriptVirtualizerHandle | undefined {
@@ -640,49 +602,33 @@ const virtualizerAdapter = createTranscriptVirtualizerRendererAdapter({
 	getRowElement: (rowKey: string) => virtualizedRowRefs.get(rowKey) ?? null,
 });
 
-const nativeAdapter = createNativeTranscriptRendererAdapter({
-	getContainer: () => fallbackViewportRef,
-	getRowKeys,
-	getRowElement: (rowKey: string) => fallbackRowRefs.get(rowKey) ?? null,
-});
-
 const transcriptRendererAdapter: TranscriptRendererAdapter = {
 	measureViewport() {
-		return shouldUseNativeRenderer ? nativeAdapter.measureViewport() : virtualizerAdapter.measureViewport();
+		return virtualizerAdapter.measureViewport();
 	},
 	captureAnchor() {
-		return shouldUseNativeRenderer ? nativeAdapter.captureAnchor() : virtualizerAdapter.captureAnchor();
+		return virtualizerAdapter.captureAnchor();
 	},
 	measureAnchor(anchorKey) {
-		return shouldUseNativeRenderer
-			? nativeAdapter.measureAnchor(anchorKey)
-			: virtualizerAdapter.measureAnchor(anchorKey);
+		return virtualizerAdapter.measureAnchor(anchorKey);
 	},
 	revealRow(effect) {
-		const outcome = shouldUseNativeRenderer
-			? nativeAdapter.revealRow(effect)
-			: virtualizerAdapter.revealRow(effect);
+		const outcome = virtualizerAdapter.revealRow(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	revealTail(effect) {
-		const outcome = shouldUseNativeRenderer
-			? nativeAdapter.revealTail(effect)
-			: virtualizerAdapter.revealTail(effect);
+		const outcome = virtualizerAdapter.revealTail(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	applyScrollOffset(effect) {
-		const outcome = shouldUseNativeRenderer
-			? nativeAdapter.applyScrollOffset(effect)
-			: virtualizerAdapter.applyScrollOffset(effect);
+		const outcome = virtualizerAdapter.applyScrollOffset(effect);
 		recordScrollWrite(effect, outcome);
 		return outcome;
 	},
 	probeRendererHealth() {
-		return shouldUseNativeRenderer
-			? nativeAdapter.probeRendererHealth()
-			: virtualizerAdapter.probeRendererHealth();
+		return virtualizerAdapter.probeRendererHealth();
 	},
 	reportEffectOutcome(outcome) {
 		virtualizerAdapter.reportEffectOutcome(outcome);
@@ -774,6 +720,24 @@ $effect(() => {
 });
 
 $effect(() => {
+	const requestKey = pendingUserRevealRequestKey;
+	if (requestKey === null || requestKey === consumedPendingUserRevealRequestKey) {
+		return;
+	}
+	const latestUserRowKey = getLatestUserRowKey();
+	if (latestUserRowKey === null) {
+		return;
+	}
+	consumedPendingUserRevealRequestKey = requestKey;
+	dispatchViewportEvent({
+		type: "SendStarted",
+		sessionId,
+		generation: viewportState.generation,
+		targetKey: isWaitingForResponse ? undefined : latestUserRowKey,
+	});
+});
+
+$effect(() => {
 	if (initialHydrationComplete || !shouldDeferInitialHydration) {
 		return;
 	}
@@ -812,7 +776,6 @@ $effect(() => {
 		sessionId,
 		previousSessionId,
 	});
-	nativeFallbackRetryCount = 0;
 	viewportNudgeOffsetPx = 0;
 	historicalScrollApplied = false;
 	const sessionSwitchGeneration = viewportState.generation;
@@ -849,7 +812,7 @@ $effect(() => {
 });
 
 $effect(() => {
-	if (!initialHydrationComplete || shouldUseNativeRenderer || displayEntries.length === 0) {
+	if (!initialHydrationComplete || displayEntries.length === 0) {
 		viewportNudgeOffsetPx = 0;
 		return;
 	}
@@ -875,7 +838,7 @@ $effect(() => {
 			viewportNudgeOffsetPx = 0;
 			if (import.meta.env.DEV) {
 				console.warn(
-					"[TRANSCRIPT_VIRTUALIZER_FALLBACK]",
+					"[TRANSCRIPT_VIRTUALIZER_HEALTH]",
 					"reason=zero_viewport",
 					`sessionId=${sessionId}`,
 					`entries=${displayEntries.length}`
@@ -909,7 +872,6 @@ $effect(() => {
 $effect(() => {
 	if (
 		!initialHydrationComplete ||
-		shouldUseNativeRenderer ||
 		displayEntries.length === 0 ||
 		!wrapperRef
 	) {
@@ -936,7 +898,7 @@ $effect(() => {
 			viewportNudgeOffsetPx = 0;
 			if (import.meta.env.DEV) {
 				console.warn(
-					"[TRANSCRIPT_VIRTUALIZER_FALLBACK]",
+					"[TRANSCRIPT_VIRTUALIZER_HEALTH]",
 					"reason=no_rendered_entries",
 					`sessionId=${sessionId}`,
 					`entries=${displayEntries.length}`
@@ -961,53 +923,6 @@ $effect(() => {
 		cancelled = true;
 		if (probeFrameId !== null) {
 			cancelAnimationFrame(probeFrameId);
-		}
-	};
-});
-
-$effect(() => {
-	if (
-		!shouldUseNativeList ||
-		!shouldRetryNativeFallback({
-			reason: nativeFallbackReason,
-			retryCount: nativeFallbackRetryCount,
-		})
-	) {
-		return;
-	}
-
-	let cancelled = false;
-	let frameCount = 0;
-	let retryFrameId: number | null = null;
-	const fallbackSessionId = sessionId;
-	const fallbackGeneration = untrack(() => viewportState.generation);
-
-	const retryVirtualizerAfterFallback = () => {
-		if (cancelled || sessionId !== fallbackSessionId) {
-			return;
-		}
-
-		frameCount += 1;
-		if (frameCount < 2) {
-			retryFrameId = requestAnimationFrame(retryVirtualizerAfterFallback);
-			return;
-		}
-
-		retryFrameId = null;
-		nativeFallbackRetryCount += 1;
-		dispatchViewportEvent({
-			type: "RendererRecovered",
-			sessionId,
-			generation: fallbackGeneration,
-		});
-	};
-
-	retryFrameId = requestAnimationFrame(retryVirtualizerAfterFallback);
-
-	return () => {
-		cancelled = true;
-		if (retryFrameId !== null) {
-			cancelAnimationFrame(retryFrameId);
 		}
 	};
 });
@@ -1120,18 +1035,6 @@ function captureCurrentAnchor(source: string):
 
 function handleVirtualizerScroll(): void {
 	const anchor = captureCurrentAnchor("virtualizer-scroll");
-	dispatchViewportEvent({
-		type: "UserScroll",
-		sessionId,
-		generation: viewportState.generation,
-		measurement: measureCurrentViewport(),
-		anchorKey: anchor?.anchorKey,
-		anchorOffsetPx: anchor?.anchorOffsetPx,
-	});
-}
-
-function handleFallbackScroll(): void {
-	const anchor = captureCurrentAnchor("native-scroll");
 	dispatchViewportEvent({
 		type: "UserScroll",
 		sessionId,
@@ -1286,48 +1189,33 @@ export function scrollToTop() {
 		{/if}
 	{/snippet}
 
-	{#if shouldUseNativeRenderer}
+	{#key `${sessionId ?? "pre-session"}:${virtualizerRenderKey}`}
 		<div
-			bind:this={fallbackViewportRef}
-			data-testid="native-fallback"
-			class="h-full overflow-y-auto"
-			onscroll={handleFallbackScroll}
+			bind:this={virtualizerViewportRef}
+			data-testid="transcript-virtualizer"
+			class="h-full min-h-0 overflow-y-auto"
+			style="contain: strict;"
+			onscroll={handleVirtualizerScroll}
 		>
-			{#each nativeFallbackEntries as item (getKey(item.entry))}
-				<div use:bindFallbackRow={getKey(item.entry)}>
-					{@render renderEntry(item.entry, item.index)}
-				</div>
-			{/each}
-		</div>
-	{:else}
-		{#key `${sessionId ?? "pre-session"}:${virtualizerRenderKey}`}
 			<div
-				bind:this={virtualizerViewportRef}
-				data-testid="transcript-virtualizer"
-				class="h-full min-h-0 overflow-y-auto"
-				style="contain: strict;"
-				onscroll={handleVirtualizerScroll}
+				style={`height: ${$transcriptVirtualizer.getTotalSize()}px; position: relative; width: 100%;`}
 			>
-				<div
-					style={`height: ${$transcriptVirtualizer.getTotalSize()}px; position: relative; width: 100%;`}
-				>
-					{#each $transcriptVirtualizer.getVirtualItems() as virtualItem (virtualItem.key)}
-						{@const entry = displayEntries[virtualItem.index]}
-						{@const entryKey = getKey(entry, virtualItem.index)}
-						<div
-							use:measureVirtualizedRow
-							data-index={virtualItem.index}
-							style={`position: absolute; top: 0; left: 0; width: 100%; transform: translateY(${virtualItem.start}px);`}
-						>
-							<div use:bindVirtualizedRow={entryKey} data-entry-key={entryKey}>
-								{@render renderEntry(entry, virtualItem.index)}
-							</div>
+				{#each $transcriptVirtualizer.getVirtualItems() as virtualItem (virtualItem.key)}
+					{@const entry = displayEntries[virtualItem.index]}
+					{@const entryKey = getKey(entry, virtualItem.index)}
+					<div
+						use:measureVirtualizedRow={entryKey}
+						data-index={virtualItem.index}
+						style={`position: absolute; top: 0; left: 0; width: 100%; transform: translateY(${virtualItem.start}px);`}
+					>
+						<div use:bindVirtualizedRow={entryKey} data-entry-key={entryKey}>
+							{@render renderEntry(entry, virtualItem.index)}
 						</div>
-					{/each}
-				</div>
+					</div>
+				{/each}
 			</div>
-		{/key}
-	{/if}
+		</div>
+	{/key}
 </div>
 
 <style>

@@ -1,9 +1,3 @@
-export type TranscriptRendererFallbackReason =
-	| "zero_viewport"
-	| "no_rendered_entries"
-	| "adapter-anchor-missing"
-	| "explicit-safety-mode";
-
 export type TranscriptViewportEffectBase = {
 	sessionId: string | null;
 	generation: number;
@@ -41,12 +35,7 @@ export type TranscriptViewportEffect =
 	| (TranscriptViewportEffectBase & {
 			type: "ApplyScrollOffset";
 			offsetPx: number;
-			reason: "anchor-missing" | "fallback-recovery" | "preserve-anchor";
-	  })
-	| (TranscriptViewportEffectBase & {
-			type: "SwitchRenderer";
-			renderer: "primary" | "fallback";
-			reason?: TranscriptRendererFallbackReason;
+			reason: "anchor-missing" | "preserve-anchor";
 	  })
 	| (TranscriptViewportEffectBase & {
 			type: "ProbeRendererHealth";

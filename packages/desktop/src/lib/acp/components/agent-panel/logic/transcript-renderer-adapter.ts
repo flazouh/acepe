@@ -87,12 +87,6 @@ export type TranscriptVirtualizerRendererAdapterOptions = {
 	getRowElement?(rowKey: string): HTMLElement | null;
 };
 
-export type NativeTranscriptRendererAdapterOptions = {
-	getContainer(): HTMLDivElement | null;
-	getRowKeys(): readonly string[];
-	getRowElement(rowKey: string): HTMLElement | null;
-};
-
 function missingMeasurement(): TranscriptRendererMeasurementOutcome {
 	return {
 		type: "missing",
@@ -157,26 +151,6 @@ function preserveHorizontalScroll(container: HTMLElement | null, write: () => vo
 	for (const snapshot of snapshots) {
 		snapshot.ancestor.scrollLeft = snapshot.scrollLeft;
 	}
-}
-
-function revealRowInContainer(
-	container: HTMLDivElement,
-	row: HTMLElement,
-	align: "start" | "center" | "end"
-): void {
-	const containerRect = container.getBoundingClientRect();
-	const rowRect = row.getBoundingClientRect();
-	if (align === "start") {
-		container.scrollTop += rowRect.top - containerRect.top;
-		return;
-	}
-	if (align === "center") {
-		const containerCenter = containerRect.top + containerRect.height / 2;
-		const rowCenter = rowRect.top + rowRect.height / 2;
-		container.scrollTop += rowCenter - containerCenter;
-		return;
-	}
-	container.scrollTop += rowRect.bottom - containerRect.bottom;
 }
 
 export function createTranscriptVirtualizerRendererAdapter(
@@ -313,136 +287,6 @@ export function createTranscriptVirtualizerRendererAdapter(
 				};
 			}
 			if (handle.getViewportSize() <= 0) {
-				return {
-					type: "unhealthy",
-					reason: "zero_viewport",
-				};
-			}
-			return {
-				type: "healthy",
-			};
-		},
-		reportEffectOutcome() {
-			return;
-		},
-	};
-}
-
-export function createNativeTranscriptRendererAdapter(
-	options: NativeTranscriptRendererAdapterOptions
-): TranscriptRendererAdapter {
-	return {
-		measureViewport() {
-			const container = options.getContainer();
-			if (container === null) {
-				return missingMeasurement();
-			}
-			return {
-				type: "measured",
-				measurement: {
-					scrollOffset: container.scrollTop,
-					scrollSize: container.scrollHeight,
-					viewportSize: container.clientHeight,
-				},
-			};
-		},
-		captureAnchor() {
-			const rowKeys = options.getRowKeys();
-			const container = options.getContainer();
-			if (container === null) {
-				return {
-					type: "missing",
-					reason: "missing-adapter",
-				};
-			}
-			for (const rowKey of rowKeys) {
-				const row = options.getRowElement(rowKey);
-				if (row !== null && isRowVisibleInContainer(container, row)) {
-					return {
-						type: "captured",
-						anchorKey: rowKey,
-						offsetPx: measureRowOffsetInContainer(container, row),
-					};
-				}
-			}
-			if (rowKeys[0] === undefined) {
-				return {
-					type: "missing",
-					reason: "missing-target",
-				};
-			}
-			return {
-				type: "missing",
-				reason: "missing-target",
-			};
-		},
-		measureAnchor(anchorKey) {
-			const row = options.getRowElement(anchorKey);
-			if (row === null) {
-				return {
-					type: "missing",
-					anchorKey,
-					reason: "missing-target",
-				};
-			}
-			const container = options.getContainer();
-			if (container === null) {
-				return {
-					type: "missing",
-					anchorKey,
-					reason: "missing-adapter",
-				};
-			}
-			return {
-				type: "measured",
-				anchorKey,
-				offsetPx: measureRowOffsetInContainer(container, row),
-			};
-		},
-		revealRow(effect) {
-			const row = options.getRowElement(effect.targetKey);
-			if (row === null) {
-				return {
-					type: "skipped",
-					effectType: effect.type,
-					reason: "missing-target",
-				};
-			}
-			const container = options.getContainer();
-			if (container === null) {
-				return missingEffect(effect.type);
-			}
-			revealRowInContainer(container, row, effect.align);
-			return {
-				type: "applied",
-				effectType: effect.type,
-			};
-		},
-		revealTail(effect) {
-			const container = options.getContainer();
-			if (container === null) {
-				return missingEffect(effect.type);
-			}
-			container.scrollTop = container.scrollHeight;
-			return {
-				type: "applied",
-				effectType: effect.type,
-			};
-		},
-		applyScrollOffset(effect) {
-			const container = options.getContainer();
-			if (container === null) {
-				return missingEffect(effect.type);
-			}
-			container.scrollTop = effect.offsetPx;
-			return {
-				type: "applied",
-				effectType: effect.type,
-			};
-		},
-		probeRendererHealth() {
-			const container = options.getContainer();
-			if (container === null || container.clientHeight <= 0) {
 				return {
 					type: "unhealthy",
 					reason: "zero_viewport",

@@ -14,14 +14,9 @@ const NEAR_TAIL_THRESHOLD_PX = 24;
 
 export type TranscriptViewportFollowState = "following" | "detached";
 
-export type TranscriptViewportRendererState =
-	| {
-			type: "primary";
-	  }
-	| {
-			type: "fallback";
-			reason: string;
-	  };
+export type TranscriptViewportRendererState = {
+	type: "primary";
+};
 
 export type TranscriptViewportState = {
 	sessionId: string | null;
@@ -535,104 +530,14 @@ export function reduceTranscriptViewportEvent(
 			};
 		case "RendererFailed":
 			return {
-				state: {
-					sessionId: state.sessionId,
-					generation: state.generation,
-					renderer: {
-						type: "fallback",
-						reason: event.reason,
-					},
-					follow: state.follow,
-					anchor: state.anchor,
-					rows: state.rows,
-					pendingSendReveal: state.pendingSendReveal,
-					programmaticScrollInFlight: state.programmaticScrollInFlight,
-					lastMeasurement: state.lastMeasurement,
-				},
+				state,
 				effects: [
 					{
-						type: "SwitchRenderer",
+						type: "ReportDiagnostic",
 						sessionId: state.sessionId,
 						generation: state.generation,
-						renderer: "fallback",
-						reason: event.reason,
-					},
-				],
-			};
-		case "RendererRecovered":
-			const recoveredState = {
-				sessionId: state.sessionId,
-				generation: state.generation,
-				renderer: {
-					type: "primary" as const,
-				},
-				follow: state.follow,
-				anchor: state.anchor,
-				rows: state.rows,
-				pendingSendReveal: state.pendingSendReveal,
-				programmaticScrollInFlight: state.programmaticScrollInFlight,
-				lastMeasurement: state.lastMeasurement,
-			};
-			if (state.anchor.type === "offset") {
-				return {
-					state: recoveredState,
-					effects: [
-						{
-							type: "SwitchRenderer",
-							sessionId: state.sessionId,
-							generation: state.generation,
-							renderer: "primary",
-						},
-						{
-							type: "ApplyScrollOffset",
-							sessionId: state.sessionId,
-							generation: state.generation,
-							offsetPx: state.anchor.offsetPx,
-							reason: "fallback-recovery",
-						},
-					],
-				};
-			}
-			if (state.anchor.type === "row") {
-				return {
-					state: recoveredState,
-					effects: [
-						{
-							type: "SwitchRenderer",
-							sessionId: state.sessionId,
-							generation: state.generation,
-							renderer: "primary",
-						},
-						{
-							type: "PreserveAnchor",
-							sessionId: state.sessionId,
-							generation: state.generation,
-							anchorKey: state.anchor.rowKey,
-							offsetPx: state.anchor.offsetPx,
-						},
-					],
-				};
-			}
-			return {
-				state: {
-					sessionId: state.sessionId,
-					generation: state.generation,
-					renderer: {
-						type: "primary",
-					},
-					follow: state.follow,
-					anchor: state.anchor,
-					rows: state.rows,
-					pendingSendReveal: state.pendingSendReveal,
-					programmaticScrollInFlight: state.programmaticScrollInFlight,
-					lastMeasurement: state.lastMeasurement,
-				},
-				effects: [
-					{
-						type: "SwitchRenderer",
-						sessionId: state.sessionId,
-						generation: state.generation,
-						renderer: "primary",
+						code: "renderer-health",
+						message: `Transcript virtualizer health probe failed: ${event.reason}`,
 					},
 				],
 			};

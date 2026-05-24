@@ -14,6 +14,7 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 	const projectPath = overrides?.projectPath ?? "/repo";
 	const worktreePath = overrides?.worktreePath ?? null;
 	const sourcePath = overrides?.sourcePath ?? "/repo/.copilot/session.jsonl";
+	const sequenceId = overrides?.sequenceId ?? null;
 	const transcriptSnapshot = overrides?.transcriptSnapshot ?? {
 		revision: lastEventSeq,
 		entries: [],
@@ -34,6 +35,7 @@ function createFoundResult(overrides?: Partial<SessionOpenFound>): SessionOpenFo
 		projectPath,
 		worktreePath,
 		sourcePath,
+		sequenceId,
 		transcriptSnapshot,
 		sessionTitle,
 		operations,
@@ -78,6 +80,7 @@ function createFoundResultWithoutLifecycle(): Omit<SessionOpenFound, "lifecycle"
 		projectPath: found.projectPath,
 		worktreePath: found.worktreePath,
 		sourcePath: found.sourcePath,
+		sequenceId: found.sequenceId,
 		transcriptSnapshot: found.transcriptSnapshot,
 		sessionTitle: found.sessionTitle,
 		operations: found.operations,

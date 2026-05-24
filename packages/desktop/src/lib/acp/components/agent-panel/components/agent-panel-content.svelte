@@ -1,6 +1,5 @@
 <script lang="ts">
 import { AgentPanelStatePanel } from "@acepe/ui/agent-panel";
-import { LoadingIcon } from "@acepe/ui/icons";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import {
 	deriveLiveSessionWorkProjection,
@@ -18,6 +17,7 @@ let {
 	viewState,
 	sessionId,
 	sceneEntries,
+	pendingUserRevealRequestKey = null,
 	sessionProjectPath,
 	allProjects = [],
 	scrollContainer = $bindable(null),
@@ -173,6 +173,7 @@ export function scrollToTop() {
 				{panelId}
 				{sceneEntries}
 				{sessionId}
+				{pendingUserRevealRequestKey}
 				{turnState}
 				{isWaitingForResponse}
 				{waitingLabel}
@@ -190,14 +191,6 @@ export function scrollToTop() {
 			/>
 		</div>
 	</div>
-{:else if viewState.kind === "loading"}
-	<AgentPanelStatePanel centerContent={true}>
-		{#snippet children()}
-			<div class="flex h-full w-full items-center justify-center">
-				<LoadingIcon size={40} aria-label="Loading session" />
-			</div>
-		{/snippet}
-	</AgentPanelStatePanel>
 {:else if viewState.kind === "ready"}
 	<AgentPanelStatePanel centerContent={true}>
 		{#snippet children()}

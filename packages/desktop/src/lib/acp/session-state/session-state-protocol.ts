@@ -39,6 +39,7 @@ export function graphFromSessionOpenFound(found: SessionOpenFound): SessionState
 		projectPath: found.projectPath,
 		worktreePath: found.worktreePath,
 		sourcePath: found.sourcePath,
+		sequenceId: found.sequenceId,
 		revision: {
 			graphRevision: found.graphRevision,
 			transcriptRevision: found.transcriptSnapshot.revision,

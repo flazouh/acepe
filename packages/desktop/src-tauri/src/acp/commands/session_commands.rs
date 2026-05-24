@@ -617,6 +617,9 @@ pub async fn acp_get_session_state(
             project_path,
             worktree_path,
             source_path,
+            sequence_id: canonical_metadata
+                .as_ref()
+                .and_then(|metadata| metadata.sequence_id),
             transcript_snapshot,
             session_title: resolve_canonical_session_title(
                 canonical_metadata.as_ref(),
@@ -2226,6 +2229,7 @@ mod transcript_buffer_tests {
                             project_path: "/repo".to_string(),
                             worktree_path: None,
                             source_path: None,
+                            sequence_id: None,
                             revision: SessionGraphRevision::new(13, 12, 13),
                             transcript_snapshot: crate::acp::transcript_projection::TranscriptSnapshot {
                                 revision: 12,

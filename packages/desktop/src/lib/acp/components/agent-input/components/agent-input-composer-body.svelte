@@ -33,6 +33,7 @@ let {
 	isAgentBusy,
 	effectiveAvailableCommands,
 	isSlashDropdownVisible,
+	slashCommandTokenType,
 	filePickerProjectPath,
 	onEditorBeforeInput,
 	onEditorInput,
@@ -81,6 +82,7 @@ let {
 	isAgentBusy: boolean;
 	effectiveAvailableCommands: readonly AvailableCommand[];
 	isSlashDropdownVisible: boolean;
+	slashCommandTokenType: "command" | "skill";
 	filePickerProjectPath: string | null;
 	onEditorBeforeInput: (e: InputEvent) => void;
 	onEditorInput: () => void;
@@ -265,6 +267,7 @@ let {
 	startTypingLabel={slashLabels.startTyping}
 	selectHintLabel={slashLabels.selectHint}
 	closeHintLabel={slashLabels.closeHint}
+	tokenType={slashCommandTokenType}
 	onSelect={(cmd: AvailableCommand) => onCommandSelect(cmd)}
 	onClose={onSlashDropdownClose}
 />

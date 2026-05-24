@@ -144,6 +144,7 @@ import { SessionTransientProjectionStore } from "./session-transient-projection-
 const logger = createLogger({ id: "session-store", name: "SessionStore" });
 
 const SESSION_STORE_KEY = Symbol("session-store");
+let currentSessionStore: SessionStore | null = null;
 const PR_CHECKS_POLL_INTERVAL_MS = 10_000;
 const AWAITING_MODEL_SNAPSHOT_REFRESH_MS = 5_000;
 const MAX_CANONICAL_CONFIG_STRING_LENGTH = 512;
@@ -320,6 +321,7 @@ const SESSION_STATE_GRAPH_COPY_KEYS = [
 	"projectPath",
 	"worktreePath",
 	"sourcePath",
+	"sequenceId",
 	"revision",
 	"transcriptSnapshot",
 	"operations",
@@ -1661,6 +1663,7 @@ function sessionColdFromOpenSnapshotInput(input: {
 	readonly sourcePath?: string;
 	readonly sessionLifecycleState: SessionMetadata["sessionLifecycleState"];
 	readonly parentId: string | null;
+	readonly sequenceId: number | null;
 	readonly preservedMetadata?: SessionMetadata;
 }): SessionCold {
 	return sessionColdFromSlices(
@@ -1682,7 +1685,7 @@ function sessionColdFromOpenSnapshotInput(input: {
 			prLinkMode: input.preservedMetadata?.prLinkMode,
 			linkedPr: input.preservedMetadata?.linkedPr,
 			worktreeDeleted: input.preservedMetadata?.worktreeDeleted,
-			sequenceId: input.preservedMetadata?.sequenceId,
+			sequenceId: input.sequenceId ?? input.preservedMetadata?.sequenceId,
 		}
 	);
 }
@@ -3051,7 +3054,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			references.push({
 				id: session.id,
 				prNumber: session.prNumber,
-				sequenceId: session.sequenceId,
+				sequenceId: session.sequenceId ?? undefined,
 			});
 		}
 		return references;
@@ -3186,6 +3189,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	}
 
 	applySessionStateGraph(graph: SessionStateGraph): void {
+		this.syncSessionSequenceFromGraph(graph);
 		const previousTransientProjection = this.getTransientProjection(graph.canonicalSessionId);
 		const previousProjection = this.canonicalProjections.get(graph.canonicalSessionId) ?? null;
 		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
@@ -3440,6 +3444,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			sourcePath: snapshot.sourcePath ?? undefined,
 			sessionLifecycleState: nextSessionLifecycleState,
 			parentId: preservedSession?.parentId ?? null,
+			sequenceId: snapshot.sequenceId,
 			preservedMetadata: preservedSession,
 		});
 
@@ -3507,6 +3512,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 	ensureSessionFromStateGraph(graph: SessionStateGraph): boolean {
 		const sessionId = graph.canonicalSessionId;
 		if (this.getSessionIdentity(sessionId)) {
+			this.syncSessionSequenceFromGraph(graph);
 			this.pendingCreationSessions.delete(sessionId);
 			if (graph.isAlias) {
 				this.pendingCreationSessions.delete(graph.requestedSessionId);
@@ -3531,6 +3537,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			updatedAt: now,
 			createdAt: now,
 			sourcePath: graph.sourcePath ?? undefined,
+			sequenceId: graph.sequenceId ?? undefined,
 			sessionLifecycleState: graph.sourcePath ? "persisted" : "created",
 			parentId: null,
 		});
@@ -3539,6 +3546,23 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 			this.pendingCreationSessions.delete(graph.requestedSessionId);
 		}
 		return true;
+	}
+
+	private syncSessionSequenceFromGraph(graph: SessionStateGraph): void {
+		if (graph.sequenceId === null || graph.sequenceId === undefined) {
+			return;
+		}
+		const metadata = this.getSessionMetadata(graph.canonicalSessionId);
+		if (metadata === undefined || metadata.sequenceId != null) {
+			return;
+		}
+		this.updateSession(
+			graph.canonicalSessionId,
+			{
+				sequenceId: graph.sequenceId,
+			},
+			{ touchUpdatedAt: false }
+		);
 	}
 
 	failPendingCreationSession(sessionId: string, update: TurnErrorUpdate): void {
@@ -5137,6 +5161,7 @@ function getOrCreateRowTokenStreamByRowId(
  */
 export function createSessionStore(): SessionStore {
 	const store = new SessionStore();
+	currentSessionStore = store;
 	setContext(SESSION_STORE_KEY, store);
 
 	return store;
@@ -5146,5 +5171,14 @@ export function createSessionStore(): SessionStore {
  * Get the session store from Svelte context.
  */
 export function getSessionStore(): SessionStore {
-	return getContext<SessionStore>(SESSION_STORE_KEY);
+	const contextStore = getContext<SessionStore | undefined>(SESSION_STORE_KEY);
+	if (contextStore !== undefined) {
+		return contextStore;
+	}
+	if (currentSessionStore !== null) {
+		return currentSessionStore;
+	}
+	const store = new SessionStore();
+	currentSessionStore = store;
+	return store;
 }

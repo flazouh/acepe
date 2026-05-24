@@ -24,9 +24,9 @@ let {
 const themeState = useTheme();
 const agentStore = getAgentStore();
 
-const canonicalProviderMetadata = $derived(agentStore.getProviderMetadata(agentId));
+const canonicalProviderMetadata = $derived(agentStore?.getProviderMetadata(agentId) ?? null);
 const effectiveProviderBrand = $derived(
-	providerBrand ?? canonicalProviderMetadata?.providerBrand ?? "custom"
+	providerBrand ?? canonicalProviderMetadata?.providerBrand ?? null
 );
 const effectiveProviderLabel = $derived(
 	providerLabel ?? canonicalProviderMetadata?.displayName ?? agentId
@@ -34,4 +34,6 @@ const effectiveProviderLabel = $derived(
 const iconPath = $derived(getProviderBrandIcon(effectiveProviderBrand, themeState.effectiveTheme));
 </script>
 
-<img src={iconPath} alt={effectiveProviderLabel} class={className} width={size} height={size} />
+{#if iconPath}
+	<img src={iconPath} alt={effectiveProviderLabel} class={className} width={size} height={size} />
+{/if}

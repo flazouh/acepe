@@ -28,7 +28,7 @@ export interface OptimisticKanbanCard {
 
 export interface BuildKanbanCardInput {
 	readonly item: ThreadBoardItem;
-	readonly getAgentIcon: (agentId: string | null | undefined) => string;
+	readonly getAgentIcon: (agentId: string | null | undefined) => string | null;
 	readonly onOpenPrCheckDetails: (detailsUrl: string) => void;
 }
 
@@ -151,9 +151,10 @@ export function buildKanbanCard(input: BuildKanbanCardInput): KanbanCardData {
 
 export interface BuildOptimisticKanbanCardsInput {
 	readonly panels: readonly Panel[];
+	readonly sessionIdsWithThreadBoardSource?: ReadonlySet<string>;
 	readonly getProject: (projectPath: string) => Project | undefined;
 	readonly getPanelHotState: (panelId: string) => PanelHotState;
-	readonly getAgentIcon: (agentId: string | null | undefined) => string;
+	readonly getAgentIcon: (agentId: string | null | undefined) => string | null;
 }
 
 export function buildOptimisticKanbanCards(
@@ -162,12 +163,20 @@ export function buildOptimisticKanbanCards(
 	const cards: OptimisticKanbanCard[] = [];
 
 	for (const panel of input.panels) {
-		if (panel.sessionId !== null || panel.projectPath === null || panel.selectedAgentId === null) {
+		const agentId = panel.selectedAgentId ?? panel.agentId;
+		if (panel.projectPath === null || agentId === null) {
 			continue;
 		}
 
 		const hotState = input.getPanelHotState(panel.id);
 		if (hotState.pendingUserEntry === null && hotState.pendingWorktreeSetup === null) {
+			continue;
+		}
+
+		if (
+			panel.sessionId !== null &&
+			input.sessionIdsWithThreadBoardSource?.has(panel.sessionId) === true
+		) {
 			continue;
 		}
 
@@ -190,10 +199,10 @@ export function buildOptimisticKanbanCards(
 			panelId: panel.id,
 			projectPath: panel.projectPath,
 			card: {
-				id: panel.id,
+				id: panel.sessionId ?? panel.id,
 				title,
-				agentIconSrc: input.getAgentIcon(panel.selectedAgentId),
-				agentLabel: panel.selectedAgentId,
+				agentIconSrc: input.getAgentIcon(agentId),
+				agentLabel: agentId,
 				isAutoMode: hotState.provisionalAutonomousEnabled,
 				projectName: project ? project.name : "Unknown",
 				projectColor: project ? project.color : Colors[COLOR_NAMES.PINK],

@@ -110,9 +110,11 @@ function handleKeydown(event: KeyboardEvent): void {
 			</HeaderCell>
 			<HeaderCell class="px-1">
 				<div class="flex items-center gap-1.5">
-					<div class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-						<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
-					</div>
+					{#if card.agentIconSrc}
+						<div class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+							<img src={card.agentIconSrc} alt={card.agentLabel} width="14" height="14" class="shrink-0 rounded-sm" />
+						</div>
+					{/if}
 					{#if card.isWorktreeSession}
 						<div
 							class="flex h-3.5 w-3.5 shrink-0 items-center justify-center"

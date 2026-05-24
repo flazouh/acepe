@@ -1071,28 +1071,6 @@ describe("createTranscriptViewportRowsReadModel", () => {
 		expect(readModel.selectThinkingDurationMs(1, startedAtMs + 2_500)).toBe(2_500);
 	});
 
-	it("selects and caches the native fallback tail window", () => {
-		const readModel = createTranscriptViewportRowsReadModel();
-		const rows = [userRow("user-1"), assistantRow("assistant-1"), toolRow("tool-1")];
-		readModel.applyRows({ rows, reason: "rows-updated" });
-
-		const window = readModel.selectNativeFallbackWindow(2);
-
-		expect(window).toEqual([
-			{ entry: rows[1], index: 1 },
-			{ entry: rows[2], index: 2 },
-		]);
-		expect(readModel.selectNativeFallbackWindow(2)).toBe(window);
-
-		const nextRows = rows.concat(userRow("user-2"));
-		readModel.applyRows({ rows: nextRows, reason: "rows-updated" });
-
-		expect(readModel.selectNativeFallbackWindow(2)).toEqual([
-			{ entry: nextRows[2], index: 2 },
-			{ entry: nextRows[3], index: 3 },
-		]);
-	});
-
 	it("selects nearby row diagnostics without exposing row slicing to callers", () => {
 		const readModel = createTranscriptViewportRowsReadModel();
 		readModel.applyRows({

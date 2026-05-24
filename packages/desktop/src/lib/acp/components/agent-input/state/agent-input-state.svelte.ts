@@ -9,6 +9,7 @@ import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { deriveSessionTitleFromUserInput } from "../../../store/session-title-policy.js";
 import type { AvailableCommand } from "../../../types/available-command.js";
+import { isSlashSkillCommand } from "../logic/slash-command-source.js";
 import type { FilePickerEntry } from "../../../types/file-picker-entry.js";
 import { createLogger } from "../../../utils/logger.js";
 import {
@@ -596,6 +597,9 @@ export class AgentInputState {
 
 		// Validate project and agent are set before session creation.
 		if (!projectPath || projectPath.trim().length === 0) {
+			if (panelId) {
+				this.panelStore.clearPendingUserEntry(panelId);
+			}
 			return errAsync(
 				new SessionCreationError(
 					selectedAgentId ?? "unknown",
@@ -607,6 +611,9 @@ export class AgentInputState {
 
 		const effectiveProjectPath = projectPath;
 		if (!selectedAgentId) {
+			if (panelId) {
+				this.panelStore.clearPendingUserEntry(panelId);
+			}
 			return errAsync(
 				new SessionCreationError(
 					"unknown",
@@ -1163,7 +1170,9 @@ export class AgentInputState {
 	}
 
 	private isSkillCommand(command: AvailableCommand): boolean {
-		const desc = command.description.toLowerCase();
-		return desc.includes("skill") || command.name.includes("_");
+		return isSlashSkillCommand({
+			command,
+			preconnectionCommands: [],
+		});
 	}
 }

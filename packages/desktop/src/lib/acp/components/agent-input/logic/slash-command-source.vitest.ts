@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	isSlashSkillCommand,
 	resolveSlashCommandSource,
 	shouldShowSlashCommandDropdown,
 } from "./slash-command-source.js";
@@ -53,6 +54,22 @@ describe("resolveSlashCommandSource", () => {
 		});
 	});
 
+	it("keeps live skills labeled as skills when they match preconnection skills", () => {
+		const source = resolveSlashCommandSource({
+			liveCommands: [{ name: "ce:plan", description: "Plan work" }],
+			hasSession: true,
+			hasConnectedSession: true,
+			selectedAgentId: "claude-code",
+			preconnectionCommands: [{ name: "ce:plan", description: "Plan work" }],
+		});
+
+		expect(source).toEqual({
+			source: "live",
+			commands: [{ name: "ce:plan", description: "Plan work" }],
+			tokenType: "skill",
+		});
+	});
+
 	it("does not fall back to preconnection commands for a real session before live commands arrive", () => {
 		const source = resolveSlashCommandSource({
 			liveCommands: [],
@@ -70,6 +87,26 @@ describe("resolveSlashCommandSource", () => {
 	});
 });
 
+describe("isSlashSkillCommand", () => {
+	it("treats commands matching the preconnection skill list as skills", () => {
+		expect(
+			isSlashSkillCommand({
+				command: { name: "ce:review", description: "Review changes" },
+				preconnectionCommands: [{ name: "ce:review", description: "Review changes" }],
+			})
+		).toBe(true);
+	});
+
+	it("keeps normal provider commands as commands", () => {
+		expect(
+			isSlashSkillCommand({
+				command: { name: "compact", description: "Compact the session" },
+				preconnectionCommands: [{ name: "ce:review", description: "Review changes" }],
+			})
+		).toBe(false);
+	});
+});
+
 describe("shouldShowSlashCommandDropdown", () => {
 	it("hides the dropdown when no slash source exists", () => {
 		expect(
@@ -83,5 +120,19 @@ describe("shouldShowSlashCommandDropdown", () => {
 				capabilitiesAgentId: "copilot",
 			})
 		).toBe(false);
+	});
+
+	it("shows the dropdown for live session commands even when agent identity is temporarily unavailable", () => {
+		expect(
+			shouldShowSlashCommandDropdown({
+				isTriggerActive: true,
+				source: {
+					source: "live",
+					commands: [{ name: "ce-debug", description: "Debug carefully" }],
+					tokenType: "command",
+				},
+				capabilitiesAgentId: null,
+			})
+		).toBe(true);
 	});
 });

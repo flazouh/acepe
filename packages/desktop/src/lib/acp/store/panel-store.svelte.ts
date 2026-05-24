@@ -49,6 +49,7 @@ import type {
 import { DEFAULT_PANEL_HOT_STATE, DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./types.js";
 
 const PANEL_STORE_KEY = Symbol("panel-store");
+let currentPanelStore: PanelStore | null = null;
 const logger = createLogger({ id: "panel-store", name: "PanelStore" });
 const DEFAULT_ATTACHED_FILE_PANEL_WIDTH = DEFAULT_FILE_PANEL_WIDTH;
 const DEFAULT_TERMINAL_PANEL_WIDTH = 500;
@@ -1405,12 +1406,17 @@ export class PanelStore {
 				panel.sessionId !== null
 					? this.sessionStore.getSessionMetadata(panel.sessionId)
 					: undefined;
+			const isPendingCreationSession =
+				panel.sessionId !== null &&
+				sessionIdentity === undefined &&
+				typeof this.sessionStore.hasPendingCreationSession === "function" &&
+				this.sessionStore.hasPendingCreationSession(panel.sessionId);
 			return {
 				id: panel.id,
 				sessionProjectPath:
-					panel.sessionId !== null
-						? (sessionIdentity?.projectPath ?? null)
-						: (panel.projectPath ?? null),
+					panel.sessionId === null || isPendingCreationSession
+						? (panel.projectPath ?? null)
+						: (sessionIdentity?.projectPath ?? null),
 				sessionSequenceId:
 					panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? null) : null,
 			};
@@ -3231,6 +3237,7 @@ export function createPanelStore(
 	onPersist: () => void
 ): PanelStore {
 	const store = new PanelStore(sessionStore, agentStore, onPersist);
+	currentPanelStore = store;
 	setContext(PANEL_STORE_KEY, store);
 	return store;
 }
@@ -3239,5 +3246,5 @@ export function createPanelStore(
  * Get the panel store from Svelte context.
  */
 export function getPanelStore(): PanelStore {
-	return getContext<PanelStore>(PANEL_STORE_KEY);
+	return getContext<PanelStore | undefined>(PANEL_STORE_KEY) ?? currentPanelStore!;
 }

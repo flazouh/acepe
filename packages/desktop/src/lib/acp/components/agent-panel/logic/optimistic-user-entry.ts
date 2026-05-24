@@ -34,10 +34,7 @@ export function resolveOptimisticUserEntryForGraph(input: {
 	readonly hasCanonicalUserEntry: boolean | null;
 	readonly hasCanonicalMatchingPendingUserEntry: boolean | null;
 }): SessionEntry | null {
-	if (
-		input.hasCanonicalMatchingPendingUserEntry === true ||
-		input.hasCanonicalMatchingPendingUserEntry === null
-	) {
+	if (input.hasCanonicalMatchingPendingUserEntry === true) {
 		return null;
 	}
 
@@ -57,7 +54,7 @@ export function resolveVisibleEntryCount(input: {
 	readonly optimisticUserEntry: SessionEntry | null;
 }): number | null {
 	if (input.canonicalEntryCount === null) {
-		return null;
+		return input.optimisticUserEntry === null ? null : 1;
 	}
 
 	if (input.canonicalEntryCount > 0) {

@@ -9,6 +9,7 @@ import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 const QUESTION_SELECTION_STORE_KEY = Symbol("question-selection-store");
+let currentQuestionSelectionStore: QuestionSelectionStore | null = null;
 
 /**
  * Selection state for a single question.
@@ -250,6 +251,7 @@ export class QuestionSelectionStore {
  */
 export function createQuestionSelectionStore(): QuestionSelectionStore {
 	const store = new QuestionSelectionStore();
+	currentQuestionSelectionStore = store;
 	setContext(QUESTION_SELECTION_STORE_KEY, store);
 	return store;
 }
@@ -258,5 +260,14 @@ export function createQuestionSelectionStore(): QuestionSelectionStore {
  * Get the question selection store from Svelte context.
  */
 export function getQuestionSelectionStore(): QuestionSelectionStore {
-	return getContext<QuestionSelectionStore>(QUESTION_SELECTION_STORE_KEY);
+	const contextStore = getContext<QuestionSelectionStore | undefined>(QUESTION_SELECTION_STORE_KEY);
+	if (contextStore !== undefined) {
+		return contextStore;
+	}
+	if (currentQuestionSelectionStore !== null) {
+		return currentQuestionSelectionStore;
+	}
+	const store = new QuestionSelectionStore();
+	currentQuestionSelectionStore = store;
+	return store;
 }

@@ -59,4 +59,27 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 			expect(err).toMatchObject({ agentId: "unknown" });
 		}
 	});
+
+	it("clears a pre-session pending user entry when selectedAgentId is missing", async () => {
+		const mockStore: Partial<SessionStore> = {};
+		const mockPanelStore: Partial<PanelStore> = {
+			clearPendingUserEntry: vi.fn(),
+		};
+		const state = new AgentInputState(
+			mockStore as SessionStore,
+			mockPanelStore as PanelStore,
+			() => "/tmp/project"
+		);
+
+		const result = await state.sendPreparedMessage({
+			content: "hello",
+			panelId: "panel-1",
+			selectedAgentId: null,
+			projectPath: "/tmp/project",
+			projectName: "Acepe",
+		});
+
+		expect(result.isErr()).toBe(true);
+		expect(mockPanelStore.clearPendingUserEntry).toHaveBeenCalledWith("panel-1");
+	});
 });

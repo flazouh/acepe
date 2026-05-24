@@ -56,5 +56,5 @@ export interface SessionMetadata {
 	 * Per-project sequence ID for Acepe-native sessions.
 	 * Null/undefined for scanned/discovered sessions.
 	 */
-	readonly sequenceId?: number;
+	readonly sequenceId?: number | null;
 }

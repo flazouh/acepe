@@ -232,6 +232,7 @@ function createSessionOpenFoundFromGraph(
 		projectPath: graph.projectPath,
 		worktreePath: graph.worktreePath ?? null,
 		sourcePath: graph.sourcePath ?? null,
+		sequenceId: graph.sequenceId ?? null,
 		transcriptSnapshot: graph.transcriptSnapshot,
 		sessionTitle: "Opened session",
 		operations: graph.operations,

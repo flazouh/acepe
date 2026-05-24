@@ -5,6 +5,7 @@ import {
 	INLINE_ARTEFACT_CLIPBOARD_PATH,
 	INLINE_ARTEFACT_PACKAGE_PATH,
 } from "@acepe/ui";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 
 import {
@@ -151,7 +152,10 @@ function createTokenIcon(tokenType: InlineArtefactTokenType, value: string): Ele
 		.join(" ");
 
 	if (tokenType === "command" || tokenType === "skill") {
-		return createPhosphorPathIcon(INLINE_ARTEFACT_PACKAGE_PATH, iconClassName);
+		const icon = createPhosphorPathIcon(INLINE_ARTEFACT_PACKAGE_PATH, iconClassName);
+		icon.style.color =
+			tokenType === "skill" ? Colors[COLOR_NAMES.PURPLE] : Colors[COLOR_NAMES.AMBER];
+		return icon;
 	}
 	if (tokenType === "text" || tokenType === "text_ref") {
 		return createPhosphorPathIcon(INLINE_ARTEFACT_CLIPBOARD_PATH, iconClassName);

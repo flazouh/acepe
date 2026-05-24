@@ -75,6 +75,14 @@ function clearHighlight(): void {
 	highlightTarget = null;
 }
 
+function logSessionItemBoundaryError(sessionId: string, error: Error): void {
+	console.error("[boundary:session-item]", sessionId, {
+		name: error.name,
+		message: error.message,
+		stack: error.stack,
+	});
+}
+
 function getScrollParent(el: Element | null): Element | null {
 	if (!el) return null;
 	const { overflowY, overflowX } = getComputedStyle(el);
@@ -149,7 +157,7 @@ setSessionListHighlightContext(highlightContext);
 		aria-hidden="true"
 	></div>
 	{#each rows as row, index (getRowKey(row, index))}
-		<svelte:boundary onerror={(e) => console.error('[boundary:session-item]', row.item.id, e)}>
+		<svelte:boundary onerror={(error) => logSessionItemBoundaryError(row.item.id, error)}>
 			<SessionItem
 				thread={{
 					id: row.item.id,

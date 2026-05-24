@@ -515,6 +515,18 @@ pub trait AgentProvider: Send + Sync {
         Box::pin(async { Ok(Vec::new()) })
     }
 
+    /// Provider-owned command loading for connected session capabilities.
+    fn list_session_commands<'a>(
+        &'a self,
+        app: Option<&'a AppHandle>,
+        cwd: Option<&'a Path>,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a>> {
+        match app {
+            Some(app) => self.list_preconnection_commands(app, cwd),
+            None => Box::pin(async { Ok(Vec::new()) }),
+        }
+    }
+
     /// Provider-owned capability loading before a session exists.
     fn list_preconnection_capabilities<'a>(
         &'a self,

@@ -528,6 +528,23 @@ describe("deriveLiveSessionLifecyclePresentation", () => {
 		});
 	});
 
+	it("treats a newly spawned session without canonical projection as connecting while a send is pending", () => {
+		const presentation = deriveLiveSessionLifecyclePresentation({
+			source: {
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			},
+			hasEntries: null,
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(presentation).toMatchObject({
+			connectionPhase: "connecting",
+			contentPhase: "loading",
+			canSubmit: null,
+		});
+	});
+
 	it("keeps inactive history presentation disconnected while canonical projection is unloaded", () => {
 		const presentation = deriveLiveSessionLifecyclePresentation({
 			source: inactiveSessionWorkSourceFromCanonicalProjection("session-1", null),

@@ -199,6 +199,7 @@ mod tests {
             project_path: "/workspace/a".to_string(),
             worktree_path: None,
             source_path: None,
+            sequence_id: None,
             revision: SessionGraphRevision::new(1, 1, 1),
             transcript_snapshot: TranscriptSnapshot {
                 revision: 1,

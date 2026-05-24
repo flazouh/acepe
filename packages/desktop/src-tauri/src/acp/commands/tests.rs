@@ -440,6 +440,7 @@ fn session_state_snapshot_envelope_carries_one_graph_revision_authority() {
         project_path: "/workspace/a".to_string(),
         worktree_path: None,
         source_path: None,
+        sequence_id: None,
         revision: SessionGraphRevision::new(11, 3, 11),
         transcript_snapshot: TranscriptSnapshot {
             revision: 3,

@@ -87,6 +87,7 @@ import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import { shouldAutoScrollOnPanelActivation } from "../logic/should-auto-scroll-on-panel-activation.js";
 import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-title.js";
+import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { shouldShowPreSessionWorktreeCard } from "../logic/pre-session-worktree-card-visibility.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { createGraphSceneEntryIndexReadModel } from "../logic/graph-scene-entry-match.js";
@@ -401,6 +402,7 @@ let scrollContainer: HTMLDivElement | null = $state(null);
 
 // Reference to content component for scroll control
 let contentRef: AgentPanelContent | null = $state(null);
+let pendingUserRevealRequestVersion = $state(0);
 
 // Scroll viewport reference for scroll-to-bottom button (bindable from child)
 let contentScrollViewport: HTMLElement | null = $state(null);
@@ -439,12 +441,13 @@ function scrollToBottom() {
 }
 
 function prepareForNextUserReveal() {
+	pendingUserRevealRequestVersion += 1;
 	logger.info("prepareForNextUserReveal: panel", {
 		panelId: effectivePanelId,
 		sessionId,
 		entryCount: visibleEntryCount,
+		requestVersion: pendingUserRevealRequestVersion,
 	});
-	contentRef?.prepareForNextUserReveal();
 	return effectivePanelId;
 }
 
@@ -455,6 +458,11 @@ function scrollToBottomOnTabSwitch() {
 
 // Effective panel ID (use prop or generate one)
 const effectivePanelId = $derived(panelId ?? "default-panel");
+const pendingUserRevealRequestKey = $derived(
+	pendingUserRevealRequestVersion === 0
+		? null
+		: `${effectivePanelId}:${pendingUserRevealRequestVersion}:${optimisticUserEntryForGraph?.id ?? "pending"}`
+);
 
 // Derived UI conditions based on projectCount + panel/session state
 const showProjectSelection = $derived(
@@ -633,6 +641,7 @@ const viewStateInput = $derived({
 	entriesCount,
 	hasSession,
 	isAwaitingModelResponse,
+	hasImmediatePendingSendIntent,
 	showProjectSelection,
 	hasEffectiveProjectPath: !!effectiveProjectPath,
 	errorInfo,
@@ -830,17 +839,25 @@ const sessionUpdatedAt = $derived(sessionMetadata?.updatedAt ?? null);
 const graphSceneMaterializer = createAgentPanelGraphMaterializerReadModel();
 
 const effectivePanelProviderBrand = $derived.by(() => {
-	if (!effectivePanelAgentId) {
+	const headerAgentId = sessionAgentId ?? effectivePanelAgentId;
+	if (!headerAgentId) {
 		return null;
 	}
 
+	const sessionProviderBrand =
+		sessionId === null ? null : (sessionStore.getSessionProviderMetadata(sessionId)?.providerBrand ?? null);
 	const storeProviderBrand =
-		agentStore.getProviderMetadata(effectivePanelAgentId)?.providerBrand ?? null;
+		agentStore.getProviderMetadata(headerAgentId)?.providerBrand ?? null;
 	const listedProviderBrand =
-		availableAgents.find((agent) => agent.id === effectivePanelAgentId)?.provider_metadata
+		availableAgents.find((agent) => agent.id === headerAgentId)?.provider_metadata
 			?.providerBrand ?? null;
 
-	return storeProviderBrand ?? listedProviderBrand;
+	return resolveAgentPanelProviderBrand({
+		agentId: headerAgentId,
+		sessionProviderBrand,
+		storeProviderBrand,
+		listedProviderBrand,
+	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
 const graphMaterializedScene = $derived(
@@ -2380,6 +2397,7 @@ async function handlePlanSidebarSendMessage(sid: string, message: string): Promi
 						{viewState}
 						{sessionId}
 						sceneEntries={tokenRevealSceneEntries}
+						{pendingUserRevealRequestKey}
 						sessionProjectPath={effectiveProjectPath ?? sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-	createNativeTranscriptRendererAdapter,
-	createTranscriptVirtualizerRendererAdapter,
-} from "../transcript-renderer-adapter.js";
+import { createTranscriptVirtualizerRendererAdapter } from "../transcript-renderer-adapter.js";
 
 function defineRect(element: HTMLElement, rect: { top: number; bottom: number }): void {
 	element.getBoundingClientRect = () => {
@@ -205,105 +202,6 @@ describe("TranscriptRendererAdapter", () => {
 			type: "skipped",
 			effectType: "RevealRow",
 			reason: "missing-adapter",
-		});
-	});
-
-	it("normalizes native viewport measurement", () => {
-		const container = document.createElement("div");
-		Object.defineProperty(container, "scrollTop", {
-			configurable: true,
-			value: 40,
-		});
-		Object.defineProperty(container, "scrollHeight", {
-			configurable: true,
-			value: 900,
-		});
-		Object.defineProperty(container, "clientHeight", {
-			configurable: true,
-			value: 300,
-		});
-
-		const adapter = createNativeTranscriptRendererAdapter({
-			getContainer: () => container,
-			getRowKeys: () => ["row-1"],
-			getRowElement: () => null,
-		});
-
-		expect(adapter.measureViewport()).toEqual({
-			type: "measured",
-			measurement: {
-				scrollOffset: 40,
-				scrollSize: 900,
-				viewportSize: 300,
-			},
-		});
-	});
-
-	it("reveals native rows by writing only the transcript container vertical scroll", () => {
-		const container = document.createElement("div");
-		const row = document.createElement("div");
-		let scrollTop = 200;
-		Object.defineProperty(container, "scrollTop", {
-			configurable: true,
-			get: () => scrollTop,
-			set: (value: number) => {
-				scrollTop = value;
-			},
-		});
-		defineRect(container, { top: 100, bottom: 300 });
-		defineRect(row, { top: 260, bottom: 360 });
-		vi.spyOn(row, "scrollIntoView").mockImplementation(() => {
-			throw new Error("native transcript reveal must not scroll DOM ancestors");
-		});
-
-		const adapter = createNativeTranscriptRendererAdapter({
-			getContainer: () => container,
-			getRowKeys: () => ["row-1"],
-			getRowElement: () => row,
-		});
-
-		expect(
-			adapter.revealRow({
-				type: "RevealRow",
-				sessionId: "session-1",
-				generation: 0,
-				targetKey: "row-1",
-				align: "end",
-				reason: "explicit-reveal",
-			})
-		).toEqual({
-			type: "applied",
-			effectType: "RevealRow",
-		});
-		expect(scrollTop).toBe(260);
-		expect(row.scrollIntoView).not.toHaveBeenCalled();
-	});
-
-	it("captures the first visible native anchor instead of the first row key", () => {
-		const container = document.createElement("div");
-		const rowAbove = document.createElement("div");
-		const firstVisible = document.createElement("div");
-		const secondVisible = document.createElement("div");
-		defineRect(container, { top: 100, bottom: 300 });
-		defineRect(rowAbove, { top: 20, bottom: 90 });
-		defineRect(firstVisible, { top: 112, bottom: 150 });
-		defineRect(secondVisible, { top: 180, bottom: 220 });
-
-		const rows = new Map<string, HTMLElement>([
-			["row-above", rowAbove],
-			["first-visible", firstVisible],
-			["second-visible", secondVisible],
-		]);
-		const adapter = createNativeTranscriptRendererAdapter({
-			getContainer: () => container,
-			getRowKeys: () => ["row-above", "first-visible", "second-visible"],
-			getRowElement: (rowKey) => rows.get(rowKey) ?? null,
-		});
-
-		expect(adapter.captureAnchor()).toEqual({
-			type: "captured",
-			anchorKey: "first-visible",
-			offsetPx: 12,
 		});
 	});
 

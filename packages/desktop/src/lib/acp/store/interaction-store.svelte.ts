@@ -24,6 +24,7 @@ import {
 } from "../types/reply-handler.js";
 
 const INTERACTION_STORE_KEY = Symbol("interaction-store");
+let currentInteractionStore: InteractionStore | null = null;
 const EMPTY_PENDING_INTERACTIONS: readonly never[] = Object.freeze([]);
 
 export class InteractionStore {
@@ -825,10 +826,20 @@ function mapPlanApprovalStatus(
 
 export function createInteractionStore(): InteractionStore {
 	const store = new InteractionStore();
+	currentInteractionStore = store;
 	setContext(INTERACTION_STORE_KEY, store);
 	return store;
 }
 
 export function getInteractionStore(): InteractionStore {
-	return getContext<InteractionStore>(INTERACTION_STORE_KEY);
+	const contextStore = getContext<InteractionStore | undefined>(INTERACTION_STORE_KEY);
+	if (contextStore !== undefined) {
+		return contextStore;
+	}
+	if (currentInteractionStore !== null) {
+		return currentInteractionStore;
+	}
+	const store = new InteractionStore();
+	currentInteractionStore = store;
+	return store;
 }

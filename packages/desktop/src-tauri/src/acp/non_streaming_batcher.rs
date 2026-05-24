@@ -3,17 +3,8 @@
 //! Batches rapid non-streaming session updates (like AvailableCommandsUpdate) into
 //! spaced emissions at 8ms intervals to prevent frontend JS event loop saturation.
 //!
-//! Unlike StreamingDeltaBatcher which coalesces text content, this batcher
-//! replaces older updates with newer ones (latest-wins semantics).
-//!
-//! # Comparison with streaming batcher
-//!
-//! | Aspect | NonStreamingEventBatcher | StreamingDeltaBatcher |
-//! |--------|--------------------------|----------------------|
-//! | Content | SessionUpdate (commands) | SessionUpdate deltas |
-//! | Coalescing | Latest-wins replacement | Content merging |
-//! | Interval | 8ms | 16ms |
-//! | Use case | Prevent JS event saturation | Reduce IPC overhead |
+//! Streaming text and thought updates are emitted directly. This batcher only
+//! protects large non-streaming payloads with latest-wins semantics.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

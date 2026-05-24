@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { IconCircleCheckFilled } from "@tabler/icons-svelte";
-	import { CaretRight, Robot } from "phosphor-svelte";
-	import { Colors } from "../../lib/colors.js";
+	import { CaretRight } from "phosphor-svelte";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentToolRow from "./agent-tool-row.svelte";
 	import ToolTally from "./tool-tally.svelte";
-	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
+	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import {
 		createTaskPreview,
 		getLastTaskToolCall,
@@ -16,7 +15,6 @@
 		getTaskUiClasses,
 		hasTaskPrompt,
 		hasTaskResult,
-		isTaskPending,
 	} from "./agent-tool-task-state.js";
 
 	interface Props {
@@ -52,7 +50,6 @@
 	let isPromptCollapsed = $state(true);
 	let isResultCollapsed = $state(true);
 
-	const isPending = $derived(isTaskPending(status));
 	const isDone = $derived(status === "done");
 	const titleText = $derived(
 		getTaskTitle({
@@ -81,7 +78,6 @@
 	const headerClass = $derived(taskClasses.header);
 	const headerBorderClass = $derived(getTaskHeaderBorderClass({ compact, hasBorder }));
 	const headerContentClass = $derived(taskClasses.headerContent);
-	const titleClass = $derived("text-sm");
 	const promptButtonClass = $derived(taskClasses.promptButton);
 	const promptBodyClass = $derived(taskClasses.promptBody);
 	const promptContentClass = $derived(taskClasses.promptContent);
@@ -103,17 +99,12 @@
 	<!-- Header: fixed h-7 height -->
 	<div class="{headerClass} {headerBorderClass}">
 		<div class={headerContentClass}>
-			<Robot size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
-			<span class={titleClass}>
-				{#if isPending}
-					<TextShimmer>{titleText}</TextShimmer>
-				{:else}
-					<span>{titleText}</span>
-				{/if}
-			</span>
+			<ToolHeaderLeading kind="task" {status}>
+				{titleText}
+			</ToolHeaderLeading>
 		</div>
 		{#if durationLabel}
-			<span class="shrink-0 text-sm">{durationLabel}</span>
+			<span class="shrink-0 font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
 		{/if}
 		{#if shouldShowDoneIcon}
 			<IconCircleCheckFilled

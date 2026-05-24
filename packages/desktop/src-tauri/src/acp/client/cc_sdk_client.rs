@@ -40,9 +40,9 @@ use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_state_engine::SessionGraphCapabilities;
 use crate::acp::session_update::{
-    parse_normalized_questions, QuestionData, QuestionItem, SessionUpdate, ToolCallStatus,
-    ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo, TurnErrorKind,
-    TurnErrorSource,
+    parse_normalized_questions, AvailableCommand, QuestionData, QuestionItem, SessionUpdate,
+    ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, TurnErrorData, TurnErrorInfo,
+    TurnErrorKind, TurnErrorSource,
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
@@ -1355,6 +1355,25 @@ impl ClaudeCcSdkClient {
 
     fn hydrated_session_modes(&self) -> SessionModes {
         self.provider.default_session_modes()
+    }
+
+    async fn hydrated_session_available_commands(&self, cwd: &str) -> Vec<AvailableCommand> {
+        let cwd_path = PathBuf::from(cwd);
+        match self
+            .provider
+            .list_session_commands(self.app_handle.as_ref(), Some(cwd_path.as_path()))
+            .await
+        {
+            Ok(commands) => commands,
+            Err(error) => {
+                tracing::warn!(
+                    provider = %self.provider.id(),
+                    error = %error,
+                    "failed to hydrate cc-sdk session slash commands"
+                );
+                Vec::new()
+            }
+        }
     }
 
     async fn discover_models_from_provider_cli(&self) -> Vec<crate::acp::client::AvailableModel> {
@@ -2765,6 +2784,7 @@ impl AgentClient for ClaudeCcSdkClient {
         self.restore_session_permission_approvals(&session_id).await;
         self.session_id = Some(session_id.clone());
         let models = self.hydrated_session_model_state().await;
+        let available_commands = self.hydrated_session_available_commands(&cwd).await;
         tracing::info!(
             session_id = %session_id,
             provider = %self.provider.id(),
@@ -2783,7 +2803,7 @@ impl AgentClient for ClaudeCcSdkClient {
             session_open: None,
             models,
             modes: self.hydrated_session_modes(),
-            available_commands: vec![],
+            available_commands,
             config_options: vec![],
         })
     }
@@ -2826,6 +2846,7 @@ impl AgentClient for ClaudeCcSdkClient {
         if !self.session_has_persisted_history(&session_id, &cwd).await {
             self.session_id = Some(session_id.clone());
             let models = self.hydrated_session_model_state().await;
+            let available_commands = self.hydrated_session_available_commands(&cwd).await;
             tracing::info!(
                 session_id = %session_id,
                 provider = %self.provider.id(),
@@ -2839,12 +2860,13 @@ impl AgentClient for ClaudeCcSdkClient {
             return Ok(ResumeSessionResponse {
                 models,
                 modes: self.hydrated_session_modes(),
-                available_commands: vec![],
+                available_commands,
                 config_options: vec![],
             });
         }
 
         let models = self.hydrated_session_model_state().await;
+        let available_commands = self.hydrated_session_available_commands(&cwd).await;
         tracing::info!(
             session_id = %session_id,
             provider = %self.provider.id(),
@@ -2861,7 +2883,7 @@ impl AgentClient for ClaudeCcSdkClient {
         Ok(ResumeSessionResponse {
             models,
             modes: self.hydrated_session_modes(),
-            available_commands: vec![],
+            available_commands,
             config_options: vec![],
         })
     }
@@ -2886,6 +2908,7 @@ impl AgentClient for ClaudeCcSdkClient {
         self.restore_session_permission_approvals(&new_session_id)
             .await;
         let models = self.hydrated_session_model_state().await;
+        let available_commands = self.hydrated_session_available_commands(&cwd).await;
         tracing::info!(
             session_id = %new_session_id,
             provider = %self.provider.id(),
@@ -2907,7 +2930,7 @@ impl AgentClient for ClaudeCcSdkClient {
             session_open: None,
             models,
             modes: self.hydrated_session_modes(),
-            available_commands: vec![],
+            available_commands,
             config_options: vec![],
         })
     }
@@ -3238,7 +3261,7 @@ mod tests {
     use super::*;
     use crate::acp::session_update::ContentChunk;
     use crate::acp::session_update::{
-        PermissionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
+        AvailableCommand, PermissionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
     use crate::db::migrations::Migrator;
     use crate::db::repository::{
@@ -3247,6 +3270,7 @@ mod tests {
     use cc_sdk::{CanUseTool, HookCallback};
     use sea_orm::Database;
     use sea_orm_migration::MigratorTrait;
+    use std::path::Path;
     use std::sync::{LazyLock, Mutex as StdMutex};
 
     static HOME_ENV_LOCK: LazyLock<StdMutex<()>> = LazyLock::new(|| StdMutex::new(()));
@@ -3561,6 +3585,46 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct SlashCommandProvider;
+
+    impl AgentProvider for SlashCommandProvider {
+        fn id(&self) -> &str {
+            "claude-code"
+        }
+
+        fn name(&self) -> &str {
+            "Claude Code"
+        }
+
+        fn spawn_config(&self) -> crate::acp::provider::SpawnConfig {
+            crate::acp::provider::SpawnConfig {
+                command: "claude".to_string(),
+                args: Vec::new(),
+                env: HashMap::new(),
+                env_strategy: None,
+            }
+        }
+
+        fn list_session_commands<'a>(
+            &'a self,
+            _app: Option<&'a AppHandle>,
+            _cwd: Option<&'a Path>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Vec<AvailableCommand>, String>> + Send + 'a,
+            >,
+        > {
+            Box::pin(async {
+                Ok(vec![AvailableCommand {
+                    name: "ce-debug".to_string(),
+                    description: "Debug the current issue".to_string(),
+                    input: None,
+                }])
+            })
+        }
+    }
+
     async fn setup_test_db() -> DbConn {
         let db = Database::connect("sqlite::memory:")
             .await
@@ -3575,6 +3639,19 @@ mod tests {
         make_test_client_with_provider(Arc::new(
             crate::acp::providers::claude_code::ClaudeCodeProvider,
         ))
+    }
+
+    #[tokio::test]
+    async fn new_session_hydrates_available_commands_from_provider() {
+        let mut client = make_test_client_with_provider(Arc::new(SlashCommandProvider));
+
+        let response = client
+            .new_session("/tmp/acepe-project".to_string())
+            .await
+            .expect("new session");
+
+        assert_eq!(response.available_commands.len(), 1);
+        assert_eq!(response.available_commands[0].name, "ce-debug");
     }
 
     #[test]

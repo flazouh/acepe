@@ -61,6 +61,17 @@ function createCapabilities(description = "Describe the command") {
 	};
 }
 
+function createLargeCommandCatalog() {
+	return {
+		availableCommands: Array.from({ length: 118 }, (_, index) => ({
+			name: `command-${index}`,
+			description:
+				"Provider command description with enough text to match a real Claude Code catalog entry.",
+		})),
+		autonomousEnabled: true,
+	};
+}
+
 function createTelemetry(sourceModelId = "claude-sonnet") {
 	return {
 		sessionId: "session-1",
@@ -350,6 +361,22 @@ describe("session-state envelope byte budgets", () => {
 			createEnvelope({
 				kind: "capabilities",
 				capabilities: createCapabilities(),
+				revision,
+				preview_state: "canonical",
+			})
+		);
+
+		expect(result).toMatchObject({
+			ok: true,
+			kind: "capabilities",
+		});
+	});
+
+	it("accepts large provider command catalogs in capabilities envelopes", () => {
+		const result = checkSessionStateEnvelopeByteBudget(
+			createEnvelope({
+				kind: "capabilities",
+				capabilities: createLargeCommandCatalog(),
 				revision,
 				preview_state: "canonical",
 			})

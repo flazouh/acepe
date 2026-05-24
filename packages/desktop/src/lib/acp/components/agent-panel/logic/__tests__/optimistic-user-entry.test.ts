@@ -133,7 +133,7 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 		expect(entry).toBeNull();
 	});
 
-	it("does not show optimistic entries when canonical transcript state is unknown", () => {
+	it("shows session pending entry while canonical transcript state is unknown", () => {
 		const panelPending = createUserEntry("panel-pending", "Hello Claude");
 		const sessionPending = createUserEntry("session-pending", "Hello Claude");
 
@@ -151,18 +151,18 @@ describe("resolveOptimisticUserEntryForGraph", () => {
 		});
 
 		expect(panelEntry).toBeNull();
-		expect(sessionEntry).toBeNull();
+		expect(sessionEntry).toBe(sessionPending);
 	});
 });
 
 describe("resolveVisibleEntryCount", () => {
-	it("preserves unknown canonical entry count", () => {
+	it("counts optimistic entry while canonical entry count is unknown", () => {
 		const count = resolveVisibleEntryCount({
 			canonicalEntryCount: null,
 			optimisticUserEntry: createUserEntry("pending-user", "Hello Claude"),
 		});
 
-		expect(count).toBeNull();
+		expect(count).toBe(1);
 	});
 
 	it("counts the optimistic user entry while canonical entries are empty", () => {

@@ -1,4 +1,4 @@
-use crate::acp::client_loop::BatcherWithGuard;
+use crate::acp::client_loop::StreamingUpdateEmitter;
 use crate::acp::client_message_ids::normalize_message_id;
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
 use crate::acp::parsers::AgentType;
@@ -26,8 +26,8 @@ pub(crate) async fn handle_session_update_notification(
     provider: Option<&dyn AgentProvider>,
     message_id_tracker: &StdArc<std::sync::Mutex<HashMap<String, String>>>,
     task_reconciler: &StdArc<std::sync::Mutex<TaskReconciler>>,
-    streaming_batcher: &mut BatcherWithGuard,
-    non_streaming_batcher: &mut NonStreamingEventBatcher,
+    streaming_emitter: &StreamingUpdateEmitter,
+    non_streaming_emitter: &mut NonStreamingEventBatcher,
     json: &Value,
 ) {
     match parse_session_update_notification_with_provider(agent_type, provider, json) {
@@ -65,7 +65,7 @@ pub(crate) async fn handle_session_update_notification(
                 ) {
                     let session_key = session_id.to_string();
                     for batched_update in
-                        non_streaming_batcher.process(&session_key, normalized_update)
+                        non_streaming_emitter.process(&session_key, normalized_update)
                     {
                         log_emitted_event(&session_key, &batched_update);
                         dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
@@ -81,12 +81,11 @@ pub(crate) async fn handle_session_update_notification(
                     Err(_) => normalized_update,
                 };
 
-                // Use batcher for streaming deltas
-                for batched_update in streaming_batcher.process(normalized_update) {
-                    if let Some(session_id) = batched_update.session_id() {
-                        log_emitted_event(session_id, &batched_update);
+                for emitted_update in streaming_emitter.process(normalized_update) {
+                    if let Some(session_id) = emitted_update.session_id() {
+                        log_emitted_event(session_id, &emitted_update);
                     }
-                    dispatcher.enqueue(AcpUiEvent::session_update(batched_update));
+                    dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
                 }
             }
         }
@@ -146,11 +145,8 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -170,8 +166,8 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
@@ -185,11 +181,8 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -210,15 +203,15 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
 
         let captured = captured_events.lock().expect("captured events lock");
         assert!(captured.is_empty());
-        assert!(!non_streaming_batcher.has_pending());
+        assert!(!non_streaming_emitter.has_pending());
     }
 
     #[tokio::test]
@@ -227,11 +220,8 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -250,8 +240,8 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
@@ -293,11 +283,8 @@ mod tests {
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -322,8 +309,8 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
@@ -377,11 +364,8 @@ mod tests {
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -405,8 +389,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
@@ -464,11 +448,8 @@ mod tests {
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let notification = json!({
             "jsonrpc": "2.0",
@@ -492,8 +473,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &notification,
         )
         .await;
@@ -554,11 +535,8 @@ mod tests {
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let tool_call_notification = json!({
             "jsonrpc": "2.0",
@@ -598,8 +576,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &tool_call_notification,
         )
         .await;
@@ -610,8 +588,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &tool_call_update_notification,
         )
         .await;
@@ -698,11 +676,8 @@ mod tests {
         let provider = CursorProvider;
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let tool_call_notification = json!({
             "jsonrpc": "2.0",
@@ -744,8 +719,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &tool_call_notification,
         )
         .await;
@@ -756,8 +731,8 @@ mod tests {
             Some(&provider),
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &tool_call_update_notification,
         )
         .await;
@@ -834,18 +809,15 @@ mod tests {
     /// This test mirrors the production flow used by subprocess-backed
     /// providers: `session/update` notifications carry the chunks, and the
     /// turn boundary is signalled by a JSON-RPC response that drives
-    /// `streaming_batcher.process_turn_complete` directly (see
+    /// `streaming_emitter.process_turn_complete` directly (see
     /// `client_loop.rs`).
     async fn assert_repeated_assistant_text_passes_through(agent_type: AgentType) {
         let session_id = "repeat-text-session";
         let (dispatcher, captured_events) = AcpUiEventDispatcher::test_sink();
         let message_id_tracker = StdArc::new(std::sync::Mutex::new(HashMap::new()));
         let task_reconciler = StdArc::new(std::sync::Mutex::new(TaskReconciler::new()));
-        let mut streaming_batcher = BatcherWithGuard::new_for_tests(
-            dispatcher.clone(),
-            StdArc::new(std::sync::atomic::AtomicBool::new(false)),
-        );
-        let mut non_streaming_batcher = NonStreamingEventBatcher::new();
+        let streaming_emitter = StreamingUpdateEmitter::new_for_tests();
+        let mut non_streaming_emitter = NonStreamingEventBatcher::new();
 
         let agent_message_chunk = |text: &str| {
             json!({
@@ -862,8 +834,8 @@ mod tests {
         };
 
         let dispatch_turn_complete =
-            |dispatcher: &AcpUiEventDispatcher, batcher: &mut BatcherWithGuard| {
-                let updates = batcher.process_turn_complete(session_id, None);
+            |dispatcher: &AcpUiEventDispatcher, emitter: &StreamingUpdateEmitter| {
+                let updates = emitter.process_turn_complete(session_id, None);
                 for update in updates {
                     dispatcher.enqueue(AcpUiEvent::session_update(update));
                 }
@@ -876,12 +848,12 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &agent_message_chunk("ok"),
         )
         .await;
-        dispatch_turn_complete(&dispatcher, &mut streaming_batcher);
+        dispatch_turn_complete(&dispatcher, &streaming_emitter);
 
         // Turn 2: assistant says "ok" again — must NOT be dropped.
         handle_session_update_notification(
@@ -890,12 +862,12 @@ mod tests {
             None,
             &message_id_tracker,
             &task_reconciler,
-            &mut streaming_batcher,
-            &mut non_streaming_batcher,
+            &streaming_emitter,
+            &mut non_streaming_emitter,
             &agent_message_chunk("ok"),
         )
         .await;
-        dispatch_turn_complete(&dispatcher, &mut streaming_batcher);
+        dispatch_turn_complete(&dispatcher, &streaming_emitter);
 
         let captured = captured_events.lock().expect("captured events lock");
         let assistant_chunks = captured

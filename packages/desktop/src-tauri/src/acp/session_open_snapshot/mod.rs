@@ -216,6 +216,8 @@ pub struct SessionOpenFound {
     pub project_path: String,
     pub worktree_path: Option<String>,
     pub source_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence_id: Option<i32>,
     // --- Transcript content (canonical contract) ---
     pub transcript_snapshot: TranscriptSnapshot,
     pub session_title: String,
@@ -610,6 +612,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         project_path: replay_context.project_path.clone(),
         worktree_path: replay_context.worktree_path.clone(),
         source_path: replay_context.source_path.clone(),
+        sequence_id: session_metadata.sequence_id,
         transcript_snapshot,
         session_title: resolve_canonical_session_title(
             Some(&session_metadata),
@@ -676,6 +679,15 @@ pub async fn session_open_result_for_new_session(
         &interactions,
         active_turn_failure.as_ref(),
     );
+    let session_metadata = match SessionMetadataRepository::get_by_id(db, &session_id).await {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                &session_id,
+                format!("Failed to load metadata for new session {session_id}: {err}"),
+            ));
+        }
+    };
 
     SessionOpenResult::Found(Box::new(SessionOpenFound {
         requested_session_id: session_id.clone(),
@@ -688,8 +700,15 @@ pub async fn session_open_result_for_new_session(
         project_path: input.project_path,
         worktree_path: input.worktree_path,
         source_path: input.source_path,
+        sequence_id: session_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.sequence_id),
         transcript_snapshot,
-        session_title: resolve_canonical_session_title(None, &session_id, None),
+        session_title: resolve_canonical_session_title(
+            session_metadata.as_ref(),
+            &session_id,
+            None,
+        ),
         operations,
         interactions,
         turn_state,

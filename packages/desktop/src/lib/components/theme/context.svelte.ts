@@ -39,6 +39,7 @@ class ThemeState {
 }
 
 const SYMBOL_KEY = "scn-theme";
+let currentThemeState: ThemeState | null = null;
 
 /**
  * Instantiates a new `ThemeState` instance and sets it in the context.
@@ -47,7 +48,9 @@ const SYMBOL_KEY = "scn-theme";
  * @returns The `ThemeState` instance.
  */
 export function setTheme(props: ThemeStateProps): ThemeState {
-	return setContext(Symbol.for(SYMBOL_KEY), new ThemeState(props));
+	const state = new ThemeState(props);
+	currentThemeState = state;
+	return setContext(Symbol.for(SYMBOL_KEY), state);
 }
 
 /**
@@ -56,5 +59,16 @@ export function setTheme(props: ThemeStateProps): ThemeState {
  * @returns The `ThemeState` instance.
  */
 export function useTheme(): ThemeState {
-	return getContext(Symbol.for(SYMBOL_KEY));
+	const contextTheme = getContext<ThemeState | undefined>(Symbol.for(SYMBOL_KEY));
+	if (contextTheme !== undefined) {
+		return contextTheme;
+	}
+	if (currentThemeState !== null) {
+		return currentThemeState;
+	}
+	currentThemeState = new ThemeState({
+		theme: () => "system",
+		setTheme: () => undefined,
+	});
+	return currentThemeState;
 }

@@ -50,6 +50,7 @@ function makeInput(overrides: Partial<Parameters<typeof derivePanelViewState>[0]
 		entriesCount: overrides.entriesCount ?? 0,
 		hasSession: overrides.hasSession ?? true,
 		isAwaitingModelResponse: overrides.isAwaitingModelResponse ?? false,
+		hasImmediatePendingSendIntent: overrides.hasImmediatePendingSendIntent ?? false,
 		showProjectSelection: overrides.showProjectSelection ?? false,
 		hasEffectiveProjectPath: overrides.hasEffectiveProjectPath ?? true,
 		errorInfo: overrides.errorInfo ?? NO_ERROR,
@@ -156,7 +157,7 @@ describe("derivePanelViewState", () => {
 		expect(result.kind).toBe("conversation");
 	});
 
-	it("should return loading instead of showing stale entries while restored content reloads", () => {
+	it("should keep showing conversation rows while restored content reloads", () => {
 		const result = derivePanelViewState(
 			makeInput({
 				entriesCount: 5,
@@ -169,7 +170,25 @@ describe("derivePanelViewState", () => {
 			})
 		);
 
-		expect(result.kind).toBe("loading");
+		expect(result.kind).toBe("conversation");
+	});
+
+	it("should show the optimistic conversation while a new session is connecting", () => {
+		const result = derivePanelViewState(
+			makeInput({
+				entriesCount: 1,
+				hasSession: true,
+				hasImmediatePendingSendIntent: true,
+				lifecyclePresentation: makeLifecyclePresentation({
+					connectionPhase: "connecting",
+					contentPhase: "loading",
+					showConversation: false,
+					showReadyPlaceholder: false,
+				}),
+			})
+		);
+
+		expect(result.kind).toBe("conversation");
 	});
 
 	it("should return conversation with null errorDetails when no error", () => {
@@ -223,7 +242,7 @@ describe("derivePanelViewState", () => {
 		expect(result.kind).toBe("conversation");
 	});
 
-	it("should return loading while restored session content is materializing", () => {
+	it("should return ready while restored session content is materializing with no rows yet", () => {
 		const result = derivePanelViewState(
 			makeInput({
 				entriesCount: 0,
@@ -236,7 +255,7 @@ describe("derivePanelViewState", () => {
 			})
 		);
 
-		expect(result.kind).toBe("loading");
+		expect(result.kind).toBe("ready");
 	});
 
 	// ── Bug fix regression: entries > 0 NEVER produces ready ───

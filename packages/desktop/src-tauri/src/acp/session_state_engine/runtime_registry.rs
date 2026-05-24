@@ -768,6 +768,7 @@ impl SessionGraphRuntimeRegistry {
                     source_path: SessionMetadataRepository::normalized_source_path(
                         &metadata.file_path,
                     ),
+                    sequence_id: metadata.sequence_id,
                     revision,
                     transcript_snapshot,
                     operations: projection_snapshot.operations,

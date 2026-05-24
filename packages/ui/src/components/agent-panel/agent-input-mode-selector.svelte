@@ -87,7 +87,7 @@
 				variant="outline"
 				size="sm"
 				disabled={disabled}
-				class="h-7 min-w-24 max-w-40 shrink-0 cursor-pointer rounded-none border-0 px-2 text-muted-foreground"
+				class="h-7 max-w-40 shrink-0 cursor-pointer gap-1 rounded-none border-0 px-1.5 text-muted-foreground has-[>svg]:px-1.5"
 				aria-label={selectedOption.label}
 				title={selectedOption.label}
 			>
@@ -103,9 +103,9 @@
 			<DropdownMenu.Item
 				disabled={option.disabled}
 				onSelect={() => handleModeChange(option.id)}
-				class="cursor-pointer rounded-md border-b-0 py-2 text-[0.75rem]"
+				class="cursor-pointer rounded-md border-b-0 px-1.5 py-1.5 text-[0.75rem]"
 			>
-				<div class="flex w-full items-start gap-2">
+				<div class="flex w-full items-start gap-1.5">
 					{@render modeIcon(option.iconKind, "mt-0.5 size-3 shrink-0 self-start")}
 					<div class="flex min-w-0 flex-1 flex-col">
 						<span class="text-xs font-medium">{option.label}</span>

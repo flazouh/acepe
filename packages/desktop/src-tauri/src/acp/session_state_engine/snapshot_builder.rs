@@ -11,6 +11,7 @@ pub fn build_graph_from_open_found(found: &SessionOpenFound) -> SessionStateGrap
         project_path: found.project_path.clone(),
         worktree_path: found.worktree_path.clone(),
         source_path: found.source_path.clone(),
+        sequence_id: found.sequence_id,
         revision: SessionGraphRevision::new(
             found.graph_revision,
             found.transcript_snapshot.revision,
@@ -56,6 +57,7 @@ mod tests {
             project_path: "/workspace/a".to_string(),
             worktree_path: Some("/workspace/.worktrees/feature-a".to_string()),
             source_path: None,
+            sequence_id: Some(50),
             transcript_snapshot: TranscriptSnapshot {
                 revision: 3,
                 entries: Vec::new(),
@@ -82,5 +84,6 @@ mod tests {
         assert_eq!(graph.revision.last_event_seq, 11);
         assert_eq!(graph.activity.kind, SessionGraphActivityKind::Idle);
         assert_eq!(graph.active_streaming_tail, None);
+        assert_eq!(graph.sequence_id, Some(50));
     }
 }

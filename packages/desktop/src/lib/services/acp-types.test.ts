@@ -95,6 +95,7 @@ describe("session-state protocol graph contract", () => {
 			projectPath: "/repo",
 			worktreePath: null,
 			sourcePath: null,
+			sequenceId: 42,
 			transcriptSnapshot: {
 				revision: 3,
 				entries: [],
@@ -143,6 +144,7 @@ describe("session-state protocol graph contract", () => {
 			projectPath: "/repo",
 			worktreePath: null,
 			sourcePath: null,
+			sequenceId: 42,
 			transcriptSnapshot: {
 				revision: 3,
 				entries: [],
@@ -166,6 +168,7 @@ describe("session-state protocol graph contract", () => {
 			projectPath: "/repo",
 			worktreePath: null,
 			sourcePath: null,
+			sequenceId: 42,
 			revision: {
 				graphRevision: 9,
 				transcriptRevision: 3,
@@ -214,6 +217,7 @@ describe("session-state protocol graph contract", () => {
 			projectPath: "/repo",
 			worktreePath: null,
 			sourcePath: "/repo/.acepe/session.jsonl",
+			sequenceId: 42,
 			transcriptSnapshot: {
 				revision: 3,
 				entries: [],
@@ -249,6 +253,7 @@ describe("session-state protocol graph contract", () => {
 			projectPath: "/repo",
 			worktreePath: null,
 			sourcePath: null,
+			sequenceId: 42,
 			transcriptSnapshot: {
 				revision: 3,
 				entries: [],

@@ -10,7 +10,6 @@ import {
 	clearHistory,
 	conversationEntryHistory,
 	dataLengthHistory,
-	getCurrentScrollOffset,
 	measureCalls,
 	measureElementCalls,
 	scrollToIndexCalls,
@@ -111,6 +110,7 @@ function renderList(props?: {
 	turnState?: TurnState;
 	isWaitingForResponse?: boolean;
 	sessionId?: string | null;
+	pendingUserRevealRequestKey?: string | null;
 }): ReturnType<typeof render> {
 	return render(SceneContentViewport, {
 		panelId: "panel-1",
@@ -120,6 +120,7 @@ function renderList(props?: {
 		projectPath: undefined,
 		sessionId: props?.sessionId !== undefined ? props.sessionId : "session-1",
 		isFullscreen: false,
+		pendingUserRevealRequestKey: props?.pendingUserRevealRequestKey ?? null,
 		onNearBottomChange: undefined,
 	});
 }
@@ -359,7 +360,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		});
 	});
 
-	it("falls back to a native scroll container when TanStack Virtual never reports a viewport", async () => {
+	it("keeps TanStack Virtual mounted when it never reports a viewport", async () => {
 		setDefaultViewportSize(0);
 
 		const view = renderList({
@@ -371,14 +372,11 @@ describe("SceneContentViewport auto-scroll", () => {
 			await flushAnimationFrames();
 		}
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
-		expect(view.queryByTestId("transcript-virtualizer")).toBeNull();
-
-		const stubs = view.container.querySelectorAll("[data-testid='agent-panel-conversation-entry-stub']");
-		expect(stubs.length).toBeGreaterThanOrEqual(2);
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 	});
 
-	it("falls back to a native scroll container when TanStack Virtual renders no entry nodes", async () => {
+	it("keeps TanStack Virtual mounted when it renders no entry nodes", async () => {
 		setSuppressRenderedChildren(true);
 
 		const view = renderList({
@@ -390,11 +388,11 @@ describe("SceneContentViewport auto-scroll", () => {
 			await flushAnimationFrames();
 		}
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
-		expect(view.queryByTestId("transcript-virtualizer")).toBeNull();
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 	});
 
-	it("recovers from a delayed no-render fallback instead of staying permanently native", async () => {
+	it("recovers rendered rows after a delayed no-render probe without switching renderers", async () => {
 		setSuppressRenderedChildren(true);
 
 		const view = renderList({
@@ -406,7 +404,8 @@ describe("SceneContentViewport auto-scroll", () => {
 			await flushAnimationFrames();
 		}
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 
 		setSuppressRenderedChildren(false);
 		for (let i = 0; i < 4; i += 1) {
@@ -520,7 +519,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(card.closest(".tool-call-with-permission")).not.toBeNull();
 	});
 
-	it("uses the native scroller for compact settled tool transcripts", async () => {
+	it("keeps compact settled tool transcripts in TanStack Virtual", async () => {
 		const view = renderList({
 			sceneEntries: [
 				createUserSceneEntry("user-1", "hello"),
@@ -534,8 +533,8 @@ describe("SceneContentViewport auto-scroll", () => {
 		await tick();
 		await tick();
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
-		expect(view.queryByTestId("transcript-virtualizer")).toBeNull();
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 	});
 
 	it("keeps a live assistant row in healthy TanStack Virtual when the global turn state is idle", async () => {
@@ -887,7 +886,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		});
 	});
 
-	it("keeps native fallback bounded for very long sessions", async () => {
+	it("keeps TanStack Virtual mounted for very long sessions with a zero viewport probe", async () => {
 		setDefaultViewportSize(0);
 
 		const view = renderList({
@@ -899,14 +898,11 @@ describe("SceneContentViewport auto-scroll", () => {
 			await flushAnimationFrames();
 		}
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
-		const renderedRows = view.container.querySelectorAll("[data-entry-key]");
-		expect(renderedRows.length).toBeLessThanOrEqual(80);
-		expect(renderedRows[0]?.getAttribute("data-entry-key")).toBe("user-170");
-		expect(renderedRows[renderedRows.length - 1]?.getAttribute("data-entry-key")).toBe("user-249");
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 	});
 
-	it("keeps native fallback bounded with the shared long-session fixture", async () => {
+	it("keeps TanStack Virtual mounted with the shared long-session fixture", async () => {
 		setDefaultViewportSize(0);
 		const longSessionEntries = createManyUserSceneEntries(320);
 
@@ -919,10 +915,8 @@ describe("SceneContentViewport auto-scroll", () => {
 			await flushAnimationFrames();
 		}
 
-		expect(view.queryByTestId("native-fallback")).not.toBeNull();
-		const renderedRows = view.container.querySelectorAll("[data-entry-key]");
-		expect(renderedRows.length).toBeLessThan(longSessionEntries.length);
-		expect(renderedRows.length).toBeLessThanOrEqual(80);
+		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
+		expect(view.queryByTestId("native-fallback")).toBeNull();
 	});
 
 	it("does not steal scroll control back when the user has detached", async () => {
@@ -990,57 +984,82 @@ describe("SceneContentViewport auto-scroll", () => {
 		});
 	});
 
-	it("preserves detached scroll position when retrying from native fallback back to TanStack Virtual", async () => {
-		const entries = createManyUserSceneEntries(24);
-		setSuppressRenderedChildren(true);
+	it("reveals a pending send request when the optimistic user row appears later", async () => {
 		const view = renderList({
-			sceneEntries: entries,
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
 		});
 		await flushAnimationFrames();
 		await tick();
 		await tick();
 
-		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
-		expect(view.container.querySelectorAll("[data-entry-key]")).toHaveLength(0);
-
-		let nativeFallback: Element | null = null;
-		for (let i = 0; i < 8; i += 1) {
-			await flushAnimationFrames();
-			nativeFallback = view.container.querySelector("[data-testid='native-fallback']");
-			if (nativeFallback !== null) {
-				break;
-			}
-		}
-		await tick();
-
-		if (!(nativeFallback instanceof HTMLDivElement)) {
-			throw new Error("Missing native fallback viewport");
+		const viewport = view.container.firstElementChild;
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Missing viewport element");
 		}
 
-		Object.defineProperty(nativeFallback, "clientHeight", {
-			configurable: true,
-			value: 200,
-		});
-		Object.defineProperty(nativeFallback, "scrollHeight", {
-			configurable: true,
-			value: 2000,
-		});
-		nativeFallback.scrollTop = 640;
-
-		await fireEvent.wheel(nativeFallback, { deltaY: -100 });
-		await fireEvent.scroll(nativeFallback);
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		await fireEvent.scroll(viewport);
 		await flushAnimationFrames();
 
-		setSuppressRenderedChildren(false);
+		scrollToIndexCalls.length = 0;
 
-		for (let i = 0; i < 6; i += 1) {
-			await flushAnimationFrames();
-		}
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createUserSceneEntry("optimistic-user-1", "sent")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			pendingUserRevealRequestKey: "send-1",
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 1,
+			options: { align: "end" },
+		});
+	});
+
+	it("reveals the waiting tail when a pending send request reaches the mounted optimistic row", async () => {
+		const view = renderList({
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest")],
+		});
+		await flushAnimationFrames();
+		await tick();
 		await tick();
 
-		expect(view.queryByTestId("native-fallback")).toBeNull();
-		expect(view.queryByTestId("transcript-virtualizer")).not.toBeNull();
-		expect(getCurrentScrollOffset()).toBeGreaterThan(0);
+		const viewport = view.container.firstElementChild;
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Missing viewport element");
+		}
+
+		await fireEvent.wheel(viewport, { deltaY: -100 });
+		await fireEvent.scroll(viewport);
+		await flushAnimationFrames();
+
+		scrollToIndexCalls.length = 0;
+
+		await view.rerender({
+			panelId: "panel-1",
+			sceneEntries: [createAssistantSceneEntry("assistant-1", "latest"), createUserSceneEntry("optimistic-user-1", "sent")],
+			turnState: "idle",
+			isWaitingForResponse: true,
+			projectPath: undefined,
+			sessionId: "session-1",
+			isFullscreen: false,
+			pendingUserRevealRequestKey: "send-1",
+			onNearBottomChange: undefined,
+		});
+		await tick();
+		await flushAnimationFrames();
+
+		expect(scrollToIndexCalls.at(-1)).toEqual({
+			index: 2,
+			options: { align: "end" },
+		});
 	});
 
 		it("reveals the trailing thinking indicator after a user message is sent", async () => {
@@ -1253,7 +1272,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		expect(observedEntryKeys).toEqual(["tool-1"]);
 	});
 
-	it("remeasures only the resized TanStack row", async () => {
+	it("registers mounted rows with TanStack measurement", async () => {
 		renderList({
 			sceneEntries: [
 				createUserSceneEntry("user-1", "hello"),
@@ -1264,12 +1283,23 @@ describe("SceneContentViewport auto-scroll", () => {
 		await tick();
 		await tick();
 
-		measureCalls.length = 0;
-		measureElementCalls.length = 0;
+		expect(measureElementCalls).toEqual(expect.arrayContaining(["0", "1"]));
+		expect(measureCalls).toHaveLength(0);
+	});
 
-		triggerResizeObserversForVirtualIndex(0);
+	it("registers tool and assistant rows with TanStack dynamic measurement", async () => {
+		renderList({
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createToolCallSceneEntry("tool-1"),
+				createAssistantSceneEntry("assistant-1", "world"),
+			],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
 
-		expect(measureElementCalls).toContain("0");
+		expect(measureElementCalls).toEqual(expect.arrayContaining(["0", "1", "2"]));
 		expect(measureCalls).toHaveLength(0);
 	});
 

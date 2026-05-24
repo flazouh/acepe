@@ -39,11 +39,11 @@ export class OperationStore {
 	private readonly operationIdByEntryKey = new SvelteMap<string, string>();
 	private readonly sessionOperationIds = new SvelteMap<string, Array<string>>();
 	private readonly sessionOperationIdSets = new Map<string, Set<string>>();
-	private readonly sessionRootOperationIds = new SvelteMap<string, Array<string>>();
+	private readonly sessionRootOperationIds = new Map<string, Array<string>>();
 	private readonly sessionOperationVersions = new SvelteMap<string, number>();
-	private readonly currentStreamingOperationIdBySession = new SvelteMap<string, string>();
-	private readonly lastRootOperationIdBySession = new SvelteMap<string, string>();
-	private readonly lastTodoOperationIdBySession = new SvelteMap<string, string>();
+	private readonly currentStreamingOperationIdBySession = new Map<string, string>();
+	private readonly lastRootOperationIdBySession = new Map<string, string>();
+	private readonly lastTodoOperationIdBySession = new Map<string, string>();
 	private readonly modifiedFilesStateBySession = new Map<
 		string,
 		{ readonly version: number; readonly state: ModifiedFilesState | null }

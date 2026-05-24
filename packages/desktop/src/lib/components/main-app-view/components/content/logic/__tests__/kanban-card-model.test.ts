@@ -221,6 +221,38 @@ describe("kanban-card-model", () => {
 		expect(cards[1]?.card.activityText).toBe("Creating worktree...");
 	});
 
+	it("keeps the optimistic card while a new session id exists but the board card is not ready", () => {
+		const cards = buildOptimisticKanbanCards({
+			panels: [makePanel({ sessionId: "session-1" })],
+			sessionIdsWithThreadBoardSource: new Set<string>(),
+			getProject: projectLookup([makeProject()]),
+			getPanelHotState: () => ({
+				...DEFAULT_PANEL_HOT_STATE,
+				pendingUserEntry: makeUserEntry("Ship the first message"),
+			}),
+			getAgentIcon: (agentId) => `/icons/${agentId}.svg`,
+		});
+
+		expect(cards).toHaveLength(1);
+		expect(cards[0]?.card.id).toBe("session-1");
+		expect(cards[0]?.card.title).toBe("Ship the first message");
+	});
+
+	it("does not duplicate the optimistic card once the real board card exists", () => {
+		const cards = buildOptimisticKanbanCards({
+			panels: [makePanel({ sessionId: "session-1" })],
+			sessionIdsWithThreadBoardSource: new Set(["session-1"]),
+			getProject: projectLookup([makeProject()]),
+			getPanelHotState: () => ({
+				...DEFAULT_PANEL_HOT_STATE,
+				pendingUserEntry: makeUserEntry("Ship the first message"),
+			}),
+			getAgentIcon: (agentId) => `/icons/${agentId}.svg`,
+		});
+
+		expect(cards).toEqual([]);
+	});
+
 	it("keeps menu and scene-card rules in one tested place", () => {
 		expect(buildKanbanSceneMenuActions(false).map((action) => action.id)).toEqual([
 			"copy-id",

@@ -78,6 +78,16 @@ describe("agent panel host model", () => {
 		).toBe("cursor");
 	});
 
+	it("falls back to the visible first agent before a session exists", () => {
+		expect(
+			resolveAgentPanelHostSelectedAgentId({
+				panel: createPanel({ sessionId: null, selectedAgentId: null }),
+				sessionIdentity: undefined,
+				availableAgents: [{ id: "claude-code" }, { id: "copilot" }],
+			})
+		).toBe("claude-code");
+	});
+
 	it("prefers canonical session identity agent for existing sessions", () => {
 		expect(
 			resolveAgentPanelHostSelectedAgentId({

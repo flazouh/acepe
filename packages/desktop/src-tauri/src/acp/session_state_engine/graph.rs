@@ -37,6 +37,8 @@ pub struct SessionStateGraph {
     pub worktree_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence_id: Option<i32>,
     pub revision: SessionGraphRevision,
     pub transcript_snapshot: TranscriptSnapshot,
     pub operations: Vec<OperationSnapshot>,

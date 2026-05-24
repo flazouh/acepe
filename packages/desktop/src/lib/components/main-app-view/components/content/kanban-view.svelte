@@ -88,6 +88,7 @@ import {
 	buildOptimisticKanbanCards as buildOptimisticKanbanCardModels,
 	type OptimisticKanbanCard,
 } from "./logic/kanban-card-model.js";
+import { completeKanbanNewSessionHandoff } from "./logic/kanban-new-session-handoff.js";
 import { buildKanbanSceneColumns, buildKanbanSceneModel } from "./logic/kanban-scene-model.js";
 import {
 	buildKanbanPermissionFooter,
@@ -124,7 +125,7 @@ const unseenStore = getUnseenStore();
 const selectionStore = getQuestionSelectionStore();
 const themeState = useTheme();
 
-function getCanonicalAgentIcon(agentId: string | null | undefined): string {
+function getCanonicalAgentIcon(agentId: string | null | undefined): string | null {
 	const providerBrand = agentStore.getProviderMetadata(agentId)?.providerBrand ?? null;
 
 	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
@@ -367,8 +368,14 @@ function buildSceneCard(card: ReturnType<typeof mapItemToCard>): KanbanSceneCard
 }
 
 function buildOptimisticKanbanCards(): readonly OptimisticKanbanCard[] {
+	const sessionIdsWithThreadBoardSource = new Set<string>();
+	for (const source of threadBoardSources) {
+		sessionIdsWithThreadBoardSource.add(source.sessionId);
+	}
+
 	return buildOptimisticKanbanCardModels({
 		panels: panelStore.panels,
+		sessionIdsWithThreadBoardSource,
 		getProject: (projectPath) => projectManager.getProject(projectPath),
 		getPanelHotState: (panelId) => panelStore.getHotState(panelId),
 		getAgentIcon: getCanonicalAgentIcon,
@@ -688,14 +695,13 @@ function handleNewSessionWillSend(): string | null {
 
 function handleNewSessionCreated(sessionId: string, panelId?: string | null): void {
 	preparedWorktreeLaunch = null;
-	if (panelId) {
-		panelStore.updatePanelSession(panelId, sessionId);
-		panelStore.focusPanel(panelId);
-		return;
-	}
-
 	newSessionOpen = false;
-	panelStore.openSession(sessionId, KANBAN_SESSION_PANEL_WIDTH);
+	completeKanbanNewSessionHandoff({
+		panelStore,
+		panelId,
+		sessionId,
+		sessionPanelWidth: KANBAN_SESSION_PANEL_WIDTH,
+	});
 }
 
 function handleNewSessionSendError(panelId: string | null): void {

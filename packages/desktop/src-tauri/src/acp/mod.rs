@@ -52,7 +52,6 @@ pub mod session_thread_snapshot;
 pub mod session_update;
 pub mod session_update_parser;
 pub mod streaming_accumulator;
-pub mod streaming_delta_batcher;
 pub mod streaming_log;
 pub mod task_reconciler;
 pub mod tool_call_presentation;

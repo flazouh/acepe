@@ -52,6 +52,12 @@ export const panelConnectionMachine = createMachine({
 						startedAt: () => new Date(),
 					}),
 				},
+				[PanelConnectionEvent.CONNECTION_ERROR]: {
+					target: PanelConnectionState.ERROR,
+					actions: assign({
+						error: ({ event }) => event.error,
+					}),
+				},
 			},
 		},
 		[PanelConnectionState.CONNECTING]: {

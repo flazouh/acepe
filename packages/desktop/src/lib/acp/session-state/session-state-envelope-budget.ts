@@ -30,7 +30,7 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	snapshot: 2_000_000,
 	delta: 64_000,
 	lifecycle: 8_000,
-	capabilities: 32_000,
+	capabilities: 128_000,
 	telemetry: 16_000,
 	plan: 128_000,
 	assistantTextDelta: 8_000,

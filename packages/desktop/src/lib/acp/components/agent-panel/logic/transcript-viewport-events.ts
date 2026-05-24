@@ -1,5 +1,10 @@
-import type { TranscriptRendererFallbackReason } from "./transcript-viewport-effects.js";
 import type { TranscriptViewportRowSummary } from "./transcript-viewport-row-summary.js";
+
+export type TranscriptRendererHealthFailureReason =
+	| "zero_viewport"
+	| "no_rendered_entries"
+	| "adapter-anchor-missing"
+	| "explicit-safety-mode";
 
 export type TranscriptViewportMeasurement = {
 	scrollOffset: number;
@@ -23,10 +28,7 @@ export type TranscriptViewportEvent =
 	  })
 	| (TranscriptViewportEventBase & {
 			type: "RendererFailed";
-			reason: TranscriptRendererFallbackReason;
-	  })
-	| (TranscriptViewportEventBase & {
-			type: "RendererRecovered";
+			reason: TranscriptRendererHealthFailureReason;
 	  })
 	| (TranscriptViewportEventBase & {
 			type: "RowsChanged";
@@ -95,14 +97,13 @@ export type TranscriptViewportEvent =
 	| (TranscriptViewportEventBase & {
 			type: "RendererHealthProbeReported";
 			healthy: boolean;
-			reason?: TranscriptRendererFallbackReason;
+			reason?: TranscriptRendererHealthFailureReason;
 	  });
 
 function getTranscriptViewportEventPriority(event: TranscriptViewportEvent): number {
 	switch (event.type) {
 		case "SessionChanged":
 		case "RendererMounted":
-		case "RendererRecovered":
 		case "RendererFailed":
 			return 0;
 		case "UserWheel":

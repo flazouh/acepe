@@ -201,6 +201,26 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		});
 	});
 
+	it("keeps a newly spawned pending send warming while canonical graph hydrates", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "missing_canonical",
+				sessionId: "session-1",
+			},
+			hasEntries: true,
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "warming",
+			isConnected: false,
+			isStreaming: false,
+			showPlanningIndicator: true,
+			canSubmit: false,
+			showStop: false,
+		});
+	});
+
 	it("uses awaiting-model canonical state for planning and stop affordances", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			source: {

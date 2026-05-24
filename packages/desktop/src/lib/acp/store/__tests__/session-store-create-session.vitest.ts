@@ -42,6 +42,7 @@ function createSessionOpenFound(overrides: Partial<SessionOpenFound> = {}): Sess
 		projectPath: overrides.projectPath ?? "/repo",
 		worktreePath: overrides.worktreePath ?? null,
 		sourcePath: overrides.sourcePath ?? null,
+		sequenceId: overrides.sequenceId ?? null,
 		transcriptSnapshot: overrides.transcriptSnapshot ?? {
 			revision: overrides.lastEventSeq ?? 0,
 			entries: [],
@@ -85,6 +86,7 @@ function createSessionStateGraph(overrides: Partial<SessionStateGraph> = {}): Se
 		projectPath: overrides.projectPath ?? "/repo",
 		worktreePath: overrides.worktreePath ?? null,
 		sourcePath: overrides.sourcePath ?? null,
+		sequenceId: overrides.sequenceId ?? null,
 		revision: overrides.revision ?? {
 			graphRevision: 1,
 			transcriptRevision: 0,
@@ -428,6 +430,7 @@ describe("SessionStore.createSession", () => {
 				canonicalSessionId: "provider-requested-id",
 				agentId: "claude-code",
 				projectPath: "/repo",
+				sequenceId: 50,
 			})
 		);
 
@@ -440,9 +443,128 @@ describe("SessionStore.createSession", () => {
 				projectPath: "/repo",
 				agentId: "claude-code",
 				title: "Build stable panels",
+				sequenceId: 50,
 			})
 		);
 		expect(store.hasPendingCreationSession("provider-requested-id")).toBe(false);
+	});
+
+	it("fills sequence id when an early event materializes a deferred session before the graph", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				okAsync({
+					kind: "pending" as const,
+					sessionId: "provider-requested-id",
+					creationAttemptId: "attempt-1",
+					projectPath: "/repo",
+					agentId: "claude-code",
+					title: "Build stable panels",
+					worktreePath: null,
+				})
+			),
+		};
+
+		await store.createSession({
+			projectPath: "/repo",
+			agentId: "claude-code",
+		});
+
+		expect(store.materializePendingCreationSession("provider-requested-id")).toBe(true);
+		expect(store.getSessionMetadata("provider-requested-id")?.sequenceId).toBeUndefined();
+
+		const materialized = store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "provider-requested-id",
+				canonicalSessionId: "provider-requested-id",
+				agentId: "claude-code",
+				projectPath: "/repo",
+				sequenceId: 56,
+			})
+		);
+
+		expect(materialized).toBe(true);
+		expect(store.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(56);
+		expect(store.getAllSessions()[0]).toEqual(
+			expect.objectContaining({
+				id: "provider-requested-id",
+				sequenceId: 56,
+			})
+		);
+	});
+
+	it("fills a null placeholder sequence from the canonical graph", () => {
+		store.addSession(
+			createSession({
+				id: "claude-created-session",
+				agentId: "claude-code",
+				sequenceId: null,
+			})
+		);
+
+		const materialized = store.ensureSessionFromStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "claude-created-session",
+				canonicalSessionId: "claude-created-session",
+				agentId: "claude-code",
+				projectPath: "/repo",
+				sequenceId: 59,
+			})
+		);
+
+		expect(materialized).toBe(true);
+		expect(store.getSessionMetadata("claude-created-session")?.sequenceId).toBe(59);
+	});
+
+	it("fills a null placeholder sequence when a known live session receives a full graph", () => {
+		store.addSession(
+			createSession({
+				id: "claude-live-session",
+				agentId: "claude-code",
+				sequenceId: null,
+			})
+		);
+
+		store.applySessionStateGraph(
+			createSessionStateGraph({
+				requestedSessionId: "claude-live-session",
+				canonicalSessionId: "claude-live-session",
+				agentId: "claude-code",
+				projectPath: "/repo",
+				sequenceId: 62,
+			})
+		);
+
+		expect(store.getSessionMetadata("claude-live-session")?.sequenceId).toBe(62);
+	});
+
+	it("preserves the canonical open snapshot sequence on an existing created session", () => {
+		store.addSession(
+			createSession({
+				id: "snapshot-session",
+				title: "Session snapshot-session",
+				sequenceId: undefined,
+			})
+		);
+
+		store.replaceSessionOpenSnapshot(
+			createSessionOpenFound({
+				canonicalSessionId: "snapshot-session",
+				requestedSessionId: "snapshot-session",
+				sessionTitle: "Can you find a svelte component that is too big ?",
+				sequenceId: 57,
+			})
+		);
+
+		expect(store.getSessionMetadata("snapshot-session")?.title).toBe(
+			"Can you find a svelte component that is too big ?"
+		);
+		expect(store.getSessionMetadata("snapshot-session")?.sequenceId).toBe(57);
 	});
 
 	it("treats a materialized created session as enough authority for detail lookup", async () => {

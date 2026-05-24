@@ -15,7 +15,6 @@ export type PanelViewState =
 	| { readonly kind: "project_selection" }
 	| { readonly kind: "error"; readonly details: string }
 	| { readonly kind: "conversation"; readonly errorDetails: string | null }
-	| { readonly kind: "loading" }
 	| { readonly kind: "ready" };
 
 export interface PanelLifecyclePresentation {
@@ -32,6 +31,7 @@ export interface PanelViewStateInput {
 	readonly entriesCount: number;
 	readonly hasSession: boolean;
 	readonly isAwaitingModelResponse: boolean;
+	readonly hasImmediatePendingSendIntent: boolean;
 	readonly showProjectSelection: boolean;
 	readonly hasEffectiveProjectPath: boolean;
 	readonly errorInfo: PanelErrorInfo;
@@ -46,8 +46,7 @@ export interface PanelViewStateInput {
  * 1. project_selection — needs project selection OR agent selection (agents are embedded in project cards)
  * 2. error            — blocking error with no entries
  * 3. conversation     — has entries or active model wait (carries inline errorDetails)
- * 4. loading          — content or connection is still materializing
- * 5. ready            — connected session, creating session, or can start one
+ * 4. ready            — connected session, creating session, materializing, or can start one
  */
 export function derivePanelViewState(input: PanelViewStateInput): PanelViewState {
 	const {
@@ -55,6 +54,7 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		entriesCount,
 		hasSession,
 		isAwaitingModelResponse,
+		hasImmediatePendingSendIntent,
 		showProjectSelection,
 		hasEffectiveProjectPath,
 		errorInfo,
@@ -74,14 +74,11 @@ export function derivePanelViewState(input: PanelViewStateInput): PanelViewState
 		return { kind: "error", details: errorInfo.details ?? "Unable to connect to the agent." };
 	}
 
-	if (
-		hasSession &&
-		lifecyclePresentation !== null &&
-		lifecyclePresentation.contentPhase === "loading" &&
-		!lifecyclePresentation.showConversation &&
-		!lifecyclePresentation.showReadyPlaceholder
-	) {
-		return { kind: "loading" };
+	if (hasImmediatePendingSendIntent && entriesCount > 0) {
+		return {
+			kind: "conversation",
+			errorDetails: null,
+		};
 	}
 
 	// 3. Conversation — entries exist (inline error banner if applicable)

@@ -360,9 +360,8 @@ export class SessionEventService {
 	/**
 	 * Handle session update from EventSubscriber.
 	 *
-	 * Note: Streaming deltas and message chunks are already batched at 16ms intervals
-	 * by the Rust StreamingDeltaBatcher before being emitted as Tauri events.
-	 * We process them directly here without additional buffering.
+	 * Streaming deltas and message chunks are emitted directly from Rust.
+	 * We process them here without additional buffering.
 	 */
 	private _hangDebugUpdateCount = 0;
 	private _hangDebugStartTime = performance.now();

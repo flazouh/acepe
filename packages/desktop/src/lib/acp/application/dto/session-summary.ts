@@ -68,7 +68,7 @@ export function buildSessionSummaryFromCold(input: {
 		prLinkMode: input.cold.prLinkMode,
 		linkedPr: input.cold.linkedPr,
 		worktreeDeleted: input.cold.worktreeDeleted,
-		sequenceId: input.cold.sequenceId,
+		sequenceId: input.cold.sequenceId ?? undefined,
 	};
 }
 

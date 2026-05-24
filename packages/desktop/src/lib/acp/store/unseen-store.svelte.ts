@@ -14,6 +14,7 @@ import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 
 const UNSEEN_STORE_KEY = Symbol("unseen-store");
+let currentUnseenStore: UnseenStore | null = null;
 
 export class UnseenStore {
 	private readonly unseenPanels = new SvelteSet<string>();
@@ -44,6 +45,7 @@ export class UnseenStore {
  */
 export function createUnseenStore(): UnseenStore {
 	const store = new UnseenStore();
+	currentUnseenStore = store;
 	setContext(UNSEEN_STORE_KEY, store);
 	return store;
 }
@@ -52,5 +54,14 @@ export function createUnseenStore(): UnseenStore {
  * Get the unseen store from Svelte context.
  */
 export function getUnseenStore(): UnseenStore {
-	return getContext<UnseenStore>(UNSEEN_STORE_KEY);
+	const contextStore = getContext<UnseenStore | undefined>(UNSEEN_STORE_KEY);
+	if (contextStore !== undefined) {
+		return contextStore;
+	}
+	if (currentUnseenStore !== null) {
+		return currentUnseenStore;
+	}
+	const store = new UnseenStore();
+	currentUnseenStore = store;
+	return store;
 }

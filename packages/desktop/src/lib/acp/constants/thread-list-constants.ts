@@ -9,12 +9,9 @@ type ThemeIconPair = {
 	readonly dark: string;
 };
 
-const CUSTOM_PROVIDER_ICON: ThemeIconPair = {
-	light: "/svgs/agents/custom/custom-icon.svg",
-	dark: "/svgs/agents/custom/custom-icon.svg",
-};
+type IconProviderBrand = Exclude<ProviderBrand, "custom">;
 
-const PROVIDER_BRAND_ICONS: Record<ProviderBrand, ThemeIconPair> = {
+const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 	opencode: {
 		light: "/svgs/agents/opencode/opencode-logo-light.svg",
 		dark: "/svgs/agents/opencode/opencode-logo-dark.svg",
@@ -35,7 +32,6 @@ const PROVIDER_BRAND_ICONS: Record<ProviderBrand, ThemeIconPair> = {
 		light: "/svgs/agents/codex/codex-icon-light.svg",
 		dark: "/svgs/agents/codex/codex-icon-dark.svg",
 	},
-	custom: CUSTOM_PROVIDER_ICON,
 } as const;
 
 /**
@@ -45,9 +41,12 @@ const PROVIDER_BRAND_ICONS: Record<ProviderBrand, ThemeIconPair> = {
 export function getProviderBrandIcon(
 	providerBrand: ProviderBrand | null | undefined,
 	theme: "light" | "dark"
-): string {
-	const icons = providerBrand ? PROVIDER_BRAND_ICONS[providerBrand] : CUSTOM_PROVIDER_ICON;
-	return icons[theme];
+): string | null {
+	if (!providerBrand || providerBrand === "custom") {
+		return null;
+	}
+
+	return PROVIDER_BRAND_ICONS[providerBrand][theme];
 }
 
 /**

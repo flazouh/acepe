@@ -28,7 +28,6 @@ export {
 } from "./transcript-viewport-effects.js";
 export type { TranscriptViewportRowSummary } from "./transcript-viewport-row-summary.js";
 export {
-	createNativeTranscriptRendererAdapter,
 	createTranscriptVirtualizerRendererAdapter,
 	type TranscriptRendererAdapter,
 } from "./transcript-renderer-adapter.js";

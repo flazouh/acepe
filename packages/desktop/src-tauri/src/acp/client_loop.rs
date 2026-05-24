@@ -22,7 +22,6 @@ use crate::acp::session_registry::SessionRegistry;
 use crate::acp::session_update::{
     SessionUpdate, TurnErrorData, TurnErrorInfo, TurnErrorKind, TurnErrorSource,
 };
-use crate::acp::streaming_delta_batcher::StreamingDeltaBatcher;
 use crate::acp::streaming_log::{log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher};
@@ -149,86 +148,59 @@ fn enqueue_session_updates(
     }
 }
 
-/// Wrapper that flushes the StreamingDeltaBatcher on drop.
-/// Ensures buffered deltas are emitted even if the task panics or is cancelled.
-pub(crate) struct BatcherWithGuard {
-    batcher: StreamingDeltaBatcher,
-    dispatcher: AcpUiEventDispatcher,
-    is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
-}
+/// Direct streaming update emitter.
+///
+/// Streaming text and thought chunks are intentionally passed through one by
+/// one. Non-streaming command/capability payloads still use NonStreamingEventBatcher.
+pub(crate) struct StreamingUpdateEmitter;
 
-impl BatcherWithGuard {
-    fn new(
-        dispatcher: AcpUiEventDispatcher,
-        is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
-    ) -> Self {
-        Self {
-            batcher: StreamingDeltaBatcher::new(),
-            dispatcher,
-            is_replay_active,
-        }
+impl StreamingUpdateEmitter {
+    fn new() -> Self {
+        Self
     }
 
     #[cfg(test)]
-    pub(crate) fn new_for_tests(
-        dispatcher: AcpUiEventDispatcher,
-        is_replay_active: StdArc<std::sync::atomic::AtomicBool>,
-    ) -> Self {
-        Self::new(dispatcher, is_replay_active)
+    pub(crate) fn new_for_tests() -> Self {
+        Self::new()
     }
 
-    pub(crate) fn process(&mut self, update: SessionUpdate) -> Vec<SessionUpdate> {
-        self.batcher.process(update)
+    pub(crate) fn process(&self, update: SessionUpdate) -> Vec<SessionUpdate> {
+        vec![update]
     }
 
     pub(crate) fn process_turn_complete(
-        &mut self,
+        &self,
         session_id: &str,
         turn_id: Option<String>,
     ) -> Vec<SessionUpdate> {
-        self.batcher.process_turn_complete(session_id, turn_id)
+        vec![SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id,
+        }]
     }
 
     fn process_turn_error(
-        &mut self,
+        &self,
         session_id: &str,
         turn_id: Option<String>,
         error: crate::acp::session_update::TurnErrorData,
     ) -> Vec<SessionUpdate> {
-        self.batcher.process_turn_error(session_id, turn_id, error)
-    }
-
-    /// Flush all buffered updates (e.g. before circuit breaker break).
-    pub(crate) fn flush_all(&mut self) -> Vec<SessionUpdate> {
-        self.batcher.flush_all()
-    }
-
-    fn flush_ready(&mut self) -> Vec<SessionUpdate> {
-        self.batcher.flush_ready()
-    }
-
-    fn time_until_flush(&self) -> Option<Duration> {
-        self.batcher.time_until_flush()
-    }
-
-    fn has_pending(&self) -> bool {
-        self.batcher.has_pending()
+        vec![SessionUpdate::TurnError {
+            error,
+            session_id: Some(session_id.to_string()),
+            turn_id,
+        }]
     }
 }
 
 /// Drain all fire-and-forget prompt sessions and synthesize TurnError events.
 ///
-/// Uses the batcher to ensure buffered text chunks are flushed before TurnError
-/// (`process_turn_error` internally calls `flush_session` then appends TurnError).
-///
-/// Only called from the stdout reader task (which owns the batcher). The death
-/// monitor does NOT drain prompt_sessions because it has no batcher access — if it
-/// dispatched TurnError directly, the frontend could receive TurnError BEFORE the
-/// batcher's Drop-flush delivers final text chunks (ordering violation).
+/// Only called from the stdout reader task so synthesized TurnError events stay
+/// ordered with the stream already read from stdout.
 async fn drain_prompt_sessions_as_turn_errors(
     prompt_sessions: &StdArc<Mutex<HashMap<u64, PromptRequestSession>>>,
     process_generation: u64,
-    streaming_batcher: &mut BatcherWithGuard,
+    streaming_emitter: &StreamingUpdateEmitter,
     dispatcher: &AcpUiEventDispatcher,
     is_replay_active: &StdArc<std::sync::atomic::AtomicBool>,
     reason: &str,
@@ -266,22 +238,12 @@ async fn drain_prompt_sessions_as_turn_errors(
             code: Some(-32001),
             source: Some(TurnErrorSource::Process),
         });
-        let updates = streaming_batcher.process_turn_error(
+        let updates = streaming_emitter.process_turn_error(
             &prompt.session_id,
             Some(request_id.to_string()),
             error,
         );
         enqueue_session_updates(dispatcher, is_replay_active, updates);
-    }
-}
-
-impl Drop for BatcherWithGuard {
-    fn drop(&mut self) {
-        let updates = self.batcher.flush_all();
-        if !updates.is_empty() {
-            tracing::info!(count = updates.len(), "BatcherWithGuard flushing on drop");
-            enqueue_session_updates(&self.dispatcher, &self.is_replay_active, updates);
-        }
     }
 }
 
@@ -353,8 +315,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
     tokio::spawn(async move {
         let reader = BufReader::new(stdout);
         let mut lines = reader.lines();
-        let mut streaming_batcher =
-            BatcherWithGuard::new(ctx.dispatcher.clone(), ctx.is_replay_active.clone());
+        let streaming_emitter = StreamingUpdateEmitter::new();
         let mut non_streaming_batcher = NonStreamingEventBatcher::new();
 
         let message_id_tracker: StdArc<std::sync::Mutex<HashMap<String, String>>> =
@@ -371,10 +332,6 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
             let non_streaming_flush_timeout = non_streaming_batcher
                 .time_until_flush()
                 .unwrap_or(Duration::from_secs(3600));
-            let streaming_flush_timeout = streaming_batcher
-                .time_until_flush()
-                .unwrap_or(Duration::from_secs(3600));
-
             tokio::select! {
                 biased;
                 _ = ctx.cancel.cancelled() => {
@@ -400,7 +357,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             drain_prompt_sessions_as_turn_errors(
                                 &ctx.prompt_sessions,
                                 ctx.process_generation,
-                                &mut streaming_batcher,
+                                &streaming_emitter,
                                 &ctx.dispatcher,
                                 &ctx.is_replay_active,
                                 &reason,
@@ -424,7 +381,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                             drain_prompt_sessions_as_turn_errors(
                                 &ctx.prompt_sessions,
                                 ctx.process_generation,
-                                &mut streaming_batcher,
+                                &streaming_emitter,
                                 &ctx.dispatcher,
                                 &ctx.is_replay_active,
                                 &reason,
@@ -652,14 +609,14 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                     let updates = if let Some(error) = json.get("error") {
                                         let turn_error = extract_turn_error(error);
                                         tracing::error!(id = id, session_id = %session_id, error = ?turn_error, "Prompt failed");
-                                        streaming_batcher.process_turn_error(
+                                        streaming_emitter.process_turn_error(
                                             &session_id,
                                             Some(id.to_string()),
                                             turn_error,
                                         )
                                     } else {
                                         tracing::info!(id = id, session_id = %session_id, "Prompt completed");
-                                        streaming_batcher.process_turn_complete(
+                                        streaming_emitter.process_turn_complete(
                                             &session_id,
                                             Some(id.to_string()),
                                         )
@@ -738,7 +695,7 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 ctx.provider.as_deref(),
                                 &message_id_tracker,
                                 &task_reconciler,
-                                &mut streaming_batcher,
+                                &streaming_emitter,
                                 &mut non_streaming_batcher,
                                 &json,
                             )
@@ -762,15 +719,10 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                                 consecutive_parse_failures
                             );
                             tracing::error!(%reason, "Treating subprocess stdout as broken");
-                            enqueue_session_updates(
-                                &ctx.dispatcher,
-                                &ctx.is_replay_active,
-                                streaming_batcher.flush_all(),
-                            );
                             drain_prompt_sessions_as_turn_errors(
                                 &ctx.prompt_sessions,
                                 ctx.process_generation,
-                                &mut streaming_batcher,
+                                &streaming_emitter,
                                 &ctx.dispatcher,
                                 &ctx.is_replay_active,
                                 &reason,
@@ -792,23 +744,9 @@ pub(crate) fn spawn_stdout_reader(stdout: ChildStdout, ctx: StdoutLoopContext) {
                         non_streaming_batcher.flush_all(),
                     );
                 }
-                _ = tokio::time::sleep(streaming_flush_timeout), if streaming_batcher.has_pending() => {
-                    let updates = streaming_batcher.flush_ready();
-                    if !updates.is_empty() {
-                        tracing::debug!(count = updates.len(), "Flushing streaming updates on timer");
-                        enqueue_session_updates(&ctx.dispatcher, &ctx.is_replay_active, updates);
-                    }
-                }
             }
         }
 
-        if streaming_batcher.has_pending() {
-            enqueue_session_updates(
-                &ctx.dispatcher,
-                &ctx.is_replay_active,
-                streaming_batcher.flush_all(),
-            );
-        }
         if non_streaming_batcher.has_pending() {
             enqueue_session_updates(
                 &ctx.dispatcher,

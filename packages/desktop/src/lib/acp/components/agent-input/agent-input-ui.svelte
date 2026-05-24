@@ -870,7 +870,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 						error: error.message,
 					});
 					return undefined;
-				});
+			});
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
 			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
@@ -1842,6 +1842,7 @@ $effect(() => {
 					{isAgentBusy}
 					effectiveAvailableCommands={effectiveAvailableCommands}
 					isSlashDropdownVisible={isSlashDropdownVisible}
+					slashCommandTokenType={slashCommandSource.tokenType}
 					filePickerProjectPath={filePickerProjectPath}
 					onEditorBeforeInput={handleEditorBeforeInput}
 					onEditorInput={() => handleEditorInput()}

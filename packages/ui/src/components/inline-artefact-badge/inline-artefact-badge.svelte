@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChipShell } from "../chip/index.js";
 	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
+	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
 	import {
 		buildInlineArtefactIconClassName,
@@ -35,6 +36,13 @@
 	const isClickable = $derived(Boolean(onclick) && isFile);
 	const iconClassName = $derived(buildInlineArtefactIconClassName(tokenType));
 	const labelClassName = $derived(buildInlineArtefactLabelClassName(tokenType));
+	const slashIconColor = $derived(
+		tokenType === "command"
+			? Colors[COLOR_NAMES.AMBER]
+			: tokenType === "skill"
+				? Colors[COLOR_NAMES.PURPLE]
+				: null
+	);
 
 	function handleIconError(e: Event) {
 		const img = e.target as HTMLImageElement;
@@ -51,6 +59,7 @@
 			viewBox="0 0 256 256"
 			fill="currentColor"
 			class="h-3.5 w-3.5 shrink-0 {iconClassName}"
+			style={slashIconColor ? `color: ${slashIconColor};` : undefined}
 			aria-hidden="true"
 		>
 			<path d={INLINE_ARTEFACT_PACKAGE_PATH} />

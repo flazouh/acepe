@@ -66,10 +66,92 @@ impl SessionStatePayloadKind {
             Self::Snapshot => 2_000_000,
             Self::Delta => 64_000,
             Self::Lifecycle => 8_000,
-            Self::Capabilities => 32_000,
+            Self::Capabilities => 128_000,
             Self::Telemetry => 16_000,
             Self::Plan => 128_000,
             Self::AssistantTextDelta => 8_000,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::acp::session_state_engine::protocol::CapabilityPreviewState;
+    use crate::acp::session_state_engine::revision::SessionGraphRevision;
+    use crate::acp::session_state_engine::selectors::SessionGraphCapabilities;
+    use crate::acp::session_update::AvailableCommand;
+
+    fn revision() -> SessionGraphRevision {
+        SessionGraphRevision {
+            graph_revision: 1,
+            transcript_revision: 1,
+            last_event_seq: 1,
+        }
+    }
+
+    fn capabilities_envelope(capabilities: SessionGraphCapabilities) -> SessionStateEnvelope {
+        SessionStateEnvelope {
+            session_id: "session-1".to_string(),
+            graph_revision: 1,
+            last_event_seq: 1,
+            payload: SessionStatePayload::Capabilities {
+                capabilities: Box::new(capabilities),
+                revision: revision(),
+                pending_mutation_id: None,
+                preview_state: CapabilityPreviewState::Canonical,
+            },
+        }
+    }
+
+    #[test]
+    fn accepts_large_provider_command_catalog_capabilities() {
+        let available_commands = (0..118)
+            .map(|index| AvailableCommand {
+                name: format!("command-{index}"),
+                description:
+                    "Provider command description with enough text to match a real Claude Code catalog entry."
+                        .to_string(),
+                input: None,
+            })
+            .collect();
+        let capabilities = SessionGraphCapabilities {
+            models: None,
+            modes: None,
+            available_commands: Some(available_commands),
+            config_options: None,
+            autonomous_enabled: Some(true),
+        };
+
+        let status =
+            session_state_envelope_byte_budget_status(&capabilities_envelope(capabilities))
+                .expect("large command catalog should fit capabilities budget");
+
+        assert_eq!(status.kind, SessionStatePayloadKind::Capabilities);
+    }
+
+    #[test]
+    fn rejects_oversized_capabilities() {
+        let capabilities = SessionGraphCapabilities {
+            models: None,
+            modes: None,
+            available_commands: Some(vec![AvailableCommand {
+                name: "oversized".to_string(),
+                description: "x".repeat(SessionStatePayloadKind::Capabilities.max_bytes()),
+                input: None,
+            }]),
+            config_options: None,
+            autonomous_enabled: Some(true),
+        };
+
+        let status =
+            session_state_envelope_byte_budget_status(&capabilities_envelope(capabilities))
+                .expect_err("oversized command catalog should be rejected");
+
+        assert_eq!(status.kind, SessionStatePayloadKind::Capabilities);
+        assert_eq!(
+            status.max_bytes,
+            SessionStatePayloadKind::Capabilities.max_bytes()
+        );
     }
 }

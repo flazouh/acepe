@@ -858,5 +858,6 @@ function createFoundResult(
 		},
 		capabilities: {},
 		...overrides,
+		sequenceId: overrides?.sequenceId ?? null,
 	};
 }
