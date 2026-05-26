@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
+import { errAsync, okAsync } from "neverthrow";
 
+import { AgentError } from "../../../../errors/app-error.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
-import type { SessionStore } from "../../../../store/session-store.svelte.js";
+import type {
+	SessionCreationResult,
+	SessionStore,
+} from "../../../../store/session-store.svelte.js";
+import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";
 import { SessionCreationError } from "../../errors/agent-input-error.js";
 import { AgentInputState } from "../agent-input-state.svelte.js";
 
@@ -80,6 +86,52 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 		});
 
 		expect(result.isErr()).toBe(true);
+		expect(mockPanelStore.clearPendingUserEntry).toHaveBeenCalledWith("panel-1");
+	});
+
+	it("returns a session creation error when a deferred first prompt fails", async () => {
+		const mockStore: Partial<SessionStore> = {
+			createSession: vi.fn(() =>
+				// Claude Code can reserve a pending session before the first prompt
+				// actually starts the subprocess.
+				okAsync({
+					kind: "pending",
+					sessionId: "pending-session",
+					creationAttemptId: "attempt-1",
+					projectPath: "/tmp/project",
+					agentId: "claude-code",
+					title: "hello",
+					worktreePath: null,
+				} satisfies SessionCreationResult)
+			),
+			sendMessage: vi.fn(() =>
+				errAsync(new AgentError("sendPrompt", new Error("transport unavailable")))
+			),
+		};
+		const mockPanelStore: Partial<PanelStore> = {
+			getHotState: vi.fn(() => DEFAULT_PANEL_HOT_STATE),
+			setPendingUserEntry: vi.fn(),
+			clearPendingUserEntry: vi.fn(),
+		};
+		const state = new AgentInputState(
+			mockStore as SessionStore,
+			mockPanelStore as PanelStore,
+			() => "/tmp/project"
+		);
+
+		const result = await state.sendPreparedMessage({
+			content: "hello",
+			panelId: "panel-1",
+			selectedAgentId: "claude-code",
+			projectPath: "/tmp/project",
+			projectName: "Acepe",
+		});
+
+		expect(result.isErr()).toBe(true);
+		if (result.isErr()) {
+			expect(result.error).toBeInstanceOf(SessionCreationError);
+			expect(result.error.cause?.message).toBe("Agent operation failed: sendPrompt");
+		}
 		expect(mockPanelStore.clearPendingUserEntry).toHaveBeenCalledWith("panel-1");
 	});
 });

@@ -296,7 +296,7 @@ describe("SessionMessagingService.sendMessage", () => {
 		expect(sendPrompt).not.toHaveBeenCalled();
 	});
 
-	it("clears pending creation send intent without writing lifecycle state when the first prompt fails to send", async () => {
+	it("does not mark a pending creation first-send failure as a fatal session turn", async () => {
 		const deps = createMockDeps();
 		const error = new Error("transport unavailable");
 		sendPrompt.mockReturnValue(errAsync(error));
@@ -310,13 +310,8 @@ describe("SessionMessagingService.sendMessage", () => {
 		const result = await service.sendPendingCreationMessage("pending-session", "hello");
 
 		expect(result.isErr()).toBe(true);
-		expect(deps.connectionManager.sendTurnFailed).toHaveBeenCalledWith("pending-session", {
-			turnId: null,
-			kind: "fatal",
-			message: "transport unavailable",
-			code: null,
-			source: "unknown",
-		});
+		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
+		expect(deps.connectionManager.sendMessageSent).toHaveBeenCalledWith("pending-session");
 		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenNthCalledWith(
 			1,
 			"pending-session",

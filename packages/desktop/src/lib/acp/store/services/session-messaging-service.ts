@@ -314,13 +314,6 @@ export class SessionMessagingService {
 				logger.debug("Pending creation prompt sent successfully", { sessionId });
 			})
 			.mapErr((error) => {
-				this.connectionManager.sendTurnFailed(sessionId, {
-					turnId: null,
-					kind: "fatal",
-					message: error.message,
-					code: null,
-					source: "unknown",
-				});
 				this.clearPendingSendIntent(sessionId, sendAttemptId);
 				logger.error("Failed to send pending creation message", {
 					sessionId,

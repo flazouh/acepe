@@ -665,7 +665,19 @@ export class AgentInputState {
 				});
 				// Notify parent with the canonical session ID
 				onSessionCreated?.(newSessionId, panelId ?? null);
-				return sendMessage(this.store, newSessionId, content, imageAttachments);
+				const firstPromptSend = sendMessage(this.store, newSessionId, content, imageAttachments);
+				if (!createdSession.deferredCreation) {
+					return firstPromptSend;
+				}
+
+				return firstPromptSend.mapErr(
+					(error) =>
+						new SessionCreationError(
+							selectedAgentId,
+							effectiveProjectPath,
+							error.cause ?? error
+						)
+				);
 			})
 			.map(() => {
 				if (panelId) this.panelStore.clearPendingUserEntry(panelId);
