@@ -612,6 +612,13 @@ export class SessionConnectionManager {
 			sessionId,
 			WATCHDOG_TIMEOUT_MS
 		);
+		// Attach rejection handler immediately so that if Rust emits a failure event
+		// before api.resumeSession() resolves (e.g. agent install fails fast), the
+		// rejection is already handled and won't fire window.unhandledrejection.
+		const lifecycleResult = ResultAsync.fromPromise(
+			lifecycleWaiter.promise,
+			(err) => err as AppError
+		);
 
 		// Fire-and-forget: send resume invoke, then wait for lifecycle event
 		const connection = preferencesStore
@@ -634,7 +641,7 @@ export class SessionConnectionManager {
 					options?.openToken
 				)
 			)
-			.andThen(() => ResultAsync.fromPromise(lifecycleWaiter.promise, (err) => err as AppError))
+			.andThen(() => lifecycleResult)
 			.andThen((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
 				const connectedSessionIdentity = this.stateReader.getSessionIdentity(sessionId);

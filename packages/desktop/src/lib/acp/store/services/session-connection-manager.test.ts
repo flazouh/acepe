@@ -1,4 +1,4 @@
-import { errAsync, okAsync } from "neverthrow";
+import { ResultAsync, errAsync, okAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionModelState } from "../../../services/acp-types.js";
 import type {
@@ -1110,6 +1110,70 @@ describe("SessionConnectionManager.connectSession", () => {
 
 		expect(result.isErr()).toBe(true);
 		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
+	});
+
+	it("does not leak an unhandled rejection when lifecycle failure arrives while resumeSession is in-flight", async () => {
+		// Simulates: Rust emits a failed lifecycle event (e.g. Claude CLI install fails)
+		// BEFORE the api.resumeSession() Tauri invoke resolves back to TypeScript.
+		// Without the fix, lifecycleWaiter.promise has no rejection handler during that window,
+		// causing an unhandledrejection event that reaches the global error boundary.
+		const unhandledErrors: Error[] = [];
+		const captureUnhandled = (reason: unknown) => {
+			unhandledErrors.push(reason instanceof Error ? reason : new Error(String(reason)));
+		};
+		process.on("unhandledRejection", captureUnhandled);
+
+		let resolveResume!: () => void;
+		let rejectLifecycle!: (err: Error) => void;
+
+		resumeSession.mockReturnValue(
+			new ResultAsync(
+				new Promise<void>((resolve) => {
+					resolveResume = resolve;
+				}).then(() => okAsync(undefined))
+			)
+		);
+
+		// createManager must come first — it reassigns lastEventService to a fresh instance
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
+			promise: new Promise<never>((_, reject) => {
+				rejectLifecycle = reject;
+			}),
+			cancel: vi.fn(),
+		}));
+
+		const connectionPromise = manager.connectSession(sessionId, createMockEventHandler());
+
+		// Lifecycle failure arrives while resumeSession invoke is still in-flight
+		rejectLifecycle(
+			new Error(
+				"Failed to install Claude CLI: Invalid configuration: Auto-download feature is not enabled."
+			)
+		);
+
+		// Yield to the event loop so Node/Bun has a chance to fire unhandledRejection
+		// if the promise was rejected without a handler at the time of rejection
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+		// Now let resumeSession resolve (simulating the Tauri invoke eventually returning)
+		resolveResume();
+
+		const result = await connectionPromise;
+
+		process.off("unhandledRejection", captureUnhandled);
+
+		expect(unhandledErrors).toHaveLength(0);
+		expect(result.isErr()).toBe(true);
 		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
 	});
 });
