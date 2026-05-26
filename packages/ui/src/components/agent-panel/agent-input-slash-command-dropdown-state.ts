@@ -6,6 +6,16 @@ export interface AgentInputSlashCommand {
 	} | null;
 }
 
+export type AgentInputSlashCommandWorkspaceMarkdownResult =
+	| {
+			readonly status: "ready";
+			readonly markdown: string;
+	  }
+	| {
+			readonly status: "error";
+			readonly message: string;
+	  };
+
 export const MAX_SLASH_COMMAND_RESULTS = 20;
 export type AgentInputSlashCommandTokenType = "command" | "skill";
 
@@ -90,6 +100,8 @@ export function getSlashCommandWorkspaceMarkdown(input: {
 	const description = input.command.description.trim();
 	const hint = input.command.input?.hint.trim();
 	const commandName = markdownTableValue(input.command.name);
+	const heading = input.tokenType === "skill" ? "Skill details" : "Command details";
+	const nameLabel = input.tokenType === "skill" ? "Skill name" : "Command name";
 	const detailRows = [
 		`| Type | ${kindLabel} |`,
 		"| Name | `/" + commandName + "` |",
@@ -98,7 +110,11 @@ export function getSlashCommandWorkspaceMarkdown(input: {
 	const hintRows = hint && hint.length > 0 ? [`| Input hint | ${markdownTableValue(hint)} |`] : [];
 
 	return [
-		`# /${input.command.name}`,
+		`# ${heading}`,
+		"",
+		`**${nameLabel}:** \`${input.command.name}\``,
+		"",
+		`**Description:** ${description.length > 0 ? description : "_No description available._"}`,
 		"",
 		"| Field | Value |",
 		"| --- | --- |",

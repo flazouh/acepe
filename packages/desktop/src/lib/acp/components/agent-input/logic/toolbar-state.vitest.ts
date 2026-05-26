@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CanonicalModeId } from "../../../types/canonical-mode-id.js";
 
 import {
+	resolveInitialModelIdForNewSession,
 	resolvePendingToolbarSelections,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
@@ -90,6 +91,26 @@ describe("toolbar-state", () => {
 					availableModels,
 				})
 			).toBe("claude-sonnet");
+		});
+	});
+
+	describe("resolveInitialModelIdForNewSession", () => {
+		it("uses the displayed model for a new session", () => {
+			expect(
+				resolveInitialModelIdForNewSession({
+					sessionId: null,
+					displayedModelId: "claude-opus",
+				})
+			).toBe("claude-opus");
+		});
+
+		it("does not send an initial model for an existing session", () => {
+			expect(
+				resolveInitialModelIdForNewSession({
+					sessionId: "session-1",
+					displayedModelId: "claude-opus",
+				})
+			).toBeNull();
 		});
 	});
 

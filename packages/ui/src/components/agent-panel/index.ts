@@ -37,6 +37,10 @@ export { default as AgentInputModelTrigger } from "./agent-input-model-trigger.s
 export { default as AgentInputPastedTextOverlay } from "./agent-input-pasted-text-overlay.svelte";
 export { default as AgentInputSelectorCheck } from "./agent-input-selector-check.svelte";
 export { default as AgentInputSlashCommandDropdown } from "./agent-input-slash-command-dropdown.svelte";
+export type {
+	AgentInputSlashCommand,
+	AgentInputSlashCommandWorkspaceMarkdownResult,
+} from "./agent-input-slash-command-dropdown-state.js";
 export { default as AgentInputToolbar } from "./agent-input-toolbar.svelte";
 export type {
 	AgentComposerToolbarVoiceBinding,

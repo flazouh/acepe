@@ -10,6 +10,7 @@ import {
 	AgentInputPastedTextOverlay,
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
+	type AgentInputSlashCommandWorkspaceMarkdownResult,
 } from "@acepe/ui/agent-panel";
 import type { Snippet } from "svelte";
 import type { AvailableCommand } from "../../../types/available-command.js";
@@ -51,6 +52,7 @@ let {
 	onOverlayMouseEnterCancel,
 	onPrimaryButtonClick,
 	onCommandSelect,
+	loadSlashCommandWorkspaceMarkdown,
 	onFileSelect,
 	onSlashDropdownClose,
 	onFileDropdownClose,
@@ -100,6 +102,10 @@ let {
 	onOverlayMouseEnterCancel: () => void;
 	onPrimaryButtonClick: () => void;
 	onCommandSelect: (cmd: AvailableCommand) => void;
+	loadSlashCommandWorkspaceMarkdown?: (input: {
+		readonly command: AvailableCommand;
+		readonly tokenType: "command" | "skill";
+	}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
 	onFileSelect: (file: { path: string }) => void;
 	onSlashDropdownClose: () => void;
 	onFileDropdownClose: () => void;
@@ -268,6 +274,7 @@ let {
 	selectHintLabel={slashLabels.selectHint}
 	closeHintLabel={slashLabels.closeHint}
 	tokenType={slashCommandTokenType}
+	loadWorkspaceMarkdown={loadSlashCommandWorkspaceMarkdown}
 	onSelect={(cmd: AvailableCommand) => onCommandSelect(cmd)}
 	onClose={onSlashDropdownClose}
 />

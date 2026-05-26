@@ -14,8 +14,12 @@
 		getSlashCommandWorkspaceMarkdown,
 		type AgentInputSlashCommand,
 		type AgentInputSlashCommandTokenType,
+		type AgentInputSlashCommandWorkspaceMarkdownResult,
 	} from "./agent-input-slash-command-dropdown-state.js";
-	export type { AgentInputSlashCommand } from "./agent-input-slash-command-dropdown-state.js";
+	export type {
+		AgentInputSlashCommand,
+		AgentInputSlashCommandWorkspaceMarkdownResult,
+	} from "./agent-input-slash-command-dropdown-state.js";
 
 	interface Props {
 		commands: ReadonlyArray<AgentInputSlashCommand>;
@@ -29,6 +33,10 @@
 		selectHintLabel?: string;
 		closeHintLabel?: string;
 		tokenType?: AgentInputSlashCommandTokenType;
+		loadWorkspaceMarkdown?: (input: {
+			readonly command: AgentInputSlashCommand;
+			readonly tokenType: AgentInputSlashCommandTokenType;
+		}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
 		onSelect: (command: AgentInputSlashCommand) => void;
 		onClose: () => void;
 	}
@@ -45,6 +53,7 @@
 		selectHintLabel = "Select",
 		closeHintLabel = "Close",
 		tokenType = "command",
+		loadWorkspaceMarkdown,
 		onSelect,
 		onClose,
 	}: Props = $props();
@@ -53,6 +62,9 @@
 	let itemRefs = $state<Record<number, HTMLDivElement>>({});
 	let workspaceCommand = $state<AgentInputSlashCommand | null>(null);
 	let workspaceOpen = $state(false);
+	let loadedWorkspaceMarkdown = $state<string | null>(null);
+	let workspaceMarkdownLoading = $state(false);
+	let workspaceMarkdownError = $state<string | null>(null);
 
 	function portalToBody(node: HTMLElement): { destroy: () => void } {
 		document.body.appendChild(node);
@@ -81,13 +93,18 @@
 	const displayHeaderLabel = $derived(
 		headerLabel === "Commands" && tokenType === "skill" ? "Skills" : headerLabel
 	);
-	const workspaceMarkdown = $derived(
+	const fallbackWorkspaceMarkdown = $derived(
 		workspaceCommand
 			? getSlashCommandWorkspaceMarkdown({
 					command: workspaceCommand,
 					tokenType,
 				})
 			: ""
+	);
+	const workspaceMarkdown = $derived(
+		loadedWorkspaceMarkdown
+			? `${fallbackWorkspaceMarkdown}\n\n---\n\n## Skill content\n\n${loadedWorkspaceMarkdown}`
+			: fallbackWorkspaceMarkdown
 	);
 	const iconColor = $derived(
 		tokenType === "skill" ? Colors[COLOR_NAMES.PURPLE] : Colors[COLOR_NAMES.AMBER]
@@ -147,7 +164,35 @@
 
 	function openWorkspaceModal(command: AgentInputSlashCommand): void {
 		workspaceCommand = command;
+		loadedWorkspaceMarkdown = null;
+		workspaceMarkdownError = null;
 		workspaceOpen = true;
+		if (!loadWorkspaceMarkdown || tokenType !== "skill") {
+			return;
+		}
+
+		workspaceMarkdownLoading = true;
+		loadWorkspaceMarkdown({ command, tokenType }).then(
+			(result) => {
+				if (workspaceCommand?.name !== command.name) {
+					return;
+				}
+				workspaceMarkdownLoading = false;
+				if (result.status === "ready") {
+					loadedWorkspaceMarkdown = result.markdown;
+					workspaceMarkdownError = null;
+					return;
+				}
+				workspaceMarkdownError = result.message;
+			},
+			() => {
+				if (workspaceCommand?.name !== command.name) {
+					return;
+				}
+				workspaceMarkdownLoading = false;
+				workspaceMarkdownError = "Unable to load full details.";
+			}
+		);
 	}
 </script>
 
@@ -276,6 +321,14 @@
 			</Dialog.Description>
 		</div>
 		<div class="max-h-[68vh] overflow-y-auto px-4 py-3">
+			{#if workspaceMarkdownLoading}
+				<div class="mb-3 text-[11px] text-muted-foreground">Loading full skill content...</div>
+			{/if}
+			{#if workspaceMarkdownError}
+				<div class="mb-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] text-destructive">
+					{workspaceMarkdownError}
+				</div>
+			{/if}
 			<StreamdownMarkdown
 				markdown={workspaceMarkdown}
 				mode="static"

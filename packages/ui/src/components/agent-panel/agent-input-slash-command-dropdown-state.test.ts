@@ -131,7 +131,13 @@ describe("agent input slash command dropdown state", () => {
 		};
 
 		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
-			"# /ce-debug"
+			"# Skill details"
+		);
+		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
+			"**Skill name:** `ce-debug`"
+		);
+		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
+			"**Description:** Debug with `evidence`."
 		);
 		expect(getSlashCommandWorkspaceMarkdown({ command, tokenType: "skill" })).toContain(
 			"| Type | Skill |"

@@ -22,6 +22,11 @@ interface ResolvePendingToolbarSelectionsInput {
 	readonly availableModels: readonly Model[];
 }
 
+interface ResolveInitialModelIdForNewSessionInput {
+	readonly sessionId: string | null | undefined;
+	readonly displayedModelId: string | null;
+}
+
 interface PendingToolbarSelectionsResolution {
 	readonly modeIdToApply: string | null;
 	readonly modelIdToApply: string | null;
@@ -57,6 +62,16 @@ export function resolveToolbarModelId(input: ResolveToolbarModelIdInput): string
 	}
 
 	return availableModels[0]?.id ?? null;
+}
+
+export function resolveInitialModelIdForNewSession(
+	input: ResolveInitialModelIdForNewSessionInput
+): string | null {
+	if (input.sessionId) {
+		return null;
+	}
+
+	return input.displayedModelId;
 }
 
 export function resolvePendingToolbarSelections(

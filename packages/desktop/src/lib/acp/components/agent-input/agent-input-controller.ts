@@ -386,7 +386,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				sessionId: props.sessionId,
 				initialAutonomousEnabled: host.getAutonomousToggleActive(),
 				initialModeId: props.sessionId ? null : host.getProvisionalModeId(),
-				initialModelId: props.sessionId ? null : host.getProvisionalModelId(),
+				initialModelId: host.getInitialModelIdForNewSession(),
 				selectedAgentId: props.selectedAgentId,
 				projectPath: props.projectPath,
 				projectName: props.projectName,

@@ -17,7 +17,7 @@ export interface AgentInputControllerHost {
 	getComposerInteraction: () => ComposerInteractionState;
 	getAutonomousToggleActive: () => boolean;
 	getProvisionalModeId: () => string | null;
-	getProvisionalModelId: () => string | null;
+	getInitialModelIdForNewSession: () => string | null;
 	getIsStreaming: () => boolean;
 	sessionStore: ReturnType<typeof getSessionStore>;
 	panelStore: ReturnType<typeof getPanelStore>;
