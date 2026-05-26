@@ -489,13 +489,42 @@ function measureVirtualizedRow(
 	_entryKey: string
 ): { update: (_nextEntryKey: string) => void; destroy: () => void } {
 	const virtualizer = get(transcriptVirtualizer);
-	virtualizer.measureElement(node);
+	let resizeFrameId: number | null = null;
+	let observer: ResizeObserver | null = null;
+
+	function measureRow(): void {
+		virtualizer.measureElement(node);
+	}
+
+	function scheduleRowMeasurement(): void {
+		if (resizeFrameId !== null) {
+			return;
+		}
+		resizeFrameId = requestAnimationFrame(() => {
+			resizeFrameId = null;
+			measureRow();
+		});
+	}
+
+	scheduleRowMeasurement();
+	if (typeof ResizeObserver === "function") {
+		observer = new ResizeObserver(() => {
+			scheduleRowMeasurement();
+		});
+		observer.observe(node);
+	}
+
 	return {
 		update(_nextEntryKey) {
-			virtualizer.measureElement(node);
+			scheduleRowMeasurement();
 		},
 		destroy() {
-			virtualizer.measureElement(null);
+			observer?.disconnect();
+			observer = null;
+			if (resizeFrameId !== null) {
+				cancelAnimationFrame(resizeFrameId);
+				resizeFrameId = null;
+			}
 		},
 	};
 }

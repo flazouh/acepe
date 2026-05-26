@@ -1282,8 +1282,30 @@ describe("SceneContentViewport auto-scroll", () => {
 		await flushAnimationFrames();
 		await tick();
 		await tick();
+		await flushAnimationFrames();
 
 		expect(measureElementCalls).toEqual(expect.arrayContaining(["0", "1"]));
+		expect(measureCalls).toHaveLength(0);
+	});
+
+	it("remeasures a virtual row when its rendered height changes after mount", async () => {
+		renderList({
+			sceneEntries: [
+				createUserSceneEntry("user-1", "hello"),
+				createToolCallSceneEntry("tool-1"),
+				createAssistantSceneEntry("assistant-1", "world"),
+			],
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		measureCalls.length = 0;
+		measureElementCalls.length = 0;
+		triggerResizeObserversForVirtualIndex(1);
+		await flushAnimationFrames();
+
+		expect(measureElementCalls).toEqual(expect.arrayContaining(["1"]));
 		expect(measureCalls).toHaveLength(0);
 	});
 
@@ -1298,6 +1320,7 @@ describe("SceneContentViewport auto-scroll", () => {
 		await flushAnimationFrames();
 		await tick();
 		await tick();
+		await flushAnimationFrames();
 
 		expect(measureElementCalls).toEqual(expect.arrayContaining(["0", "1", "2"]));
 		expect(measureCalls).toHaveLength(0);
