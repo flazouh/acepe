@@ -13,6 +13,84 @@ Acepe desktop UI because it talks to the real dev WebView and can inspect DOM,
 console, screenshots, route, app state, and Tauri-specific behavior in the same
 runtime the user sees.
 
+## Token-Efficient Recipes (read first)
+
+The Tauri MCP CLI is verbose. Every call returns the same payload three times
+(top-level `text`, `content[0].text`, and `structuredContent`). Naive use wastes
+thousands of tokens per QA pass. Follow these rules to keep a full QA pass under
+~2k tokens.
+
+**1. Always strip the wrapper.** Pipe every CLI call through `jq -r`:
+
+```bash
+TAURI() { npx -y -p @hypothesi/tauri-mcp-cli@0.10.0 tauri-mcp "$@"; }
+TJ()    { TAURI "$@" 2>/dev/null | jq -r '.content[0].text // .text // .'; }
+```
+
+Use `TJ` for any call that supports `--json`. It strips the duplicated wrapper
+and returns just the payload string.
+
+**2. Prefer one composite JS probe over many CLI calls.** A single
+`webview-execute-js` call can focus, mutate, click, and return final state. Do
+not chain 4 round-trips when 1 IIFE suffices. Have the IIFE return a small
+JSON shape with exactly the facts you need.
+
+**3. Never `webview-dom-snapshot --type structure` on `main` or no selector.**
+That dumps ~800+ elements of dense Tailwind class soup. Instead:
+
+- Use `--type accessibility` (much shorter) with a narrow `--selector`.
+- Or query directly via `webview-execute-js` returning `{ ref, text, rect }`
+  for only the elements you care about.
+
+**4. Contenteditable composers do not accept `webview-keyboard --action type`.**
+The CLI reports success but `textContent` stays empty and the send button
+remains disabled. Skip it. Use this one-shot recipe instead:
+
+```bash
+TJ webview-execute-js --app-identifier 9223 --json --script '
+(() => {
+  const ce = document.querySelectorAll("[contenteditable=true]")[0]; // 0=left, 1=right
+  ce.focus();
+  const sel = getSelection(); sel.removeAllRanges();
+  const r = document.createRange(); r.selectNodeContents(ce); r.collapse(false);
+  sel.addRange(r);
+  document.execCommand("insertText", false, "QA message text");
+  const send = ce.closest("div.relative.h-fit.flex.flex-col")
+    .querySelector("button.bg-foreground.text-background");
+  const ready = !send.disabled;
+  if (ready) send.click();
+  return { text: ce.textContent, sent: ready };
+})()'
+```
+
+This is one call, ~5 lines of output, and proves end-to-end send behaviour.
+Label this as `execCommand`-driven evidence — not the literal keystroke path —
+when that distinction matters.
+
+**5. Verify CLI flags before guessing.** Flags that look obvious do not always
+exist (e.g. `--nth` does not). When unsure, run the subcommand with `--help`
+once and cache the result mentally; do not burn calls on guessing.
+
+**6. Standard 5-call QA pass.** A full visual QA for one screen should be:
+
+1. `ps aux | rg target/debug/acepe | rg -v rg` — prove dev binary running
+2. `lsof -Pan -p <PID> -iTCP | rg LISTEN` — find bridge port (usually 9223)
+3. `TJ manage-window --action list --app-identifier 9223 --json` — confirm
+   `url=http://localhost:1420/` (one line of evidence)
+4. One composite `webview-execute-js` probe for the affected state/interaction
+5. `webview-screenshot --app-identifier 9223 --file /tmp/qa.jpg` + view
+
+Skip steps only with explicit reason. Do not re-run `manage-window` between
+interactions — the target does not change.
+
+**7. Tag once, reuse.** When you need to refer to the same element across
+multiple calls, set a `data-qa-*` attribute on it in the first probe and
+select by it afterwards. Do not re-query selectors.
+
+**8. Driver session is sticky.** Run `driver-session start --port 9223` at
+most once per shell. Subsequent CLI calls reuse it. Do not start it before
+every command.
+
 ## Hard Rule
 
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
