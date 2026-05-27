@@ -37,11 +37,7 @@
 	const iconClassName = $derived(buildInlineArtefactIconClassName(tokenType));
 	const labelClassName = $derived(buildInlineArtefactLabelClassName(tokenType));
 	const slashIconColor = $derived(
-		tokenType === "command"
-			? Colors[COLOR_NAMES.AMBER]
-			: tokenType === "skill"
-				? Colors[COLOR_NAMES.PURPLE]
-				: null
+		isSlashItem ? Colors[COLOR_NAMES.PURPLE] : null
 	);
 
 	function handleIconError(e: Event) {

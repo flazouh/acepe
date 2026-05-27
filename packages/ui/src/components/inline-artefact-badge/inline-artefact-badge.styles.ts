@@ -8,7 +8,7 @@ export const INLINE_ARTEFACT_CLIPBOARD_PATH =
 
 export function buildInlineArtefactIconClassName(tokenType: InlineArtefactTokenType): string {
 	if (tokenType === "command" || tokenType === "skill") {
-		return "";
+		return "text-purple";
 	}
 
 	if (tokenType === "text" || tokenType === "text_ref") {
