@@ -32,12 +32,16 @@ export function buildProjectHeaderOverflowMenuState(input: {
 	readonly hasColorChange: boolean;
 	readonly hasResetProjectIconAction: boolean;
 	readonly hasRemoveProjectAction: boolean;
+	readonly hasChangeProjectIconAction?: boolean;
 }): ProjectHeaderOverflowMenuState {
 	const hasIcon = Boolean(input.projectIconSrc);
 	const hasResetProjectIcon = Boolean(hasIcon && input.hasResetProjectIconAction);
 	const showColorPicker = Boolean(input.hasColorChange && !hasIcon);
 	const showSettingsSection = Boolean(
-		showColorPicker || input.hasRemoveProjectAction || hasResetProjectIcon
+		showColorPicker ||
+			input.hasRemoveProjectAction ||
+			hasResetProjectIcon ||
+			input.hasChangeProjectIconAction
 	);
 
 	return {

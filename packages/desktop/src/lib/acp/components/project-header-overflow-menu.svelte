@@ -2,7 +2,10 @@
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { mergeProps } from "bits-ui";
 import { ArrowCounterClockwise } from "phosphor-svelte";
+import { ArrowDown } from "phosphor-svelte";
+import { ArrowUp } from "phosphor-svelte";
 import { DotsThreeVertical } from "phosphor-svelte";
+import { ImageSquare } from "phosphor-svelte";
 import { Palette } from "phosphor-svelte";
 import { Trash } from "phosphor-svelte";
 import * as Popover from "$lib/components/ui/popover/index.js";
@@ -18,6 +21,11 @@ interface Props {
 	projectIconSrc?: string | null;
 	onResetProjectIcon?: () => void;
 	onRemoveProject?: () => void;
+	onMoveUp?: () => void;
+	onMoveDown?: () => void;
+	moveUpDisabled?: boolean;
+	moveDownDisabled?: boolean;
+	onChangeProjectIcon?: () => void;
 }
 
 let {
@@ -27,6 +35,11 @@ let {
 	projectIconSrc = null,
 	onResetProjectIcon,
 	onRemoveProject,
+	onMoveUp,
+	onMoveDown,
+	moveUpDisabled = false,
+	moveDownDisabled = false,
+	onChangeProjectIcon,
 }: Props = $props();
 
 let menuOpen = $state(false);
@@ -46,6 +59,7 @@ const menuState = $derived(
 		hasColorChange: Boolean(onColorChange),
 		hasResetProjectIconAction: Boolean(onResetProjectIcon),
 		hasRemoveProjectAction: Boolean(onRemoveProject),
+		hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
 	})
 );
 const selectedColorHex = $derived(menuState.selectedColorHex);
@@ -86,6 +100,32 @@ function handleRemoveClick() {
 		<Tooltip.Content side="bottom">Project menu</Tooltip.Content>
 	</Tooltip.Root>
 	<DropdownMenu.Content align="end" side="bottom" class="min-w-[200px] p-0 text-[11px]">
+		{#if onMoveUp || onMoveDown}
+			<DropdownMenu.Group>
+				<DropdownMenu.Item
+					class="rounded-none px-2 py-1.5 text-[11px]"
+					disabled={moveUpDisabled}
+					onclick={() => {
+						onMoveUp?.();
+						menuOpen = false;
+					}}
+				>
+					<ArrowUp class="h-3.5 w-3.5 mr-2" weight="bold" />
+					Move Up
+				</DropdownMenu.Item>
+				<DropdownMenu.Item
+					class="rounded-none px-2 py-1.5 text-[11px] border-b border-border/20"
+					disabled={moveDownDisabled}
+					onclick={() => {
+						onMoveDown?.();
+						menuOpen = false;
+					}}
+				>
+					<ArrowDown class="h-3.5 w-3.5 mr-2" weight="bold" />
+					Move Down
+				</DropdownMenu.Item>
+			</DropdownMenu.Group>
+		{/if}
 		{#if showSettingsSection}
 			<DropdownMenu.Group>
 				<DropdownMenu.GroupHeading
@@ -93,6 +133,18 @@ function handleRemoveClick() {
 				>
 					Settings
 				</DropdownMenu.GroupHeading>
+				{#if onChangeProjectIcon}
+					<DropdownMenu.Item
+						class="rounded-none px-2 py-1.5 text-[11px]"
+						onclick={() => {
+							onChangeProjectIcon();
+							menuOpen = false;
+						}}
+					>
+						<ImageSquare class="h-3.5 w-3.5 mr-2" weight="fill" />
+						Change icon...
+					</DropdownMenu.Item>
+				{/if}
 				{#if onColorChange && !hasIcon}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger class={colorTriggerClass}>
