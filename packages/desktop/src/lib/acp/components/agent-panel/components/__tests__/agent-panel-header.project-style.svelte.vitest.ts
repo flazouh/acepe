@@ -196,6 +196,8 @@ describe("AgentPanelHeader project-header style", () => {
 		});
 
 		expect(container.querySelector('img[src="/agent.svg"]')).not.toBeNull();
+		expect(screen.queryByLabelText("Connecting to Claude...")).toBeNull();
+		expect(container.querySelector(".animate-ping")).toBeNull();
 	});
 
 	it("shows immediate retry feedback in the header status bubble", async () => {

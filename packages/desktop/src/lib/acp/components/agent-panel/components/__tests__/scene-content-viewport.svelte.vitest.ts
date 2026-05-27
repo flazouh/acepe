@@ -48,6 +48,10 @@ const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
 );
 const mockPermissionStore = vi.hoisted(() => ({
 	getForToolCall: vi.fn(),
+	getAnsweredForToolCall: vi.fn(),
+}));
+const mockSessionStore = vi.hoisted(() => ({
+	isToolCallExecuting: vi.fn(),
 }));
 
 function createUserSceneEntry(id: string, text: string): AgentPanelSceneEntryModel {
@@ -221,6 +225,10 @@ vi.mock("../../../../store/permission-store.svelte.js", () => ({
 	getPermissionStore: () => mockPermissionStore,
 }));
 
+vi.mock("../../../../store/session-store.svelte.js", () => ({
+	getSessionStore: () => mockSessionStore,
+}));
+
 vi.mock("@acepe/ui/agent-panel", async () => ({
 	AgentPanelConversationEntry: (await import("./fixtures/agent-panel-conversation-entry-stub.svelte")).default,
 	groupAssistantChunks: (chunks: { type: string; block?: { type: string; text?: string } }[]) => ({
@@ -250,6 +258,10 @@ describe("SceneContentViewport auto-scroll", () => {
 		clearHistory();
 		mockPermissionStore.getForToolCall.mockReset();
 		mockPermissionStore.getForToolCall.mockReturnValue(undefined);
+		mockPermissionStore.getAnsweredForToolCall.mockReset();
+		mockPermissionStore.getAnsweredForToolCall.mockReturnValue(null);
+		mockSessionStore.isToolCallExecuting.mockReset();
+		mockSessionStore.isToolCallExecuting.mockReturnValue(false);
 		queuedAnimationFrames = [];
 		nextAnimationFrameId = 1;
 		scrollIntoViewMock.mockClear();
@@ -517,6 +529,33 @@ describe("SceneContentViewport auto-scroll", () => {
 		}
 
 		expect(card.closest(".tool-call-with-permission")).not.toBeNull();
+	});
+
+	it("does not attach answered permission shelf to settled tool rows", async () => {
+		mockPermissionStore.getAnsweredForToolCall.mockReturnValue({
+			permission: {
+				id: "permission-1",
+				sessionId: "session-1",
+				permission: "Execute",
+				patterns: [],
+				metadata: { options: [] },
+				always: [],
+				tool: { messageID: "", callID: "tool-call-1" },
+			},
+			reply: "once",
+		});
+		mockSessionStore.isToolCallExecuting.mockReturnValue(false);
+
+		const view = renderList({
+			sceneEntries: [createToolCallSceneEntryWithToolCallId("tool-entry-1", "tool-call-1")],
+			turnState: "idle",
+			isWaitingForResponse: false,
+		});
+		await flushAnimationFrames();
+		await tick();
+		await tick();
+
+		expect(view.queryByTestId("permission-bar-stub")).toBeNull();
 	});
 
 	it("keeps compact settled tool transcripts in TanStack Virtual", async () => {

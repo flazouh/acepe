@@ -381,8 +381,9 @@ function getAttachedPermissionForEntry(
 
 	const answeredPermission = permissionStore.getAnsweredForToolCall(sessionId, entry.toolCallId);
 	if (answeredPermission !== null) {
-		sessionStore.isToolCallExecuting(sessionId, entry.toolCallId);
-		return answeredPermission.permission;
+		return sessionStore.isToolCallExecuting(sessionId, entry.toolCallId)
+			? answeredPermission.permission
+			: undefined;
 	}
 
 	return undefined;

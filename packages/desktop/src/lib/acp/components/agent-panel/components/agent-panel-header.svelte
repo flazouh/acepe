@@ -17,7 +17,7 @@ const isDev = import.meta.env.DEV;
 
 let {
 	pendingProjectSelection,
-	isConnecting,
+	isConnecting: _isConnecting,
 	isRetryingConnection = false,
 	sessionId,
 	sessionTitle,
@@ -59,7 +59,6 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 		displayTitle={displayTitle ? displayTitle : undefined}
 		agentIconSrc={agentIconSrc ? agentIconSrc : undefined}
 		{isFullscreen}
-		{isConnecting}
 		{pendingProjectSelection}
 		projectName={hideProjectBadge ? undefined : projectName}
 		projectColor={hideProjectBadge ? undefined : projectColor}
@@ -76,7 +75,6 @@ const preparingThreadLabel = $derived(getPreparingThreadLabel(agentName));
 		{#snippet controls()}
 			<AgentPanelStatusIcon
 				status={sessionStatus}
-				{isConnecting}
 				isRetrying={isRetryingConnection}
 				agentId={sessionAgentId}
 				warmingLabel={sessionStatus === "running" ? "Thread is running" : preparingThreadLabel}
