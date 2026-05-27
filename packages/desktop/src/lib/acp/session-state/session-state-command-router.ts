@@ -70,6 +70,7 @@ export type SessionStateCommand =
 	| {
 			kind: "applyTranscriptDelta";
 			delta: TranscriptDelta;
+			revision: SessionGraphRevision;
 	  }
 	| {
 			kind: "applyGraphPatches";
@@ -135,7 +136,8 @@ function envelopeFrontierMatchesAssistantTextDelta(
 }
 
 function commandFromDeltaResolution(
-	resolution: SessionStateDeltaResolution
+	resolution: SessionStateDeltaResolution,
+	revision: SessionGraphRevision
 ): SessionStateCommand[] {
 	switch (resolution.kind) {
 		case "refreshSnapshot":
@@ -151,6 +153,7 @@ function commandFromDeltaResolution(
 				{
 					kind: "applyTranscriptDelta",
 					delta: resolution.delta,
+					revision,
 				},
 			];
 		case "noop":
@@ -372,7 +375,10 @@ export function routeSessionStateEnvelope(
 				currentTranscriptRevision,
 				envelope.payload.delta
 			);
-			const transcriptCommands = commandFromDeltaResolution(resolution);
+			const transcriptCommands = commandFromDeltaResolution(
+				resolution,
+				envelope.payload.delta.toRevision
+			);
 			if (resolution.kind === "refreshSnapshot") {
 				return transcriptCommands;
 			}

@@ -8,7 +8,10 @@ use crate::acp::projections::SessionSnapshot;
 use crate::acp::provider::{HistoryReplayFamily, ProviderHistoryLoadError};
 use crate::acp::registry::AgentRegistry;
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_open_snapshot::{SessionOpenError, SessionOpenMissing, SessionOpenResult};
+use crate::acp::session_open_snapshot::{
+    session_open_result_from_completed_local_journal, SessionOpenError, SessionOpenMissing,
+    SessionOpenResult,
+};
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
@@ -641,6 +644,31 @@ pub async fn get_session_open_result(
         match load_provider_owned_session_snapshot(app_clone, &replay_context).await {
             Ok(snapshot) => snapshot,
             Err(error) => {
+                match session_open_result_from_completed_local_journal(
+                    db.inner(),
+                    &hub,
+                    &replay_context,
+                    &session_id,
+                    crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
+                        crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+                    ),
+                    crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+                )
+                .await
+                {
+                    Ok(Some(result)) => {
+                        restore_session_open_authority(&app, &result);
+                        return Ok(result);
+                    }
+                    Ok(None) => {}
+                    Err(message) => {
+                        return Ok(SessionOpenResult::Error(SessionOpenError::internal(
+                            &session_id,
+                            message,
+                        )));
+                    }
+                }
+
                 let open_error = session_open_error_from_provider_load(&session_id, error);
                 // GOD: emit a Failed lifecycle envelope so canonical readers see the
                 // failure through the canonical channel — no client-side synthesis.
@@ -666,6 +694,31 @@ pub async fn get_session_open_result(
         };
 
     let Some(thread_content) = thread_content else {
+        match session_open_result_from_completed_local_journal(
+            db.inner(),
+            &hub,
+            &replay_context,
+            &session_id,
+            crate::acp::session_state_engine::selectors::SessionGraphLifecycle::detached(
+                crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+            ),
+            crate::acp::session_state_engine::selectors::SessionGraphCapabilities::empty(),
+        )
+        .await
+        {
+            Ok(Some(result)) => {
+                restore_session_open_authority(&app, &result);
+                return Ok(result);
+            }
+            Ok(None) => {}
+            Err(message) => {
+                return Ok(SessionOpenResult::Error(SessionOpenError::internal(
+                    &session_id,
+                    message,
+                )));
+            }
+        }
+
         // GOD: emit a Failed lifecycle envelope so canonical readers see the
         // missing state through the canonical channel — no client-side synthesis.
         // History-not-available means the provider has no replayable state for

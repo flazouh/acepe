@@ -300,6 +300,14 @@ pub fn rebuild_session_projection(
 }
 
 #[must_use]
+pub fn rebuild_local_transcript_snapshot(
+    replay_context: &SessionReplayContext,
+    events: &[SessionJournalEvent],
+) -> Option<TranscriptSnapshot> {
+    rebuild_local_transcript_snapshot_until(replay_context, events, None)
+}
+
+#[must_use]
 pub fn rebuild_completed_local_transcript_snapshot(
     replay_context: &SessionReplayContext,
     events: &[SessionJournalEvent],
@@ -317,6 +325,14 @@ pub fn rebuild_completed_local_transcript_snapshot(
         })
         .max()?;
 
+    rebuild_local_transcript_snapshot_until(replay_context, events, Some(last_complete_seq))
+}
+
+fn rebuild_local_transcript_snapshot_until(
+    replay_context: &SessionReplayContext,
+    events: &[SessionJournalEvent],
+    max_event_seq: Option<i64>,
+) -> Option<TranscriptSnapshot> {
     let registry = TranscriptProjectionRegistry::new();
     let mut applied_transcript_text = false;
     let mut ordered_events = events.iter().collect::<Vec<_>>();
@@ -324,7 +340,7 @@ pub fn rebuild_completed_local_transcript_snapshot(
 
     for event in ordered_events {
         if event.session_id != replay_context.local_session_id
-            || event.event_seq > last_complete_seq
+            || max_event_seq.is_some_and(|max_event_seq| event.event_seq > max_event_seq)
         {
             continue;
         }
@@ -406,14 +422,15 @@ pub fn decode_serialized_events(
 mod tests {
     use super::{
         decode_serialized_events, rebuild_completed_local_transcript_snapshot,
-        rebuild_session_projection, ProjectionJournalUpdate, SessionJournalEventPayload,
+        rebuild_local_transcript_snapshot, rebuild_session_projection, ProjectionJournalUpdate,
+        SessionJournalEventPayload,
     };
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
         ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
     };
-    use crate::acp::transcript_projection::TranscriptSegment;
+    use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
     use crate::db::repository::SerializedSessionJournalEventRow;
@@ -723,6 +740,61 @@ mod tests {
             })
             .collect::<String>();
         assert_eq!(text, "hello world");
+    }
+
+    #[test]
+    fn local_transcript_rebuild_includes_incomplete_turn_user_message() {
+        let replay_context = replay_context();
+        let rows = vec![
+            serialized_projection_row(
+                1,
+                SessionUpdate::UserMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "first question".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    session_id: Some("local-session".to_string()),
+                    attempt_id: Some("attempt-1".to_string()),
+                },
+            ),
+            serialized_projection_row(
+                2,
+                SessionUpdate::TurnComplete {
+                    session_id: Some("local-session".to_string()),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            serialized_projection_row(
+                3,
+                SessionUpdate::UserMessageChunk {
+                    chunk: ContentChunk {
+                        content: ContentBlock::Text {
+                            text: "missing question".to_string(),
+                        },
+                        aggregation_hint: None,
+                    },
+                    session_id: Some("local-session".to_string()),
+                    attempt_id: Some("attempt-2".to_string()),
+                },
+            ),
+        ];
+        let decoded = decode_serialized_events(&replay_context, rows).expect("decode rows");
+
+        let snapshot = rebuild_local_transcript_snapshot(&replay_context, &decoded)
+            .expect("rebuilt transcript");
+
+        assert_eq!(snapshot.revision, 3);
+        assert_eq!(snapshot.entries.len(), 2);
+        assert_eq!(snapshot.entries[1].role, TranscriptEntryRole::User);
+        assert_eq!(
+            snapshot.entries[1].segments[0],
+            TranscriptSegment::Text {
+                segment_id: "user-event-3:segment:3".to_string(),
+                text: "missing question".to_string(),
+            }
+        );
     }
 
     #[test]

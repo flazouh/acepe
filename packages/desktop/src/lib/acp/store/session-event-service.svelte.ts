@@ -99,6 +99,9 @@ function getSessionId(update: SessionUpdate): string | null | undefined {
 	if (update.type === "usageTelemetryUpdate") {
 		return getUsageTelemetryData(update)?.sessionId;
 	}
+	if (update.type === "userMessageChunk") {
+		return update.sessionId;
+	}
 	return (update as { session_id?: string | null }).session_id;
 }
 

@@ -13,7 +13,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::cmp::Reverse;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
@@ -26,6 +26,8 @@ const FALLBACK_MARKER_PREFIX: &str = "__session_registry__/copilot_missing/";
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CopilotEvent {
     pub timestamp_ms: u64,
+    id: Option<String>,
+    parent_id: Option<String>,
     data: CopilotEventData,
 }
 
@@ -38,6 +40,7 @@ enum CopilotEventData {
     SessionError(SessionErrorData),
     ToolExecutionStart(ToolExecutionStartData),
     ToolExecutionComplete(ToolExecutionCompleteData),
+    SkillInvoked,
     SubagentStarted(SubagentStartedData),
     SubagentCompleted(SubagentCompletedData),
     Other,
@@ -108,6 +111,10 @@ struct SubagentCompletedData {
 
 #[derive(Debug, Deserialize)]
 struct RawCopilotEventEnvelope {
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default, rename = "parentId")]
+    parent_id: Option<String>,
     #[serde(rename = "type")]
     event_type: String,
     #[serde(default)]
@@ -118,8 +125,19 @@ struct RawCopilotEventEnvelope {
 #[derive(Debug, Default, Deserialize)]
 struct WorkspaceMetadata {
     cwd: Option<String>,
+    name: Option<String>,
     summary: Option<String>,
     updated_at: Option<String>,
+}
+
+impl WorkspaceMetadata {
+    fn title(&self) -> Option<String> {
+        self.summary
+            .as_ref()
+            .or(self.name.as_ref())
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| normalize_display_title(value))
+    }
 }
 
 pub(crate) fn resolve_copilot_session_state_root() -> Result<PathBuf, String> {
@@ -227,7 +245,12 @@ pub(crate) fn parse_events_from_reader<R: BufRead>(
                     index + 1
                 ))
             })?;
-        events.push(CopilotEvent { timestamp_ms, data });
+        events.push(CopilotEvent {
+            timestamp_ms,
+            id: envelope.id,
+            parent_id: envelope.parent_id,
+            data,
+        });
     }
 
     Ok(events)
@@ -239,12 +262,27 @@ pub(crate) fn convert_events_to_updates(
 ) -> Vec<(u64, SessionUpdate)> {
     let parser = CopilotParser;
     let mut updates = Vec::new();
+    let skill_invocation_event_ids = events
+        .iter()
+        .filter_map(|event| match &event.data {
+            CopilotEventData::SkillInvoked => event.id.as_deref(),
+            _ => None,
+        })
+        .map(ToString::to_string)
+        .collect::<HashSet<_>>();
 
     for event in events {
         let timestamp_ms = event.timestamp_ms;
         match event.data {
             CopilotEventData::SessionStart | CopilotEventData::Other => {}
             CopilotEventData::UserMessage(data) => {
+                if event
+                    .parent_id
+                    .as_deref()
+                    .is_some_and(|parent_id| skill_invocation_event_ids.contains(parent_id))
+                {
+                    continue;
+                }
                 if data.content.trim().is_empty() {
                     continue;
                 }
@@ -394,6 +432,7 @@ pub(crate) fn convert_events_to_updates(
                     },
                 ));
             }
+            CopilotEventData::SkillInvoked => {}
             CopilotEventData::SubagentStarted(data) => {
                 let title = data
                     .agent_display_name
@@ -495,6 +534,9 @@ pub(crate) async fn scan_copilot_sessions_at_root(
             Err(_) => continue,
         };
         let metadata = parse_workspace_metadata(&workspace_contents);
+        let title = metadata
+            .title()
+            .unwrap_or_else(|| fallback_title(&session_id));
         let Some(cwd) = metadata.cwd.filter(|value| !value.trim().is_empty()) else {
             continue;
         };
@@ -508,11 +550,6 @@ pub(crate) async fn scan_copilot_sessions_at_root(
             .and_then(|value| parse_timestamp_ms(value).ok())
             .map(|value| value as i64)
             .unwrap_or_else(|| Utc::now().timestamp_millis());
-        let title = metadata
-            .summary
-            .filter(|value| !value.trim().is_empty())
-            .map(|value| normalize_display_title(&value))
-            .unwrap_or_else(|| fallback_title(&session_id));
         sessions.push(CopilotListedSession {
             session_id,
             title,
@@ -566,6 +603,7 @@ fn parse_event_data(event_type: &str, data: Value) -> Result<CopilotEventData, S
         "tool.execution_complete" => Ok(CopilotEventData::ToolExecutionComplete(
             parse_tool_execution_complete(data)?,
         )),
+        "skill.invoked" => Ok(CopilotEventData::SkillInvoked),
         "subagent.started" => Ok(CopilotEventData::SubagentStarted(parse_subagent_started(
             data,
         )?)),
@@ -731,6 +769,7 @@ fn parse_workspace_metadata_legacy(contents: &str) -> WorkspaceMetadata {
         let value = value.trim().trim_matches('"').to_string();
         match key.trim() {
             "cwd" => metadata.cwd = Some(value),
+            "name" => metadata.name = Some(value),
             "summary" => metadata.summary = Some(value),
             "updated_at" => metadata.updated_at = Some(value),
             _ => {}
@@ -1034,6 +1073,51 @@ mod tests {
     }
 
     #[test]
+    fn filters_skill_context_user_messages_parented_to_skill_invocation() {
+        let jsonl = r##"
+{"type":"user.message","data":{"content":"Can you diagnose this?"},"id":"user-1","timestamp":"2026-04-10T00:00:01Z"}
+{"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-skill","name":"skill","arguments":{"skill":"diagnose"},"intentionSummary":"diagnose"}]},"id":"assistant-1","timestamp":"2026-04-10T00:00:02Z"}
+{"type":"tool.execution_start","data":{"toolCallId":"tool-skill","toolName":"skill","arguments":{"skill":"diagnose"}},"id":"tool-start-1","parentId":"assistant-1","timestamp":"2026-04-10T00:00:03Z"}
+{"type":"tool.execution_complete","data":{"toolCallId":"tool-skill","toolName":"skill","success":true,"result":{"content":"Skill loaded"}},"id":"tool-complete-1","parentId":"tool-start-1","timestamp":"2026-04-10T00:00:04Z"}
+{"type":"skill.invoked","data":{"name":"diagnose","path":"/skills/diagnose/SKILL.md","content":"# Diagnose"},"id":"skill-invoked-1","parentId":"tool-complete-1","timestamp":"2026-04-10T00:00:05Z"}
+{"type":"user.message","data":{"content":"<skill-context name=\"diagnose\">\n# Diagnose\n</skill-context>"},"id":"user-skill-context-1","parentId":"skill-invoked-1","timestamp":"2026-04-10T00:00:06Z"}
+{"type":"assistant.message","data":{"messageId":"m2","content":"I will diagnose it."},"id":"assistant-2","timestamp":"2026-04-10T00:00:07Z"}
+"##;
+
+        let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
+        let updates = convert_events_to_updates("session-1", events);
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
+
+        assert_eq!(converted.entries.len(), 3);
+        match &converted.entries[0] {
+            StoredEntry::User { message, .. } => {
+                assert_eq!(
+                    message.content.text.as_deref(),
+                    Some("Can you diagnose this?")
+                );
+            }
+            other => panic!("expected original user message, got {other:?}"),
+        }
+        match &converted.entries[1] {
+            StoredEntry::ToolCall { message, .. } => {
+                assert_eq!(message.id, "tool-skill");
+                assert_eq!(message.name, "skill");
+            }
+            other => panic!("expected skill tool call entry, got {other:?}"),
+        }
+        match &converted.entries[2] {
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("I will diagnose it.")
+                );
+            }
+            other => panic!("expected assistant response, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn assistant_view_tool_request_replays_as_read_tool_call() {
         let jsonl = r#"
 {"type":"assistant.message","data":{"messageId":"m1","content":"","toolRequests":[{"toolCallId":"tool-1","name":"view","arguments":{"path":"/repo/src/file.rs","view_range":[1,80]},"intentionSummary":"view the file at /repo/src/file.rs."}]},"timestamp":"2026-04-10T00:00:02Z"}
@@ -1224,6 +1308,34 @@ mod tests {
 
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].title, "Demo session title");
+    }
+
+    #[tokio::test]
+    async fn scan_copilot_sessions_uses_workspace_name_when_summary_missing() {
+        let root = tempdir().expect("tempdir");
+        let project = tempdir().expect("project");
+        git2::Repository::init(project.path()).expect("init repo");
+        let session_dir = root.path().join("session-1");
+        std::fs::create_dir_all(&session_dir).expect("create session dir");
+        std::fs::write(
+            session_dir.join("workspace.yaml"),
+            format!(
+                "id: session-1\ncwd: {}\nname: Design Optimal Bug Report Architecture\nuser_named: false\nupdated_at: 2026-04-10T00:00:02Z\n",
+                project.path().display()
+            ),
+        )
+        .expect("write workspace");
+
+        let sessions = scan_copilot_sessions_at_root(
+            root.path(),
+            &[project.path().to_string_lossy().into_owned()],
+            true,
+        )
+        .await
+        .expect("scan should succeed");
+
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].title, "Design Optimal Bug Report Architecture");
     }
 
     #[tokio::test]

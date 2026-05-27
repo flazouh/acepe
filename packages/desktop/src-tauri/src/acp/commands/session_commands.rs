@@ -666,7 +666,7 @@ async fn load_transcript_snapshot_for_state_lookup(
 
 async fn load_transcript_snapshot_for_state_lookup_with_app(
     app: Option<&AppHandle>,
-    _db: &DbConn,
+    db: &DbConn,
     transcript_registry: &TranscriptProjectionRegistry,
     canonical_session_id: &str,
     requested_session_id: &str,
@@ -681,6 +681,32 @@ async fn load_transcript_snapshot_for_state_lookup_with_app(
     }
 
     if let Some(replay_context) = replay_context {
+        let serialized_events =
+            SessionJournalEventRepository::list_serialized(db, canonical_session_id)
+                .await
+                .map_err(|error| SerializableAcpError::InvalidState {
+                    message: format!(
+					"Failed to load local transcript journal for state lookup {canonical_session_id}: {error}"
+				),
+                })?;
+        let journal_events = crate::acp::session_journal::decode_serialized_events(
+            replay_context,
+            serialized_events,
+        )
+        .map_err(|error| SerializableAcpError::InvalidState {
+            message: format!(
+				"Failed to decode local transcript journal for state lookup {canonical_session_id}: {error}"
+			),
+        })?;
+        if let Some(transcript_snapshot) =
+            crate::acp::session_journal::rebuild_local_transcript_snapshot(
+                replay_context,
+                &journal_events,
+            )
+        {
+            return Ok(transcript_snapshot);
+        }
+
         if let Some(app) = app {
             if let Some(provider_snapshot) =
                 crate::history::commands::session_loading::load_provider_owned_session_snapshot(
@@ -799,7 +825,6 @@ async fn load_session_projection_lookup(
         0,
         &imported_thread_snapshot,
     );
-    let imported_transcript_snapshot = materialized_import.transcript_snapshot;
     let mut imported_projection = materialized_import.projection;
     imported_projection.runtime = None;
 
@@ -807,7 +832,7 @@ async fn load_session_projection_lookup(
         projection: imported_projection,
         metadata,
         replay_context,
-        transcript_snapshot: Some(imported_transcript_snapshot),
+        transcript_snapshot: None,
     })
 }
 
@@ -3061,6 +3086,116 @@ mod tests {
 
         assert_eq!(transcript.revision, 1);
         assert!(transcript.entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn state_lookup_rebuilds_completed_transcript_from_local_journal() {
+        let db = setup_test_db().await;
+        SessionMetadataRepository::ensure_exists(
+            &db,
+            "state-journal-session",
+            "/project",
+            "copilot",
+            None,
+        )
+        .await
+        .expect("seed metadata");
+
+        let updates = vec![
+            SessionUpdate::UserMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "hi".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some("state-journal-session".to_string()),
+                attempt_id: Some("attempt-1".to_string()),
+            },
+            SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "Hello there.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some("state-journal-session".to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            SessionUpdate::TurnComplete {
+                session_id: Some("state-journal-session".to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+            SessionUpdate::UserMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "second question".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some("state-journal-session".to_string()),
+                attempt_id: Some("attempt-2".to_string()),
+            },
+            SessionUpdate::AgentMessageChunk {
+                chunk: ContentChunk {
+                    content: ContentBlock::Text {
+                        text: "Second answer.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-2".to_string()),
+                session_id: Some("state-journal-session".to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            SessionUpdate::TurnComplete {
+                session_id: Some("state-journal-session".to_string()),
+                turn_id: Some("turn-2".to_string()),
+            },
+        ];
+        for update in updates {
+            SessionJournalEventRepository::append_session_update(
+                &db,
+                "state-journal-session",
+                &update,
+            )
+            .await
+            .expect("append journal update");
+        }
+
+        let replay_context = replay_context_for_session(&db, "state-journal-session").await;
+        let transcript = load_transcript_snapshot_for_state_lookup(
+            &db,
+            &TranscriptProjectionRegistry::new(),
+            "state-journal-session",
+            "state-journal-session",
+            Some(&replay_context),
+            6,
+        )
+        .await
+        .expect("load transcript snapshot");
+
+        let transcript_text = transcript
+            .entries
+            .iter()
+            .flat_map(|entry| entry.segments.iter())
+            .map(|segment| match segment {
+                crate::acp::transcript_projection::TranscriptSegment::Text { text, .. } => {
+                    text.as_str()
+                }
+                crate::acp::transcript_projection::TranscriptSegment::Thought { text, .. } => {
+                    text.as_str()
+                }
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(transcript.revision, 5);
+        assert_eq!(
+            transcript_text,
+            vec!["hi", "Hello there.", "second question", "Second answer."]
+        );
     }
 
     #[test]

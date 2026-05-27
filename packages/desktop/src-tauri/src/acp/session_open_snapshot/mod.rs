@@ -38,6 +38,7 @@ use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -516,7 +517,25 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         snapshot,
     );
     let projection = materialized.projection;
-    let transcript_snapshot = materialized.transcript_snapshot;
+    let (transcript_snapshot, transcript_from_local_journal) =
+        match load_local_journal_transcript(db, replay_context, canonical_session_id).await {
+            Ok(Some(transcript_snapshot)) => (
+                merge_provider_tool_rows_into_local_transcript(
+                    transcript_snapshot,
+                    &materialized.transcript_snapshot,
+                    &projection.operations,
+                ),
+                true,
+            ),
+            Ok(None) => (materialized.transcript_snapshot, false),
+            Err(message) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    message,
+                ));
+            }
+        };
     let session_snap = projection.session.as_ref();
     let operations = projection.operations;
     let interactions = projection.interactions;
@@ -550,7 +569,9 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     } else {
         raw_turn_state
     };
-    let message_count = if projection_is_behind_journal {
+    let message_count = if transcript_from_local_journal {
+        transcript_snapshot.entries.len() as u64
+    } else if projection_is_behind_journal {
         0
     } else {
         session_snap
@@ -632,6 +653,289 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     }))
 }
 
+pub async fn session_open_result_from_completed_local_journal(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    lifecycle: SessionGraphLifecycle,
+    capabilities: SessionGraphCapabilities,
+) -> Result<Option<SessionOpenResult>, String> {
+    let canonical_session_id = &replay_context.local_session_id;
+    let last_event_seq = SessionJournalEventRepository::max_event_seq(db, canonical_session_id)
+        .await
+        .map_err(|error| {
+            format!(
+                "Failed to determine journal cutoff for session {canonical_session_id}: {error}"
+            )
+        })?
+        .unwrap_or(0);
+
+    let open_token = Uuid::new_v4();
+    let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    hub.arm_reservation(
+        open_token,
+        canonical_session_id.clone(),
+        last_event_seq,
+        epoch_ms,
+    );
+
+    let transcript_snapshot =
+        match load_completed_local_journal_transcript(db, replay_context, canonical_session_id)
+            .await?
+        {
+            Some(transcript_snapshot) => transcript_snapshot,
+            None => {
+                hub.supersede_reservation(open_token);
+                return Ok(None);
+            }
+        };
+
+    let session_metadata = SessionMetadataRepository::get_by_id(db, canonical_session_id)
+        .await
+        .map_err(|error| {
+            format!("Failed to load metadata for session {canonical_session_id}: {error}")
+        })?;
+    let Some(session_metadata) = session_metadata else {
+        hub.supersede_reservation(open_token);
+        return Err(format!(
+            "Session metadata missing for session {canonical_session_id}"
+        ));
+    };
+
+    let operations = vec![];
+    let interactions = vec![];
+    let turn_state = SessionTurnState::Idle;
+    let active_turn_failure = None;
+    let activity = select_session_graph_activity(
+        &lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+    let active_streaming_tail =
+        select_active_streaming_tail(&turn_state, &activity, &transcript_snapshot);
+    let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
+    let message_count = transcript_snapshot.entries.len() as u64;
+
+    Ok(Some(SessionOpenResult::Found(Box::new(SessionOpenFound {
+        requested_session_id: requested_session_id.to_string(),
+        canonical_session_id: canonical_session_id.clone(),
+        is_alias: requested_session_id != canonical_session_id,
+        last_event_seq,
+        graph_revision: last_event_seq,
+        open_token: open_token.to_string(),
+        agent_id: replay_context.agent_id.clone(),
+        project_path: replay_context.project_path.clone(),
+        worktree_path: replay_context.worktree_path.clone(),
+        source_path: replay_context.source_path.clone(),
+        sequence_id: session_metadata.sequence_id,
+        transcript_snapshot,
+        session_title: resolve_canonical_session_title(
+            Some(&session_metadata),
+            canonical_session_id,
+            first_user_title.as_deref(),
+        ),
+        operations,
+        interactions,
+        turn_state,
+        message_count,
+        activity,
+        active_streaming_tail,
+        lifecycle,
+        capabilities,
+        active_turn_failure,
+        last_terminal_turn_id: None,
+    }))))
+}
+
+fn merge_provider_tool_rows_into_local_transcript(
+    mut local: TranscriptSnapshot,
+    provider: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+) -> TranscriptSnapshot {
+    let linked_tool_entry_ids = operations
+        .iter()
+        .filter_map(|operation| match &operation.source_link {
+            OperationSourceLink::TranscriptLinked { entry_id } => Some(entry_id.clone()),
+            OperationSourceLink::Synthetic { .. } | OperationSourceLink::Degraded { .. } => None,
+        })
+        .collect::<HashSet<_>>();
+    let provider_tool_entries = provider
+        .entries
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| {
+            entry.role == TranscriptEntryRole::Tool
+                && linked_tool_entry_ids.contains(&entry.entry_id)
+        })
+        .collect::<Vec<_>>();
+
+    if provider_tool_entries.is_empty() {
+        return local;
+    }
+
+    let provider_to_local_anchors =
+        map_provider_text_entries_to_local(&provider.entries, &local.entries);
+    let mut seen_entry_ids = local
+        .entries
+        .iter()
+        .map(|entry| entry.entry_id.clone())
+        .collect::<HashSet<_>>();
+    let mut insertions = Vec::new();
+
+    for (provider_index, entry) in provider_tool_entries {
+        if !seen_entry_ids.insert(entry.entry_id.clone()) {
+            continue;
+        }
+        insertions.push((
+            provider_tool_insert_index(
+                provider_index,
+                &provider_to_local_anchors,
+                local.entries.len(),
+            ),
+            entry.clone(),
+        ));
+    }
+
+    insertions.sort_by_key(|(index, _)| *index);
+    for (offset, (index, entry)) in insertions.into_iter().enumerate() {
+        local
+            .entries
+            .insert((index + offset).min(local.entries.len()), entry);
+    }
+
+    local
+}
+
+fn map_provider_text_entries_to_local(
+    provider_entries: &[crate::acp::transcript_projection::TranscriptEntry],
+    local_entries: &[crate::acp::transcript_projection::TranscriptEntry],
+) -> Vec<Option<usize>> {
+    let mut anchors = vec![None; provider_entries.len()];
+    let mut next_local_index = 0;
+
+    for (provider_index, provider_entry) in provider_entries.iter().enumerate() {
+        if provider_entry.role == TranscriptEntryRole::Tool {
+            continue;
+        }
+
+        let Some(local_index) = local_entries
+            .iter()
+            .enumerate()
+            .skip(next_local_index)
+            .find_map(|(local_index, local_entry)| {
+                transcript_entries_have_same_visible_content(provider_entry, local_entry)
+                    .then_some(local_index)
+            })
+        else {
+            continue;
+        };
+
+        anchors[provider_index] = Some(local_index);
+        next_local_index = local_index + 1;
+    }
+
+    anchors
+}
+
+fn provider_tool_insert_index(
+    provider_index: usize,
+    anchors: &[Option<usize>],
+    local_len: usize,
+) -> usize {
+    if let Some(previous_index) = anchors[..provider_index]
+        .iter()
+        .rev()
+        .find_map(|index| *index)
+    {
+        return previous_index + 1;
+    }
+
+    anchors
+        .iter()
+        .skip(provider_index + 1)
+        .find_map(|index| *index)
+        .unwrap_or(local_len)
+}
+
+fn transcript_entries_have_same_visible_content(
+    left: &crate::acp::transcript_projection::TranscriptEntry,
+    right: &crate::acp::transcript_projection::TranscriptEntry,
+) -> bool {
+    left.role == right.role
+        && transcript_segment_texts(&left.segments) == transcript_segment_texts(&right.segments)
+}
+
+fn transcript_segment_texts(segments: &[TranscriptSegment]) -> Vec<&str> {
+    segments
+        .iter()
+        .map(|segment| match segment {
+            TranscriptSegment::Text { text, .. } => text.as_str(),
+            TranscriptSegment::Thought { text, .. } => text.as_str(),
+        })
+        .collect()
+}
+
+async fn load_completed_local_journal_transcript(
+    db: &DbConn,
+    replay_context: &SessionReplayContext,
+    canonical_session_id: &str,
+) -> Result<Option<TranscriptSnapshot>, String> {
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+            "Failed to load local transcript journal for session {canonical_session_id}: {error}"
+        )
+            })?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
+            .map_err(|error| {
+                format!(
+            "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
+        )
+            })?;
+
+    Ok(
+        crate::acp::session_journal::rebuild_completed_local_transcript_snapshot(
+            replay_context,
+            &journal_events,
+        ),
+    )
+}
+
+async fn load_local_journal_transcript(
+    db: &DbConn,
+    replay_context: &SessionReplayContext,
+    canonical_session_id: &str,
+) -> Result<Option<TranscriptSnapshot>, String> {
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
+            .await
+            .map_err(|error| {
+                format!(
+            "Failed to load local transcript journal for session {canonical_session_id}: {error}"
+        )
+            })?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
+            .map_err(|error| {
+                format!(
+            "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
+        )
+            })?;
+
+    Ok(
+        crate::acp::session_journal::rebuild_local_transcript_snapshot(
+            replay_context,
+            &journal_events,
+        ),
+    )
+}
+
 /// Build a `found` result for a brand-new session that has no persisted state
 /// yet.
 ///
@@ -667,7 +971,31 @@ pub async fn session_open_result_for_new_session(
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
 
-    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(last_event_seq, &[]);
+    let replay_context = SessionReplayContext {
+        local_session_id: session_id.clone(),
+        history_session_id: session_id.clone(),
+        agent_id: input.agent_id.clone(),
+        parser_agent_type: crate::acp::parsers::AgentType::from_canonical(&input.agent_id),
+        project_path: input.project_path.clone(),
+        worktree_path: input.worktree_path.clone(),
+        effective_cwd: input
+            .worktree_path
+            .clone()
+            .unwrap_or_else(|| input.project_path.clone()),
+        source_path: input.source_path.clone(),
+        compatibility: crate::acp::session_descriptor::SessionDescriptorCompatibility::Canonical,
+    };
+    let transcript_snapshot =
+        match load_local_journal_transcript(db, &replay_context, &session_id).await {
+            Ok(Some(transcript_snapshot)) => transcript_snapshot,
+            Ok(None) => TranscriptSnapshot::from_stored_entries(last_event_seq, &[]),
+            Err(message) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError::internal(&session_id, message));
+            }
+        };
+    let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
+    let message_count = transcript_snapshot.entries.len() as u64;
     let operations = vec![];
     let interactions = vec![];
     let turn_state = SessionTurnState::Idle;
@@ -707,12 +1035,12 @@ pub async fn session_open_result_for_new_session(
         session_title: resolve_canonical_session_title(
             session_metadata.as_ref(),
             &session_id,
-            None,
+            first_user_title.as_deref(),
         ),
         operations,
         interactions,
         turn_state,
-        message_count: 0,
+        message_count,
         activity,
         active_streaming_tail: None,
         lifecycle: input.lifecycle,
@@ -740,7 +1068,8 @@ mod tests {
     use crate::acp::types::CanonicalAgentId;
     use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
     use crate::session_jsonl::types::{
-        StoredContentBlock, StoredEntry, StoredErrorMessage, StoredUserMessage,
+        StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
+        StoredErrorMessage, StoredUserMessage,
     };
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
@@ -965,6 +1294,22 @@ mod tests {
         }
     }
 
+    fn make_assistant_entry(id: &str, text: &str) -> StoredEntry {
+        StoredEntry::Assistant {
+            id: id.to_string(),
+            message: StoredAssistantMessage {
+                chunks: vec![StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: make_text_block(text),
+                }],
+                model: None,
+                display_model: None,
+                received_at: None,
+            },
+            timestamp: None,
+        }
+    }
+
     fn make_provider_pipeline_snapshot(agent_id: &CanonicalAgentId) -> SessionThreadSnapshot {
         let agent_name = agent_id.as_str();
         SessionThreadSnapshot {
@@ -1079,6 +1424,108 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "local-journal-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let journal_updates = vec![
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "hi".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "Hi!".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "do you have access to the tauri mcp ?".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-2".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "No — I don't see a Tauri MCP server.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-2".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-2".to_string()),
+            },
+        ];
+        for update in journal_updates {
+            SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+                .await
+                .expect("append journal update");
+        }
+
+        let result = session_open_result_for_new_session(
+            &db,
+            &hub,
+            new_session_open_input(session_id, SessionGraphCapabilities::empty()),
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let text = found
+            .transcript_snapshot
+            .entries
+            .iter()
+            .flat_map(|entry| entry.segments.iter())
+            .map(|segment| match segment {
+                TranscriptSegment::Text { text, .. } => text.as_str(),
+                TranscriptSegment::Thought { text, .. } => text.as_str(),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(found.last_event_seq, 6);
+        assert_eq!(found.message_count, 4);
+        assert_eq!(found.transcript_snapshot.revision, 5);
+        assert_eq!(
+            text,
+            vec![
+                "hi",
+                "Hi!",
+                "do you have access to the tauri mcp ?",
+                "No — I don't see a Tauri MCP server."
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() {
         let db = setup_db().await;
         let hub = make_hub();
@@ -1126,6 +1573,349 @@ mod tests {
                 ..
             } if file_path == "/provider/README.md"
         ));
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcript() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-stale-local-journal-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let journal_updates = vec![
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "hi".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "Hello there.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "second question".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-2".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "Second answer.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-2".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-2".to_string()),
+            },
+        ];
+        for update in journal_updates {
+            SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+                .await
+                .expect("append journal update");
+        }
+
+        let stale_provider_snapshot = SessionThreadSnapshot {
+            entries: vec![
+                make_user_entry("provider-user-1", "hi"),
+                make_assistant_entry("provider-assistant-1", "Hello there."),
+            ],
+            title: "Stale provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &stale_provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let text = found
+            .transcript_snapshot
+            .entries
+            .iter()
+            .flat_map(|entry| entry.segments.iter())
+            .map(|segment| match segment {
+                TranscriptSegment::Text { text, .. } => text.as_str(),
+                TranscriptSegment::Thought { text, .. } => text.as_str(),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(found.last_event_seq, 6);
+        assert_eq!(found.message_count, 4);
+        assert_eq!(found.transcript_snapshot.revision, 5);
+        assert_eq!(
+            text,
+            vec!["hi", "Hello there.", "second question", "Second answer."]
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript()
+    {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-local-journal-with-skill-tool-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let journal_updates = vec![
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "Can you diagnose this?".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "The user is invoking the diagnose skill.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+        ];
+        for update in journal_updates {
+            SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+                .await
+                .expect("append journal update");
+        }
+
+        let provider_snapshot = SessionThreadSnapshot {
+            entries: vec![
+                make_user_entry("provider-user-1", "Can you diagnose this?"),
+                make_assistant_entry(
+                    "provider-assistant-1",
+                    "The user is invoking the diagnose skill.",
+                ),
+                StoredEntry::ToolCall {
+                    id: "toolu_skill".to_string(),
+                    message: ToolCallData {
+                        id: "toolu_skill".to_string(),
+                        name: "skill".to_string(),
+                        arguments: ToolArguments::Think {
+                            description: None,
+                            prompt: None,
+                            subagent_type: None,
+                            skill: Some("diagnose".to_string()),
+                            skill_args: None,
+                            raw: Some(json!({ "skill": "diagnose" })),
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: Some(json!({ "content": "Skill loaded" })),
+                        kind: Some(ToolKind::Skill),
+                        title: Some("diagnose".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    timestamp: None,
+                },
+                make_assistant_entry("provider-assistant-2", "I will diagnose it."),
+            ],
+            title: "Provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+
+        let roles = found
+            .transcript_snapshot
+            .entries
+            .iter()
+            .map(|entry| entry.role.clone())
+            .collect::<Vec<_>>();
+        let tool_entry = found
+            .transcript_snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.entry_id == "toolu_skill")
+            .expect("skill tool transcript row should survive local transcript merge");
+
+        assert_eq!(
+            roles,
+            vec![
+                TranscriptEntryRole::User,
+                TranscriptEntryRole::Assistant,
+                TranscriptEntryRole::Tool,
+            ]
+        );
+        assert_eq!(
+            tool_entry.segments,
+            vec![TranscriptSegment::Text {
+                segment_id: "toolu_skill:tool".to_string(),
+                text: "diagnose".to_string(),
+            }]
+        );
+        assert!(found
+            .operations
+            .iter()
+            .any(|operation| operation.tool_call_id == "toolu_skill"
+                && operation.kind == Some(ToolKind::Skill)));
+    }
+
+    #[tokio::test]
+    async fn provider_thread_snapshot_open_includes_new_user_message_after_last_complete_turn() {
+        let db = setup_db().await;
+        let hub = make_hub();
+        let session_id = "provider-stale-local-journal-incomplete-open";
+        seed_session_metadata(&db, session_id, "copilot").await;
+
+        let journal_updates = vec![
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "first question".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "First answer.".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                part_id: None,
+                message_id: Some("assistant-1".to_string()),
+                session_id: Some(session_id.to_string()),
+                produced_at_monotonic_ms: None,
+            },
+            crate::acp::session_update::SessionUpdate::TurnComplete {
+                session_id: Some(session_id.to_string()),
+                turn_id: Some("turn-1".to_string()),
+            },
+            crate::acp::session_update::SessionUpdate::UserMessageChunk {
+                chunk: crate::acp::session_update::ContentChunk {
+                    content: crate::acp::types::ContentBlock::Text {
+                        text: "missing question".to_string(),
+                    },
+                    aggregation_hint: None,
+                },
+                session_id: Some(session_id.to_string()),
+                attempt_id: Some("attempt-2".to_string()),
+            },
+        ];
+        for update in journal_updates {
+            SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+                .await
+                .expect("append journal update");
+        }
+
+        let stale_provider_snapshot = SessionThreadSnapshot {
+            entries: vec![
+                make_user_entry("provider-user-1", "first question"),
+                make_assistant_entry("provider-assistant-1", "First answer."),
+            ],
+            title: "Stale provider title".to_string(),
+            created_at: "2026-04-23T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
+        let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+
+        let result = session_open_result_from_thread_snapshot(
+            &db,
+            &hub,
+            None,
+            &replay_context,
+            session_id,
+            &stale_provider_snapshot,
+        )
+        .await;
+
+        let SessionOpenResult::Found(found) = result else {
+            panic!("expected Found, got {result:?}");
+        };
+        let text = found
+            .transcript_snapshot
+            .entries
+            .iter()
+            .flat_map(|entry| entry.segments.iter())
+            .map(|segment| match segment {
+                TranscriptSegment::Text { text, .. } => text.as_str(),
+                TranscriptSegment::Thought { text, .. } => text.as_str(),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(found.last_event_seq, 4);
+        assert_eq!(found.message_count, 3);
+        assert_eq!(found.transcript_snapshot.revision, 4);
+        assert_eq!(
+            text,
+            vec!["first question", "First answer.", "missing question"]
+        );
     }
 
     #[tokio::test]

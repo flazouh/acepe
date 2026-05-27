@@ -3712,6 +3712,123 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.getSessionCanSend("session-1")).toBe(true);
 	});
 
+	it("advances the stored graph frontier after transcript-only deltas", () => {
+		const store = new SessionStore();
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					revision: {
+						graphRevision: 5,
+						transcriptRevision: 5,
+						lastEventSeq: 5,
+					},
+					transcriptSnapshot: {
+						revision: 5,
+						entries: [],
+					},
+				})
+			)
+		);
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 6,
+			lastEventSeq: 6,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 5,
+						transcriptRevision: 5,
+						lastEventSeq: 5,
+					},
+					toRevision: {
+						graphRevision: 6,
+						transcriptRevision: 6,
+						lastEventSeq: 6,
+					},
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "user-6",
+								role: "user",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "user-6:block:0",
+										text: "first follow-up",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		});
+
+		store.applySessionStateEnvelope("session-1", {
+			sessionId: "session-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: {
+						graphRevision: 6,
+						transcriptRevision: 6,
+						lastEventSeq: 6,
+					},
+					toRevision: {
+						graphRevision: 7,
+						transcriptRevision: 7,
+						lastEventSeq: 7,
+					},
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeStreamingTail: null,
+					transcriptOperations: [
+						{
+							kind: "appendEntry",
+							entry: {
+								entryId: "assistant-7",
+								role: "assistant",
+								segments: [
+									{
+										kind: "text",
+										segmentId: "assistant-7:block:0",
+										text: "answer",
+									},
+								],
+							},
+						},
+					],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["transcriptSnapshot"],
+				},
+			},
+		});
+
+		expect(getSessionStateMock).not.toHaveBeenCalled();
+		expect(store.getSessionStateGraphForTest("session-1")?.revision).toEqual({
+			graphRevision: 7,
+			transcriptRevision: 7,
+			lastEventSeq: 7,
+		});
+		expect(getSessionEntries(store, "session-1").map((entry) => entry.id)).toEqual([
+			"user-6",
+			"assistant-7",
+		]);
+	});
+
 	it("accepts canonical empty snapshots instead of preserving transcript in TypeScript", () => {
 		const store = new SessionStore();
 		const trustedGraph = createSessionStateGraph({

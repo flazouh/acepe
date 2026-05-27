@@ -404,29 +404,15 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
 
 #[derive(Debug, Clone)]
 pub struct DispatchPolicy {
-    pub tokens_per_sec: f64,
-    pub burst: f64,
     pub max_global_backlog: usize,
     pub max_session_backlog: usize,
-    pub high_backlog_threshold: usize,
-    pub base_batch_size: usize,
-    pub high_backlog_batch_size: usize,
-    pub min_spacing_ms: u64,
-    pub high_backlog_spacing_ms: u64,
 }
 
 impl Default for DispatchPolicy {
     fn default() -> Self {
         Self {
-            tokens_per_sec: 300.0,
-            burst: 30.0,
             max_global_backlog: 5000,
             max_session_backlog: 500,
-            high_backlog_threshold: 1000,
-            base_batch_size: 32,
-            high_backlog_batch_size: 8,
-            min_spacing_ms: 0,
-            high_backlog_spacing_ms: 5,
         }
     }
 }
@@ -1010,22 +996,18 @@ struct DispatcherState {
     non_session: VecDeque<AcpUiEvent>,
     global_backlog: usize,
     round_robin_cursor: usize,
-    tokens: f64,
-    last_refill: Instant,
     telemetry: DispatcherTelemetry,
 }
 
 impl DispatcherState {
     fn new(policy: DispatchPolicy) -> Self {
         Self {
-            tokens: policy.burst,
             policy,
             per_session: HashMap::new(),
             session_order: VecDeque::new(),
             non_session: VecDeque::new(),
             global_backlog: 0,
             round_robin_cursor: 0,
-            last_refill: Instant::now(),
             telemetry: DispatcherTelemetry::new(),
         }
     }
@@ -1069,114 +1051,75 @@ impl DispatcherState {
         journal_write_lock_registry: &JournalWriteLockRegistry,
     ) {
         while self.global_backlog > 0 {
-            self.refill_tokens();
-            if self.tokens < 1.0 {
-                tokio::time::sleep(Duration::from_millis(1)).await;
-                continue;
-            }
-
-            let batch_limit = if self.global_backlog >= self.policy.high_backlog_threshold {
-                self.policy.high_backlog_batch_size
-            } else {
-                self.policy.base_batch_size
+            let Some(event) = self.next_event() else {
+                break;
             };
 
-            for _ in 0..batch_limit {
-                if self.tokens < 1.0 || self.global_backlog == 0 {
-                    break;
+            self.global_backlog = self.global_backlog.saturating_sub(1);
+
+            // Acquire the per-session journal+projection critical-section lock if this event is
+            // bound to a session. The lock is held across `persist_dispatch_event` and the
+            // subsequent `event.publish` so concurrent direct publishes cannot interleave their
+            // journal writes or wire emissions with ours for the same session.
+            let session_lock_guard = event
+                .session_id
+                .as_deref()
+                .map(|session_id| journal_write_lock_registry.lock_for(session_id));
+            let _journal_guard = if let Some(lock) = session_lock_guard.as_ref() {
+                Some(lock.lock().await)
+            } else {
+                None
+            };
+
+            let dispatch_effects = persist_dispatch_event(
+                db,
+                &event,
+                projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
+            )
+            .await;
+
+            if should_publish_raw_event(&event, &dispatch_effects) {
+                if let Err(error) = event.publish(hub) {
+                    tracing::error!(
+                        error = %error,
+                        event_name = event.event_name,
+                        session_id = ?event.session_id,
+                        "Failed to emit ACP UI event"
+                    );
                 }
-
-                let Some(event) = self.next_event() else {
-                    break;
-                };
-
-                self.tokens -= 1.0;
-                self.global_backlog = self.global_backlog.saturating_sub(1);
-
-                // Acquire the per-session journal+projection critical-section
-                // lock if this event is bound to a session. The lock is held
-                // across `persist_dispatch_event` and the subsequent
-                // `event.publish` so concurrent direct publishes (the
-                // command-handler synthetic-user path) cannot interleave their
-                // journal writes or wire emissions with ours for the same
-                // session. Plan: sub-task 1a.
-                let session_lock_guard = event
-                    .session_id
-                    .as_deref()
-                    .map(|session_id| journal_write_lock_registry.lock_for(session_id));
-                let _journal_guard = if let Some(lock) = session_lock_guard.as_ref() {
-                    Some(lock.lock().await)
-                } else {
-                    None
-                };
-
-                let dispatch_effects = persist_dispatch_event(
-                    db,
-                    &event,
-                    projection_registry,
-                    runtime_graph_registry,
-                    transcript_projection_registry,
-                )
-                .await;
-
-                if should_publish_raw_event(&event, &dispatch_effects) {
-                    if let Err(error) = event.publish(hub) {
+            }
+            if let Some(envelope) = dispatch_effects.session_state_envelope {
+                let mut envelopes = vec![envelope];
+                envelopes.extend(dispatch_effects.additional_session_state_envelopes);
+                for envelope in envelopes {
+                    let Some(session_state_event) = AcpUiEvent::session_state_envelope(&envelope)
+                    else {
+                        continue;
+                    };
+                    if let Err(error) = session_state_event.publish(hub) {
                         tracing::error!(
                             error = %error,
-                            event_name = event.event_name,
-                            session_id = ?event.session_id,
-                            "Failed to emit ACP UI event"
+                            session_id = %envelope.session_id,
+                            graph_revision = envelope.graph_revision,
+                            last_event_seq = envelope.last_event_seq,
+                            "Failed to emit ACP session state envelope"
                         );
                     }
                 }
-                if let Some(envelope) = dispatch_effects.session_state_envelope {
-                    let mut envelopes = vec![envelope];
-                    envelopes.extend(dispatch_effects.additional_session_state_envelopes);
-                    for envelope in envelopes {
-                        let Some(session_state_event) =
-                            AcpUiEvent::session_state_envelope(&envelope)
-                        else {
-                            continue;
-                        };
-                        if let Err(error) = session_state_event.publish(hub) {
-                            tracing::error!(
-                                error = %error,
-                                session_id = %envelope.session_id,
-                                graph_revision = envelope.graph_revision,
-                                last_event_seq = envelope.last_event_seq,
-                                "Failed to emit ACP session state envelope"
-                            );
-                        }
-                    }
-                }
-
-                self.telemetry.emitted += 1;
-                self.telemetry.max_wait_ms = self
-                    .telemetry
-                    .max_wait_ms
-                    .max(event.created_at.elapsed().as_millis());
             }
 
-            let spacing_ms = if self.global_backlog >= self.policy.high_backlog_threshold {
-                self.policy.high_backlog_spacing_ms
-            } else {
-                self.policy.min_spacing_ms
-            };
-            if spacing_ms > 0 && self.global_backlog > 0 {
-                tokio::time::sleep(Duration::from_millis(spacing_ms)).await;
-            }
+            self.telemetry.emitted += 1;
+            self.telemetry.max_wait_ms = self
+                .telemetry
+                .max_wait_ms
+                .max(event.created_at.elapsed().as_millis());
 
             self.telemetry.maybe_report(self.global_backlog);
         }
 
         self.telemetry.maybe_report(self.global_backlog);
-    }
-
-    fn refill_tokens(&mut self) {
-        let now = Instant::now();
-        let elapsed = now.duration_since(self.last_refill).as_secs_f64();
-        self.last_refill = now;
-        self.tokens = (self.tokens + elapsed * self.policy.tokens_per_sec).min(self.policy.burst);
     }
 
     fn next_event(&mut self) -> Option<AcpUiEvent> {
@@ -3083,6 +3026,42 @@ mod tests {
 
         assert_eq!(state.global_backlog, 2);
         assert_eq!(state.telemetry.dropped, 0);
+    }
+
+    #[tokio::test]
+    async fn drain_publishes_queued_events_without_rate_configuration() {
+        let mut state = DispatcherState::new(DispatchPolicy::default());
+        state.enqueue(AcpUiEvent::json_event(
+            "acp-test-event",
+            Value::Null,
+            None,
+            AcpUiEventPriority::Normal,
+            false,
+        ));
+        let hub = AcpEventHubState::new();
+        let mut receiver = hub.subscribe();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+        let journal_write_lock_registry = JournalWriteLockRegistry::new();
+
+        tokio::time::timeout(
+            Duration::from_millis(20),
+            state.drain(
+                &hub,
+                None,
+                &projection_registry,
+                &runtime_graph_registry,
+                &transcript_projection_registry,
+                &journal_write_lock_registry,
+            ),
+        )
+        .await
+        .expect("dispatcher drain should publish without rate configuration");
+
+        let event = receiver.recv().await.expect("published event");
+        assert_eq!(event.event_name, "acp-test-event");
+        assert_eq!(state.global_backlog, 0);
     }
 
     #[test]

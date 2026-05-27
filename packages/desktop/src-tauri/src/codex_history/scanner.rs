@@ -7,6 +7,7 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use ignore::WalkBuilder;
+use serde::Deserialize;
 use serde_json::Value;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
@@ -35,6 +36,12 @@ struct SessionMetadataFast {
     title: Option<String>,
     updated_at: i64,
     source_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionIndexEntry {
+    id: String,
+    thread_name: Option<String>,
 }
 
 /// Scan Codex sessions and convert them to HistoryEntry.
@@ -336,6 +343,41 @@ fn parse_rollout_metadata_fast(path: &Path) -> Option<SessionMetadataFast> {
     })
 }
 
+fn load_session_index_titles(sessions_root: &Path) -> HashMap<String, String> {
+    let index_path = sessions_root
+        .parent()
+        .map(|parent| parent.join("session_index.jsonl"))
+        .unwrap_or_else(|| sessions_root.join("session_index.jsonl"));
+    let Ok(file) = std::fs::File::open(index_path) else {
+        return HashMap::new();
+    };
+    let reader = std::io::BufReader::new(file);
+    let mut titles = HashMap::new();
+
+    for line in reader.lines() {
+        let Ok(line) = line else {
+            continue;
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let Ok(entry) = serde_json::from_str::<SessionIndexEntry>(trimmed) else {
+            continue;
+        };
+        let Some(title) = entry
+            .thread_name
+            .and_then(|value| crate::history::title_utils::derive_session_title(&value, 100))
+        else {
+            continue;
+        };
+        titles.insert(entry.id, title);
+    }
+
+    titles
+}
+
 fn extract_user_message(record_type: &str, payload: &Value) -> Option<String> {
     match record_type {
         "event_msg" => extract_event_user_message(payload),
@@ -443,6 +485,7 @@ fn scan_sessions_metadata_only_from_root(
         return Ok(Vec::new());
     }
 
+    let indexed_titles = load_session_index_titles(sessions_root);
     let mut metadata_entries: Vec<SessionMetadataFast> = Vec::new();
 
     for walk_entry in WalkBuilder::new(sessions_root)
@@ -466,7 +509,10 @@ fn scan_sessions_metadata_only_from_root(
             continue;
         }
 
-        if let Some(metadata) = parse_rollout_metadata_fast(walk_entry.path()) {
+        if let Some(mut metadata) = parse_rollout_metadata_fast(walk_entry.path()) {
+            if metadata.title.is_none() {
+                metadata.title = indexed_titles.get(&metadata.session_id).cloned();
+            }
             metadata_entries.push(metadata);
         }
     }
@@ -800,6 +846,37 @@ mod tests {
     }
 
     #[test]
+    fn scan_sessions_metadata_only_from_root_uses_session_index_thread_name() {
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        let sessions_root = temp_dir.path().join("sessions");
+        write_rollout_file_without_user_message(
+            &sessions_root,
+            "2026/02/13/rollout-a.jsonl",
+            "session-a",
+            "/workspace/a",
+            "2026-02-13T10:00:00Z",
+        );
+        fs::write(
+            temp_dir.path().join("session_index.jsonl"),
+            json!({
+                "id": "session-a",
+                "thread_name": "Fix popup usage examples",
+                "updated_at": "2026-02-13T10:00:00Z"
+            })
+            .to_string()
+                + "\n",
+        )
+        .expect("write session index");
+
+        let entries =
+            scan_sessions_metadata_only_from_root(&sessions_root, &["/workspace/a".to_string()])
+                .expect("scan should succeed");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].display, "Fix popup usage examples");
+    }
+
+    #[test]
     fn scan_sessions_from_root_respects_project_and_session_limits() {
         let temp_dir = TempDir::new().expect("failed to create temp dir");
 
@@ -881,6 +958,30 @@ mod tests {
 
         let content = format!("{session_meta}\n{user_event}\n");
         fs::write(&path, content).expect("failed to write rollout file");
+    }
+
+    fn write_rollout_file_without_user_message(
+        root: &Path,
+        relative_path: &str,
+        session_id: &str,
+        cwd: &str,
+        timestamp: &str,
+    ) {
+        let path = root.join(relative_path);
+        let parent = path.parent().expect("path must have parent");
+        fs::create_dir_all(parent).expect("failed to create directories");
+
+        let session_meta = json!({
+            "timestamp": timestamp,
+            "type": "session_meta",
+            "payload": {
+                "id": session_id,
+                "timestamp": timestamp,
+                "cwd": cwd
+            }
+        });
+
+        fs::write(&path, format!("{session_meta}\n")).expect("failed to write rollout file");
     }
 
     fn path_str(root: &Path, relative_path: &str) -> String {

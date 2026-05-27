@@ -369,8 +369,17 @@ function sessionExportContentError(kind: SessionExportContentErrorKind): Session
 
 function graphWithTranscriptSnapshot(
 	graph: SessionStateGraph,
-	transcriptSnapshot: TranscriptSnapshot
+	transcriptSnapshot: TranscriptSnapshot,
+	revision?: SessionGraphRevision
 ): SessionStateGraph {
+	const nextRevision =
+		revision === undefined
+			? {
+					graphRevision: graph.revision.graphRevision,
+					transcriptRevision: transcriptSnapshot.revision,
+					lastEventSeq: graph.revision.lastEventSeq,
+				}
+			: revision;
 	return {
 		requestedSessionId: graph.requestedSessionId,
 		canonicalSessionId: graph.canonicalSessionId,
@@ -379,11 +388,7 @@ function graphWithTranscriptSnapshot(
 		projectPath: graph.projectPath,
 		worktreePath: graph.worktreePath ?? null,
 		sourcePath: graph.sourcePath ?? null,
-		revision: {
-			graphRevision: graph.revision.graphRevision,
-			transcriptRevision: transcriptSnapshot.revision,
-			lastEventSeq: graph.revision.lastEventSeq,
-		},
+		revision: nextRevision,
 		transcriptSnapshot,
 		operations: graph.operations,
 		interactions: graph.interactions,
@@ -4910,11 +4915,15 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				continue;
 			}
 
-			this.applyTranscriptDelta(sessionId, command.delta);
+			this.applyTranscriptDelta(sessionId, command.delta, command.revision);
 		}
 	}
 
-	applyTranscriptDelta(sessionId: string, delta: TranscriptDelta): void {
+	applyTranscriptDelta(
+		sessionId: string,
+		delta: TranscriptDelta,
+		revision?: SessionGraphRevision
+	): void {
 		const currentTranscriptRevision = this.getGraphTranscriptRevision(sessionId);
 		let nextSnapshot: TranscriptSnapshot | null = null;
 		if (
@@ -4929,7 +4938,7 @@ export class SessionStore implements SessionEventHandler, ISessionStateReader, I
 				);
 				this.sessionStateGraphs.set(
 					sessionId,
-					graphWithTranscriptSnapshot(previousGraph, nextSnapshot)
+					graphWithTranscriptSnapshot(previousGraph, nextSnapshot, revision)
 				);
 			}
 		}

@@ -1093,6 +1093,8 @@ describe("SessionEventService streaming delta handling", () => {
 		};
 
 		service.handleSessionUpdate(update, handler);
+
+		expect(handler.getSessionIdentity).toHaveBeenCalledWith("session-123");
 	});
 
 	it("keeps raw tool calls non-authoritative for known sessions before reconnect materializes", () => {
