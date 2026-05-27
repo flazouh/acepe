@@ -46,21 +46,23 @@
 	);
 </script>
 
-<div class={wrapperClass}>
-	<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
-		<XCircle weight="fill" class="size-3 shrink-0" style="color: {denyIconColor}" />
-		<span>{denyLabel}</span>
-	</Button>
-
-	{#if showAlwaysAllow && onAlwaysAllow}
-		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAlwaysAllow}>
-			<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
-			<span>{alwaysAllowLabel}</span>
+{#if selectedReply === null}
+	<div class={wrapperClass}>
+		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onDeny}>
+			<XCircle weight="fill" class="size-3 shrink-0" style="color: {denyIconColor}" />
+			<span>{denyLabel}</span>
 		</Button>
-	{/if}
 
-	<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAllow}>
-		<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
-		<span>{allowLabel}</span>
-	</Button>
-</div>
+		{#if showAlwaysAllow && onAlwaysAllow}
+			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAlwaysAllow}>
+				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
+				<span>{alwaysAllowLabel}</span>
+			</Button>
+		{/if}
+
+		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={onAllow}>
+			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
+			<span>{allowLabel}</span>
+		</Button>
+	</div>
+{/if}

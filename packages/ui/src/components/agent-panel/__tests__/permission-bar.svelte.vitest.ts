@@ -1,6 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import AgentPanelPermissionBarActions from "../permission-bar-actions.svelte";
 import PermissionBarSummaryFixture from "./fixtures/permission-bar-summary-fixture.svelte";
 
 vi.mock("svelte", async () => {
@@ -52,5 +53,23 @@ describe("AgentPanelPermissionBar", () => {
 		expect(permissionCard?.className).toContain("rounded-b-sm");
 		expect(permissionCard?.className).toContain("rounded-t-none");
 		expect(permissionCard?.className).not.toContain("permission-attached-inverted-radius");
+	});
+});
+
+describe("AgentPanelPermissionBarActions", () => {
+	it("hides permission buttons after a reply has been selected", () => {
+		const view = render(AgentPanelPermissionBarActions, {
+			props: {
+				selectedReply: "once",
+				onAllow: vi.fn(),
+				onAlwaysAllow: vi.fn(),
+				onDeny: vi.fn(),
+				showAlwaysAllow: true,
+			},
+		});
+
+		expect(view.queryByText("Allow")).toBeNull();
+		expect(view.queryByText("Always allow")).toBeNull();
+		expect(view.queryByText("Deny")).toBeNull();
 	});
 });

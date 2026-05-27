@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { CaretRight } from "phosphor-svelte";
-	import { Check } from "phosphor-svelte";
+	import { CaretRight, CheckCircle, Package } from "phosphor-svelte";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 	import { LoadingIcon } from "../icons/index.js";
+	import { Colors } from "../../lib/colors.js";
 	import {
 		getSkillDisplayArgs,
 		getSkillDisplayName,
@@ -28,8 +28,6 @@
 		fallbackLabel?: string;
 		/** Status label when running */
 		runningStatusLabel?: string;
-		/** Status label when done */
-		doneStatusLabel?: string;
 		/** Aria label for expand button */
 		ariaExpandLabel?: string;
 		/** Aria label for collapse button */
@@ -47,7 +45,6 @@
 		loadingLabel = "Loading skill",
 		fallbackLabel = "Skill",
 		runningStatusLabel = "Running",
-		doneStatusLabel = "Done",
 		ariaExpandLabel = "Expand",
 		ariaCollapseLabel = "Collapse",
 		ariaExpandDescriptionLabel = "Expand to see full description",
@@ -69,7 +66,7 @@
 <AgentToolCard>
 	{#if viewState.showLoadingFallback}
 		<!-- Loading state: skill name not yet streamed -->
-		<div class="flex h-7 items-start gap-1.5 px-2.5 py-0.5">
+		<div class="flex h-6 items-start gap-1.5 pl-2 pr-1.5 py-0.5">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				<ToolLabel {status}>
 					{loadingLabel}
@@ -78,40 +75,46 @@
 		</div>
 	{:else if viewState.showMissingNameFallback}
 		<!-- No skill name -->
-		<div class="flex h-7 items-center px-2.5">
-			<span class="text-sm">{fallbackLabel}</span>
+		<div class="flex h-6 items-center pl-2 pr-1.5">
+			<span class="font-sans text-sm">{fallbackLabel}</span>
 		</div>
 	{:else}
 		<!-- Header - fixed height -->
-		<div class="flex h-7 items-center justify-between gap-2 px-2.5">
+		<div class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
 			<!-- Left side: icon + skill name + args -->
-			<div class="flex min-w-0 flex-1 items-center gap-2">
+			<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
 				{#if viewState.isPending}
 					<LoadingIcon class="shrink-0" size={12} aria-label="Loading" />
-					<TextShimmer class="shrink-0 text-sm">{displayName}</TextShimmer>
+					<TextShimmer class="shrink-0 text-xs">{displayName}</TextShimmer>
 				{:else}
-					<span class="shrink-0 text-sm">{displayName}</span>
+					<Package
+						weight="fill"
+						size={12}
+						class="shrink-0"
+						data-testid="agent-tool-skill-icon"
+						style="color: {Colors.purple}"
+					/>
+					<span class="shrink-0 font-sans text-xs text-foreground">{displayName}</span>
 				{/if}
 
 				{#if displayArgs}
-					<span class="truncate text-sm">
+					<span class="truncate font-sans text-xs text-muted-foreground">
 						{displayArgs}
 					</span>
 				{/if}
 			</div>
 
 			<!-- Right side: status + expand button -->
-			<div class="flex shrink-0 items-center gap-2">
+			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
 				{#if durationLabel}
-					<span class="text-sm">{durationLabel}</span>
+					<span class="font-sans text-xs text-muted-foreground/70">{durationLabel}</span>
 				{/if}
 				<!-- Status indicator -->
-				<div class="flex items-center gap-1 text-sm">
+				<div class="flex items-center gap-1 font-sans text-xs text-muted-foreground">
 					{#if viewState.isPending}
 						<ToolLabel {status}>{runningStatusLabel}</ToolLabel>
 					{:else if viewState.isSuccess}
-						<Check size={12} weight="bold" />
-						<span class="text-sm">{doneStatusLabel}</span>
+						<CheckCircle weight="fill" size={11} class="text-success" aria-label="Successful" />
 					{/if}
 				</div>
 
@@ -120,11 +123,12 @@
 					<button
 						type="button"
 						onclick={toggleExpand}
-						class="flex items-center justify-center p-1 rounded-md bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-accent active:scale-95"
+						class="flex items-center justify-center p-0.5 rounded-sm bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-muted/50 hover:text-foreground"
 						aria-label={isExpanded ? ariaCollapseLabel : ariaExpandLabel}
+						aria-expanded={isExpanded}
 					>
 						<CaretRight
-							size={10}
+							size={9}
 							weight="bold"
 							class="text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>

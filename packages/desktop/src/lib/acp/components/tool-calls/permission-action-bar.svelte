@@ -76,22 +76,24 @@ const buttonClass = "justify-center shrink-0";
 		{@render permissionSummary()}
 	{/if}
 
-	<div class="flex items-center justify-end gap-1" class:w-full={!inline && !compact}>
-		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleReject}>
-			<XCircle weight="fill" class="size-3 shrink-0" style="color: {rejectIconColor}" />
-			<span>{"Deny"}</span>
-		</Button>
-
-		{#if hasAlwaysOption}
-			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAlwaysAllow}>
-				<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
-				<span>{"Always"}</span>
+	{#if selectedReply === null}
+		<div class="flex items-center justify-end gap-1" class:w-full={!inline && !compact}>
+			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleReject}>
+				<XCircle weight="fill" class="size-3 shrink-0" style="color: {rejectIconColor}" />
+				<span>{"Deny"}</span>
 			</Button>
-		{/if}
 
-		<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAllowOnce}>
-			<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
-			<span>{"Allow"}</span>
-		</Button>
-	</div>
+			{#if hasAlwaysOption}
+				<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAlwaysAllow}>
+					<ShieldCheck weight="fill" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
+					<span>{"Always"}</span>
+				</Button>
+			{/if}
+
+			<Button variant="toolbar" size="toolbar" class={buttonClass} onclick={handleAllowOnce}>
+				<CheckCircle weight="fill" class="size-3 shrink-0" style="color: {allowIconColor}" />
+				<span>{"Allow"}</span>
+			</Button>
+		</div>
+	{/if}
 </div>
