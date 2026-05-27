@@ -1106,7 +1106,7 @@ function openCreateBranchDialog(projectPath: string): void {
 									type="search"
 									value={getProjectHistoryQuery(group.projectPath)}
 									placeholder="Search project history..."
-									class="h-6 rounded-md border-border/70 bg-background/70 px-2 py-0 text-[11px] md:text-[11px]"
+									class="h-5 rounded border-border/70 bg-background/70 px-1 py-0 text-[10px] md:text-[10px]"
 									data-sidebar-project-history-search
 									oninput={(event) =>
 										setProjectHistoryQuery(group.projectPath, event.currentTarget.value)}
