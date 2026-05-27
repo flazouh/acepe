@@ -49,7 +49,8 @@ afterEach(() => {
 });
 
 describe("AgentToolRead", () => {
-	it("renders read file content in the tool body", () => {
+	it("renders read file content in the tool body when expanded", () => {
+		storedValues.set("acepe:agent-tool-read-expanded:/repo/src/app.ts", "true");
 		const view = render(AgentToolRead, {
 			filePath: "/repo/src/app.ts",
 			sourceRangeLabel: "Lines 1-2",
@@ -64,7 +65,8 @@ describe("AgentToolRead", () => {
 		);
 	});
 
-	it("renders highlighted read file content when provided", () => {
+	it("renders highlighted read file content when provided and expanded", () => {
+		storedValues.set("acepe:agent-tool-read-expanded:/repo/src/app.ts", "true");
 		const view = render(AgentToolRead, {
 			filePath: "/repo/src/app.ts",
 			sourceExcerpt: "const answer = 42;",
@@ -77,7 +79,11 @@ describe("AgentToolRead", () => {
 		expect(view.container.querySelector("pre")?.textContent).toBe("const answer = 42;");
 	});
 
-	it("keeps highlighted Shiki read content text exact", () => {
+	it("keeps highlighted Shiki read content text exact when expanded", () => {
+		storedValues.set(
+			"acepe:agent-tool-read-expanded:/repo/src/review-file-key.ts",
+			"true"
+		);
 		const view = render(AgentToolRead, {
 			filePath: "/repo/src/review-file-key.ts",
 			sourceExcerpt: 'import type { ModifiedFileEntry } from "../types/modified-file-entry.js";\n\ntype ReviewFileSnapshot = Pick<',
@@ -89,6 +95,20 @@ describe("AgentToolRead", () => {
 		expect(view.container.querySelector("pre")?.textContent).toBe(
 			'import type { ModifiedFileEntry } from "../types/modified-file-entry.js";\n\ntype ReviewFileSnapshot = Pick<'
 		);
+	});
+
+	it("hides read file content body by default (collapsed)", () => {
+		const view = render(AgentToolRead, {
+			filePath: "/repo/src/app.ts",
+			sourceRangeLabel: "Lines 1-2",
+			sourceExcerpt: "const answer = 42;",
+			status: "done",
+		});
+
+		expect(view.container.querySelector("pre")).toBeNull();
+		expect(
+			view.getByRole("button", { name: "Expand read content" }).getAttribute("aria-expanded")
+		).toBe("false");
 	});
 
 	it("calls onSelect when the interactive file badge is clicked", async () => {
@@ -106,7 +126,7 @@ describe("AgentToolRead", () => {
 		expect(onSelect).toHaveBeenCalledOnce();
 	});
 
-	it("persists collapsed read content by tool id", async () => {
+	it("persists expanded read content by tool id", async () => {
 		const firstView = render(AgentToolRead, {
 			toolCallId: "tool-read-1",
 			filePath: "/repo/src/app.ts",
@@ -114,9 +134,9 @@ describe("AgentToolRead", () => {
 			status: "done",
 		});
 
-		const toggle = firstView.getByRole("button", { name: "Collapse read content" });
+		const toggle = firstView.getByRole("button", { name: "Expand read content" });
 		await fireEvent.click(toggle);
-		expect(toggle.getAttribute("aria-expanded")).toBe("false");
+		expect(toggle.getAttribute("aria-expanded")).toBe("true");
 		firstView.unmount();
 
 		const secondView = render(AgentToolRead, {
@@ -127,7 +147,7 @@ describe("AgentToolRead", () => {
 		});
 
 		expect(
-			secondView.getByRole("button", { name: "Expand read content" }).getAttribute("aria-expanded")
-		).toBe("false");
+			secondView.getByRole("button", { name: "Collapse read content" }).getAttribute("aria-expanded")
+		).toBe("true");
 	});
 });

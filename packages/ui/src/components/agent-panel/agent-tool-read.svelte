@@ -134,7 +134,7 @@
 			</button>
 		{/if}
 	</div>
-	{#if hasSourceBody}
+	{#if hasSourceBody && isExpanded}
 		<div class="border-t border-border bg-muted/15">
 			{#if sourceRangeLabel}
 				<div class="px-2.5 py-1 font-sans text-xs text-muted-foreground/70">
@@ -143,9 +143,9 @@
 			{/if}
 			{#if sourceExcerpt}
 				{#if hasSourceExcerptHtml}
-					<pre class="read-source read-source-shiki {isExpanded ? 'read-source-expanded' : 'read-source-collapsed'}"><code>{@html sourceExcerptHtml}</code></pre>
+					<pre class="read-source read-source-shiki read-source-expanded"><code>{@html sourceExcerptHtml}</code></pre>
 				{:else}
-					<pre class="read-source {isExpanded ? 'read-source-expanded' : 'read-source-collapsed'}">{sourceExcerpt}</pre>
+					<pre class="read-source read-source-expanded">{sourceExcerpt}</pre>
 				{/if}
 			{/if}
 		</div>
@@ -163,10 +163,6 @@
 		line-height: 1.45;
 		color: color-mix(in srgb, var(--foreground) 72%, transparent);
 		margin: 0;
-	}
-
-	.read-source-collapsed {
-		max-height: 72px;
 	}
 
 	.read-source-expanded {

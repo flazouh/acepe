@@ -15,10 +15,10 @@ export function readPersistedReadExpanded(
 	storageKey: string | null,
 	storage: ReadExpansionStorage | null = getBrowserStorage()
 ): boolean {
-	if (!storageKey || !storage) return true;
+	if (!storageKey || !storage) return false;
 	const stored = storage.getItem(storageKey);
-	if (stored === "false") return false;
-	return true;
+	if (stored === "true") return true;
+	return false;
 }
 
 export function writePersistedReadExpanded(

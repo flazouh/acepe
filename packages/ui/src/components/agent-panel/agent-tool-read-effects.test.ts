@@ -22,11 +22,17 @@ function createStorage(initialValue?: string) {
 }
 
 describe("agent tool read effects", () => {
-	test("defaults to expanded when storage is missing or empty", () => {
-		expect(readPersistedReadExpanded(null, null)).toBe(true);
-		expect(readPersistedReadExpanded("read-key", null)).toBe(true);
+	test("defaults to collapsed when storage is missing or empty", () => {
+		expect(readPersistedReadExpanded(null, null)).toBe(false);
+		expect(readPersistedReadExpanded("read-key", null)).toBe(false);
 
 		const { storage } = createStorage();
+		expect(readPersistedReadExpanded("read-key", storage)).toBe(false);
+	});
+
+	test("reads true as expanded", () => {
+		const { storage } = createStorage("true");
+
 		expect(readPersistedReadExpanded("read-key", storage)).toBe(true);
 	});
 
