@@ -12,7 +12,7 @@
 
 	let {
 		class: className = "",
-		contentClass = "px-3 py-2",
+		contentClass = "px-2 py-1",
 		content,
 		footer,
 		children,
