@@ -13,9 +13,7 @@ use crate::acp::session_open_snapshot::{
 use crate::acp::session_state_engine::runtime_registry::{
     SessionGraphRuntimeRegistry, SessionGraphRuntimeSnapshot,
 };
-use crate::acp::transcript_projection::{
-    TranscriptEntryRole, TranscriptSnapshot,
-};
+use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
 use sea_orm::{ColumnTrait, QueryFilter};
 
 pub(super) fn runtime_snapshot_for_refresh(

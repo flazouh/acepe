@@ -3,9 +3,7 @@ use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::{CreationFailure, CreationFailureKind};
 use crate::acp::event_hub::{AcpEventHubState, OpenTokenClaim};
 use crate::acp::lifecycle::{ReadyDispatchPermit, SessionSupervisor};
-use crate::acp::projections::{
-    ProjectionRegistry, SessionProjectionSnapshot,
-};
+use crate::acp::projections::{ProjectionRegistry, SessionProjectionSnapshot};
 use crate::acp::session_descriptor::{
     resolve_live_pending_session_resume, ResolvedForkSession, ResolvedResumeSession,
     SessionCompatibilityInput, SessionReplayContext,
@@ -30,9 +28,7 @@ use crate::acp::session_state_engine::runtime_registry::{
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities,
 };
-use crate::acp::transcript_projection::{
-    TranscriptProjectionRegistry, TranscriptSnapshot,
-};
+use crate::acp::transcript_projection::{TranscriptProjectionRegistry, TranscriptSnapshot};
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
@@ -46,8 +42,7 @@ mod open_token;
 mod state_lookup;
 use open_token::claim_open_token_reservation;
 use state_lookup::{
-    projection_snapshot_with_runtime, resolve_state_lookup_authority,
-    runtime_snapshot_for_refresh,
+    projection_snapshot_with_runtime, resolve_state_lookup_authority, runtime_snapshot_for_refresh,
     warn_unresolved_tool_rows_in_state_lookup,
 };
 
@@ -1473,7 +1468,6 @@ where
     .await)
 }
 
-
 /// Emit a lifecycle event directly to the event hub, bypassing the rate-limited dispatcher.
 pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
     app: &AppHandle<R>,
@@ -1696,7 +1690,6 @@ async fn load_live_session_graph_revision(
         last_event_seq,
     ))
 }
-
 
 pub(crate) fn publish_session_state_envelope(
     hub: &Arc<AcpEventHubState>,
@@ -2453,12 +2446,13 @@ fn projection_has_graph_state(snapshot: &SessionProjectionSnapshot) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::state_lookup::unresolved_tool_entry_ids;
     use super::{
         load_live_session_graph_revision, load_transcript_snapshot_for_resume,
         load_transcript_snapshot_for_state_lookup, persist_session_metadata_for_cwd,
         projection_has_graph_state, resolve_fork_session_target, resolve_requested_agent_id,
         resolve_resume_session_target, resolve_state_lookup_authority,
-        runtime_snapshot_for_refresh, unresolved_tool_entry_ids,
+        runtime_snapshot_for_refresh,
     };
     use crate::acp::error::SerializableAcpError;
     use crate::acp::lifecycle::LifecycleCheckpoint;
